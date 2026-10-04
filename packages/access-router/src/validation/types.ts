@@ -276,26 +276,32 @@ export type ListQueryInput = {
   page_size?: string;
   skim?: 'true' | 'false';
   include_permissions?: 'true' | 'false';
+  include_field_permissions?: 'true' | 'false';
   include_count?: 'true' | 'false';
   include_extra_headers?: 'true' | 'false';
 };
 
 export type CreateQueryInput = {
   include_permissions?: 'true' | 'false';
+  include_field_permissions?: 'true' | 'false';
 };
 
 export type ReadQueryInput = {
   include_permissions?: 'true' | 'false';
+  include_field_permissions?: 'true' | 'false';
   try_list?: 'true' | 'false';
 };
 
 export type UpdateQueryInput = {
   returning_all?: 'true' | 'false';
+  include_permissions?: 'true' | 'false';
+  include_field_permissions?: 'true' | 'false';
 };
 
 export type UpsertQueryInput = {
   returning_all?: 'true' | 'false';
   include_permissions?: 'true' | 'false';
+  include_field_permissions?: 'true' | 'false';
 };
 
 export type AdvancedListBody = {
@@ -312,6 +318,7 @@ export type AdvancedListBody = {
   options?: {
     skim?: boolean;
     includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
     includeCount?: boolean;
     includeExtraHeaders?: boolean;
     populateAccess?: unknown;
@@ -332,6 +339,7 @@ export type AdvancedReadFilterBody = {
   options?: {
     skim?: boolean;
     includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
     tryList?: boolean;
     populateAccess?: unknown;
   };
@@ -345,6 +353,7 @@ export type AdvancedReadBody = {
   options?: {
     skim?: boolean;
     includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
     tryList?: boolean;
     populateAccess?: unknown;
   };
@@ -357,6 +366,7 @@ export type AdvancedCreateBody = {
   tasks?: Task | Task[];
   options?: {
     includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
     populateAccess?: unknown;
   };
 };
@@ -369,6 +379,7 @@ export type AdvancedUpdateBody = {
   options?: {
     returningAll?: boolean;
     includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
     populateAccess?: unknown;
   };
 };
@@ -381,6 +392,7 @@ export type AdvancedUpsertBody = {
   options?: {
     returningAll?: boolean;
     includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
     populateAccess?: unknown;
   };
 };

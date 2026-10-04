@@ -288,4 +288,84 @@ describe('ARR-09 project-aware result types', () => {
       }
     });
   });
+
+  describe('basic-path select forwarding', () => {
+    it('useRead forwards top-level select without advanced', async () => {
+      const mock = createMockService<TestDoc>(makeSeed());
+      const { useRead } = createModelHooks({ modelService: mock.service });
+      const { result } = renderHook(() => useRead({ id: '1', select: ['name'] as const }));
+      await waitFor(() => expect(result.current.data).not.toBeNull());
+      expect(mock.spies.read).toHaveBeenCalledWith('1', { select: ['name'] }, undefined, expect.anything());
+    });
+
+    it('useList forwards top-level select and sort without advanced', async () => {
+      const mock = createMockService<TestDoc>({
+        ...makeSeed(),
+        list: {
+          success: true,
+          raw: [{ _id: '1', name: 'a', status: 'active', age: 1 }],
+          data: [{ _id: '1', name: 'a', status: 'active', age: 1 }] as unknown as (Model<TestDoc> & TestDoc)[],
+          message: 'ok',
+          status: 200,
+          headers: {},
+          totalCount: 1,
+        },
+      });
+      const { useList } = createModelHooks({ modelService: mock.service });
+      const { result } = renderHook(() =>
+        useList({ listParams: { pageSize: 10 }, select: ['name'] as const, sort: '-name' }),
+      );
+      await waitFor(() => expect(result.current.data.length).toBe(1));
+      expect(mock.spies.list).toHaveBeenCalledWith(
+        { sort: '-name', select: ['name'], pageSize: 10 },
+        undefined,
+        expect.anything(),
+      );
+    });
+
+    it('explicit listParams select/sort win over top-level on the basic path', async () => {
+      const mock = createMockService<TestDoc>({
+        ...makeSeed(),
+        list: {
+          success: true,
+          raw: [{ _id: '1', name: 'a', status: 'active', age: 1 }],
+          data: [{ _id: '1', name: 'a', status: 'active', age: 1 }] as unknown as (Model<TestDoc> & TestDoc)[],
+          message: 'ok',
+          status: 200,
+          headers: {},
+          totalCount: 1,
+        },
+      });
+      const { useList } = createModelHooks({ modelService: mock.service });
+      const { result } = renderHook(() =>
+        useList({
+          listParams: { pageSize: 10, select: ['status'], sort: 'status' },
+          select: ['name'] as const,
+          sort: '-name',
+        }),
+      );
+      await waitFor(() => expect(result.current.data.length).toBe(1));
+      expect(mock.spies.list).toHaveBeenCalledWith(
+        { sort: 'status', select: ['status'], pageSize: 10 },
+        undefined,
+        expect.anything(),
+      );
+    });
+
+    it('useUpdate forwards top-level select without advanced', async () => {
+      const mock = createMockService<TestDoc>(makeSeed());
+      const { useUpdate } = createModelHooks({ modelService: mock.service });
+      const { result } = renderHook(() => useUpdate({ select: ['name'] as const }));
+      await act(async () => {
+        await result.current.mutate('1', { name: 'updated' });
+      });
+      expect(mock.spies.update).toHaveBeenCalledWith(
+        '1',
+        { name: 'updated' },
+        { select: ['name'] },
+        undefined,
+        undefined,
+      );
+    });
+  });
 });

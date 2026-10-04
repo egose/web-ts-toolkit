@@ -5,7 +5,9 @@ allowBuilds:
   '@parcel/watcher': false
   eccrypto: false
   esbuild: false
+  lmdb: true
   mongodb-memory-server: false
+  msgpackr-extract: true
   netlify-cli: false
   rxdb-premium: false
   secp256k1: false

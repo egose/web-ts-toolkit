@@ -58,6 +58,14 @@ describe('openapi router', () => {
       schema: { type: 'string' },
     });
     expect(response.body.paths['/users'].post.responses[201].description).toBe('Created');
+    expect(response.body.paths['/users'].get.parameters).toContainEqual(
+      expect.objectContaining({
+        name: 'sort',
+        in: 'query',
+        required: false,
+        schema: expect.objectContaining({ type: 'string' }),
+      }),
+    );
     expect(response.body.paths['/users/{id}'].get.responses[400].content['application/problem+json']).toBeDefined();
   });
 

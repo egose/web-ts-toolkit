@@ -27,7 +27,9 @@ repos:
           pnpm-lock\.yaml$ |
           .*/pnpm-lock\.yaml$ |
           .env.example$ |
-          README.md$
+          README.md$ |
+          packages/express-request-attestation/test/fixtures/protocol-v1\.json$ |
+          packages/express-request-attestation/test/fixtures/signer-bundle/.*\.mjs$
       )
 - repo: local
   hooks:

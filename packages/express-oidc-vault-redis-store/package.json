@@ -36,7 +36,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "@web-ts-toolkit/express-oidc-vault": "workspace:*"

@@ -136,7 +136,28 @@ calling `res.json(result)` does not automatically set HTTP 403; map its code exp
 Advanced mutation validators drive dispatch: nested `data` validators run first, then the whole-body (`default`)
 validator sees that transformed envelope, and the service persists only the final parsed `data`, `select`,
 `populate`, `tasks`, and allowed `options`. Missing body options fall back to `returning_all`/`include_permissions`
-query params; only `includePermissions`/`populateAccess` (plus `returningAll` for update/upsert) are forwarded.
+query params; only `includePermissions`/`includeFieldPermissions`/`populateAccess` (plus `returningAll` for update/upsert) are forwarded.
+
+## Basic model GET queries
+
+`GET /users?select=name&sort=name%20-createdAt` projects `name` and sorts by
+name ascending, then createdAt descending. GET list `sort` is a single
+space-separated signed-field string; `-` means descending. Sorting runs before
+pagination and can use permitted fields omitted from `select`. Malformed or
+disallowed sort fields return HTTP 400 before the model query executes.
+
+Model options `sortableFields` allow additional sorting fields without granting
+output visibility, and `stripDisallowedSort: true` drops disallowed sort keys
+instead of rejecting the request (malformed fields still fail). When no sort is
+supplied, normal model service defaults apply; `?sort=` explicitly disables them.
+GET-by-id reads also accept `select` as a query param.
+
+Two router options lock down permission metadata regardless of client input or
+per-operation `defaults`: `stripPermissionsField: true` removes the whole
+permissions field from outputs (equivalent to `includePermissions: false` with
+the field — including its placeholder — deleted; enforcement still runs), and
+`disableFieldPermissions: true` never computes `_view`/`_edit` maps while still
+honoring `includePermissions` for `docPermissions`-hook keys.
 
 ## Main Exports
 

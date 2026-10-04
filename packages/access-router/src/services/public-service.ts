@@ -40,12 +40,13 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     options?: PublicListOptions,
   ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, populate, include, sort, skip, limit, page, pageSize, tasks } = this.resolvePublicListArgs(args);
-    const { skim, includePermissions, includeCount, populateAccess, lean } = this.resolvePublicListOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess, lean } =
+      this.resolvePublicListOptions(options);
 
     const result = await this.find(
       filter,
       { select, populate, include, sort, skip, limit, page, pageSize },
-      { skim, includePermissions, includeCount, populateAccess, lean },
+      { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess, lean },
       async (doc, context: ModelHookContext) => {
         doc = toObject(doc);
         return this.decorate(doc, 'list', context);
@@ -78,12 +79,13 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     options?: PublicCreateOptions,
   ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, populate, tasks } = this.resolvePublicCreateArgs(args);
-    const { skim, includePermissions, populateAccess } = this.resolvePublicCreateOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, populateAccess } =
+      this.resolvePublicCreateOptions(options);
 
     const result = await this.create(
       data as Record<string, unknown> | Record<string, unknown>[],
       { populate },
-      { skim, includePermissions, populateAccess },
+      { skim, includePermissions, includeFieldPermissions, populateAccess },
       async (doc, context: ModelHookContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
         d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
@@ -103,7 +105,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
 
   async _new(
     args?: { select?: string[] },
-    options?: { skim?: boolean; includePermissions?: boolean },
+    options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean },
   ): Promise<SingleResult<PublicOutput<TModel>>> {
     return this.new(args, options) as Promise<SingleResult<PublicOutput<TModel>>>;
   }
@@ -117,7 +119,8 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     options?: PublicReadOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, populate, include, tasks } = this.resolvePublicReadArgs(args);
-    const { skim, includePermissions, tryList, populateAccess, lean } = this.resolvePublicReadOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
+      this.resolvePublicReadOptions(options);
 
     let access: FindAccess = 'read';
     const idFilter = await this.genIDFilter(id);
@@ -130,7 +133,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
         include,
         overrides: { idFilter },
       },
-      { skim, includePermissions, access, populateAccess, lean },
+      { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
     );
 
     // Invalid descriptors and terminal policy denial cannot be repaired by list access.
@@ -153,7 +156,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
           include,
           overrides: { idFilter },
         },
-        { skim, includePermissions, access, populateAccess, lean },
+        { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
       );
     }
 
@@ -177,7 +180,8 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     options?: PublicReadOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, sort, populate, include, tasks } = this.resolvePublicReadFilterArgs(args);
-    const { skim, includePermissions, tryList, populateAccess, lean } = this.resolvePublicReadOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
+      this.resolvePublicReadOptions(options);
 
     let access: FindAccess = 'read';
 
@@ -190,7 +194,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
         include,
         overrides: {},
       },
-      { skim, includePermissions, access, populateAccess, lean },
+      { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
     );
 
     // Invalid descriptors and terminal policy denial cannot be repaired by list access.
@@ -214,7 +218,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
           include,
           overrides: {},
         },
-        { skim, includePermissions, access, populateAccess, lean },
+        { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
       );
     }
 
@@ -238,14 +242,16 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     args?: Omit<PublicUpdateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicUpdateOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
-    const { select, populate, tasks } = this.resolvePublicUpdateArgs(args);
-    const { skim, returningAll, includePermissions, populateAccess } = this.resolvePublicUpdateOptions(options);
+    const { select: requestedSelect, populate, tasks } = this.resolvePublicUpdateArgs(args);
+    const select = this.resolveEffectiveSelect(requestedSelect);
+    const { skim, returningAll, includePermissions, includeFieldPermissions, populateAccess } =
+      this.resolvePublicUpdateOptions(options);
 
     const result = await this.updateById(
       id,
       data,
       { populate },
-      { skim, includePermissions, populateAccess },
+      { skim, includePermissions, includeFieldPermissions, populateAccess },
       async (doc, context: ModelHookContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
         d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
@@ -302,6 +308,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     return this._create(otherData, args, {
       skim: options?.skim,
       includePermissions: options?.includePermissions,
+      includeFieldPermissions: options?.includeFieldPermissions,
       populateAccess: options?.populateAccess,
     });
   }
@@ -336,9 +343,15 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
   }
 
   private resolvePublicListOptions(options: PublicListOptions = {}) {
+    const includePermissions =
+      options.includePermissions ?? this.defaults.publicListOptions?.includePermissions ?? false;
     return {
       skim: options.skim ?? this.defaults.publicListOptions?.skim ?? true,
-      includePermissions: options.includePermissions ?? this.defaults.publicListOptions?.includePermissions ?? false,
+      includePermissions,
+      includeFieldPermissions:
+        options.includeFieldPermissions ??
+        this.defaults.publicListOptions?.includeFieldPermissions ??
+        includePermissions,
       includeCount: options.includeCount ?? this.defaults.publicListOptions?.includeCount ?? false,
       populateAccess: options.populateAccess ?? this.defaults.publicListOptions?.populateAccess ?? 'read',
       lean: options.lean ?? this.defaults.publicListOptions?.lean ?? true,
@@ -354,9 +367,15 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
   }
 
   private resolvePublicCreateOptions(options: PublicCreateOptions = {}) {
+    const includePermissions =
+      options.includePermissions ?? this.defaults.publicCreateOptions?.includePermissions ?? true;
     return {
       skim: options.skim ?? this.defaults.publicCreateOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.publicCreateOptions?.includePermissions ?? true,
+      includePermissions,
+      includeFieldPermissions:
+        options.includeFieldPermissions ??
+        this.defaults.publicCreateOptions?.includeFieldPermissions ??
+        includePermissions,
       populateAccess: options.populateAccess ?? this.defaults.publicCreateOptions?.populateAccess ?? 'read',
     };
   }
@@ -380,9 +399,15 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
   }
 
   private resolvePublicReadOptions(options: PublicReadOptions = {}) {
+    const includePermissions =
+      options.includePermissions ?? this.defaults.publicReadOptions?.includePermissions ?? true;
     return {
       skim: options.skim ?? this.defaults.publicReadOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.publicReadOptions?.includePermissions ?? true,
+      includePermissions,
+      includeFieldPermissions:
+        options.includeFieldPermissions ??
+        this.defaults.publicReadOptions?.includeFieldPermissions ??
+        includePermissions,
       tryList: options.tryList ?? this.defaults.publicReadOptions?.tryList ?? true,
       populateAccess: options.populateAccess ?? this.defaults.publicReadOptions?.populateAccess,
       lean: options.lean ?? this.defaults.publicReadOptions?.lean ?? false,
@@ -398,10 +423,16 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
   }
 
   private resolvePublicUpdateOptions(options: PublicUpdateOptions = {}) {
+    const includePermissions =
+      options.includePermissions ?? this.defaults.publicUpdateOptions?.includePermissions ?? true;
     return {
       skim: options.skim ?? this.defaults.publicUpdateOptions?.skim ?? false,
       returningAll: options.returningAll ?? this.defaults.publicUpdateOptions?.returningAll ?? true,
-      includePermissions: options.includePermissions ?? this.defaults.publicUpdateOptions?.includePermissions ?? true,
+      includePermissions,
+      includeFieldPermissions:
+        options.includeFieldPermissions ??
+        this.defaults.publicUpdateOptions?.includeFieldPermissions ??
+        includePermissions,
       populateAccess: options.populateAccess ?? this.defaults.publicUpdateOptions?.populateAccess ?? 'read',
     };
   }

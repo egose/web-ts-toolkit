@@ -15,7 +15,7 @@ import {
   parseQuery,
   requestSchemas,
 } from './validation';
-import { handleResultError } from '../helpers';
+import { handleResultError, parseSelectParam } from '../helpers';
 import { parseBooleanString } from './shared';
 import type { ModelRouterRouteContext } from './model-router-route-context';
 import {
@@ -43,8 +43,19 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   router.get('', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'list');
 
-    const { skip, limit, page, page_size, skim, include_permissions, include_count, include_extra_headers } =
-      parseQuery(requestSchemas.listQuery, req.query);
+    const {
+      skip,
+      limit,
+      page,
+      page_size,
+      skim,
+      include_permissions,
+      include_field_permissions,
+      include_count,
+      include_extra_headers,
+      select,
+      sort,
+    } = parseQuery(requestSchemas.listQuery, req.query);
 
     const svc = context.getPublicService(req);
 
@@ -53,10 +64,11 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     const result = await svc._list(
       {},
-      { skip, limit, page, pageSize: page_size },
+      { select: parseSelectParam(select), sort, skip, limit, page, pageSize: page_size },
       {
         skim: parseBooleanString(skim),
         includePermissions: parseBooleanString(include_permissions),
+        includeFieldPermissions: parseBooleanString(include_field_permissions),
         includeCount,
       },
     );
@@ -83,7 +95,8 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     )) as AdvancedListBody;
     const { filter, select, sort, populate, include, tasks, skip, limit, page, pageSize } = body;
     const advancedOptions: NonNullable<AdvancedListBody['options']> = body.options ?? {};
-    const { skim, includePermissions, includeCount, includeExtraHeaders, populateAccess } = advancedOptions;
+    const { skim, includePermissions, includeFieldPermissions, includeCount, includeExtraHeaders, populateAccess } =
+      advancedOptions;
 
     const svc = context.getPublicService(req);
     const listFilter = (filter ?? {}) as Filter<TModel>;
@@ -94,6 +107,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
       {
         skim,
         includePermissions,
+        includeFieldPermissions,
         includeCount,
         populateAccess: populateAccess as PopulateAccess | undefined,
       },
@@ -114,7 +128,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   router.post('', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'create');
 
-    const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
+    const { include_permissions, include_field_permissions } = parseQuery(requestSchemas.createQuery, req.query);
     const data = await parseBodyWithSchema(
       createBodySchema,
       req.body,
@@ -122,7 +136,14 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     );
 
     const svc = context.getPublicService(req);
-    const result = await svc._create(data, {}, { includePermissions: parseBooleanString(include_permissions) });
+    const result = await svc._create(
+      data,
+      {},
+      {
+        includePermissions: parseBooleanString(include_permissions),
+        includeFieldPermissions: parseBooleanString(include_field_permissions),
+      },
+    );
 
     handleResultError(result);
 
@@ -140,7 +161,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   router.post(`/${options.mutationRouteSegment}`, async (req: ModelRequest) => {
     await context.assertAllowed(req, 'create');
 
-    const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
+    const { include_permissions, include_field_permissions } = parseQuery(requestSchemas.createQuery, req.query);
     const intermediateBody = (await parseNestedBodyWithSchema(
       advancedCreateBodySchema,
       req.body,
@@ -157,7 +178,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     )) as AdvancedCreateBody;
     const { data: finalData, select: finalSelect, populate: finalPopulate, tasks: finalTasks } = finalBody;
     const finalOptions: NonNullable<AdvancedCreateBody['options']> = finalBody.options ?? {};
-    const { includePermissions, populateAccess } = finalOptions;
+    const { includePermissions, includeFieldPermissions, populateAccess } = finalOptions;
 
     const svc = context.getPublicService(req);
     const result = await svc._create(
@@ -165,6 +186,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
       { select: finalSelect, populate: finalPopulate, tasks: finalTasks },
       {
         includePermissions: includePermissions ?? parseBooleanString(include_permissions),
+        includeFieldPermissions: includeFieldPermissions ?? parseBooleanString(include_field_permissions),
         populateAccess: populateAccess as PopulateAccess | undefined,
       },
     );
@@ -186,7 +208,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     await context.assertAllowed(req, 'new');
 
     const svc = context.getPublicService(req);
-    const result = await svc._new({}, { includePermissions: false });
+    const result = await svc._new({}, { includePermissions: false, includeFieldPermissions: false });
 
     handleResultError(result);
 

@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.typecheck.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

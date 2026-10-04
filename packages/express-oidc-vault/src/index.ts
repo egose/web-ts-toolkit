@@ -3,6 +3,13 @@ import { createHash, randomBytes } from 'node:crypto';
 import express from 'express';
 import type { NextFunction, Request, RequestHandler, Response, Router } from 'express';
 
+import {
+  assertAuthorizationTransactionIdentity,
+  assertAuthorizationTransactionMatches,
+  createTransactionProviderMetadata,
+  invalidAuthorizationState,
+  snapshotAuthorizationTransaction,
+} from './authorization-transaction';
 import { resolveOidcVaultConfig, type OidcVaultResolvedConfig } from './config';
 import {
   DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS,
@@ -21,15 +28,28 @@ import {
   usesCrossSiteCookieTransport,
 } from './cookies';
 import {
-  OidcVaultHttpError,
-  getRequiredString,
-  isBodyParserError,
-  toBodyParserErrorPayload,
-  toErrorPayload,
-} from './errors';
+  assertDeviceBindingPolicy,
+  assertDeviceBindingStoreCapabilities,
+  resolveDeviceBindingOptions,
+  resolveDeviceBindingOrigin,
+  snapshotDpopBinding,
+  withSessionDeviceBinding,
+  type ResolvedOidcVaultOptions,
+} from './device-binding-policy';
+import { OidcVaultHttpError, getRequiredString, isBodyParserError, toBodyParserErrorPayload } from './errors';
 import { computeExpiresAt, isUsableEpochMs, validateLifetimeOptions } from './lifetime-policy';
 import {
+  FINGERPRINT_RECOGNITION_METADATA_KEY,
+  assertFingerprintRecognition,
+  captureFingerprintRecognition,
+  fingerprintRecognitionMatches,
+  resolveFingerprintRecognitionOptions,
+  snapshotFingerprintRecognition,
+  withFingerprintRecognitionMetadata,
+} from './fingerprint-recognition';
+import {
   assertTrustedOrigin,
+  captureTrustedOriginGuard,
   resolveBackendOrigin,
   resolveFrontendRedirectUri as normalizeFrontendRedirectUri,
   resolveTrustedOrigins,
@@ -44,6 +64,7 @@ import {
   validateCallbackTokenResponse,
   validateRefreshTokenResponse,
 } from './provider-client';
+import { createExchangeResponse, withIssuedToken } from './token-issuance';
 import {
   assertUserInfoSubject,
   composeRefreshedUserProfile,
@@ -51,19 +72,46 @@ import {
   verifyBackchannelLogoutToken,
   verifyIdToken,
 } from './token-validation';
+import {
+  authenticateTransactionCookie,
+  clearTransactionCookie,
+  createTransactionBrowserBinding,
+  resolveTransactionCookieOptions,
+  setTransactionCookie,
+} from './transaction-cookie';
 import { OidcVaultStoreConflictError } from './types';
 import type {
   AuthorizationTransaction,
   OidcVaultBackchannelLogoutResult,
-  OidcVaultExchangeResult,
   OidcVaultHookContext,
+  OidcVaultLoginInitiationResult,
   OidcVaultLogoutResult,
   OidcVaultOptions,
   OidcVaultRouteName,
   OidcVaultSession,
-  OidcVaultTokenIssueResult,
 } from './types';
 import { getBody, isString } from './utils';
+import {
+  captureVaultRouteProof,
+  createVaultRouteProofVerifier,
+  sendVaultRoutePolicyResponse,
+  toVaultRouteErrorResponse,
+  type VaultRouteProofVerifier,
+} from './vault-route-proof';
+import {
+  assertVaultExchangeCodeMatches,
+  assertVaultExchangeSessionBinding,
+  assertVaultRevocationContextMatches,
+  assertVaultSessionIdentity,
+  assertVaultSessionMatches,
+  copyVaultSession,
+  copyVaultUserProfile,
+  invalidExchangeCode,
+  invalidVaultSession,
+  snapshotVaultExchangeCode,
+  snapshotVaultRevocationContext,
+  snapshotVaultSession,
+} from './vault-session';
 
 export * from './config';
 export * from './types';
@@ -137,17 +185,42 @@ const validateOidcVaultOptions = (
   backendOrigin: string;
   config: OidcVaultResolvedConfig;
   trustedOrigins: TrustedOrigins;
-  resolvedOptions: OidcVaultOptions;
+  resolvedOptions: ResolvedOidcVaultOptions;
 } => {
+  const {
+    deviceBinding: configuredDeviceBinding,
+    fingerprintRecognition: configuredFingerprintRecognition,
+    transactionCookie: configuredTransactionCookie,
+    ...otherOptions
+  } = options;
+  // Cookie getters are captured once: name collision checks and actual session
+  // serialization must use the same construction-time cookie configuration.
+  const cookie = otherOptions.cookie ? { ...otherOptions.cookie } : undefined;
+  const cookieOptions = { ...otherOptions, cookie };
   validateLifetimeOptions(options, getNow(options));
-  const backendOrigin = resolveBackendOrigin(options);
+  const deviceBinding = resolveDeviceBindingOptions(configuredDeviceBinding);
+  const fingerprintRecognition = resolveFingerprintRecognitionOptions(configuredFingerprintRecognition);
+  const backendOrigin =
+    deviceBinding === undefined ? resolveBackendOrigin(options) : resolveDeviceBindingOrigin(options.backendOrigin);
+  if (deviceBinding !== undefined) assertDeviceBindingStoreCapabilities(options.storeProvider);
+  if (fingerprintRecognition !== undefined)
+    assertDeviceBindingStoreCapabilities(options.storeProvider, 'fingerprintRecognition');
   const frontendRedirectUri = normalizeFrontendRedirectUri(options);
   validatePostLogoutRedirectUri(options);
-  validateCookieOptions(options);
+  validateCookieOptions(cookieOptions);
+  const transactionCookie = resolveTransactionCookieOptions(
+    {
+      ...cookieOptions,
+      deviceBinding: configuredDeviceBinding,
+      fingerprintRecognition,
+      transactionCookie: configuredTransactionCookie,
+    },
+    backendOrigin,
+  );
   const config = resolveOidcVaultConfig(options.config ? { ...options.config } : undefined);
   const configuredTrustedOrigins = resolveTrustedOrigins(options);
 
-  if (usesCrossSiteCookieTransport(options) && configuredTrustedOrigins.size === 0) {
+  if (usesCrossSiteCookieTransport(cookieOptions) && configuredTrustedOrigins.size === 0) {
     throw new Error('trustedOrigins is required when using cross-site cookie transport.');
   }
 
@@ -160,12 +233,16 @@ const validateOidcVaultOptions = (
   // references (storeProvider, hooks, tokenIssuer, now) are retained by
   // reference and never deep-cloned. Post-construction mutation or
   // replacement of the caller object (including its cookie/trustedOrigins/
-  // config containers) has no effect on this instance.
-  const resolvedOptions: OidcVaultOptions = {
-    ...options,
+  // config containers) has no effect on this instance. The device-binding
+  // policy/algorithm containers are frozen and nonce bytes privately copied.
+  const resolvedOptions: ResolvedOidcVaultOptions = {
+    ...otherOptions,
+    deviceBinding,
+    fingerprintRecognition,
+    transactionCookie,
     ...(frontendRedirectUri !== undefined ? { frontendRedirectUri } : {}),
     ...(options.trustedOrigins ? { trustedOrigins: [...options.trustedOrigins] } : {}),
-    ...(options.cookie ? { cookie: { ...options.cookie } } : {}),
+    ...(cookie === undefined ? {} : { cookie }),
     ...(options.config ? { config: { ...options.config } } : {}),
   };
 
@@ -175,21 +252,6 @@ const validateOidcVaultOptions = (
 const isStoreConflictError = (error: unknown): error is OidcVaultStoreConflictError =>
   error instanceof OidcVaultStoreConflictError ||
   (typeof error === 'object' && error !== null && 'name' in error && error.name === 'OidcVaultStoreConflictError');
-
-const assertSessionIdentity = (session: OidcVaultSession, config: OidcVaultResolvedConfig): void => {
-  // Compare stored identifiers verbatim with the resolved config, without
-  // discovery or URL normalization. Undefined fields remain legacy-compatible;
-  // each known field is still enforced independently of the other's presence.
-  // This guards live sessions only: shared exchange codes are consumed before
-  // lookup, and stale logout aliases do not expose identity through getSession.
-  const provider = session.provider;
-  if (
-    (provider?.issuer !== undefined && provider.issuer !== config.issuer) ||
-    (provider?.clientId !== undefined && provider.clientId !== config.clientId)
-  ) {
-    throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
-  }
-};
 
 const getSessionIdFromRequest = (req: Request, options: OidcVaultOptions, action: 'refresh' | 'logout'): string => {
   if (usesCookieTransport(options)) {
@@ -214,18 +276,6 @@ const getSessionIdFromRequest = (req: Request, options: OidcVaultOptions, action
     'OIDC_VAULT_MISSING_SESSION_ID',
   );
 };
-
-const createExchangeResponse = (
-  options: OidcVaultOptions,
-  session: OidcVaultSession,
-  issuedToken: Partial<OidcVaultTokenIssueResult>,
-): OidcVaultExchangeResult => ({
-  sessionId: usesCookieTransport(options) ? undefined : session.sessionId,
-  user: session.user,
-  accessToken: issuedToken.accessToken,
-  expiresIn: issuedToken.expiresIn,
-  tokenType: issuedToken.tokenType,
-});
 
 const appendQueryParam = (url: URL, name: string, value: string | undefined): void => {
   if (value) {
@@ -316,9 +366,7 @@ const createHookContext = (
   metadata?: Record<string, unknown>,
 ): OidcVaultHookContext => ({ route, req, res, session, metadata });
 
-const resolveReturnTo = (req: Request, options: OidcVaultOptions): string | undefined => {
-  const rawReturnTo = req.query.returnTo;
-
+const resolveLoginReturnTo = (rawReturnTo: unknown, options: OidcVaultOptions): string | undefined => {
   if (!isString(rawReturnTo)) {
     return undefined;
   }
@@ -353,41 +401,13 @@ const resolveReturnTo = (req: Request, options: OidcVaultOptions): string | unde
   return resolvedUrl.toString();
 };
 
+const resolveReturnTo = (req: Request, options: OidcVaultOptions): string | undefined =>
+  resolveLoginReturnTo(req.query.returnTo, options);
+
 const appendCodeToRedirectUri = (redirectUri: string, code: string): string => {
   const url = new URL(redirectUri);
   url.searchParams.set('code', code);
   return url.toString();
-};
-
-const withIssuedToken = async (
-  req: Request,
-  res: Response,
-  options: OidcVaultOptions,
-  session: OidcVaultSession,
-): Promise<Partial<OidcVaultTokenIssueResult>> => {
-  if (!options.tokenIssuer) {
-    return {};
-  }
-
-  const result: unknown = await options.tokenIssuer.issue({ req, res, session });
-  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
-    throw new TypeError('tokenIssuer.issue must return a token result object.');
-  }
-
-  // Read only the declared fields, once, while still inside issuance rollback.
-  // Never retain the issuer-owned object or enumerate its extra properties.
-  const { accessToken, expiresIn, tokenType } = result as Record<string, unknown>;
-  if (typeof accessToken !== 'string' || accessToken.length === 0) {
-    throw new TypeError('tokenIssuer.issue accessToken must be a nonempty string.');
-  }
-  if (typeof expiresIn !== 'number' || !Number.isSafeInteger(expiresIn) || expiresIn < 0) {
-    throw new TypeError('tokenIssuer.issue expiresIn must be a finite nonnegative safe integer.');
-  }
-  if (tokenType !== undefined && tokenType !== 'Bearer') {
-    throw new TypeError('tokenIssuer.issue tokenType must be Bearer when provided.');
-  }
-
-  return { accessToken, expiresIn, ...(tokenType === undefined ? {} : { tokenType }) };
 };
 
 const resolveFrontendRedirectUri = (transaction: AuthorizationTransaction, options: OidcVaultOptions): string => {
@@ -454,9 +474,12 @@ async function handleRouteError(
   req: Request,
   res: Response,
   next: NextFunction,
-  options: OidcVaultOptions,
+  options: ResolvedOidcVaultOptions,
   error: unknown,
 ): Promise<void> {
+  // Keep response authority detached before a mutable observer can touch the
+  // error or challenge headers. No raw claims/provider diagnostics enter JSON.
+  const response = toVaultRouteErrorResponse(error, options.deviceBinding);
   try {
     await options.hooks?.onError?.({
       ...createHookContext(route, req, res),
@@ -471,17 +494,12 @@ async function handleRouteError(
     return;
   }
 
-  applyCredentialResponseCachePolicy(res);
-  const payload = toErrorPayload(error);
-  res.status(payload.status).json({
-    code: payload.code,
-    message: payload.message,
-  });
+  sendVaultRoutePolicyResponse(res, response);
 }
 
 function createAsyncHandler(
   route: OidcVaultRouteName,
-  options: OidcVaultOptions,
+  options: ResolvedOidcVaultOptions,
   handler: (req: Request, res: Response, next: NextFunction) => Promise<void>,
 ): RequestHandler {
   return async (req, res, next) => {
@@ -510,12 +528,14 @@ function createBodyParserErrorHandler(): express.ErrorRequestHandler {
 }
 
 const createLoginHandler = (
-  options: OidcVaultOptions,
+  options: ResolvedOidcVaultOptions,
   config: OidcVaultResolvedConfig,
   backendOrigin: string,
   basePath: string,
 ): RequestHandler =>
   createAsyncHandler('login', options, async (req, res) => {
+    // GET is always the legacy unbound navigation, even with a DPoP header.
+    assertDeviceBindingPolicy(options.deviceBinding, undefined);
     const metadata = await resolveProviderMetadata(config, options);
     await callHook('login', options.hooks?.onLoginStart, req, res, undefined, { provider: metadata });
 
@@ -547,195 +567,401 @@ const createLoginHandler = (
     res.redirect(302, authorizationUrl);
   });
 
+const createLoginInitiationHandler = (
+  options: ResolvedOidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+  trustedOrigins: TrustedOrigins,
+  backendOrigin: string,
+  basePath: string,
+  proofVerifier: VaultRouteProofVerifier | undefined,
+): RequestHandler =>
+  createAsyncHandler('login', options, async (req, res) => {
+    const capturedProof = captureVaultRouteProof(req);
+    const fingerprintRecognition = captureFingerprintRecognition(req, options.fingerprintRecognition);
+    assertLoginInitiationRequest(req, options, trustedOrigins);
+    const body = getBody(req);
+    if (Array.isArray(req.body) || (body.returnTo !== undefined && !isString(body.returnTo))) {
+      throw new OidcVaultHttpError(400, 'OIDC_VAULT_INVALID_REQUEST_BODY', 'Login initiation request body is invalid.');
+    }
+    const returnTo = resolveLoginReturnTo(body.returnTo, options);
+    // No provider discovery, hook, transaction or browser cookie until the
+    // shared signature/target/time/nonce/replay admission has actually passed.
+    if (proofVerifier === undefined && capturedProof.header.count !== 0) {
+      throw new OidcVaultHttpError(
+        401,
+        'OIDC_VAULT_INVALID_DPOP_PROOF',
+        'DPoP login initiation is not enabled.',
+        'DPoP proof validation failed.',
+      );
+    }
+    const verifiedBinding = await proofVerifier?.initiate(capturedProof);
+    const binding = snapshotDpopBinding(verifiedBinding);
+    const metadata = await resolveProviderMetadata(config, options);
+    // New POST hooks get owned metadata; they cannot alter provider URL/client
+    // authority or the initiating key captured above.
+    await callHook('login', options.hooks?.onLoginStart, req, res, undefined, { provider: { ...metadata } });
+    const now = getNow(options);
+    const browserBinding = createTransactionBrowserBinding();
+    const pkceVerifier = createPkceVerifier();
+    const transaction: AuthorizationTransaction = {
+      state: createOpaqueId('state'),
+      nonce: createOpaqueId('nonce'),
+      pkceVerifier,
+      codeChallenge: createPkceChallenge(pkceVerifier),
+      returnTo,
+      ...(binding === undefined ? {} : { deviceBinding: binding }),
+      browserBindingHash: browserBinding.browserBindingHash,
+      createdAt: now,
+      expiresAt: computeExpiresAt(
+        now,
+        options.authorizationTransactionTtlMs ?? DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS,
+        'authorizationTransactionTtlMs',
+      ),
+      metadata: Object.freeze({
+        ...createTransactionProviderMetadata(config),
+        ...(fingerprintRecognition === undefined
+          ? {}
+          : { [FINGERPRINT_RECOGNITION_METADATA_KEY]: fingerprintRecognition }),
+      }),
+    };
+    // Build from private original authority before passing an input to an
+    // asynchronous store. Hooks receive copied URL/state metadata, never the
+    // transaction, proof context or cookie secret.
+    const authorizationUrl = buildAuthorizationUrl(metadata, transaction, getCallbackUri(backendOrigin, basePath));
+    const { state, expiresAt } = transaction;
+    await options.storeProvider.createAuthorizationTransaction(transaction);
+    await callHook('login', options.hooks?.onAuthorizationUrl, req, res, undefined, { authorizationUrl, state });
+    setTransactionCookie(res, options.transactionCookie!, browserBinding.secret, expiresAt, getNow(options));
+    applyCredentialResponseCachePolicy(res);
+    res.status(200).json({ authorizationUrl } satisfies OidcVaultLoginInitiationResult);
+  });
+
 const createCallbackHandler = (
-  options: OidcVaultOptions,
+  options: ResolvedOidcVaultOptions,
   config: OidcVaultResolvedConfig,
   backendOrigin: string,
   basePath: string,
 ): RequestHandler =>
   createAsyncHandler('callback', options, async (req, res) => {
-    if (isString(req.query.error)) {
-      throw new OidcVaultHttpError(400, 'OIDC_VAULT_CALLBACK_ERROR', req.query.error);
-    }
-
-    const code = getRequiredString(
-      req.query.code,
-      'OIDC callback is missing the authorization code.',
-      'OIDC_VAULT_MISSING_CODE',
-    );
-    const state = getRequiredString(req.query.state, 'OIDC callback is missing state.', 'OIDC_VAULT_MISSING_STATE');
-    const transaction = await options.storeProvider.consumeAuthorizationTransaction(state);
-
-    if (!transaction) {
-      throw new OidcVaultHttpError(400, 'OIDC_VAULT_INVALID_STATE', 'OIDC state is invalid or expired.');
-    }
-
-    // BOV-10: validate the callback destination before any provider call or
-    // durable state change. Resolving the frontend target late (after session
-    // and exchange-code creation) would strand credentials when neither the
-    // transaction returnTo nor frontendRedirectUri is configured. The option
-    // stays optional at middleware creation because non-callback routes
-    // (refresh/logout/backchannel) do not need it; the callback fails fast
-    // here with 500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI instead.
-    const frontendDestination = resolveFrontendRedirectUri(transaction, options);
-
-    const metadata = await resolveProviderMetadata(config, options);
-    const tokenResponse = await requestToken(
-      metadata,
-      {
-        grant_type: 'authorization_code',
-        code,
-        code_verifier: transaction.pkceVerifier,
-        redirect_uri: getCallbackUri(backendOrigin, basePath),
-      },
-      options,
-    );
-    // Callback requires id_token + refresh_token; wrong-type present fields
-    // are rejected by the validator, never treated as omissions. No session
-    // is persisted below until all provider checks pass.
-    validateCallbackTokenResponse(tokenResponse);
-
-    await callHook('callback', options.hooks?.onCallbackTokens, req, res, undefined, {
-      hasAccessToken: Boolean(tokenResponse.access_token),
-      hasRefreshToken: true,
-      hasIdToken: true,
-    });
-
-    const claims = await verifyIdToken(metadata, tokenResponse.id_token as string, transaction.nonce, options);
-    const subject = getRequiredString(claims.sub, 'OIDC id_token is missing sub.', 'OIDC_VAULT_INVALID_ID_TOKEN', 502);
-    const userInfo =
-      shouldFetchUserInfo(options, metadata) && isString(tokenResponse.access_token)
-        ? await fetchUserInfo(metadata, tokenResponse.access_token, options)
+    // Capture navigation/cookie authority before any async store/provider/hook.
+    // The callback is headerless and intentionally invokes no DPoP policy.
+    const providerError = isString(req.query.error) ? req.query.error : undefined;
+    const code =
+      providerError === undefined
+        ? getRequiredString(
+            req.query.code,
+            'OIDC callback is missing the authorization code.',
+            'OIDC_VAULT_MISSING_CODE',
+          )
         : undefined;
-
-    if (userInfo !== undefined) {
-      assertUserInfoSubject(userInfo, subject);
+    const state = getRequiredString(req.query.state, 'OIDC callback is missing state.', 'OIDC_VAULT_MISSING_STATE');
+    const cookieHeader = req.headers.cookie;
+    const store = options.storeProvider;
+    const preflight =
+      typeof store.getAuthorizationTransaction === 'function'
+        ? await store.getAuthorizationTransaction(state)
+        : await store.consumeAuthorizationTransaction(state);
+    if (!preflight) throw invalidAuthorizationState();
+    const transaction = snapshotAuthorizationTransaction(preflight, state, getNow(options));
+    assertAuthorizationTransactionIdentity(transaction, config);
+    assertDeviceBindingPolicy(options.deviceBinding, transaction.deviceBinding);
+    const cookie = options.transactionCookie!;
+    const cookieSecret = authenticateTransactionCookie(cookieHeader, cookie, transaction.match);
+    // BOV-10 destination preflight also precedes the new atomic consume.
+    const frontendDestination =
+      providerError === undefined ? resolveFrontendRedirectUri(transaction, options) : undefined;
+    if (typeof store.getAuthorizationTransaction === 'function') {
+      let consumed: AuthorizationTransaction | null;
+      if (typeof store.consumeAuthorizationTransactionIfMatches === 'function') {
+        consumed = await store.consumeAuthorizationTransactionIfMatches({ state, match: transaction.match });
+      } else {
+        if (transaction.browserBindingHash !== undefined) {
+          throw new TypeError('Guarded callbacks require storeProvider.consumeAuthorizationTransactionIfMatches.');
+        }
+        consumed = await store.consumeAuthorizationTransaction(state);
+      }
+      if (!consumed) throw invalidAuthorizationState();
+      const returned = snapshotAuthorizationTransaction(consumed, state, getNow(options));
+      assertAuthorizationTransactionIdentity(returned, config);
+      assertDeviceBindingPolicy(options.deviceBinding, returned.deviceBinding);
+      assertAuthorizationTransactionMatches(returned, transaction);
     }
-
-    if (userInfo !== undefined) {
-      await callHook('callback', options.hooks?.onUserInfo, req, res, undefined, { subject });
-    }
-
-    const now = getNow(options);
-    const sessionExpiresAt =
-      options.sessionTtlMs === undefined ? undefined : computeExpiresAt(now, options.sessionTtlMs, 'sessionTtlMs');
-    const exchangeExpiresAt = computeExpiresAt(
-      now,
-      options.exchangeCodeTtlMs ?? DEFAULT_EXCHANGE_CODE_TTL_MS,
-      'exchangeCodeTtlMs',
-    );
-    const sessionId = createOpaqueId('sess');
-    const session: OidcVaultSession = {
-      sessionId,
-      logicalSessionId: sessionId,
-      subject,
-      providerSessionId: typeof claims.sid === 'string' ? claims.sid : undefined,
-      provider: {
+    // Only an authenticated matching consume owns terminal cleanup. Missing/
+    // wrong cookie, policy/identity/race mismatch never spends or clears here.
+    try {
+      if (providerError !== undefined) {
+        throw new OidcVaultHttpError(400, 'OIDC_VAULT_CALLBACK_ERROR', providerError, 'OIDC callback failed.');
+      }
+      const metadata = await resolveProviderMetadata(config, options);
+      const tokenResponse = await requestToken(
+        metadata,
+        {
+          grant_type: 'authorization_code',
+          code: code!,
+          code_verifier: transaction.pkceVerifier,
+          redirect_uri: getCallbackUri(backendOrigin, basePath),
+        },
+        options,
+      );
+      // Callback requires id_token + refresh_token; preserve all provider checks.
+      validateCallbackTokenResponse(tokenResponse);
+      await callHook('callback', options.hooks?.onCallbackTokens, req, res, undefined, {
+        hasAccessToken: Boolean(tokenResponse.access_token),
+        hasRefreshToken: true,
+        hasIdToken: true,
+      });
+      const claims = await verifyIdToken(metadata, tokenResponse.id_token as string, transaction.nonce, options);
+      const subject = getRequiredString(
+        claims.sub,
+        'OIDC id_token is missing sub.',
+        'OIDC_VAULT_INVALID_ID_TOKEN',
+        502,
+      );
+      const userInfo =
+        shouldFetchUserInfo(options, metadata) && isString(tokenResponse.access_token)
+          ? await fetchUserInfo(metadata, tokenResponse.access_token, options)
+          : undefined;
+      if (userInfo !== undefined) {
+        assertUserInfoSubject(userInfo, subject);
+        await callHook('callback', options.hooks?.onUserInfo, req, res, undefined, { subject });
+      }
+      const now = getNow(options);
+      const sessionExpiresAt =
+        options.sessionTtlMs === undefined ? undefined : computeExpiresAt(now, options.sessionTtlMs, 'sessionTtlMs');
+      const exchangeExpiresAt = computeExpiresAt(
+        now,
+        options.exchangeCodeTtlMs ?? DEFAULT_EXCHANGE_CODE_TTL_MS,
+        'exchangeCodeTtlMs',
+      );
+      const sessionId = createOpaqueId('sess');
+      const provider = Object.freeze({
         issuer: metadata.issuer ?? (typeof claims.iss === 'string' ? claims.iss : undefined),
         clientId: metadata.clientId,
-      },
-      refreshToken: tokenResponse.refresh_token as string,
-      idToken: tokenResponse.id_token as string,
-      accessToken: isString(tokenResponse.access_token) ? tokenResponse.access_token : undefined,
-      scope: typeof tokenResponse.scope === 'string' ? tokenResponse.scope : metadata.scopes,
-      createdAt: now,
-      updatedAt: now,
-      ...(sessionExpiresAt === undefined ? {} : { expiresAt: sessionExpiresAt }),
-      user: mergeUserProfile(subject, claims, userInfo),
-      metadata: {
-        tokenType: tokenResponse.token_type,
-      },
-    };
-
-    await callHook('callback', options.hooks?.onBeforeSessionCreate, req, res, session, { subject });
-    if (sessionExpiresAt !== undefined) {
-      // Anchor the maximum before the hook: even a delayed hook or a mutation
-      // of createdAt cannot extend it. Invalid/removal attempts restore the cap.
-      session.expiresAt = isUsableEpochMs(session.expiresAt)
-        ? Math.min(session.expiresAt, sessionExpiresAt)
-        : sessionExpiresAt;
-    }
-    const createdSession = await options.storeProvider.createSession(session);
-
-    const exchangeCode = createOpaqueId('code');
-
-    try {
-      await options.storeProvider.createExchangeCode({
-        code: exchangeCode,
-        sessionId: createdSession.sessionId,
-        returnTo: transaction.returnTo,
+      });
+      const sessionBinding = transaction.deviceBinding;
+      const recognition = transaction.fingerprintRecognition;
+      const session: OidcVaultSession = {
+        sessionId,
+        logicalSessionId: sessionId,
+        subject,
+        providerSessionId: typeof claims.sid === 'string' ? claims.sid : undefined,
+        provider: { ...provider },
+        ...(sessionBinding === undefined ? {} : { deviceBinding: { ...sessionBinding } }),
+        refreshToken: tokenResponse.refresh_token as string,
+        idToken: tokenResponse.id_token as string,
+        accessToken: isString(tokenResponse.access_token) ? tokenResponse.access_token : undefined,
+        scope: typeof tokenResponse.scope === 'string' ? tokenResponse.scope : metadata.scopes,
         createdAt: now,
-        expiresAt: exchangeExpiresAt,
-      });
+        updatedAt: now,
+        ...(sessionExpiresAt === undefined ? {} : { expiresAt: sessionExpiresAt }),
+        user: copyVaultUserProfile(mergeUserProfile(subject, claims, userInfo)),
+        metadata: withFingerprintRecognitionMetadata({ tokenType: tokenResponse.token_type }, recognition),
+      };
+      await callHook('callback', options.hooks?.onBeforeSessionCreate, req, res, session, { subject });
+      if (sessionExpiresAt !== undefined) {
+        // Hook delay/createdAt mutation cannot move the absolute cap.
+        session.expiresAt = isUsableEpochMs(session.expiresAt)
+          ? Math.min(session.expiresAt, sessionExpiresAt)
+          : sessionExpiresAt;
+      }
+      const guarded = transaction.browserBindingHash !== undefined;
+      const restoredBinding = guarded
+        ? withSessionDeviceBinding(
+            {
+              ...copySessionApplicationFields(session),
+              sessionId,
+              logicalSessionId: sessionId,
+              provider: { ...provider },
+            },
+            sessionBinding,
+          )
+        : withSessionDeviceBinding(session, sessionBinding);
+      const restored = {
+        ...restoredBinding,
+        user: copyVaultUserProfile(restoredBinding.user),
+        metadata: withFingerprintRecognitionMetadata(restoredBinding.metadata, recognition),
+      };
+      const createdSession = await store.createSession(restored);
+      const createdSessionId = guarded ? sessionId : createdSession.sessionId;
+      const logicalSessionId = guarded ? sessionId : (createdSession.logicalSessionId ?? createdSessionId);
+      const exchangeCode = createOpaqueId('code');
+      try {
+        const returnedBinding = snapshotDpopBinding(createdSession.deviceBinding);
+        if (returnedBinding?.jkt !== sessionBinding?.jkt) throw invalidAuthorizationState();
+        if (!fingerprintRecognitionMatches(snapshotFingerprintRecognition(createdSession.metadata), recognition))
+          throw invalidAuthorizationState();
+        if (
+          guarded &&
+          (createdSession.sessionId !== sessionId ||
+            createdSession.logicalSessionId !== sessionId ||
+            createdSession.provider?.issuer !== provider.issuer ||
+            createdSession.provider?.clientId !== provider.clientId)
+        ) {
+          throw invalidAuthorizationState();
+        }
+        await store.createExchangeCode({
+          code: exchangeCode,
+          sessionId: createdSessionId,
+          returnTo: transaction.returnTo,
+          ...(sessionBinding === undefined ? {} : { deviceBinding: sessionBinding }),
+          ...(transaction.browserBindingHash === undefined
+            ? {}
+            : { browserBindingHash: transaction.browserBindingHash }),
+          createdAt: now,
+          expiresAt: exchangeExpiresAt,
+        });
+      } catch (error) {
+        await store.deleteSessionsByLogicalSessionId({ logicalSessionId });
+        throw error;
+      }
+      await callPostCommitHook(
+        'callback',
+        options,
+        options.hooks?.onSessionCreated,
+        req,
+        res,
+        withSessionDeviceBinding(copyVaultSession(createdSession), sessionBinding),
+        { subject },
+      );
+      if (cookieSecret !== undefined) {
+        setTransactionCookie(res, cookie, cookieSecret, exchangeExpiresAt, getNow(options));
+      }
+      applyCredentialResponseCachePolicy(res);
+      res.redirect(302, appendCodeToRedirectUri(frontendDestination!, exchangeCode));
     } catch (error) {
-      await options.storeProvider.deleteSessionsByLogicalSessionId({
-        logicalSessionId: createdSession.logicalSessionId ?? createdSession.sessionId,
-      });
-
+      if (cookieSecret !== undefined) clearTransactionCookie(res, cookie);
       throw error;
     }
-
-    await callPostCommitHook('callback', options, options.hooks?.onSessionCreated, req, res, createdSession, {
-      subject,
-    });
-
-    res.redirect(302, appendCodeToRedirectUri(frontendDestination, exchangeCode));
   });
 
-const createExchangeHandler = (options: OidcVaultOptions, config: OidcVaultResolvedConfig): RequestHandler =>
+const assertLoginInitiationRequest = (
+  req: Request,
+  options: OidcVaultOptions,
+  trustedOrigins: TrustedOrigins,
+): void => {
+  assertTrustedOrigin(req, options, trustedOrigins, 'login');
+  if (!req.is('application/json')) {
+    throw new OidcVaultHttpError(
+      415,
+      'OIDC_VAULT_UNSUPPORTED_REQUEST_BODY_TYPE',
+      'Login initiation requires a JSON request body.',
+    );
+  }
+};
+
+/** Skip hook-replaced authority (even getters); restore only private original IDs/provider/key. */
+const copySessionApplicationFields = (session: OidcVaultSession): Omit<OidcVaultSession, 'sessionId'> => {
+  const result = {} as Omit<OidcVaultSession, 'sessionId'>;
+  for (const key of Object.keys(session)) {
+    if (['deviceBinding', 'browserBindingHash', 'sessionId', 'logicalSessionId', 'provider'].includes(key)) continue;
+    Object.defineProperty(result, key, {
+      value: Reflect.get(session, key),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return result;
+};
+
+const createExchangeHandler = (
+  options: ResolvedOidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+  trustedOrigins: TrustedOrigins,
+  proofVerifier: VaultRouteProofVerifier | undefined,
+): RequestHandler =>
   createAsyncHandler('exchange', options, async (req, res) => {
+    const capturedProof = proofVerifier === undefined ? undefined : captureVaultRouteProof(req);
+    const capturedRecognition = captureFingerprintRecognition(req, options.fingerprintRecognition);
+    const assertExchangeOrigin = captureTrustedOriginGuard(req, options, trustedOrigins, 'exchange');
+    const cookieHeader = req.headers.cookie;
     const body = getBody(req);
     const code = getRequiredString(body.code, 'Exchange request is missing code.', 'OIDC_VAULT_MISSING_EXCHANGE_CODE');
-    const exchangeRecord = await options.storeProvider.consumeExchangeCode(code);
-
-    if (!exchangeRecord) {
-      throw new OidcVaultHttpError(400, 'OIDC_VAULT_INVALID_EXCHANGE_CODE', 'Exchange code is invalid or expired.');
+    const store = options.storeProvider;
+    const canPreflight = typeof store.getExchangeCode === 'function';
+    if (
+      (proofVerifier !== undefined || options.fingerprintRecognition !== undefined) &&
+      (!canPreflight || typeof store.consumeExchangeCodeIfMatches !== 'function')
+    ) {
+      throw new TypeError('Device-bound exchange requires guarded store reads and atomic consumption.');
     }
-
-    const session = await options.storeProvider.getSession(exchangeRecord.sessionId);
-
-    if (!session) {
-      throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
+    const rawCode = canPreflight ? await store.getExchangeCode!(code) : await store.consumeExchangeCode(code);
+    if (!rawCode) throw invalidExchangeCode();
+    const record = snapshotVaultExchangeCode(rawCode, code, getNow(options));
+    const guarded = record.browserBindingHash !== undefined;
+    if (guarded) assertExchangeOrigin();
+    assertDeviceBindingPolicy(options.deviceBinding, record.deviceBinding);
+    const rawSession = await store.getSession(record.sessionId);
+    if (!rawSession) throw invalidVaultSession();
+    const session = snapshotVaultSession(rawSession, record.sessionId, getNow(options));
+    assertDeviceBindingPolicy(options.deviceBinding, session.deviceBinding);
+    assertVaultExchangeSessionBinding(record, session);
+    // Disabled, genuinely legacy bearer exchange retains its historical code
+    // consumption/identity ordering. Every opted-in or guarded flow preflights
+    // immutable identity before consuming or admitting a proof.
+    const protectedExchange = proofVerifier !== undefined || options.fingerprintRecognition !== undefined || guarded;
+    if (protectedExchange && typeof store.consumeExchangeCodeIfMatches !== 'function') {
+      throw new TypeError('Guarded exchange requires storeProvider.consumeExchangeCodeIfMatches.');
     }
-
-    assertSessionIdentity(session, config);
-
-    let issuedToken: Partial<OidcVaultTokenIssueResult>;
-
+    if (protectedExchange) assertVaultSessionIdentity(session, config);
+    const cookieSecret = authenticateTransactionCookie(cookieHeader, options.transactionCookie!, record.match);
+    const recognition =
+      options.fingerprintRecognition === undefined ? undefined : snapshotFingerprintRecognition(session.metadata);
+    assertFingerprintRecognition(options.fingerprintRecognition, recognition, capturedRecognition);
+    const verifiedBinding =
+      proofVerifier === undefined ? undefined : await proofVerifier.verify(capturedProof!, session.deviceBinding);
+    if (canPreflight) {
+      const consumed = protectedExchange
+        ? await store.consumeExchangeCodeIfMatches!({
+            code,
+            expectedSessionId: record.sessionId,
+            match: record.match,
+          })
+        : await store.consumeExchangeCode(code);
+      if (!consumed) throw invalidExchangeCode();
+      const returned = snapshotVaultExchangeCode(consumed, code, getNow(options));
+      assertVaultExchangeCodeMatches(returned, record);
+      const returnedSession = await store.getSession(record.sessionId);
+      if (!returnedSession) throw invalidVaultSession();
+      const checkedSession = snapshotVaultSession(returnedSession, record.sessionId, getNow(options));
+      assertVaultSessionIdentity(checkedSession, config);
+      assertVaultExchangeSessionBinding(returned, checkedSession);
+      assertVaultSessionMatches(checkedSession, session);
+      if (
+        options.fingerprintRecognition !== undefined &&
+        !fingerprintRecognitionMatches(snapshotFingerprintRecognition(checkedSession.metadata), recognition)
+      )
+        throw invalidVaultSession();
+    }
+    assertVaultSessionIdentity(session, config);
+    // Only a verified, matching consume owns terminal temporary-cookie cleanup.
+    // Policy/cookie/proof/nonce/atomic-return mismatches never clear it.
     try {
-      issuedToken = await withIssuedToken(req, res, options, session);
+      const issuedToken = await withIssuedToken(req, res, options, session, verifiedBinding);
+      if (usesCookieTransport(options)) setSessionCookie(res, options, session.sessionId);
+      if (cookieSecret !== undefined) clearTransactionCookie(res, options.transactionCookie!);
+      applyCredentialResponseCachePolicy(res);
+      res.status(200).json(createExchangeResponse(options, session, issuedToken));
     } catch (error) {
-      await options.storeProvider.deleteSessionsByLogicalSessionId({
-        logicalSessionId: session.logicalSessionId ?? session.sessionId,
-      });
-
-      if (usesCookieTransport(options)) {
-        clearSessionCookie(res, options);
-      }
-
+      if (cookieSecret !== undefined) clearTransactionCookie(res, options.transactionCookie!);
       throw error;
     }
-
-    if (usesCookieTransport(options)) {
-      setSessionCookie(res, options, session.sessionId);
-    }
-
-    const response = createExchangeResponse(options, session, issuedToken);
-
-    res.status(200).json(response);
   });
 
 const createRefreshHandler = (
-  options: OidcVaultOptions,
+  options: ResolvedOidcVaultOptions,
   config: OidcVaultResolvedConfig,
   trustedOrigins: TrustedOrigins,
+  proofVerifier: VaultRouteProofVerifier | undefined,
 ): RequestHandler =>
   createAsyncHandler('refresh', options, async (req, res) => {
+    const capturedRecognition = captureFingerprintRecognition(req, options.fingerprintRecognition);
     assertTrustedOrigin(req, options, trustedOrigins, 'refresh');
+    const capturedProof = proofVerifier === undefined ? undefined : captureVaultRouteProof(req);
     const sessionId = getSessionIdFromRequest(req, options, 'refresh');
-    const currentSession = await options.storeProvider.getSession(sessionId);
+    const currentRecord = await options.storeProvider.getSession(sessionId);
 
-    if (!currentSession) {
+    if (!currentRecord) {
       if (usesCookieTransport(options)) {
         clearSessionCookie(res, options);
       }
@@ -743,9 +969,33 @@ const createRefreshHandler = (
       throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
     }
 
-    assertSessionIdentity(currentSession, config);
-
+    const currentSession = snapshotVaultSession(currentRecord, sessionId, getNow(options));
+    assertVaultSessionIdentity(currentSession, config);
+    assertDeviceBindingPolicy(options.deviceBinding, currentSession.deviceBinding);
+    const recognition =
+      options.fingerprintRecognition === undefined
+        ? undefined
+        : snapshotFingerprintRecognition(currentSession.metadata);
+    assertFingerprintRecognition(options.fingerprintRecognition, recognition, capturedRecognition);
+    const verifiedBinding =
+      proofVerifier === undefined
+        ? undefined
+        : await proofVerifier.verify(capturedProof!, currentSession.deviceBinding);
     const metadata = await resolveProviderMetadata(config, options);
+    if (proofVerifier !== undefined || options.fingerprintRecognition !== undefined) {
+      // Discovery may await network work. Recheck immediately before using the
+      // captured upstream credential, rather than relying on the earlier read.
+      const latest = await options.storeProvider.getSession(sessionId);
+      if (!latest) throw invalidVaultSession();
+      const latestSession = snapshotVaultSession(latest, sessionId, getNow(options));
+      assertVaultSessionMatches(latestSession, currentSession);
+      if (
+        options.fingerprintRecognition !== undefined &&
+        !fingerprintRecognitionMatches(snapshotFingerprintRecognition(latestSession.metadata), recognition)
+      )
+        throw invalidVaultSession();
+    }
+
     const tokenResponse = await requestToken(
       metadata,
       {
@@ -786,7 +1036,7 @@ const createRefreshHandler = (
     const now = getNow(options);
     const logicalSessionId = currentSession.logicalSessionId ?? currentSession.sessionId;
     const nextSession: OidcVaultSession = {
-      ...currentSession,
+      ...copyVaultSession(currentSession),
       sessionId: createOpaqueId('sess'),
       logicalSessionId,
       subject,
@@ -798,15 +1048,16 @@ const createRefreshHandler = (
       scope: typeof tokenResponse.scope === 'string' ? tokenResponse.scope : currentSession.scope,
       expiresAt: currentSession.expiresAt,
       updatedAt: now,
-      user: composeRefreshedUserProfile(subject, currentSession.user, freshClaims, userInfo),
+      user: copyVaultUserProfile(composeRefreshedUserProfile(subject, currentSession.user, freshClaims, userInfo)),
     };
 
-    let rotatedSession: OidcVaultSession;
+    const expectedSession = snapshotVaultSession(nextSession, nextSession.sessionId, getNow(options));
+    let rotatedRecord: OidcVaultSession;
 
     try {
-      rotatedSession = await options.storeProvider.rotateSession({
+      rotatedRecord = await options.storeProvider.rotateSession({
         sessionId: currentSession.sessionId,
-        nextSession,
+        nextSession: copyVaultSession(expectedSession),
       });
     } catch (error) {
       if (isStoreConflictError(error)) {
@@ -820,25 +1071,39 @@ const createRefreshHandler = (
       throw error;
     }
 
-    let issuedToken: Partial<OidcVaultTokenIssueResult>;
-
     try {
-      issuedToken = await withIssuedToken(req, res, options, rotatedSession);
+      const returnedSession = snapshotVaultSession(rotatedRecord, expectedSession.sessionId, getNow(options));
+      assertVaultSessionIdentity(returnedSession, config);
+      assertVaultSessionMatches(returnedSession, expectedSession);
+      if (
+        options.fingerprintRecognition !== undefined &&
+        !fingerprintRecognitionMatches(snapshotFingerprintRecognition(returnedSession.metadata), recognition)
+      )
+        throw invalidVaultSession();
     } catch (error) {
-      await options.storeProvider.deleteSessionsByLogicalSessionId({
-        logicalSessionId: rotatedSession.logicalSessionId ?? rotatedSession.sessionId,
-      });
-
-      if (usesCookieTransport(options)) {
-        clearSessionCookie(res, options);
-      }
-
+      // Rotation is already committed. Cleanup uses the captured ORIGINAL
+      // lineage, never a changed return/input record supplied by the store.
+      await options.storeProvider.deleteSessionsByLogicalSessionId({ logicalSessionId });
+      if (usesCookieTransport(options)) clearSessionCookie(res, options);
       throw error;
     }
+    // Returned authority must agree, but profile/metadata precedence remains
+    // the privately composed original, just as exchange uses its preflight
+    // snapshot rather than a mutable second store return.
+    const rotatedSession = expectedSession;
+    const issuedToken = await withIssuedToken(req, res, options, rotatedSession, verifiedBinding);
 
-    await callPostCommitHook('refresh', options, options.hooks?.onSessionRefreshed, req, res, rotatedSession, {
-      previousSessionId: currentSession.sessionId,
-    });
+    await callPostCommitHook(
+      'refresh',
+      options,
+      options.hooks?.onSessionRefreshed,
+      req,
+      res,
+      copyVaultSession(rotatedSession),
+      {
+        previousSessionId: currentSession.sessionId,
+      },
+    );
 
     if (usesCookieTransport(options)) {
       setSessionCookie(res, options, rotatedSession.sessionId);
@@ -846,41 +1111,96 @@ const createRefreshHandler = (
 
     const response = createExchangeResponse(options, rotatedSession, issuedToken);
 
+    applyCredentialResponseCachePolicy(res);
     res.status(200).json(response);
   });
 
 const createLogoutHandler = (
-  options: OidcVaultOptions,
+  options: ResolvedOidcVaultOptions,
   config: OidcVaultResolvedConfig,
   trustedOrigins: TrustedOrigins,
+  proofVerifier: VaultRouteProofVerifier | undefined,
 ): RequestHandler =>
   createAsyncHandler('logout', options, async (req, res) => {
     assertTrustedOrigin(req, options, trustedOrigins, 'logout');
+    const capturedProof = proofVerifier === undefined ? undefined : captureVaultRouteProof(req);
     const body = getBody(req);
     const sessionId = getSessionIdFromRequest(req, options, 'logout');
     const redirect = body.redirect === true;
-    const session = await options.storeProvider.getSession(sessionId);
-
-    if (!session) {
-      await options.storeProvider.deleteSession(sessionId);
-
-      if (usesCookieTransport(options)) {
-        clearSessionCookie(res, options);
-      }
-
+    const store = options.storeProvider;
+    const hasContext = typeof store.getSessionRevocationContext === 'function';
+    if (proofVerifier !== undefined && !hasContext) {
+      throw new TypeError('Device-bound logout requires storeProvider.getSessionRevocationContext.');
+    }
+    // Built-ins ALWAYS resolve context, including feature-disabled aliases.
+    // Old custom bearer-only stores without that capability keep their legacy
+    // no-config path; they cannot opt into sender-constrained sessions.
+    const rawContext = hasContext ? await store.getSessionRevocationContext!(sessionId) : undefined;
+    const context = rawContext ? snapshotVaultRevocationContext(rawContext) : undefined;
+    const rawSession = await store.getSession(sessionId);
+    const session = rawSession ? snapshotVaultSession(rawSession, sessionId, getNow(options)) : undefined;
+    const finishLocalLogout = () => {
+      if (usesCookieTransport(options)) clearSessionCookie(res, options);
+      applyCredentialResponseCachePolicy(res);
       res.status(200).json({ loggedOut: true } satisfies OidcVaultLogoutResult);
+    };
+    if (hasContext && context === undefined) {
+      if (session !== undefined) {
+        assertDeviceBindingPolicy(options.deviceBinding, session.deviceBinding);
+        throw invalidVaultSession();
+      }
+      // No currently live target: no deletion, proof reservation, or hooks.
+      finishLocalLogout();
       return;
     }
-
-    assertSessionIdentity(session, config);
-
-    await callHook('logout', options.hooks?.onBeforeLogout, req, res, session, undefined);
-    await options.storeProvider.deleteSessionsByLogicalSessionId({
-      logicalSessionId: session.logicalSessionId ?? session.sessionId,
-    });
+    const authority =
+      context ??
+      (session === undefined
+        ? undefined
+        : snapshotVaultRevocationContext({
+            logicalSessionId: session.logicalSessionId ?? session.sessionId,
+            provider: session.provider,
+            deviceBinding: session.deviceBinding,
+          }));
+    if (authority === undefined) {
+      // Only the legacy custom bearer-store branch lacks alias introspection.
+      // Opt-in construction requires context; a capable store never uses this.
+      await store.deleteSession(sessionId);
+      finishLocalLogout();
+      return;
+    }
+    assertVaultSessionIdentity(authority, config);
+    assertDeviceBindingPolicy(options.deviceBinding, authority.deviceBinding);
+    if (session !== undefined)
+      assertVaultRevocationContextMatches(
+        snapshotVaultRevocationContext({
+          logicalSessionId: session.logicalSessionId ?? session.sessionId,
+          provider: session.provider,
+          deviceBinding: session.deviceBinding,
+        }),
+        authority,
+      );
+    if (proofVerifier !== undefined) await proofVerifier.verify(capturedProof!, authority.deviceBinding);
+    if (hasContext) {
+      const latest = await store.getSessionRevocationContext!(sessionId);
+      if (!latest) {
+        finishLocalLogout();
+        return;
+      }
+      assertVaultRevocationContextMatches(snapshotVaultRevocationContext(latest), authority);
+    }
+    if (session !== undefined)
+      await callHook('logout', options.hooks?.onBeforeLogout, req, res, copyVaultSession(session));
+    await store.deleteSessionsByLogicalSessionId({ logicalSessionId: authority.logicalSessionId });
 
     if (usesCookieTransport(options)) {
       clearSessionCookie(res, options);
+    }
+    if (session === undefined) {
+      // Aliases grant revocation only, never credentials/upstream redirect.
+      applyCredentialResponseCachePolicy(res);
+      res.status(200).json({ loggedOut: true } satisfies OidcVaultLogoutResult);
+      return;
     }
 
     // BOV-10: local logout is independent of provider discovery. The durable
@@ -891,8 +1211,9 @@ const createLogoutHandler = (
     // local 200 success so the response reports the local durable state
     // accurately; the upstream failure is surfaced via onError only.
     if (!redirect) {
-      await callPostCommitHook('logout', options, options.hooks?.onLogout, req, res, session);
+      await callPostCommitHook('logout', options, options.hooks?.onLogout, req, res, copyVaultSession(session));
 
+      applyCredentialResponseCachePolicy(res);
       res.status(200).json({ loggedOut: true } satisfies OidcVaultLogoutResult);
       return;
     }
@@ -908,7 +1229,7 @@ const createLogoutHandler = (
     } catch (error) {
       try {
         await options.hooks?.onError?.({
-          ...createHookContext('logout', req, res, session),
+          ...createHookContext('logout', req, res, copyVaultSession(session)),
           error,
         });
       } catch {
@@ -916,7 +1237,8 @@ const createLogoutHandler = (
       }
     }
 
-    await callPostCommitHook('logout', options, options.hooks?.onLogout, req, res, session);
+    await callPostCommitHook('logout', options, options.hooks?.onLogout, req, res, copyVaultSession(session));
+    applyCredentialResponseCachePolicy(res);
 
     if (redirect && upstreamLogoutUrl) {
       res.redirect(302, upstreamLogoutUrl);
@@ -928,7 +1250,10 @@ const createLogoutHandler = (
     } satisfies OidcVaultLogoutResult);
   });
 
-const createBackchannelLogoutHandler = (options: OidcVaultOptions, config: OidcVaultResolvedConfig): RequestHandler =>
+const createBackchannelLogoutHandler = (
+  options: ResolvedOidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+): RequestHandler =>
   createAsyncHandler('backchannel-logout', options, async (req, res) => {
     const metadata = await resolveProviderMetadata(config, options);
     const logoutToken = getLogoutTokenFromRequest(req);
@@ -990,33 +1315,57 @@ const createBackchannelLogoutHandler = (options: OidcVaultOptions, config: OidcV
 
 function registerRoutes(
   router: Router,
-  options: OidcVaultOptions,
+  options: ResolvedOidcVaultOptions,
   config: OidcVaultResolvedConfig,
   trustedOrigins: TrustedOrigins,
   backendOrigin: string,
   basePath: string,
 ): void {
+  const proofVerifier = createVaultRouteProofVerifier(options, config, backendOrigin, basePath);
   router.get(OIDC_VAULT_ROUTE_PATHS.login, createLoginHandler(options, config, backendOrigin, basePath));
+  if (proofVerifier !== undefined || options.fingerprintRecognition !== undefined) {
+    router.post(
+      OIDC_VAULT_ROUTE_PATHS.login,
+      createLoginInitiationHandler(options, config, trustedOrigins, backendOrigin, basePath, proofVerifier),
+    );
+  }
   router.get(OIDC_VAULT_ROUTE_PATHS.callback, createCallbackHandler(options, config, backendOrigin, basePath));
-  router.post(OIDC_VAULT_ROUTE_PATHS.exchange, createExchangeHandler(options, config));
-  router.post(OIDC_VAULT_ROUTE_PATHS.refresh, createRefreshHandler(options, config, trustedOrigins));
-  router.post(OIDC_VAULT_ROUTE_PATHS.logout, createLogoutHandler(options, config, trustedOrigins));
+  router.post(OIDC_VAULT_ROUTE_PATHS.exchange, createExchangeHandler(options, config, trustedOrigins, proofVerifier));
+  router.post(OIDC_VAULT_ROUTE_PATHS.refresh, createRefreshHandler(options, config, trustedOrigins, proofVerifier));
+  router.post(OIDC_VAULT_ROUTE_PATHS.logout, createLogoutHandler(options, config, trustedOrigins, proofVerifier));
   router.post(OIDC_VAULT_ROUTE_PATHS['backchannel-logout'], createBackchannelLogoutHandler(options, config));
 }
 
 /**
- * Create the core OIDC vault middleware.
+ * Create the OIDC lifecycle router using a named package-root import.
+ * The default mount is /auth/oidc and default transport is body. Configure
+ * issuer/clientId (or complete manual endpoints), a pinned backendOrigin,
+ * frontendRedirectUri for callback completion, and a storeProvider.
+ *
+ * With deviceBinding enabled, JSON POST login selects a verified persistent
+ * browser key, callback authenticates the temporary HttpOnly cookie, and
+ * exchange/refresh/logout enforce the original key before credential work.
+ * A local tokenIssuer must emit exact DPoP and matching cnf.jkt from its verified
+ * input. Protect every accepting API separately with
+ * createOidcVaultAccessTokenMiddleware and a request-aware validator/replay store.
+ * Vault refresh/logout need no access token or ath and work after JWT expiry.
+ * All vault responses carry no-store; logout does not revoke stateless JWTs.
  *
  * Construction takes an internal resolved snapshot of `options` without
  * mutating the caller object: normalized values (such as
  * `frontendRedirectUri`) are stored on the snapshot, plain-data containers
- * (`cookie`, `trustedOrigins`, `config`) are shallow-copied, and service
+ * (`cookie`, `trustedOrigins`, `config`) are shallow-copied, `transactionCookie`
+ * is resolved into a detached/frozen security configuration, and service
  * references (`storeProvider`, `hooks`, `tokenIssuer`, `now`) are retained
  * by reference, never deep-cloned. Mutating or replacing the caller options
  * after this call has no effect on the created router. Post-commit hooks
  * (`onSessionCreated`, `onSessionRefreshed`, `onLogout`) are notifications
  * whose failures are reported to `onError` without undoing committed state;
  * other hooks run pre-commit and can veto the operation by throwing.
+ * Opt-in `deviceBinding` policy/algorithm containers are frozen snapshots;
+ * an enabled nonce secret is copied into private owned storage. Separate opt-in
+ * `fingerprintRecognition` settings are detached/frozen; recognition enrolls
+ * only at POST login and checks exchange/refresh before credential mutation.
  */
 export function createOidcVaultMiddleware(options: OidcVaultOptions): Router {
   const { backendOrigin, config, trustedOrigins, resolvedOptions } = validateOidcVaultOptions(options);
@@ -1033,6 +1382,17 @@ export function createOidcVaultMiddleware(options: OidcVaultOptions): Router {
     applyCredentialResponseCachePolicy(res);
     next();
   });
+  if (resolvedOptions.deviceBinding !== undefined || resolvedOptions.fingerprintRecognition !== undefined) {
+    // Reject other media types before the general form parser: even oversized/
+    // many-parameter forms keep POST login's exact JSON-only 415 contract.
+    baseRouter.post(
+      OIDC_VAULT_ROUTE_PATHS.login,
+      createAsyncHandler('login', resolvedOptions, async (req, res, next) => {
+        assertLoginInitiationRequest(req, resolvedOptions, trustedOrigins);
+        next();
+      }),
+    );
+  }
   baseRouter.use(express.json({ limit: requestBodyLimit }));
   baseRouter.use(
     express.urlencoded({

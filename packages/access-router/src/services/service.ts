@@ -25,6 +25,7 @@ import {
   mapWithConcurrencyLimit,
   normalizeSelect,
   populateDoc,
+  stripUnexposedDocPermissions,
   toObject,
 } from '../helpers';
 import { isFieldAllowed, isValidFieldPath, sanitizeSortFields, validateSortFields } from '../helpers/sort-policy';
@@ -41,6 +42,7 @@ import {
   Defaults,
   Populate,
   ModelRequest,
+  Projection,
   FindArgs,
   FindOptions,
   FindOneArgs,
@@ -181,6 +183,29 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return getModelOptions<TModel>(modelName);
   }
 
+  /**
+   * Router-level permission output postures (see `ModelRouterOptions`).
+   * Absolute: they win over client input and per-operation `defaults`.
+   */
+  public getPermissionsPosture(): { stripPermissionsField: boolean; disableFieldPermissions: boolean } {
+    return {
+      stripPermissionsField: this.options.stripPermissionsField ?? false,
+      disableFieldPermissions: this.options.disableFieldPermissions ?? false,
+    };
+  }
+
+  /**
+   * Router posture `stripPermissionsField`: drop the whole document
+   * permissions field (including the empty placeholder) from output instead
+   * of emitting permission metadata. Returns true when applied.
+   */
+  private stripPermissionsOutput(doc: unknown): boolean {
+    if (!this.options.stripPermissionsField) return false;
+    const field = this.options.documentPermissionField;
+    if (field) unsetDocPath(doc, field);
+    return true;
+  }
+
   private asServiceHookContext(context: ModelHookContext): ServiceHookContext {
     return context as ServiceHookContext;
   }
@@ -188,6 +213,15 @@ export class Service<TModel = unknown> extends Base<TModel> {
   private getEffectiveAllowedSortFields(allowedSortFields: string[]): string[] {
     const extra = this.options?.sortableFields ?? [];
     return extra.length > 0 ? [...allowedSortFields, ...extra] : allowedSortFields;
+  }
+
+  /**
+   * With `requireExplicitSelect`, an omitted client select behaves as an
+   * `_id`-only projection, yielding field-less rows. Explicit selects pass
+   * through untouched.
+   */
+  protected resolveEffectiveSelect(select: Projection | undefined): Projection | undefined {
+    return this.options?.requireExplicitSelect && select === undefined ? ['_id'] : select;
   }
 
   private beginOp(
@@ -241,8 +275,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
-    const { select, sort, populate, include, overrides } = this.resolveFindOneArgs(args);
-    const { skim, includePermissions, access, populateAccess, lean } = this.resolveFindOneOptions(options);
+    const { select: requestedSelect, sort, populate, include, overrides } = this.resolveFindOneArgs(args);
+    const select = this.resolveEffectiveSelect(requestedSelect);
+    const { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean } =
+      this.resolveFindOneOptions(options);
 
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
@@ -343,11 +379,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
 
     let includeDocPermissions = includePermissions;
-    if (!includeDocPermissions && !skim) {
+    // Requested field maps need doc grants as grant input, so compute them
+    // even under skim when field permissions are enabled.
+    if (!includeDocPermissions && (!skim || includeFieldPermissions)) {
       includeDocPermissions = this.checkIfModelPermissionExists([access, 'read', 'update']);
     }
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, access, context);
-    if (includePermissions) doc = await this.addFieldPermissions(doc, access, context);
+    if (includeFieldPermissions) doc = await this.addFieldPermissions(doc, access, context);
     doc = await this.trimOutputFields(
       doc,
       access,
@@ -365,7 +403,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
         if (!shouldKeepCorrelatedRef(ref, keep)) unsetDocPath(doc, ref);
       }
     }
-    if (!includePermissions) doc = this.addEmptyPermissions(doc);
+    if (!this.stripPermissionsOutput(doc)) {
+      if (!includePermissions && !includeFieldPermissions) doc = this.addEmptyPermissions(doc);
+      stripUnexposedDocPermissions(this.modelName, doc);
+    }
 
     this.completeOp('findOne', startedAt, Codes.Success, _filter);
     return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, query, context };
@@ -377,7 +418,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
     options?: FindByIdOptions,
   ): Promise<SingleResult<TModel> | ErrorResult> {
     const { select, populate, include, overrides } = this.resolveFindByIdArgs(args);
-    const { skim, includePermissions, access, populateAccess, lean } = this.resolveFindByIdOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean } =
+      this.resolveFindByIdOptions(options);
 
     const { select: overrideSelect, populate: overridePopulate, idFilter: overrideIdFilter } = overrides ?? {};
     const filter = overrideIdFilter ?? (await this.genIDFilter(id));
@@ -394,7 +436,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
           populate: overridePopulate,
         },
       },
-      { skim, includePermissions, access, populateAccess, lean },
+      { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
     );
   }
 
@@ -407,8 +449,20 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
-    const { select, populate, include, sort, skip, limit, page, pageSize, overrides } = this.resolveFindArgs(args);
-    const { skim, includePermissions, includeCount, populateAccess, lean } = this.resolveFindOptions(options);
+    const {
+      select: requestedSelect,
+      populate,
+      include,
+      sort,
+      skip,
+      limit,
+      page,
+      pageSize,
+      overrides,
+    } = this.resolveFindArgs(args);
+    const select = this.resolveEffectiveSelect(requestedSelect);
+    const { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess, lean } =
+      this.resolveFindOptions(options);
 
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
@@ -516,7 +570,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
       throw error;
     }
 
-    const fieldPermissionAccess = includePermissions
+    const fieldPermissionAccess = includeFieldPermissions
       ? await this.getFieldPermissionAccess(docs.map((doc) => doc._id))
       : undefined;
 
@@ -525,11 +579,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
         this.asServiceHookContext(contexts[i]).fieldPermissionAccess = fieldPermissionAccess;
 
         let includeDocPermissions = includePermissions;
-        if (!includeDocPermissions && !skim) {
+        // Requested field maps need doc grants as grant input, so compute them
+        // even under skim when field permissions are enabled.
+        if (!includeDocPermissions && (!skim || includeFieldPermissions)) {
           includeDocPermissions = this.checkIfModelPermissionExists(['list', 'read', 'update']);
         }
         if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'list', contexts[i]);
-        if (includePermissions) doc = await this.addFieldPermissions(doc, 'list', contexts[i]);
+        if (includeFieldPermissions) doc = await this.addFieldPermissions(doc, 'list', contexts[i]);
         doc = await this.trimOutputFields(
           doc,
           'list',
@@ -548,7 +604,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
           }
         }
         doc = await _decorate(doc, contexts[i]);
-        if (!includePermissions) doc = this.addEmptyPermissions(doc);
+        if (!this.stripPermissionsOutput(doc)) {
+          if (!includePermissions && !includeFieldPermissions) doc = this.addEmptyPermissions(doc);
+          stripUnexposedDocPermissions(this.modelName, doc);
+        }
 
         return doc;
       }),
@@ -574,7 +633,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     decorate?: (doc: unknown, context?: ModelHookContext) => unknown,
   ): Promise<ListResult<TModel> | ErrorResult> {
     const { populate } = this.resolveCreateArgs(args);
-    const { skim, includePermissions, populateAccess } = this.resolveCreateOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, populateAccess } = this.resolveCreateOptions(options);
 
     const isArr = Array.isArray(data);
     let dataArr = isArr ? data : [data];
@@ -705,15 +764,20 @@ export class Service<TModel = unknown> extends Base<TModel> {
       contexts[index].currentDocument = doc;
       contexts[index].finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
       let includeDocPermissions = includePermissions;
-      if (!includeDocPermissions && !skim) {
+      // Requested field maps need doc grants as grant input, so compute them
+      // even under skim when field permissions are enabled.
+      if (!includeDocPermissions && (!skim || includeFieldPermissions)) {
         includeDocPermissions = this.checkIfModelPermissionExists(['create', 'read', 'update']);
       }
       if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
-      if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
+      if (includeFieldPermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
       if (resolvedPopulate.length > 0) await this.persist(() => populateDoc(doc as Document, resolvedPopulate));
       doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
       let outputDoc = await _decorate(doc, contexts[index]);
-      if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
+      if (!this.stripPermissionsOutput(outputDoc)) {
+        if (!includePermissions && !includeFieldPermissions) outputDoc = this.addEmptyPermissions(outputDoc);
+        stripUnexposedDocPermissions(this.modelName, outputDoc);
+      }
 
       return outputDoc;
     });
@@ -761,9 +825,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
   public async new(
     args?: { select?: string[] },
-    options?: { skim?: boolean; includePermissions?: boolean },
+    options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean },
   ): Promise<SingleResult<TModel>> {
-    const { skim, includePermissions } = options ?? {};
+    const { skim, includePermissions: requestedPermissions } = options ?? {};
+    const includePermissions = this.options.stripPermissionsField ? false : requestedPermissions;
     const data = await this.model.new();
 
     let doc: unknown = data;
@@ -774,7 +839,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
       includeDocPermissions = this.checkIfModelPermissionExists(['create', 'read', 'update']);
     }
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', {} as ModelHookContext);
-    if (!includePermissions) doc = this.addEmptyPermissions(doc);
+    if (!this.stripPermissionsOutput(doc)) {
+      if (!includePermissions) doc = this.addEmptyPermissions(doc);
+      stripUnexposedDocPermissions(this.modelName, doc);
+    }
 
     return {
       success: true,
@@ -802,7 +870,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { populate, overrides } = this.resolveUpdateOneArgs(args);
-    const { skim, includePermissions, populateAccess } = this.resolveUpdateOneOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, populateAccess } = this.resolveUpdateOneOptions(options);
     const { filter: overrideFilter, populate: overridePopulate } = overrides ?? {};
 
     const [_filter, _populate] = await Promise.all([
@@ -901,17 +969,22 @@ export class Service<TModel = unknown> extends Base<TModel> {
     await this.changes(doc.toObject({ virtuals: false }) as Record<string, unknown>, context);
 
     let includeDocPermissions = includePermissions;
-    if (!includeDocPermissions && !skim) {
+    // Requested field maps need doc grants as grant input, so compute them
+    // even under skim when field permissions are enabled.
+    if (!includeDocPermissions && (!skim || includeFieldPermissions)) {
       includeDocPermissions = this.checkIfModelPermissionExists(['read', 'update']);
     }
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'update', context);
-    if (includePermissions) doc = await this.addFieldPermissions(doc, 'update', context);
+    if (includeFieldPermissions) doc = await this.addFieldPermissions(doc, 'update', context);
     if (_populate) await this.persist(() => populateDoc(doc as Document, _populate));
     doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
 
     let outputDoc: unknown = doc;
     if (isFunction(decorate)) outputDoc = await decorate(outputDoc, context);
-    if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
+    if (!this.stripPermissionsOutput(outputDoc)) {
+      if (!includePermissions && !includeFieldPermissions) outputDoc = this.addEmptyPermissions(outputDoc);
+      stripUnexposedDocPermissions(this.modelName, outputDoc);
+    }
 
     this.completeOp('updateOne', startedAt, Codes.Success, _filter);
     return { success: true, kind: 'single', code: Codes.Success, data: outputDoc as TModel, input: prepared };
@@ -925,7 +998,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
     decorate?: (doc: unknown, context?: ModelHookContext) => unknown,
   ): Promise<SingleResult<TModel> | ErrorResult> {
     const { populate, overrides } = this.resolveUpdateByIdArgs(args);
-    const { skim, includePermissions, populateAccess } = this.resolveUpdateByIdOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, populateAccess } =
+      this.resolveUpdateByIdOptions(options);
     const { populate: overridePopulate, idFilter: overrideIdFilter } = overrides;
     const filter = overrideIdFilter ?? (await this.genIDFilter(id));
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
@@ -939,7 +1013,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
           populate: overridePopulate,
         },
       },
-      { skim, includePermissions, populateAccess },
+      { skim, includePermissions, includeFieldPermissions, populateAccess },
       decorate,
     );
   }
@@ -955,7 +1029,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { populate, overrides } = this.resolveUpsertArgs(args);
-    const { skim, includePermissions, populateAccess } = this.resolveUpsertOptions(options);
+    const { skim, includePermissions, includeFieldPermissions, populateAccess } = this.resolveUpsertOptions(options);
     const { filter: overrideFilter, populate: overridePopulate } = overrides ?? {};
     const _filter = await (overrideFilter ?? this.genFilter('update', filter));
     const query = { filter: _filter };
@@ -979,7 +1053,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
             populate: overridePopulate,
           },
         },
-        { skim, includePermissions, populateAccess },
+        { skim, includePermissions, includeFieldPermissions, populateAccess },
         decorate,
       );
     } else {
@@ -989,6 +1063,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
         {
           skim,
           includePermissions,
+          includeFieldPermissions,
           populateAccess,
         },
         decorate,

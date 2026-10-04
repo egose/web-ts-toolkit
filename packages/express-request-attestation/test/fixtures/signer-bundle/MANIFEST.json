@@ -1,0 +1,8 @@
+{
+  "runtimeFileName": "runtime.43d902e6c045a683aafb8864fbd804843317ba608365e5d48f69ed53c075079e.mjs",
+  "keyFileName": "signer.92c4e98b2f19a681476ec2368598baca7ca86b339a2b61faeba69b3656185359.mjs",
+  "keyId": "fixture-key-01",
+  "publicOrigin": "https://attestation.example.com",
+  "replayNamespace": "att-fixture",
+  "timestampMs": 1780000000000
+}

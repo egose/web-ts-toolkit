@@ -181,6 +181,18 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
   operationAccess?: Validation | OperationAccess;
   modelPermissionPrefix?: string;
   /**
+   * When `true`, list/read/update requests without an explicit `select` return
+   * field-less rows (only `_id`, plus the permission field when requested)
+   * instead of all allowed fields. Applies to plain and advanced PATCH
+   * (returned updated record honors `select`, including `?select=` on plain
+   * PATCH and body `select` on advanced PATCH). Only an omitted (`undefined`)
+   * select triggers this; explicit selects — including backend `defaults` and
+   * an explicitly empty string/array (which keep their current meaning) — are
+   * unaffected. Counts, ordering, includes and permission enforcement are
+   * unchanged. Defaults to `false`.
+   */
+  requireExplicitSelect?: boolean;
+  /**
    * Extra fields allowed in `sort` regardless of `list`/`read` field policy.
    * Merged as a union with permission-derived allowed fields (`id`/`_id` are
    * always allowed). Does not grant output visibility, only sortability.
@@ -193,6 +205,25 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * Defaults to `false` (strict: disallowed sort returns `BadRequest`).
    */
   stripDisallowedSort?: boolean;
+  /**
+   * When `true`, the document permissions field (`documentPermissionField`,
+   * default `_permissions`) is removed from all outputs — including its empty
+   * placeholder — and client `includePermissions`/`includeFieldPermissions`
+   * input (query params, body/root-batch options and service-direct options)
+   * as well as per-operation `defaults` are ignored (both resolve to `false`).
+   * Output matches `includePermissions: false` with the permissions field
+   * removed entirely. Enforcement still runs; only output metadata is
+   * affected. Defaults to `false`.
+   */
+  stripPermissionsField?: boolean;
+  /**
+   * When `true`, client `includeFieldPermissions` input (query params,
+   * body/root-batch options and service-direct options) as well as
+   * per-operation `defaults` are ignored and field maps (`_view`/`_edit`)
+   * are never computed. `docPermissions`-hook keys still follow
+   * `includePermissions`. Defaults to `false`.
+   */
+  disableFieldPermissions?: boolean;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
@@ -220,6 +251,16 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
   alwaysSelectFields?: string[];
   docPermissions?: DocPermissions | ModelDocPermissionsHook;
+  /**
+   * Allowlist of `docPermissions`-hook keys exposed in API responses.
+   * Enforcement always uses the full hook map; only serialization is reduced,
+   * after all grant computations and decorate hooks have run. `_view`/`_edit`
+   * are always kept. `undefined` (default) exposes everything (current
+   * behavior); any array (including `[]`) exposes `_view`/`_edit` plus the
+   * listed keys. Note `guard()` conditions on stripped doc-level keys fail
+   * closed — allowlist any key a custom route guard evaluates.
+   */
+  exposedDocPermissionKeys?: string[];
   baseFilter?: ModelBaseFilterHook | Record<string, ModelBaseFilterHook>;
   overrideFilter?: ModelOverrideFilterHook | Record<string, ModelOverrideFilterHook>;
   decorate?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;

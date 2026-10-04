@@ -21,7 +21,7 @@ npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vaul
 
 ## Production Note
 
-This package stores authorization transactions, exchange codes, sessions, rotated-session aliases, and backchannel logout replay JTIs in process memory.
+This package stores authorization transactions, exchange codes, sessions, rotated-session aliases, backchannel logout replay JTIs and bounded DPoP proof reservations in process memory.
 
 Do not use it for production or multi-instance deployments. Use the Redis or MongoDB store provider instead.
 
@@ -98,11 +98,19 @@ Do not choose it when sessions must survive process restarts or be shared across
 
 `createMemoryOidcVaultStore(options?)`
 
-Creates an in-memory implementation of the core `OidcVaultStoreProvider` contract.
+Creates a stronger core `OidcVaultDeviceBindingStoreProvider`. Use named root imports; no default/subpath API. The core runtime requires Node >=22.12.0 and TypeScript consumers need @types/node/@types/express. Both ESM (`import`, `index.d.mts`) and CJS (`require`, `index.d.ts`) declaration conditions are shipped.
 
 `MemoryOidcVaultStoreOptions`
 
-Supports a custom `now()` function for deterministic tests.
+Supports custom epoch-millisecond `now()` for tests and `dpopReplayMaxEntries` (positive safe integer, default 100000).
+
+## Guarded records and per-request replay
+
+All six methods are available on the inferred factory result: live getAuthorizationTransaction/getExchangeCode, atomic consumeAuthorizationTransactionIfMatches/consumeExchangeCodeIfMatches, token-free getSessionRevocationContext and reserveDpopProof. Shared types/capacity error are core package-root exports. Either vault DPoP or recognition opt-in requires all six; fingerprint-only does not reserve proofs. API middleware uses explicit replayStore and performs HTTP verification; the store does not authenticate proofs.
+
+Match includes **both** `{ deviceBinding, browserBindingHash }`; null requires stored absence/undefined, never wildcard/stored null. Legacy neither field, cookie-only hash, bound hash + `{ type: 'dpop', jkt }` are valid; hashes are canonical 43-character SHA-256 base64url. Invalid/null/extra/key-without-hash writes reject. Mismatches leave live records, matching concurrent consumes have one winner, and legacy consumes refuse guarded records. Exchange atomically matches expectedSessionId. Reads are preflight, not locks. Rotation inherits omitted binding and rejects changed/removed/new binding. Revocation context resolves a currently live lineage through live handles/unexpired aliases; inconsistent provider/key authority throws, with no tokens/profile/metadata returned. Aliases still do not authenticate refresh.
+
+Replay is shared **only by the same store object**, not separate objects/processes. Map + indexed min-heap has one node per retained key, O(log N) work, at most 64 expired entries plus the requested expired key reclaimed per admission; no session/alias sweep on replay. Expiry is future safe-integer epoch milliseconds with remaining TTL ≤360000ms; invalid/expired input returns false without allocation. Duplicate false never renews, takes precedence over capacity; at capacity throw core OidcVaultDpopReplayCapacityError, no live eviction/fail-open. Core maps failure/capacity to 503 OIDC_VAULT_DPOP_REPLAY_UNAVAILABLE. Expired state can conservatively occupy capacity until later bounded traffic cleanup. Size for unique proofs/s × retained window (defaults at most 70s), share identical proof windows/namespaces/clocks and never release after downstream failure. There is no throughput guarantee or implicit core fallback.
 
 ## Related Packages
 

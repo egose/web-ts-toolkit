@@ -31,12 +31,14 @@ import {
   ListOptions,
   ListAdvancedArgs,
   ListAdvancedOptions,
+  ReadArgs,
   ReadOptions,
   ReadAdvancedArgs,
   ReadAdvancedOptions,
   CreateOptions,
   CreateAdvancedArgs,
   CreateAdvancedOptions,
+  UpdateArgs,
   UpdateOptions,
   UpdateAdvancedArgs,
   UpdateAdvancedOptions,
@@ -57,9 +59,12 @@ import {
   ensureListResultCount,
   normalizeServiceDefaults,
   processListResult,
+  serializeSelectParam,
+  serializeSortParam,
 } from './shared';
 import { makeRequest } from './request';
 import { mergeServiceParams } from './request-config';
+import { splitOptionalArgs, type OptionalArgsSpec } from './call-args';
 import { buildSubDocumentOps } from './sub-ops';
 import {
   assertNoTransportConfig,
@@ -72,6 +77,27 @@ import {
 } from '../correlated';
 
 type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
+
+const BASIC_LIST_CALL = {
+  method: 'list',
+  argumentKeys: ['select', 'sort', 'skip', 'limit', 'page', 'pageSize'],
+  optionKeys: ['skim', 'includePermissions', 'includeCount', 'includeExtraHeaders', 'ignoreCache', 'sq'],
+  emptyForm: 'args',
+} as const satisfies OptionalArgsSpec<ListArgs, ListOptions>;
+
+const BASIC_READ_CALL = {
+  method: 'read',
+  argumentKeys: ['select'],
+  optionKeys: ['includePermissions', 'tryList', 'ignoreCache', 'sq'],
+  emptyForm: 'options',
+} as const satisfies OptionalArgsSpec<ReadArgs, ReadOptions>;
+
+const BASIC_UPDATE_CALL = {
+  method: 'update',
+  argumentKeys: ['select'],
+  optionKeys: ['returningAll', 'includePermissions'],
+  emptyForm: 'options',
+} as const satisfies OptionalArgsSpec<UpdateArgs, UpdateOptions>;
 
 interface Props {
   axios: AxiosInstance;
@@ -124,12 +150,14 @@ export class ModelService<
       'listOptions',
       'listAdvancedArgs',
       'listAdvancedOptions',
+      'readArgs',
       'readOptions',
       'readAdvancedArgs',
       'readAdvancedOptions',
       'createOptions',
       'createAdvancedArgs',
       'createAdvancedOptions',
+      'updateArgs',
       'updateOptions',
       'updateAdvancedArgs',
       'updateAdvancedOptions',
@@ -144,22 +172,45 @@ export class ModelService<
   // Collection operations
   // ---------------------------------------------------------------------------
 
+  /**
+   * GET model rows with optional projection, sorting, and pagination args. Skip args with
+   * `list(options?, config?)`; supplied args/options must be separate objects.
+   * Skipping args still uses `defaults.listArgs`. Empty ambiguous objects keep
+   * the original args-first form; the final config position selects that form.
+   *
+   * @example
+   * service.list({ includeCount: true });
+   * service.list({ select: ['name'], sort: '-name', limit: 10 }, { includeCount: true });
+   */
   list<TData extends Partial<T> = T>(
     args?: ListArgs,
     options?: ListOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ListModelResponse<T, TData>> & IncludableBasicList<T>;
   list<TData extends Partial<T> = T>(
-    args?: ListArgs,
     options?: ListOptions,
     axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ListModelResponse<T, TData>> & IncludableBasicList<T>;
+  list<TData extends Partial<T> = T>(
+    argsOrOptions?: ListArgs | ListOptions,
+    optionsOrConfig?: ListOptions | RequestConfig,
+    axiosRequestConfig?: RequestConfig,
   ): unknown {
+    const { args, options, config } = splitOptionalArgs<ListArgs, ListOptions, RequestConfig>(
+      BASIC_LIST_CALL,
+      argsOrOptions,
+      optionsOrConfig,
+      axiosRequestConfig,
+      arguments.length,
+    );
     const {
       skip = this._defaults.listArgs.skip,
       limit = this._defaults.listArgs.limit,
       page = this._defaults.listArgs.page,
       pageSize = this._defaults.listArgs.pageSize,
     } = args ?? {};
+    const select = args?.select ?? cloneServiceDefaultValue(this._defaults.listArgs.select);
+    const sort = args?.sort ?? cloneServiceDefaultValue(this._defaults.listArgs.sort);
 
     const {
       skim = this._defaults.listOptions.skim ?? true,
@@ -172,7 +223,7 @@ export class ModelService<
     // detached service default (which already merges adapter defaults).
     const sq = options?.sq ?? cloneServiceDefaultValue(this._defaults.listOptions.sq);
 
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    const { throwOnError, ...reqConfig } = config ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     // ACI-04: basic list() has no filter of its own, so it is always
@@ -187,6 +238,8 @@ export class ModelService<
               limit,
               page,
               page_size: pageSize,
+              select: serializeSelectParam(select),
+              sort: serializeSortParam(sort),
               skim,
               include_permissions: includePermissions,
               include_count: includeCount,
@@ -218,7 +271,7 @@ export class ModelService<
           model: this._modelName,
           op: 'list',
           filter: {},
-          args: { skip, limit, page, pageSize },
+          args: { select, sort, skip, limit, page, pageSize },
           options: { skim, includePermissions, includeCount },
           sqOptions: sq,
         },
@@ -237,6 +290,8 @@ export class ModelService<
         callArgs: args,
         callOptions: options,
         defaults: {
+          select: this._defaults.listArgs.select,
+          sort: this._defaults.listArgs.sort,
           skip: this._defaults.listArgs.skip,
           limit: this._defaults.listArgs.limit,
           page: this._defaults.listArgs.page,
@@ -928,20 +983,66 @@ export class ModelService<
   // Document operations
   // ---------------------------------------------------------------------------
 
+  /**
+   * GET a model by identifier, with `select` in args. Skip args using the
+   * existing `read(id, options?, config?)` form. Skipping args still uses
+   * `defaults.readArgs`. Empty ambiguous objects retain that legacy options
+   * form; supplying the fourth position selects the full args form.
+   * Parent references return a transport-inert correlated descriptor.
+   *
+   * @example
+   * service.read('id', { select: ['name'] }, { includePermissions: true });
+   * service.read('id', { tryList: false }, { timeout: 5000 });
+   */
+  read<TData extends Partial<T> = T>(
+    identifier: string,
+    args?: ReadArgs,
+    options?: ReadOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, TData>> & IncludableRead;
   read<TData extends Partial<T> = T>(
     identifier: string,
     options?: ReadOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, TData>> & IncludableRead;
+  read(
+    identifier: ParentRef,
+    args?: ReadArgs,
+    options?: ReadOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): CorrelatedReadDescriptor;
   read(identifier: ParentRef, options?: ReadOptions, axiosRequestConfig?: RequestConfig): CorrelatedReadDescriptor;
+  read<TData extends Partial<T> = T>(
+    identifier: string | ParentRef,
+    args?: ReadArgs,
+    options?: ReadOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): (ModelRequest<ModelResponse<T, TData>> & IncludableRead) | CorrelatedReadDescriptor;
   read<TData extends Partial<T> = T>(
     identifier: string | ParentRef,
     options?: ReadOptions,
     axiosRequestConfig?: RequestConfig,
+  ): (ModelRequest<ModelResponse<T, TData>> & IncludableRead) | CorrelatedReadDescriptor;
+  read<TData extends Partial<T> = T>(
+    identifier: string | ParentRef,
+    argsOrOptions?: ReadArgs | ReadOptions,
+    optionsOrConfig?: ReadOptions | RequestConfig,
+    axiosRequestConfig?: RequestConfig,
   ): unknown {
+    const {
+      args,
+      options: opts,
+      config,
+    } = splitOptionalArgs<ReadArgs, ReadOptions, RequestConfig>(
+      BASIC_READ_CALL,
+      argsOrOptions,
+      optionsOrConfig,
+      axiosRequestConfig,
+      arguments.length - 1,
+    );
     // ACI-04: identifier reference positions select the descriptor overload.
     if (scanIdForRefs(identifier, 'read')) {
-      assertNoTransportConfig(axiosRequestConfig, 'read');
+      assertNoTransportConfig(config, 'read');
       return createCorrelatedDescriptor(
         captureCorrelatedSource({
           method: 'read',
@@ -950,8 +1051,9 @@ export class ModelService<
           basic: false,
           kind: 'id',
           id: identifier,
-          callOptions: options,
-          defaults: {},
+          callArgs: args,
+          callOptions: opts,
+          defaults: { select: this._defaults.readArgs.select },
         }),
       );
     }
@@ -959,10 +1061,11 @@ export class ModelService<
       includePermissions = this._defaults.readOptions.includePermissions ?? true,
       tryList = this._defaults.readOptions.tryList ?? true,
       ignoreCache = this._defaults.readOptions.ignoreCache ?? false,
-    } = options ?? {};
-    const sq = options?.sq ?? cloneServiceDefaultValue(this._defaults.readOptions.sq);
+    } = opts ?? {};
+    const select = args?.select ?? cloneServiceDefaultValue(this._defaults.readArgs.select);
+    const sq = opts?.sq ?? cloneServiceDefaultValue(this._defaults.readOptions.sq);
 
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    const { throwOnError, ...reqConfig } = config ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const readReq = makeRequest<ModelResponse<T, TData>>(
@@ -973,6 +1076,7 @@ export class ModelService<
             mergeServiceParams(reqConfig, {
               include_permissions: includePermissions,
               try_list: tryList,
+              select: serializeSelectParam(select),
             }),
           )
           .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
@@ -998,7 +1102,7 @@ export class ModelService<
           model: this._modelName,
           op: 'read',
           id: identifier,
-          args: {},
+          args: { select },
           options: { includePermissions, tryList },
           sqOptions: sq,
         },
@@ -1015,8 +1119,9 @@ export class ModelService<
         basic: false,
         kind: 'id',
         id: identifier,
-        callOptions: options,
-        defaults: {},
+        callArgs: args,
+        callOptions: opts,
+        defaults: { select: this._defaults.readArgs.select },
       }),
     );
   }
@@ -1308,17 +1413,53 @@ export class ModelService<
     );
   }
 
+  /**
+   * PATCH a model by identifier, with `select` in args. Skip args using the
+   * existing `update(id, data, options?, config?)` form. Skipping args still
+   * uses `defaults.updateArgs`. Empty ambiguous objects retain that legacy
+   * options form; supplying the fifth position selects the full args form.
+   *
+   * @example
+   * service.update('id', { name: 'beta' }, { select: ['name'] }, { returningAll: true });
+   * service.update('id', { name: 'beta' }, { returningAll: false }, { timeout: 5000 });
+   */
+  update<TData extends Partial<T> = T>(
+    identifier: string,
+    data: TUpdateInput,
+    args?: UpdateArgs,
+    options?: UpdateOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, TData>>;
   update<TData extends Partial<T> = T>(
     identifier: string,
     data: TUpdateInput,
     options?: UpdateOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
+  ): ModelRequest<ModelResponse<T, TData>>;
+  update<TData extends Partial<T> = T>(
+    identifier: string,
+    data: TUpdateInput,
+    argsOrOptions?: UpdateArgs | UpdateOptions,
+    optionsOrConfig?: UpdateOptions | RequestConfig,
+    axiosRequestConfig?: RequestConfig,
+  ): unknown {
+    const {
+      args,
+      options: opts,
+      config,
+    } = splitOptionalArgs<UpdateArgs, UpdateOptions, RequestConfig>(
+      BASIC_UPDATE_CALL,
+      argsOrOptions,
+      optionsOrConfig,
+      axiosRequestConfig,
+      arguments.length - 2,
+    );
     const {
       returningAll = this._defaults.updateOptions.returningAll ?? true,
       includePermissions = this._defaults.updateOptions.includePermissions ?? true,
-    } = options ?? {};
-    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
+    } = opts ?? {};
+    const select = args?.select ?? cloneServiceDefaultValue(this._defaults.updateArgs.select);
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(config ?? {});
 
     return makeRequest<ModelResponse<T, TData>>(
       () =>
@@ -1329,6 +1470,7 @@ export class ModelService<
             mergeServiceParams(reqConfig, {
               returning_all: returningAll,
               include_permissions: includePermissions,
+              select: serializeSelectParam(select),
             }),
           )
           .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
@@ -1351,6 +1493,7 @@ export class ModelService<
           op: 'update',
           id: identifier,
           data,
+          args: { select },
           options: { returningAll, includePermissions },
         },
         __requestConfig: reqConfig,

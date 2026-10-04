@@ -1,6 +1,6 @@
 import { castArray, get, noop } from '@web-ts-toolkit/utils';
 import { Model } from '../model';
-import { Document, ResponseCallback, RootQueryMeta } from '../types';
+import { Document, Projection, ResponseCallback, RootQueryMeta, Sort } from '../types';
 import { CustomHeaders } from '../enums';
 import { MAX_INPUT_DEPTH, MAX_INPUT_NODES, validateBoundedInputs } from '../bounded-traversal';
 import { ModelService } from './model-service';
@@ -397,6 +397,53 @@ export const normalizeServiceDefaults = <TDefaults extends object>(
 
   return deepFreeze(normalized) as Required<TDefaults>;
 };
+
+/**
+ * Serialize a `select` projection to a single `?select=` query value.
+ * Arrays join with commas, `{ field: 1 }` maps to `field`, `{ field: -1 }`
+ * maps to `-field` (mirroring the server `normalizeSelect` semantics), and
+ * strings pass through for the server to split. Returns `undefined` when
+ * absent or empty so the param stays off the wire (omitted-select semantics).
+ */
+export function serializeSelectParam(select: Projection | undefined): string | undefined {
+  if (select == null) return undefined;
+  if (typeof select === 'string') return select === '' ? undefined : select;
+  const fields = Array.isArray(select)
+    ? select.flatMap((entry) => String(entry).split(/[\s,]+/))
+    : Object.entries(select)
+        .filter(([, order]) => order === 1 || order === -1)
+        .map(([key, order]) => (order === -1 ? `-${key}` : key));
+  const cleaned = fields.map((field) => field.trim()).filter(Boolean);
+  return cleaned.length > 0 ? cleaned.join(',') : undefined;
+}
+
+/**
+ * Serialize a basic model list sort as a single GET query value. Strings
+ * retain the server's space-separated signed-field syntax (`name -age`).
+ * Objects/tuples preserve key priority and normalize supported order aliases
+ * to signed fields. Reject malformed entries rather than silently changing
+ * their meaning during conversion; server-side field authorization still
+ * applies. Explicit empty sorts send `''` to suppress backend sort defaults.
+ */
+export function serializeSortParam(sort: Sort): string | undefined {
+  if (sort == null) return undefined;
+  if (typeof sort === 'string') return sort;
+  const entries = Array.isArray(sort) ? sort : Object.entries(sort);
+  return entries
+    .map((entry) => {
+      if (!Array.isArray(entry) || entry.length !== 2) {
+        throw new TypeError('Invalid sort entry: expected [field, order]');
+      }
+      const [field, order] = entry;
+      if (typeof field !== 'string' || !/^[A-Za-z_][A-Za-z0-9_$]*(\.[A-Za-z_][A-Za-z0-9_$]*)*$/.test(field)) {
+        throw new TypeError(`Invalid sort field: ${String(field)}`);
+      }
+      if (order === 1 || order === 'asc' || order === 'ascending') return field;
+      if (order === -1 || order === 'desc' || order === 'descending') return `-${field}`;
+      throw new TypeError(`Invalid sort order for field: ${field}`);
+    })
+    .join(' ');
+}
 
 export const ensureListResultCount = <TResult extends { totalCount?: number }>(
   result: TResult,

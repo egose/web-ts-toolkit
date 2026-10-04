@@ -364,8 +364,9 @@ describe('ARR-06: hook dependency-key policy', () => {
       await waitFor(() => expect(mock.spies.read).toHaveBeenCalledTimes(2));
       expect(mock.spies.read).toHaveBeenCalledTimes(2);
 
-      const [, , lastConfigArg] = mock.spies.read.mock.calls.at(-1) as [
+      const [, , , lastConfigArg] = mock.spies.read.mock.calls.at(-1) as [
         string,
+        unknown,
         unknown,
         { headers: Record<string, string> },
       ];
@@ -813,7 +814,12 @@ describe('ARR-06: hook dependency-key policy', () => {
       });
 
       await waitFor(() => expect(mock.spies.read).toHaveBeenCalledTimes(1));
-      const [, , configArg] = mock.spies.read.mock.calls.at(-1) as [string, unknown, { signal: AbortSignal }];
+      const [, , , configArg] = mock.spies.read.mock.calls.at(-1) as [
+        string,
+        unknown,
+        unknown,
+        { signal: AbortSignal },
+      ];
       const forwarded = configArg.signal;
       // Pre-abort: forwarded signal reflects neither source aborted.
       expect(forwarded.aborted).toBe(false);

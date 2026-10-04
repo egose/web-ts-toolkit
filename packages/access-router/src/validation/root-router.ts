@@ -39,6 +39,7 @@ const rootModelListOptionsSchema = z
   .object({
     skim: z.boolean().optional(),
     includePermissions: z.boolean().optional(),
+    includeFieldPermissions: z.boolean().optional(),
     includeCount: z.boolean().optional(),
     populateAccess: z.unknown().optional(),
     lean: z.boolean().optional(),
@@ -62,6 +63,7 @@ const rootModelReadOptionsSchema = z
   .object({
     skim: z.boolean().optional(),
     includePermissions: z.boolean().optional(),
+    includeFieldPermissions: z.boolean().optional(),
     tryList: z.boolean().optional(),
     populateAccess: z.unknown().optional(),
     lean: z.boolean().optional(),
@@ -80,6 +82,7 @@ const rootModelCreateOptionsSchema = z
   .object({
     skim: z.boolean().optional(),
     includePermissions: z.boolean().optional(),
+    includeFieldPermissions: z.boolean().optional(),
     populateAccess: z.unknown().optional(),
   })
   .passthrough();
@@ -97,6 +100,7 @@ const rootModelUpdateOptionsSchema = z
     skim: z.boolean().optional(),
     returningAll: z.boolean().optional(),
     includePermissions: z.boolean().optional(),
+    includeFieldPermissions: z.boolean().optional(),
     populateAccess: z.unknown().optional(),
   })
   .passthrough();
@@ -152,6 +156,7 @@ const rootModelNewOptionsSchema = z
   .object({
     skim: z.boolean().optional(),
     includePermissions: z.boolean().optional(),
+    includeFieldPermissions: z.boolean().optional(),
   })
   .passthrough();
 

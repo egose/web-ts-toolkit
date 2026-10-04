@@ -48,12 +48,14 @@ import type {
   Projection,
   ReadAdvancedArgs,
   ReadAdvancedOptions,
+  ReadArgs,
   ReadOptions,
   CreateAdvancedArgs,
   CreateAdvancedOptions,
   CreateOptions,
   UpdateAdvancedArgs,
   UpdateAdvancedOptions,
+  UpdateArgs,
   UpdateOptions,
   UpsertAdvancedArgs,
   UpsertAdvancedOptions,
@@ -95,6 +97,7 @@ export interface MockServiceSurface<T extends Document> {
   ) => LazyRequest<ListModelResponse<T>>;
   read: (
     identifier: string,
+    args: ReadArgs | undefined,
     options: ReadOptions | undefined,
     axiosRequestConfig: MockRequestConfig | undefined,
   ) => LazyRequest<ModelResponse<T>>;
@@ -118,6 +121,7 @@ export interface MockServiceSurface<T extends Document> {
   update: (
     identifier: string,
     data: object,
+    args: UpdateArgs | undefined,
     options: UpdateOptions | undefined,
     axiosRequestConfig: MockRequestConfig | undefined,
   ) => LazyRequest<ModelResponse<T>>;

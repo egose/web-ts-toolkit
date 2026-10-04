@@ -196,6 +196,7 @@ describe('OVH-05 local issuer response boundary', () => {
     { name: 'null tokenType', result: { ...VALID, tokenType: null }, field: 'tokenType' },
     { name: 'lowercase tokenType', result: { ...VALID, tokenType: 'bearer' }, field: 'tokenType' },
     { name: 'numeric tokenType', result: { ...VALID, tokenType: 1 }, field: 'tokenType' },
+    { name: 'DPoP tokenType without a bound session', result: { ...VALID, tokenType: 'DPoP' }, field: 'tokenType' },
   ];
   it.each(
     invalid.map((scenario, index) => ({

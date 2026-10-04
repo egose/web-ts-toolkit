@@ -112,16 +112,18 @@ type NarrowedDataShape<T extends Document, S extends Projection> = Model<T, Reso
  * shape is computed automatically.
  *
  * Note: this is a *static* narrowing — the runtime promise is whatever
- * the server returns. When `advanced === false`, `select` is NOT
- * forwarded to the server (the basic `read`/`list`/`create`/etc. do
- * not accept a `select` argument) so the server returns a full model
- * and the client response is a full `T`. The type still has the
- * provided `TSelect` (if any) applied; supplying a `select`
- * without `advanced: true` produces a tighter type than the wire
- * payload really justifies. The package treats this as a documented
- * consumer contract — narrow types only when the consumer opted into
- * a projection and accepts responsibility for forwarding it
- * down a path that honors it (the `advanced` paths).
+ * the server returns. `select` is forwarded to the server on the
+ * `read`/`list`/`update` paths — as a `?select=` query value on the
+ * basic paths and as body `select` on the `advanced` paths — so the
+ * narrowed type matches the wire payload there. The basic
+ * `create`/`upsert` APIs accept no `select` argument (the server
+ * exposes no such parameter on the plain routes), so supplying a
+ * `select` without `advanced: true` on those two hooks produces a
+ * tighter type than the wire payload really justifies. The package
+ * treats this as a documented consumer contract — narrow types only
+ * when the consumer opted into a projection and accepts
+ * responsibility for forwarding it down a path that honors it (the
+ * `advanced` paths for create/upsert).
  *
  * Declaration tightening (ARR-B03): dynamic, exclusion-only, and union
  * selections no longer resolve to the full required model. Consumers
@@ -219,9 +221,9 @@ export interface UseReadQueryOptions<
    * projection-aware result so omitted properties become
    * `T[keyof T] | undefined` rather than definitely-present; this is
    * the static reflection of the server actually dropping those
-   * fields from the response when `advanced === true`. Requires
-   * `advanced: true` for the projection to take effect at the request
-   * layer (the basic `read` API does not forward `select`).
+   * fields from the response. The projection is forwarded on both
+   * paths — as a `?select=` query value on the basic path and as
+   * body `select` when `advanced === true`.
    */
   select?: TSelect;
   populate?: ReadAdvancedArgs['populate'];
@@ -262,6 +264,13 @@ export interface UseListQueryOptions<
   listParams?: ListArgs;
   filter?: FilterQuery<T>;
   advanced?: boolean;
+  /**
+   * List ordering. Accepts the general `Sort` string/object/tuple forms;
+   * forwarded on both paths — as a `?sort=` query value on the basic
+   * path and as body `sort` when `advanced === true`. An explicit
+   * `sort` inside `listParams` (or manual `query()` args) wins when
+   * both are supplied, mirroring the advanced-path merge.
+   */
   sort?: ListAdvancedArgs['sort'];
   /**
    * Server-side field projection (Task ARR-09). Supply a *literal*
@@ -269,8 +278,11 @@ export interface UseListQueryOptions<
    * (`'name'`), or a `{ name: 1 }` object to narrow the list element
    * shape on {@link UseListQueryResult.data}, the `onSuccess`/`onSettled`
    * callback result payloads, and the manual `query()`/`refetch()`
-   * response payloads. Requires `advanced: true` for the basic
-   * `list` API does not forward `select`.
+   * response payloads. The projection is forwarded on both paths —
+   * as a `?select=` query value on the basic path and as body
+   * `select` when `advanced === true`. An explicit `select` inside
+   * `listParams` (or manual `query()` args) wins when both are
+   * supplied, mirroring the advanced-path merge.
    */
   select?: TSelect;
   populate?: ListAdvancedArgs['populate'];
@@ -350,8 +362,13 @@ export interface UseUpdateMutateOptions<
 > extends UseBaseOptions {
   advanced?: boolean;
   /**
-   * Server-side field projection (Task ARR-09). See
-   * {@link UseCreateMutateOptions.select}.
+   * Server-side field projection (Task ARR-09). Supply a literal
+   * tuple/string/object projection to narrow the update response
+   * `data` shape on {@link UseUpdateMutateResult.data}, the
+   * `onSuccess`/`onSettled` callback result payloads, and the
+   * `mutate()` return promise. The projection is forwarded on both
+   * paths — as a `?select=` query value on the basic path and as
+   * body `select` when `advanced === true`.
    */
   select?: TSelect;
   populate?: UpdateAdvancedArgs['populate'];

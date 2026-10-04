@@ -2,7 +2,11 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { defineOidcVaultStoreProviderConformanceSuite } from '../../express-oidc-vault/test/store-provider-conformance';
+import {
+  defineOidcVaultDeviceBindingStoreConformanceSuite,
+  defineOidcVaultStoreProviderConformanceSuite,
+} from '../../express-oidc-vault/test/store-provider-conformance';
+import { emulateDeviceBindingScript } from './fake-device-binding-scripts';
 import { createRedisOidcVaultStore, type OidcVaultRedisClient } from '../src/index';
 import {
   DELETE_SESSION_SCRIPT,
@@ -240,7 +244,7 @@ class FakeRedisClient implements OidcVaultRedisClient {
     return 'none';
   }
 
-  private async handleEval(args: string[]): Promise<number> {
+  private async handleEval(args: string[]): Promise<unknown> {
     const [script, keyCountRaw, ...rest] = args;
 
     if (!script || !keyCountRaw) {
@@ -250,6 +254,12 @@ class FakeRedisClient implements OidcVaultRedisClient {
     const keyCount = Number(keyCountRaw);
     const keys = rest.slice(0, keyCount);
     const scriptArgs = rest.slice(keyCount);
+    const emulated = emulateDeviceBindingScript(script, keys, scriptArgs, {
+      records: this.records,
+      sortedIndexes: this.sortedIndexes,
+      now: this.now,
+    });
+    if (emulated) return emulated.result;
 
     if (script === ROTATE_SESSION_SCRIPT) {
       return this.evalRotateSession(keys, scriptArgs);
@@ -287,7 +297,7 @@ class FakeRedisClient implements OidcVaultRedisClient {
   // The runner caches Lua bodies via `SCRIPT LOAD` and dispatches with
   // `EVALSHA`. Map the digest back to a script body so the fake behaves like a
   // real Redis script cache, including recovery after `SCRIPT FLUSH`.
-  private async handleEvalSha(args: string[]): Promise<number> {
+  private async handleEvalSha(args: string[]): Promise<unknown> {
     const [digest, keyCountRaw, ...rest] = args;
 
     if (!digest || !keyCountRaw) {
@@ -714,6 +724,26 @@ defineOidcVaultStoreProviderConformanceSuite('redis', {
   },
   sessionCreateMode: 'create-only',
   reusedSessionIdClearsStaleAlias: true,
+});
+
+defineOidcVaultDeviceBindingStoreConformanceSuite('redis', {
+  createContext: (_name, options) => {
+    const backend = new FakeRedisClient();
+    const client = (): OidcVaultRedisClient => ({
+      set: backend.set.bind(backend),
+      get: backend.get.bind(backend),
+      del: backend.del.bind(backend),
+      sendCommand: backend.sendCommand.bind(backend),
+    });
+    const keyPrefix = `test:${randomUUID()}`;
+    return {
+      store: createRedisOidcVaultStore({ ...options, client: client(), keyPrefix, now: () => backend.now }),
+      peerStore: createRedisOidcVaultStore({ ...options, client: client(), keyPrefix, now: () => backend.now }),
+      setNow: (now) => {
+        backend.now = now;
+      },
+    };
+  },
 });
 
 describe('createRedisOidcVaultStore', () => {

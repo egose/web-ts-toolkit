@@ -6,6 +6,106 @@ import type { JWK } from 'jose';
 
 export type OidcVaultRouteName = 'login' | 'callback' | 'exchange' | 'refresh' | 'logout' | 'backchannel-logout';
 
+/** Enabling the option defaults to `optional`; omitting it keeps bearer behavior. */
+export type OidcVaultDeviceBindingMode = 'optional' | 'required';
+
+/** DPoP proof algorithms, independent of the app-local access token's signing algorithm. */
+export type OidcVaultDpopAlgorithm = 'ES256' | 'PS256' | 'RS256';
+
+/**
+ * Immutable persisted sender constraint. `jkt` is the canonical RFC 7638
+ * SHA-256 JWK thumbprint (43 base64url characters). Store no JWK, private key,
+ * proof algorithm, or historical enforcement mode in this record.
+ */
+export interface OidcVaultDpopBinding {
+  type: 'dpop';
+  jkt: string;
+}
+
+/** Verified request context; `alg` is checked against the current proof policy. */
+export interface OidcVaultVerifiedDpopBinding extends OidcVaultDpopBinding {
+  alg: OidcVaultDpopAlgorithm;
+}
+
+/**
+ * Optional stateless, key/context-bound DPoP nonce policy. Challenges are issued
+ * only after other proof/target checks and before replay reservation. Any
+ * authentic live nonce permits parallel fresh proofs; it does not replace the
+ * normal iat window or single-use JTI reservation. Shared instances need the
+ * same secret; rotation requires a new challenge, with no previous-secret list.
+ */
+export interface OidcVaultDpopNonceOptions {
+  /** Shared random secret of at least 32 bytes, copied at construction. */
+  secret: Uint8Array;
+  /** Integer lifetime in seconds, 1–300; default 60. */
+  lifetimeSeconds?: number;
+}
+
+/**
+ * Shared RFC 9449 proof profile for vault POSTs and request-aware APIs.
+ * Proofs are limited to 8192 wire bytes and 2048 decoded protected-header/JWK
+ * bytes, use typ dpop+jwt and public-only asymmetric keys, and require exact
+ * method/pinned normalized URL plus a signed printable ASCII JTI (1–128 bytes).
+ * Signature verification precedes claims; strict iat validity is
+ * nowSeconds - age - skew < iat <= nowSeconds + skew. APIs additionally match
+ * original verified cnf.jkt and SHA-256 ath of the ASCII access token.
+ */
+export interface OidcVaultDpopProofOptions {
+  /** Nonempty asymmetric allowlist; default `['ES256']` (P-256). RSA proofs require 2048–4096 bits. */
+  algorithms?: readonly OidcVaultDpopAlgorithm[];
+  /** Integer maximum proof age in seconds, 1–300; default 60. */
+  proofMaxAgeSeconds?: number;
+  /** Integer clock tolerance in seconds, 0–30; default 5. */
+  clockSkewSeconds?: number;
+  /** Off by default. Challenges are at most 512 bytes; retry once with a fresh proof, never reuse its JTI. */
+  nonce?: false | OidcVaultDpopNonceOptions;
+}
+
+/**
+ * Opt-in sender constraint. `optional` permits legacy unbound records without
+ * enrolling them from a later proof; `required` rejects unbound use. Persisted
+ * bound records never downgrade when the option or a proof is omitted.
+ */
+export interface OidcVaultDeviceBindingOptions extends OidcVaultDpopProofOptions {
+  /** Default optional when configured. Required rejects unbound use; there is no legacy downgrade switch. */
+  mode?: OidcVaultDeviceBindingMode;
+}
+
+/**
+ * Opt-in, vendor-independent browser recognition/change detection, NOT proof of
+ * possession. A copyable signal never satisfies required DPoP or constrains API
+ * access. POST login alone enrolls a supplied signal; absence is intentionally
+ * unenrolled. Callback stores only SHA-256 in reserved session metadata.
+ */
+export interface OidcVaultFingerprintRecognitionOptions {
+  /**
+   * HTTP field name; default X-Device-Fingerprint. Must not collide with auth,
+   * cookie, origin, content, or transport headers. One raw field with a nonempty
+   * printable ASCII value, at most 256 bytes; no trimming or normalization.
+   * Malformed/duplicate/oversized opted-in signals return 400
+   * OIDC_VAULT_INVALID_FINGERPRINT before credential work.
+   */
+  headerName?: string;
+}
+
+/**
+ * Request-aware API sender constraint. Every API accepting bound JWTs must
+ * enforce this policy; signature-only validation does not prove possession.
+ * Construction snapshots plain options, URLs, algorithms and nonce bytes.
+ */
+export interface OidcVaultApiDeviceBindingOptions extends OidcVaultDeviceBindingOptions {
+  /** Static HTTPS origin (loopback HTTP development allowed); never derived from Host/proxy headers. */
+  publicOrigin: string;
+  /** External mount prefix stripped by a proxy, normalized at construction; default empty. No query/fragment. */
+  publicPathPrefix?: string;
+  /** Shared static printable ASCII protection-space label, 1–128 bytes; never a token, route or instance ID. */
+  replayNamespace: string;
+  /** Explicit shared atomic service, normally the vault store. No per-middleware fallback. */
+  replayStore: OidcVaultDpopReplayStore;
+  /** Epoch-millisecond clock for proof age/nonce/replay; default Date.now. Shared instances need synchronized clocks. */
+  now?: () => number;
+}
+
 export interface OidcVaultUserProfile {
   sub: string;
   email?: string;
@@ -15,15 +115,19 @@ export interface OidcVaultUserProfile {
 }
 
 /**
- * Stored session identity. Exchange, refresh, and live-session logout compare
- * each defined field verbatim against resolved middleware config before use.
+ * Stored session identity. Exchange, refresh, and logout compare each defined
+ * field verbatim against resolved middleware config before use. Opt-in/guarded
+ * exchange checks before code consumption; built-in logout also checks the
+ * surviving lineage through unexpired aliases before proof or deletion.
  * Known mismatches fail with 401 `OIDC_VAULT_INVALID_SESSION` without changing
  * the session or cookie. Issuer trailing-slash variants are distinct.
  *
  * Omitted fields remain legacy-compatible and are not backfilled by refresh.
- * Complete isolation requires separate session/alias, exchange-code, and
- * transaction namespaces: exchange spends its code before this check, and
- * logout's stale-alias path has no live identity to check.
+ * Use separate session/alias, exchange-code, and transaction namespaces for
+ * complete isolation. Disabled legacy bearer exchange retains its historical
+ * consume-before-identity ordering; old custom bearer stores without revocation
+ * context retain their legacy alias behavior. Missing identifiers are not an
+ * isolation guarantee.
  */
 export interface OidcVaultProviderMetadata {
   issuer?: string;
@@ -41,6 +145,8 @@ export interface OidcVaultSession {
   subject: string;
   providerSessionId?: string;
   provider?: OidcVaultProviderMetadata;
+  /** Original login-selected sender constraint, enforced before exchange/refresh/logout (including aliases); never enrolled by a later proof. */
+  deviceBinding?: OidcVaultDpopBinding;
   refreshToken: string;
   idToken: string;
   accessToken?: string;
@@ -75,6 +181,11 @@ export interface OidcVaultSession {
    * serialization round-trips, so callers must not rely on object identity,
    * custom prototypes, functions, symbols, Dates, Maps, Sets, undefined object
    * properties, or other runtime-only values surviving persistence.
+   * `oidcVaultFingerprintRecognition` is reserved: `{ version: 1, hash }` is
+   * immutable login-selected SHA-256 recognition evidence, never raw signal
+   * data. Core preserves it through callback/refresh and removes it from token
+   * issuer input and public profiles/responses. Disclose collection/retention;
+   * it lasts with the transaction/session, not the local access-token lifetime.
    */
   metadata?: Record<string, unknown>;
 }
@@ -85,9 +196,19 @@ export interface AuthorizationTransactionInput {
   pkceVerifier: string;
   codeChallenge: string;
   returnTo?: string;
+  /** Login-selected sender constraint, never reconstructed from a later proof. */
+  deviceBinding?: OidcVaultDpopBinding;
+  /** SHA-256 hash of the temporary HttpOnly browser-binding cookie; never store the cookie secret. */
+  browserBindingHash?: string;
   createdAt: number;
   expiresAt: number;
-  /** See `OidcVaultSession.metadata` for the portable metadata value domain. */
+  /**
+   * See `OidcVaultSession.metadata` for the portable value domain. POST login
+   * reserves `oidcVaultTransactionProvider` for its resolved issuer/clientId;
+   * stores must preserve it for callback identity preflight. Opted-in POST login
+   * also carries immutable `oidcVaultFingerprintRecognition` for callback
+   * session creation; no raw fingerprint signal is stored.
+   */
   metadata?: Record<string, unknown>;
 }
 
@@ -97,6 +218,10 @@ export interface ExchangeCodeRecordInput {
   code: string;
   sessionId: string;
   returnTo?: string;
+  /** Copied from the authenticated login transaction; must agree with the session. */
+  deviceBinding?: OidcVaultDpopBinding;
+  /** Copied transaction-cookie hash; guarded exchange matches both cookie and key. */
+  browserBindingHash?: string;
   createdAt: number;
   expiresAt: number;
 }
@@ -110,6 +235,7 @@ export interface OidcVaultSessionInput extends Omit<OidcVaultSession, 'createdAt
 
 export interface RotateSessionInput {
   sessionId: string;
+  /** Omitted binding inherits the source; changing its key or enrolling an unbound source is rejected. */
   nextSession: OidcVaultSession;
 }
 
@@ -135,10 +261,83 @@ export interface ConsumeBackchannelLogoutTokenJtiInput {
   expiresAt: number;
 }
 
+/**
+ * Complete guarded-record match. Explicit `null` requires an absent/undefined
+ * stored field; it never means ignore the field. Both fields are mandatory.
+ * Valid persisted shapes are legacy (neither field), cookie-only (hash), or
+ * bound (hash + key). Stored null/malformed fields and a key without a hash
+ * are invalid. Both hashes use canonical 43-character SHA-256 base64url.
+ */
+export interface OidcVaultRecordBindingMatch {
+  deviceBinding: OidcVaultDpopBinding | null;
+  browserBindingHash: string | null;
+}
+
+export interface ConsumeAuthorizationTransactionIfMatchesInput {
+  state: string;
+  match: OidcVaultRecordBindingMatch;
+}
+
+export interface ConsumeExchangeCodeIfMatchesInput {
+  code: string;
+  /** Session ID from preflight, included in the atomic consume comparison. */
+  expectedSessionId: string;
+  match: OidcVaultRecordBindingMatch;
+}
+
+export interface ReserveDpopProofInput {
+  /** Opaque `dpop:v1:` + SHA-256 base64url of JSON([effectiveNamespace, jkt, jti]), supplied after proof/target/nonce checks. */
+  replayKey: string;
+  /** Future safe-integer epoch milliseconds; maximum remaining TTL 360000 ms. */
+  expiresAt: number;
+}
+
+/**
+ * Shared atomic per-request replay admission; no implicit per-core-instance
+ * memory fallback. Independent memory-store objects are not shared protection.
+ * Shared instances need identical protection spaces/proof windows and synchronized
+ * clocks. Never release a reservation after a later route/issuer failure.
+ */
+export interface OidcVaultDpopReplayStore {
+  /**
+   * Reserve once through expiry. Duplicate/invalid/expired input returns false
+   * without extending expiry or allocating state. Capacity/provider failures
+   * throw; callers must fail closed, never evict live reservations. Built-ins
+   * default to 100000 entries per shared namespace. Expired entries awaiting
+   * bounded cleanup may conservatively occupy capacity. Duplicate detection
+   * precedes capacity rejection; capacity throws `OidcVaultDpopReplayCapacityError`.
+   */
+  reserveDpopProof(input: ReserveDpopProofInput): Promise<boolean>;
+}
+
+/**
+ * Detached revocation authority for a currently live lineage, resolved through
+ * a live handle or unexpired rotation alias. Never authenticates an alias and
+ * contains no tokens, profile, metadata, or provider fields beyond issuer/clientId.
+ * Inconsistent/malformed lineage binding or identity throws a private diagnostic.
+ */
+export interface OidcVaultSessionRevocationContext {
+  logicalSessionId: string;
+  provider?: OidcVaultProviderMetadata;
+  deviceBinding?: OidcVaultDpopBinding;
+}
+
 export class OidcVaultStoreConflictError extends Error {
   constructor(message = 'OIDC vault store operation conflicted with concurrent state changes.') {
     super(message);
     this.name = 'OidcVaultStoreConflictError';
+  }
+}
+
+/**
+ * Shared DPoP replay capacity is exhausted. No live reservation is evicted and
+ * no proof is admitted without replay state. Handle like any replay-store
+ * failure: fail closed; expose only the sanitized replay-unavailable error.
+ */
+export class OidcVaultDpopReplayCapacityError extends Error {
+  constructor(message = 'OIDC vault DPoP replay store capacity is exhausted.') {
+    super(message);
+    this.name = 'OidcVaultDpopReplayCapacityError';
   }
 }
 
@@ -160,10 +359,22 @@ export class OidcVaultStoreConflictError extends Error {
 export interface OidcVaultStoreProvider {
   /** Upsert an authorization transaction by `state`. */
   createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void>;
+  /** Legacy consume: refuses guarded (cookie/key-bound) records without consuming them. */
   consumeAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null>;
+  /** Optional opt-in capability: detached live preflight snapshot, not a lock. */
+  getAuthorizationTransaction?(state: string): Promise<AuthorizationTransaction | null>;
+  /** Optional opt-in capability: atomic expiry + complete exact/null match + consume; mismatch leaves the record live. */
+  consumeAuthorizationTransactionIfMatches?(
+    input: ConsumeAuthorizationTransactionIfMatchesInput,
+  ): Promise<AuthorizationTransaction | null>;
   /** Upsert an exchange code record by `code`. */
   createExchangeCode(input: ExchangeCodeRecordInput): Promise<void>;
+  /** Legacy consume: refuses guarded (cookie/key-bound) records without consuming them. */
   consumeExchangeCode(code: string): Promise<ExchangeCodeRecord | null>;
+  /** Optional opt-in capability: detached live preflight snapshot, not a lock. */
+  getExchangeCode?(code: string): Promise<ExchangeCodeRecord | null>;
+  /** Optional opt-in capability: atomically match the session ID and both binding fields before consuming. */
+  consumeExchangeCodeIfMatches?(input: ConsumeExchangeCodeIfMatchesInput): Promise<ExchangeCodeRecord | null>;
   /**
    * Create a session by `sessionId`, defaulting timestamps and logical lineage when omitted.
    *
@@ -186,12 +397,19 @@ export interface OidcVaultStoreProvider {
    */
   createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession>;
   getSession(sessionId: string): Promise<OidcVaultSession | null>;
+  /** Optional opt-in capability: resolve only a currently live lineage, including through unexpired aliases. No upstream tokens. */
+  getSessionRevocationContext?(sessionId: string): Promise<OidcVaultSessionRevocationContext | null>;
+  /** Optional opt-in capability; see `OidcVaultDpopReplayStore.reserveDpopProof`. */
+  reserveDpopProof?(input: ReserveDpopProofInput): Promise<boolean>;
   /**
    * Atomically replace an existing session with a distinct unused `nextSession.sessionId`.
    *
    * Providers preserve the existing logical session ID when the next session omits
-   * one and retain the old public session ID as an in-flight-request revocation
-   * alias. Rotation itself does not revoke the lineage. Providers throw
+   * one, inherit the original device binding when omitted, and reject changing
+   * a bound key or adding binding to an unbound source without mutation. Null or
+   * malformed security fields are invalid, never legacy. Retain the old public
+   * session ID as an in-flight-request revocation alias. Rotation itself does
+   * not revoke the lineage. Providers throw
    * `OidcVaultStoreConflictError` without changing source or target data when
    * the source is missing, the target already exists, or the target ID equals
    * the source ID.
@@ -241,6 +459,31 @@ export interface OidcVaultStoreProvider {
   deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number>;
 }
 
+/**
+ * Required store capabilities for opt-in device binding or fingerprint
+ * recognition. All six methods are checked at vault construction, including
+ * fingerprint-only flows (which do not reserve DPoP proofs). Old bearer-only
+ * custom stores retain the base interface. Guarded reads are preflight only:
+ * providers must compare/consume atomically and preserve original binding and
+ * portable reserved recognition metadata through core's rotation inputs.
+ */
+export interface OidcVaultDeviceBindingStoreProvider extends OidcVaultStoreProvider, OidcVaultDpopReplayStore {
+  /** Detached live snapshot, never a lock. Malformed/null binding/hash is invalid, not legacy. */
+  getAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null>;
+  /** Atomic expiry + full exact/null match + deletion. Mismatch leaves the live record available for an honest retry. */
+  consumeAuthorizationTransactionIfMatches(
+    input: ConsumeAuthorizationTransactionIfMatchesInput,
+  ): Promise<AuthorizationTransaction | null>;
+  /** Detached live preflight snapshot, without spending the code. */
+  getExchangeCode(code: string): Promise<ExchangeCodeRecord | null>;
+  /** Atomic expiry + expectedSessionId + both exact/null binding fields + deletion; no get/unconditional-delete fallback. */
+  consumeExchangeCodeIfMatches(input: ConsumeExchangeCodeIfMatchesInput): Promise<ExchangeCodeRecord | null>;
+  /** Resolve current lineage authority, never the alias's missing/historical binding; no credentials are returned. */
+  getSessionRevocationContext(sessionId: string): Promise<OidcVaultSessionRevocationContext | null>;
+  /** Atomic duplicate-first admission; false rejects the proof, capacity/provider errors fail closed with HTTP 503. */
+  reserveDpopProof(input: ReserveDpopProofInput): Promise<boolean>;
+}
+
 export interface OidcVaultHookContext {
   route: OidcVaultRouteName;
   req: Request;
@@ -252,7 +495,7 @@ export interface OidcVaultHookContext {
 export interface OidcVaultErrorContext extends OidcVaultHookContext {
   /**
    * Original private diagnostic, separate from sanitized browser JSON. Narrow
-   * before use; provider transport errors retain the original failure in
+   * before use; provider transport/replay admission errors retain the original failure in
    * `error.cause`, while issuer-result validation supplies a TypeError directly.
    */
   error: unknown;
@@ -269,19 +512,35 @@ export interface OidcVaultHooks {
    * After this hook, a valid earlier epoch-millisecond expiry is preserved;
    * removal, extension, or an invalid timestamp restores the configured cap.
    * Without `sessionTtlMs`, application/store lifetime policy is unchanged.
+   * Security-owned `deviceBinding` is restored from core's private snapshot;
+   * the hook cannot enroll, remove, or rebind a sender constraint. Guarded POST
+   * callbacks also retain their fresh session/lineage IDs and resolved provider
+   * identity independently of hook mutations. Reserved fingerprint recognition
+   * metadata is restored from the original transaction, including unenrolled
+   * absence; a hook/profile cannot enroll, strip, or rebind it. Other application
+   * metadata/profile fields remain mutable; throwing is an authenticated terminal veto.
    */
   onBeforeSessionCreate?(context: OidcVaultHookContext): void | Promise<void>;
   onSessionCreated?(context: OidcVaultHookContext): void | Promise<void>;
+  /** Post-rotation notification with owned plain session data; mutation cannot change stored/response authority or profile precedence. */
   onSessionRefreshed?(context: OidcVaultHookContext): void | Promise<void>;
+  /** Pre-revocation veto for a live handle, after identity/proof/nonce/replay. Receives owned session data; deletion uses original lineage authority. */
   onBeforeLogout?(context: OidcVaultHookContext): void | Promise<void>;
   onLogout?(context: OidcVaultHookContext): void | Promise<void>;
   onError?(context: OidcVaultErrorContext): void | Promise<void>;
 }
 
 export interface IssueTokenInput {
+  /** Owned session data; reserved fingerprint recognition evidence is omitted to keep hashes out of application tokens. */
   session: OidcVaultSession;
   req: Request;
   res: Response;
+  /**
+   * Authoritative verified request/key context, detached and frozen by core.
+   * Use this thumbprint for `cnf.jkt`, not mutable session/profile fields.
+   * Absent for unbound issuance; a later proof never enrolls a legacy session.
+   */
+  deviceBinding?: Readonly<OidcVaultVerifiedDpopBinding>;
 }
 
 /**
@@ -290,19 +549,20 @@ export interface IssueTokenInput {
  * properties are ignored and cannot override the response's session ID/user.
  */
 export interface OidcVaultTokenIssueResult {
-  /** Nonempty opaque token string, returned verbatim without trimming. */
+  /** Nonempty opaque token for unbound issuance; bound issuance requires a compact signed JWT with matching `cnf.jkt`. */
   accessToken: string;
   /** Token lifetime in seconds: a finite, nonnegative safe integer (zero is valid). */
   expiresIn: number;
-  /** Optional exact literal `Bearer`; omitted/undefined stays absent in JSON. */
-  tokenType?: 'Bearer';
+  /** Exact `DPoP` is required when bound. Unbound permits only `Bearer` or omission; omitted/undefined stays absent in JSON. */
+  tokenType?: 'Bearer' | 'DPoP';
 }
 
 /**
  * Trusted application token issuer for exchange and refresh. Return a non-null,
  * non-array object satisfying `OidcVaultTokenIssueResult`; only its declared
  * credential fields enter the response. This contains accidental extensions,
- * not arbitrary behavior of trusted issuers/hooks with session/request/response access.
+ * not arbitrary behavior of trusted issuers/hooks with request/response access.
+ * Core retains its own binding/lineage snapshots across issuer calls.
  */
 export interface OidcVaultTokenIssuer {
   /**
@@ -310,6 +570,8 @@ export interface OidcVaultTokenIssuer {
    * (including the rotated refresh session), clear a cookie-transport session
    * cookie, and return sanitized HTTP 500 / `OIDC_VAULT_INTERNAL_ERROR`.
    * Field diagnostics are available privately through `hooks.onError`.
+   * Core decodes a bound result only to check this trusted issuer contract;
+   * APIs must independently verify signature, issuer, audience, and expiry.
    */
   issue(input: IssueTokenInput): Promise<OidcVaultTokenIssueResult>;
 }
@@ -319,14 +581,50 @@ export interface OidcVaultAccessTokenValidationResult {
   sessionId?: string;
   scope?: string;
   claims?: Record<string, unknown>;
+  /** Verified sender constraint. Legacy adapters may omit it only for genuinely unbound credentials. */
+  confirmation?: OidcVaultAccessTokenConfirmation | null;
+}
+
+/** Canonical RFC 7638 SHA-256 thumbprint derived from verified token/introspection data, never from a proof alone. */
+export interface OidcVaultAccessTokenConfirmation {
+  jkt: string;
+}
+
+export interface OidcVaultAccessTokenRequestInput {
+  token: string;
+  scheme: 'Bearer' | 'DPoP';
+  req: Request;
+}
+
+/** Mandatory confirmation: null means verified unbound; missing confirmation or malformed/unsupported cnf is invalid. */
+export interface OidcVaultRequestAwareAccessTokenValidationResult extends OidcVaultAccessTokenValidationResult {
+  confirmation: OidcVaultAccessTokenConfirmation | null;
 }
 
 export interface OidcVaultAuthContext extends OidcVaultAccessTokenValidationResult {
   token: string;
+  /** Present only after original-key proof, API ath, nonce and shared replay admission all pass. */
+  deviceBinding?: Readonly<OidcVaultVerifiedDpopBinding>;
 }
 
 export interface OidcVaultAccessTokenValidator {
+  /** Binding-disabled middleware invokes exactly validate(token), with one argument. Report any known confirmation. */
   validate(token: string): Promise<OidcVaultAccessTokenValidationResult>;
+  /** Required at middleware construction when deviceBinding is enabled; called for both Bearer and DPoP. */
+  validateWithRequest?(
+    input: OidcVaultAccessTokenRequestInput,
+  ): Promise<OidcVaultRequestAwareAccessTokenValidationResult>;
+}
+
+/**
+ * Trusted adapter for verified JWT/introspection data. Faithfully report the
+ * original confirmation independently of custom mapping: null is genuinely
+ * unbound, never a malformed/unsupported cnf. The middleware owns proof checks.
+ */
+export interface OidcVaultRequestAwareAccessTokenValidator extends OidcVaultAccessTokenValidator {
+  validateWithRequest(
+    input: OidcVaultAccessTokenRequestInput,
+  ): Promise<OidcVaultRequestAwareAccessTokenValidationResult>;
 }
 
 export interface OidcVaultAccessTokenMiddlewareErrorContext {
@@ -339,23 +637,29 @@ export interface OidcVaultAccessTokenMiddlewareErrorContext {
 
 export interface OidcVaultAccessTokenMiddlewareOptions {
   validator: OidcVaultAccessTokenValidator;
+  /** Opt-in API DPoP enforcement; requires validateWithRequest. Omission preserves the one-argument legacy path. */
+  deviceBinding?: OidcVaultApiDeviceBindingOptions;
   /**
    * Pre-`next()` veto hook, not a post-commit notification: when it throws,
    * downstream middleware never runs and `req.auth` is detached before the
-   * error response is sent. A valid bearer credential plus a failing hook
-   * never surfaces as an invalid-token 401: an `OidcVaultHttpError` from the
-   * hook keeps its own status/code/client message (a 401 keeps the `Bearer`
-   * challenge, other statuses carry no challenge), while any other hook
+   * error response is sent. A valid credential plus a failing hook
+   * never surfaces as an invalid-token 401: a controlled package error from the
+   * hook keeps its own status/code/client message (a 401 uses the attempted
+   * scheme's challenge, other statuses carry no challenge), while any other hook
    * error becomes a sanitized `500 OIDC_VAULT_AUTH_CONTEXT_FAILED` without
    * leaking the original message. The original error is observable via
-   * `onError` for private server-side logs.
+   * `onError` for private server-side logs. Security-owned token/confirmation/
+   * deviceBinding and req.auth authority are restored after mutable hooks;
+   * a veto never releases an admitted proof's replay reservation.
    */
   onAuthContext?(input: { req: Request; res: Response; auth: OidcVaultAuthContext }): void | Promise<void>;
   /**
-   * Observes the original error for every bearer-middleware failure
-   * (extraction, validator, and `onAuthContext` failures) without affecting
+   * Observes the original error for every API-middleware failure
+   * (extraction, validator, proof/nonce/replay, and `onAuthContext`) without affecting
    * the sanitized client response. Failures thrown by this observer are
-   * swallowed so the original error response is preserved.
+   * swallowed so the original error response is preserved. Replay failures
+   * retain the provider diagnostic in non-enumerable error.cause. No request
+   * auth context is attached before proof acceptance or after a veto.
    */
   onError?(context: OidcVaultAccessTokenMiddlewareErrorContext): void | Promise<void>;
 }
@@ -364,11 +668,13 @@ export interface OidcVaultAuthenticatedRequest extends Request {
   auth?: OidcVaultAuthContext;
 }
 
+/** Local JWT verification options, independent of the asymmetric DPoP proof policy; captured at construction. */
 export interface OidcVaultJwtAccessTokenValidatorOptions {
   key: CryptoKey | KeyObject | JWK | Uint8Array;
   issuer?: string;
   audience?: string | string[];
   algorithms?: string[];
+  /** Verified cnf is snapshotted before this mapper; mapper-supplied confirmation/deviceBinding is ignored. */
   mapClaims?(claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult;
 }
 
@@ -405,11 +711,15 @@ export interface OidcVaultConfig {
 
 export interface OidcVaultLogoutResult {
   /**
-   * Successful live-session logout commits revocation before upstream work
-   * (and clears the session cookie under cookie transport). Known foreign
-   * live sessions instead fail with 401. Without a live session, success means
-   * stale-alias deletion was attempted; an expired alias may no longer revoke
-   * a live lineage. Stateless application access tokens are not invalidated.
+   * Successful logout commits revocation before upstream work and clears the
+   * session cookie under cookie transport. Built-in live handles and unexpired
+   * aliases authenticate the surviving lineage's provider/original binding;
+   * wrong identity, missing/wrong/stale/replayed proof, or disabled acceptance
+   * of a bound lineage fails without deleting or clearing. No currently live
+   * target is idempotent success without deletion or proof reservation. Aliases
+   * grant revocation only, not refresh authentication or upstream redirects.
+   * Old custom bearer stores without revocation context retain legacy alias
+   * deletion behavior. Stateless application access tokens are not invalidated.
    * Local-only logout (`redirect` unset or `false`) never contacts the provider.
    * Redirected logout (`redirect: true`)
    * treats the upstream end-session redirect as best-effort: when provider
@@ -432,11 +742,43 @@ export interface OidcVaultExchangeResult extends Partial<OidcVaultTokenIssueResu
   user?: OidcVaultUserProfile;
 }
 
+/** JSON body for opt-in `POST <basePath>/login`; proof/key and recognition signals belong in their configured headers, not the body. */
+export interface OidcVaultLoginInitiationInput {
+  /** Optional destination on the configured frontend origin. Query-string returnTo is ignored by POST login. */
+  returnTo?: string;
+}
+
+/**
+ * Exact successful POST-login JSON. Navigate to this URL after storing a proof
+ * key when DPoP is enabled. Use credentials: 'include' even with body session
+ * transport: initiation sets a temporary HttpOnly transaction cookie.
+ */
+export interface OidcVaultLoginInitiationResult {
+  authorizationUrl: string;
+}
+
 export type OidcVaultSessionTransport = 'body' | 'cookie';
 
 export type OidcVaultCookieDeploymentMode = 'same-origin' | 'same-site' | 'cross-site';
 
 export type OidcVaultCookieSameSite = 'lax' | 'strict' | 'none';
+
+/**
+ * Temporary browser-binding cookie for POST login -> headerless callback ->
+ * guarded exchange. Always host-only, Path=/, HttpOnly, and Secure on HTTPS;
+ * no Domain/path/security opt-outs. One pending flow per cookie name: a fresh
+ * initiation replaces it. Use distinct names for multiple vault mounts.
+ */
+export interface OidcVaultTransactionCookieOptions {
+  /**
+   * HTTP cookie token, distinct from the session cookie. HTTPS defaults to
+   * __Host-oidc_vault_transaction; loopback HTTP to oidc_vault_transaction.
+   * __Host-/__Secure- prefixes require HTTPS.
+   */
+  name?: string;
+  /** Default lax permits the provider's top-level GET callback. Explicit none requires HTTPS for cross-site SPAs. */
+  sameSite?: 'lax' | 'none';
+}
 
 export interface OidcVaultCookieOptions {
   /**
@@ -479,8 +821,11 @@ export interface OidcVaultCookieOptions {
 }
 
 export interface OidcVaultOptions {
+  /** Public router mount; default /auth/oidc. DPoP vault proxies must preserve this externally visible path. */
   basePath?: string;
+  /** Pinned public callback/proof origin. DPoP requires a static HTTPS origin, with loopback HTTP allowed for development. */
   backendOrigin: string;
+  /** Vault persistence and, when DPoP is enabled, atomic replay admission. All six stronger capabilities are required for either opt-in feature. */
   storeProvider: OidcVaultStoreProvider;
   config?: OidcVaultConfig;
   /**
@@ -494,6 +839,31 @@ export interface OidcVaultOptions {
   hooks?: OidcVaultHooks;
   /** Optional local issuer; when omitted, exchange/refresh return no local token fields. */
   tokenIssuer?: OidcVaultTokenIssuer;
+  /**
+   * Opt-in DPoP policy; absent preserves unbound bearer behavior. Present with
+   * no mode means `optional`. Requires all `OidcVaultDeviceBindingStoreProvider`
+   * capabilities and a static HTTPS `backendOrigin` (loopback HTTP development
+   * is allowed). Bound exchange/refresh/logout require a fresh original-key
+   * DPoP header before code consumption, upstream refresh, hooks or revocation;
+   * vault POSTs need no Authorization access token/ath. A supplied optional
+   * unbound proof validates/reserves but never enrolls or rebinds. Construction
+   * snapshots/freezes plain options and algorithms and copies nonce bytes.
+   */
+  deviceBinding?: OidcVaultDeviceBindingOptions;
+  /**
+   * Separate opt-in recognition policy; omission means no signal capture/check.
+   * Enables JSON POST login and its temporary HttpOnly cookie in both session
+   * transports, even without DPoP; requires all guarded-store capabilities.
+   * POST login alone enrolls a supplied signal in reserved metadata. Enrolled
+   * exchange/refresh compare before proof admission/code consume/upstream use:
+   * missing/mismatch returns 403 OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED without
+   * mutation. Legacy/GET/absent-signal sessions remain unenrolled. Refresh never
+   * enrolls/rotates recognition; changes require fresh POST login. Logout,
+   * rotation aliases, signed backchannel logout and API recognition policy are
+   * unaffected. Disclose collection and transaction/session retention, including
+   * store cleanup/backups; hashing is not anonymization or theft prevention.
+   */
+  fingerprintRecognition?: OidcVaultFingerprintRecognitionOptions;
   /**
    * Default browser return target after backend callback completion. Required
    * if login accepts a custom `returnTo`. Remains optional at middleware
@@ -512,6 +882,7 @@ export interface OidcVaultOptions {
    * session). Discovery errors also reach `onError`.
    */
   postLogoutRedirectUri?: string;
+  /** Default enabled when discovery/manual config has a UserInfo endpoint and the response supplies an access token; false disables it. */
   fetchUserInfo?: boolean;
   /**
    * Authorization transaction lifetime in milliseconds (default: 10 minutes).
@@ -538,8 +909,27 @@ export interface OidcVaultOptions {
    * store-owned lifetime behavior; no default session expiry is assigned.
    */
   sessionTtlMs?: number;
+  /** Default body: JSON sessionId. Cookie mode omits that handle from JSON; POST login/exchange need the temporary cookie in both modes. */
   sessionTransport?: OidcVaultSessionTransport;
   cookie?: OidcVaultCookieOptions;
+  /**
+   * Detached/frozen transaction-cookie settings, independent of session
+   * transport. POST login stores only SHA-256(cookie secret) and the verified
+   * initiating jkt when bound; callback authenticates and atomically spends the
+   * stored match. Guarded exchange needs this cookie in both session transports
+   * plus the original-key proof when bound. Success/authenticated terminal
+   * issuance failure clears it; mismatches and nonce challenges do not spend or
+   * clear. Cookie lifetime rounds down to the transaction/code deadline.
+   */
+  transactionCookie?: OidcVaultTransactionCookieOptions;
+  /**
+   * Allowed browser source origins: POST login uses this policy in both
+   * transports; guarded exchange uses the same policy (JSON or form), and
+   * cookie refresh/logout retain their source checks. Missing/null/untrusted
+   * sources fail closed; POST login/guarded exchange also reject raw source
+   * ambiguity. backendOrigin is included internally; a valid Referer is the
+   * fallback only when Origin is absent.
+   */
   trustedOrigins?: string[];
   requestBodyLimit?: string | number;
   /**

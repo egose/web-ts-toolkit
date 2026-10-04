@@ -74,13 +74,15 @@ process.once('SIGTERM', async () => {
 
 ## Collection Names
 
-The provider uses five separate MongoDB collections by default:
+The provider uses seven separate MongoDB collections by default:
 
 - `oidc_vault_authorization_transactions`: authorization transaction state, nonce, PKCE verifier, and metadata
 - `oidc_vault_exchange_codes`: short-lived frontend exchange codes
 - `oidc_vault_sessions`: sessions, user data, and bearer-equivalent token material
 - `oidc_vault_backchannel_logout_token_jtis`: consumed backchannel logout token JTIs
 - `oidc_vault_rotated_session_aliases`: stale rotated session IDs mapped to active logical sessions
+- `oidc_vault_dpop_proofs`: unique DPoP proof IDs with a TTL expiry index
+- `oidc_vault_dpop_replay_capacity`: shared capacity/serialization row and indexed, non-TTL expiry-accounting rows
 
 Override collection names when your deployment needs explicit naming:
 
@@ -92,15 +94,17 @@ const storeProvider = createMongoOidcVaultStore({
   sessionsCollectionName: 'auth_oidc_sessions',
   backchannelLogoutTokenJtisCollectionName: 'auth_oidc_backchannel_logout_jtis',
   rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',
+  dpopProofsCollectionName: 'auth_dpop_proofs',
+  dpopReplayCapacityCollectionName: 'auth_dpop_capacity',
 });
 ```
 
 ## Startup And Client Ownership
 
 - use MongoDB when your team already standardizes on Mongo and you want the auth vault data in the same operational platform
-- the provider uses separate collections for authorization transactions, exchange codes, sessions, backchannel logout token JTIs, and rotated-session aliases
+- the provider uses seven separate collections: transactions, exchange codes, sessions, backchannel JTIs, aliases, DPoP proofs and replay capacity/accounting
 - TTL indexes are created on expiring records; sessions, authorization transactions, exchange codes, backchannel logout token JTIs, and rotated-session aliases are also checked for expiration during relevant reads or consumes (`expiresAt <= now()` is expired), so behavior does not depend only on Mongo's background TTL monitor timing
-- session rotation and inactive-lineage alias cleanup require MongoDB transactions; use a replica set or sharded deployment because standalone servers fail readiness instead of using non-atomic multi-write fallbacks
+- session rotation, coherent revocation-context reads, replay-capacity admission and inactive-lineage alias cleanup require MongoDB transactions; use a replica set or sharded deployment because standalone servers fail readiness instead of using non-atomic fallbacks
 - startup readiness creates required indexes and verifies transaction-capable topology; connect the MongoDB client, create the store, await `storeProvider.ready()`, then accept traffic
 - session deletion by subject or provider session ID uses compound scoped indexes on the identity field plus `provider.issuer` and `provider.clientId`; these replace single-field identity indexes because the leading key still supports identity-only deletes while scoped logout deletes avoid scanning every repeated identity across tenants
 - the application owns MongoDB client shutdown; this package does not close the client
@@ -167,9 +171,53 @@ The package intentionally creates one compound index per public scoped identity 
 
 ## Main Exports
 
-Use named imports from the package root; there is no default export or public subpath API. Use Node.js `>=22.12.0` for the core dependency's CJS/ESM runtime support. TypeScript apps also need `@types/node` and `@types/express`.
+Use named imports from the package root; there is no default export or public subpath API. Use Node.js `>=22.12.0` for the core dependency's CJS/ESM runtime support. TypeScript apps also need `@types/node` and `@types/express`. Both ESM (`import`, `index.d.mts`) and CJS (`require`, `index.d.ts`) declaration conditions are shipped; consumer imports always use the package name.
 
 - `createMongoOidcVaultStore(...)`
 - `type OidcVaultMongoStoreProvider`
 - `type MongoOidcVaultStoreOptions`
 - `DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS`
+
+## Device-Binding Store Capabilities
+
+`OidcVaultMongoStoreProvider` extends the core `OidcVaultDeviceBindingStoreProvider`, retaining `ready()`. `getAuthorizationTransaction(state)` / `getExchangeCode(code)` return detached live snapshots without consumption. They are preflight, not locks. `consumeAuthorizationTransactionIfMatches({ state, match })` and `consumeExchangeCodeIfMatches({ code, expectedSessionId, match })` use **filtered atomic `findOneAndDelete`**, comparing expiry, both security fields and (for exchange) the observed session ID in the delete predicate. No get followed by unconditional deletion is used. Matching concurrent clients have one winner; mismatch returns `null` and leaves the live record available for an honest retry.
+
+Import shared stronger-provider/match/consume/replay/revocation types and `OidcVaultDpopReplayCapacityError` from the **core package root**. This package's root exports its factory, Mongo options/provider and alias-retention constant. Either vault opt-in feature checks all six stronger capabilities; fingerprint-only does not reserve proofs. Core's shipped README contains the complete bound issuer/request-aware API/browser recipe, using the provider as API replayStore.
+
+`match` includes both `deviceBinding` and `browserBindingHash`. Non-null values match exactly; **null matches field absence only (`$exists: false`)**, never BSON null or an ignored field. Legacy records have neither field, cookie-only POST records have a browser hash, and bound POST records have that hash plus `{ type: 'dpop', jkt }`. Both hashes are canonical 43-character SHA-256 base64url. Key-without-hash, stored null, malformed/noncanonical hashes or extra binding fields are invalid. Security-field writes reject invalid input; explicit undefined fields are omitted before BSON serialization so they cannot turn into null. Binding comparison is independent of BSON field order. Original legacy consumes refuse guarded records without consumption. Corrupt records return no credentials and may remain until TTL cleanup/replacement.
+
+Session documents persist only the thumbprint binding, never a JWK, proof algorithm or historical mode. Rotation inherits omitted/undefined binding, accepts the same key and rejects null/malformed binding, changing a key or enrolling an unbound source before mutation. Binding is also included in the transaction's source-generation comparison, so replacement/retry cannot consume a new source under the old key. Existing ID upsert, target conflict, alias-retention and deletion-count variations above are preserved.
+
+Migration detail: the pre-binding Mongo mapper wrote BSON null for omitted **provider metadata and session expiry**. Those two non-binding fields are normalized to absence on genuinely unbound legacy rows, preserving their read/rotation/revocation behavior. This does not normalize `deviceBinding` or `browserBindingHash`: their stored null values are always invalid. Bound records with malformed provider/expiry still fail closed.
+
+`getSessionRevocationContext(sessionId)` resolves a live handle or unexpired alias to a currently live lineage using one snapshot transaction. It projects only logical ID/subject/provider/binding/expiry (no refresh/ID/access tokens fetched) and returns only `logicalSessionId`, allowlisted `provider.issuer/clientId`, and optional original `deviceBinding`. No profile/metadata/arbitrary provider fields are returned. Aliases remain token/binding-free; they resolve surviving session authority rather than treating missing alias binding as unbound. Malformed/inconsistent lineage binding/provider authority throws a fixed private diagnostic. Expired aliases/empty lineages return `null`; `getSession(alias)` remains `null`. Lineage queries materialize their surviving candidates; this is not bounded replay-admission work.
+
+## Per-Request DPoP Replay, Capacity And TTL Accounting
+
+| Mongo replay option                | Default                           | Contract                                                                        |
+| ---------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| `dpopReplayMaxEntries`             | `100000`                          | Positive safe integer, same on all clients sharing the collection pair          |
+| `dpopProofsCollectionName`         | `oidc_vault_dpop_proofs`          | Unique proof IDs and TTL expiry; distinct from all other collections            |
+| `dpopReplayCapacityCollectionName` | `oidc_vault_dpop_replay_capacity` | Capacity/revision + indexed non-TTL expiry ledger; TTL indexes reject readiness |
+
+```ts
+const storeProvider = createMongoOidcVaultStore({
+  db: mongo.db('app-auth'),
+  dpopReplayMaxEntries: 100_000,
+  dpopProofsCollectionName: 'oidc_vault_dpop_proofs',
+  dpopReplayCapacityCollectionName: 'oidc_vault_dpop_replay_capacity',
+});
+await storeProvider.ready();
+```
+
+`dpopReplayMaxEntries` is a positive safe integer, default **100000**, shared across independent clients using the paired replay collections. All seven collection names must be distinct and valid. Every shared client must use the same capacity and proof/accounting collection pairing; readiness fails if the persisted capacity configuration disagrees. Changing names starts an independent namespace, not a migration. No instance-local admission counter or replay fallback is used.
+
+`reserveDpopProof({ replayKey, expiresAt })` reserves an opaque key verbatim after proof verification. Expiry must be a safe-integer future millisecond epoch with remaining TTL **<=360000 ms**. Nonfinite/unsafe/fractional/expired (`<= now()`) or overlong windows return `false` without allocation. A duplicate returns `false` without extending expiry, before capacity checks. Valid expired IDs may be admitted again.
+
+Admission is a **snapshot transaction serialized by an actual revision write** to the shared capacity row. It checks the unique proof ID and its accounting entry, removes at most **64** indexed expired accounting entries plus the requested expired key, then commits the proof write, accounting insertion and capacity update together. No full proof-collection count/scan is required per request. New reservations at capacity throw core `OidcVaultDpopReplayCapacityError` (import from `@web-ts-toolkit/express-oidc-vault`); live reservations are never evicted. Write failures roll back all admission changes; driver transaction retries repeat against the same invocation-owned input and a fresh snapshot. Every allocated transaction session is ended in `finally`.
+
+**TTL deletion cannot leak capacity:** only `dpopProofs` has a TTL index. Each admitted key also has an indexed expiry-accounting row in `dpopReplayCapacity`, which deliberately has **no TTL index**; readiness rejects any pre-existing TTL index on that collection. Even if MongoDB's monitor already deleted a proof row, the next bounded cleanup still knows when/how much to decrement. A missing physical proof with an unexpired accounting entry remains a duplicate, not an acceptance bypass. Corrupt accounting fails closed. At most the configured number of proof rows and accounting rows, plus one capacity row, are retained by normal operation. Expired accounting rows awaiting traffic-driven cleanup can conservatively occupy capacity; when traffic stops they remain bounded and are reclaimed on later admissions.
+
+DPoP replay is a **write per accepted proof/API request**, much higher-volume than backchannel logout JTIs. The common no-cleanup admission uses seven sequential data commands plus transaction commit; a live duplicate uses a capacity write, proof lookup and commit. Expired-row cleanup adds bounded queries/deletes, and contention/retries add work. The single shared capacity row serializes admissions and can become a throughput bottleneck. Size for unique proofs/second × validity window plus headroom (approved defaults: at most 70 seconds), share identical namespaces/windows and synchronized clocks, and load-test the intended rate. This provides atomic capacity, not a latency/throughput SLA.
+
+Never release a reservation after downstream failure, extend duplicate expiry, or accept a proof when replay storage fails. Retries require a fresh proof. Core API/vault middleware maps capacity/provider failure to sanitized **503 OIDC_VAULT_DPOP_REPLAY_UNAVAILABLE**; private diagnostics are not automatically safe to log. The store supplies atomic state, not HTTP proof authentication. Replica-set tests verify these operations; sharded topology/distributed failure durability and throughput remain deployment-specific checks. Losing live replay data on restore/failover weakens replay protection until its acceptance window expires.

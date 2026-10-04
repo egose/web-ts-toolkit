@@ -35,6 +35,23 @@ export function getDocPermissions(modelName: string, doc: unknown): Record<strin
   return isPlainObject(permissions) ? permissions : {};
 }
 
+/**
+ * Reduce the doc permission map to its exposable subset for API responses.
+ * Enforcement always uses the full hook map; call this only after all grant
+ * computations and decorate hooks have run. `_view`/`_edit` are always kept.
+ * No-op unless the `exposedDocPermissionKeys` model option is set (any array,
+ * including `[]`, enables it; `undefined` preserves current behavior).
+ */
+export function stripUnexposedDocPermissions(modelName: string, doc: unknown): void {
+  const exposed = getModelOption(modelName, 'exposedDocPermissionKeys') as string[] | undefined;
+  if (exposed === undefined) return;
+  const docPermissionField = getModelOption(modelName, 'documentPermissionField');
+  const current = getDocValue(doc as DocValue, docPermissionField, undefined);
+  if (!isPlainObject(current)) return;
+  const keep = new Set(['_view', '_edit', ...exposed]);
+  setDocValue(doc, docPermissionField, Object.fromEntries(Object.entries(current).filter(([key]) => keep.has(key))));
+}
+
 export function toObject<T>(doc: T | DocumentLike): T | Record<string, unknown> {
   return isDocument(doc) ? doc.toObject() : doc;
 }

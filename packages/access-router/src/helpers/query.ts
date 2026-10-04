@@ -64,6 +64,19 @@ export function parseSortString(sortString: string): { sortKey: string; sortOrde
   }
 }
 
+/**
+ * Normalize a `select` query param (`?select=name,secret`, `?select=name secret`,
+ * or repeated `?select=name&select=secret`) into a field list. Returns
+ * `undefined` when absent or empty so callers keep omitted-select semantics
+ * (including `requireExplicitSelect` handling downstream).
+ */
+export function parseSelectParam(select: string | string[] | undefined): string[] | undefined {
+  if (select === undefined) return undefined;
+  const values = Array.isArray(select) ? select : [select];
+  const fields = values.flatMap((value) => String(value).split(/[\s,]+/)).filter(Boolean);
+  return fields.length > 0 ? fields : undefined;
+}
+
 export function normalizeSelect(select: Projection): string[] {
   if (Array.isArray(select)) return flattenDeep(select.map(normalizeSelect));
   if (isPlainObject(select)) {

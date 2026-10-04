@@ -84,7 +84,7 @@ interface RootQueryEntryBase<TTarget extends RootTarget, TOp extends string> {
 
 export interface RootModelNewQueryEntry extends RootQueryEntryBase<'model', 'new'> {
   args?: { select?: string[] };
-  options?: { skim?: boolean; includePermissions?: boolean };
+  options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean };
 }
 
 export interface RootModelListQueryEntry extends RootQueryEntryBase<'model', 'list'> {
@@ -262,6 +262,7 @@ export interface AccessRouterBaseRequest extends AccessRouterRequest {
     | 'try_list'
     | 'skim'
     | 'include_permissions'
+    | 'include_field_permissions'
     | 'include_count'
     | 'include_extra_headers'
     | 'returning_all',

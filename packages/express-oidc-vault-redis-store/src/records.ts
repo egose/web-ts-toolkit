@@ -1,6 +1,8 @@
 import type {
   AuthorizationTransaction,
   ExchangeCodeRecord,
+  OidcVaultDpopBinding,
+  OidcVaultRecordBindingMatch,
   OidcVaultSession,
 } from '@web-ts-toolkit/express-oidc-vault';
 
@@ -28,6 +30,41 @@ export const isPlainRecord = (value: unknown): value is Record<string, unknown> 
 
 export const isString = (value: unknown): value is string => typeof value === 'string';
 
+export const isBindingHash = (value: unknown): value is string =>
+  typeof value === 'string' && value.length === 43 && /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(value);
+
+export const validateDpopBinding = (value: unknown): value is OidcVaultDpopBinding =>
+  isPlainRecord(value) &&
+  (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null) &&
+  Object.keys(value).length === 2 &&
+  Object.hasOwn(value, 'type') &&
+  Object.hasOwn(value, 'jkt') &&
+  value.type === 'dpop' &&
+  isBindingHash(value.jkt);
+
+export const validateRecordBinding = (record: { deviceBinding?: unknown; browserBindingHash?: unknown }): boolean =>
+  (record.deviceBinding === undefined || validateDpopBinding(record.deviceBinding)) &&
+  (record.browserBindingHash === undefined || isBindingHash(record.browserBindingHash)) &&
+  (record.deviceBinding === undefined || record.browserBindingHash !== undefined);
+
+export const validateBindingMatch = (value: unknown): value is OidcVaultRecordBindingMatch =>
+  isPlainRecord(value) &&
+  Object.hasOwn(value, 'deviceBinding') &&
+  Object.hasOwn(value, 'browserBindingHash') &&
+  (value.deviceBinding === null || validateDpopBinding(value.deviceBinding)) &&
+  (value.browserBindingHash === null || isBindingHash(value.browserBindingHash));
+
+export const assertRecordBinding = (record: { deviceBinding?: unknown; browserBindingHash?: unknown }): void => {
+  if (!validateRecordBinding(record))
+    throw new TypeError('OIDC vault store record has invalid device/browser binding.');
+};
+
+export const assertSessionBinding = (record: { deviceBinding?: unknown }): void => {
+  if (record.deviceBinding !== undefined && !validateDpopBinding(record.deviceBinding)) {
+    throw new TypeError('OIDC vault store session has invalid device binding.');
+  }
+};
+
 const isOptionalString = (value: unknown): value is string | undefined => value === undefined || isString(value);
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
@@ -46,6 +83,7 @@ export const validateAuthorizationTransaction = (value: unknown, state: string):
   isString(value.nonce) &&
   isString(value.pkceVerifier) &&
   isString(value.codeChallenge) &&
+  validateRecordBinding(value) &&
   isOptionalString(value.returnTo) &&
   isFiniteNumber(value.createdAt) &&
   isFiniteNumber(value.expiresAt) &&
@@ -56,6 +94,7 @@ export const validateExchangeCodeRecord = (value: unknown, code: string): value 
   isString(value.code) &&
   value.code === code &&
   isString(value.sessionId) &&
+  validateRecordBinding(value) &&
   isOptionalString(value.returnTo) &&
   isFiniteNumber(value.createdAt) &&
   isFiniteNumber(value.expiresAt);
@@ -71,6 +110,7 @@ export const validateSession = (value: unknown, sessionId: string): value is Oid
   isString(value.subject) &&
   isOptionalString(value.providerSessionId) &&
   validateProviderMetadata(value.provider) &&
+  (value.deviceBinding === undefined || validateDpopBinding(value.deviceBinding)) &&
   isString(value.refreshToken) &&
   isString(value.idToken) &&
   isOptionalString(value.accessToken) &&

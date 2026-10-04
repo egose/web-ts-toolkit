@@ -133,7 +133,7 @@ describe('ARR-H01: query signal composition', () => {
     });
 
     await waitFor(() => expect(mock.spies.read).toHaveBeenCalledTimes(1));
-    const [, , configArg] = mock.spies.read.mock.calls.at(-1) as [string, unknown, { signal: AbortSignal }];
+    const [, , , configArg] = mock.spies.read.mock.calls.at(-1) as [string, unknown, unknown, { signal: AbortSignal }];
     expect(configArg.signal.aborted).toBe(false);
 
     second.abort('latest-request-config-signal');

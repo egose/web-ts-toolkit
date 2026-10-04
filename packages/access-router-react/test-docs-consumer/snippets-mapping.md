@@ -14,7 +14,7 @@ The compile gate reads this tab-separated inventory. `source` plus `ordinal` ide
 # source	ordinal	sha256	classification	fixture-or--
 packages/access-router-react/README.md	1	3f85d0411ebd32fff2c28f7e1c98523e0f618edf139f3a3bca616ba2d851b12b	scaffolded	factory-readme.ts
 packages/access-router-react/README.md	2	103f93b02b78ddbe83c0f69cf29aa56df867c3ff43a07296fe3f4955bdaa8436	exact	organization.ts
-packages/access-router-react/README.md	3	a4ce3315f7a88dbf91278dec94ba67391f1e4d87c76af11e9d8a5bdafcf6dca2	scaffolded	quickstart.tsx
+packages/access-router-react/README.md	3	8c6957686353cb54016ecb4b2a5ac28ae18476e2d9f8af74869b261adb1f5561	scaffolded	quickstart.tsx
 packages/access-router-react/README.md	4	abbc3ce00c20659be9699bd84c81b95e4c1b5eab1b491f4d0ee9f9872b981eb4	scaffolded	query-hooks.tsx
 packages/access-router-react/README.md	5	72b56bda55fa60bc743673acca2633e705b55d27166841042c0b303883ea9ba6	scaffolded	query-hooks.tsx
 packages/access-router-react/README.md	6	f98b55a3f78d72e343570a0a70e243ce3332a09806b5327c2865af34211beb9a	scaffolded	query-hooks.tsx

@@ -99,9 +99,9 @@ Bulk deletion makes one cursor traversal, rechecks scope in each atomic delete s
 
 ## Redis Version And Topology
 
-- **Minimum Redis version: 6.2.** One-time authorization transactions and exchange codes are consumed with `GETDEL`, which is unavailable before Redis 6.2. Versions 6.2 and 7.2 are exercised in integration tests.
+- **Supported minimum Redis version: 6.2.** Versions 6.2 and 7.2 are exercised in integration tests. One-time consumption now uses guarded cached Lua, including legacy consumes, so old calls cannot spend guarded records.
 - **Standalone Redis**: supported through the official `redis` `createClient(...)` client (`RedisClientType`). This is the tested topological default.
-- **Redis Sentinel**: supported by passing the underlying master client retrieved from a `redis.createSentinel(...)` sentinel — for example, the client returned by `await sentinel.acquire()`, or via `await sentinel.use(c => c)` patterns documented in the `redis` package. The bare `createSentinel(...)` root client does NOT satisfy this package's structural contract directly: its `sendCommand(isReadonly, args, options?)` requires an `isReadonly` first argument, while this store calls `sendCommand(args)`. Wrap the underlying master with an adapter conforming to `OidcVaultRedisClient` if you want to retain the Sentinel's connection management. Sentinel failover switches the underlying node, so vault state survives a failover subject to your Sentinel AOF/RDB durability settings.
+- **Redis Sentinel**: use an underlying master client retrieved from `redis.createSentinel(...)` (e.g. acquire/use patterns documented by that driver) or an adapter conforming to `OidcVaultRedisClient`. The bare Sentinel root has `sendCommand(isReadonly, args, options?)`, not this store's `sendCommand(args)`. Caller/adapter owns master acquisition, reconnect/failover and release. Automated provider tests exercise standalone 6.2/7.2, not Sentinel failover; replication/persistence guarantees are deployment-owned, and losing unexpired replay reservations during failover weakens replay protection until their window expires.
 - **Redis Cluster**: **not supported.** Cluster-shaped official clients are rejected when the store is created. The package's atomic vault scripts touch several keys without a hash-slot routing adapter, so Cluster routing could send parts of one logical operation to different nodes. Add a Cluster routing/hash-slot adapter before enabling it.
 
 ## Client Lifecycle And Ownership
@@ -127,8 +127,8 @@ Bulk deletion makes one cursor traversal, rechecks scope in each atomic delete s
 ## Expiry And Index Cleanup
 
 - expiring session records are stored with Redis `PXAT`, and revocation index scores use the same absolute expiration timestamp
-- authorization transactions and exchange codes also use `PXAT`. Redis key expiry is authoritative for reads/consumes; payload `expiresAt` is structurally validated but is not independently compared to a clock on each read. Valid single-record reads use one `GET` or `GETDEL`, without a separate `TIME` round trip, preserving the split-clock policy above
-- **TTL integrity assumption:** preserve the store-written key TTLs and matching index scores when restoring or migrating data. Externally removing/extending a TTL can make a past-dated payload readable/consumable; changing only a session TTL can also leave it live after its index membership is pruned. Read validation does not audit or repair this external expiry inconsistency. Shortening a key TTL makes the record unavailable as soon as Redis expires it, even if its payload expiry is later
+- authorization transactions and exchange codes also use `PXAT`. Legacy consumes and `getSession` preserve the key-TTL policy (no application-clock expiry check); legacy consumption uses one cached Lua call. The new transaction/code preflight getters compare payload expiry with Redis `TIME` (normally `GET` + `TIME`); guarded consumes compare payload expiry inside Lua with server time. They reject expired payloads even after externally altered TTLs
+- **TTL integrity assumption:** preserve the store-written key TTLs and matching index scores when restoring or migrating data. Externally removing/extending a TTL can still expose past-dated payloads through legacy consumes or `getSession`; changing only a session TTL can leave it live after index pruning. New guarded operations additionally enforce payload expiry, but do not repair external index/TTL inconsistencies. Shortening a key TTL makes a record unavailable immediately even when payload expiry is later
 - stale revocation memberships are pruned with Redis `TIME`, not the application clock, so a skewed application clock cannot remove a still-live Redis session from subject, provider-session, or logical-session indexes
 - indexed revocation also checks the primary session key before deleting or returning a session; expired primary values are not returned and missing primary values remove the stale membership encountered during traversal
 - indexed revocation uses `ZSCAN COUNT 250` and one `MGET` for the IDs returned in each batch. `COUNT` is a hint, not a hard batch cap (compact sorted sets can return all members); the batch is not further chunked. Response memory and repair concurrency can grow with the returned batch, while deletion scripts run sequentially
@@ -144,16 +144,55 @@ Bulk deletion makes one cursor traversal, rechecks scope in each atomic delete s
 - malformed one-time authorization transaction and exchange-code records are consumed atomically and return `null`, preventing reuse while failing closed
 - malformed session records are treated as unreadable, deleted when encountered through session reads or indexed revocation, and never returned as authenticated state
 - corruption repair deletes only the observed malformed payload through an atomic server-side compare-and-delete: a fresh same-ID record created after the stale read (session ID reuse is supported) is never destroyed by the repair, and the missing-session logout path applies the same guard instead of an unconditional delete
-- **Identity-validation compatibility note:** shape-valid records stored under the wrong identity now follow the malformed-record policy and return `null`. Session repair targets only the observed lookup key, never the embedded session ID; indexed membership repair retains the same generation guard. One-time mismatches are consumed by the original atomic `GETDEL`, with no follow-up delete that could remove a replacement
+- **Identity-validation compatibility note:** shape-valid records stored under the wrong identity follow the malformed-record policy and return `null`. Session repair targets only the observed lookup key, never the embedded session ID; indexed membership repair retains the same generation guard. One-time corruption is removed inside the same atomic consume script, with no follow-up delete that could remove a replacement
 - a stale repair observing corruption therefore preserves a concurrent replacement, while genuine logout of a live session (direct delete or scoped logical/subject/provider-session revocation) still deletes it; indexed revocation removes stale corrupt members and continues processing later valid sessions
 - Redis mutation scripts preflight expected key types before writing so wrong-type keys fail without deterministic partial mutation
 - package-generated validation and deterministic script diagnostics use fixed text without stored records. Arbitrary client/adapter failures can still reject operations with sensitive original errors; they are not generally sanitized for application logs. Use fixed operation names and allowlisted categories, not raw errors, connection URLs, session IDs, state/PKCE values, exchange codes or token-valued metric labels. The secret-independent post-commit warning policy above applies specifically to that warning path
 
 ## Main Exports
 
-Use named imports from the package root; there is no default export or public subpath API. Use Node.js `>=22.12.0` for the core dependency's CJS/ESM runtime support. TypeScript apps also need `@types/node` and `@types/express`.
+Use named imports from the package root; there is no default export or public subpath API. Use Node.js `>=22.12.0` for the core dependency's CJS/ESM runtime support. TypeScript apps also need `@types/node` and `@types/express`. Both ESM (`import`, `index.d.mts`) and CJS (`require`, `index.d.ts`) declaration conditions are shipped; consumer imports always use the package name.
 
 - `createRedisOidcVaultStore(...)`
 - `OidcVaultRedisStoreRecordError`
 - `type RedisOidcVaultStoreOptions`
 - `type OidcVaultRedisClient`
+
+## Device-Binding Store Capabilities
+
+The factory returns core `OidcVaultDeviceBindingStoreProvider`, with detached live `getAuthorizationTransaction(state)` and `getExchangeCode(code)`, atomic `consumeAuthorizationTransactionIfMatches({ state, match })` and `consumeExchangeCodeIfMatches({ code, expectedSessionId, match })`, token-free `getSessionRevocationContext(sessionId)`, and `reserveDpopProof({ replayKey, expiresAt })`.
+
+Import the stronger provider, match/consume/replay/revocation types and `OidcVaultDpopReplayCapacityError` from the **core package root**; the Redis package exports its factory/options/client and record error only. Either vault opt-in feature requires all six capabilities, while fingerprint-only flows do not reserve proofs. Use the same shared provider as API replayStore; the core shipped README includes complete DPoP issuer/API/browser usage.
+
+`match` requires both `deviceBinding` and `browserBindingHash`. Non-null values match exactly; **null requires stored absence**, never BSON/JSON null or “ignore”. Legacy records omit both; guarded unbound records have a cookie hash; bound records have that hash plus `{ type: 'dpop', jkt }`. Hashes are canonical 43-character SHA-256 base64url. Null/malformed/extra binding fields and key-without-hash records are invalid; writes reject and corrupted data returns no credentials. No JWK, proof algorithm, or historical mode is stored.
+
+Preflight getters are not locks. The consume script performs shape/identity/expiry, both matches, exchange-session match and deletion atomically; mismatch returns `null` without spending a live record. Matching races have one winner across independent Redis clients. **Legacy consumes now also use this script** and refuse guarded records, including cookie-only records, without spending them. There is no application-side get/unconditional-delete bypass. Malformed read cleanup retains the existing compare-and-delete generation guard.
+
+Rotation inherits omitted binding, accepts the same key, and rejects null/malformed, changed, or newly added binding before mutation. Lua also rechecks source identity, credential generation and binding against the preflight source so same-ID replacement cannot make a new lineage inherit an old key or lose index ownership. Target-ID, alias, deletion and post-commit maintenance policies remain as documented above.
+
+`getSessionRevocationContext` resolves a live handle or unexpired alias and all live members of its current lineage inside one Lua snapshot. A directly observed live handle always participates even if its reverse-index membership is missing, so peers cannot make that bound handle appear unbound. It returns only `logicalSessionId`, allowlisted `provider.issuer/clientId`, and optional original `deviceBinding`; no tokens/profile/metadata/arbitrary provider fields leave Redis. Alias payloads still contain only their logical ID: absence of an alias binding never means an unbound lineage. Malformed/inconsistent binding/provider authority throws a fixed diagnostic. Expired aliases/empty lineages return `null`, and `getSession(alias)` remains `null`. This call materializes the whole logical-member set and reads member primaries inside Lua; large lineages remain scale-dependent server work.
+
+## Per-Request DPoP Replay And Capacity
+
+| Redis option           | Default      | Contract                                                                |
+| ---------------------- | ------------ | ----------------------------------------------------------------------- |
+| `client`               | required     | Connected standalone-shaped client/adapter; caller owns lifecycle       |
+| `keyPrefix`            | `oidc-vault` | Shared vault/replay namespace; changing it is not migration             |
+| `dpopReplayMaxEntries` | `100000`     | Positive safe integer, identical on clients sharing the prefix          |
+| `now`                  | `Date.now`   | Store timestamps/backchannel preflight only; replay/TTL use server TIME |
+
+```ts
+const storeProvider = createRedisOidcVaultStore({
+  client: redis,
+  keyPrefix: 'oidc-vault',
+  dpopReplayMaxEntries: 100_000,
+});
+```
+
+`dpopReplayMaxEntries` is a positive safe integer (default **100000**), shared per key prefix across clients. Every client sharing that prefix must configure the same limit. The opaque proof keys are members of **`<keyPrefix>:dpop-proofs`**, a sorted set whose scores are absolute expiry milliseconds. This set is both replay state and capacity/expiry accounting; there is no separate counter that can leak after individual key TTLs.
+
+`reserveDpopProof` is normally **one cached `EVALSHA` round trip per proof**. Server `TIME` inside Lua owns the validity window; the optional application `now` hook cannot admit a stale proof or prune live reservations. A safe-integer future expiry is required, with remaining TTL **<=360000 ms**. Invalid/nonfinite/unsafe/fractional/expired (`<= server now`) or overlong input returns `false` without allocation. Duplicate-first `ZSCORE` rejects without extending expiry, even at capacity. Lua reclaims at most **64** expired members with `ZRANGEBYSCORE ... LIMIT 0 64`, plus the requested expired key, then atomically checks `ZCARD` and admits with `ZADD`. No session/alias scan, unbounded `ZREMRANGEBYSCORE`, or live-entry eviction occurs on replay admission.
+
+The replay set expires at its latest retained score (`PEXPIREAT`), reclaiming it if traffic stops; this deadline never extends a member's replay window. Expired members awaiting bounded cleanup may conservatively occupy capacity. New keys at capacity throw root `OidcVaultDpopReplayCapacityError` from `@web-ts-toolkit/express-oidc-vault`, with no live eviction or acceptance without replay state. Wrong-type/client failures reject. `NOSCRIPT` recovery loads and retries once, adding two round trips to the normal call; the existing runner never retries an arbitrary committed mutation on transport failure.
+
+Provision ACLs for cached scripts and their internal commands, including `TIME`, `TYPE`, `GET`, `DEL`, `ZSCORE`, `ZRANGEBYSCORE`, `ZREM`, `ZCARD`, `ZADD`, `ZREVRANGE` and `PEXPIREAT`. DPoP is a **per-request write**, unlike lower-volume backchannel JTIs (`SET NX PXAT`). Size capacity for unique proofs/second × validity window plus headroom (approved defaults: at most 70 seconds). Share identical namespaces/windows and synchronized clocks across instances; never release reservations after downstream failure, and retries need a fresh proof. Capacity/provider errors must map through orchestration to sanitized replay-unavailable and fail closed. Redis failover durability remains deployment-owned; these command/work bounds are not throughput/latency guarantees.

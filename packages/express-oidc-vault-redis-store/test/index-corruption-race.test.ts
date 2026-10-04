@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createRedisOidcVaultStore, type OidcVaultRedisClient } from '../src/index';
+import { emulateDeviceBindingScript } from './fake-device-binding-scripts';
 import {
   COMPARE_AND_DELETE_SCRIPT,
   DELETE_SESSION_SCRIPT,
@@ -249,7 +250,7 @@ class FakeRedisClient implements OidcVaultRedisClient {
     return 'none';
   }
 
-  private async handleEval(args: string[]): Promise<number> {
+  private async handleEval(args: string[]): Promise<unknown> {
     const [script, keyCountRaw, ...rest] = args;
 
     if (!script || !keyCountRaw) {
@@ -259,6 +260,12 @@ class FakeRedisClient implements OidcVaultRedisClient {
     const keyCount = Number(keyCountRaw);
     const keys = rest.slice(0, keyCount);
     const scriptArgs = rest.slice(keyCount);
+    const emulated = emulateDeviceBindingScript(script, keys, scriptArgs, {
+      records: this.records,
+      sortedIndexes: this.sortedIndexes,
+      now: this.now,
+    });
+    if (emulated) return emulated.result;
 
     if (script === ROTATE_SESSION_SCRIPT) {
       return this.evalRotateSession(keys, scriptArgs);
@@ -289,7 +296,7 @@ class FakeRedisClient implements OidcVaultRedisClient {
     throw new Error('Unsupported EVAL script.');
   }
 
-  private async handleEvalSha(args: string[]): Promise<number> {
+  private async handleEvalSha(args: string[]): Promise<unknown> {
     const [digest, keyCountRaw, ...rest] = args;
 
     if (!digest || !keyCountRaw) {
@@ -727,8 +734,8 @@ describe('redis corruption repair compare-and-delete (emulator)', () => {
       const sendCommand = client.sendCommand.bind(client);
       client.sendCommand = async (args) => {
         const response = await sendCommand(args);
-        if (args[0] === 'GETDEL' && args[1] === key && !interleaved) {
-          expect(response).toBe(JSON.stringify(record));
+        if (args[0] === 'EVALSHA' && args[3] === key && !interleaved) {
+          expect(response).toBeNull();
           interleaved = true;
           client.injectRecord(key, JSON.stringify(replacement));
         }
@@ -743,7 +750,7 @@ describe('redis corruption repair compare-and-delete (emulator)', () => {
       expect(await client.get(key)).toBeNull();
       expect(await consume('victim')).toEqual(record);
       expect(await consume('victim')).toBeNull();
-      expect(client.commands.every((command) => command === 'GETDEL')).toBe(true);
+      expect(client.commands.every((command) => command === 'EVALSHA' || command === 'SCRIPT')).toBe(true);
     },
   );
 
@@ -1078,7 +1085,8 @@ if (!hasDocker) {
           const result = await read();
           if (expiresAt === null) expect(result).toBeNull();
           else expect(result).toMatchObject({ expiresAt });
-          expect(commands).toEqual([kind === 'session' ? 'GET' : 'GETDEL']);
+          if (kind === 'session') expect(commands).toEqual(['GET']);
+          else expect(commands.every((command) => command === 'EVALSHA' || command === 'SCRIPT')).toBe(true);
         };
         try {
           const time = (await active.client.sendCommand(['TIME'])) as string[];

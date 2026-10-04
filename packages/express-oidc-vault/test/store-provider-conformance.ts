@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { OidcVaultStoreConflictError } from '@web-ts-toolkit/express-oidc-vault';
-import type { OidcVaultSession, OidcVaultStoreProvider } from '@web-ts-toolkit/express-oidc-vault';
+import { OidcVaultDpopReplayCapacityError, OidcVaultStoreConflictError } from '@web-ts-toolkit/express-oidc-vault';
+import type {
+  AuthorizationTransactionInput,
+  ExchangeCodeRecordInput,
+  OidcVaultDeviceBindingStoreProvider,
+  OidcVaultDpopBinding,
+  OidcVaultRecordBindingMatch,
+  OidcVaultSession,
+  OidcVaultStoreProvider,
+} from '@web-ts-toolkit/express-oidc-vault';
 
 export interface OidcVaultStoreConformanceContext {
   store: OidcVaultStoreProvider;
@@ -612,8 +620,8 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
 
     for (const method of ['subject', 'provider-session', 'direct'] as const) {
       for (const differentScope of ['issuer', 'clientId'] as const) {
-        it(`${method} deletion preserves aliases of a surviving ${differentScope} scope`, async () => {
-          for (const finite of [false, true]) {
+        for (const finite of [false, true] as const) {
+          it(`${method} deletion preserves aliases of a surviving ${differentScope} scope (${finite ? 'finite' : 'infinite'} expiry)`, async () => {
             await withContext(options, `survivor-alias-${method}-${differentScope}-${finite}`, async ({ store }) => {
               const matched = {
                 ...createSessionInput('matched'),
@@ -650,8 +658,8 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
               await store.deleteSession('survivor_old');
               expect(await store.getSession('reused_lineage')).not.toBeNull();
             });
-          }
-        });
+          }, 20_000);
+        }
       }
     }
 
@@ -770,6 +778,595 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
         expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'equal', expiresAt: 400 })).toBe(true);
         expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'nan', expiresAt: 400 })).toBe(true);
       });
+    });
+  });
+};
+
+export interface OidcVaultDeviceBindingStoreConformanceContext {
+  store: OidcVaultDeviceBindingStoreProvider;
+  /** Independent backend client for shared stores; the same object for process-local memory. */
+  peerStore: OidcVaultDeviceBindingStoreProvider;
+  setNow(now: number): void;
+  cleanup?(): Promise<void> | void;
+}
+
+export interface OidcVaultDeviceBindingStoreConformanceOptions {
+  createContext(
+    testName: string,
+    options: { dpopReplayMaxEntries: number },
+  ): Promise<OidcVaultDeviceBindingStoreConformanceContext> | OidcVaultDeviceBindingStoreConformanceContext;
+}
+
+const binding: OidcVaultDpopBinding = { type: 'dpop', jkt: 'A'.repeat(43) };
+const otherBinding: OidcVaultDpopBinding = { type: 'dpop', jkt: 'B'.repeat(42) + 'A' };
+const browserHash = 'C'.repeat(42) + 'A';
+const otherBrowserHash = 'D'.repeat(42) + 'A';
+const absentMatch: OidcVaultRecordBindingMatch = { deviceBinding: null, browserBindingHash: null };
+const guardedMatch: OidcVaultRecordBindingMatch = { deviceBinding: binding, browserBindingHash: browserHash };
+
+/** Additional portable suite for the stronger opt-in contract; bearer-only custom stores use the base suite. */
+export const defineOidcVaultDeviceBindingStoreConformanceSuite = (
+  providerName: string,
+  options: OidcVaultDeviceBindingStoreConformanceOptions,
+): void => {
+  const run = async (
+    name: string,
+    test: (context: OidcVaultDeviceBindingStoreConformanceContext, start: number) => Promise<void>,
+    dpopReplayMaxEntries = 8,
+  ) => {
+    const context = await options.createContext(name, { dpopReplayMaxEntries });
+    // Keep MongoDB's real TTL monitor out of deterministic application-clock tests.
+    const start = Date.now() + 60_000;
+    context.setNow(start);
+    try {
+      await test(context, start);
+    } finally {
+      await context.cleanup?.();
+    }
+  };
+
+  describe(`${providerName} device-binding store conformance`, () => {
+    for (const kind of ['transaction', 'exchange'] as const) {
+      for (const shape of ['legacy', 'cookie-only', 'bound'] as const) {
+        it(`${kind}: detached live ${shape} reads and complete exact/null consumes`, async () => {
+          await run(`${kind}-${shape}`, async ({ store, peerStore }, start) => {
+            const match: OidcVaultRecordBindingMatch = {
+              deviceBinding: shape === 'bound' ? { ...binding } : null,
+              browserBindingHash: shape === 'legacy' ? null : browserHash,
+            };
+            const fields = {
+              ...(match.deviceBinding === null ? {} : { deviceBinding: { ...match.deviceBinding } }),
+              ...(match.browserBindingHash === null ? {} : { browserBindingHash: match.browserBindingHash }),
+            };
+            const transaction: AuthorizationTransactionInput = {
+              state: 'state',
+              nonce: 'nonce',
+              pkceVerifier: 'verifier',
+              codeChallenge: 'challenge',
+              createdAt: start,
+              expiresAt: start + 1000,
+              metadata: { nested: ['original'] },
+              ...fields,
+            };
+            const exchange: ExchangeCodeRecordInput = {
+              code: 'code',
+              sessionId: 'session',
+              createdAt: start,
+              expiresAt: start + 1000,
+              ...structuredClone(fields),
+            };
+            const expected = structuredClone(kind === 'transaction' ? transaction : exchange);
+            const writing =
+              kind === 'transaction'
+                ? store.createAuthorizationTransaction(transaction)
+                : store.createExchangeCode(exchange);
+            if (transaction.deviceBinding) transaction.deviceBinding.jkt = otherBinding.jkt;
+            if (exchange.deviceBinding) exchange.deviceBinding.jkt = otherBinding.jkt;
+            transaction.browserBindingHash = exchange.browserBindingHash = otherBrowserHash;
+            transaction.metadata!.nested = ['changed'];
+            await writing;
+            const read = () =>
+              kind === 'transaction'
+                ? peerStore.getAuthorizationTransaction('state')
+                : peerStore.getExchangeCode('code');
+            const consume = (candidate: OidcVaultRecordBindingMatch, expectedSessionId = 'session') =>
+              kind === 'transaction'
+                ? store.consumeAuthorizationTransactionIfMatches({ state: 'state', match: candidate })
+                : store.consumeExchangeCodeIfMatches({ code: 'code', expectedSessionId, match: candidate });
+            const first = await read();
+            expect(first).toEqual(expected);
+            if (first?.deviceBinding) first.deviceBinding.jkt = otherBinding.jkt;
+            if (first) first.browserBindingHash = otherBrowserHash;
+            if (first && 'metadata' in first) first.metadata!.nested = ['returned'];
+            expect(await read()).toEqual(expected);
+
+            const mismatches: OidcVaultRecordBindingMatch[] = [
+              { ...match, deviceBinding: match.deviceBinding === null ? binding : null },
+              { ...match, deviceBinding: otherBinding },
+              { ...match, browserBindingHash: match.browserBindingHash === null ? browserHash : null },
+              { ...match, browserBindingHash: otherBrowserHash },
+            ];
+            for (const mismatch of mismatches) {
+              expect(await consume(mismatch)).toBeNull();
+              expect(await read()).toEqual(expected);
+            }
+            for (const malformed of [
+              {},
+              { deviceBinding: undefined, browserBindingHash: null },
+              { deviceBinding: null },
+              { deviceBinding: { type: 'dpop', jkt: 'invalid' }, browserBindingHash: browserHash },
+              { deviceBinding: null, browserBindingHash: '' },
+            ]) {
+              expect(await consume(malformed as OidcVaultRecordBindingMatch)).toBeNull();
+              expect(await read()).toEqual(expected);
+            }
+            if (kind === 'exchange') {
+              expect(await consume(match, 'wrong-session')).toBeNull();
+              expect(await read()).toEqual(expected);
+            }
+            if (shape !== 'legacy') {
+              expect(
+                await (kind === 'transaction'
+                  ? peerStore.consumeAuthorizationTransaction('state')
+                  : peerStore.consumeExchangeCode('code')),
+              ).toBeNull();
+              expect(await read()).toEqual(expected);
+            }
+
+            const snapshot = structuredClone(match);
+            const transactionInput = { state: 'state', match: snapshot };
+            const exchangeInput = { code: 'code', expectedSessionId: 'session', match: snapshot };
+            const consuming =
+              kind === 'transaction'
+                ? store.consumeAuthorizationTransactionIfMatches(transactionInput)
+                : store.consumeExchangeCodeIfMatches(exchangeInput);
+            transactionInput.state = 'changed';
+            exchangeInput.code = exchangeInput.expectedSessionId = 'changed';
+            snapshot.deviceBinding = otherBinding;
+            snapshot.browserBindingHash = otherBrowserHash;
+            expect(await consuming).toEqual(expected);
+            expect(await read()).toBeNull();
+            expect(await consume(match)).toBeNull();
+          });
+        });
+      }
+
+      it(`${kind}: atomic matching consumers have one winner across clients; legacy calls cannot bypass`, async () => {
+        await run(`${kind}-concurrent`, async ({ store, peerStore }, start) => {
+          if (kind === 'transaction')
+            await store.createAuthorizationTransaction({
+              state: 'state',
+              nonce: 'nonce',
+              pkceVerifier: 'v',
+              codeChallenge: 'c',
+              createdAt: start,
+              expiresAt: start + 1000,
+              deviceBinding: binding,
+              browserBindingHash: browserHash,
+            });
+          else
+            await store.createExchangeCode({
+              code: 'code',
+              sessionId: 'session',
+              createdAt: start,
+              expiresAt: start + 1000,
+              deviceBinding: binding,
+              browserBindingHash: browserHash,
+            });
+          const results = await Promise.all(
+            Array.from({ length: 12 }, (_, index) => {
+              const client = index % 2 ? store : peerStore;
+              if (index < 4)
+                return kind === 'transaction'
+                  ? client.consumeAuthorizationTransaction('state')
+                  : client.consumeExchangeCode('code');
+              const match = index < 8 ? { ...guardedMatch, deviceBinding: otherBinding } : guardedMatch;
+              return kind === 'transaction'
+                ? client.consumeAuthorizationTransactionIfMatches({ state: 'state', match })
+                : client.consumeExchangeCodeIfMatches({ code: 'code', expectedSessionId: 'session', match });
+            }),
+          );
+          expect(results.slice(0, 8)).toEqual(Array(8).fill(null));
+          expect(results.filter(Boolean)).toHaveLength(1);
+          expect(results.find(Boolean)).toMatchObject({ deviceBinding: binding, browserBindingHash: browserHash });
+        });
+      });
+
+      it(`${kind}: exact-boundary expiry applies to reads and guarded consumes`, async () => {
+        await run(`${kind}-expiry`, async ({ store, setNow }, start) => {
+          for (const offset of [-1, 0, 1]) {
+            setNow(start);
+            if (kind === 'transaction')
+              await store.createAuthorizationTransaction({
+                state: 'state',
+                nonce: 'n',
+                pkceVerifier: 'v',
+                codeChallenge: 'c',
+                createdAt: start,
+                expiresAt: start + 1000,
+                deviceBinding: binding,
+                browserBindingHash: browserHash,
+              });
+            else
+              await store.createExchangeCode({
+                code: 'code',
+                sessionId: 'session',
+                createdAt: start,
+                expiresAt: start + 1000,
+                deviceBinding: binding,
+                browserBindingHash: browserHash,
+              });
+            setNow(start + 1000 + offset);
+            const read =
+              kind === 'transaction'
+                ? await store.getAuthorizationTransaction('state')
+                : await store.getExchangeCode('code');
+            const consumed =
+              kind === 'transaction'
+                ? await store.consumeAuthorizationTransactionIfMatches({ state: 'state', match: guardedMatch })
+                : await store.consumeExchangeCodeIfMatches({
+                    code: 'code',
+                    expectedSessionId: 'session',
+                    match: guardedMatch,
+                  });
+            if (offset < 0) {
+              expect(read).not.toBeNull();
+              expect(consumed).toEqual(read);
+            } else {
+              expect(read).toBeNull();
+              expect(consumed).toBeNull();
+            }
+          }
+        });
+      });
+    }
+
+    it('stale exchange preflight cannot consume a replacement for another session or binding', async () => {
+      await run('exchange-stale-preflight', async ({ store, peerStore }, start) => {
+        const record = {
+          code: 'code',
+          sessionId: 'original',
+          createdAt: start,
+          expiresAt: start + 1000,
+          deviceBinding: binding,
+          browserBindingHash: browserHash,
+        };
+        await store.createExchangeCode(record);
+        const preflight = await store.getExchangeCode('code');
+        expect(preflight).not.toBeNull();
+        const replacement = { ...record, sessionId: 'replacement' };
+        await peerStore.createExchangeCode(replacement);
+        expect(
+          await store.consumeExchangeCodeIfMatches({
+            code: 'code',
+            expectedSessionId: preflight!.sessionId,
+            match: guardedMatch,
+          }),
+        ).toBeNull();
+        expect(await store.getExchangeCode('code')).toEqual(replacement);
+        await peerStore.createExchangeCode({ ...replacement, deviceBinding: otherBinding });
+        expect(
+          await store.consumeExchangeCodeIfMatches({
+            code: 'code',
+            expectedSessionId: 'replacement',
+            match: guardedMatch,
+          }),
+        ).toBeNull();
+        expect(
+          await peerStore.consumeExchangeCodeIfMatches({
+            code: 'code',
+            expectedSessionId: 'replacement',
+            match: { ...guardedMatch, deviceBinding: otherBinding },
+          }),
+        ).toMatchObject({ sessionId: 'replacement', deviceBinding: otherBinding });
+      });
+    });
+
+    it('undefined security fields remain absent; null, malformed, and key-without-cookie writes reject', async () => {
+      await run('security-field-validation', async ({ store }, start) => {
+        const transaction = {
+          state: 'state',
+          nonce: 'n',
+          pkceVerifier: 'v',
+          codeChallenge: 'c',
+          createdAt: start,
+          expiresAt: start + 1000,
+          deviceBinding: undefined,
+          browserBindingHash: undefined,
+        };
+        await store.createAuthorizationTransaction(transaction);
+        expect(
+          await store.consumeAuthorizationTransactionIfMatches({ state: 'state', match: absentMatch }),
+        ).toMatchObject({ state: 'state' });
+        const invalidFields = [
+          { deviceBinding: null },
+          { browserBindingHash: null },
+          { browserBindingHash: 'invalid' },
+          { deviceBinding: binding },
+          { deviceBinding: { ...binding, jkt: 'B'.repeat(43) }, browserBindingHash: browserHash },
+          { deviceBinding: { type: 'other', jkt: binding.jkt }, browserBindingHash: browserHash },
+          { deviceBinding: { ...binding, jwk: {} }, browserBindingHash: browserHash },
+          { deviceBinding: { ...binding, jkt: binding.jkt + '\n' }, browserBindingHash: browserHash },
+          { browserBindingHash: browserHash + '\n' },
+        ];
+        for (const fields of invalidFields) {
+          await expect(
+            store.createAuthorizationTransaction({ ...transaction, ...fields } as AuthorizationTransactionInput),
+          ).rejects.toBeInstanceOf(Error);
+          await expect(
+            store.createExchangeCode({
+              code: 'code',
+              sessionId: 's',
+              createdAt: start,
+              expiresAt: start + 1000,
+              ...fields,
+            } as ExchangeCodeRecordInput),
+          ).rejects.toBeInstanceOf(Error);
+          expect(await store.getAuthorizationTransaction('state')).toBeNull();
+          expect(await store.getExchangeCode('code')).toBeNull();
+        }
+        for (const deviceBinding of [null, { ...binding, jkt: 'B'.repeat(43) }, { ...binding, alg: 'ES256' }]) {
+          await expect(
+            store.createSession({ ...createSessionInput('invalid-session'), deviceBinding } as OidcVaultSession),
+          ).rejects.toBeInstanceOf(Error);
+          expect(await store.getSession('invalid-session')).toBeNull();
+        }
+      });
+    });
+
+    it('rotation inherits the original key and rejects changing, removing, or adding a binding without mutation', async () => {
+      await run('binding-rotation', async ({ store, peerStore }) => {
+        const input = { ...createSessionInput('source'), deviceBinding: { ...binding } };
+        const creating = store.createSession(input);
+        input.deviceBinding.jkt = otherBinding.jkt;
+        const source = await creating;
+        expect(source.deviceBinding).toEqual(binding);
+        const sourceSnapshot = structuredClone(source);
+        source.deviceBinding!.jkt = otherBinding.jkt;
+        expect(await store.getSession('source')).toEqual(sourceSnapshot);
+        for (const deviceBinding of [otherBinding, null, { ...binding, alg: 'ES256' }]) {
+          await expect(
+            store.rotateSession({
+              sessionId: 'source',
+              nextSession: {
+                ...sourceSnapshot,
+                sessionId: 'target',
+                deviceBinding,
+              } as OidcVaultSession,
+            }),
+          ).rejects.toBeInstanceOf(Error);
+          expect(await peerStore.getSession('source')).toEqual(sourceSnapshot);
+          expect(await peerStore.getSession('target')).toBeNull();
+          expect(await peerStore.getSessionRevocationContext('target')).toBeNull();
+        }
+        const withoutBinding = { ...sourceSnapshot };
+        delete withoutBinding.deviceBinding;
+        const next = await store.rotateSession({
+          sessionId: 'source',
+          nextSession: { ...withoutBinding, sessionId: 'next' },
+        });
+        expect(next.deviceBinding).toEqual(binding);
+        expect((await peerStore.getSession('next'))!.deviceBinding).toEqual(binding);
+        await peerStore.rotateSession({
+          sessionId: 'next',
+          nextSession: { ...next, sessionId: 'last', deviceBinding: { ...binding } },
+        });
+        await store.createSession({ ...createSessionInput('legacy'), logicalSessionId: 'legacy' });
+        await expect(
+          peerStore.rotateSession({
+            sessionId: 'legacy',
+            nextSession: {
+              ...createSessionInput('enrolled'),
+              deviceBinding: binding,
+            },
+          }),
+        ).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
+        expect(await store.getSession('legacy')).not.toBeNull();
+        expect(await store.getSession('enrolled')).toBeNull();
+      });
+    });
+
+    it('live and alias revocation contexts use current immutable lineage authority and return no credentials', async () => {
+      await run('revocation-context', async ({ store, peerStore, setNow }, start) => {
+        const providerWithExtraFields = { issuer: 'issuer', clientId: 'client', refreshToken: 'must-not-leak' };
+        const original = await store.createSession({
+          ...createSessionInput('first'),
+          expiresAt: start + 500,
+          deviceBinding: binding,
+          provider: providerWithExtraFields,
+        });
+        const second = await store.rotateSession({
+          sessionId: 'first',
+          nextSession: { ...original, sessionId: 'second', expiresAt: start + 1000 },
+        });
+        await peerStore.rotateSession({
+          sessionId: 'second',
+          nextSession: { ...second, sessionId: 'current', expiresAt: start + 2000 },
+        });
+        const expected = {
+          logicalSessionId: 'logical_1',
+          provider: { issuer: 'issuer', clientId: 'client' },
+          deviceBinding: binding,
+        };
+        for (const id of ['first', 'second', 'current']) {
+          expect(await store.getSessionRevocationContext(id)).toEqual(expected);
+        }
+        const context = await peerStore.getSessionRevocationContext('first');
+        context!.deviceBinding!.jkt = otherBinding.jkt;
+        context!.provider!.issuer = 'changed';
+        context!.logicalSessionId = 'changed';
+        expect(await store.getSessionRevocationContext('first')).toEqual(expected);
+        expect(await store.getSession('first')).toBeNull();
+        setNow(start + 1000);
+        expect(await store.getSessionRevocationContext('first')).toBeNull();
+        expect(await store.getSessionRevocationContext('second')).toEqual(expected);
+        setNow(start + 2000);
+        expect(await store.getSessionRevocationContext('current')).toBeNull();
+        expect(await store.getSessionRevocationContext('second')).toBeNull();
+      });
+    });
+
+    for (const mismatch of ['unbound', 'key', 'issuer', 'client', 'subject'] as const) {
+      it(`inconsistent ${mismatch} lineage fails closed through both live and alias contexts`, async () => {
+        await run(`lineage-${mismatch}`, async ({ store, peerStore }) => {
+          const original = await store.createSession({ ...createSessionInput('old'), deviceBinding: binding });
+          await store.rotateSession({ sessionId: 'old', nextSession: { ...original, sessionId: 'current' } });
+          const peer = {
+            ...original,
+            sessionId: 'peer',
+            deviceBinding: mismatch === 'unbound' ? undefined : mismatch === 'key' ? otherBinding : binding,
+            subject: mismatch === 'subject' ? 'other' : original.subject,
+            provider: {
+              ...original.provider,
+              ...(mismatch === 'issuer' ? { issuer: 'other' } : {}),
+              ...(mismatch === 'client' ? { clientId: 'other' } : {}),
+            },
+          };
+          await peerStore.createSession(peer);
+          for (const id of ['old', 'current', 'peer']) {
+            await expect(store.getSessionRevocationContext(id)).rejects.toThrow();
+          }
+          expect(await store.getSession('current')).not.toBeNull();
+          expect(await peerStore.getSession('peer')).not.toBeNull();
+        });
+      });
+    }
+
+    it('legacy unbound contexts and empty/deleted lineages remain unbound or absent', async () => {
+      await run('legacy-context', async ({ store }) => {
+        const original = await store.createSession({ ...createSessionInput('legacy'), provider: undefined });
+        await store.rotateSession({ sessionId: 'legacy', nextSession: { ...original, sessionId: 'current' } });
+        expect(await store.getSessionRevocationContext('legacy')).toEqual({ logicalSessionId: 'logical_1' });
+        await store.deleteSession('current');
+        expect(await store.getSessionRevocationContext('legacy')).toBeNull();
+        expect(await store.getSessionRevocationContext('missing')).toBeNull();
+      });
+    });
+
+    it('explicitly undefined provider identity fields stay legacy-absent through persistence and alias context', async () => {
+      await run('undefined-provider-context', async ({ store }) => {
+        const original = await store.createSession({
+          ...createSessionInput('legacy'),
+          provider: { issuer: undefined, clientId: undefined },
+          deviceBinding: binding,
+        });
+        await store.rotateSession({ sessionId: 'legacy', nextSession: { ...original, sessionId: 'current' } });
+        expect(await store.getSessionRevocationContext('legacy')).toEqual({
+          logicalSessionId: 'logical_1',
+          provider: {},
+          deviceBinding: binding,
+        });
+      });
+    });
+
+    it('revocation context respects lineage changes and surviving bound peers without retargeting earlier aliases', async () => {
+      await run('context-lineage-change', async ({ store, peerStore }) => {
+        const first = await store.createSession({ ...createSessionInput('first'), deviceBinding: binding });
+        const second = await store.rotateSession({
+          sessionId: 'first',
+          nextSession: { ...first, sessionId: 'second' },
+        });
+        const survivor = await peerStore.createSession({ ...first, sessionId: 'survivor' });
+        await store.rotateSession({
+          sessionId: 'second',
+          nextSession: { ...second, sessionId: 'new-lineage', logicalSessionId: 'new-lineage' },
+        });
+        expect(await store.getSessionRevocationContext('first')).toMatchObject({
+          logicalSessionId: 'logical_1',
+          deviceBinding: binding,
+        });
+        expect(await store.getSessionRevocationContext('second')).toMatchObject({
+          logicalSessionId: 'new-lineage',
+          deviceBinding: binding,
+        });
+        await peerStore.deleteSession(survivor.sessionId);
+        expect(await store.getSessionRevocationContext('first')).toBeNull();
+        expect(await store.getSessionRevocationContext('second')).toMatchObject({
+          logicalSessionId: 'new-lineage',
+          deviceBinding: binding,
+        });
+      });
+    });
+
+    it('replay reservations snapshot inputs, share winners across clients, and do not extend duplicates', async () => {
+      await run('replay-winners', async ({ store, peerStore, setNow }, start) => {
+        const input = { replayKey: 'key', expiresAt: start + 1000 };
+        const reserving = store.reserveDpopProof(input);
+        input.replayKey = 'changed';
+        input.expiresAt = start + 2000;
+        expect(await reserving).toBe(true);
+        expect(await peerStore.reserveDpopProof({ replayKey: 'key', expiresAt: start + 2000 })).toBe(false);
+        const results = await Promise.all(
+          Array.from({ length: 16 }, (_, index) =>
+            (index % 2 ? store : peerStore).reserveDpopProof({ replayKey: 'race', expiresAt: start + 1000 }),
+          ),
+        );
+        expect(results.filter(Boolean)).toHaveLength(1);
+        setNow(start + 1000);
+        expect(await peerStore.reserveDpopProof({ replayKey: 'key', expiresAt: start + 2000 })).toBe(true);
+        expect(await store.reserveDpopProof({ replayKey: 'key', expiresAt: start + 3000 })).toBe(false);
+      });
+    });
+
+    it('replay rejects invalid/expired/oversized windows without allocating capacity', async () => {
+      await run(
+        'replay-invalid',
+        async ({ store }, start) => {
+          for (const expiresAt of [
+            start - 1,
+            start,
+            NaN,
+            Infinity,
+            -Infinity,
+            Number.MAX_SAFE_INTEGER + 1,
+            start + 0.5,
+            start + 360_001,
+            -1,
+          ]) {
+            expect(await store.reserveDpopProof({ replayKey: 'invalid', expiresAt })).toBe(false);
+          }
+          expect(await store.reserveDpopProof({ replayKey: 'valid', expiresAt: start + 360_000 })).toBe(true);
+          expect(await store.reserveDpopProof({ replayKey: 'valid', expiresAt: start + 360_000 })).toBe(false);
+          await expect(store.reserveDpopProof({ replayKey: 'other', expiresAt: start + 1000 })).rejects.toBeInstanceOf(
+            OidcVaultDpopReplayCapacityError,
+          );
+        },
+        1,
+      );
+    });
+
+    it('shared capacity has atomic admission, duplicate precedence, and expiry recovery without live eviction', async () => {
+      await run(
+        'replay-capacity',
+        async ({ store, peerStore, setNow }, start) => {
+          const attempts = await Promise.allSettled(
+            Array.from({ length: 16 }, (_, index) =>
+              (index % 2 ? store : peerStore).reserveDpopProof({ replayKey: `key-${index}`, expiresAt: start + 1000 }),
+            ),
+          );
+          const admitted = attempts.flatMap((attempt, index) =>
+            attempt.status === 'fulfilled' && attempt.value ? [`key-${index}`] : [],
+          );
+          expect(admitted).toHaveLength(4);
+          expect(attempts.filter((attempt) => attempt.status === 'rejected')).toHaveLength(12);
+          for (const attempt of attempts)
+            if (attempt.status === 'rejected') expect(attempt.reason).toBeInstanceOf(OidcVaultDpopReplayCapacityError);
+          for (const replayKey of admitted)
+            expect(await peerStore.reserveDpopProof({ replayKey, expiresAt: start + 2000 })).toBe(false);
+          expect(await store.reserveDpopProof({ replayKey: 'invalid-at-capacity', expiresAt: start })).toBe(false);
+          await expect(
+            peerStore.reserveDpopProof({ replayKey: 'full', expiresAt: start + 1000 }),
+          ).rejects.toBeInstanceOf(OidcVaultDpopReplayCapacityError);
+          setNow(start + 1000);
+          expect(await peerStore.reserveDpopProof({ replayKey: 'recovered', expiresAt: start + 2000 })).toBe(true);
+          for (const replayKey of admitted.slice(0, 3))
+            expect(await store.reserveDpopProof({ replayKey, expiresAt: start + 2000 })).toBe(true);
+          await expect(
+            store.reserveDpopProof({ replayKey: 'full-again', expiresAt: start + 2000 }),
+          ).rejects.toBeInstanceOf(OidcVaultDpopReplayCapacityError);
+        },
+        4,
+      );
     });
   });
 };

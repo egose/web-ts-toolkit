@@ -306,6 +306,7 @@ const protocolCases: ProtocolCase[] = [
         op: 'update',
         id: parentId(execution),
         data: { role: `updated-${execution}` },
+        args: {},
         options: { returningAll: true, includePermissions: false },
       }),
     status: 200,

@@ -28,6 +28,7 @@ import { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-re
 
 const app = express();
 const redis = createClient({ url: process.env.REDIS_URL });
+redis.on('error', () => console.warn('OIDC vault Redis connection error.'));
 
 await redis.connect();
 
@@ -70,7 +71,7 @@ This prevents the OIDC vault records from colliding with other apps using the sa
 - uses prefixed Redis keys for sessions, authorization transactions, and exchange codes
 - stores JSON payloads directly in Redis values
 - uses `PXAT` for expiry timestamps
-- uses `GETDEL` for atomic one-time record consumption through `sendCommand(...)`
+- uses cached guarded Lua for atomic one-time consumption, including legacy consumes that refuse guarded records
 - updates subject and provider-session indexes so logout and backchannel logout can delete matching sessions efficiently
 - uses Redis-side scripts for session writes, deletes, and rotation so concurrent refreshes do not fork multiple active sessions
 
@@ -84,7 +85,7 @@ The bare `createSentinel(...)` root client does NOT satisfy this package's struc
 
 Redis Cluster clients are rejected when the store is created. The store uses atomic scripts that touch multiple vault keys, and this package does not currently provide a Cluster routing/hash-slot adapter that colocates every key used by one script.
 
-**Minimum Redis version: 6.2.** One-time authorization transactions and exchange codes are consumed with `GETDEL`, which is unavailable before Redis 6.2. Versions 6.2 and 7.2 are exercised in integration tests.
+**Minimum Redis version: 6.2.** Standalone 6.2/7.2 are exercised. Cached Lua now handles guarded/legacy consumption; Sentinel adapter/failover durability remains deployment-owned and is not certified by those tests. Loss of unexpired replay state on failover weakens protection until the proof window expires.
 
 ## Client Lifecycle And Ownership
 
@@ -99,7 +100,7 @@ Each alias keeps its immediate successor's `expiresAt`; later rotations never ex
 
 Subject/provider-session object deletes filter each supplied issuer/client; strings, logical IDs and aliases are unscoped. Scoped/direct deletion preserves unexpired aliases while another live member survives. Redis create is create-only (memory/MongoDB upsert); alias-only target reuse clears former ownership. JSON-compatible plain inputs are captured at invocation and detached on return. Opaque native values retain JSON/`toJSON` semantics without portable mutation isolation.
 
-Redis TTL is authoritative; preserve store-written TTLs and matching index scores during restore. The store does not independently audit payload expiry after external TTL alteration. Post-write `SCAN COUNT 100` and revocation `ZSCAN COUNT 250` use hints, not hard batch caps. The whole response is processed; Lua can materialize whole lineages/alias sets. Cleanup depends on continued successful operations and has no fixed deadline/memory cap.
+Preserve store-written TTLs/index scores on restore. Legacy consumes/getSession retain key-TTL authority; new transaction/code preflight getters check payload expiry with GET + TIME and guarded consumes check inside Lua. They do not repair external TTL/index inconsistency. Post-write SCAN COUNT 100 and revocation ZSCAN COUNT 250 are hints, not caps; whole responses/lineages/aliases can be materialized. Those costs are separate from hard-bounded replay admission.
 
 Post-commit maintenance failure preserves successful create/rotation and emits only fixed operation text, with no adapter error details. Arbitrary client errors can still reject other operations; do not log raw errors, connection URLs, whole records or credential-valued labels. The [shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault-redis-store/README.md) contains the full lifecycle/compatibility guidance.
 
@@ -129,22 +130,31 @@ This is usually the best production default when you already operate Redis and w
 
 `createRedisOidcVaultStore(options)`
 
-Creates a Redis-backed implementation of the core `OidcVaultStoreProvider` contract.
+Creates a stronger core OidcVaultDeviceBindingStoreProvider. Use named package-root imports; Node >=22.12.0 and @types/node/@types/express for TypeScript. Both ESM (`import`, `index.d.mts`) and CJS (`require`, `index.d.ts`) declaration conditions are shipped.
 
 `RedisOidcVaultStoreOptions`
 
 - `client`: connected Redis client or compatible adapter
 - `keyPrefix?`: optional key namespace, defaults to `oidc-vault`
 - `now?`: override clock source for tests or deterministic simulations
+- `dpopReplayMaxEntries?`: positive safe integer, default 100000, identical on clients sharing keyPrefix
 
 `OidcVaultRedisClient`
 
-Minimal client shape used by the package: `set`, `get`, `del`, and the required `sendCommand(args)`. `sendCommand` carries `EVAL`, `GETDEL`, `TYPE`, `TIME`, `ZRANGE`, `ZSCAN`, and `MGET` for atomic vault operations; official standalone `redis` clients (`RedisClientType`) satisfy it directly, and Sentinel-wrapped master clients or adapter-compliant clients do too. Cluster-shaped clients are intentionally excluded.
+Minimal client shape: set/get/del and required sendCommand(args). Cached Lua (EVALSHA, SCRIPT LOAD/retry), TYPE/TIME/ZRANGE/ZSCAN/MGET transit that command interface. Official standalone and adapter-compliant acquired Sentinel master clients satisfy it; the bare Sentinel root does not. Cluster is excluded.
+
+## Guarded records and bounded DPoP replay
+
+The six stronger methods are live getAuthorizationTransaction/getExchangeCode, atomic consumeAuthorizationTransactionIfMatches/consumeExchangeCodeIfMatches, getSessionRevocationContext and reserveDpopProof. Import shared types and OidcVaultDpopReplayCapacityError from the core root. Either vault opt-in requires all six; fingerprint-only reserves no proofs. Getters are detached preflight, not locks. Match contains both key/hash; null requires absence, never wildcard/JSON null. Legacy neither field, cookie-only hash, bound hash+canonical jkt are valid; malformed/null/extra/key-without-hash rejects. Exchange also atomically matches expectedSessionId; mismatches preserve live records and matching clients have one winner. Old consumes refuse guarded records. Rotation inherits original binding and CAS-checks source identity/credential/key generation; changing/removing/enrolling binding rejects.
+
+Revocation context resolves current live lineage authority through a live handle/unexpired alias within one Lua snapshot (whole-lineage work); returns only logical ID/provider issuer-client/key, no credentials/profile/metadata. Missing alias binding never downgrades the lineage. Malformed/mixed authority throws; empty/expired lineages return null and aliases never authenticate refresh.
+
+Replay lives in **&lt;keyPrefix&gt;:dpop-proofs**, one sorted set for proof/expiry/capacity. Normally one cached EVALSHA/proof, server TIME, hard LIMIT 64 expired cleanup plus requested expired key, duplicate-first admission, no session scans/live eviction. NOSCRIPT load/retry adds two calls. Future safe-integer expiry with remaining TTL ≤360000ms is required; invalid/expired returns false without allocation. Duplicate false never renews; at capacity throw core capacity error → sanitized 503 replay-unavailable. Set expiry tracks latest score; expired members awaiting bounded cleanup can conservatively occupy capacity. ACLs must permit scripts and TIME/TYPE/GET/DEL/ZSCORE/ZRANGEBYSCORE/ZREM/ZCARD/ZADD/ZREVRANGE/PEXPIREAT. Share namespaces/windows/limits and synchronized clocks, never release after downstream failure, size for per-request proof writes × retained window (defaults max 70s). Atomic bounds are not throughput/durability guarantees.
 
 ## Operational Notes
 
 - the package expects a connected client before use
-- official standalone and Sentinel clients from `redis` satisfy the required API shape
+- official standalone clients and standalone-shaped acquired/wrapped Sentinel master clients satisfy the required shape
 - one-time authorization transactions and exchange codes are consumed atomically
 - subject and provider-session indexes make bulk session deletion practical for logout flows
 

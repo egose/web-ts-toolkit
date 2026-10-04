@@ -3,17 +3,46 @@ import {
   DEFAULT_OIDC_SCOPES,
   OIDC_VAULT_ROUTE_PATHS,
   OidcVaultStoreConflictError,
+  OidcVaultDpopReplayCapacityError,
+  type AuthorizationTransactionInput,
+  type ConsumeAuthorizationTransactionIfMatchesInput,
+  type ConsumeExchangeCodeIfMatchesInput,
+  type ExchangeCodeRecordInput,
+  type IssueTokenInput,
   type OidcVaultAccessTokenMiddlewareOptions,
+  type OidcVaultAccessTokenConfirmation,
+  type OidcVaultAccessTokenRequestInput,
   type OidcVaultAccessTokenValidator,
   type OidcVaultAuthContext,
+  type OidcVaultApiDeviceBindingOptions,
   type OidcVaultConfig,
+  type OidcVaultDeviceBindingMode,
+  type OidcVaultDeviceBindingOptions,
+  type OidcVaultDeviceBindingStoreProvider,
+  type OidcVaultDpopAlgorithm,
+  type OidcVaultDpopBinding,
+  type OidcVaultDpopNonceOptions,
+  type OidcVaultDpopProofOptions,
+  type OidcVaultDpopReplayStore,
   type OidcVaultExchangeResult,
+  type OidcVaultFingerprintRecognitionOptions,
+  type OidcVaultLoginInitiationInput,
+  type OidcVaultLoginInitiationResult,
   type OidcVaultOptions,
+  type OidcVaultRecordBindingMatch,
+  type OidcVaultRequestAwareAccessTokenValidator,
+  type OidcVaultRequestAwareAccessTokenValidationResult,
   type OidcVaultResolvedConfig,
   type OidcVaultSession,
+  type OidcVaultSessionRevocationContext,
   type OidcVaultStoreProvider,
   type OidcVaultTokenIssueResult,
+  type OidcVaultTokenIssuer,
+  type OidcVaultTransactionCookieOptions,
+  type OidcVaultVerifiedDpopBinding,
+  type ReserveDpopProofInput,
   createOidcVaultAccessTokenMiddleware,
+  createOidcVaultJwtAccessTokenValidator,
   createOidcVaultMiddleware,
   normalizeOidcVaultBasePath,
   resolveOidcVaultConfig,
@@ -142,7 +171,7 @@ app.get('/me', accessTokenMiddleware, route);
 const exchange = { accessToken: 'token', expiresIn: 60 } satisfies OidcVaultExchangeResult;
 void exchange;
 
-// @ts-expect-error Local issuer tokenType is the exact Bearer literal.
+// @ts-expect-error Local issuer tokenType uses exact Bearer/DPoP literals.
 const invalidTokenType: OidcVaultTokenIssueResult = { accessToken: 'token', expiresIn: 60, tokenType: 'bearer' };
 void invalidTokenType;
 // @ts-expect-error Local issuer expiry is numeric seconds, not a duration string.
@@ -152,7 +181,354 @@ void invalidTokenExpiry;
 const conflictError = new OidcVaultStoreConflictError('conflict');
 conflictError satisfies OidcVaultStoreConflictError;
 conflictError satisfies Error;
+const replayCapacityError = new OidcVaultDpopReplayCapacityError();
+replayCapacityError satisfies Error;
+replayCapacityError satisfies OidcVaultDpopReplayCapacityError;
 
 // @ts-expect-error req.auth is readonly typed as an OIDC auth context, not an arbitrary shape.
 const invalidAuth: OidcVaultAuthContext = { token: 'token' };
 void invalidAuth;
+
+// DBJWT-03 root declaration contract. Type-only examples; proof-aware handler
+// and built-in guarded-store behavior is verified by their integration tasks.
+const dpopAlgorithm: OidcVaultDpopAlgorithm = 'ES256';
+const bindingMode: OidcVaultDeviceBindingMode = 'optional';
+const nonceOptions: OidcVaultDpopNonceOptions = { secret: new Uint8Array(32), lifetimeSeconds: 60 };
+const proofOptions: OidcVaultDpopProofOptions = {
+  algorithms: Object.freeze(['ES256', 'PS256', 'RS256'] as const),
+  proofMaxAgeSeconds: 60,
+  clockSkewSeconds: 5,
+  nonce: nonceOptions,
+};
+const bindingOptions: OidcVaultDeviceBindingOptions = { ...proofOptions, mode: bindingMode };
+const binding: OidcVaultDpopBinding = { type: 'dpop', jkt: 'A'.repeat(43) };
+const verifiedBinding: Readonly<OidcVaultVerifiedDpopBinding> = { ...binding, alg: dpopAlgorithm };
+// @ts-expect-error Verified issuer context is readonly.
+verifiedBinding.jkt = 'changed';
+// @ts-expect-error HS256 access-token signing does not enable symmetric DPoP proofs.
+const invalidProofOptions: OidcVaultDpopProofOptions = { algorithms: ['HS256'] };
+void invalidProofOptions;
+
+const boundSession: OidcVaultSession = { ...session, deviceBinding: binding };
+const transaction: AuthorizationTransactionInput = {
+  state: 'state',
+  nonce: 'nonce',
+  pkceVerifier: 'verifier',
+  codeChallenge: 'challenge',
+  createdAt: Date.now(),
+  expiresAt: Date.now() + 60_000,
+  deviceBinding: binding,
+  browserBindingHash: 'A'.repeat(43),
+};
+const exchangeCode: ExchangeCodeRecordInput = {
+  code: 'code',
+  sessionId: boundSession.sessionId,
+  createdAt: Date.now(),
+  expiresAt: Date.now() + 30_000,
+  deviceBinding: binding,
+  browserBindingHash: transaction.browserBindingHash,
+};
+const guardedMatch: OidcVaultRecordBindingMatch = { deviceBinding: binding, browserBindingHash: 'A'.repeat(43) };
+const legacyMatch: OidcVaultRecordBindingMatch = { deviceBinding: null, browserBindingHash: null };
+const transactionConsume: ConsumeAuthorizationTransactionIfMatchesInput = {
+  state: transaction.state,
+  match: guardedMatch,
+};
+const exchangeConsume: ConsumeExchangeCodeIfMatchesInput = {
+  code: exchangeCode.code,
+  expectedSessionId: boundSession.sessionId,
+  match: guardedMatch,
+};
+// @ts-expect-error Exchange atomic consume requires the preflight session ID.
+const missingExpectedSession: ConsumeExchangeCodeIfMatchesInput = { code: 'code', match: guardedMatch };
+// @ts-expect-error Revocation context cannot return upstream credentials.
+const credentialContext: OidcVaultSessionRevocationContext = { logicalSessionId: 'logical', refreshToken: 'secret' };
+void [missingExpectedSession, credentialContext];
+const reservation: ReserveDpopProofInput = { replayKey: 'opaque', expiresAt: Date.now() + 60_000 };
+const replayStore: OidcVaultDpopReplayStore = {
+  async reserveDpopProof(input) {
+    input satisfies ReserveDpopProofInput;
+    return false;
+  },
+};
+const revocationContext: OidcVaultSessionRevocationContext = {
+  logicalSessionId: boundSession.logicalSessionId ?? boundSession.sessionId,
+  provider: boundSession.provider,
+  deviceBinding: binding,
+};
+const guardedStore: OidcVaultDeviceBindingStoreProvider = {
+  ...storeProvider,
+  async getAuthorizationTransaction() {
+    return transaction;
+  },
+  async consumeAuthorizationTransactionIfMatches(input) {
+    input satisfies ConsumeAuthorizationTransactionIfMatchesInput;
+    return null;
+  },
+  async getExchangeCode() {
+    return exchangeCode;
+  },
+  async consumeExchangeCodeIfMatches(input) {
+    input satisfies ConsumeExchangeCodeIfMatchesInput;
+    return null;
+  },
+  async getSessionRevocationContext() {
+    return revocationContext;
+  },
+  reserveDpopProof: replayStore.reserveDpopProof,
+};
+// @ts-expect-error Opt-in store interface requires the guarded/replay capabilities.
+const invalidGuardedStore: OidcVaultDeviceBindingStoreProvider = storeProvider;
+void invalidGuardedStore;
+const boundIssuer: OidcVaultTokenIssuer = {
+  async issue(input) {
+    input satisfies IssueTokenInput;
+    input.deviceBinding satisfies Readonly<OidcVaultVerifiedDpopBinding> | undefined;
+    // Type fixture only; a real bound issuer returns a signed matching cnf.jkt JWT.
+    return { accessToken: 'type-fixture', expiresIn: 60, tokenType: input.deviceBinding ? 'DPoP' : 'Bearer' };
+  },
+};
+const optInOptions: OidcVaultOptions = {
+  ...options,
+  storeProvider: guardedStore,
+  deviceBinding: bindingOptions,
+  tokenIssuer: boundIssuer,
+};
+const dpopResult = {
+  accessToken: 'type-fixture',
+  expiresIn: 60,
+  tokenType: 'DPoP',
+} satisfies OidcVaultTokenIssueResult;
+dpopResult satisfies OidcVaultExchangeResult;
+void [verifiedBinding, legacyMatch, transactionConsume, exchangeConsume, reservation, optInOptions, dpopResult];
+
+// DBJWT-06 installed request-aware API surface: root named imports only.
+const confirmation: OidcVaultAccessTokenConfirmation = { jkt: binding.jkt };
+const awareResult: OidcVaultRequestAwareAccessTokenValidationResult = { subject: 'verified-user', confirmation };
+const verifiedUnbound: OidcVaultRequestAwareAccessTokenValidationResult = {
+  subject: 'verified-user',
+  confirmation: null,
+};
+// @ts-expect-error Request-aware results cannot omit original verified confirmation.
+const missingConfirmation: OidcVaultRequestAwareAccessTokenValidationResult = { subject: 'user' };
+// @ts-expect-error Confirmation is a thumbprint, not a proof or public JWK.
+const invalidConfirmation: OidcVaultAccessTokenConfirmation = { jwk: {} };
+const awareValidator: OidcVaultRequestAwareAccessTokenValidator = {
+  async validate(token) {
+    return { subject: token };
+  },
+  async validateWithRequest(input) {
+    input satisfies OidcVaultAccessTokenRequestInput;
+    input.token satisfies string;
+    input.scheme satisfies 'Bearer' | 'DPoP';
+    input.req satisfies express.Request;
+    return verifiedUnbound;
+  },
+};
+// @ts-expect-error The stronger adapter requires validateWithRequest.
+const legacyCannotBeAware: OidcVaultRequestAwareAccessTokenValidator = validator;
+const apiPolicy: OidcVaultApiDeviceBindingOptions = {
+  ...bindingOptions,
+  publicOrigin: 'https://api.example.com',
+  publicPathPrefix: '/public',
+  replayNamespace: 'app-api-v1',
+  replayStore: guardedStore,
+  now: Date.now,
+};
+const jwtValidator = createOidcVaultJwtAccessTokenValidator({
+  key: new Uint8Array(32),
+  issuer: 'https://api.example.com',
+  audience: ['api-audience'],
+  algorithms: ['HS256'],
+  mapClaims(claims) {
+    return { subject: String(claims.sub), claims };
+  },
+});
+jwtValidator satisfies OidcVaultRequestAwareAccessTokenValidator;
+const apiMiddleware = createOidcVaultAccessTokenMiddleware({
+  validator: jwtValidator,
+  deviceBinding: apiPolicy,
+  onAuthContext({ req, auth }) {
+    req.auth satisfies OidcVaultAuthContext | undefined;
+    auth.confirmation satisfies OidcVaultAccessTokenConfirmation | null | undefined;
+    auth.deviceBinding satisfies Readonly<OidcVaultVerifiedDpopBinding> | undefined;
+    if (auth.deviceBinding) {
+      // @ts-expect-error Verified proof context is readonly.
+      auth.deviceBinding.jkt = 'changed';
+    }
+  },
+});
+apiMiddleware satisfies RequestHandler;
+const acceptResult = async (input: OidcVaultAccessTokenRequestInput): Promise<void> => {
+  const result = await jwtValidator.validateWithRequest(input);
+  result.confirmation satisfies OidcVaultAccessTokenConfirmation | null;
+};
+// @ts-expect-error API policy requires an explicit shared replay service.
+const missingReplayStore: OidcVaultApiDeviceBindingOptions = {
+  publicOrigin: 'https://api.example.com',
+  replayNamespace: 'api',
+};
+const invalidScheme: OidcVaultAccessTokenRequestInput = {
+  token: 'token',
+  // @ts-expect-error Request input permits only the normalized Bearer/DPoP scheme.
+  scheme: 'bearer',
+  req: {} as express.Request,
+};
+void [
+  awareResult,
+  missingConfirmation,
+  invalidConfirmation,
+  legacyCannotBeAware,
+  awareValidator,
+  acceptResult,
+  missingReplayStore,
+  invalidScheme,
+];
+
+// Installed root-only POST login/cookie contract; the runtime consumer also
+// exercises guarded exchange/refresh/logout with the original proof key.
+const transactionCookie: OidcVaultTransactionCookieOptions = { name: '__Host-app_login', sameSite: 'lax' };
+const loginOptions: OidcVaultOptions = {
+  ...optInOptions,
+  transactionCookie,
+  trustedOrigins: ['https://app.example.com'],
+};
+createOidcVaultMiddleware(loginOptions) satisfies express.Router;
+const loginInput: OidcVaultLoginInitiationInput = { returnTo: '/signed-in' };
+const initiateLogin = async (freshDpopProof: string): Promise<OidcVaultLoginInitiationResult> => {
+  const response = await fetch('https://api.example.com/auth/oidc/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', DPoP: freshDpopProof },
+    body: JSON.stringify(loginInput),
+  });
+  if (!response.ok) throw new Error('Login initiation failed.');
+  const value: unknown = await response.json();
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('authorizationUrl' in value) ||
+    typeof value.authorizationUrl !== 'string'
+  ) {
+    throw new Error('Invalid login initiation response.');
+  }
+  const result: OidcVaultLoginInitiationResult = { authorizationUrl: value.authorizationUrl };
+  result.authorizationUrl satisfies string;
+  return result;
+};
+// @ts-expect-error Transaction cookies deliberately cannot use Strict for the provider's top-level GET callback.
+const strictTransactionCookie: OidcVaultTransactionCookieOptions = { sameSite: 'strict' };
+// @ts-expect-error Browser-binding cookies are host-only; no domain override is public.
+const domainTransactionCookie: OidcVaultTransactionCookieOptions = { domain: 'example.com' };
+// @ts-expect-error No HttpOnly opt-out for the transaction secret.
+const readableTransactionCookie: OidcVaultTransactionCookieOptions = { httpOnly: false };
+// @ts-expect-error An unproved body thumbprint cannot select the login key.
+const bodyKeyLogin: OidcVaultLoginInitiationInput = { jkt: binding.jkt };
+const leakedLogin: OidcVaultLoginInitiationResult = {
+  authorizationUrl: 'https://issuer.example.com/auth',
+  // @ts-expect-error POST login returns only authorizationUrl, not redirect/session credentials.
+  sessionId: 'secret',
+};
+void [
+  initiateLogin,
+  strictTransactionCookie,
+  domainTransactionCookie,
+  readableTransactionCookie,
+  bodyKeyLogin,
+  leakedLogin,
+];
+
+// DBJWT-05 shipped exchange snippet: a configured local issuer is expected.
+const exchangeBoundCode = async (code: string, freshDpopProof: string): Promise<OidcVaultExchangeResult> => {
+  const response = await fetch('https://api.example.com/auth/oidc/exchange', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', DPoP: freshDpopProof },
+    body: JSON.stringify({ code }),
+  });
+  if (!response.ok) throw new Error('Code exchange failed.');
+  const value: unknown = await response.json();
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('accessToken' in value) ||
+    typeof value.accessToken !== 'string' ||
+    !('tokenType' in value) ||
+    value.tokenType !== 'DPoP' ||
+    !('expiresIn' in value) ||
+    typeof value.expiresIn !== 'number' ||
+    !Number.isSafeInteger(value.expiresIn) ||
+    value.expiresIn < 0 ||
+    ('sessionId' in value && typeof value.sessionId !== 'string')
+  )
+    throw new Error('Invalid bound credential response.');
+  return {
+    accessToken: value.accessToken,
+    tokenType: value.tokenType,
+    expiresIn: value.expiresIn,
+    ...('sessionId' in value ? { sessionId: value.sessionId as string } : {}),
+  };
+};
+void exchangeBoundCode;
+
+// DBJWT-09: installed root-only independent fingerprint-recognition option.
+const fingerprintRecognition: OidcVaultFingerprintRecognitionOptions = Object.freeze({ headerName: 'X-App-Browser' });
+const recognitionOptions: OidcVaultOptions = {
+  ...options,
+  storeProvider: guardedStore,
+  fingerprintRecognition,
+  deviceBinding: undefined,
+  transactionCookie: { sameSite: 'lax' },
+  trustedOrigins: ['https://app.example.com'],
+};
+createOidcVaultMiddleware(recognitionOptions) satisfies express.Router;
+// @ts-expect-error Recognition is configured as an options object, never a boolean or a DPoP mode.
+const booleanRecognition: OidcVaultOptions = { ...recognitionOptions, fingerprintRecognition: true };
+// @ts-expect-error Generic HTTP field names are strings.
+const invalidRecognitionHeader: OidcVaultFingerprintRecognitionOptions = { headerName: 123 };
+// @ts-expect-error Fingerprint recognition has no required/optional PoP mode.
+const recognitionMode: OidcVaultFingerprintRecognitionOptions = { mode: 'required' };
+// @ts-expect-error Login body cannot enroll a fingerprint; the configured generic header supplies it.
+const bodyFingerprint: OidcVaultLoginInitiationInput = { fingerprint: 'browser-signal' };
+// @ts-expect-error This option does not invent an API recognition restriction.
+const apiRecognition: OidcVaultAccessTokenMiddlewareOptions = { validator, fingerprintRecognition };
+void [booleanRecognition, invalidRecognitionHeader, recognitionMode, bodyFingerprint, apiRecognition];
+
+// Shipped generic frontend snippet: no backend runtime import in browser code.
+async function recognitionHeaders(getSignal: () => Promise<string | undefined>): Promise<Record<string, string>> {
+  let signal: string | undefined;
+  try {
+    signal = await getSignal();
+  } catch {
+    throw new Error('Browser recognition is unavailable.');
+  }
+  if (signal === undefined) return {};
+  if (
+    signal.length === 0 ||
+    signal.length > 256 ||
+    Array.from(signal).some((character) => character.charCodeAt(0) < 0x20 || character.charCodeAt(0) > 0x7e)
+  ) {
+    throw new Error('Fingerprint signal is invalid.');
+  }
+  return { 'X-Device-Fingerprint': signal };
+}
+async function initiateRecognizedLogin(getSignal: () => Promise<string | undefined>): Promise<string> {
+  const response = await fetch('https://api.example.com/auth/oidc/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(await recognitionHeaders(getSignal)) },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) throw new Error('Login initiation failed.');
+  const value: unknown = await response.json();
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('authorizationUrl' in value) ||
+    typeof value.authorizationUrl !== 'string'
+  ) {
+    throw new Error('Invalid login initiation response.');
+  }
+  return value.authorizationUrl;
+}
+void initiateRecognizedLogin;

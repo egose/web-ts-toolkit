@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import type { OidcVaultSession } from '@web-ts-toolkit/express-oidc-vault';
+import type {
+  OidcVaultRecordBindingMatch,
+  OidcVaultSession,
+  ReserveDpopProofInput,
+} from '@web-ts-toolkit/express-oidc-vault';
 
 import type { RedisOidcVaultStoreKeys } from './keys.js';
 import { serialize } from './records.js';
@@ -18,6 +22,253 @@ const evalCommand = (script: string, keys: string[], args: string[]): string[] =
   ...keys,
   ...args,
 ];
+
+// Shared by guarded consumes, rotation CAS and revocation-context reads. JSON
+// null is cjson.null, NOT absent nil. The canonical final base64url bits matter.
+const BINDING_VALIDATION_HELPER = `
+local function isHash(value)
+  return type(value) == 'string' and #value == 43
+    and string.match(value, '^[A-Za-z0-9_-]+$') ~= nil
+    and string.match(string.sub(value, 43), '^[AEIMQUYcgkosw048]$') ~= nil
+end
+local function isBinding(value)
+  if type(value) ~= 'table' or value['type'] ~= 'dpop' or not isHash(value['jkt']) then return false end
+  local count = 0
+  for key, _ in pairs(value) do
+    if key ~= 'type' and key ~= 'jkt' then return false end
+    count = count + 1
+  end
+  return count == 2
+end
+local function validBinding(value)
+  return value == nil or isBinding(value)
+end
+local function validRecordBinding(record)
+  return validBinding(record['deviceBinding'])
+    and (record['browserBindingHash'] == nil or isHash(record['browserBindingHash']))
+    and (record['deviceBinding'] == nil or record['browserBindingHash'] ~= nil)
+end
+local function sameBinding(left, right)
+  if left == nil or right == nil then return left == right end
+  return isBinding(left) and isBinding(right) and left['jkt'] == right['jkt']
+end
+local function optionalString(value)
+  return value == nil or type(value) == 'string'
+end
+local function finiteNumber(value)
+  return type(value) == 'number' and value == value and value > -math.huge and value < math.huge
+end
+local function serverNow()
+  local time = redis.call('TIME')
+  return tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+end
+-- cjson decodes both {} and [] to a Lua table. Inspect the top-level value's
+-- lexical kind so an empty provider array cannot masquerade as legacy {}.
+-- Skip strings/escapes and nested containers; duplicate keys use the last
+-- occurrence, matching cjson/JSON.parse. No credential values are returned.
+local function optionalObjectField(raw, wanted)
+  local depth, position, shape = 0, 1, nil
+  while position <= #raw do
+    local char = string.sub(raw, position, position)
+    if char == '"' then
+      local start = position
+      position = position + 1
+      while position <= #raw do
+        local current = string.sub(raw, position, position)
+        if current == '\\\\' then position = position + 2
+        elseif current == '"' then break
+        else position = position + 1 end
+      end
+      if depth == 1 then
+        local after = position + 1
+        while string.match(string.sub(raw, after, after), '%s') do after = after + 1 end
+        if string.sub(raw, after, after) == ':' and cjson.decode(string.sub(raw, start, position)) == wanted then
+          after = after + 1
+          while string.match(string.sub(raw, after, after), '%s') do after = after + 1 end
+          shape = string.sub(raw, after, after)
+        end
+      end
+    elseif char == '{' or char == '[' then depth = depth + 1
+    elseif char == '}' or char == ']' then depth = depth - 1 end
+    position = position + 1
+  end
+  return shape == nil or shape == '{'
+end
+`;
+
+/** Validate and match inside the same atomic script that spends the one-time record. */
+export const CONSUME_GUARDED_RECORD_SCRIPT = `
+${BINDING_VALIDATION_HELPER}
+local raw = redis.call('GET', KEYS[1])
+if raw == false then return false end
+local ok, record = pcall(cjson.decode, raw)
+local kind = ARGV[1]
+local valid = ok and type(record) == 'table' and validRecordBinding(record)
+if valid then
+  valid = optionalString(record['returnTo']) and finiteNumber(record['createdAt']) and finiteNumber(record['expiresAt'])
+  if kind == 'transaction' then
+    valid = valid and record['state'] == ARGV[2] and type(record['nonce']) == 'string'
+      and type(record['pkceVerifier']) == 'string' and type(record['codeChallenge']) == 'string'
+      and (record['metadata'] == nil or type(record['metadata']) == 'table')
+  else
+    valid = valid and record['code'] == ARGV[2] and type(record['sessionId']) == 'string'
+  end
+end
+if not valid then
+  redis.call('DEL', KEYS[1])
+  return false
+end
+-- Legacy consumes preserve the historical Redis key-TTL policy. Guarded
+-- consumes additionally check payload expiry with server time (D5).
+if ARGV[3] ~= 'legacy' and record['expiresAt'] <= serverNow() then
+  redis.call('DEL', KEYS[1])
+  return false
+end
+if ARGV[3] == 'legacy' then
+  if record['deviceBinding'] ~= nil or record['browserBindingHash'] ~= nil then return false end
+else
+  local match = cjson.decode(ARGV[4])
+  if (match['deviceBinding'] ~= cjson.null and not isBinding(match['deviceBinding']))
+    or (match['browserBindingHash'] ~= cjson.null and not isHash(match['browserBindingHash'])) then return false end
+  if match['deviceBinding'] == cjson.null then
+    if record['deviceBinding'] ~= nil then return false end
+  elseif not sameBinding(record['deviceBinding'], match['deviceBinding']) then return false end
+  if match['browserBindingHash'] == cjson.null then
+    if record['browserBindingHash'] ~= nil then return false end
+  elseif record['browserBindingHash'] ~= match['browserBindingHash'] then return false end
+  if kind == 'exchange' and record['sessionId'] ~= ARGV[5] then return false end
+end
+redis.call('DEL', KEYS[1])
+return raw
+`;
+
+export const buildConsumeGuardedRecordCommand = (
+  key: string,
+  kind: 'transaction' | 'exchange',
+  id: string,
+  match?: OidcVaultRecordBindingMatch,
+  expectedSessionId?: string,
+): string[] =>
+  evalCommand(
+    CONSUME_GUARDED_RECORD_SCRIPT,
+    [key],
+    [
+      kind,
+      id,
+      match === undefined ? 'legacy' : 'guarded',
+      match === undefined ? '' : serialize(match),
+      expectedSessionId ?? '',
+    ],
+  );
+
+/** One sorted set is both replay state and expiry/capacity accounting: no per-key TTL counter drift. */
+export const RESERVE_DPOP_PROOF_SCRIPT = `
+${BINDING_VALIDATION_HELPER}
+local expiresAt = tonumber(ARGV[2])
+local now = serverNow()
+if not finiteNumber(expiresAt) or expiresAt ~= math.floor(expiresAt) or expiresAt > 9007199254740991
+  or expiresAt <= now or expiresAt - now > 360000 then return 0 end
+local keyType = redis.call('TYPE', KEYS[1])['ok']
+if keyType ~= 'none' and keyType ~= 'zset' then error('OIDC vault Redis replay key has unexpected type') end
+local existing = redis.call('ZSCORE', KEYS[1], ARGV[1])
+if existing ~= false and tonumber(existing) > now then return 0 end
+-- Hard LIMIT, not SCAN's hint: at most 64 expired entries per admission.
+local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now, 'LIMIT', 0, 64)
+if #expired > 0 then redis.call('ZREM', KEYS[1], unpack(expired)) end
+if existing ~= false then redis.call('ZREM', KEYS[1], ARGV[1]) end
+if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[3]) then return 2 end
+redis.call('ZADD', KEYS[1], expiresAt, ARGV[1])
+-- Reclaim the whole set if traffic stops after its last retained expiry.
+local last = redis.call('ZREVRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+redis.call('PEXPIREAT', KEYS[1], last[2])
+return 1
+`;
+
+export const buildReserveDpopProofCommand = (
+  keys: RedisOidcVaultStoreKeys,
+  input: ReserveDpopProofInput,
+  maxEntries: number,
+): string[] =>
+  evalCommand(
+    RESERVE_DPOP_PROOF_SCRIPT,
+    [keys.dpopProofs()],
+    [input.replayKey, String(input.expiresAt), String(maxEntries)],
+  );
+
+/** Resolve handle and all current lineage members atomically; only authority fields cross the response boundary. */
+export const SESSION_REVOCATION_CONTEXT_SCRIPT = `
+${BINDING_VALIDATION_HELPER}
+local now = serverNow()
+local handle = ARGV[1]
+local sessionPrefix = ARGV[2]
+local logicalPrefix = ARGV[3]
+local function authority(raw, id)
+  local ok, record = pcall(cjson.decode, raw)
+  if not ok or type(record) ~= 'table' or record['sessionId'] ~= id
+    or not optionalString(record['logicalSessionId']) or type(record['subject']) ~= 'string'
+    or not validBinding(record['deviceBinding']) then error('OIDC vault Redis lineage has malformed session authority') end
+  local provider = record['provider']
+  if not optionalObjectField(raw, 'provider') or (provider ~= nil and (type(provider) ~= 'table' or not optionalString(provider['issuer'])
+    or not optionalString(provider['clientId']))) then error('OIDC vault Redis lineage has malformed provider identity') end
+  local expiry = record['expiresAt']
+  if expiry ~= nil and not finiteNumber(expiry) then error('OIDC vault Redis lineage has malformed session expiry') end
+  if expiry ~= nil and expiry <= now then return nil end
+  return record
+end
+local logicalId = nil
+local source = nil
+local primary = redis.call('GET', KEYS[1])
+if primary ~= false then
+  local record = authority(primary, handle)
+  if record ~= nil then
+    logicalId = record['logicalSessionId'] or handle
+    -- The directly observed live handle must participate even if its reverse
+    -- index membership was corrupted; never infer unboundness from peers alone.
+    source = record
+  end
+end
+if logicalId == nil then
+  local alias = redis.call('GET', KEYS[2])
+  if alias == false then return false end
+  local ok, decoded = pcall(cjson.decode, alias)
+  if not ok or type(decoded) ~= 'string' then error('OIDC vault Redis store has malformed revocation alias') end
+  logicalId = decoded
+end
+local members = redis.call('ZRANGE', logicalPrefix .. logicalId, 0, -1)
+for _, id in ipairs(members) do
+  local raw = redis.call('GET', sessionPrefix .. id)
+  if raw ~= false then
+    local member = authority(raw, id)
+    if member ~= nil and (member['logicalSessionId'] or id) == logicalId then
+      if source ~= nil then
+        local left = source['provider'] or {}
+        local right = member['provider'] or {}
+        if not sameBinding(source['deviceBinding'], member['deviceBinding']) or source['subject'] ~= member['subject']
+          or left['issuer'] ~= right['issuer'] or left['clientId'] ~= right['clientId'] then
+          error('OIDC vault Redis lineage has inconsistent device binding or provider identity')
+        end
+      else source = member end
+    end
+  end
+end
+if source == nil then return false end
+local result = { logicalSessionId = logicalId }
+if source['deviceBinding'] ~= nil then result['deviceBinding'] = source['deviceBinding'] end
+if source['provider'] ~= nil then
+  local provider = {}
+  provider['issuer'] = source['provider']['issuer']
+  provider['clientId'] = source['provider']['clientId']
+  result['provider'] = provider
+end
+return cjson.encode(result)
+`;
+
+export const buildSessionRevocationContextCommand = (keys: RedisOidcVaultStoreKeys, sessionId: string): string[] =>
+  evalCommand(
+    SESSION_REVOCATION_CONTEXT_SCRIPT,
+    [keys.session(sessionId), keys.rotatedSessionAlias(sessionId)],
+    [sessionId, keys.sessionPrefix(), keys.logicalSessionIndexPrefix()],
+  );
 
 /**
  * Computes the SHA1 hex digest of a Lua script body using the same algorithm
@@ -396,6 +647,7 @@ return deleted
 `;
 
 export const ROTATE_SESSION_SCRIPT = `
+${BINDING_VALIDATION_HELPER}
 local newValue = ARGV[1]
 local newExpiresAt = ARGV[2]
 local oldSessionId = ARGV[3]
@@ -409,6 +661,7 @@ local oldAliasValue = ARGV[10]
 local oldAliasExpiresAt = ARGV[11]
 local aliasIndexKey = ARGV[12]
 local aliasIndexKeyPrefix = ARGV[13]
+local expectedSource = cjson.decode(ARGV[14])
 
 local function assertStringOrMissing(key)
   local keyType = redis.call('TYPE', key)['ok']
@@ -466,6 +719,25 @@ end
 if redis.call('EXISTS', KEYS[1]) == 0 then
   return 0
 end
+
+local ok, source = pcall(cjson.decode, redis.call('GET', KEYS[1]))
+local next = cjson.decode(newValue)
+if not ok or type(source) ~= 'table' or source['sessionId'] ~= oldSessionId
+  or not validBinding(source['deviceBinding']) or not validBinding(next['deviceBinding']) then return 3 end
+local sourceProvider = source['provider'] or {}
+local expectedProvider = expectedSource['provider'] or {}
+if type(sourceProvider) ~= 'table' or type(expectedProvider) ~= 'table' then return 3 end
+-- Source authority CAS protects immutable binding and index ownership from
+-- same-ID replacement between the application preflight and this script.
+if (source['logicalSessionId'] or oldSessionId) ~= (expectedSource['logicalSessionId'] or oldSessionId)
+  or source['subject'] ~= expectedSource['subject'] or source['providerSessionId'] ~= expectedSource['providerSessionId']
+  or sourceProvider['issuer'] ~= expectedProvider['issuer'] or sourceProvider['clientId'] ~= expectedProvider['clientId']
+  or source['refreshToken'] ~= expectedSource['refreshToken'] or source['idToken'] ~= expectedSource['idToken']
+  or source['accessToken'] ~= expectedSource['accessToken'] or source['scope'] ~= expectedSource['scope']
+  or source['createdAt'] ~= expectedSource['createdAt'] or source['updatedAt'] ~= expectedSource['updatedAt']
+  or source['expiresAt'] ~= expectedSource['expiresAt']
+  or not sameBinding(source['deviceBinding'], expectedSource['deviceBinding'])
+  or not sameBinding(source['deviceBinding'], next['deviceBinding']) then return 3 end
 
 if oldSessionId == newSessionId then
   return 2
@@ -646,5 +918,6 @@ export const buildRotateSessionCommand = (
       serializeExpiresAt(nextSession.expiresAt),
       keys.rotatedSessionAliasIndex(nextSession.logicalSessionId ?? nextSession.sessionId),
       keys.rotatedSessionAliasIndexPrefix(),
+      serialize(previousSession),
     ],
   );

@@ -279,7 +279,7 @@ describe('ARR-01 harness', () => {
   });
 
   describe('exact forwarded args on representative basic and advanced paths', () => {
-    it('read() forwards exactly the identifier, options, and request config', async () => {
+    it('read() forwards exactly the identifier, args, options, and request config', async () => {
       const mock = createMockService<TestDoc>(makeSeed());
       const { useRead } = createModelHooks({ modelService: mock.service });
       const requestConfig = { headers: { 'X-Trace': 'a' } };
@@ -289,12 +289,15 @@ describe('ARR-01 harness', () => {
       await waitFor(() => expect(mock.spies.read).toHaveBeenCalledTimes(1));
 
       const [firstCall] = mock.spies.read.mock.calls;
-      expect(firstCall).toHaveLength(3);
-      const [idArg, optionsArg, configArg] = firstCall as [string, unknown, unknown];
+      expect(firstCall).toHaveLength(4);
+      const [idArg, argsArg, optionsArg, configArg] = firstCall as [string, unknown, unknown, unknown];
       // Exact-first-positional: the original `id` is forwarded verbatim.
       expect(idArg).toBe('7');
+      // ReadArgs: the hook forwards top-level `select` (undefined here)
+      // as the args object so the basic path sends `?select=` when set.
+      expect(argsArg).toEqual({ select: undefined });
       // ReadOptions: the hook passes the user's `basicOptions` (undefined
-      // here), so the second positional must be `undefined` exactly.
+      // here), so the third positional must be `undefined` exactly.
       expect(optionsArg).toBeUndefined();
       // Request config: the hook merges caller `requestConfig` with the
       // hook's own `signal`. Both the caller's header AND the synthetic

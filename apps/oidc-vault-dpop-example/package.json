@@ -1,0 +1,40 @@
+{
+  "name": "oidc-vault-dpop-example",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "pnpm build:deps && tsx watch --env-file-if-exists=.env server/index.ts",
+    "build:deps": "pnpm --filter @web-ts-toolkit/express-oidc-vault-memory-store... build",
+    "build": "pnpm typecheck && vite build && tsup --config tsup.config.mjs",
+    "start:server": "node --env-file-if-exists=.env dist/server/index.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4317 --strictPort",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint .",
+    "test": "pnpm --filter oidc-vault-dpop-example... build && vitest run --config vitest.config.ts && vitest run --config vitest.browser.config.ts",
+    "test:unit": "pnpm --filter oidc-vault-dpop-example... build && vitest run --config vitest.config.ts",
+    "test:browser": "pnpm --filter oidc-vault-dpop-example... build && vitest run --config vitest.browser.config.ts"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/express-oidc-vault": "workspace:*",
+    "@web-ts-toolkit/express-oidc-vault-memory-store": "workspace:*",
+    "@web-ts-toolkit/oidc-vault-dpop-client": "workspace:*",
+    "express": "^5.2.1",
+    "idb": "^8.0.3",
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "playwright": "^1.62.1",
+    "tsx": "^4.23.12",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.10"
+  }
+}
