@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 
 import { usesCookieTransport } from './cookies';
+import { readDpopRawHeader } from './dpop-proof';
 import { OidcVaultHttpError } from './errors';
 import type { OidcVaultOptions } from './types';
 import { isString } from './utils';
@@ -109,19 +110,49 @@ export const assertTrustedOrigin = (
   req: Request,
   options: OidcVaultOptions,
   trustedOrigins: TrustedOrigins,
-  action: 'refresh' | 'logout',
+  action: 'login' | 'exchange' | 'refresh' | 'logout',
 ): void => {
-  if (!usesCookieTransport(options)) {
-    return;
+  captureTrustedOriginGuard(req, options, trustedOrigins, action)();
+};
+
+/** Capture before async record reads; guarded exchange applies this only after identifying a guarded record. */
+export const captureTrustedOriginGuard = (
+  req: Request,
+  options: OidcVaultOptions,
+  trustedOrigins: TrustedOrigins,
+  action: 'login' | 'exchange' | 'refresh' | 'logout',
+): (() => void) => {
+  const guarded = action === 'login' || action === 'exchange';
+  if (!guarded && !usesCookieTransport(options)) {
+    return () => {};
   }
 
-  const origin = getRequestSourceOrigin(req);
+  const origin = guarded ? getGuardedRequestSourceOrigin(req) : getRequestSourceOrigin(req);
 
-  if (!origin || !trustedOrigins.has(origin)) {
-    throw new OidcVaultHttpError(
-      403,
-      'OIDC_VAULT_UNTRUSTED_ORIGIN',
-      `${action === 'refresh' ? 'Refresh' : 'Logout'} request origin is not trusted.`,
-    );
+  return () => {
+    if (!origin || !trustedOrigins.has(origin)) {
+      throw new OidcVaultHttpError(
+        403,
+        'OIDC_VAULT_UNTRUSTED_ORIGIN',
+        `${action.charAt(0).toUpperCase()}${action.slice(1)} request origin is not trusted.`,
+      );
+    }
+  };
+};
+
+/** New cookie-bearing POSTs use both transports and reject raw source-header ambiguity. */
+const getGuardedRequestSourceOrigin = (req: Request): string | undefined => {
+  const origin = readDpopRawHeader(req, 'origin');
+  if (origin.count !== 0) return origin.count === 1 && isString(origin.value) ? origin.value : undefined;
+  const referer = readDpopRawHeader(req, 'referer');
+  if (referer.count !== 1 || !isString(referer.value)) return undefined;
+  if (!/^https?:\/\//i.test(referer.value) || /[\s\\]/.test(referer.value)) return undefined;
+  try {
+    const url = new URL(referer.value);
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
+      ? url.origin
+      : undefined;
+  } catch {
+    return undefined;
   }
 };

@@ -13,7 +13,9 @@ export const assertTransactionSupport = async (db: Db): Promise<void> => {
   }
 };
 
-const createTtlIndex = async <T extends { _id: string }>(collection: Collection<T>): Promise<string> =>
+type IndexableCollection = Pick<Collection, 'createIndex'>;
+
+const createTtlIndex = async (collection: IndexableCollection): Promise<string> =>
   collection.createIndex(
     { expiresAt: 1 },
     {
@@ -23,11 +25,13 @@ const createTtlIndex = async <T extends { _id: string }>(collection: Collection<
   );
 
 export const ensureStoreIndexes = async (collections: {
-  authorizationTransactions: Collection<{ _id: string }>;
-  exchangeCodes: Collection<{ _id: string }>;
-  sessions: Collection<{ _id: string }>;
-  backchannelLogoutTokenJtis: Collection<{ _id: string }>;
-  rotatedSessionAliases: Collection<{ _id: string }>;
+  authorizationTransactions: IndexableCollection;
+  exchangeCodes: IndexableCollection;
+  sessions: IndexableCollection;
+  backchannelLogoutTokenJtis: IndexableCollection;
+  rotatedSessionAliases: IndexableCollection;
+  dpopProofs: IndexableCollection;
+  dpopReplayCapacity: IndexableCollection;
 }): Promise<void> => {
   await Promise.all([
     createTtlIndex(collections.authorizationTransactions),
@@ -35,6 +39,10 @@ export const ensureStoreIndexes = async (collections: {
     createTtlIndex(collections.sessions),
     createTtlIndex(collections.backchannelLogoutTokenJtis),
     createTtlIndex(collections.rotatedSessionAliases),
+    createTtlIndex(collections.dpopProofs),
+    // Accounting outlives physical proof TTL deletion until a serialized
+    // bounded cleanup decrements capacity. Never TTL-delete these entries.
+    collections.dpopReplayCapacity.createIndex({ kind: 1, expiresAt: 1 }, { name: 'dpop_expiry_accounting_idx' }),
     collections.rotatedSessionAliases.createIndex({ logicalSessionId: 1 }, { name: 'logical_session_idx' }),
     collections.sessions.createIndex(
       { subject: 1, 'provider.issuer': 1, 'provider.clientId': 1 },

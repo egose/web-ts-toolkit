@@ -12,8 +12,8 @@ export type { MongoOidcVaultStoreOptions, OidcVaultMongoStoreProvider } from './
  * Pass a `Db` from an already-connected caller-owned `MongoClient`, await
  * `store.ready()` before accepting traffic, and close the client from your own
  * shutdown path. Readiness validates all configured collection names, creates
- * required indexes for the five store collections, and verifies that the
- * MongoDB deployment supports transactions required by session rotation.
+ * required indexes for the seven store collections, validates shared replay
+ * capacity, and verifies transaction support for rotation/replay admission.
  */
 export function createMongoOidcVaultStore(options: MongoOidcVaultStoreOptions): OidcVaultMongoStoreProvider {
   return new MongoOidcVaultStore(options);

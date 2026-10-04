@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import { MongoClient, type Admin, type Collection, type CommandStartedEvent, type Db } from 'mongodb';
+import {
+  MongoClient,
+  type Admin,
+  type Collection,
+  type CommandStartedEvent,
+  type Db,
+  type RunCommandOptions,
+} from 'mongodb';
 import { MongoMemoryReplSet, MongoMemoryServer } from 'mongodb-memory-server';
 
 export const MONGO_TIMEOUT = 120_000;
@@ -10,6 +17,7 @@ type MongoMemoryHarnessOptions = {
 };
 
 export type MongoMemoryHarness = {
+  uri: string;
   client: MongoClient;
   commandStartedEvents: CommandStartedEvent[];
   createDb: (prefix: string) => Db;
@@ -41,9 +49,11 @@ export const createStandaloneHarness = async (options: MongoMemoryHarnessOptions
       args: enableTestCommandsArgs,
     },
   });
-  const { client, commandStartedEvents } = await createClient(server.getUri(), options);
+  const uri = server.getUri();
+  const { client, commandStartedEvents } = await createClient(uri, options);
 
   return {
+    uri,
     client,
     commandStartedEvents,
     createDb: (prefix) => client.db(createDbName(prefix)),
@@ -65,9 +75,11 @@ export const createReplicaSetHarness = async (options: MongoMemoryHarnessOptions
       },
     ],
   });
-  const { client, commandStartedEvents } = await createClient(replSet.getUri(), options);
+  const uri = replSet.getUri();
+  const { client, commandStartedEvents } = await createClient(uri, options);
 
   return {
+    uri,
     client,
     commandStartedEvents,
     createDb: (prefix) => client.db(createDbName(prefix)),
@@ -178,13 +190,13 @@ export const createDbWithAdminCommandFailure = (
               return Reflect.get(adminTarget, adminProperty, adminReceiver);
             }
 
-            return async (command: Record<string, unknown>, ...args: unknown[]) => {
+            return async (command: Record<string, unknown>, commandOptions?: RunCommandOptions) => {
               if (!failed && options.commandName in command) {
                 failed = true;
                 throw options.error;
               }
 
-              return adminTarget.command(command, ...args);
+              return adminTarget.command(command, commandOptions);
             };
           },
         }) as Admin;

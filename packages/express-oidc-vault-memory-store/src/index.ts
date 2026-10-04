@@ -7,16 +7,37 @@ import {
 import type {
   AuthorizationTransaction,
   AuthorizationTransactionInput,
+  ConsumeAuthorizationTransactionIfMatchesInput,
+  ConsumeExchangeCodeIfMatchesInput,
   ExchangeCodeRecord,
   ExchangeCodeRecordInput,
   OidcVaultSession,
   OidcVaultSessionInput,
-  OidcVaultStoreProvider,
+  OidcVaultDeviceBindingStoreProvider,
+  OidcVaultRecordBindingMatch,
+  OidcVaultSessionRevocationContext,
+  ReserveDpopProofInput,
   ConsumeBackchannelLogoutTokenJtiInput,
   RotateSessionInput,
 } from '@web-ts-toolkit/express-oidc-vault';
 
+import {
+  assertRecordBinding,
+  assertSessionBinding,
+  assertSameLineageAuthority,
+  hasValidSessionRecord,
+  hasValidRecordBinding,
+  inheritSessionBinding,
+  isBindingMatch,
+  matchesRecordBinding,
+  sessionRevocationContext,
+} from './binding';
+import { DpopReplayReservations } from './dpop-replay';
+
+/** Construction options for the named package-root memory-store factory. */
 export interface MemoryOidcVaultStoreOptions {
+  /** Positive safe integer shared by this store object; default 100000. No live replay reservations are evicted. */
+  dpopReplayMaxEntries?: number;
   /**
    * Store clock in epoch milliseconds.
    *
@@ -114,7 +135,7 @@ const toLogicalSessionDeleteInput = (
   input: string | DeleteSessionsByLogicalSessionIdInput,
 ): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : input);
 
-class MemoryOidcVaultStore implements OidcVaultStoreProvider {
+class MemoryOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
   private readonly authorizationTransactions = new Map<string, AuthorizationTransaction>();
   private readonly exchangeCodes = new Map<string, ExchangeCodeRecord>();
   private readonly sessions = new Map<string, OidcVaultSession>();
@@ -127,70 +148,140 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   private readonly rotatedSessionAliasSweep = createMapSweepState();
   private readonly backchannelLogoutTokenJtiSweep = createMapSweepState();
   private readonly sweepWork = createMemoryStoreSweepWork();
+  private readonly dpopProofs: DpopReplayReservations;
 
   constructor(options: MemoryOidcVaultStoreOptions = {}) {
+    const maxEntries = options.dpopReplayMaxEntries === undefined ? 100_000 : options.dpopReplayMaxEntries;
+    if (!Number.isSafeInteger(maxEntries) || maxEntries <= 0) {
+      throw new TypeError('OIDC vault DPoP replay maximum entries must be a positive safe integer.');
+    }
+    this.dpopProofs = new DpopReplayReservations(maxEntries);
     this.now = options.now ?? (() => Date.now());
   }
 
   async createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void> {
+    input = cloneRecord(input);
+    assertRecordBinding(input);
     const now = this.now();
 
     this.pruneMapBatch(this.authorizationTransactions, this.authorizationTransactionSweep, now);
-    this.authorizationTransactions.set(input.state, cloneRecord(input));
+    this.authorizationTransactions.set(input.state, input);
   }
 
   async consumeAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null> {
+    return this.consumeAuthorizationTransactionIfMatches({
+      state,
+      match: { deviceBinding: null, browserBindingHash: null },
+    });
+  }
+
+  async getAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null> {
+    const record = this.readOneTimeRecord(this.authorizationTransactions, state, this.now());
+    return record &&
+      record.state === state &&
+      typeof record.nonce === 'string' &&
+      typeof record.pkceVerifier === 'string' &&
+      typeof record.codeChallenge === 'string'
+      ? cloneRecord(record)
+      : null;
+  }
+
+  async consumeAuthorizationTransactionIfMatches(
+    input: ConsumeAuthorizationTransactionIfMatchesInput,
+  ): Promise<AuthorizationTransaction | null> {
+    input = cloneRecord(input);
+    if (!isBindingMatch(input.match)) return null;
     const now = this.now();
     this.pruneMapBatch(this.authorizationTransactions, this.authorizationTransactionSweep, now);
-
-    const record = this.authorizationTransactions.get(state);
-
-    if (!record) {
+    const record = this.readOneTimeRecord(this.authorizationTransactions, input.state, now);
+    if (
+      !record ||
+      record.state !== input.state ||
+      typeof record.nonce !== 'string' ||
+      typeof record.pkceVerifier !== 'string' ||
+      typeof record.codeChallenge !== 'string' ||
+      !matchesRecordBinding(record, input.match)
+    )
       return null;
-    }
-
-    this.authorizationTransactions.delete(state);
-
-    if (isExpiredRecord(record, now)) {
-      return null;
-    }
-
+    // No asynchronous boundary between liveness/matching and deletion.
+    this.authorizationTransactions.delete(input.state);
     return cloneRecord(record);
   }
 
   async createExchangeCode(input: ExchangeCodeRecordInput): Promise<void> {
+    input = cloneRecord(input);
+    assertRecordBinding(input);
     const now = this.now();
 
     this.pruneMapBatch(this.exchangeCodes, this.exchangeCodeSweep, now);
-    this.exchangeCodes.set(input.code, cloneRecord(input));
+    this.exchangeCodes.set(input.code, input);
   }
 
   async consumeExchangeCode(code: string): Promise<ExchangeCodeRecord | null> {
     const now = this.now();
-
     this.pruneMapBatch(this.exchangeCodes, this.exchangeCodeSweep, now);
+    return this.consumeExchangeRecord(code, { deviceBinding: null, browserBindingHash: null }, now);
+  }
 
-    const record = this.exchangeCodes.get(code);
+  async getExchangeCode(code: string): Promise<ExchangeCodeRecord | null> {
+    const record = this.readOneTimeRecord(this.exchangeCodes, code, this.now());
+    return record && record.code === code && typeof record.sessionId === 'string' ? cloneRecord(record) : null;
+  }
 
-    if (!record) {
+  async consumeExchangeCodeIfMatches(input: ConsumeExchangeCodeIfMatchesInput): Promise<ExchangeCodeRecord | null> {
+    input = cloneRecord(input);
+    if (!isBindingMatch(input.match) || typeof input.expectedSessionId !== 'string') return null;
+    const now = this.now();
+    this.pruneMapBatch(this.exchangeCodes, this.exchangeCodeSweep, now);
+    return this.consumeExchangeRecord(input.code, input.match, now, input.expectedSessionId);
+  }
+
+  private consumeExchangeRecord(
+    code: string,
+    match: OidcVaultRecordBindingMatch,
+    now: number,
+    expectedSessionId?: string,
+  ): ExchangeCodeRecord | null {
+    const record = this.readOneTimeRecord(this.exchangeCodes, code, now);
+    if (
+      !record ||
+      record.code !== code ||
+      typeof record.sessionId !== 'string' ||
+      (expectedSessionId !== undefined && record.sessionId !== expectedSessionId) ||
+      !matchesRecordBinding(record, match)
+    )
       return null;
-    }
-
     this.exchangeCodes.delete(code);
-
-    if (isExpiredRecord(record, now)) {
-      return null;
-    }
-
     return cloneRecord(record);
   }
 
+  private readOneTimeRecord<T extends AuthorizationTransaction | ExchangeCodeRecord>(
+    map: Map<string, T>,
+    id: string,
+    now: number,
+  ): T | null {
+    const record = map.get(id);
+    if (!record) return null;
+    if (
+      !Number.isFinite(record.createdAt) ||
+      !Number.isFinite(record.expiresAt) ||
+      isExpiredRecord(record, now) ||
+      !hasValidRecordBinding(record)
+    ) {
+      map.delete(id);
+      return null;
+    }
+    return record;
+  }
+
   async createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession> {
+    input = cloneRecord(input);
+    assertSessionBinding(input);
     const timestamp = this.now();
     this.pruneSessionsBatch(timestamp);
     this.pruneMapBatch(this.rotatedSessionAliases, this.rotatedSessionAliasSweep, timestamp);
     const session: OidcVaultSession = {
-      ...cloneRecord(input),
+      ...input,
       logicalSessionId: input.logicalSessionId ?? input.sessionId,
       createdAt: input.createdAt ?? timestamp,
       updatedAt: input.updatedAt ?? timestamp,
@@ -217,7 +308,53 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       return null;
     }
 
-    return session ? cloneRecord(session) : null;
+    return session && hasValidSessionRecord(session, sessionId) ? cloneRecord(session) : null;
+  }
+
+  async getSessionRevocationContext(sessionId: string): Promise<OidcVaultSessionRevocationContext | null> {
+    const now = this.now();
+    const live = this.sessions.get(sessionId);
+    const alias = this.rotatedSessionAliases.get(sessionId);
+    if (live && !isExpiredRecord(live, now)) {
+      if (live.sessionId !== sessionId) throw new Error('OIDC vault store has malformed revocation authority.');
+      sessionRevocationContext(live);
+    }
+    if (
+      (!live || isExpiredRecord(live, now)) &&
+      alias &&
+      (typeof alias.logicalSessionId !== 'string' ||
+        (alias.expiresAt !== undefined && !Number.isFinite(alias.expiresAt)))
+    ) {
+      throw new Error('OIDC vault store has malformed revocation alias.');
+    }
+    const logicalSessionId =
+      live && !isExpiredRecord(live, now)
+        ? (live.logicalSessionId ?? live.sessionId)
+        : alias && !isExpiredRecord(alias, now)
+          ? alias.logicalSessionId
+          : undefined;
+    if (logicalSessionId === undefined) return null;
+    if (typeof logicalSessionId !== 'string') throw new Error('OIDC vault store has malformed revocation authority.');
+    let source: OidcVaultSession | undefined;
+    for (const member of this.sessions.values()) {
+      if ((member.logicalSessionId ?? member.sessionId) !== logicalSessionId || isExpiredRecord(member, now)) continue;
+      if (
+        member.sessionId === undefined ||
+        typeof member.subject !== 'string' ||
+        (member.expiresAt !== undefined && !Number.isFinite(member.expiresAt))
+      ) {
+        throw new Error('OIDC vault store lineage has malformed session authority.');
+      }
+      sessionRevocationContext(member);
+      if (source) assertSameLineageAuthority(source, member);
+      else source = member;
+    }
+    return source ? sessionRevocationContext(source) : null;
+  }
+
+  async reserveDpopProof(input: ReserveDpopProofInput): Promise<boolean> {
+    input = { replayKey: input.replayKey, expiresAt: input.expiresAt };
+    return this.dpopProofs.reserve(input, this.now());
   }
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
@@ -232,7 +369,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
 
     const liveSourceSession = this.sessions.get(input.sessionId);
 
-    if (!liveSourceSession) {
+    if (!liveSourceSession || !hasValidSessionRecord(liveSourceSession, input.sessionId)) {
       throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
     }
 
@@ -247,6 +384,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     }
 
     const nextSession = cloneRecord(input.nextSession);
+    inheritSessionBinding(liveSourceSession, nextSession);
     const session: OidcVaultSession = {
       ...nextSession,
       logicalSessionId:
@@ -559,8 +697,13 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
  * Records are kept in memory, cloned on read/write, cleaned up opportunistically
  * during store operations, and lost when the Node.js process exits. Do not use
  * this provider when sessions must survive restarts or be shared by multiple
- * application instances.
+ * application instances. The returned stronger provider includes guarded
+ * exact/null consumes, token-free revocation context, and bounded DPoP replay.
+ * Replay is shared only by callers reusing this same object; the store does not
+ * verify HTTP proofs. Capacity defaults to 100000 and never evicts live entries.
  */
-export function createMemoryOidcVaultStore(options: MemoryOidcVaultStoreOptions = {}): OidcVaultStoreProvider {
+export function createMemoryOidcVaultStore(
+  options: MemoryOidcVaultStoreOptions = {},
+): OidcVaultDeviceBindingStoreProvider {
   return new MemoryOidcVaultStore(options);
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { OidcVaultStoreConflictError } from '@web-ts-toolkit/express-oidc-vault';
-import { defineOidcVaultStoreProviderConformanceSuite } from '../../express-oidc-vault/test/store-provider-conformance';
+import {
+  defineOidcVaultDeviceBindingStoreConformanceSuite,
+  defineOidcVaultStoreProviderConformanceSuite,
+} from '../../express-oidc-vault/test/store-provider-conformance';
 import { createMemoryOidcVaultStore } from '../src/index';
 
 type MemoryStoreInternals = {
@@ -24,6 +27,20 @@ defineOidcVaultStoreProviderConformanceSuite('memory', {
   },
   sessionCreateMode: 'upsert',
   reusedSessionIdClearsStaleAlias: true,
+});
+
+defineOidcVaultDeviceBindingStoreConformanceSuite('memory', {
+  createContext: (_name, options) => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ ...options, now: () => now });
+    return {
+      store,
+      peerStore: store,
+      setNow: (value) => {
+        now = value;
+      },
+    };
+  },
 });
 
 describe('createMemoryOidcVaultStore', () => {

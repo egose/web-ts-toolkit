@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { OidcVaultStoreConflictError } from '@web-ts-toolkit/express-oidc-vault';
-import type { Collection, Db } from 'mongodb';
-import { defineOidcVaultStoreProviderConformanceSuite } from '../../express-oidc-vault/test/store-provider-conformance';
+import { MongoClient, type Collection, type Db } from 'mongodb';
+import {
+  defineOidcVaultDeviceBindingStoreConformanceSuite,
+  defineOidcVaultStoreProviderConformanceSuite,
+} from '../../express-oidc-vault/test/store-provider-conformance';
 import { createMongoOidcVaultStore } from '../src/index';
 import {
   createReplicaSetHarness,
@@ -210,6 +213,26 @@ describe('createMongoOidcVaultStore', () => {
     },
     sessionCreateMode: 'upsert',
     reusedSessionIdClearsStaleAlias: false,
+  });
+
+  defineOidcVaultDeviceBindingStoreConformanceSuite('mongodb', {
+    createContext: async (_name, options) => {
+      let now = 100;
+      const db = replicaSet.createDb('dpop-conf');
+      const peer = new MongoClient(replicaSet.uri);
+      await peer.connect();
+      return {
+        store: createMongoOidcVaultStore({ ...options, db, now: () => now }),
+        peerStore: createMongoOidcVaultStore({ ...options, db: peer.db(db.databaseName), now: () => now }),
+        setNow: (value) => {
+          now = value;
+        },
+        cleanup: async () => {
+          await peer.close();
+          await db.dropDatabase();
+        },
+      };
+    },
   });
 
   it('exposes readiness for startup checks before accepting traffic', async () => {

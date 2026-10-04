@@ -100,6 +100,8 @@ const isHttpsBackendOrigin = (options: OidcVaultOptions): boolean => {
 };
 
 const COOKIE_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+export const isValidCookieName = (value: unknown): value is string =>
+  typeof value === 'string' && COOKIE_NAME_PATTERN.test(value) && !hasUnsafeCookieValueCharacters(value);
 const COOKIE_DOMAIN_PATTERN =
   /^\.?[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
 
@@ -125,7 +127,7 @@ export const validateCookieOptions = (options: OidcVaultOptions): void => {
 
   const cookieOptions = resolveCookieOptions(options);
 
-  if (!COOKIE_NAME_PATTERN.test(cookieOptions.name)) {
+  if (!isValidCookieName(cookieOptions.name)) {
     throw new Error('cookie.name must be a valid HTTP cookie name.');
   }
 

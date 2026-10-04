@@ -49,6 +49,10 @@ export class RedisOidcVaultStoreKeys {
     return prefixKey(this.keyPrefix, 'backchannel-logout-jti', jti);
   }
 
+  dpopProofs(): string {
+    return `${this.keyPrefix}:dpop-proofs`;
+  }
+
   rotatedSessionAliasIndex(logicalSessionId: string): string {
     return prefixKey(this.keyPrefix, 'rotated-session-alias-index', logicalSessionId);
   }

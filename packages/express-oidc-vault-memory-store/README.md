@@ -16,7 +16,7 @@ pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-m
 
 ## Production Note
 
-This package stores authorization transactions, exchange codes, sessions, rotated-session aliases, and backchannel logout replay JTIs in process memory.
+This package stores authorization transactions, exchange codes, sessions, rotated-session aliases, backchannel logout replay JTIs, and DPoP proof reservations in process memory.
 
 Do not use it for multi-instance or production deployments. Use Redis or MongoDB provider packages for durable or horizontally scaled deployments.
 
@@ -59,7 +59,7 @@ const storeProvider = createMemoryOidcVaultStore({
 
 ## Main Exports
 
-Use named imports from the package root; there is no default export or public subpath API. Use Node.js `>=22.12.0` for the core dependency's CJS/ESM runtime support. TypeScript apps also need `@types/node` and `@types/express`.
+Use named imports from the package root; there is no default export or public subpath API. Use Node.js `>=22.12.0` for the core dependency's CJS/ESM runtime support. TypeScript apps also need `@types/node` and `@types/express`. Both ESM (`import`, `index.d.mts`) and CJS (`require`, `index.d.ts`) declaration conditions are shipped; consumer imports always use the package name.
 
 - `createMemoryOidcVaultStore(...)`
 - `type MemoryOidcVaultStoreOptions`
@@ -93,6 +93,7 @@ The store keeps these record kinds in separate in-process maps:
 - sessions, read and deleted by session, logical session, subject, or provider session identifiers
 - rotated-session aliases, used only so an old public session ID can revoke the current logical session
 - backchannel logout token JTIs, consumed once until their expiry time
+- DPoP proof reservations with their own bounded expiry heap/capacity
 
 `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; creating the same key again replaces the old value. A `createSession` replacement takes over the session ID with its own subject/logical/provider-session scope, and clears any stale rotation alias held under that ID so the reused ID cannot invoke an old logical-session meaning. Portable callers must still create sessions with a fresh unused ID and handle `OidcVaultStoreConflictError`: reusing a live ID replaces on memory/MongoDB but rejects on Redis. MongoDB also retains an alias row under a reused ID until expiry or lineage cleanup; only fresh-ID creation is portable.
 
@@ -111,3 +112,46 @@ Bulk methods return the number of live sessions removed, excluding expired recor
 ## Replay JTI Expiry
 
 Backchannel logout token JTI records are consumed only when `expiresAt` is a finite timestamp greater than the store clock at consume time. Expired, equal-to-current-time, `NaN`, and infinite expiries return `false` and are not stored.
+
+## Device-Binding Store Capabilities
+
+`createMemoryOidcVaultStore` returns the core `OidcVaultDeviceBindingStoreProvider`. Its six methods are callable directly from the inferred factory result:
+
+All shared types (`OidcVaultDeviceBindingStoreProvider`, `OidcVaultRecordBindingMatch`, guarded consume inputs, `ReserveDpopProofInput`, revocation context and capacity error) are **named root exports of `@web-ts-toolkit/express-oidc-vault`**. This package exports only its factory/options. Either vault `deviceBinding` or `fingerprintRecognition` requires all six capabilities; fingerprint-only flows do not reserve proofs. API middleware uses this store as its explicit replayStore. See the core's shipped README for the complete issuer/request-aware API and browser recipe.
+
+- `getAuthorizationTransaction(state)` / `getExchangeCode(code)`: detached live snapshots, without spending records; reads are not locks.
+- `consumeAuthorizationTransactionIfMatches({ state, match })` / `consumeExchangeCodeIfMatches({ code, expectedSessionId, match })`: synchronous expiry/complete-match/deletion before yielding; one winner for concurrent matching consumers.
+- `getSessionRevocationContext(sessionId)`: live handle or unexpired alias resolves its currently live lineage, returning only `logicalSessionId`, allowlisted `provider.issuer/clientId`, and optional `deviceBinding`. No upstream credentials, metadata or profile are returned.
+- `reserveDpopProof({ replayKey, expiresAt })`: process-object-shared atomic replay admission, described below.
+
+`match` requires both `{ deviceBinding, browserBindingHash }`; each is an exact value or **null meaning stored absence/undefined**. Null never ignores a field. Records are legacy (neither field), cookie-only (browser hash), or bound (hash + `{ type: 'dpop', jkt }`). Both hashes are canonical 43-character SHA-256 base64url. Null/malformed/extra binding fields and a key without a browser hash are invalid; writes reject, and corrupted stored data cannot yield credentials. Mismatch returns `null` without spending a live record; the honest caller may retry. Original legacy consumes refuse all guarded records, including cookie-only records, without consumption.
+
+Session rotation inherits omitted/undefined binding and accepts the same original key; it rejects null/malformed binding, a changed key, or adding a binding to an unbound source before mutation. Session IDs still follow the upsert/alias contracts above. A revocation alias never supplies historical or missing binding as proof of unboundness: all live lineage members must agree on binding/provider identity (malformed/inconsistent authority throws a fixed private diagnostic). Revocation context scans that lineage's candidates in the session map; it does not authenticate aliases through `getSession`.
+
+## Per-Request DPoP Replay And Capacity
+
+| Memory option          | Default    | Contract                                                                   |
+| ---------------------- | ---------- | -------------------------------------------------------------------------- |
+| `dpopReplayMaxEntries` | `100000`   | Positive safe integer, shared by this store object; no live eviction       |
+| `now`                  | `Date.now` | Epoch-millisecond deterministic test clock; proof/store windows must agree |
+
+Use one shared store object for every local protection-space instance. Independent memory objects/processes intentionally have independent replay state; use Redis/MongoDB for multi-instance protection. The store reserves opaque keys verbatim; shared orchestration supplies the namespace/key/JTI hash. It does not verify HTTP proofs or build namespaces itself.
+
+```ts
+import { OidcVaultDpopReplayCapacityError } from '@web-ts-toolkit/express-oidc-vault';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+
+const replayStore = createMemoryOidcVaultStore({ dpopReplayMaxEntries: 100_000 });
+// Called only after a proof's signature, target, key and nonce are verified.
+const reserved = await replayStore.reserveDpopProof({
+  replayKey: 'opaque-protection-space-key-jti-digest',
+  expiresAt: Date.now() + 60_000,
+});
+void [reserved, OidcVaultDpopReplayCapacityError];
+```
+
+`dpopReplayMaxEntries` defaults to **100000**, and must be a positive safe integer. A duplicate returns `false` before capacity checks and never extends expiry. New reservations at capacity throw the core `OidcVaultDpopReplayCapacityError`. Live entries are never evicted. A future safe-integer expiry is required, with remaining TTL **<=360000 ms**; invalid/nonfinite/unsafe/fractional/expired (`<= now()`) or overlong windows return `false` without allocating. Expired keys may be admitted again.
+
+Replay uses a Map plus an **indexed min-heap with exactly one node per retained key**, with no unbounded stale-node accumulation or full-map snapshot rebuild. Each admission removes at most **64** expired heap nodes plus a targeted expired duplicate; insertion/removal costs O(log N). It never scans session or alias maps. Expired entries awaiting bounded cleanup may conservatively consume capacity; later new admissions reclaim them. Cleanup runs on traffic, not a timer, and the total retained replay state stays within the configured limit.
+
+DPoP reservations are **per request**, much higher-volume than logout JTIs. Size for unique proofs/second × proof-validity window plus headroom (approved defaults: at most 70 seconds retained). All instances in a protection space must use identical windows/namespaces and synchronized clocks. Never release a reservation after a later route failure; retries require a fresh proof. Capacity/provider errors must fail closed and map through orchestration to sanitized replay-unavailable, not proof acceptance. Heap bounds do not imply a fixed latency/throughput guarantee.

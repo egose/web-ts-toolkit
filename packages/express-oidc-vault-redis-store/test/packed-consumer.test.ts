@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, 
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { createRedisHarness } from './redis-harness';
 
 const publisherRequire = createRequire(require.resolve('@repo-toolkit/release-artifact')) as NodeRequire;
 const { createPublishPackageJson, DEFAULT_PACKAGE_FILES, DEFAULT_VERSION_PLACEHOLDER } = publisherRequire(
@@ -109,6 +110,7 @@ function run(command: string, args: string[], cwd: string): string {
       cwd,
       encoding: 'utf8',
       stdio: 'pipe',
+      maxBuffer: 16 * 1024 * 1024,
     });
   } catch (error) {
     const caught = error as { stdout?: string; stderr?: string; status?: number; message?: string };
@@ -224,6 +226,7 @@ function installPackedConsumer(): string {
           // strict NodeNext lib check resolves the core package declarations
           // without forcing the redis store to depend on express at runtime.
           express: coreSourcePackageJson.devDependencies?.express,
+          redis: redisStoreSourcePackageJson.devDependencies?.redis,
         },
         devDependencies: {
           '@types/express': coreSourcePackageJson.devDependencies?.['@types/express'],
@@ -247,6 +250,22 @@ function copyConsumerSources(consumerDir: string): void {
   for (const file of ['consumer.cjs', 'consumer.mjs', 'consumer-types.ts', 'tsconfig-nodenext.json']) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
   }
+  cpSync(
+    path.resolve(corePackageRoot, 'test-packed-consumer/consumer/store-contract.mjs'),
+    path.resolve(consumerDir, 'store-contract.mjs'),
+  );
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig-bundler.json'),
+    JSON.stringify({
+      extends: './tsconfig-nodenext.json',
+      compilerOptions: { module: 'ESNext', moduleResolution: 'Bundler' },
+      include: ['consumer-types.ts', 'readme-quick-start.ts'],
+    }),
+  );
+  const readme = readFileSync(path.resolve(consumerDir, 'node_modules', redisStorePackageName, 'README.md'), 'utf8');
+  const quickStart = readme.slice(readme.indexOf('## Quick Start')).match(/```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!quickStart) throw new Error('Installed Redis README quickstart is missing.');
+  writeFileSync(path.resolve(consumerDir, 'readme-quick-start.ts'), quickStart);
 }
 
 function listFiles(dir: string): string[] {
@@ -294,6 +313,7 @@ describe('RVR-10 packed-package redis store consumer compatibility', () => {
       },
     });
     expect(packedManifest.sideEffects).toBe(false);
+    expect(packedManifest.engines).toEqual({ node: '>=22.12.0' });
     // redis moved from dependencies to devDependencies at source. It must NOT
     // appear as a runtime dependency in the published manifest.
     expect(packedManifest.dependencies).toEqual({ [corePackageName]: testVersion });
@@ -303,6 +323,11 @@ describe('RVR-10 packed-package redis store consumer compatibility', () => {
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);
     for (const emitted of ['index.js', 'index.mjs', 'index.d.ts', 'index.d.mts']) {
       expect(existsSync(path.resolve(unpackRoot, emitted))).toBe(true);
+    }
+    for (const declaration of ['index.d.ts', 'index.d.mts']) {
+      expect(readFileSync(path.resolve(unpackRoot, declaration), 'utf8')).not.toMatch(
+        /from ['"]\.|\/src\/|reference path=/,
+      );
     }
   });
 
@@ -332,15 +357,28 @@ describe('RVR-10 packed-package redis store consumer compatibility', () => {
     expect(entry.entryCount).toBe(expectedFiles.length);
   });
 
-  it('installs staged tarballs and runs CJS, ESM, and NodeNext consumers against a structural adapter', () => {
+  it('installs staged tarballs and runs CJS/ESM guarded replay plus strict NodeNext/Bundler consumers', async () => {
     const consumerDir = installPackedConsumer();
     copyConsumerSources(consumerDir);
     // Exercise the require declaration branch with the same public API checks.
     cpSync(path.resolve(consumerDir, 'consumer-types.ts'), path.resolve(consumerDir, 'consumer-types.cts'));
 
-    run('node', ['consumer.cjs'], consumerDir);
-    run('node', ['consumer.mjs'], consumerDir);
+    const harness = await createRedisHarness('redis:7.2-alpine');
+    try {
+      run('node', ['consumer.cjs', harness.url, harness.createKeyPrefix('packed-cjs')], consumerDir);
+      run('node', ['consumer.mjs', harness.url, harness.createKeyPrefix('packed-esm')], consumerDir);
+    } finally {
+      await harness.stop();
+    }
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
+    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+    const trace = run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json', '--traceResolution'], consumerDir);
+    expect(trace).toMatch(
+      /Resolving in ESM mode with conditions 'import'[\s\S]*?express-oidc-vault-redis-store\/index\.d\.mts'/,
+    );
+    expect(trace).toMatch(
+      /Resolving in CJS mode with conditions 'require'[\s\S]*?express-oidc-vault-redis-store\/index\.d\.ts'/,
+    );
 
     const installedPackageDir = path.resolve(
       consumerDir,

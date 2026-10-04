@@ -10,12 +10,15 @@ OIDC session middleware for Express with body or cookie session transport and se
 ## What It Handles
 
 - OIDC login redirect with PKCE, `state`, and `nonce`
+- opt-in JSON POST login, HttpOnly browser transaction cookie, and original-key DPoP through callback/exchange/refresh/logout
 - callback token exchange and `id_token` validation
 - server-side storage of upstream refresh tokens and `id_token`s
 - one-time local exchange codes for the frontend callback handoff
 - session refresh with session ID rotation
 - server-driven upstream logout redirect using stored `id_token`
 - OIDC backchannel logout handling via `logout_token`
+- request-aware local JWT API authentication with proof/nonce/shared replay enforcement
+- separate opt-in generic fingerprint recognition at POST login and before exchange/refresh (change detection, not PoP)
 
 ## Installation
 
@@ -46,6 +49,9 @@ Use **named imports from the package root**. There is no default export or publi
 - `createOidcVaultJwtAccessTokenValidator(...)`
 - route-path and default-value constants such as `DEFAULT_OIDC_VAULT_BASE_PATH`, `OIDC_VAULT_ROUTE_PATHS`, `DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT`, and `OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT`
 - public types for sessions, hooks, token issuing, validators, config, and store-provider interfaces (including `OidcVaultConfig`, `OidcVaultSessionInput`, `OidcVaultStoreConflictError`, `OidcVaultExchangeResult`, and `OidcVaultLogoutResult`; curated subset — see the package exports for the full list)
+- `type OidcVaultFingerprintRecognitionOptions` for separate opt-in recognition
+- `OidcVaultDeviceBindingOptions`, `OidcVaultApiDeviceBindingOptions`, `OidcVaultDpopBinding`, `OidcVaultVerifiedDpopBinding`, proof/nonce options, POST-login DTOs and `OidcVaultTransactionCookieOptions`
+- `OidcVaultRequestAwareAccessTokenValidator`, mandatory verified `OidcVaultAccessTokenConfirmation`, `OidcVaultDeviceBindingStoreProvider`, exact/null match inputs, `OidcVaultDpopReplayStore`, revocation context and `OidcVaultDpopReplayCapacityError`
 
 ## Frontend Storage Policy
 
@@ -100,7 +106,7 @@ Available cookie options:
 - `cookie.secure`
 - `cookie.domain`
 - `cookie.path`
-- `trustedOrigins`: browser origins allowed to call cookie-authenticated `refresh` and `logout`; required when cross-site cookie transport is enabled
+- `trustedOrigins`: browser sources for POST login/guarded exchange in both transports and cookie-authenticated refresh/logout; required when cross-site session cookie transport is enabled
 
 `cookie.httpOnly` is always enforced as `true`. Middleware creation rejects `httpOnly: false` and unsafe cookie names, domains, or paths so untrusted values cannot be serialized into `Set-Cookie` headers. `__Secure-` names require an effectively `Secure` cookie; `__Host-` names additionally require no `cookie.domain` and `cookie.path: '/'`.
 
@@ -113,18 +119,21 @@ Default cookie behavior:
 
 Cookie-authenticated `refresh` and `logout` requests use a fail-closed CSRF policy for every `SameSite` mode. The request must include an `Origin` header, or a valid `Referer` header, whose origin matches `backendOrigin` or one of the configured `trustedOrigins`. Requests with no source-origin header are rejected. Backchannel logout is not affected because it is authenticated with the signed OIDC logout token rather than the browser session cookie.
 
+Session transport and binding mode are independent. POST login and guarded exchange need the **temporary transaction cookie even in body transport**. The session cookie starts at successful exchange. Same-site subdomains can use Lax with credentialed cross-origin fetch; cross-origin does not itself mean cross-site. Cross-site SPAs need HTTPS `transactionCookie: { sameSite: 'none' }`, compatible session-cookie policy, credentialed CORS and browser cookie permission.
+
 ## Endpoints
 
 The middleware exposes these routes under a configurable base path such as `/auth/oidc`:
 
 - `GET /auth/oidc/login`
+- `POST /auth/oidc/login` when `deviceBinding` or `fingerprintRecognition` is configured (JSON initiation)
 - `GET /auth/oidc/callback`
 - `POST /auth/oidc/exchange`
 - `POST /auth/oidc/refresh`
 - `POST /auth/oidc/logout`
 - `POST /auth/oidc/backchannel-logout`
 
-The OIDC router parses JSON and `application/x-www-form-urlencoded` request bodies with an explicit default limit of `16kb`. This is enough for the small `exchange`, `refresh`, `logout`, and backchannel logout payloads. If an IdP requires a larger form-encoded `logout_token`, set `requestBodyLimit` to a string or byte count accepted by Express body parsers.
+The OIDC router parses JSON and `application/x-www-form-urlencoded` request bodies with an explicit default limit of `16kb`. This is enough for the small `exchange`, `refresh`, `logout`, and backchannel logout payloads. Opt-in POST login accepts only `application/json`; other media types return `415 OIDC_VAULT_UNSUPPORTED_REQUEST_BODY_TYPE` before general parsing. If an IdP requires a larger form-encoded `logout_token`, set `requestBodyLimit` to a string or byte count accepted by Express body parsers.
 
 Parser failures return JSON client errors before route handlers or store/provider hooks run:
 
@@ -166,33 +175,207 @@ Use the memory store for local development and tests. For production deployments
 
 `postLogoutRedirectUri` is optional. When configured, it must be an absolute HTTP(S) URL registered with the OIDC provider for post-logout redirects. It may be hosted on a different origin from `frontendRedirectUri` when that exact URL is provider-registered. It is only consulted for redirected logout (`redirect: true`).
 
-After live-session identity checks, local logout (`redirect` unset or `false`) never contacts the provider: it revokes the local session lineage, clears the cookie under cookie transport, delivers `onLogout` for a live session, and returns `200 { loggedOut: true }`. Redirected logout (`redirect: true`) commits the same local outcome before attempting an upstream end-session redirect. Discovery errors are reported through `onError`; errors or an absent `endSessionEndpoint` fall back to local `200 { loggedOut: true }`. With no live session, logout attempts stale-alias deletion and returns local success without `onLogout`; an expired alias may no longer identify a live lineage.
+After original live/alias lineage identity and required proof/nonce/replay checks, local logout (`redirect` unset or `false`) never contacts the provider: it revokes the local lineage, clears the cookie under cookie transport, delivers `onLogout` for a live handle, and returns `200 { loggedOut: true }`. Redirected live logout commits that local result before best-effort upstream discovery/redirect; failure or a missing endpoint falls back to local success with private `onError`. Built-in alias-only logout authenticates the surviving lineage's key/provider using `getSessionRevocationContext`, then revokes without live-session hooks or upstream credentials. No currently live target is idempotent success without deletion/proof reservation/hooks; the selected transport's handle/cookie is still required. A proof/identity mismatch leaves the lineage/cookie untouched. Stateless JWTs are not revoked.
 
 Every vault route response carries `Cache-Control: no-store` (login/callback/logout redirects, exchange/refresh/logout/backchannel JSON, and error JSON including body-parser errors) so caches do not retain session/access credentials, one-time exchange codes, or authorization redirects. Only `no-store` is emitted: legacy `Pragma`/`Expires` add no protection once `no-store` is present, and no `Referrer-Policy` is set because redirect targets intentionally expose protocol-required values (provider authorization URL, frontend `?code=`, upstream `id_token_hint`) to the navigation target. This does not clear browser history, disable reverse-proxy request logging, strip `?code=` from frontend URLs/history (the frontend must still clean up the callback URL, e.g. `history.replaceState`), or hide intentional provider redirect exposure. Verify with `curl -i` (expect `Cache-Control: no-store` on `GET /auth/oidc/login`, `POST /auth/oidc/exchange`, `POST /auth/oidc/refresh`, and `POST /auth/oidc/logout`) or assert `response.headers['cache-control'] === 'no-store'` in integration tests under both transports.
 
 ## Public Options And Defaults
 
-| Option                          | Default                              | Contract                                                                                                                                                                                                                                           |
-| ------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `basePath`                      | `/auth/oidc`                         | Mount path for the OIDC router.                                                                                                                                                                                                                    |
-| `backendOrigin`                 | required                             | Public backend origin registered with the provider. Callback redirect URIs are derived from this pinned origin, not request host headers.                                                                                                          |
-| `storeProvider`                 | required                             | Durable vault store provider. Use Redis or MongoDB for production and multi-instance deployments.                                                                                                                                                  |
-| `config`                        | required provider values             | Supply `issuer` and `clientId`, or use `resolveOidcVaultConfigFromEnv(process.env)`. Endpoint settings select manual mode; see Config Modes.                                                                                                       |
-| `frontendRedirectUri`           | unset                                | Default browser return target after backend callback completion. Required if login accepts custom `returnTo`. Validated before durable callback state; missing destination fails the callback with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI`. |
-| `postLogoutRedirectUri`         | unset                                | Optional provider-registered HTTP(S) URL used in the upstream end-session redirect. Only consulted for redirected logout (`redirect: true`); upstream failures fall back to local `200 { loggedOut: true }` with `onError`.                        |
-| `fetchUserInfo`                 | implementation default               | When enabled, UserInfo claims are fetched and merged only after the `sub` matches the verified ID token subject.                                                                                                                                   |
-| `authorizationTransactionTtlMs` | `600000`                             | TTL for one-time authorization transactions created during login.                                                                                                                                                                                  |
-| `exchangeCodeTtlMs`             | `30000`                              | TTL for one-time local exchange codes returned to the frontend callback route.                                                                                                                                                                     |
-| `sessionTtlMs`                  | unset                                | Opt-in positive safe-integer lifetime in milliseconds from callback session creation. Hooks may shorten it; refresh never extends it.                                                                                                              |
-| `sessionTransport`              | `body`                               | `body` returns and accepts JSON `sessionId`; `cookie` stores the session pointer in an `HttpOnly` cookie and rejects body-only refresh/logout IDs.                                                                                                 |
-| `cookie`                        | default cookie settings              | Cookie transport options. `httpOnly` is always enforced as `true`; unsafe names, paths, domains, and `__Secure-`/`__Host-` prefix violations are rejected.                                                                                         |
-| `trustedOrigins`                | `[]` plus `backendOrigin` internally | Browser origins allowed to call cookie-authenticated `refresh` and `logout`. Required for cross-site cookie transport.                                                                                                                             |
-| `requestBodyLimit`              | `16kb`                               | Express JSON and URL-encoded parser limit for OIDC route bodies. Increase only for known provider backchannel logout token size needs.                                                                                                             |
-| `providerRequestTimeoutMs`      | `5000`                               | Deadline per provider HTTP exchange (headers plus complete body). Cancellation is attempted without awaiting cleanup. Positive finite integer; validated before cache lookup.                                                                      |
-| `hooks`                         | unset                                | Pre-commit hooks can veto operations by throwing; post-commit notification hook failures are reported to `onError` without undoing committed state.                                                                                                |
-| `tokenIssuer`                   | unset                                | Issues app-local access tokens for `exchange` and `refresh`. This lifetime is separate from upstream token and vault-session lifetimes.                                                                                                            |
+| Option                          | Default                                    | Contract                                                                                                                                                                                                                                           |
+| ------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `basePath`                      | `/auth/oidc`                               | Mount path for the OIDC router.                                                                                                                                                                                                                    |
+| `backendOrigin`                 | required                                   | Public backend origin registered with the provider. Callback redirect URIs are derived from this pinned origin, not request host headers.                                                                                                          |
+| `storeProvider`                 | required                                   | Durable vault store provider. Use Redis or MongoDB for production and multi-instance deployments.                                                                                                                                                  |
+| `config`                        | required provider values                   | Supply `issuer` and `clientId`, or use `resolveOidcVaultConfigFromEnv(process.env)`. Endpoint settings select manual mode; see Config Modes.                                                                                                       |
+| `frontendRedirectUri`           | unset                                      | Default browser return target after backend callback completion. Required if login accepts custom `returnTo`. Validated before durable callback state; missing destination fails the callback with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI`. |
+| `postLogoutRedirectUri`         | unset                                      | Optional provider-registered HTTP(S) URL used in the upstream end-session redirect. Only consulted for redirected logout (`redirect: true`); upstream failures fall back to local `200 { loggedOut: true }` with `onError`.                        |
+| `fetchUserInfo`                 | enabled when usable                        | Fetches UserInfo if an endpoint exists and the response supplies an access token; false disables it. Claims merge only after matching subject.                                                                                                     |
+| `authorizationTransactionTtlMs` | `600000`                                   | TTL for one-time authorization transactions created during login.                                                                                                                                                                                  |
+| `exchangeCodeTtlMs`             | `30000`                                    | TTL for one-time local exchange codes returned to the frontend callback route.                                                                                                                                                                     |
+| `sessionTtlMs`                  | unset                                      | Opt-in positive safe-integer lifetime in milliseconds from callback session creation. Hooks may shorten it; refresh never extends it.                                                                                                              |
+| `sessionTransport`              | `body`                                     | `body` returns and accepts JSON `sessionId`; `cookie` stores the session pointer in an `HttpOnly` cookie and rejects body-only refresh/logout IDs.                                                                                                 |
+| `cookie`                        | default cookie settings                    | Cookie transport options. `httpOnly` is always enforced as `true`; unsafe names, paths, domains, and `__Secure-`/`__Host-` prefix violations are rejected.                                                                                         |
+| `deviceBinding`                 | disabled                                   | Vault DPoP policy; object defaults to optional. Selects the key at POST login and enforces it through callback/exchange/refresh/logout; API enforcement is separate.                                                                               |
+| `fingerprintRecognition`        | disabled                                   | Separate opt-in recognition; `headerName` defaults to `X-Device-Fingerprint`. POST-only enrollment, precommit exchange/refresh comparison, fresh login on change; never PoP or an API sender constraint.                                           |
+| `transactionCookie`             | HTTPS `__Host-oidc_vault_transaction`, Lax | Temporary cookie independent of session transport. Only name and SameSite lax/none are configurable; HTTP default name is oidc_vault_transaction.                                                                                                  |
+| `trustedOrigins`                | `[]` plus `backendOrigin` internally       | POST-login/guarded-exchange sources in both transports, plus cookie refresh/logout. Required for cross-site session cookies.                                                                                                                       |
+| `requestBodyLimit`              | `16kb`                                     | Express JSON and URL-encoded parser limit for OIDC route bodies. Increase only for known provider backchannel logout token size needs.                                                                                                             |
+| `providerRequestTimeoutMs`      | `5000`                                     | Deadline per provider HTTP exchange (headers plus complete body). Cancellation is attempted without awaiting cleanup. Positive finite integer; validated before cache lookup.                                                                      |
+| `hooks`                         | unset                                      | Pre-commit hooks can veto operations by throwing; post-commit notification hook failures are reported to `onError` without undoing committed state.                                                                                                |
+| `tokenIssuer`                   | unset                                      | Issues app-local access tokens for `exchange` and `refresh`. This lifetime is separate from upstream token and vault-session lifetimes.                                                                                                            |
+| `now`                           | `Date.now`                                 | Epoch-millisecond clock for TTL and vault proof/nonce/replay checks; shared policy/store clocks must agree.                                                                                                                                        |
 
-Construction takes an internal resolved snapshot of the options object without mutating it: normalized values are stored on the snapshot, `cookie`/`trustedOrigins`/`config` containers are shallow-copied, and `storeProvider`/`hooks`/`tokenIssuer`/`now` service references are retained live (never deep-cloned). Frozen inputs work, reused inputs are not mutated, and mutating or replacing the caller object after creation has no effect on the created router.
+Construction takes an internal resolved snapshot without mutating caller options. Cookie/config/trusted-origin containers are copied; transaction-cookie, fingerprint and DPoP policies/allowlists are detached/frozen, and nonce bytes are privately copied. Store/hooks/issuer/clock services remain shared references. Frozen/reused inputs work. Config itself is optional in the type, but issuer/clientId or the complete manual set is required by construction. Vault and API deviceBinding must be configured independently.
+
+## DPoP: complete local JWT and API configuration
+
+Install the core, a store, Express, and your application's direct signing/CORS dependencies (`jose`, `cors`; TypeScript also needs `@types/express`, `@types/node`, `@types/cors`). This development-memory example matches the shipped README. Set OIDC issuer/client values and a stable strong random APP_JWT_SECRET encoding at least 32 bytes; register **https://api.example.com/auth/oidc/callback**, serve HTTPS at that public origin and preserve the vault mount path.
+
+```ts
+import express from 'express';
+import cors from 'cors';
+import { SignJWT } from 'jose';
+import {
+  createOidcVaultMiddleware,
+  createOidcVaultAccessTokenMiddleware,
+  createOidcVaultJwtAccessTokenValidator,
+} from '@web-ts-toolkit/express-oidc-vault';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+
+const backendOrigin = 'https://api.example.com';
+const frontendOrigin = 'https://frontend.example.com';
+const audience = 'app-api-v1';
+const rawSecret = process.env.APP_JWT_SECRET;
+if (!rawSecret || Buffer.byteLength(rawSecret, 'utf8') < 32) {
+  throw new Error('APP_JWT_SECRET must encode at least 32 strong random bytes.');
+}
+const signingKey = new TextEncoder().encode(rawSecret);
+const store = createMemoryOidcVaultStore({ dpopReplayMaxEntries: 100_000 });
+const app = express();
+app.use(
+  cors({
+    origin: frontendOrigin,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'DPoP', 'X-Device-Fingerprint'],
+    exposedHeaders: ['DPoP-Nonce', 'WWW-Authenticate'],
+  }),
+);
+app.use(
+  createOidcVaultMiddleware({
+    backendOrigin,
+    basePath: '/auth/oidc',
+    config: {
+      issuer: process.env.OIDC_ISSUER,
+      clientId: process.env.OIDC_CLIENT_ID,
+      clientSecret: process.env.OIDC_CLIENT_SECRET,
+    },
+    frontendRedirectUri: `${frontendOrigin}/callback`,
+    trustedOrigins: [frontendOrigin],
+    storeProvider: store,
+    sessionTransport: 'body',
+    sessionTtlMs: 8 * 60 * 60 * 1000,
+    deviceBinding: { mode: 'required' }, // ES256, age 60s, skew 5s, nonces off.
+    tokenIssuer: {
+      async issue({ session, deviceBinding }) {
+        if (!deviceBinding) throw new Error('A verified DPoP binding is required.');
+        const accessToken = await new SignJWT({ scope: session.scope, cnf: { jkt: deviceBinding.jkt } })
+          .setSubject(session.subject)
+          .setProtectedHeader({ alg: 'HS256' })
+          .setIssuer(backendOrigin)
+          .setAudience(audience)
+          .setIssuedAt()
+          .setExpirationTime('5m')
+          .sign(signingKey);
+        return { accessToken, tokenType: 'DPoP', expiresIn: 300 };
+      },
+    },
+  }),
+);
+app.use(
+  '/api',
+  createOidcVaultAccessTokenMiddleware({
+    validator: createOidcVaultJwtAccessTokenValidator({
+      key: signingKey,
+      issuer: backendOrigin,
+      audience,
+      algorithms: ['HS256'],
+    }),
+    deviceBinding: { mode: 'required', publicOrigin: backendOrigin, replayNamespace: 'app-api-v1', replayStore: store },
+  }),
+);
+app.get('/api/profile', (req, res) => {
+  res.json({ subject: req.auth?.subject, scope: req.auth?.scope, binding: req.auth?.deviceBinding?.jkt });
+});
+app.listen(3000);
+```
+
+Use verified `IssueTokenInput.deviceBinding.jkt`, not mutable profile/session fields. Local HS256 signing is independent of asymmetric ES256 proof signing. The JWT contains no vault handle/`sid`, preserving the HttpOnly boundary when using cookie mode. Keep authorization application-owned and use a shared Redis/Mongo provider in production. No tokenIssuer is also supported: binding is enforced, but no local token fields are emitted.
+
+### Modes, defaults and migration
+
+| Vault policy    | New login                                                            | Existing records                                                                     |
+| --------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Omitted         | Legacy unbound GET; POST only if recognition configured              | Unbound compatible, bound fails closed                                               |
+| `{}` / optional | GET unbound; JSON POST binds from valid proof, otherwise cookie-only | Legacy unbound permitted; later proof never enrolls                                  |
+| required        | JSON POST with proof; GET rejects before discovery/allocation        | Unbound transaction/code/session rejects; original key required on bound credentials |
+
+There is **no legacyPolicy/downgrade switch**. Configure proof-aware clients, issuer and all API acceptance points before selecting required. Disabling DPoP never converts bound sessions/JWTs into Bearer. The persisted binding is only `{ type: 'dpop', jkt }` (canonical RFC 7638 SHA-256 thumbprint), without JWK/algorithm/mode; hooks/mappers cannot strip/rebind it. Algorithms are checked against current policy on every request.
+
+Defaults: ES256/P-256, proof age **60s** (integer 1–300), skew **5s** (integer 0–30), nonce **off**. Explicit PS256/RS256 use RSA 2048–4096 bits. Reject private/symmetric/remote keys and unsupported critical headers. Bounds: proof **8192 bytes**, decoded protected header/JWK **2048 bytes**, JTI **1–128 printable ASCII bytes**, nonce **512 bytes**. Signed iat is a nonnegative integer with `nowSeconds - age - skew < iat <= nowSeconds + skew`. Reject raw duplicate/comma-joined Authorization/DPoP; sign a new proof with at least 128 random JTI bits on every attempt.
+
+### POST login, cookie-authenticated callback and original-key vault requests
+
+JSON **POST &lt;basePath&gt;/login** takes `{ returnTo?: string }` and returns only `200 { authorizationUrl }`; navigate after persisting the key. Body/query JWK/jkt shortcuts cannot bind. Optional absent proof creates a cookie-only transaction; invalid supplied proof rejects. GET never selects a key. ReturnTo is body-only and remains on the configured frontend origin.
+
+POST login/guarded exchange validate Origin (valid Referer fallback only when Origin is absent) in **both transports**, rejecting missing/null/duplicate/untrusted sources. After source/body checks, proof/nonce/replay precede discovery/hooks/allocation. Callback is headerless: state and the temporary cookie hash authenticate the original record, atomically matched before upstream exchange/session/code creation. PKCE/state/OIDC nonce remain unchanged. Missing/wrong cookies do not spend or clear; authenticated terminal provider-error callbacks consume/clear with fixed callback-error JSON.
+
+The fresh **32-byte** transaction secret is HttpOnly, host-only, Path=/, Secure on HTTPS, default Lax; HTTPS name `__Host-oidc_vault_transaction`, HTTP `oidc_vault_transaction`. Only name/lax-or-none are configurable; None requires HTTPS. No Domain/path/Strict/HttpOnly/Secure opt-out. Session/transaction names must differ; multiple mounts need distinct names. Duplicate/malformed/noncanonical selected cookies reject; unrelated malformed cookies are ignored. One pending flow per browser/mount: new initiation replaces the cookie. Its deadline rounds down to the transaction TTL (default 10m), then callback shortens it to the code TTL (30s). Successful exchange/authenticated terminal issuance failure clears it; mismatches/nonces do not. Abandoned records/cookies expire.
+
+| POST route | Body/credentials/proof                                                                        | Result                                                                                                 |
+| ---------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| exchange   | `{ code }`, temporary cookie/include in both modes, source check, original-key proof          | Credential/profile result; body includes sessionId, cookie sets its session cookie and omits sessionId |
+| refresh    | Body `{ sessionId }` or cookie `{}`/include, original-key proof; cookie source check          | Rotated handle, same key/lineage/subject/absolute expiry                                               |
+| logout     | Same handle/cookie and proof, no fingerprint requirement; redirect true only for live handles | Local success or best-effort upstream redirect after revocation                                        |
+
+Vault proofs require **no access-token Authorization or ath**, so refresh/logout work after local JWT expiry. Optional supplied proofs validate/nonces/reserve without enrolling legacy records. Identity/cookie/recognition/key preflight precede atomic consumption/upstream use; atomic returned code/session authority is rechecked. Wrong/stale/replayed proofs preserve honest records/upstream refresh tokens. Browser proofs never go upstream: this milestone constrains local JWTs/vault sessions; IdP tokens/UserInfo remain Bearer/server-held.
+
+## Optional Fingerprint Recognition (Not PoP)
+
+`fingerprintRecognition?: OidcVaultFingerprintRecognitionOptions` is a separate opt-in browser recognition/change-detection policy. **Fingerprint matching is recognition/change detection, not theft prevention against deliberate copying.** FingerprintJS `visitorId` or another browser-computed identifier is copyable/spoofable, does not prove private-key possession or identify a physical device, and never satisfies `deviceBinding.mode: 'required'`. The backend has no FingerprintJS dependency.
+
+Use named package-root imports and one of the built-in guarded stores:
+
+```ts
+import {
+  createOidcVaultMiddleware,
+  type OidcVaultFingerprintRecognitionOptions,
+} from '@web-ts-toolkit/express-oidc-vault';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+
+const fingerprintRecognition: OidcVaultFingerprintRecognitionOptions = {};
+const vault = createOidcVaultMiddleware({
+  backendOrigin: 'https://api.example.com',
+  frontendRedirectUri: 'https://frontend.example.com/callback',
+  trustedOrigins: ['https://frontend.example.com'],
+  config: { issuer: process.env.OIDC_ISSUER, clientId: process.env.OIDC_CLIENT_ID },
+  storeProvider: createMemoryOidcVaultStore(), // Development; shared Redis/Mongo in production.
+  fingerprintRecognition, // Or { headerName: 'X-App-Browser' }.
+  sessionTtlMs: 8 * 60 * 60 * 1000,
+  // Add deviceBinding: { mode: 'required' } for cryptographic sender constraint.
+});
+```
+
+- **Header:** default `X-Device-Fingerprint`; custom names must be valid HTTP field names without auth/cookie/origin/content/transport collisions, case-insensitively. Exactly one raw field, **nonempty printable ASCII, max 256 bytes**. The opaque server-observed value is not trimmed, case-folded, comma-split or normalized by core. Malformed/duplicate/oversized opted-in signals return **400 `OIDC_VAULT_INVALID_FINGERPRINT` / `Fingerprint signal is invalid.`** before credential work. Omitted configuration means no capture/check.
+- **Login-only enrollment:** JSON POST login alone captures a supplied signal; absence intentionally leaves the session unenrolled. Legacy/GET login stays unenrolled even with a header, provider/profile claim or later exchange/refresh signal. Fingerprint-only POST is unbound and rejects a supplied DPoP header while DPoP is disabled; it still requires trusted Origin/Referer and the single temporary HttpOnly transaction cookie in both body/cookie session transports. All six guarded-store capabilities are checked at construction. The headerless callback authenticates the cookie and copies the original transaction evidence to the original new session.
+- **Precommit matching:** enrolled exchange/refresh compare the original signal **before proof/nonce/replay, guarded consume, upstream refresh-token use or rotation**. Missing/mismatch returns **403 `OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED` / `Browser recognition changed; sign in again.`** without spending the code/provider token, rotating/revoking the session, or setting/clearing cookies. Clear frontend auth state and start fresh POST login. No tolerance, automatic re-enrollment or recognition rotation occurs at exchange/refresh. Fresh login creates a new session/value; an earlier session remains until explicit revocation or expiry.
+- **Reserved private metadata:** SHA-256 canonical base64url is carried in `transaction.metadata.oidcVaultFingerprintRecognition`, then `session.metadata.oidcVaultFingerprintRecognition = { version: 1, hash }`. Hooks/profile claims cannot strip/rebind it or enroll an absent value. Core stores no raw signal, removes recognition evidence from public user/credential responses and token-issuer session input, and logs neither raw signals nor hashes. Use allowlisted token claims and exclude fingerprint headers/reserved metadata from hook/application/proxy logs.
+- **Logout/API:** recognition checks apply only to exchange/refresh; live/alias logout and signed backchannel logout retain their existing rules. A changed fingerprint does not prevent revocation; bound logout still requires its original DPoP key. Aliases contain no recognition metadata and do not authenticate refresh. Fingerprint-only local tokens remain `Bearer`; API recognition/risk policy is application-owned. DPoP tokens still need request-aware proof enforcement at every API.
+
+### Frontend adapter and wire flow
+
+Collect in the frontend and inject a current signal source. Send its header on each POST login/exchange/refresh; an intentional `undefined` means unenrolled, while collection failures should stop the operation rather than silently omit an enrolled check. Login/exchange always use `credentials: 'include'` for the temporary cookie; cookie refresh does too. Bodies are `{ returnTo?: string }`, `{ code }`, and body `{ sessionId }` or cookie `{}` respectively. Navigate to login's validated `200 { authorizationUrl }`; the callback is headerless. Obtain the current signal each operation instead of persisting a login-time identifier that would hide changes. Recognition 403 requires fresh login, not a retry loop.
+
+The standalone private example utility is `apps/oidc-vault-dpop-example/src/auth/device-fingerprint.ts`, not a backend export:
+
+```ts
+import { createDeviceFingerprint, fingerprintJsSignalSource, type FingerprintJsAgent } from './auth/device-fingerprint';
+
+function recognitionWithOptionalFingerprintJs(load: () => Promise<FingerprintJsAgent>) {
+  return createDeviceFingerprint(fingerprintJsSignalSource(load));
+}
+// If YOUR frontend installs @fingerprintjs/fingerprintjs, inject:
+// recognitionWithOptionalFingerprintJs(() => FingerprintJS.load());
+// Agent shape: { get(): Promise<{ visitorId: string }> }.
+// Await recognition.headers() for each login/exchange/refresh.
+```
+
+Its generic `createDeviceFingerprint(source, { headerName? })` is vendor-independent. The optional FingerprintJS adapter lazily shares load but calls get() each operation, caches/persists no identifier, bounds signals, and emits fixed errors. [The shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#optional-fingerprint-recognition-not-pop) includes a self-contained generic snippet. The private app integrates recognition through real login/callback/exchange/refresh and current-recognition cookie-tab checks.
+
+CORS must allow `Content-Type`, the configured fingerprint header, explicit trusted origins and credentials; with DPoP also allow `Authorization`/`DPoP` and expose `DPoP-Nonce`/`WWW-Authenticate`. Cross-site SPAs may require HTTPS `transactionCookie: { sameSite: 'none' }`; browser third-party-cookie restrictions still apply.
+
+### Privacy and retention
+
+Disclose collection, matching purpose, transaction/session retention and fresh-login behavior on change. Hashing is **not anonymization**: stable/low-entropy identifiers and deterministic hashes remain correlation data that can be copied or guessed. Keep raw headers out of application/proxy logs. The hash exists in the pending transaction (default 10-minute TTL), then lasts with the vault session through refresh, independent of local JWT/upstream access-token expiry. Configure `sessionTtlMs` or an application/store lifetime; unset assigns no default session expiry. Account for physical store cleanup and backup retention after logical expiry/deletion. Abandoned transactions expire; session logout/revocation follows store deletion/cleanup policy. The frontend utility stores no identifier.
 
 ## Absolute Session Lifetime
 
@@ -215,6 +398,49 @@ Omitting `sessionTtlMs` assigns no default session expiry and retains applicatio
 `authorizationTransactionTtlMs` (default 10 minutes), `exchangeCodeTtlMs` (default 30 seconds), and optional `sessionTtlMs` must be positive safe-integer numbers of milliseconds. Construction rejects zero, negative, fractional, nonnumeric, null, NaN, infinite, and unsafe values. It samples `now` (default `Date.now`): the clock and computed expiry must be integer epoch milliseconds within JavaScript Date's inclusive ±8,640,000,000,000,000 ms range, with expiry after now. Record creation rechecks computed expiries; an unusable later clock/expiry returns sanitized HTTP 500 / `OIDC_VAULT_INTERNAL_ERROR` before new transaction/session/code persistence, with the original error available to `hooks.onError`.
 
 ## Frontend Integration Example
+
+### Persistent-key DPoP SPA example
+
+The shipped README contains a [standalone body-transport client](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#standalone-body-transport-dpop-client), including key persistence, proof signing, POST login/exchange/API/refresh/logout and nonce retry, with no repo-only imports. For cookie coordination and a fuller scoped fetch helper, install jose + idb in your frontend and copy src/auth/ from the [private example](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md). Its four intended local APIs are getOrCreateDpopKey, createDpopProof, createOidcVaultDpopSession and fetchWithDpop; they are not Express package exports.
+
+```ts
+import { createOidcVaultDpopSession, fetchWithDpop } from './auth';
+
+const backendOrigin = 'http://127.0.0.1:4318';
+const session = createOidcVaultDpopSession({ backendOrigin, basePath: '/auth/oidc/body', sessionTransport: 'body' }); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.
+
+export const signIn = (): Promise<void> => session.login('/callback?transport=body');
+
+export async function bootstrapBoundAuth(): Promise<void> {
+  const url = new URL(location.href);
+  const code = url.searchParams.get('code');
+  if (code) {
+    url.searchParams.delete('code');
+    history.replaceState(null, '', url.href);
+    await session.exchange(code);
+  } else {
+    await session.refresh(); // Persisted key; no access-token Authorization/ath.
+  }
+}
+
+export async function getBoundProfile(): Promise<unknown> {
+  const response = await fetchWithDpop(
+    { session, apis: [{ origin: backendOrigin, replayNamespace: 'oidc-vault-dpop-example-api' }] },
+    `${backendOrigin}/api/profile`,
+  );
+  if (!response.ok) throw new Error('Protected API request failed.');
+  return response.json();
+}
+export const signOut = (): Promise<void> => session.logout();
+```
+
+Repository commands: pnpm --filter oidc-vault-dpop-example dev:server and, in another terminal, pnpm --filter oidc-vault-dpop-example dev; open **127.0.0.1:4317/?transport=body** or cookie. The local fixture IdP is 4319; backend 4318, two public mounts /auth/oidc/body and /auth/oidc/cookie. Your own core default mount is /auth/oidc. Match frontend/server mounts/origins and API replayNamespace exactly.
+
+Login creates a non-extractable ES256/P-256 private CryptoKey plus public JWK in IndexedDB before navigation, scoped by frontend/backend/basePath; atomic first-key creation has one winner. Key loss/change requires fresh login, not rebinding/Bearer fallback. Tokens stay memory-only; body handles/pending key markers use sessionStorage, cookie handles remain backend HttpOnly (not JWT sid). All flows need secure context, Web Crypto and IndexedDB CryptoKey clone; cookie mode additionally requires Web Locks/BroadcastChannel. Cookie refresh has per-context single-flight plus same-origin lock/winner-token coordination, including current recognition. Body handles remain tab-local.
+
+Each request/retry signs fresh JTI/iat/signature; API-only ath. Fetch is exact-origin scoped with auth-bearing redirects rejected, one nonce retry total and at most one refresh/retry for DPoP invalid_token. Proof errors/403/503/network failures do not trigger generic refresh loops. Mutations are single-attempt unless explicit authorized server-idempotent/replayable-body retry is selected. CORS must allow explicit frontend origin/credentials and Content-Type/Authorization/DPoP/configured fingerprint; expose DPoP-Nonce/WWW-Authenticate. These settings do not replace vault Origin checks. Same-site loopback browser checks passed on Chromium 151/Firefox 153; WebKit/Safari was not certified due to unavailable Linux libraries, and arbitrary cross-site HTTPS/third-party-cookie/external-IdP behavior is deployment-specific. Browser locks are not a backend refresh lease.
+
+### Default unbound bearer frontend
 
 The intended frontend model is:
 
@@ -252,6 +478,21 @@ function setAuthState(payload: { accessToken?: string; sessionId: string }): voi
   persistSessionId(payload.sessionId);
 }
 
+function readBodyCredentials(value: unknown): { accessToken?: string; sessionId: string } {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !('sessionId' in value) ||
+    typeof value.sessionId !== 'string' ||
+    ('accessToken' in value && typeof value.accessToken !== 'string')
+  )
+    throw new Error('Invalid credential response.');
+  return {
+    sessionId: value.sessionId,
+    ...('accessToken' in value ? { accessToken: value.accessToken as string } : {}),
+  };
+}
+
 function clearAuthState(): void {
   authState.accessToken = null;
   persistSessionId(null);
@@ -274,7 +515,7 @@ async function refreshAuthState(): Promise<void> {
     throw new Error('OIDC refresh failed.');
   }
 
-  setAuthState(await response.json());
+  setAuthState(readBodyCredentials(await response.json()));
 }
 
 async function ensureFreshAccessToken(): Promise<void> {
@@ -307,6 +548,17 @@ function setAuthState(payload: { accessToken?: string }): void {
   authState.accessToken = payload.accessToken ?? null;
 }
 
+function readCookieCredentials(value: unknown): { accessToken?: string } {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    'sessionId' in value ||
+    ('accessToken' in value && typeof value.accessToken !== 'string')
+  )
+    throw new Error('Invalid cookie credential response.');
+  return 'accessToken' in value ? { accessToken: value.accessToken as string } : {};
+}
+
 function clearAuthState(): void {
   authState.accessToken = null;
 }
@@ -322,7 +574,7 @@ async function refreshAuthState(): Promise<void> {
     throw new Error('OIDC refresh failed.');
   }
 
-  setAuthState(await response.json());
+  setAuthState(readCookieCredentials(await response.json()));
 }
 
 async function ensureFreshAccessToken(): Promise<void> {
@@ -340,7 +592,7 @@ For cross-origin cookie deployments, also remember:
 
 - the frontend requests must use `credentials: 'include'`
 - the backend CORS policy must allow credentials
-- the cookie typically needs `SameSite=None` and `Secure`
+- same-site subdomains can use Lax; truly cross-site requests need SameSite=None; Secure and browser cookie permission
 - set `trustedOrigins` so refresh and logout only accept requests from your frontend origin
 
 ## Backchannel Logout
@@ -416,6 +668,7 @@ import { createClient } from 'redis';
 import { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';
 
 const redis = createClient({ url: process.env.REDIS_URL });
+redis.on('error', () => console.warn('OIDC vault Redis connection error.'));
 await redis.connect();
 
 createOidcVaultMiddleware({
@@ -443,6 +696,8 @@ import { createMongoOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-mo
 
 const mongo = new MongoClient(process.env.MONGODB_URI!);
 await mongo.connect();
+const storeProvider = createMongoOidcVaultStore({ db: mongo.db('app-auth') });
+await storeProvider.ready();
 
 createOidcVaultMiddleware({
   basePath: '/auth/oidc',
@@ -454,9 +709,7 @@ createOidcVaultMiddleware({
   },
   frontendRedirectUri: 'https://frontend.example.com/callback',
   postLogoutRedirectUri: 'https://frontend.example.com/logged-out',
-  storeProvider: createMongoOidcVaultStore({
-    db: mongo.db('app-auth'),
-  }),
+  storeProvider,
 });
 ```
 
@@ -467,6 +720,7 @@ import { createClient } from 'redis';
 import { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';
 
 const redis = createClient({ url: process.env.REDIS_URL });
+redis.on('error', () => console.warn('OIDC vault Redis connection error.'));
 await redis.connect();
 
 createOidcVaultMiddleware({
@@ -574,6 +828,8 @@ Minimum required manual config:
 
 Provide `tokenIssuer` if you want `exchange` and `refresh` to return an app-issued local access token.
 
+This is the default unbound Bearer example. Bound JWTs use the complete DPoP configuration above. A browser-readable JWT must omit the vault handle/sid if cookie transport is intended to keep that credential HttpOnly; the sid example deliberately exposes the body-transport handle.
+
 ```ts
 import { SignJWT } from 'jose';
 
@@ -640,17 +896,18 @@ That local access token is separate from the upstream IdP token. The upstream re
 
 - `accessToken`: nonempty opaque string, returned verbatim without trimming or a new whitespace policy;
 - `expiresIn`: finite nonnegative safe-integer seconds, from 0 through `Number.MAX_SAFE_INTEGER`;
-- `tokenType`: optional exact literal `'Bearer'`. Omitted/undefined stays absent in JSON; null, lowercase `'bearer'`, and other values are invalid.
+- `tokenType`: exact Bearer or DPoP. Unbound permits Bearer or omission (undefined stays absent in JSON); bound requires exact DPoP and compact signed JWT with matching cnf.jkt from the verified IssueTokenInput.deviceBinding. Null/lowercase/whitespace variants and bound Bearer output are invalid.
 
 Only these three fields are copied once into a fresh result. Extra fields (including upstream tokens, `metadata`, `sessionId`, `user`, and `toJSON`) are ignored without evaluating their getters. The vault supplies the response session ID/profile: body transport includes `sessionId`, cookie transport omits it, and `user` is the session profile. Omitting `tokenIssuer` is supported and returns no local token fields.
 
 Malformed results return HTTP 500 with `{"code":"OIDC_VAULT_INTERNAL_ERROR","message":"Unexpected OIDC vault error."}` inside issuance rollback: the logical lineage is revoked and cookie transport clears its cookie instead of minting one. Exchange has already consumed its code; refresh has already contacted the provider and rotated the handle, and its success notification does not run. Correct the issuer and start a new login. Field-specific diagnostics are the original `hooks.onError` context `error` (narrow it before use); allowed-field getter exceptions also enter rollback.
 
-This projection contains accidental result extensions. Issuers/hooks remain trusted code with mutable session/request/response access; application profiles and deliberate secrets placed in allowed fields are not redacted.
+Core decodes trusted issuer output only to check the cnf contract; APIs independently verify JWT signature/issuer/audience/expiry. Local signing algorithms and proof algorithms are independent. Issuers receive owned session/plain containers with reserved recognition evidence omitted; original key/lineage rollback authority survives mutable hooks/issuer calls. This contains accidental extensions, while issuers/hooks remain trusted code with request/response access. Deliberate secrets in allowed fields are not redacted.
 
 ## Migration And Behavior Changes
 
 - Optional-only endpoint settings previously ignored now select manual mode and fail without the complete manual set. Supply all required manual values or remove endpoint settings to use discovery. Correct malformed optional discovery capabilities at the provider, or omit unsupported fields.
+- DPoP remains opt-in: an object defaults to optional; required rejects legacy unbound records and requires fresh proof-aware login. Later proofs never enroll/rebind legacy records, and disabled DPoP rejects existing bound credentials. Recognition is independent, POST-only enrollment and fresh login on enrolled change.
 - Invalid transaction/code TTLs previously had store-dependent behavior; supply positive safe-integer milliseconds. `sessionTtlMs` is opt-in for new sessions and never renews on refresh. Custom clocks are now sampled during construction.
 - Route each session to its owning issuer/client configuration. Known foreign live sessions now fail with 401. Correct inaccurate stored identity only from trusted provenance or require login again; do not remove identity fields to bypass the guard. Legacy omissions and shared code/alias limits remain as described below.
 - Issuers must return the declared local credential shape; previously accepted malformed results now fail with rollback. Extra result properties no longer extend/override JSON responses.
@@ -659,6 +916,8 @@ This projection contains accidental result extensions. Issuers/hooks remain trus
 ## Access Token Validation Middleware
 
 Use a separate middleware for validating the app-issued local access token on normal API routes.
+
+For JWTs prefer the built-in helper, which captures verified cnf before custom mapping and implements both validator methods. A custom signature-only adapter must faithfully preserve original confirmation to accept these tokens; the following legacy adapter is suitable only for credentials guaranteed unbound.
 
 ```ts
 import express from 'express';
@@ -728,13 +987,11 @@ This middleware:
 `onAuthContext` is a pre-`next()` veto hook, not a post-commit notification:
 when it throws, downstream middleware never runs and `req.auth` is detached
 before the error response is sent. A valid token plus a failing hook never
-surfaces as an invalid-token `401`: an `OidcVaultHttpError` from the hook keeps
+surfaces as an invalid-token `401`: a forwarded controlled package error keeps
 its own status/code/client message (only a `401` veto carries the `Bearer`
 challenge), while any other hook error becomes a sanitized `500
 OIDC_VAULT_AUTH_CONTEXT_FAILED` without leaking the original message. Pass
-`onError` to observe the original bearer error object (extraction, validator,
-or hook failure) for private server-side logs; it never affects the sanitized
-client response.
+`onError` to observe original extraction/token/proof/nonce/replay/hook errors for private server-side logs; it never affects the sanitized client response. Successful hooks cannot replace security-owned token/confirmation/binding; vetoes detach req.auth and keep replay reservations. API middleware responses carry no-store.
 
 The package augments Express request typing so `req.auth` is available without casting in TypeScript route handlers.
 
@@ -790,6 +1047,47 @@ Default JWT claim mapping:
 - `sid` -> `auth.sessionId`
 - `scope` -> `auth.scope`
 - full verified payload -> `auth.claims`
+
+The JWT helper exposes validate(token) and validateWithRequest({ token, scheme, req }). It snapshots verified **cnf before mapClaims**, discarding mapper-supplied confirmation/deviceBinding. An unbound legacy result omits confirmation; request-aware unbound is explicit null. Bound confirmation survives mapper removal and is rejected when DPoP is disabled. Supported cnf is exactly `{ jkt: '<canonical SHA-256 thumbprint>' }`; malformed/null/unsupported cnf is an invalid token, never legacy. The helper verifies JWTs; the API middleware verifies possession.
+
+### Request-aware API policy and public URL
+
+Every API accepting bound JWTs needs createOidcVaultAccessTokenMiddleware with deviceBinding. Construction requires a callable **validateWithRequest** (called for both Bearer/DPoP); custom verified JWT/introspection adapters return mandatory `confirmation: { jkt } | null`. Adapters are trusted to report original binding independently of mapping. Omitted policy keeps the exact one-argument validate(token) legacy path, refusing any known bound confirmation. Optional accepts unbound Bearer but never upgrades it; required rejects unbound JWTs. Bound Bearer fails even with proof; DPoP presentation of an unbound JWT is invalid_token.
+
+API wire: **Authorization: DPoP &lt;local-JWT&gt;** plus **DPoP: &lt;fresh-proof-JWT&gt;**. Protected header `{ typ: 'dpop+jwt', alg: 'ES256', jwk: publicP256Jwk }`; signed method/absolute htu/current integer iat/fresh jti and API `ath = base64url(SHA-256(ASCII(token)))`, plus nonce if challenged. Original verified cnf.jkt must match the proof's RFC 7638 thumbprint. Wrong key/signature/method/URL/hash/stale/replayed/duplicate proofs fail before req.auth/hooks/downstream. An optional unbound supplied proof also validates ath/nonce/replay without producing deviceBinding.
+
+API target is pinned `publicOrigin` plus optional **publicPathPrefix** plus the pathname of Express's `req.originalUrl`. Prefix is only for a public prefix stripped by a proxy; default empty, no query/fragment. For example publicPathPrefix `/public` with app route `/api/me` verifies `https://api.example.com/public/api/me`. Do not add `/api` if Express already retains it. Vault proxies must preserve the configured public basePath. Host/Forwarded/X-Forwarded-\* and trust proxy never select origin. Static origins require HTTPS except loopback HTTP development; strip query/fragment, normalize scheme/host/default port/dot/unreserved escapes, uppercase other percent escapes and preserve reserved `%2F`. Origin-form `//host/path` remains a path on the pinned origin.
+
+### Guarded store and per-request replay contracts
+
+All built-ins return **OidcVaultDeviceBindingStoreProvider** (Mongo retains ready), requiring live getAuthorizationTransaction/getExchangeCode, atomic consumeAuthorizationTransactionIfMatches/consumeExchangeCodeIfMatches, getSessionRevocationContext and reserveDpopProof. They remain optional on the base custom bearer interface; either opt-in feature checks all six at construction. Getters are detached live snapshots, not locks. Match includes both `{ deviceBinding, browserBindingHash }`; **null requires absence/undefined, not a wildcard or stored null**. Valid shapes: legacy neither field, cookie-only hash, bound hash+key. Exchange also atomically matches expectedSessionId; mismatch leaves a live record available, matching races have one winner, and original consumes refuse guarded records. Rotation inherits omitted binding and rejects changing/removing it or enrolling an unbound lineage.
+
+Revocation context resolves a live handle/unexpired alias to the currently live lineage's logical ID/provider/key, with no tokens/profile/metadata returned. Mixed/malformed lineage authority fails closed; aliases never authenticate refresh. Built-in logout uses it even with DPoP disabled, so bound aliases cannot downgrade.
+
+Replay key is opaque `dpop:v1:` plus base64url SHA-256 of JSON([effectiveNamespace,jkt,jti]). Space is `['vault', normalizedBackendOrigin, normalizedBasePath, exactIssuer, exactClientId]` or `['api', normalizedPublicOrigin, replayNamespace]`; static API label is 1–128 printable ASCII bytes. Never partition by instance/route/token/code/session or release after downstream failure. Core expiry is **(iat + age + skew) × 1000**, remaining TTL ≤360000ms including future skew. Invalid/expired/unsafe/fractional/overlong windows return false without allocation; duplicates return false without renewal before capacity checks. Matching windows/namespaces/store limits/secrets and synchronized clocks are required across instances. No implicit fallback exists.
+
+Every provider has dpopReplayMaxEntries (positive safe integer, default **100000**) shared per memory object/Redis prefix/paired Mongo replay collections. At capacity throw root OidcVaultDpopReplayCapacityError; never evict live state/fail open. Memory uses an indexed heap, Redis one cached EVALSHA/server TIME, Mongo transaction-serialized capacity plus a non-TTL expiry ledger (proof TTL cannot leak accounting). Admission reclaims at most **64** expired entries plus the requested expired key; expired data can conservatively consume capacity. DPoP writes per proof/API request; Mongo's common admission is seven data commands plus commit with a shared contention row. These are work bounds, not latency/throughput guarantees. Full provider READMEs describe lifecycle/topology/durability costs.
+
+### Fixed errors, challenges and nonces
+
+| HTTP                | Code                                     | Fixed message                                  |
+| ------------------- | ---------------------------------------- | ---------------------------------------------- |
+| 401                 | OIDC_VAULT_MISSING_ACCESS_TOKEN          | Missing access token. (enabled API only)       |
+| 401                 | OIDC_VAULT_DEVICE_BINDING_REQUIRED       | A device-bound login is required.              |
+| 401                 | OIDC_VAULT_DPOP_REQUIRED                 | DPoP authentication is required.               |
+| 401                 | OIDC_VAULT_INVALID_DPOP_PROOF            | DPoP proof validation failed.                  |
+| 400                 | OIDC_VAULT_INVALID_BROWSER_BINDING       | Login browser binding validation failed.       |
+| 415                 | OIDC_VAULT_UNSUPPORTED_REQUEST_BODY_TYPE | Login initiation requires a JSON request body. |
+| 400 vault / 401 API | OIDC_VAULT_USE_DPOP_NONCE                | A fresh DPoP nonce is required.                |
+| 503                 | OIDC_VAULT_DPOP_REPLAY_UNAVAILABLE       | DPoP replay protection is unavailable.         |
+| 400                 | OIDC_VAULT_INVALID_FINGERPRINT           | Fingerprint signal is invalid.                 |
+| 403                 | OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED   | Browser recognition changed; sign in again.    |
+
+Source failures keep 403 OIDC_VAULT_UNTRUSTED_ORIGIN and route-specific fixed Login/Exchange/Refresh/Logout request origin is not trusted. Authenticated provider-error callback uses 400 OIDC_VAULT_CALLBACK_ERROR / OIDC callback failed. Browser JSON is only code/message, never raw claims/URLs/keys/provider diagnostics; original errors go privately to core hooks.onError or API onError (replay cause retained).
+
+For default ES256, API proof/downgrade errors use `DPoP error="invalid_dpop_proof", algs="ES256"`; invalid DPoP token/unbound DPoP use invalid_token, invalid Bearer/required-unbound Bearer use `Bearer error="invalid_token"`. Missing optional credentials advertise `Bearer, DPoP algs="ES256"`; required only DPoP. Nonce uses `DPoP error="use_dpop_nonce", algs="ES256"`. No error_description; non-401 failures have no auth challenge. Disabled legacy parser/errors remain compatible.
+
+Nonce is **off by default**; enable with shared random Uint8Array of at least 32 bytes, lifetime default 60s/integer 1–300. Stateless versioned HMAC-SHA-256 challenges include 128 random bits, issue/expiry, namespace digest and jkt, max 512 bytes, no per-client nonce storage. Any authentic live issued nonce works for parallel fresh proofs; not single-use/latest-only, and normal iat/JTI replay still apply. After other valid target/key/token/cookie checks, missing/expired/wrong nonce challenges **before reservation/mutation/upstream**: one DPoP-Nonce, fixed 400 vault POST/401 API. Vault 400 has no auth challenge; API 401 has use_dpop_nonce. Headerless callback/no-proof unbound are excluded. Cache per space/key and retry once with new proof/JTI/iat/signature; repeated challenge stops. Secret rotation causes a new challenge, with no previous-secret list. All responses carry no-store.
 
 ## Hook Examples
 
@@ -891,17 +1189,17 @@ Recommended hook usage:
 
 - `onLoginStart`, `onAuthorizationUrl`, `onCallbackTokens`, `onUserInfo`, `onBeforeSessionCreate`, and `onBeforeLogout` are pre-commit hooks. Throwing from one of these hooks vetoes the operation before related durable session state is created, rotated, or deleted.
 - `onSessionCreated`, `onSessionRefreshed`, and `onLogout` are post-commit notification hooks. Their failures are reported to `onError` but do not change a successful callback redirect, refresh response, logout response, or already-committed store mutation.
-- client error responses keep a stable `{ code, message }` shape and intentionally avoid returning raw provider, store, hook, token issuer, or access-token validator details. Use `onError` to observe the original error object for private server-side logs. The separate bearer middleware reports its original extraction/validator/hook errors through its own `onError` option.
+- client error responses keep a stable `{ code, message }` shape; original provider/store/hook/issuer diagnostics reach private hooks.onError, while separate API extraction/token/proof/nonce/replay/hook diagnostics reach API onError. Private observers are not automatic log redaction.
 
 ## Session Identity And Store Namespaces
 
-Exchange, refresh, and logout of a **live session** compare every stored `provider.issuer` and `provider.clientId` that is not undefined against the resolved middleware configuration. Each known field must match independently. Stored identifiers are compared verbatim, without trimming or URL canonicalization; issuer trailing-slash variants are distinct. Configuration strings still receive construction-time trimming.
+Exchange, refresh and logout compare every stored provider.issuer/clientId that is defined against resolved config; built-in logout also checks surviving lineage authority through unexpired aliases. Each field matches independently/verbatim, without URL normalization; issuer trailing-slash variants are distinct. Config strings still trim at construction.
 
 A known mismatch returns HTTP 401 with `{"code":"OIDC_VAULT_INVALID_SESSION","message":"Session is missing or expired."}` before discovery, upstream token use, local issuance, lifecycle hooks, rotation, or lineage deletion. It neither sets nor clears a cookie and produces no provider logout redirect. The normal `onError` observer runs without the foreign session in its context.
 
 Legacy sessions with absent `provider`, an empty provider object, or omitted/undefined identity fields remain supported. Only known fields are checked: an omitted issuer permits cross-issuer use, an omitted client ID permits cross-client use, and entirely absent identity permits both. Refresh does not backfill identity.
 
-For complete identity isolation, use separate store namespaces for **session/alias, exchange-code, and authorization-transaction records**. Live-session checks alone do not isolate shared namespaces: exchange consumes the one-time code before checking identity, so a rejected foreign exchange still spends the owner's code. When logout finds no live session, it still calls `deleteSession` through the stale-alias path without an identity check, which can revoke a foreign lineage in shared storage.
+For complete identity isolation use separate session/alias, exchange-code and transaction namespaces. Opt-in/guarded exchange preflights identity before code consumption; built-in live/alias logout checks identity before deletion. Disabled genuinely legacy bearer exchange retains consume-before-identity ordering, so a rejected foreign legacy code can still be spent. Old custom bearer stores without revocation context retain historical alias deletion; they cannot opt into DPoP. Absent identity remains compatibility, not isolation.
 
 ### Rotation alias retention
 
@@ -913,16 +1211,17 @@ Scoped/direct deletion preserves unexpired aliases while a live member survives,
 
 ## Known Browser And Concurrency Limits
 
-- **Browser binding:** `state`, nonce, PKCE, and one-time codes do not bind login/callback/exchange completion to the initiating browser. A transferred callback/frontend URL can cause login/session swapping; a stolen unused exchange code can be redeemed by another browser in either transport. `exchange` has no source-origin check and accepts URL-encoded forms. CORS, `SameSite`, and `trustedOrigins` on cookie refresh/logout do not establish this missing binding.
+- **Legacy browser binding:** unbound GET flows retain the transferred-callback/session-swap and stolen-unused-code risks in both transports. Legacy exchange accepts forms with no source check. Opt-in POST callback/guarded exchange authenticate the temporary cookie; bound exchange/refresh/logout/API additionally require the original key. CORS/cookie refresh source checks do not supply legacy browser binding.
 - **Refresh families:** local atomic rotation allows one winner, but overlapping requests can send the same upstream refresh token multiple times, including across backend instances. A single-use provider with reuse detection can revoke the entire upstream refresh family, leaving the local winner unable to refresh. Deduplicate frontend refreshes, including bootstrap and retry paths; a per-context promise is not a distributed guarantee.
 - **Cookie ordering:** a loser reaching a local rotation conflict (or a stale missing-session retry) clears the cookie. A late clear can erase the winner's cookie even while its server session remains live. Upstream-failure losers do not set a cookie. Response ordering is not enforced.
 - **Logout and stateless tokens:** local/provider/backchannel logout revoke vault refresh sessions, not outstanding stateless application access tokens. Those remain valid until their own expiry unless your validator checks application revocation state. A refresh racing logout can still return 200 and an access token after its lineage is deleted. Keep local tokens short-lived; immediate API revocation requires application-owned validation state. Vault-session expiry likewise does not revoke an already-issued stateless token.
 
-Browser-bound proofs (BOV-02-FU1), cross-instance refresh reservation (BOV-03-FU1), and stale-cookie ordering (BOV-03-FU2) remain proposed in the [boundary review](https://github.com/egose/web-ts-toolkit/blob/main/docs/tasks/20260908-070811-express-oidc-vault-boundary-review.md). The lifetime, identity, and response changes documented here do not implement those protocols.
+Browser-bound proofs (BOV-02-FU1) are implemented for opt-in POST lifecycle and bound refresh/logout/API; the private app implements persistent keys and real-browser coordination. Cross-instance refresh lease (BOV-03-FU1) and stale-cookie ordering (BOV-03-FU2) remain separate [boundary-review follow-ups](https://github.com/egose/web-ts-toolkit/blob/main/docs/tasks/20260908-070811-express-oidc-vault-boundary-review.md). Different honest fresh proofs outside one frontend partition can still race a single-use upstream family. DPoP/replay and browser locks do not establish a distributed lease or response ordering.
 
 ## Security Checklist
 
 - keep `sessionId` in `sessionStorage` and keep `accessToken` in memory only
+- in cookie mode keep the vault handle backend-only, including omitting it from JWT/profile claims
 - never store the upstream refresh token in the browser
 - use HTTPS end-to-end for frontend, backend, and IdP communication
 - set `backendOrigin` to the public backend origin registered with the provider; do not rely on request host or proxy headers for callback URL construction
@@ -935,10 +1234,15 @@ Browser-bound proofs (BOV-02-FU1), cross-instance refresh reservation (BOV-03-FU
 - when using cookie transport, rely on cookie credentials only for `refresh` and `logout`; do not send fallback body `sessionId` values
 - when using cross-site cookie transport, send frontend requests with `credentials: 'include'`, enable credentialed CORS, use `SameSite=None; Secure`, and allow only known frontend origins via `trustedOrigins`
 - keep cookie-authenticated CSRF protection fail-closed for every `SameSite` mode by requiring an `Origin` or valid `Referer` matching `backendOrigin` or `trustedOrigins`
+- POST login/exchange need temporary cookie credentials and trusted source in both transports, independent of CORS/DPoP
 - configure a stable expected issuer in both discovery and manual endpoint modes
 - require matching UserInfo subjects before merging provider claims into the local session user
 - treat upstream OAuth `expires_in`, local access-token lifetime, and vault-session expiry as separate policies
 - keep any local app-issued access token short-lived, such as 5 to 15 minutes
+- every accepting API must enforce request-aware original-key DPoP, pinned public origin/prefix and shared replay; never reuse proofs/fall back to Bearer
+- non-extractable IndexedDB keys bind a browser profile, not hardware; XSS can still invoke same-browser signing, and proofs do not sign bodies/query strings
+- logout revokes refresh lineage, not stateless JWTs; immediate API revocation requires validator-owned state
+- disclose fingerprint recognition/retention; it is copyable non-PoP and hashing is not anonymization
 - use Redis or MongoDB, not the memory store, for production or multi-instance deployments
 - monitor `onError` and other hooks so failed callback, refresh, and logout flows are visible in private server logs without returning raw provider, token, store, or hook errors to clients
 

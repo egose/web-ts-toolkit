@@ -1,5 +1,5 @@
 import type { Db } from 'mongodb';
-import type { OidcVaultStoreProvider } from '@web-ts-toolkit/express-oidc-vault';
+import type { OidcVaultDeviceBindingStoreProvider } from '@web-ts-toolkit/express-oidc-vault';
 
 /**
  * Options for `createMongoOidcVaultStore`.
@@ -7,7 +7,7 @@ import type { OidcVaultStoreProvider } from '@web-ts-toolkit/express-oidc-vault'
  * Pass a `Db` from an already-connected caller-owned `MongoClient`. The store
  * validates collection names, creates indexes, and verifies transaction support
  * from `ready()`, so applications should await readiness before accepting
- * traffic. Session rotation requires MongoDB transactions; standalone servers
+ * traffic. Rotation and shared replay admission require transactions; standalone servers
  * fail closed instead of using non-atomic multi-write fallback behavior.
  */
 export interface MongoOidcVaultStoreOptions {
@@ -23,6 +23,12 @@ export interface MongoOidcVaultStoreOptions {
   backchannelLogoutTokenJtisCollectionName?: string;
   /** Collection mapping rotated stale session IDs to active logical sessions. */
   rotatedSessionAliasesCollectionName?: string;
+  /** Unique replay IDs + TTL expiry. Default `oidc_vault_dpop_proofs`. Must be distinct from all other collections. */
+  dpopProofsCollectionName?: string;
+  /** Serialized capacity and indexed non-TTL expiry accounting. Default `oidc_vault_dpop_replay_capacity`; readiness rejects TTL indexes here. */
+  dpopReplayCapacityCollectionName?: string;
+  /** Positive safe integer shared by both replay collections; default 100000. All clients must configure the same limit. */
+  dpopReplayMaxEntries?: number;
   /**
    * Finite alias retention for sessions without explicit expiry, in
    * milliseconds. Defaults to `DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS`.
@@ -39,12 +45,13 @@ export interface MongoOidcVaultStoreOptions {
  * before accepting traffic. The application owns the MongoDB client lifecycle,
  * including shutdown.
  */
-export interface OidcVaultMongoStoreProvider extends OidcVaultStoreProvider {
+export interface OidcVaultMongoStoreProvider extends OidcVaultDeviceBindingStoreProvider {
   /**
    * Waits for startup validation to complete.
    *
    * Readiness validates collection names, creates required indexes, and verifies
-   * the MongoDB deployment supports transactions required by session rotation.
+   * the MongoDB deployment supports rotation/replay transactions and matching
+   * shared replay-capacity configuration.
    * If readiness fails, every store operation rejects with the same error.
    */
   ready(): Promise<void>;
@@ -58,6 +65,8 @@ export const DEFAULT_COLLECTION_NAMES = {
   sessions: 'oidc_vault_sessions',
   backchannelLogoutTokenJtis: 'oidc_vault_backchannel_logout_token_jtis',
   rotatedSessionAliases: 'oidc_vault_rotated_session_aliases',
+  dpopProofs: 'oidc_vault_dpop_proofs',
+  dpopReplayCapacity: 'oidc_vault_dpop_replay_capacity',
 } as const;
 
 export type MongoOidcVaultCollectionNames = Record<keyof typeof DEFAULT_COLLECTION_NAMES, string>;
@@ -90,6 +99,8 @@ export const resolveCollectionNames = (options: MongoOidcVaultStoreOptions): Mon
       options.backchannelLogoutTokenJtisCollectionName ?? DEFAULT_COLLECTION_NAMES.backchannelLogoutTokenJtis,
     rotatedSessionAliases:
       options.rotatedSessionAliasesCollectionName ?? DEFAULT_COLLECTION_NAMES.rotatedSessionAliases,
+    dpopProofs: options.dpopProofsCollectionName ?? DEFAULT_COLLECTION_NAMES.dpopProofs,
+    dpopReplayCapacity: options.dpopReplayCapacityCollectionName ?? DEFAULT_COLLECTION_NAMES.dpopReplayCapacity,
   };
 
   for (const [role, name] of Object.entries(collectionNames)) {

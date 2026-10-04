@@ -56,6 +56,12 @@ const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
 const packageRoot = path.resolve(__dirname, '..');
 const consumerSourceDir = path.resolve(packageRoot, 'test-packed-consumer', 'consumer');
 const packageName = '@web-ts-toolkit/express-oidc-vault';
+const memoryPackageName = '@web-ts-toolkit/express-oidc-vault-memory-store';
+const providerNames = [
+  memoryPackageName,
+  '@web-ts-toolkit/express-oidc-vault-redis-store',
+  '@web-ts-toolkit/express-oidc-vault-mongodb-store',
+];
 const testVersion = '0.99.0-test';
 const packageDirRelative = 'packages/express-oidc-vault';
 
@@ -82,6 +88,7 @@ function run(command: string, args: string[], cwd: string): string {
       cwd,
       encoding: 'utf8',
       stdio: 'pipe',
+      maxBuffer: 16 * 1024 * 1024,
     });
   } catch (error) {
     const caught = error as { stdout?: string; stderr?: string; status?: number; message?: string };
@@ -113,26 +120,26 @@ function containsDisallowedPublishedValue(value: unknown): boolean {
   return false;
 }
 
-function buildPublishedManifest(): PackageJson {
-  return createPublishPackageJson(sourcePackageJson as Record<string, unknown>, {
+function buildPublishedManifest(source = sourcePackageJson, directory = packageDirRelative): PackageJson {
+  return createPublishPackageJson(source as Record<string, unknown>, {
     version: testVersion,
-    internalPackageNames: new Set([packageName]),
+    internalPackageNames: new Set([packageName, ...providerNames]),
     rootMetadata: {
       author: rootPackageJson.author,
       bugs: rootPackageJson.bugs,
       engines: rootPackageJson.engines,
       license: rootPackageJson.license,
-      repository: { ...rootPackageJson.repository, directory: packageDirRelative },
+      repository: { ...rootPackageJson.repository, directory },
     },
     rewrite: { versionPlaceholder: DEFAULT_VERSION_PLACEHOLDER, publishDir: 'dist' },
   }) as PackageJson;
 }
 
-function stagePublishedPackage(stageDir: string, manifest: PackageJson): void {
+function stagePublishedPackage(stageDir: string, manifest: PackageJson, sourceRoot = packageRoot): void {
   mkdirSync(stageDir, { recursive: true });
-  cpSync(path.resolve(packageRoot, 'dist'), stageDir, { recursive: true });
+  cpSync(path.resolve(sourceRoot, 'dist'), stageDir, { recursive: true });
   for (const entry of DEFAULT_PACKAGE_FILES) {
-    const source = path.resolve(packageRoot, entry);
+    const source = path.resolve(sourceRoot, entry);
     if (existsSync(source)) {
       cpSync(source, path.resolve(stageDir, path.basename(entry)));
     }
@@ -154,6 +161,25 @@ function preparePackedWorkspace(): PackedWorkspace {
   const manifest = buildPublishedManifest();
   stagePublishedPackage(stageDir, manifest);
   run('pnpm', ['pack', '--pack-destination', tarballDir], stageDir);
+  // Core's prebuild is complete. Build each documentation dependency alone,
+  // sequentially, so a clean checkout can compile every installed wiring example.
+  const providerTarballs: Record<string, string> = {};
+  const providerManifests: Record<string, PackageJson> = {};
+  for (const name of providerNames) {
+    run('pnpm', ['--filter', name, 'build'], workspaceRoot);
+    const directory = `packages/${name.split('/')[1]}`;
+    const root = path.resolve(workspaceRoot, directory);
+    const source = JSON.parse(readFileSync(path.resolve(root, 'package.json'), 'utf8')) as PackageJson;
+    const published = buildPublishedManifest(source, directory);
+    const stage = path.resolve(tempRoot, name.replace(/[@/]/g, '_'));
+    stagePublishedPackage(stage, published, root);
+    run('pnpm', ['pack', '--pack-destination', tarballDir], stage);
+    providerTarballs[name] = path.resolve(
+      tarballDir,
+      `${name.replace('@web-ts-toolkit/', 'web-ts-toolkit-')}-${testVersion}.tgz`,
+    );
+    providerManifests[name] = published;
+  }
 
   const tarball = path.resolve(tarballDir, `web-ts-toolkit-express-oidc-vault-${testVersion}.tgz`);
   if (!existsSync(tarball)) {
@@ -162,8 +188,8 @@ function preparePackedWorkspace(): PackedWorkspace {
 
   packedWorkspaceCache = {
     tempRoot,
-    tarballs: { [packageName]: tarball },
-    manifests: { [packageName]: manifest },
+    tarballs: { [packageName]: tarball, ...providerTarballs },
+    manifests: { [packageName]: manifest, ...providerManifests },
   };
   return packedWorkspaceCache;
 }
@@ -187,11 +213,18 @@ function installPackedConsumer(): string {
         type: 'module',
         dependencies: {
           [packageName]: `file:${packed.tarballs[packageName]}`,
+          ...Object.fromEntries(providerNames.map((name) => [name, `file:${packed.tarballs[name]}`])),
           express: sourcePackageJson.devDependencies?.express,
+          jose: sourcePackageJson.dependencies?.jose,
+          cors: '^2.8.6',
+          idb: '^8.0.3',
+          redis: '^5.9.0',
+          mongodb: '^6.20.0',
         },
         devDependencies: {
           '@types/express': sourcePackageJson.devDependencies?.['@types/express'],
           '@types/node': rootPackageJson.devDependencies['@types/node'],
+          '@types/cors': '^2.8.19',
           typescript: rootPackageJson.devDependencies.typescript,
         },
       },
@@ -199,7 +232,11 @@ function installPackedConsumer(): string {
       2,
     )}\n`,
   );
-  run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], consumerDir);
+  writeFileSync(
+    path.resolve(consumerDir, 'pnpm-workspace.yaml'),
+    `packages: []\noverrides:\n  '${packageName}': file:${packed.tarballs[packageName]}\n`,
+  );
+  run('pnpm', ['install', '--no-frozen-lockfile'], consumerDir);
   return consumerDir;
 }
 
@@ -212,9 +249,117 @@ function copyConsumerSources(consumerDir: string): void {
     'tsconfig-nodenext.json',
     'tsconfig-nodenext-cts.json',
     'tsconfig-bundler.json',
+    'docs-runtime.mjs',
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
   }
+}
+
+function compileInstalledReadme(consumerDir: string): void {
+  const readme = readFileSync(path.resolve(consumerDir, 'node_modules', packageName, 'README.md'), 'utf8');
+  const snippet = (heading: string): string => {
+    const start = readme.indexOf(heading);
+    if (start < 0) throw new Error(`Installed README heading missing: ${heading}`);
+    const code = readme.slice(start).match(/```ts\n([\s\S]*?)\n```/)?.[1];
+    if (!code) throw new Error(`Installed README snippet missing: ${heading}`);
+    return code;
+  };
+  const server = snippet('### Complete DPoP server');
+  writeFileSync(path.resolve(consumerDir, 'readme-server.ts'), server);
+  writeFileSync(path.resolve(consumerDir, 'readme-server.cts'), server);
+  const backendSnippets = [
+    server,
+    snippet('### POST login and browser-authenticated callback'),
+    snippet('### Sender-constrained exchange, refresh and logout'),
+    snippet('## Optional Fingerprint Recognition (Not PoP)'),
+    snippet('## Local Access Token Example (unbound Bearer)'),
+    snippet('## Access Token Validation Middleware'),
+    snippet('### Request-aware DPoP APIs'),
+    snippet('## Quick Start (default unbound lifecycle)'),
+    snippet('### Memory store'),
+    snippet('### Redis store'),
+    snippet('### MongoDB store'),
+    snippet('### Cookie transport\n'),
+    snippet('### Manual endpoint mode'),
+    snippet('### Audit and user provisioning hooks'),
+  ];
+  // The POST/config snippets above are individually complete. Wire DTO snippets
+  // are extracted by their function names to avoid selecting a preceding config.
+  for (const name of ['initiateLogin', 'exchangeBoundCode']) {
+    const code = [...readme.matchAll(/```ts\n([\s\S]*?)\n```/g)].find((match) =>
+      match[1].includes(`async function ${name}(`),
+    )?.[1];
+    if (!code) throw new Error(`Installed DTO snippet missing: ${name}`);
+    backendSnippets.push(code);
+  }
+  const files = backendSnippets.map((code, index) => {
+    const file = `readme-backend-${index}.ts`;
+    writeFileSync(path.resolve(consumerDir, file), `${code}\nexport {};\n`);
+    return file;
+  });
+  const options = {
+    target: 'ES2022',
+    module: 'NodeNext',
+    moduleResolution: 'NodeNext',
+    strict: true,
+    skipLibCheck: false,
+    noEmit: true,
+    esModuleInterop: true,
+    types: ['node'],
+  };
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig-readme-nodenext.json'),
+    JSON.stringify({
+      compilerOptions: options,
+      files: [...files, 'readme-server.cts'],
+    }),
+  );
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig-readme-bundler.json'),
+    JSON.stringify({
+      compilerOptions: { ...options, module: 'ESNext', moduleResolution: 'Bundler' },
+      files,
+    }),
+  );
+  const browserSnippets = [
+    snippet('### Standalone body-transport DPoP client'),
+    snippet('### Default unbound bearer frontend'),
+    snippet('### Cookie transport frontend example'),
+    snippet('### Frontend signal adapter'),
+  ];
+  const browserFiles = browserSnippets.map((code, index) => {
+    expect(code).not.toContain('@web-ts-toolkit/express');
+    const file = index === 0 ? 'readme-browser.ts' : `readme-browser-${index}.ts`;
+    writeFileSync(path.resolve(consumerDir, file), `${code}\nexport {};\n`);
+    return file;
+  });
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig-readme-browser.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        strict: true,
+        skipLibCheck: false,
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        types: [],
+        outDir: 'compiled-readme',
+      },
+      files: browserFiles,
+    }),
+  );
+  for (const config of [
+    'tsconfig-readme-nodenext.json',
+    'tsconfig-readme-bundler.json',
+    'tsconfig-readme-browser.json',
+  ]) {
+    run('pnpm', ['exec', 'tsc', '-p', config], consumerDir);
+  }
+  // Compile a real proof from the extracted browser code and authenticate it
+  // using installed core + memory packages (both CJS and ESM conditions).
+  run('node', ['docs-runtime.mjs', 'esm'], consumerDir);
+  run('node', ['docs-runtime.mjs', 'cjs'], consumerDir);
 }
 
 afterAll(() => {
@@ -263,7 +408,22 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     for (const emitted of ['index.js', 'index.mjs', 'index.d.ts', 'index.d.mts']) {
       expect(existsSync(path.resolve(unpackRoot, emitted))).toBe(true);
     }
-  });
+    for (const declaration of ['index.d.ts', 'index.d.mts']) {
+      const text = readFileSync(path.resolve(unpackRoot, declaration), 'utf8');
+      expect(text).not.toMatch(/from ['"]\.|\/src\/|reference path=/);
+      for (const contract of [
+        'OidcVaultDeviceBindingOptions',
+        'OidcVaultApiDeviceBindingOptions',
+        'OidcVaultRequestAwareAccessTokenValidator',
+        'OidcVaultDeviceBindingStoreProvider',
+        'OidcVaultLoginInitiationResult',
+      ]) {
+        expect(text).toContain(contract);
+      }
+      expect(text).toContain('No live reservation is evicted');
+      expect(text).toContain('Create the OIDC lifecycle router using a named package-root import');
+    }
+  }, 180_000);
 
   it('`npm pack --dry-run --json` lists only intended files in the staged express-oidc-vault tree', () => {
     const packed = preparePackedWorkspace();
@@ -300,6 +460,7 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
     run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json'], consumerDir);
     run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+    compileInstalledReadme(consumerDir);
 
     const nodenextTrace = run(
       'pnpm',

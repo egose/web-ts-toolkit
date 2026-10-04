@@ -1,5 +1,6 @@
 import {
   OidcVaultStoreConflictError,
+  OidcVaultDpopReplayCapacityError,
   type DeleteSessionsByLogicalSessionIdInput,
   type DeleteSessionsByProviderSessionIdInput,
   type DeleteSessionsBySubjectInput,
@@ -7,11 +8,15 @@ import {
 import type {
   AuthorizationTransaction,
   AuthorizationTransactionInput,
+  ConsumeAuthorizationTransactionIfMatchesInput,
+  ConsumeExchangeCodeIfMatchesInput,
   ExchangeCodeRecord,
   ExchangeCodeRecordInput,
   OidcVaultSession,
   OidcVaultSessionInput,
-  OidcVaultStoreProvider,
+  OidcVaultDeviceBindingStoreProvider,
+  OidcVaultSessionRevocationContext,
+  ReserveDpopProofInput,
   ConsumeBackchannelLogoutTokenJtiInput,
   RotateSessionInput,
 } from '@web-ts-toolkit/express-oidc-vault';
@@ -19,6 +24,8 @@ import type {
 import { DEFAULT_KEY_PREFIX, RedisOidcVaultStoreKeys } from './keys.js';
 import {
   OidcVaultRedisStoreRecordError,
+  assertRecordBinding,
+  assertSessionBinding,
   type StoredRecordKind,
   isPlainRecord,
   isString,
@@ -27,6 +34,7 @@ import {
   validateAuthorizationTransaction,
   validateExchangeCodeRecord,
   validateSession,
+  validateBindingMatch,
 } from './records.js';
 import {
   type DeleteSessionScriptScope,
@@ -34,9 +42,12 @@ import {
   RedisScriptRunner,
   buildCleanupInactiveAliasesCommand,
   buildCompareAndDeleteCommand,
+  buildConsumeGuardedRecordCommand,
   buildDeleteSessionCommand,
   buildRepairSessionIndexCommand,
   buildRotateSessionCommand,
+  buildReserveDpopProofCommand,
+  buildSessionRevocationContextCommand,
   buildWriteSessionCommand,
 } from './scripts.js';
 
@@ -62,7 +73,7 @@ import {
  *
  * `sendCommand` is required because atomic session writes, rotations,
  * deletions, and one-time record consumption transit Redis
- * `EVAL`/`GETDEL`/`TYPE`/`TIME`/`ZRANGE`/`ZSCAN`/`MGET` commands through it.
+ * cached Lua/`TYPE`/`TIME`/`ZRANGE`/`ZSCAN`/`MGET` commands through it.
  * It was previously optional in this type but always enforced at runtime.
  */
 export interface OidcVaultRedisClient {
@@ -85,6 +96,8 @@ export interface OidcVaultRedisClient {
  * `disconnect()`). The package never calls `connect`, `quit`, or `disconnect`.
  */
 export interface RedisOidcVaultStoreOptions {
+  /** Positive safe integer per shared keyPrefix; default 100000. Configure identically on all clients. */
+  dpopReplayMaxEntries?: number;
   /** Connected Redis client or compatible adapter implementing {@link OidcVaultRedisClient}. */
   client: OidcVaultRedisClient;
   /**
@@ -164,14 +177,19 @@ const matchesProviderScope = (
   return true;
 };
 
-class RedisOidcVaultStore implements OidcVaultStoreProvider {
+class RedisOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
   private readonly client: OidcVaultRedisClient;
   private readonly keys: RedisOidcVaultStoreKeys;
   private readonly now: () => number;
   private readonly scriptRunner: RedisScriptRunner;
   private indexCleanupCursor = '0';
+  private readonly dpopReplayMaxEntries: number;
 
   constructor(options: RedisOidcVaultStoreOptions) {
+    this.dpopReplayMaxEntries = options.dpopReplayMaxEntries === undefined ? 100_000 : options.dpopReplayMaxEntries;
+    if (!Number.isSafeInteger(this.dpopReplayMaxEntries) || this.dpopReplayMaxEntries <= 0) {
+      throw new TypeError('OIDC vault DPoP replay maximum entries must be a positive safe integer.');
+    }
     if (typeof options.client.sendCommand !== 'function') {
       throw new Error('Redis store client must implement sendCommand(args) for atomic vault operations.');
     }
@@ -189,23 +207,101 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   async createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void> {
+    input = snapshotInput({ ...input });
+    assertRecordBinding(input);
     await this.setJson(this.keys.authorizationTransaction(input.state), input, input.expiresAt);
   }
 
   async consumeAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null> {
-    return this.consumeJson(this.keys.authorizationTransaction(state), 'authorization transaction', (value) =>
+    const value = await this.runScript(
+      buildConsumeGuardedRecordCommand(this.keys.authorizationTransaction(state), 'transaction', state),
+    );
+    return this.parseOneTimeRecord(value, 'authorization transaction', (value) =>
       validateAuthorizationTransaction(value, state),
     );
   }
 
+  async getAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null> {
+    return this.getJson(
+      this.keys.authorizationTransaction(state),
+      'authorization transaction',
+      (value) => validateAuthorizationTransaction(value, state),
+      { deleteMalformed: true, checkExpiry: true },
+    );
+  }
+
+  async consumeAuthorizationTransactionIfMatches(
+    input: ConsumeAuthorizationTransactionIfMatchesInput,
+  ): Promise<AuthorizationTransaction | null> {
+    input = snapshotInput({ ...input });
+    if (!validateBindingMatch(input.match)) return null;
+    const value = await this.runScript(
+      buildConsumeGuardedRecordCommand(
+        this.keys.authorizationTransaction(input.state),
+        'transaction',
+        input.state,
+        input.match,
+      ),
+    );
+    return this.parseOneTimeRecord(value, 'authorization transaction', (value) =>
+      validateAuthorizationTransaction(value, input.state),
+    );
+  }
+
   async createExchangeCode(input: ExchangeCodeRecordInput): Promise<void> {
+    input = snapshotInput({ ...input });
+    assertRecordBinding(input);
     await this.setJson(this.keys.exchangeCode(input.code), input, input.expiresAt);
   }
 
   async consumeExchangeCode(code: string): Promise<ExchangeCodeRecord | null> {
-    return this.consumeJson(this.keys.exchangeCode(code), 'exchange code', (value) =>
-      validateExchangeCodeRecord(value, code),
+    const value = await this.runScript(
+      buildConsumeGuardedRecordCommand(this.keys.exchangeCode(code), 'exchange', code),
     );
+    return this.parseOneTimeRecord(value, 'exchange code', (value) => validateExchangeCodeRecord(value, code));
+  }
+
+  async getExchangeCode(code: string): Promise<ExchangeCodeRecord | null> {
+    return this.getJson(
+      this.keys.exchangeCode(code),
+      'exchange code',
+      (value) => validateExchangeCodeRecord(value, code),
+      { deleteMalformed: true, checkExpiry: true },
+    );
+  }
+
+  async consumeExchangeCodeIfMatches(input: ConsumeExchangeCodeIfMatchesInput): Promise<ExchangeCodeRecord | null> {
+    input = snapshotInput({ ...input });
+    if (!validateBindingMatch(input.match) || typeof input.expectedSessionId !== 'string') return null;
+    const value = await this.runScript(
+      buildConsumeGuardedRecordCommand(
+        this.keys.exchangeCode(input.code),
+        'exchange',
+        input.code,
+        input.match,
+        input.expectedSessionId,
+      ),
+    );
+    return this.parseOneTimeRecord(value, 'exchange code', (value) => validateExchangeCodeRecord(value, input.code));
+  }
+
+  async getSessionRevocationContext(sessionId: string): Promise<OidcVaultSessionRevocationContext | null> {
+    const raw = await this.runScript(buildSessionRevocationContextCommand(this.keys, sessionId));
+    if (typeof raw !== 'string') return null;
+    const context = JSON.parse(raw) as OidcVaultSessionRevocationContext;
+    // Redis cjson encodes an empty Lua table as [], while the contract's
+    // provider object is an allowlist with absent optional fields.
+    if (Array.isArray(context.provider) && context.provider.length === 0) context.provider = {};
+    return context;
+  }
+
+  async reserveDpopProof(input: ReserveDpopProofInput): Promise<boolean> {
+    input = { replayKey: input.replayKey, expiresAt: input.expiresAt };
+    // Validate numeric representation locally too; server time owns the window.
+    if (typeof input.replayKey !== 'string' || !Number.isSafeInteger(input.expiresAt)) return false;
+    const result = await this.runScript(buildReserveDpopProofCommand(this.keys, input, this.dpopReplayMaxEntries));
+    if (result === 2 || result === '2') throw new OidcVaultDpopReplayCapacityError();
+    return result === 1 || result === '1';
   }
 
   /**
@@ -224,6 +320,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
    */
   async createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession> {
     input = snapshotInput({ ...input });
+    assertSessionBinding(input);
     const timestamp = this.now();
     const session: OidcVaultSession = {
       ...input,
@@ -251,6 +348,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
     input = { sessionId: input.sessionId, nextSession: snapshotInput({ ...input.nextSession }) };
+    assertSessionBinding(input.nextSession);
     const previousSession = await this.getSession(input.sessionId);
 
     if (!previousSession) {
@@ -261,8 +359,16 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       throw new OidcVaultStoreConflictError('OIDC vault session rotation target must use a different session ID.');
     }
 
+    if (
+      input.nextSession.deviceBinding !== undefined &&
+      input.nextSession.deviceBinding.jkt !== previousSession.deviceBinding?.jkt
+    ) {
+      throw new OidcVaultStoreConflictError('OIDC vault session rotation cannot change or add device binding.');
+    }
+
     const nextSession: OidcVaultSession = {
       ...input.nextSession,
+      ...(previousSession.deviceBinding === undefined ? {} : { deviceBinding: { ...previousSession.deviceBinding } }),
       logicalSessionId:
         input.nextSession.logicalSessionId ?? previousSession.logicalSessionId ?? previousSession.sessionId,
     };
@@ -348,12 +454,21 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     key: string,
     recordKind: StoredRecordKind,
     validate: (parsed: unknown) => parsed is T,
-    options?: { deleteMalformed?: boolean },
+    options?: { deleteMalformed?: boolean; checkExpiry?: boolean },
   ): Promise<T | null> {
     const raw = await this.client.get(key);
 
     try {
-      return parseStoredJson(raw, recordKind, validate);
+      const record = parseStoredJson(raw, recordKind, validate);
+      if (
+        record !== null &&
+        options?.checkExpiry &&
+        isPlainRecord(record) &&
+        typeof record.expiresAt === 'number' &&
+        record.expiresAt <= (await this.redisServerTime())
+      )
+        return null;
+      return record;
     } catch (error) {
       if (options?.deleteMalformed && error instanceof OidcVaultRedisStoreRecordError && raw !== null) {
         // SVH-03: delete only the observed malformed payload. The Lua script
@@ -367,13 +482,11 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     }
   }
 
-  private async consumeJson<T>(
-    key: string,
+  private parseOneTimeRecord<T>(
+    value: unknown,
     recordKind: StoredRecordKind,
     validate: (parsed: unknown) => parsed is T,
-  ): Promise<T | null> {
-    const value = await this.sendCommand(['GETDEL', key]);
-
+  ): T | null {
     try {
       return typeof value === 'string' ? parseStoredJson(value, recordKind, validate) : null;
     } catch (error) {
@@ -448,6 +561,10 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
     if (result === 2 || result === '2') {
       throw new OidcVaultStoreConflictError('OIDC vault session rotation target already exists.');
+    }
+
+    if (result === 3 || result === '3') {
+      throw new OidcVaultStoreConflictError('OIDC vault session changed before rotation could commit.');
     }
 
     return result === 1 || result === '1';
@@ -704,7 +821,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 }
 
 /**
- * Create an `OidcVaultStoreProvider` backed by a connected Redis client.
+ * Create an `OidcVaultDeviceBindingStoreProvider` backed by a connected Redis client.
  *
  * Pass an already-connected official `redis` standalone client (or any adapter
  * implementing {@link OidcVaultRedisClient}). For Redis Sentinel deployments,
@@ -713,13 +830,15 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
  * satisfy the structural contract. The store does not connect, disconnect, or
  * attach `error` listeners; it only issues commands.
  *
- * The package requires Redis 6.2 or later (it uses `GETDEL`). Redis Cluster is
- * not supported and is rejected here.
+ * The package supports Redis 6.2 or later. Redis Cluster is
+ * not supported and is rejected here. Guarded consumes and per-proof replay use
+ * cached atomic Lua; replay is shared per keyPrefix, uses server TIME, and never
+ * evicts live entries. All clients must use the same dpopReplayMaxEntries.
  *
  * @param options construction options; see {@link RedisOidcVaultStoreOptions}.
- * @returns a provider satisfying the core `OidcVaultStoreProvider` contract.
+ * @returns a provider satisfying the stronger `OidcVaultDeviceBindingStoreProvider` contract.
  */
-export function createRedisOidcVaultStore(options: RedisOidcVaultStoreOptions): OidcVaultStoreProvider {
+export function createRedisOidcVaultStore(options: RedisOidcVaultStoreOptions): OidcVaultDeviceBindingStoreProvider {
   return new RedisOidcVaultStore(options);
 }
 

@@ -50,7 +50,10 @@ app.use(
 const server = app.listen(3000);
 
 process.once('SIGTERM', async () => {
-  server.close();
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  // Also settle store work started outside HTTP requests.
   await mongo.close();
 });
 ```
@@ -69,17 +72,19 @@ const storeProvider = createMongoOidcVaultStore({
   sessionsCollectionName: 'auth_oidc_sessions',
   backchannelLogoutTokenJtisCollectionName: 'auth_oidc_backchannel_logout_jtis',
   rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',
+  dpopProofsCollectionName: 'auth_dpop_proofs',
+  dpopReplayCapacityCollectionName: 'auth_dpop_capacity',
 });
 ```
 
 ## Behavior
 
-- uses separate collections for authorization transactions, exchange codes, sessions, backchannel logout token JTIs, and rotated-session aliases
+- uses seven distinct collections for transactions, codes, sessions, backchannel JTIs, aliases, DPoP proofs and replay capacity/accounting
 - creates TTL indexes on expiring records
 - checks expiration during relevant reads or consumes for authorization transactions, exchange codes, backchannel logout token JTIs, and rotated-session aliases so behavior does not depend only on MongoDB's background TTL monitor timing
 - stores session records by `sessionId` and replaces them during rotation
 - creates scoped compound indexes for `subject`, `providerSessionId`, session `logicalSessionId`, and rotated-alias `logicalSessionId` so logout and backchannel logout queries can efficiently remove matching sessions and aliases
-- requires MongoDB transactions for session rotation and inactive-lineage alias cleanup; use a replica set or sharded deployment because standalone servers fail readiness
+- requires transactions for rotation, coherent revocation context, replay admission/accounting and alias cleanup; standalone fails readiness, replica-set behavior is tested, sharded/distributed-failure durability remains deployment-specific
 - readiness creates required indexes, validates collection names, and verifies transaction-capable topology before traffic is accepted
 - stores rotated-session aliases with finite expiry; sessions without explicit expiry use a 5 minute alias-retention window by default, configurable with `rotatedSessionAliasRetentionMs`
 - scoped/direct deletion preserves unexpired aliases while another live member survives, including another issuer/client scope; inactive-lineage cleanup follows committed deletion in a snapshot transaction, with rotation alias writes protected by conflicts/retries
@@ -104,12 +109,12 @@ This is a strong fit when your application already depends on MongoDB operationa
 
 `createMongoOidcVaultStore(options)`
 
-Creates a MongoDB-backed implementation of the core `OidcVaultStoreProvider` contract with an additional `ready()` startup check.
+Creates a stronger core OidcVaultDeviceBindingStoreProvider with ready(). Named root imports, Node >=22.12.0 and TypeScript @types/node/@types/express. Both ESM/CJS declaration conditions are shipped.
 
 `OidcVaultMongoStoreProvider`
 
-- extends `OidcVaultStoreProvider`
-- `ready()`: waits for collection-name validation, required index creation, and transaction-topology verification
+- extends OidcVaultDeviceBindingStoreProvider
+- ready(): validates all seven collection names/indexes, transaction support, shared replay capacity and proof/accounting pairing; failed readiness rejects all operations
 
 `MongoOidcVaultStoreOptions`
 
@@ -119,8 +124,21 @@ Creates a MongoDB-backed implementation of the core `OidcVaultStoreProvider` con
 - `sessionsCollectionName?`
 - `backchannelLogoutTokenJtisCollectionName?`
 - `rotatedSessionAliasesCollectionName?`
+- `dpopProofsCollectionName?`: default oidc_vault_dpop_proofs, unique proof IDs/TTL
+- `dpopReplayCapacityCollectionName?`: default oidc_vault_dpop_replay_capacity, indexed non-TTL ledger/capacity
+- `dpopReplayMaxEntries?`: positive safe integer, default 100000, identical on shared clients
 - `rotatedSessionAliasRetentionMs?`: finite positive alias retention for sessions without explicit expiry, defaulting to 5 minutes
 - `now?`: override clock source for tests
+
+## Guarded records and DPoP replay accounting
+
+All six stronger methods are live transaction/code getters, atomic guarded transaction/code consumes, getSessionRevocationContext and reserveDpopProof; shared types/capacity error are core-root exports. Either vault opt-in checks all six; fingerprint-only reserves no proofs. Getters are detached preflight, not locks. Match has both key/hash; null is **absence only ($exists: false)**, not wildcard/BSON null. Legacy neither, cookie-only hash, bound hash+key are valid; canonical SHA-256 43-character hashes required. Null/malformed/extra/key-without-hash rejects. Atomic findOneAndDelete matches expiry, key/hash and exchange expectedSessionId; mismatch leaves a live record and matching clients have one winner. Old consumes refuse guarded records. Rotation inherits original binding and checks source generation; changed/removed/new binding rejects. Explicit undefined security fields are omitted before BSON. Only omitted legacy provider/expiry BSON null normalizes on genuinely unbound old rows; null binding/hash never becomes legacy.
+
+Revocation context uses a snapshot transaction and credential-free projections, returning only current live logical ID/provider/key through handles/unexpired aliases. Mixed/malformed authority throws; empty/expired lineage returns null, aliases never authenticate refresh. Whole-lineage reads are separate from replay bounds.
+
+Shared replay is serialized by a capacity-row revision write in a snapshot transaction: unique proof IDs + at most **64** expired indexed accounting rows plus requested expired key reclaimed, then proof/ledger/capacity committed together. No per-request full count/scan. Future safe-integer expiry, remaining TTL ≤360000ms required; invalid/expired returns false without allocation. Duplicates return false before capacity/no renewal; capacity throws core OidcVaultDpopReplayCapacityError → core 503 replay-unavailable, no live eviction/fail-open. Proof TTL deletion cannot leak capacity: the separate **non-TTL** expiry ledger retains reclaimable evidence, and ready rejects TTL indexes on it. Shared clients must agree on collection pairing/max; names change namespace, not migration. Retained state is bounded by max proof rows + max ledger rows + one capacity row; expired ledger rows awaiting traffic conservatively occupy capacity.
+
+Normal admission costs seven data commands + commit; duplicate capacity-write/proof-read/commit; cleanup/contention/retries add work. The shared row is a throughput contention point. Size for unique proofs/s × window (defaults max 70s), share clocks/windows/namespaces, never release after downstream failure. Driver transactions end sessions in finally. Atomic limits are not throughput/latency/durability certification; loss of live replay data on restore/failover weakens protection until its window expires.
 
 ## Operational Notes
 
@@ -133,7 +151,7 @@ Creates a MongoDB-backed implementation of the core `OidcVaultStoreProvider` con
 
 ## Security Notes
 
-Session records contain refresh tokens, ID tokens, access tokens, and related bearer-equivalent secrets. Require TLS, least-privilege MongoDB roles, encryption at rest and in backups, restricted logging/metrics/tracing/export paths, and explicit retention policies for all five store collections.
+Session records contain upstream bearer-equivalent secrets and private recognition metadata. Use TLS/least-privilege/encryption/backups/logging controls and explicit retention for all seven collections. DPoP constrains browser local JWT/session presentation, not a compromised upstream-token store.
 
 Arbitrary backend errors are not sanitized for application logs. Use fixed operation names and allowlisted categories instead of raw errors, connection URLs, whole records or credential-valued metric labels.
 

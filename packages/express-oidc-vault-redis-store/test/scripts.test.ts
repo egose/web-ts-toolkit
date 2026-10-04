@@ -109,7 +109,7 @@ describe('Redis OIDC vault script command builders', () => {
       'test:rotated-session-alias:sess_1',
       'test:rotated-session-alias:sess_2',
     ]);
-    expect(contract.args.slice(1)).toEqual([
+    expect(contract.args.slice(1, 13)).toEqual([
       '',
       'sess_1',
       'sess_2',
@@ -123,6 +123,7 @@ describe('Redis OIDC vault script command builders', () => {
       'test:rotated-session-alias-index:logical_1',
       'test:rotated-session-alias-index:',
     ]);
+    expect(JSON.parse(contract.args[13]!)).toEqual(session);
     expect(JSON.parse(contract.args[0]!)).toMatchObject({ sessionId: 'sess_2', refreshToken: 'refresh_2' });
   });
 

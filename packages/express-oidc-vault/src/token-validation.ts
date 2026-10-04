@@ -1,11 +1,15 @@
 import { jwtVerify } from 'jose';
 
+import { snapshotVerifiedJwtConfirmation } from './access-token-confirmation';
 import { OidcVaultHttpError, getRequiredFiniteNonNegativeInteger, getRequiredString } from './errors';
 import type { OidcProviderMetadata, ProviderRequestOptions } from './provider-client';
 import { resolveJwks } from './provider-client';
 import type {
   OidcVaultAccessTokenValidationResult,
+  OidcVaultAccessTokenRequestInput,
   OidcVaultJwtAccessTokenValidatorOptions,
+  OidcVaultRequestAwareAccessTokenValidator,
+  OidcVaultRequestAwareAccessTokenValidationResult,
   OidcVaultUserProfile,
 } from './types';
 import { isRecord, isString } from './utils';
@@ -241,19 +245,52 @@ export async function verifyBackchannelLogoutToken(
   return claims;
 }
 
-export function createOidcVaultJwtAccessTokenValidator(options: OidcVaultJwtAccessTokenValidatorOptions): {
-  validate(token: string): Promise<OidcVaultAccessTokenValidationResult>;
-} {
-  return {
-    async validate(token: string): Promise<OidcVaultAccessTokenValidationResult> {
-      const result = await jwtVerify(token, options.key, {
-        issuer: options.issuer,
-        audience: options.audience,
-        algorithms: options.algorithms,
-      });
-
-      const claims = result.payload as Record<string, unknown>;
-      return options.mapClaims ? options.mapClaims(claims) : defaultJwtClaimsMapper(claims);
-    },
+/**
+ * Verify local JWTs with both legacy validate(token) and validateWithRequest.
+ * Raw verified cnf is captured before mapClaims; mapping cannot forge or strip
+ * the sender constraint. The request-aware result always has confirmation
+ * (null only for genuinely unbound JWTs). Legacy unbound results omit it;
+ * bound results report it so binding-disabled vault middleware refuses downgrade.
+ * Proof/target/ath/nonce/replay enforcement belongs to the API middleware.
+ * Construction captures options and copies secret/JWK/allowlist containers.
+ */
+export function createOidcVaultJwtAccessTokenValidator(
+  options: OidcVaultJwtAccessTokenValidatorOptions,
+): OidcVaultRequestAwareAccessTokenValidator {
+  const {
+    key: configuredKey,
+    issuer,
+    audience: configuredAudience,
+    algorithms: configuredAlgorithms,
+    mapClaims,
+  } = options;
+  const key =
+    configuredKey instanceof Uint8Array
+      ? Uint8Array.from(configuredKey)
+      : 'kty' in configuredKey
+        ? { ...configuredKey, ...(configuredKey.key_ops ? { key_ops: [...configuredKey.key_ops] } : {}) }
+        : configuredKey;
+  const audience = Array.isArray(configuredAudience) ? [...configuredAudience] : configuredAudience;
+  const algorithms = configuredAlgorithms === undefined ? undefined : [...configuredAlgorithms];
+  const validateJwt = async (token: string): Promise<OidcVaultRequestAwareAccessTokenValidationResult> => {
+    const result = await jwtVerify(token, key, { issuer, audience, algorithms });
+    const claims = result.payload as Record<string, unknown>;
+    const confirmation = snapshotVerifiedJwtConfirmation(claims);
+    const mapped = mapClaims ? mapClaims(claims) : defaultJwtClaimsMapper(claims);
+    // Copy only mapping-owned fields. Never evaluate mapper confirmation or
+    // token/deviceBinding getters and never retain the mutable mapped container.
+    const { subject, sessionId, scope, claims: mappedClaims } = mapped;
+    return { subject, sessionId, scope, claims: mappedClaims, confirmation };
   };
+  return Object.freeze({
+    async validate(token: string): Promise<OidcVaultAccessTokenValidationResult> {
+      const { confirmation, ...mapped } = await validateJwt(token);
+      return confirmation === null ? mapped : { ...mapped, confirmation };
+    },
+    async validateWithRequest({
+      token,
+    }: OidcVaultAccessTokenRequestInput): Promise<OidcVaultRequestAwareAccessTokenValidationResult> {
+      return validateJwt(token);
+    },
+  });
 }

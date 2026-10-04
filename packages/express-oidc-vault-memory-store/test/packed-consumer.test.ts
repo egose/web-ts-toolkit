@@ -109,6 +109,7 @@ function run(command: string, args: string[], cwd: string): string {
       cwd,
       encoding: 'utf8',
       stdio: 'pipe',
+      maxBuffer: 16 * 1024 * 1024,
     });
   } catch (error) {
     const caught = error as { stdout?: string; stderr?: string; status?: number; message?: string };
@@ -253,6 +254,14 @@ function copyConsumerSources(consumerDir: string): void {
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
   }
+  cpSync(
+    path.resolve(corePackageRoot, 'test-packed-consumer/consumer/store-contract.mjs'),
+    path.resolve(consumerDir, 'store-contract.mjs'),
+  );
+  const readme = readFileSync(path.resolve(consumerDir, 'node_modules', memoryStorePackageName, 'README.md'), 'utf8');
+  const quickStart = readme.slice(readme.indexOf('## Quick Start')).match(/```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!quickStart) throw new Error('Installed memory-store README quickstart is missing.');
+  writeFileSync(path.resolve(consumerDir, 'readme-quick-start.ts'), quickStart);
 }
 
 function listFiles(dir: string): string[] {
@@ -299,12 +308,18 @@ describe('MEM-06 packed-package consumer compatibility', () => {
       },
     });
     expect(packedManifest.sideEffects).toBe(false);
+    expect(packedManifest.engines).toEqual({ node: '>=22.12.0' });
     expect(packedManifest.dependencies).toEqual({ [corePackageName]: testVersion });
     expect(packedManifest.devDependencies).toBeUndefined();
     expect(packedManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);
     for (const emitted of ['index.js', 'index.mjs', 'index.d.ts', 'index.d.mts']) {
       expect(existsSync(path.resolve(unpackRoot, emitted))).toBe(true);
+    }
+    for (const declaration of ['index.d.ts', 'index.d.mts']) {
+      expect(readFileSync(path.resolve(unpackRoot, declaration), 'utf8')).not.toMatch(
+        /from ['"]\.|\/src\/|reference path=/,
+      );
     }
   });
 
@@ -344,6 +359,13 @@ describe('MEM-06 packed-package consumer compatibility', () => {
     run('node', ['consumer.mjs'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+    const trace = run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json', '--traceResolution'], consumerDir);
+    expect(trace).toMatch(
+      /Resolving in ESM mode with conditions 'import'[\s\S]*?express-oidc-vault-memory-store\/index\.d\.mts'/,
+    );
+    expect(trace).toMatch(
+      /Resolving in CJS mode with conditions 'require'[\s\S]*?express-oidc-vault-memory-store\/index\.d\.ts'/,
+    );
 
     const installedPackageDir = path.resolve(
       consumerDir,
