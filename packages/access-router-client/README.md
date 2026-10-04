@@ -553,6 +553,79 @@ if (result.success) {
 }
 ```
 
+## Basic model calls with optional args
+
+Basic model lists accept `list(args?, options?, config?)` and
+`list(options?, config?)`. Reads accept `read(id, args?, options?, config?)`
+and the existing `read(id, options?, config?)` form. Updates accept
+`update(id, data, args?, options?, config?)` and the existing
+`update(id, data, options?, config?)` form. `select` and list `sort` belong in args;
+`includeCount`, `includePermissions`, `tryList`, and `ignoreCache` belong in
+the method's options. Headers, timeouts, and `throwOnError` belong in config.
+
+```ts
+import { createAdapter } from '@web-ts-toolkit/access-router-client';
+
+type User = { _id?: string; name: string; role: string };
+const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+const users = adapter.createModelService<User>({ modelName: 'User', basePath: 'users' });
+
+// Skip args without an undefined placeholder.
+const counted = await users.list({ includeCount: true });
+const timedList = await users.list({ includeCount: true }, { timeout: 5000 });
+
+// Full args/options/config form for projection, sorting, and pagination.
+const selectedList = await users.list(
+  { select: ['name'], sort: '-name', limit: 10 },
+  { includePermissions: true },
+  { timeout: 5000 },
+);
+const selectedRead = await users.read('user-1', { select: ['name'] }, { includePermissions: true }, { timeout: 5000 });
+
+// Read's existing options/config form still works.
+const read = await users.read('user-1', { tryList: false }, { timeout: 5000 });
+void [counted, timedList, selectedList, selectedRead, read];
+
+// Plain updates accept `select` in args, sent as a PATCH `?select=` value,
+// mirroring plain reads (useful with `requireExplicitSelect` on the server).
+const selectedUpdate = await users.update(
+  'user-1',
+  { role: 'owner' },
+  { select: ['name'] },
+  { returningAll: true },
+  { timeout: 5000 },
+);
+
+// Update's existing options/config form still works.
+const updated = await users.update('user-1', { role: 'owner' }, { returningAll: false }, { timeout: 5000 });
+void [selectedUpdate, updated];
+```
+
+Skipping args still applies `defaults.listArgs` / `defaults.readArgs`; supplied
+args override those defaults. Both forms return typed lazy requests with
+`.exec()`, grouping, and `$include()` support. Basic `select` is sent as a GET
+query parameter, and the original projection is retained for grouped requests
+and correlated includes. Basic response types retain the existing `T`/explicit
+`TData` contract; `select` does not infer a narrower result type.
+
+Basic list `sort` accepts signed-field strings (`'name -createdAt'`),
+field/order objects (`{ name: 1, createdAt: -1 }`), or ordered tuples
+(`[['name', 'asc'], ['createdAt', 'desc']]`). Objects and tuples are serialized
+to the same space-separated GET `sort` value, preserving priority and direction;
+Axios URL-encodes it. Grouped requests and `$include()` retain the original sort
+form. `defaults.listArgs.sort` applies when omitted, including options-only
+calls. An explicit empty sort (`''`, `[]`, or `{}`) sends `sort=` and disables
+backend default sorting. The server enforces list-field sort permissions,
+including `sortableFields` and `stripDisallowedSort`.
+
+The known args/options keys determine the form, even when a value is
+`undefined`, `false`, or `0`. Mixing args and option keys in one object throws
+`TypeError`; use separate arguments. Empty objects retain the original
+interpretation (list: args first; read: options first). Supplying the final
+config position explicitly selects the full form, so `list({}, {}, config)`
+and `read(id, {}, {}, config)` preserve that config. The existing
+`list(undefined, options, config)` form also remains available.
+
 ## Browser And Node Support
 
 - **Bundle target:** `es2022` (see `tsup.config.ts`). The single shared target

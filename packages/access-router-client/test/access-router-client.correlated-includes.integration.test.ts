@@ -442,19 +442,22 @@ const sevenBuilderCases: SevenBuilderCase[] = [
   {
     name: 'list',
     build: () =>
-      services.postService.list({ limit: 2 }).$include('posts', { filter: { authorId: parentField('_id') } }),
+      services.postService
+        .list({ sort: { createdAt: -1 }, limit: 2 })
+        .$include('posts', { filter: { authorId: parentField('_id') } }),
     raw: {
       mode: 'correlated',
       model: POST_MODEL,
       op: 'list',
       path: 'posts',
       filter: { authorId: { $parent: '_id' } },
-      args: { limit: 2 },
+      args: { sort: { createdAt: -1 }, limit: 2 },
     },
     assertData: (rows) => {
       // Per-parent pagination: limit 2 applies to u1's posts, not the outer rows.
       expect(rows).toHaveLength(1);
       expect(rows[0].posts as unknown[]).toHaveLength(2);
+      expect((rows[0].posts as Array<{ title: string }>).map((post) => post.title)).toEqual(['$special', 'u1-p1']);
     },
   },
   {

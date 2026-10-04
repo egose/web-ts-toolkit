@@ -28,6 +28,7 @@ packages/access-router-client/README.md	1	ea7f7dc92479cfb046e024221154724a81f43c
 packages/access-router-client/README.md	2	cec3248f2d06591a9ec6759b83d8407a69f0a0e6156af843f2e594892cdf6a77	derived	correlated-includes.ts
 packages/access-router-client/README.md	3	e0edba23e601248825a16de50e1812fcb6c73b4d6f28f37f99c9e792dede4f0d	exact	readme-exports.ts
 packages/access-router-client/README.md	4	d1d554ef1f811bce8d5168f93b9b356e1afacb7684e720a6e81353bf8995546f	exact	optional-fields-params.ts
+packages/access-router-client/README.md	5	6efdd626d54a707aef93916ed978d0b65ef2167e6a3454c265e59f9b41aeb58d	exact	basic-model-calls.ts
 packages/access-router-client/llms.txt	1	6db26e108fd3e45bb6d5154b747f431943bbb914c027055514202d88e759199e	derived	readme-quickstart.ts
 packages/access-router-client/llms.txt	2	0cb6d1d0b741cc903bc3f4e7a3d00136f130fd703f3ceb02275e36368e105a13	derived	services-data.ts
 packages/access-router-client/llms.txt	3	5b07e991c4d49e4e151554cc017cf6d018b090d4f11acceef1daf11b3aab2f11	derived	readme-quickstart.ts
@@ -95,6 +96,7 @@ The fixtures live in `examples/` and are semantically compiled by
 | `readme-quickstart.ts`      | README.md "Quick Start"; index.md "Quick Start"                                                                                                 |
 | `readme-exports.ts`         | README.md "Main Exports" (verbatim extracted block)                                                                                             |
 | `optional-fields-params.ts` | README.md "Optional fields and ordered params example" (verbatim; CLC-06 optional assignment and URLSearchParams consumer contract)             |
+| `basic-model-calls.ts`      | README.md "Basic model calls with optional args" (verbatim; projection, args-free shorthand, and typed list/read/update requests)               |
 | `correlated-includes.ts`    | README.md "Correlated Includes"; llms.txt correlated-includes pattern; services.mdx "Correlated Includes"                                       |
 | `adapter-setup.ts`          | adapter.mdx "Basic Setup", "Adapter Options", "Matching Server Paths"; README.md "Contract"                                                     |
 | `services-model.ts`         | README.md "Unreleased Migration" model-create cardinality; services.mdx "ModelService" "Advanced query", "Service Defaults"                     |

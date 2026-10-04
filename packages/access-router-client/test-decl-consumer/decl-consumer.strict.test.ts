@@ -12,6 +12,7 @@ import {
   ListModelResponse,
   SubDocumentResponse,
   ArrayModelResponse,
+  parentField,
 } from '@web-ts-toolkit/access-router-client';
 
 interface Pet {
@@ -54,6 +55,62 @@ describe('access-router-client built-declaration consumer (ARC-15)', () => {
     const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
     const fruitService = adapter.createDataService<Pet>({ dataName: 'fruit', basePath: 'fruit' });
     expectTypeAssignableTo<DataService<Pet>>(fruitService);
+  });
+
+  it('keeps basic list/read overloads typed in the installed declarations', () => {
+    const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+    const service = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });
+    type ListRequest = import('@web-ts-toolkit/access-router-client').ModelRequest<ListModelResponse<Pet>>;
+    type ReadRequest = import('@web-ts-toolkit/access-router-client').ModelRequest<
+      import('@web-ts-toolkit/access-router-client').ModelResponse<Pet>
+    >;
+    type UpdateRequest = import('@web-ts-toolkit/access-router-client').ModelRequest<
+      import('@web-ts-toolkit/access-router-client').ModelResponse<Pet>
+    >;
+    const shorthand = service.list({ includeCount: true }, { timeout: 1000 });
+    const full = service.list(
+      { select: ['name'], sort: { name: -1 }, limit: 5 },
+      { includeCount: false },
+      { timeout: 1000 },
+    );
+    expectTypeAssignableTo<ListRequest>(service.list({ sort: [['name', 'desc']] }));
+    expectTypeAssignableTo<ListRequest>(shorthand);
+    expectTypeAssignableTo<ListRequest>(full);
+    expectTypeAssignableTo<ListRequest>(service.list(undefined, undefined, { timeout: 1000 }));
+    const checkExecutor = () => expectTypeAssignableTo<Promise<ListModelResponse<Pet>>>(shorthand.exec());
+    void checkExecutor;
+    const read = service.read('pet-1', { select: ['name'] }, { tryList: false }, { timeout: 1000 });
+    expectTypeAssignableTo<ReadRequest>(read);
+    expectTypeAssignableTo<ReadRequest>(service.read('pet-1', { tryList: false }, { timeout: 1000 }));
+    expectTypeAssignableTo<ReadRequest>(service.read('pet-1', {}, {}, { timeout: 1000 }));
+    void service.read('pet-1', { select: ['name'] }).$include('pet');
+    const descriptor = service.read(parentField('petId'), { select: ['name'] });
+    expectTypeAssignableTo<import('@web-ts-toolkit/access-router-client').CorrelatedReadDescriptor>(descriptor);
+    void descriptor.$include('pet');
+    const update = service.update(
+      'pet-1',
+      { name: 'Max' },
+      { select: ['name'] },
+      { returningAll: false },
+      { timeout: 1000 },
+    );
+    expectTypeAssignableTo<UpdateRequest>(update);
+    expectTypeAssignableTo<UpdateRequest>(
+      service.update('pet-1', { name: 'Max' }, { returningAll: false }, { timeout: 1000 }),
+    );
+    expectTypeAssignableTo<UpdateRequest>(service.update('pet-1', { name: 'Max' }, {}, {}, { timeout: 1000 }));
+    expectTypeAssignableTo<import('@web-ts-toolkit/access-router-client').UpdateArgs>({ select: ['name'] });
+    const invalidCalls = () => {
+      // @ts-expect-error args and options are separate objects, including in declaration consumers.
+      service.list({ select: ['name'], includeCount: true });
+      // @ts-expect-error args and options are separate objects.
+      service.read('pet-1', { select: ['name'], tryList: false });
+      // @ts-expect-error update args and options are separate objects.
+      service.update('pet-1', { name: 'Max' }, { select: ['name'], returningAll: false });
+      // @ts-expect-error reference-bearing reads have no executor.
+      descriptor.exec();
+    };
+    void invalidCalls;
   });
 
   it('Model<T> preserves the Document constraint and save() returns a useful generic', () => {

@@ -402,7 +402,7 @@ export function assertValidIncludePath(path: unknown): asserts path is string {
 
 const READ_ARG_KEYS = ['select', 'sort', 'include'] as const;
 const LIST_ARG_KEYS = ['select', 'sort', 'include', 'skip', 'limit', 'page', 'pageSize'] as const;
-const PAGINATION_ARG_KEYS = ['skip', 'limit', 'page', 'pageSize'] as const;
+const BASIC_LIST_ARG_KEYS = ['select', 'sort', 'skip', 'limit', 'page', 'pageSize'] as const;
 
 /**
  * Pure metadata-to-include converter (ACI-01 D8.4/D9). Synchronously builds
@@ -481,7 +481,7 @@ export const convertCorrelatedSource = (
     source.op === 'list' && !source.basic
       ? LIST_ARG_KEYS
       : source.op === 'list'
-        ? PAGINATION_ARG_KEYS
+        ? BASIC_LIST_ARG_KEYS
         : source.op === 'read' && !source.basic
           ? READ_ARG_KEYS
           : [];

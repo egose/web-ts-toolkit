@@ -10,6 +10,9 @@ export interface ListArgs {
   limit?: number;
   page?: number;
   pageSize?: number;
+  select?: Projection;
+  /** GET sort query: signed field string, field/order object, or ordered tuples. */
+  sort?: Sort;
 }
 
 export interface ListOptions {
@@ -47,6 +50,10 @@ export interface ListAdvancedOptions {
   ignoreCache?: boolean;
   populateAccess?: PopulateAccess;
   sq?: SubQueryOptions;
+}
+
+export interface ReadArgs {
+  select?: Projection;
 }
 
 export interface ReadOptions {
@@ -92,6 +99,10 @@ export interface CreateAdvancedOptions {
   populateAccess?: PopulateAccess;
 }
 
+export interface UpdateArgs {
+  select?: Projection;
+}
+
 export interface UpdateOptions {
   returningAll?: boolean;
   includePermissions?: boolean;
@@ -131,12 +142,14 @@ export interface Defaults {
   listOptions?: ListOptions;
   listAdvancedArgs?: ListAdvancedArgs;
   listAdvancedOptions?: ListAdvancedOptions;
+  readArgs?: ReadArgs;
   readOptions?: ReadOptions;
   readAdvancedArgs?: ReadAdvancedArgs;
   readAdvancedOptions?: ReadAdvancedOptions;
   createOptions?: CreateOptions;
   createAdvancedArgs?: CreateAdvancedArgs;
   createAdvancedOptions?: CreateAdvancedOptions;
+  updateArgs?: UpdateArgs;
   updateOptions?: UpdateOptions;
   updateAdvancedArgs?: UpdateAdvancedArgs;
   updateAdvancedOptions?: UpdateAdvancedOptions;

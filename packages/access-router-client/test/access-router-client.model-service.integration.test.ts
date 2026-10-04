@@ -7,6 +7,35 @@ const suite = setupIntegrationSuite();
 const { services, seedState } = suite;
 
 describe('access-router-client model-service integration', () => {
+  it('honors basic list sorts through GET query params and grouped calls', async () => {
+    const config = { headers: { user: 'admin' } };
+    const names = ['lucy2', 'admin-user'];
+    const sorts = ['-name', { name: -1 as const }, [['name', 'descending']] as [string, 'descending'][]];
+    for (const sort of sorts) {
+      const result = await services.userService.list(
+        { select: ['name'], sort, limit: 1 },
+        { includeCount: true },
+        config,
+      );
+      expect(result.success).toBe(true);
+      expect(result.data.map((row) => row.name)).toEqual(['lucy2']);
+      expect(result.totalCount).toBe(2);
+      expect(result.data[0].toObject()).not.toHaveProperty('role');
+      const sent = suite.protocolRequests.at(-1);
+      expect(sent).toMatchObject({ method: 'GET', path: '/api/users', query: { sort: '-name', select: 'name' } });
+    }
+    const [ascending, descending] = await suite.adapter.group(
+      services.userService.list({ select: ['name'], sort: { name: 'asc' } }, { includeCount: true }, config),
+      services.userService.list({ select: ['name'], sort: [['name', -1]] }, { includeCount: true }, config),
+    );
+    expect(ascending.success).toBe(true);
+    expect(descending.success).toBe(true);
+    expect(ascending.data.map((row) => row.name)).toEqual([...names].reverse());
+    expect(descending.data.map((row) => row.name)).toEqual(names);
+    expect(ascending.totalCount).toBe(2);
+    expect(descending.totalCount).toBe(2);
+  });
+
   it('supports basic model CRUD helpers, distinctAdvanced(), and id().fetch()', async () => {
     const created = await services.userService.create(
       {
