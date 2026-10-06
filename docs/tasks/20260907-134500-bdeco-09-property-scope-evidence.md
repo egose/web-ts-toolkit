@@ -1,5 +1,7 @@
 # BDECO-09 Evidence Report: Scoped Property Enforcement And Inherited Remapping
 
+Created: 2026-09-07 13:45:00 PDT
+
 Parent task: `docs/tasks/20260907-121236-access-router-deco-boundary-review.md` (Task BDECO-09, investigation).
 Status of BDECO-09: investigation complete. BDECO-09-F01: in_progress (2026-09-27 continuation).
 

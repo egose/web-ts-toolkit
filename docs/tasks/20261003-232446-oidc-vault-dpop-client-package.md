@@ -463,7 +463,7 @@ Suggested agent: release-preparer
 
 Completion evidence:
 
-- Changed: none in repo (dist staging + tarball git-ignored only); release-notes fragment at `/tmp/oidc-vault-dpop-client-release-notes.md`, NOT in CHANGELOG.md per instruction.
+- Changed: none in repo (dist staging + tarball git-ignored only); release-notes fragment at `<repo-root>/_tmp/oidc-vault-dpop-client-release-notes.md`, NOT in CHANGELOG.md per instruction.
 - Verified: serial `... build` clean (35.58KB/34.13KB/11.61KB); `eslint` scoped + full `pnpm lint` exit 0; `build-artifact --version 0.0.0-test` + `verify-artifact` pass (tarball includes new package); `publish-packages --version 0.43.0 --filter ... --dry-run` picks up package, placeholders → 0.43.0/Apache-2.0/git URL, 8 files.
 - Result: release-ready, additive (breaking none), wire pinned at 555766b/0.43.0.
 

@@ -1,6 +1,6 @@
 # Access Router Deco: policy preservation and application usability
 
-Created: 2026-09-26 21:56:29 local
+Created: 2026-09-20 21:56:29 local
 
 Overall status: completed — five implementation tasks and one independent review, each executed sequentially in its own fresh sub-agent session. Required package checks pass; repository-wide diagnostic failures are recorded below.
 
