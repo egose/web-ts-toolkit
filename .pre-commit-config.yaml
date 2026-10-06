@@ -28,6 +28,7 @@ repos:
           .*/pnpm-lock\.yaml$ |
           .env.example$ |
           README.md$ |
+          docs/tasks/.* |
           packages/express-request-attestation/test/fixtures/protocol-v1\.json$ |
           packages/express-request-attestation/test/fixtures/signer-bundle/.*\.mjs$
       )
