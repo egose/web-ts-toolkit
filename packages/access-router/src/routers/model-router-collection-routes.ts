@@ -41,7 +41,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   };
 
   router.get('', async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'list');
+    await context.assertAllowed(req, 'list', 'basic');
 
     const {
       skip,
@@ -86,7 +86,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   });
 
   router.post(`/${options.queryRouteSegment}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'list');
+    await context.assertAllowed(req, 'list', 'advanced');
 
     const body = (await parseBodyWithSchema(
       listBodySchema,
@@ -126,7 +126,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   });
 
   router.post('', async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'create');
+    await context.assertAllowed(req, 'create', 'basic');
 
     const { include_permissions, include_field_permissions } = parseQuery(requestSchemas.createQuery, req.query);
     const data = await parseBodyWithSchema(
@@ -159,7 +159,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   });
 
   router.post(`/${options.mutationRouteSegment}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'create');
+    await context.assertAllowed(req, 'create', 'advanced');
 
     const { include_permissions, include_field_permissions } = parseQuery(requestSchemas.createQuery, req.query);
     const intermediateBody = (await parseNestedBodyWithSchema(

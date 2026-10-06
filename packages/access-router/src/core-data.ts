@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { getDataOption } from './options';
+import { getDataOption, getExactDataOption } from './options';
 import {
   Projection,
   Filter,
@@ -9,6 +9,7 @@ import {
   DataRequest,
   SelectAccess,
   RouteGuardAccess,
+  RouteVariant,
   BaseFilterAccess,
   DecorateAccess,
   DecorateAllAccess,
@@ -35,6 +36,7 @@ import {
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { runWithRuntime } from './runtime-context';
+import { resolveRouteOperationAccess } from './operation-access';
 
 export class DataCore {
   private req: DataRequest;
@@ -194,6 +196,21 @@ export class DataCore {
   async isAllowed(dataName: string, access: RouteGuardAccess | string): Promise<boolean> {
     const operationAccess = getDataOption(dataName, `operationAccess.${access}`) as Validation;
     return this.canActivate(operationAccess);
+  }
+
+  /** Authorize route entry using explicit server-owned basic/advanced metadata. */
+  async isAllowedRoute(
+    dataName: string,
+    baseAccess: RouteGuardAccess | string,
+    variant: RouteVariant,
+  ): Promise<boolean> {
+    return resolveRouteOperationAccess({
+      baseAccess,
+      variant,
+      getExactOption: (key) => getExactDataOption(dataName, key),
+      isAllowedBase: (access) => this.isAllowed(dataName, access),
+      canActivate: (guard) => this.canActivate(guard),
+    });
   }
 
   getService<TData = unknown>(dataName: string) {

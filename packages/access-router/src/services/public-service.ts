@@ -30,7 +30,10 @@ import {
 } from '../interfaces';
 import { Codes } from '../enums';
 
-export class PublicService<TModel = unknown> extends Service<TModel> {
+export class PublicService<TModel = unknown, TVirtuals extends object = Record<never, never>> extends Service<
+  TModel,
+  TVirtuals
+> {
   async _list<
     TSelect extends Projection | undefined = undefined,
     TPopulate extends Populate[] | string | undefined = undefined,
@@ -38,7 +41,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     filter: Filter<TModel>,
     args?: Omit<PublicListArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicListOptions,
-  ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
+  ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
     const { select, populate, include, sort, skip, limit, page, pageSize, tasks } = this.resolvePublicListArgs(args);
     const { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess, lean } =
       this.resolvePublicListOptions(options);
@@ -65,7 +68,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     });
     const transformedDocs = docs.map((row) =>
       this.runTasks(row as Record<string, unknown>, tasks),
-    ) as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>[];
+    ) as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>[];
 
     return { ...result, data: transformedDocs };
   }
@@ -77,14 +80,18 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     data: unknown,
     args?: Omit<PublicCreateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicCreateOptions,
-  ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
+  ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
     const { select, populate, tasks } = this.resolvePublicCreateArgs(args);
     const { skim, includePermissions, includeFieldPermissions, populateAccess } =
       this.resolvePublicCreateOptions(options);
 
+    // VIRT-04 D6: effective mutation selection carried into internal
+    // finalization before evaluation (explicit `select` or all). Public
+    // presentation pick after decorate/tasks is preserved below.
+    const effectiveSelect = select as Projection | undefined;
     const result = await this.create(
       data as Record<string, unknown> | Record<string, unknown>[],
-      { populate },
+      { populate, overrides: { effectiveSelect } },
       { skim, includePermissions, includeFieldPermissions, populateAccess },
       async (doc, context: ModelHookContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
@@ -100,14 +107,14 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       return result as ErrorResult;
     }
 
-    return result as ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
+    return result as ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>>;
   }
 
   async _new(
     args?: { select?: string[] },
     options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean },
-  ): Promise<SingleResult<PublicOutput<TModel>>> {
-    return this.new(args, options) as Promise<SingleResult<PublicOutput<TModel>>>;
+  ): Promise<SingleResult<PublicOutput<TModel, TVirtuals>>> {
+    return this.new(args, options) as Promise<SingleResult<PublicOutput<TModel, TVirtuals>>>;
   }
 
   async _read<
@@ -117,7 +124,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     id: string,
     args?: Omit<PublicReadArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicReadOptions,
-  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
+  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
     const { select, populate, include, tasks } = this.resolvePublicReadArgs(args);
     const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
       this.resolvePublicReadOptions(options);
@@ -168,7 +175,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     doc = await this.decorate(doc, access, result.context);
     doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
-    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate> };
+    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals> };
   }
 
   async _readFilter<
@@ -178,7 +185,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     filter: Filter<TModel>,
     args?: Omit<PublicReadArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate; sort?: Sort },
     options?: PublicReadOptions,
-  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
+  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
     const { select, sort, populate, include, tasks } = this.resolvePublicReadFilterArgs(args);
     const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
       this.resolvePublicReadOptions(options);
@@ -230,7 +237,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     doc = await this.decorate(doc, access, result.context);
     doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
-    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate> };
+    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals> };
   }
 
   async _update<
@@ -241,16 +248,24 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     data: Record<string, unknown>,
     args?: Omit<PublicUpdateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicUpdateOptions,
-  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
+  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
     const { select: requestedSelect, populate, tasks } = this.resolvePublicUpdateArgs(args);
     const select = this.resolveEffectiveSelect(requestedSelect);
     const { skim, returningAll, includePermissions, includeFieldPermissions, populateAccess } =
       this.resolvePublicUpdateOptions(options);
 
+    // VIRT-04 D6: effective selection before evaluation — explicit `select`,
+    // else `returningAll: false` implicit `Object.keys(data)+_id`, else all.
+    // Internal transport via `overrides.effectiveSelect`; presentation pick
+    // after decorate/tasks preserved below.
+    let effectiveSelect: Projection | undefined;
+    if (select) effectiveSelect = select;
+    else if (!returningAll) effectiveSelect = [...Object.keys(data), '_id'];
+    else effectiveSelect = undefined;
     const result = await this.updateById(
       id,
       data,
-      { populate },
+      { populate, overrides: { effectiveSelect } },
       { skim, includePermissions, includeFieldPermissions, populateAccess },
       async (doc, context: ModelHookContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
@@ -268,13 +283,21 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       return result as ErrorResult;
     }
 
-    return result as SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
+    return result as SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>>;
   }
 
   /**
    * With an _id, check update-policy existence then update: terminal denial returns
    * Forbidden, an allowed miss remains Unauthorized, and neither creates a row.
    * Without an _id, use the create path.
+   *
+   * VIRT-04 D1/D6: both branches keep `operation: 'upsert'` while accesses
+   * follow the taken branch (update/read/update vs create/read/create).
+   * Effective selection is carried via internal `overrides.effectiveSelect`
+   * before evaluation; presentation picks after decorate/tasks are preserved.
+   * Internal `updateById`/`create` are called directly (not via `_update`/
+   * `_create`) so the initiating operation is not overwritten with the
+   * branch name.
    */
   async _upsert<
     TSelect extends Projection | undefined = undefined,
@@ -283,7 +306,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     data: Record<string, unknown>,
     args?: Omit<PublicUpsertArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicUpsertOptions,
-  ): Promise<ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
+  ): Promise<ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
     const idKey = this.getIdentifier();
     if (idKey !== '_id') {
       return { success: false, kind: 'error', code: Codes.BadRequest, errors: ['not supported custom id field'] };
@@ -302,15 +325,55 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
         return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
       }
 
-      return this._update(upsertId, otherData, args, options);
+      const { select: requestedSelect, populate, tasks } = this.resolvePublicUpdateArgs(args as never);
+      const select = this.resolveEffectiveSelect(requestedSelect);
+      const { skim, returningAll, includePermissions, includeFieldPermissions, populateAccess } =
+        this.resolvePublicUpdateOptions(options as never);
+      let effectiveSelect: Projection | undefined;
+      if (select) effectiveSelect = select;
+      else if (!returningAll) effectiveSelect = [...Object.keys(otherData), '_id'];
+      else effectiveSelect = undefined;
+      const result = await this.updateById(
+        upsertId,
+        otherData,
+        { populate, overrides: { effectiveSelect, operation: 'upsert' } },
+        { skim, includePermissions, includeFieldPermissions, populateAccess },
+        async (doc, context: ModelHookContext): Promise<unknown> => {
+          let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
+          d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
+          d = this.runTasks(d, tasks);
+          if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
+          else if (!returningAll) d = pick(d, [...Object.keys(otherData), '_id']);
+          return d;
+        },
+      );
+      return result as
+        | ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>>
+        | ErrorResult;
     }
 
-    return this._create(otherData, args, {
+    const { select, populate, tasks } = this.resolvePublicCreateArgs(args as never);
+    const { skim, includePermissions, includeFieldPermissions, populateAccess } = this.resolvePublicCreateOptions({
       skim: options?.skim,
       includePermissions: options?.includePermissions,
       includeFieldPermissions: options?.includeFieldPermissions,
       populateAccess: options?.populateAccess,
     });
+    const createResult = await this.create(
+      otherData as Record<string, unknown>,
+      { populate, overrides: { effectiveSelect: select as Projection | undefined, operation: 'upsert' } },
+      { skim, includePermissions, includeFieldPermissions, populateAccess },
+      async (doc, context: ModelHookContext): Promise<unknown> => {
+        let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
+        d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
+        d = this.runTasks(d, tasks);
+        if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
+        return d;
+      },
+    );
+    return createResult as unknown as
+      | ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>>
+      | ErrorResult;
   }
 
   async _delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {

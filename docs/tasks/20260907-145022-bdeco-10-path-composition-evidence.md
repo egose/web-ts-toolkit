@@ -1,5 +1,7 @@
 # BDECO-10 Evidence Report: Module Mount Paths Versus OpenAPI Paths
 
+Created: 2026-09-07 14:50:22 PDT
+
 Parent task: `docs/tasks/20260907-121236-access-router-deco-boundary-review.md` (Task BDECO-10, investigation).
 Status of BDECO-10: investigation complete. BDECO-10-F01: in_progress (2026-09-27 continuation).
 

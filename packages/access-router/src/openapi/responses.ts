@@ -29,6 +29,16 @@ const problemJson = {
 const genericDataSchema = { type: 'object', additionalProperties: true };
 const genericListSchema = { type: 'array', items: genericDataSchema };
 
+/**
+ * VIRT-08 (VIRT-00A D8): virtual response fields use the existing
+ * open-object/unknown-value capability (`additionalProperties: true`).
+ * Optional computed virtuals (e.g. `fullAddress`) need no fuller schema
+ * contract in v1 and are never inferred by running getters during spec
+ * generation. Route registration/spec builds succeed with virtuals
+ * configured; selection semantics (`select` including/excluding virtuals)
+ * are validated at request time under the preserved arbitrary-string
+ * grammar and finalized per VIRT-02–VIRT-07.
+ */
 export const openApiResponses = {
   single(description = 'Success'): OpenApiResponses {
     return {

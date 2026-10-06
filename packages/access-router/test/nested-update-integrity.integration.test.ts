@@ -235,7 +235,7 @@ describe('nested update persistence integrity (ABB-02)', () => {
             expect(context.originalData).toMatchObject({ nested: { secret: 'attack' } }); // pragma: allowlist secret
             expect(context.originalDocumentSnapshot).toMatchObject({ nested: original, single: original });
             expect(context.currentDocument!.get('nested.secret')).toBe('protected');
-            expect(context.operation).toBe('update');
+            expect(context.operation).toBe(entry === 'upsert' ? 'upsert' : 'update');
             expect(context.resolvedQuery!.filter).toBeTruthy();
             return true;
           },
@@ -296,6 +296,7 @@ describe('nested update persistence integrity (ABB-02)', () => {
       expect(stored.nested).toEqual({ public: 'transform-only' });
       expect(stored.single).toEqual({ public: 'transform-only' });
       expect(stored.audit).toBe('server-only');
+      expect(finalContext!.operation).toBe(entry === 'upsert' ? 'upsert' : 'update');
       expect(finalContext!.originalDocumentSnapshot).toMatchObject({ nested: original, single: original });
       expect(finalContext!.finalDocumentSnapshot).toMatchObject({
         nested: { public: 'transform-only' },

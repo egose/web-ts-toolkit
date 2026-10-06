@@ -368,6 +368,74 @@ describe('AR-14 published export contract', () => {
       }
     });
 
+    it.each(['d.ts', 'd.mts'])('OAV-06 exposes route/field shapes and useful editor hover in %s', (extension) => {
+      const ts = require('typescript') as typeof import('typescript');
+      const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));
+      const program = ts.createProgram(entries, {
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        noEmit: true,
+        skipLibCheck: true,
+        types: [],
+      });
+      const checker = program.getTypeChecker();
+      const exportedType = (entry: string, name: string) => {
+        const source = program.getSourceFile(entry)!;
+        const module = checker.getSymbolAtLocation(source)!;
+        let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === name)!;
+        expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
+        if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+        return { symbol, type: checker.getDeclaredTypeOfSymbol(symbol) };
+      };
+      const hover = (symbol: import('typescript').Symbol) =>
+        ts.displayPartsToString(symbol.getDocumentationComment(checker));
+      const properties = [
+        ['basicList', 'GET /'],
+        ['advancedList', 'POST /__query'],
+        ['basicRead', 'GET /:id'],
+        ['advancedRead', 'POST /__query/:id'],
+        ['basicCreate', 'POST /'],
+        ['advancedCreate', 'POST /__mutation'],
+        ['basicUpdate', 'PATCH /:id'],
+        ['advancedUpdate', 'PATCH /__mutation/:id'],
+        ['basicUpsert', 'PUT /'],
+        ['advancedUpsert', 'PUT /__mutation'],
+        ['basicCount', 'GET /count'],
+        ['advancedCount', 'POST /count'],
+        ['basicDistinct', 'GET /distinct/:field'],
+        ['advancedDistinct', 'POST /distinct/:field'],
+      ];
+      for (const entry of entries) {
+        const route = exportedType(entry, 'OperationAccess');
+        expect(hover(route.symbol)).toContain('HTTP 401');
+        expect(hover(route.symbol)).toContain('only undefined inherits');
+        expect(hover(route.type.getProperty('list')!)).toContain('read-to-list retries');
+        expect(hover(route.type.getProperty('read')!)).toContain('both POST read routes');
+        for (const [key, endpoint] of properties) {
+          const property = route.type.getProperty(key)!;
+          expect(property, `${key} is discoverable`).toBeDefined();
+          expect(hover(property)).toContain(endpoint);
+          expect(hover(property)).toContain('undefined inherits');
+        }
+        const field = exportedType(entry, 'FieldOperationAccess');
+        expect(field.type.getProperty('read')).toBeDefined();
+        for (const [key] of properties) expect(field.type.getProperty(key)).toBeUndefined();
+        expect(hover(exportedType(entry, 'PermissionSchema').symbol)).toContain('not field-rule objects');
+        const sub = exportedType(entry, 'SubOperationAccess');
+        expect(hover(sub.symbol)).toContain('closed object');
+        expect(hover(sub.type.getProperty('advancedRead')!)).toContain('/:subId/__query');
+        expect(hover(route.type.getProperty('subs')!)).toContain('not an umbrella guard for absent fields');
+      }
+      for (const routerName of ['ModelRouter', 'DataRouter']) {
+        const router = exportedType(entries[0], routerName);
+        expect(hover(router.type.getProperty('options')!)).toContain('construction-time snapshot');
+        expect(hover(router.type.getProperty('operationAccess')!)).toContain("operationAccess('basicRead', false)");
+        expect(hover(router.type.getProperty('setOptions')!)).toContain('replaces that entire rule object');
+        expect(hover(router.type.getProperty('setOption')!)).toContain('undefined');
+      }
+    });
+
     it('compiles a TypeScript snippet against published declarations without error', async () => {
       const ts = require('typescript') as typeof import('typescript');
       const rootJs = path.resolve(packageRoot, 'dist/index.js');

@@ -20,7 +20,16 @@ type ArrayValue<T> = T extends readonly (infer U)[] ? U : T;
 type ComparableValue = string | number | bigint | Date;
 
 type WithDefaultId<T> = T extends object ? T & { _id?: unknown } : { _id?: unknown };
-export type PublicOutput<T> = T extends object ? T & Record<string, unknown> : Record<string, unknown>;
+/**
+ * Public output with optional computed virtual shape (VIRT-01, VIRT-00A D3).
+ * Virtual names are NEVER added to persisted `Filter`, sort/distinct inputs,
+ * or client write types — only selected output shape gains optional virtuals.
+ */
+export type WithVirtuals<TModel, TVirtuals extends object = Record<never, never>> = TModel & Partial<TVirtuals>;
+export type PublicOutput<T, TVirtuals extends object = Record<never, never>> =
+  WithVirtuals<T, TVirtuals> extends object
+    ? WithVirtuals<T, TVirtuals> & Record<string, unknown>
+    : Record<string, unknown>;
 export type ModelDocument<TModel = unknown> = mongoose.Document & TModel;
 
 type TrimLeft<S extends string> = S extends ` ${infer Rest}` ? TrimLeft<Rest> : S;
@@ -68,12 +77,17 @@ type DeepPickSingle<T, TPath extends string> = TPath extends `${infer Head}.${in
     ? Pick<WithDefaultId<T>, TPath>
     : {};
 type DeepPick<T, TPaths extends string> = Simplify<UnionToIntersection<DeepPickSingle<T, TPaths>>>;
-export type SelectedPublicOutput<T, TProjection> =
+/**
+ * Literal-select output with optional virtuals (VIRT-01, VIRT-00A D3).
+ * Virtual outputs stay optional (`Partial`) because authorization, absent
+ * dependencies, `undefined`, and fail-closed errors can omit them.
+ */
+export type SelectedPublicOutput<T, TProjection, TVirtuals extends object = Record<never, never>> =
   string extends PositiveProjectionPaths<TProjection>
-    ? PublicOutput<T>
+    ? PublicOutput<T, TVirtuals>
     : [PositiveProjectionPaths<TProjection>] extends [never]
-      ? PublicOutput<T>
-      : DeepPick<T, Extract<PositiveProjectionPaths<TProjection>, string>>;
+      ? PublicOutput<T, TVirtuals>
+      : DeepPick<WithVirtuals<T, TVirtuals>, Extract<PositiveProjectionPaths<TProjection>, string>>;
 type PopulateInput = Populate | string;
 type PopulateInputs<TPopulate> = TPopulate extends readonly (infer U)[] ? U : TPopulate;
 type PopulatePath<TPopulateEntry> = TPopulateEntry extends string
@@ -108,9 +122,12 @@ type PopulateOutput<T, TPopulate> =
     : [PopulatePath<PopulateInputs<TPopulate>>] extends [never]
       ? {}
       : Simplify<UnionToIntersection<PopulateOutputShape<T, Extract<PopulateInputs<TPopulate>, PopulateInput>>>>;
-export type SelectedPopulatedPublicOutput<T, TProjection, TPopulate> = Simplify<
-  SelectedPublicOutput<T, TProjection> & PopulateOutput<T, TPopulate>
->;
+export type SelectedPopulatedPublicOutput<
+  T,
+  TProjection,
+  TPopulate,
+  TVirtuals extends object = Record<never, never>,
+> = Simplify<SelectedPublicOutput<T, TProjection, TVirtuals> & PopulateOutput<T, TPopulate>>;
 
 type Unwrap<T> = NonNullable<Descend<T>>;
 

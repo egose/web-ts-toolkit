@@ -111,8 +111,13 @@ export function resolveFindOptions<TModel>(service: Service<TModel>, options: Fi
 }
 
 export function resolveCreateArgs<TModel>(service: Service<TModel>, args: CreateArgs = {}) {
+  const fromDefaults = service.defaults.createArgs as CreateArgs | undefined;
   return {
-    populate: args.populate ?? service.defaults.createArgs?.populate,
+    populate: args.populate ?? fromDefaults?.populate,
+    overrides: {
+      ...(fromDefaults?.overrides ?? {}),
+      ...(args.overrides ?? {}),
+    },
   };
 }
 
@@ -128,9 +133,13 @@ export function resolveCreateOptions<TModel>(service: Service<TModel>, options: 
 }
 
 export function resolveUpdateOneArgs<TModel>(service: Service<TModel>, args: UpdateOneArgs<TModel> = {}) {
+  const fromDefaults = service.defaults.updateOneArgs as UpdateOneArgs<TModel> | undefined;
   return {
-    populate: args.populate ?? service.defaults.updateOneArgs?.populate,
-    overrides: args.overrides ?? {},
+    populate: args.populate ?? fromDefaults?.populate,
+    overrides: {
+      ...(fromDefaults?.overrides ?? {}),
+      ...(args.overrides ?? {}),
+    },
   };
 }
 
@@ -149,9 +158,13 @@ export function resolveUpdateOneOptions<TModel>(service: Service<TModel>, option
 }
 
 export function resolveUpdateByIdArgs<TModel>(service: Service<TModel>, args: UpdateByIdArgs<TModel> = {}) {
+  const fromDefaults = service.defaults.updateByIdArgs as UpdateByIdArgs<TModel> | undefined;
   return {
-    populate: args.populate ?? service.defaults.updateByIdArgs?.populate,
-    overrides: args.overrides ?? {},
+    populate: args.populate ?? fromDefaults?.populate,
+    overrides: {
+      ...(fromDefaults?.overrides ?? {}),
+      ...(args.overrides ?? {}),
+    },
   };
 }
 
@@ -170,9 +183,13 @@ export function resolveUpdateByIdOptions<TModel>(service: Service<TModel>, optio
 }
 
 export function resolveUpsertArgs<TModel>(service: Service<TModel>, args: UpsertArgs<TModel> = {}) {
+  const fromDefaults = service.defaults.upsertArgs as UpsertArgs<TModel> | undefined;
   return {
-    populate: args.populate ?? service.defaults.upsertArgs?.populate,
-    overrides: args.overrides ?? {},
+    populate: args.populate ?? fromDefaults?.populate,
+    overrides: {
+      ...(fromDefaults?.overrides ?? {}),
+      ...(args.overrides ?? {}),
+    },
   };
 }
 

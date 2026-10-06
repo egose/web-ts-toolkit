@@ -24,6 +24,18 @@ export const nonNegativeIntegerSchema = z.number().int().min(0).max(Number.MAX_S
 export const positiveIntegerSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 
 export const unknownRecord = z.record(z.string(), z.unknown());
+/**
+ * VIRT-08 (VIRT-00A D8): preserved arbitrary-string select grammar.
+ *
+ * `projectionSchema` / `stringOrStringArray` intentionally accept any string
+ * field name — persisted fields, ordinary dotted paths (e.g. `address.city`),
+ * and registered virtual names (e.g. `fullAddress`, `-fullAddress`) alike.
+ * There is no whitelist loosening for virtuals and no stricter signed-field
+ * grammar in v1. Model-aware virtual exclusion (persisted projections,
+ * sort/filter/distinct) is enforced downstream at the service boundary
+ * (VIRT-04), never as a schema rejection here. Virtual response values stay
+ * optional computed output; schemas never run getters.
+ */
 export const projectionObjectSchema = z.record(z.string(), z.union([z.literal(1), z.literal(-1)]));
 export const projectionSchema = z.union([z.string(), z.array(z.string()), projectionObjectSchema]);
 export const sortOrderSchema = z.union([
@@ -40,6 +52,13 @@ export const sortSchema = z.union([
   z.array(z.tuple([z.string(), sortOrderSchema])),
   z.null(),
 ]);
+export const populateAccessSchema = z.enum(['list', 'read']);
+/**
+ * VIRT-08: populate/sub-populate target `select` uses the same preserved
+ * grammar as top-level `projectionSchema`, so target virtual names
+ * (e.g. `{ path: 'friend', select: ['tFull'] }`) pass validation and reach
+ * VIRT-05 target-model finalization. No getter runs during validation.
+ */
 export const populateSchema = z.union([
   z.string(),
   z.array(
@@ -50,7 +69,7 @@ export const populateSchema = z.union([
           path: z.string().min(1),
           select: projectionSchema.optional(),
           match: z.unknown().optional(),
-          access: z.enum(['list', 'read']).optional(),
+          access: populateAccessSchema.optional(),
         })
         .passthrough(),
     ]),
@@ -60,7 +79,7 @@ export const populateSchema = z.union([
       path: z.string().min(1),
       select: projectionSchema.optional(),
       match: z.unknown().optional(),
-      access: z.enum(['list', 'read']).optional(),
+      access: populateAccessSchema.optional(),
     })
     .passthrough(),
 ]);
@@ -276,6 +295,11 @@ export const includeSchema = z.union([
   includeItemSchema,
   z.array(includeItemSchema).superRefine(rejectDuplicateCorrelatedPaths),
 ]);
+/**
+ * VIRT-08: subdocument `select` (e.g. `['nick']`, `['-nick']`) preserves the
+ * same arbitrary-string grammar, so embedded virtual leaves pass validation
+ * and reach VIRT-06 scoped finalization. No whitelist, no getter execution.
+ */
 export const fieldsSchema = z.array(z.string().min(1));
 
 export const taskSchema = z.object({

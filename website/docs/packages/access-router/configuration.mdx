@@ -24,7 +24,9 @@ acl.setGlobalOptions({
 
 ## Default Model Options
 
-These values are inherited by every model router unless overridden.
+These values supply model defaults. Assignment is shallow; nested rule objects
+are not recursively merged. See [Operation access](#operation-access) for exact
+variant/default lookup and live updates.
 
 - `listHardLimit` defaults to `1000`
 - `documentPermissionField` defaults to `_permissions`
@@ -63,16 +65,132 @@ Common model options:
 - `requestSchemas`
 - `defaults`
 
-Router-specific options are also available through the mutable property helpers:
+Live property helpers include:
 
 - `listHardLimit`
 - `documentPermissionField`
-- `idParam`
 - `idField`
 - `resolveIdFilter`
-- `parentPath`
-- `queryRouteSegment`
-- `mutationRouteSegment`
+- `operationAccess`
+
+`basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and
+`mutationRouteSegment` determine route shape and are fixed after construction.
+
+## Operation Access
+
+Use `OperationAccess` in `ModelRouterOptions.operationAccess` for all fourteen
+model keys: `basicList`/`advancedList`, `basicRead`/`advancedRead`,
+`basicCreate`/`advancedCreate`, `basicUpdate`/`advancedUpdate`,
+`basicUpsert`/`advancedUpsert`, `basicCount`/`advancedCount`, and
+`basicDistinct`/`advancedDistinct`. The [complete routing matrix](./routing#model-router-routes)
+maps endpoints to these keys. Data routers use four list/read keys; subdocument
+fields use four nested list/read keys.
+
+An exact variant **replaces** the base guard. Only undefined inherits the existing
+base exact → `operationAccess.default` → scalar `operationAccess` shorthand
+resolution. False, an empty array, and a false-returning hook are final. With no
+other fallback/default variant configured:
+
+| Rules | Basic list | Advanced list | Root list entry |
+| --- | --- | --- | --- |
+| `list: true` | allowed | allowed | allowed |
+| `list: false` | denied | denied | denied |
+| `list: true, basicList: false` | denied | allowed | allowed |
+| `list: true, advancedList: false` | allowed | denied | allowed |
+| `list: false, basicList: true` | allowed | denied | denied |
+| only `basicList: true` | allowed | denied | denied |
+| `list: true, basicList: undefined` | allowed | allowed | allowed |
+
+<!-- doc-example: partial -->
+
+```ts
+import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+const baseOnly = {
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+} satisfies ModelRouterOptions;
+const advancedReadsOnly = {
+  basePath: '/users',
+  operationAccess: { list: true, read: true, basicRead: false },
+  permissionSchema: { name: true },
+} satisfies ModelRouterOptions;
+const basicListsOnly = {
+  operationAccess: { list: true, advancedList: false },
+} satisfies ModelRouterOptions;
+const permissionBased = {
+  operationAccess: { list: true, read: true, advancedList: 'isAdmin', advancedRead: ['canRead', 'isAdmin'] },
+  permissionSchema: { name: { list: true, read: true } },
+} satisfies ModelRouterOptions;
+const shorthand = { operationAccess: 'canUseApi' } satisfies ModelRouterOptions;
+const withDefault = {
+  operationAccess: { default: 'canUseApi', list: true, basicRead: false },
+} satisfies ModelRouterOptions;
+
+acl.setDefaultModelOptions({ operationAccess: { list: true, read: true } });
+acl.setDefaultModelOption('operationAccess.advancedRead', 'isAdmin');
+const defaultRead = acl.getDefaultModelOption('operationAccess.advancedRead');
+```
+
+Among top-level model routes, `basicRead: false` denies only GET-by-id (and its HEAD fallback), leaving both
+advanced read POSTs authorized by `read: true`. List/new/count/distinct/mutation
+guards remain independent. Denial is **HTTP 401**, with endpoints still present
+in `getEndpoints()` and OpenAPI.
+
+Rule values are `Validation` (`boolean | string | string[] | GuardHook`). Strings
+AND space-separated permissions; arrays OR their entries. Hooks receive
+`AccessRouterPermissions`, bind `this` to the request, and may be async. Only the
+selected guard runs; operational errors do not become permission fallback.
+Configure permission names with `globalPermissions`. Field grants stay in
+`PermissionSchema`/`FieldOperationAccess` under base names, not variant names.
+
+### Model default specificity
+
+Model exact variant lookup consults the runtime's same exact default path if the
+model value is undefined, **before** base fallback. A default `advancedRead` can
+therefore outrank a model's `read`, `default`, or shorthand; an exact model variant
+outranks that default variant. A model object still replaces its stored
+`operationAccess` object shallowly, rather than recursively inheriting all siblings.
+
+Copied default values remain stored until updated. Later default setter calls do
+not broadcast replacement over existing model values; clearing a stored variant
+may expose the current exact runtime default. `getDefaultModelOption` reads a
+path exactly, without variant/base or `.default` resolution.
+`getDefaultModelOptions()` returns a frozen snapshot. Data routers have no model
+default inheritance.
+
+### Subdocument field rules
+
+For `subs.comments.basicList`, precedence is exact field variant → field `list`
+→ defined field scalar/closed object → top-level `basicList` **only for an absent
+field** → existing top-level `list` fallback. Read/advanced variants follow the
+same ordering.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+const options = {
+  operationAccess: {
+    list: true,
+    read: true,
+    subs: {
+      comments: { list: true, read: true, basicList: false, advancedRead: 'isAdmin' },
+      items: { read: true }, // Closed: omitted list rules deny both items list routes.
+      attachments: 'isAdmin',
+    },
+  },
+} satisfies ModelRouterOptions;
+```
+
+A defined object without the applicable operation cannot be reopened by top-level
+allows. Exact field lookups retain model-default specificity; an inherited defined
+field also stays closed. There is no nested `.default` fallback. Legacy scalar `subs` rules remain
+accepted, but do not act as an umbrella for absent fields; use explicit field rules.
+
+Route grants retain base field/row/hook, root-entry, related-target, read-miss
+fallback, upsert branch, and mutation-response policies. See [Services](./services#route-entry-and-service-policy).
 
 ## Request Complexity And Correlated Limits
 
@@ -139,6 +257,7 @@ Common data options:
 
 - `data`
 - `basePath`
+- `operationAccess` supports `list`/`read`, `default`, scalar shorthand, and `basicList`/`advancedList`/`basicRead`/`advancedRead`
 - `permissionSchema` accepts booleans, permission names, or per-operation rule objects
 - `baseFilter`
 - `overrideFilter`
@@ -166,6 +285,51 @@ The runtime exposes getter/setter pairs for each option group:
 - `acl.setDefaultModelOptions(...)`, `acl.setDefaultModelOption(...)`, `acl.getDefaultModelOptions()`, `acl.getDefaultModelOption(...)`
 
 Use router instance methods when you want to mutate one router in place.
+
+<!-- doc-example: partial -->
+
+```ts
+import mongoose from 'mongoose';
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const runtime = createAccessRuntime();
+const User = mongoose.model('ConfigurationVariantUser', new mongoose.Schema({ name: String }));
+const router = runtime.createRouter(User, {
+  basePath: '/users',
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+});
+router.operationAccess('basicRead', false); // Preserve the other keys.
+router.operationAccess('subs.comments.basicRead', false);
+router.set('operationAccess.advancedList', 'isAdmin');
+router.setOption('operationAccess.basicRead', undefined); // Restore inheritance.
+runtime.setModelOption(router.modelName, 'operationAccess.basicRead', false);
+
+router.operationAccess({ list: true, read: true, basicRead: false }); // Whole rule replacement.
+router.setOptions({ operationAccess: { list: true, advancedList: false } }); // Same shallow assignment.
+const current = runtime.getModelOptions(router.modelName);
+const exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.basicRead');
+
+const dataRouter = runtime.createDataRouter('VariantData', {
+  idParam: 'id', data: [], operationAccess: { list: true, read: true },
+});
+dataRouter.setOption('operationAccess.basicRead', false);
+dataRouter.runtime.setDataOption('VariantData', 'operationAccess.advancedRead', true);
+const currentData = dataRouter.runtime.getDataOptions('VariantData');
+```
+
+`set({ operationAccess: ... })`, `setOption('operationAccess', ...)`, and property
+helper object forms replace that entire object shallowly. Dotted paths are setter
+arguments, not flat dotted properties in constructor options. A path update under
+scalar shorthand starts an object; use `default` to retain the broad base fallback.
+Use typed `set`/`setOption` with undefined to clear; property-helper key updates
+are for defined values.
+
+`router.options` is a frozen construction-time snapshot. Getter results are frozen
+snapshots too; fetch again for current stored values. Generic
+`getModelOption`/`getDataOption` use nested-option fallback, not route-specific
+variant-to-base resolution. Exact getters expose the variant path (with exact model
+default fallback); request guards resolve live runtime options.
 
 ## Related Pages
 

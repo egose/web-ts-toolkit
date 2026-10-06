@@ -18,6 +18,23 @@ export interface RequestComplexityOptions {
    * Not a process-wide connection limit or protection against competing edits.
    */
   maxBulkConcurrency?: number;
+  /**
+   * Defaults to 10. Per-request/per-runtime ceiling on concurrently awaited
+   * virtual-getter + row-finalization orchestration work (VIRT-00A D7), NOT a
+   * per-row multiplier and NOT leaf persistence admission. Top-level lists
+   * finalize rows through ONE bounded map with a shared hook gate held only
+   * for getter bodies (stable index-keyed order regardless of completion
+   * order), so peak active getter work stays at or below this limit — never
+   * `rows × getters`. Nested include/populate/embedded work uses bounded
+   * child maps with a finite bound derived from the same limit; recursion
+   * depth is additionally bounded by `maxCorrelatedDepth` and the correlated
+   * budgets. Recursive orchestration never holds leaf persistence permits
+   * (`RequestConcurrencyScheduler.work`, which admits only leaf
+   * adapter/document persistence ops) while awaiting descendants or hooks,
+   * so limit-1 configurations complete. Trusted direct DB/network I/O issued
+   * by virtual getters themselves runs outside the leaf persistence ceiling
+   * (no dataloader/batching in v1). Not a process-wide connection limit.
+   */
   maxHookConcurrency?: number;
   /** Cumulative correlated target executions per request/runtime (default 100); permit release does not refund this budget. */
   maxCorrelatedQueries?: number;

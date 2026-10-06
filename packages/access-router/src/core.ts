@@ -16,6 +16,7 @@ import {
   pick,
   reduce,
   set,
+  uniq,
 } from '@web-ts-toolkit/utils';
 import { getGlobalOption, getModelOption, getExactModelOption } from './options';
 import { getModelRef } from './meta';
@@ -29,6 +30,7 @@ import {
   ModelRequest,
   SelectAccess,
   RouteGuardAccess,
+  RouteVariant,
   DocPermissionsAccess,
   BaseFilterAccess,
   DecorateAccess,
@@ -65,6 +67,10 @@ import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
 import { callHookChain, evaluateRouteGuard } from './core-shared';
+import { resolveRouteOperationAccess } from './operation-access';
+import { planVirtualProjection } from './acl/virtual-projection';
+import { setPopulateTargetMeta, type PopulateTargetAccess } from './acl/populate-target';
+import { assertPopulateAccess } from './acl/populate-access';
 
 type InternalModelHookContext = ModelHookContext & {
   fieldPermissionAccess?: {
@@ -81,6 +87,87 @@ type InternalModelHookContext = ModelHookContext & {
  * Always call (never share one reference) so rows cannot alias each other's maps.
  */
 const emptyPermissionLeaf = () => ({ $: '_' });
+
+/** Strip `modelPermissionPrefix` for document-grant lookup (mirrors `genAllowedFields`). */
+export const stripModelPermissionPrefix = (permissionKey: string, prefix: string): string => {
+  if (!prefix) return permissionKey;
+  if (permissionKey.startsWith(prefix)) return permissionKey.substring(prefix.length);
+  return permissionKey;
+};
+
+/**
+ * VIRT-03 scoped rule evaluation (VIRT-00A D1/D5).
+ * Evaluates a single `permissionSchema` field rule for `outputAccess` against
+ * actual global + document grants (global `has` OR prefixed doc-grant truthiness
+ * for string/array rules; direct invocation for function rules with
+ * `this` = request and `(permissions, docPermissions)` args; booleans as-is).
+ * Bare `{ sub }` containers or unknown shapes deny. Never throws: function-rule
+ * throws deny fail-closed.
+ */
+export const evaluateScopedAccessRule = async ({
+  req,
+  rule,
+  globalPermissions,
+  docPermissions,
+  modelPermissionPrefix,
+}: {
+  req: unknown;
+  rule: unknown;
+  globalPermissions: { has: (key: string) => boolean } | null | undefined;
+  docPermissions: Record<string, unknown> | null | undefined;
+  modelPermissionPrefix: string;
+}): Promise<boolean> => {
+  if (rule === undefined) return false;
+  if (isBoolean(rule)) return rule === true;
+  const hasPermission = (key: string): boolean => {
+    try {
+      if (globalPermissions?.has(key)) return true;
+    } catch {
+      // fall through to doc grants
+    }
+    try {
+      const stripped = stripModelPermissionPrefix(key, modelPermissionPrefix);
+      return Boolean((docPermissions ?? {})[stripped]);
+    } catch {
+      return false;
+    }
+  };
+  const { createValidator } = await import('./helpers');
+  const { stringHandler, arrayHandler } = createValidator(hasPermission);
+  if (isString(rule)) return stringHandler(rule);
+  if (isArray(rule)) return arrayHandler(rule as string[] | string[][]);
+  if (isFunction(rule)) {
+    try {
+      return Boolean(await (rule as Function).call(req, globalPermissions, docPermissions));
+    } catch {
+      return false;
+    }
+  }
+  return false;
+};
+
+/**
+ * Extract the `outputAccess` rule for a scoped `permissionSchema` field
+ * (VIRT-03 trim + virtual auth). Mirrors planner/VIRT-02 semantics:
+ * `{ read: <rule>, ... }` uses the requested access; bare rules pass through;
+ * bare `{ sub }` containers (no grant) deny. Returns `undefined` for absent.
+ */
+export const extractScopedOutputRule = (
+  scopedSchema: Record<string, unknown> | null | undefined,
+  fieldName: string,
+  outputAccess: string,
+): unknown => {
+  if (!scopedSchema || !(fieldName in scopedSchema)) return undefined;
+  const raw = (scopedSchema as Record<string, unknown>)[fieldName];
+  if (raw !== null && typeof raw === 'object' && !Array.isArray(raw) && typeof raw !== 'function') {
+    const rec = raw as Record<string, unknown>;
+    if (outputAccess in rec) return rec[outputAccess];
+    // No rule for this access: check for a bare grant shape vs container.
+    // A bare `{ sub }` container or unrelated object is not a grant → deny.
+    return rec;
+  }
+  return raw;
+};
 
 export class Core {
   private req: ModelRequest;
@@ -203,6 +290,17 @@ export class Core {
 
     const alwaysSelectFields =
       subPaths.length > 0 ? [] : (getModelOption(modelName, `alwaysSelectFields.${access}`, []) as string[]);
+    // VIRT-02: registered virtuals stay virtual (never persisted). Strip them
+    // from every projection input (target + alwaysSelect + trusted overrides
+    // via resolveSelectForRequest) and from the persisted schema copy, without
+    // granting auth. Inapplicable names stay stripped via the full registry.
+    let virtualNames: string[];
+    try {
+      const runtime = getActiveRuntime() ?? defaultRuntime;
+      virtualNames = runtime.getVirtualNames(modelName, subPaths);
+    } catch {
+      virtualNames = [];
+    }
     return resolveSelectForRequest({
       req: this.req,
       permissionSchema,
@@ -213,6 +311,7 @@ export class Core {
       functionArgs: [permissions],
       mode: 'model',
       alwaysSelectFields,
+      virtualNames,
     });
   }
 
@@ -222,13 +321,21 @@ export class Core {
     _populate: Populate | Populate[] | string | null = null,
     subPaths: string[] = [],
   ) {
+    assertPopulateAccess(access);
     if (!_populate) return [];
 
     let populate = Array.isArray(_populate) ? _populate : [_populate];
+    // Preflight every descriptor before concurrent admission, including a reserved
+    // option hidden by a valid override. No route key may select target data policy.
+    for (const p of populate) {
+      if (!isString(p)) assertPopulateAccess(p.access);
+    }
     populate = compact(
       await Promise.all(
         populate.map(async (p: Populate | string) => {
           const populateAccess = !isString(p) && p.access ? p.access : access;
+          assertPopulateAccess(populateAccess);
+          const originalSelect: unknown = isString(p) ? undefined : (p as Populate).select;
           const ret: Populate = isString(p)
             ? { path: p }
             : {
@@ -274,6 +381,94 @@ export class Core {
           if (filter === false) return null;
 
           ret.match = filter;
+          // VIRT-05: retain per-entry target plans (original selection,
+          // captured descriptors, dependency fetch, effective accesses).
+          // Mongoose descriptors stay enumerable `{ path, select, match }`;
+          // internal metadata is non-enumerable under a Symbol (separate by
+          // construction, invisible to Mongoose/JSON). Dotted paths through
+          // embedded arrays (e.g. `contacts.friend`) are supported as single
+          // entries; no recursive populate API is invented. Parent-path /
+          // target-operation / terminal-filter denial and
+          // `requireRegisteredPopulateModels` above are preserved unchanged;
+          // global-only virtual denial is NOT reinterpreted here — deferred
+          // candidates stay in the plan for post-fetch evaluation.
+          try {
+            // Target finalization must retain the same trusted data policy used
+            // for admission/selection, including non-reserved custom accesses.
+            const planAccess: PopulateTargetAccess = populateAccess;
+            const targetSnapshot = {
+              permissionSchema:
+                (getModelOption(refModelName, 'permissionSchema', null) as Record<string, unknown> | null) ?? null,
+              virtuals: (getModelOption(refModelName, 'virtuals', null) as Record<string, unknown> | null) ?? null,
+              alwaysSelectFields:
+                (getModelOption(refModelName, 'alwaysSelectFields', null) as
+                  | string[]
+                  | Record<string, string[]>
+                  | null) ?? null,
+              modelPermissionPrefix: (getModelOption(refModelName, 'modelPermissionPrefix', '') as string) ?? '',
+              requireExplicitSelect: (getModelOption(refModelName, 'requireExplicitSelect', false) as boolean) ?? false,
+              documentPermissionField:
+                (getModelOption(refModelName, 'documentPermissionField', '_permissions') as string) ?? '_permissions',
+              exposedDocPermissionKeys: getModelOption(refModelName, 'exposedDocPermissionKeys', undefined) as
+                | string[]
+                | undefined,
+              stripPermissionsField: (getModelOption(refModelName, 'stripPermissionsField', false) as boolean) ?? false,
+              disableFieldPermissions:
+                (getModelOption(refModelName, 'disableFieldPermissions', false) as boolean) ?? false,
+            };
+            const perms = this.getPermissions() as unknown as {
+              has: (k: string) => boolean;
+              hasKey: (k: string) => boolean;
+            };
+            const globalForPlan =
+              perms && typeof perms.has === 'function' && typeof perms.hasKey === 'function'
+                ? perms
+                : { has: () => false, hasKey: () => false };
+            const targetPlan = planVirtualProjection({
+              receivingModelName: refModelName,
+              snapshot: {
+                permissionSchema: targetSnapshot.permissionSchema,
+                virtuals: targetSnapshot.virtuals,
+                alwaysSelectFields: targetSnapshot.alwaysSelectFields,
+                modelPermissionPrefix: targetSnapshot.modelPermissionPrefix,
+                requireExplicitSelect: targetSnapshot.requireExplicitSelect,
+                documentPermissionField: targetSnapshot.documentPermissionField,
+              },
+              virtualAccess: planAccess,
+              outputAccess: planAccess,
+              docPermissionsAccess: planAccess,
+              requestedSelect: originalSelect as never,
+              internalFetch: { baseFields: ['_id'] },
+              globalPermissions: globalForPlan,
+            });
+            // Merge virtual dependency fetch requirements into the Mongoose
+            // query projection (fetch-only, never an output grant). Only
+            // `virtualOnlyDeps` (+ `_id`) are added to the authorized
+            // `genSelect` result: denied output fields stay query-restricted
+            // (no leak on paths without target finalization, e.g. legacy
+            // subdocument populate owned by VIRT-06), while virtual deps are
+            // fetched internally and stripped by the target finalizer. Strip
+            // `-_id` for DB fetches: fetch always retains `_id` for policy
+            // work; output `-_id` is honored independently by the finalizer.
+            const merged = uniq([...normalizeSelect(ret.select), ...(targetPlan.virtualOnlyDeps ?? [])]).filter(
+              (t) => t !== '-_id' && !t.includes('.sub.'),
+            );
+            if (!merged.includes('_id')) merged.push('_id');
+            ret.select = merged;
+            setPopulateTargetMeta(ret, {
+              targetModelName: refModelName,
+              virtualAccess: planAccess,
+              outputAccess: planAccess,
+              docPermissionsAccess: planAccess,
+              requestedSelect: originalSelect,
+              plan: targetPlan,
+              snapshot: targetSnapshot,
+            });
+          } catch {
+            // Planning must never break admission: on snapshot/planner
+            // failure keep the Mongoose descriptor without internal metadata.
+            // The service layer falls back to building a target plan on demand.
+          }
           return ret;
         }),
       ),
@@ -364,6 +559,36 @@ export class Core {
     }
 
     return docPermissions;
+  }
+
+  /**
+   * VIRT-03 internal grant resolution (VIRT-00A D1/D2).
+   *
+   * Returns full internal document grants for virtual authorization without
+   * consulting response-metadata switches (`includePermissions`,
+   * `includeFieldPermissions`, `skim`, `stripPermissionsField`,
+   * `exposedDocPermissionKeys`, `disableFieldPermissions`): those switches
+   * affect serialization at the caller boundary only, never authorization
+   * inputs. When `supplied` is a plain object it is reused as-is (no second
+   * hook invocation for the same output-stage access); otherwise the correct
+   * `docPermissionsAccess` hook runs once. The result populates scope-aware
+   * `context.docPermissions` (full grants, distinct from serialized metadata).
+   */
+  async resolveFinalizerDocPermissions(
+    modelName: string,
+    doc: unknown,
+    access: DocPermissionsAccess,
+    context: ModelHookContext,
+    supplied?: unknown,
+  ): Promise<Record<string, unknown>> {
+    if (supplied != null && typeof supplied === 'object' && !Array.isArray(supplied)) {
+      const grants = supplied as Record<string, unknown>;
+      (context as ModelHookContext).docPermissions = grants;
+      return grants;
+    }
+    const grants = (await this.genDocPermissions(modelName, doc, access, context)) as Record<string, unknown>;
+    (context as ModelHookContext).docPermissions = grants;
+    return grants;
   }
 
   addEmptyPermissions<T>(modelName: string, doc: T): T {
@@ -573,20 +798,36 @@ export class Core {
     return this.canActivate(operationAccess);
   }
 
-  getService<TModel = unknown>(modelName: string) {
-    return new Service<TModel>(this.req, modelName);
+  /** Authorize route entry using explicit server-owned basic/advanced metadata. */
+  async isAllowedRoute(
+    modelName: string,
+    baseAccess: RouteGuardAccess | string,
+    variant: RouteVariant,
+  ): Promise<boolean> {
+    return resolveRouteOperationAccess({
+      baseAccess,
+      variant,
+      getExactOption: (key) => getExactModelOption(modelName, key),
+      isAllowedBase: (access) => this.isAllowed(modelName, access),
+      canActivate: (guard) => this.canActivate(guard),
+      subdocuments: true,
+    });
   }
 
-  getPublicService<TModel = unknown>(modelName: string) {
-    return new PublicService<TModel>(this.req, modelName);
+  getService<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
+    return new Service<TModel, TVirtuals>(this.req, modelName);
   }
 
-  service<TModel = unknown>(modelName: string) {
-    return this.getPublicService<TModel>(modelName);
+  getPublicService<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
+    return new PublicService<TModel, TVirtuals>(this.req, modelName);
   }
 
-  svc<TModel = unknown>(modelName: string) {
-    return this.getPublicService<TModel>(modelName);
+  service<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
+    return this.getPublicService<TModel, TVirtuals>(modelName);
+  }
+
+  svc<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
+    return this.getPublicService<TModel, TVirtuals>(modelName);
   }
 
   private getGlobalPermissions() {

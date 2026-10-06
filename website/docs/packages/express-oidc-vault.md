@@ -1052,7 +1052,7 @@ Default JWT claim mapping:
 - `scope` -> `auth.scope`
 - full verified payload -> `auth.claims`
 
-The JWT helper exposes validate(token) and validateWithRequest({ token, scheme, req }). It snapshots verified **cnf before mapClaims**, discarding mapper-supplied confirmation/deviceBinding. An unbound legacy result omits confirmation; request-aware unbound is explicit null. Bound confirmation survives mapper removal and is rejected when DPoP is disabled. Supported cnf is exactly `{ jkt: '<canonical SHA-256 thumbprint>' }`; malformed/null/unsupported cnf is an invalid token, never legacy. The helper verifies JWTs; the API middleware verifies possession.
+The JWT helper exposes validate(token) and `validateWithRequest({ token, scheme, req })`. It snapshots verified **cnf before mapClaims**, discarding mapper-supplied confirmation/deviceBinding. An unbound legacy result omits confirmation; request-aware unbound is explicit null. Bound confirmation survives mapper removal and is rejected when DPoP is disabled. Supported cnf is exactly `{ jkt: '<canonical SHA-256 thumbprint>' }`; malformed/null/unsupported cnf is an invalid token, never legacy. The helper verifies JWTs; the API middleware verifies possession.
 
 ### Request-aware API policy and public URL
 

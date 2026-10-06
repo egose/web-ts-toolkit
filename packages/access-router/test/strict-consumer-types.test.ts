@@ -405,6 +405,80 @@ describe('ARF-14 strict packed-consumer types', () => {
       // @ts-expect-error guard ids must be strings or GuardModelConditionID objects
       const badCondition: GuardModelCondition = { modelName: 'User', id: 123, condition: 'canReadUser' };
 
+      type VirtUser = { name: string; address: string };
+      type VirtUserVirtuals = { fullAddress: string };
+
+      const VirtSchema = new mongoose.Schema(
+        { name: { type: String }, address: { type: String } },
+        { strict: false },
+      );
+      const VirtModel = mongoose.model<VirtUser>('ARH10VirtUser', VirtSchema);
+      runtime.registerModelInstance('ARH10VirtUser', VirtModel);
+
+      const virtRouter = acl.createRouter<VirtUser, VirtUserVirtuals>(VirtModel, {
+        permissionSchema: {
+          name: { read: true },
+          address: { read: 'canViewAddress' },
+          fullAddress: { read: 'canViewAddress' },
+        },
+        virtuals: {
+          fullAddress: {
+            dependsOn: ['address'],
+            read: async function (doc, _permissions, _ctx) {
+              if (doc.address === undefined) return undefined;
+              return \`addr:\${doc.address}\`;
+            },
+          },
+        },
+      });
+      const virtRouterCheck: ModelRouter<VirtUser, VirtUserVirtuals> = virtRouter;
+
+      virtRouter.virtuals({
+        fullAddress: {
+          dependsOn: ['address'],
+          read: async function (doc) {
+            void doc.address;
+            return \`addr:\${doc.address}\`;
+          },
+        },
+      });
+
+      virtRouter.set('virtuals.fullAddress.read', {
+        get: async function (doc) {
+          void doc.address;
+          return \`addr:\${doc.address}\`;
+        },
+        dependsOn: ['address'],
+      });
+
+      const virtBadDepends: ModelRouterOptions<VirtUser, VirtUserVirtuals> = {
+        permissionSchema: { name: true, fullAddress: true },
+        virtuals: {
+          // @ts-expect-error 'addres' is not a persisted field of User
+          fullAddress: { dependsOn: ['addres'], read: async (doc) => String((doc as never as { addres?: string }).addres) },
+        },
+      };
+
+      virtRouter.set('virtuals.fullAddress.read', {
+        get: async function (doc) {
+          // @ts-expect-error unknown getter field must fail (dotted setter)
+          void doc.missing;
+          return undefined;
+        },
+        dependsOn: ['address'],
+      });
+
+      const virtSelected: SelectedPublicOutput<VirtUser, ['name', 'fullAddress'], VirtUserVirtuals> = {
+        name: 'Ada',
+        fullAddress: 'addr:x',
+      };
+      const virtSelectedOptional: SelectedPublicOutput<VirtUser, ['name', 'fullAddress'], VirtUserVirtuals> = {
+        name: 'Ada',
+      };
+
+      // @ts-expect-error virtual fields must never widen persisted filters
+      const virtBadFilter: Filter<VirtUser> = { fullAddress: 'x' };
+
       void [
         runtime,
         handler,
@@ -439,6 +513,13 @@ describe('ARF-14 strict packed-consumer types', () => {
         badNestedFilter,
         badSelected,
         badCondition,
+        VirtModel,
+        virtRouter,
+        virtRouterCheck,
+        virtBadDepends,
+        virtSelected,
+        virtSelectedOptional,
+        virtBadFilter,
         Codes.Success,
       ];
     `;
@@ -475,6 +556,325 @@ describe('ARF-14 strict packed-consumer types', () => {
       throw new Error(`ARF-14 strict consumer compile failed:\n${result.stdout}${result.stderr}`);
     }
 
+    expect(result.status).toBe(0);
+  });
+
+  it.each(['ts', 'mts', 'cts'])('OAV-01 accepts route variants and real typed setter paths (%s)', (extension) => {
+    const sourceFile = `operation-access-consumer.${extension}`;
+    const tsconfigPath = path.resolve(consumerDir, `tsconfig.operation-access-${extension}.json`);
+    writeFileSync(
+      path.resolve(consumerDir, sourceFile),
+      `
+      import acl, {
+        createAccessRuntime,
+        setModelOption,
+        setDefaultModelOption,
+        setDefaultModelOptions,
+        type AccessRuntime,
+        type AccessRouterPermissions,
+        type AccessRouterRequest,
+        type DataRouter,
+        type DataRouterOptions,
+        type DefaultModelRouterOptions,
+        type ExtendedDataRouterOptions,
+        type ExtendedDefaultModelRouterOptions,
+        type ExtendedModelRouterOptions,
+        type FieldOperationAccess,
+        type GuardHook,
+        type ModelRouter,
+        type ModelRouterOptions,
+        type OperationAccess,
+        type PairedRouteAccess,
+        type PermissionSchema,
+        type RouteBaseAccess,
+        type RouteGuardAccess,
+        type RouteVariant,
+        type RouteVariantAccess,
+        type SubOperationAccess,
+        type SubRouteGuardOptions,
+        type Validation,
+      } from '@web-ts-toolkit/access-router';
+      import type {
+        OperationAccess as AdvancedOperationAccess,
+        FieldOperationAccess as AdvancedFieldOperationAccess,
+        PairedRouteAccess as AdvancedPairedRouteAccess,
+        RouteBaseAccess as AdvancedRouteBaseAccess,
+        RouteGuardAccess as AdvancedRouteGuardAccess,
+        RouteVariant as AdvancedRouteVariant,
+        RouteVariantAccess as AdvancedRouteVariantAccess,
+        SubOperationAccess as AdvancedSubOperationAccess,
+        SubRouteGuardOptions as AdvancedSubRouteGuardOptions,
+        ExtendedDataRouterOptions as AdvancedExtendedDataRouterOptions,
+        AdvancedListBody,
+        AdvancedReadBody,
+        AdvancedReadFilterBody,
+        AdvancedCreateBody,
+        AdvancedUpdateBody,
+        AdvancedUpsertBody,
+        PopulateAccess,
+      } from '@web-ts-toolkit/access-router/advanced';
+
+      type Row = { name: string; comments: Array<{ text: string }> };
+      type Virtuals = { displayName: string };
+
+      const guard: GuardHook = async function (permissions) {
+        const request: AccessRouterRequest = this;
+        const checkedPermissions: AccessRouterPermissions = permissions;
+        void [request, checkedPermissions];
+        return true;
+      };
+      const variants = {
+        basicList: true,
+        advancedList: 'canList',
+        basicRead: false,
+        advancedRead: ['canRead', 'isAdmin'],
+        basicCreate: guard,
+        advancedCreate: true,
+        basicUpdate: 'canUpdate isOwner',
+        advancedUpdate: guard,
+        basicUpsert: false,
+        advancedUpsert: ['canCreate', 'canUpdate'],
+        basicCount: true,
+        advancedCount: guard,
+        basicDistinct: 'canRead',
+        advancedDistinct: false,
+      } satisfies Record<RouteVariantAccess, Validation>;
+      const variantKeys = [
+        'basicList', 'advancedList', 'basicRead', 'advancedRead',
+        'basicCreate', 'advancedCreate', 'basicUpdate', 'advancedUpdate',
+        'basicUpsert', 'advancedUpsert', 'basicCount', 'advancedCount',
+        'basicDistinct', 'advancedDistinct',
+      ] as const satisfies readonly RouteVariantAccess[];
+      const dataVariantKeys = ['basicList', 'advancedList', 'basicRead', 'advancedRead'] as const;
+
+      const subRules: SubOperationAccess = {
+        list: true, read: 'canRead', create: guard, update: false, delete: ['isAdmin'],
+        basicList: false, advancedList: guard, basicRead: true, advancedRead: 'isAdmin',
+        customOperation: 'legacyPermission', omittedCustomOperation: undefined,
+      };
+      // Keep the existing broad dynamic sub-rule assignment compatible.
+      const legacySubs: Record<string, Validation | Record<string, Validation>> = {
+        comments: { list: true, customOperation: 'legacyPermission' },
+        anotherField: guard,
+      };
+      const subs: SubRouteGuardOptions = legacySubs;
+      const access: OperationAccess = {
+        default: 'canAccess',
+        new: true, list: true, read: true, create: true, update: true,
+        upsert: true, delete: false, count: true, distinct: true,
+        ...variants,
+        subs: { ...subs, comments: subRules, scalarField: guard },
+      };
+      const optionalAccess: OperationAccess = { basicRead: undefined, advancedList: undefined };
+      const emptyAccess: OperationAccess = {};
+      const umbrellaAccess: OperationAccess = { subs: 'legacyUmbrella' };
+      const modelOptions: ModelRouterOptions<Row> = {
+        basePath: '/rows', operationAccess: access, permissionSchema: { name: { read: true } },
+      };
+      const defaultOptions: DefaultModelRouterOptions = { operationAccess: { default: true, ...variants } };
+      const virtualOptions: ModelRouterOptions<Row, Virtuals> = {
+        operationAccess: access, permissionSchema: { name: true, displayName: { read: true } },
+      };
+      const api = createAccessRuntime();
+      const runtime: AccessRuntime = api.runtime;
+      const modelRouter: ModelRouter<Row> = api.createRouter<Row>('Oav01Consumer', modelOptions);
+      const virtualRouter: ModelRouter<Row, Virtuals> = api.createRouter<Row, Virtuals>('Oav01VirtualConsumer', virtualOptions);
+
+      for (const key of variantKeys) {
+        const optionPath = \`operationAccess.\${key}\` as const;
+        const routeKey: keyof OperationAccess = key;
+        const rule: Validation = variants[key];
+        modelRouter.set(optionPath, rule).setOption(optionPath, rule);
+        virtualRouter.set(optionPath, rule).setOption(optionPath, rule);
+        modelRouter.operationAccess(key, rule);
+        runtime.setModelOption('Oav01Consumer', optionPath, rule);
+        api.setModelOption('Oav01Consumer', optionPath, rule);
+        acl.setModelOption('Oav01Consumer', optionPath, rule);
+        setModelOption('Oav01Consumer', optionPath, rule);
+        runtime.setDefaultModelOption(optionPath, rule);
+        api.setDefaultModelOption(optionPath, rule);
+        acl.setDefaultModelOption(optionPath, rule);
+        setDefaultModelOption(optionPath, rule);
+        const modelDotted: ExtendedModelRouterOptions<Row, Virtuals> = {};
+        const defaultDotted: ExtendedDefaultModelRouterOptions<Row> = {};
+        modelDotted[optionPath] = rule;
+        defaultDotted[optionPath] = rule;
+        const selectedRule: Validation | undefined = runtime.getExactModelOption('Oav01Consumer', optionPath);
+        void [routeKey, modelDotted, defaultDotted, selectedRule];
+      }
+      modelRouter.set('operationAccess.default', guard).setOption('operationAccess.basicRead', undefined);
+      modelRouter.set({ operationAccess: { default: true, basicRead: false } });
+      modelRouter.setOptions({ operationAccess: access });
+      modelRouter.operationAccess(access).operationAccess('basicRead', false);
+      modelRouter.operationAccess('subs.comments.basicRead', false);
+      modelRouter.operationAccess('subs.comments.advancedList', guard);
+      modelRouter.set('operationAccess.subs', { comments: subRules });
+      modelRouter.setOption('operationAccess.subs', 'legacyUmbrella');
+      runtime.setModelOptions('Oav01Consumer', modelOptions);
+      runtime.setModelOption('Oav01Consumer', 'operationAccess', { default: true, ...variants });
+      api.setModelOptions('Oav01Consumer', modelOptions);
+      runtime.setDefaultModelOptions(defaultOptions);
+      api.setDefaultModelOptions(defaultOptions);
+      setDefaultModelOptions(defaultOptions);
+      setDefaultModelOption('operationAccess.default', true);
+      api.setDefaultModelOption('operationAccess.subs', { comments: subRules });
+
+      const shorthand: Validation[] = [true, false, 'canAccess', ['canAccess', 'isAdmin'], guard];
+      for (const operationAccess of shorthand) {
+        const modelShorthand: ModelRouterOptions<Row> = { operationAccess };
+        const dataShorthand: DataRouterOptions<Row> = { operationAccess };
+        modelRouter.operationAccess(operationAccess);
+        void [modelShorthand, dataShorthand];
+      }
+
+      // Data keeps previously accepted model/base/sub rules; only list/read routes have variants.
+      const dataOptions: DataRouterOptions<Row> = {
+        data: [], operationAccess: {
+          default: true, new: true, list: true, read: true, create: true, update: true,
+          upsert: true, delete: false, count: true, distinct: true, subs: legacySubs,
+          basicList: false, advancedList: 'canList', basicRead: guard, advancedRead: ['isAdmin'],
+        },
+      };
+      const dataRouter: DataRouter<Row> = api.createDataRouter('Oav01DataConsumer', dataOptions);
+      for (const key of dataVariantKeys) {
+        const optionPath = \`operationAccess.\${key}\` as const;
+        dataRouter.set(optionPath, guard).setOption(optionPath, false);
+        runtime.setDataOption('Oav01DataConsumer', optionPath, true);
+        dataRouter.runtime.setDataOption('Oav01DataConsumer', optionPath, 'canAccess');
+        dataRouter.operationAccess(key, guard);
+        const dotted: ExtendedDataRouterOptions<Row> = { [optionPath]: false };
+        const advancedDotted: AdvancedExtendedDataRouterOptions<Row> = dotted;
+        const selectedRule: Validation | undefined = runtime.getDataOption('Oav01DataConsumer', optionPath);
+        const exactRule: Validation | undefined = runtime.getExactDataOption('Oav01DataConsumer', optionPath);
+        void [dotted, advancedDotted, selectedRule, exactRule];
+      }
+      dataRouter.set('operationAccess.default', true).setOption('operationAccess.list', guard);
+      dataRouter.setOption('operationAccess.read', 'canRead');
+      dataRouter.setOption('operationAccess.basicRead', undefined);
+      dataRouter.set({ operationAccess: { default: true, basicRead: false } });
+      dataRouter.setOptions(dataOptions);
+      dataRouter.operationAccess({ default: true, advancedList: false }).operationAccess('basicRead', false);
+      dataRouter.operationAccess('subs.comments.basicRead', false);
+      runtime.setDataOptions('Oav01DataConsumer', dataOptions);
+      runtime.setDataOption('Oav01DataConsumer', 'operationAccess.default', guard);
+
+      const legacyFieldRule: FieldOperationAccess = {
+        new: true, list: true, read: guard, create: true, update: true,
+        upsert: true, delete: false, count: true, distinct: true, subs: legacySubs,
+      };
+      const fieldSchema: PermissionSchema<'name'> = { name: legacyFieldRule };
+      const advancedFieldRule: AdvancedFieldOperationAccess = legacyFieldRule;
+      const advancedAccess: AdvancedOperationAccess = access;
+      const advancedSubs: AdvancedSubRouteGuardOptions = subs;
+      const advancedSubRule: AdvancedSubOperationAccess = subRules;
+      const paired: PairedRouteAccess = 'upsert';
+      const advancedPaired: AdvancedPairedRouteAccess = paired;
+      const base: RouteBaseAccess = 'delete';
+      const advancedBase: AdvancedRouteBaseAccess = base;
+      const variant: RouteVariant = 'advanced';
+      const advancedVariant: AdvancedRouteVariant = variant;
+      const mappedKey: RouteVariantAccess<'read'> = 'advancedRead';
+      const advancedMappedKey: AdvancedRouteVariantAccess<'read'> = mappedKey;
+      const customGuardAccess: RouteGuardAccess = 'customAudit';
+      const advancedCustomGuardAccess: AdvancedRouteGuardAccess = customGuardAccess;
+
+      // OAV-06: advanced wire bodies use base-only PopulateAccess, not route variants.
+      const listBody: AdvancedListBody = { options: { populateAccess: 'list' } };
+      const readBody: AdvancedReadBody = { options: { populateAccess: 'read' } };
+      const readFilterBody: AdvancedReadFilterBody = { options: { populateAccess: 'list' } };
+      const createBody: AdvancedCreateBody = { data: {}, options: { populateAccess: 'read' } };
+      const updateBody: AdvancedUpdateBody = { data: {}, options: { populateAccess: 'list' } };
+      const upsertBody: AdvancedUpsertBody = { data: {}, options: { populateAccess: 'read' } };
+      const populateAccess: PopulateAccess = 'read';
+      // @ts-expect-error route-only variants cannot select populated target policy
+      const badPopulateAccess: PopulateAccess = 'advancedRead';
+      // @ts-expect-error list wire options must use list/read access
+      listBody.options = { populateAccess: 'basicList' };
+      // @ts-expect-error identifier read wire options must use list/read access
+      readBody.options = { populateAccess: 'advancedRead' };
+      // @ts-expect-error filtered read wire options must use list/read access
+      readFilterBody.options = { populateAccess: 'basicRead' };
+      // @ts-expect-error create wire options must use list/read access
+      createBody.options = { populateAccess: 'advancedCreate' };
+      // @ts-expect-error update wire options must use list/read access
+      updateBody.options = { populateAccess: 'advancedUpdate' };
+      // @ts-expect-error upsert wire options must use list/read access
+      upsertBody.options = { populateAccess: 'advancedUpsert' };
+
+      // @ts-expect-error misspelled top-level route variants are rejected
+      const badTop: OperationAccess = { basicReed: true };
+      // @ts-expect-error route variant values must be Validation
+      const badValue: OperationAccess = { basicRead: 401 };
+      // @ts-expect-error guards must return boolean or Promise<boolean>
+      const badGuard: OperationAccess = { advancedRead: () => 'allowed' };
+      // @ts-expect-error guard arrays contain permission strings, not booleans
+      const badArray: OperationAccess = { basicList: [true] };
+      // @ts-expect-error data top-level variants are also checked
+      const badData: DataRouterOptions<Row> = { operationAccess: { advancedReed: true } };
+      // @ts-expect-error transport keys do not grant model field permission
+      const badField: ModelRouterOptions<Row> = { permissionSchema: { name: { basicRead: true } } };
+      // @ts-expect-error transport keys do not grant data field permission
+      const badDataField: DataRouterOptions<Row> = { permissionSchema: { name: { advancedRead: true } } };
+      // @ts-expect-error the public field-rule type remains base-scoped
+      const badFieldRule: FieldOperationAccess = { basicRead: true };
+      // @ts-expect-error only paired base operations have variant keys
+      const badMappedKey: RouteVariantAccess = 'basicDelete';
+      // @ts-expect-error a specific base operation maps only to its own variants
+      const wrongMappedKey: RouteVariantAccess<'read'> = 'advancedList';
+      // @ts-expect-error known nested sub-rule values must remain Validation
+      const badSubRule: SubOperationAccess = { basicRead: 401 };
+
+      // @ts-expect-error router.set rejects misspelled dotted variants
+      modelRouter.set('operationAccess.basicReed', true);
+      // @ts-expect-error router.setOption rejects wrong variant values
+      modelRouter.setOption('operationAccess.basicRead', 401);
+      // @ts-expect-error owning-runtime model setters reject misspelled variants
+      runtime.setModelOption('Oav01Consumer', 'operationAccess.advancedReed', true);
+      // @ts-expect-error named model setters reject wrong variant values
+      setModelOption('Oav01Consumer', 'operationAccess.advancedRead', {});
+      // @ts-expect-error runtime facade setters reject misspelled variants
+      api.setModelOption('Oav01Consumer', 'operationAccess.basicReed', true);
+      // @ts-expect-error default setters reject misspelled variants
+      setDefaultModelOption('operationAccess.basicReed', true);
+      // @ts-expect-error default setter values must remain Validation
+      api.setDefaultModelOption('operationAccess.basicRead', 401);
+      // @ts-expect-error data router.set rejects misspelled dotted variants
+      dataRouter.set('operationAccess.advancedReed', false);
+      // @ts-expect-error data router.setOption checks variant values
+      dataRouter.setOption('operationAccess.basicRead', {});
+      // @ts-expect-error owning-runtime data setters reject misspelled variants
+      runtime.setDataOption('Oav01DataConsumer', 'operationAccess.basicReed', true);
+      // @ts-expect-error owning-runtime data setters check variant values
+      runtime.setDataOption('Oav01DataConsumer', 'operationAccess.advancedRead', 401);
+
+      void [optionalAccess, emptyAccess, umbrellaAccess, fieldSchema, advancedFieldRule,
+        advancedAccess, advancedSubs, advancedSubRule, advancedPaired, advancedBase,
+        advancedVariant, advancedMappedKey, advancedCustomGuardAccess,
+        listBody, readBody, readFilterBody, createBody, updateBody, upsertBody, populateAccess, badPopulateAccess,
+        badTop, badValue, badGuard, badArray, badData, badField, badDataField, badFieldRule,
+        badMappedKey, wrongMappedKey, badSubRule];
+      `,
+    );
+    writeFileSync(
+      tsconfigPath,
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: extension === 'ts' ? 'ESNext' : 'NodeNext',
+          moduleResolution: extension === 'ts' ? 'Bundler' : 'NodeNext',
+          strict: true,
+          noUnusedLocals: true,
+          noUnusedParameters: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: ['node'],
+          lib: ['ES2022', 'DOM'],
+        },
+        files: [sourceFile],
+      }),
+    );
+    const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', tsconfigPath], consumerDir);
+    expect(result.stdout + result.stderr).toBe('');
     expect(result.status).toBe(0);
   });
 });

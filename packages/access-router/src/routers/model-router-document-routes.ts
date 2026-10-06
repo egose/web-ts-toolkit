@@ -59,7 +59,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   };
 
   router.get('/count', async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'count');
+    await context.assertAllowed(req, 'count', 'basic');
 
     const svc = context.getPublicService(req);
     const result = await svc._count({});
@@ -76,7 +76,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.post('/count', async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'count');
+    await context.assertAllowed(req, 'count', 'advanced');
 
     const { filter }: CountBody = await parseBodyWithSchema(
       countBodySchema,
@@ -99,7 +99,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.get(`/:${options.idParam}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'read');
+    await context.assertAllowed(req, 'read', 'basic');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const { include_permissions, include_field_permissions, try_list, select } = parseQuery(
@@ -130,7 +130,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.post(`/${options.queryRouteSegment}/__filter`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'read');
+    await context.assertAllowed(req, 'read', 'advanced');
 
     const body = (await parseBodyWithSchema(
       readFilterBodySchema,
@@ -169,7 +169,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.post(`/${options.queryRouteSegment}/:${options.idParam}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'read');
+    await context.assertAllowed(req, 'read', 'advanced');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const body = (await parseBodyWithSchema(
@@ -209,7 +209,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.patch(`/:${options.idParam}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'update');
+    await context.assertAllowed(req, 'update', 'basic');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const { returning_all, include_permissions, include_field_permissions, select } = parseQuery(
@@ -248,7 +248,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.patch(`/${options.mutationRouteSegment}/:${options.idParam}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'update');
+    await context.assertAllowed(req, 'update', 'advanced');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const { returning_all, include_permissions, include_field_permissions } = parseQuery(
@@ -306,7 +306,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.put(`/`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'upsert');
+    await context.assertAllowed(req, 'upsert', 'basic');
 
     const svc = context.getPublicService(req);
     const { returning_all, include_permissions, include_field_permissions } = parseQuery(
@@ -342,7 +342,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.put(`/${options.mutationRouteSegment}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'upsert');
+    await context.assertAllowed(req, 'upsert', 'advanced');
 
     const svc = context.getPublicService(req);
     const { returning_all, include_permissions, include_field_permissions } = parseQuery(
@@ -414,7 +414,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.get('/distinct/:field', async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'distinct');
+    await context.assertAllowed(req, 'distinct', 'basic');
 
     const field = parsePathParam(req.params.field, 'field');
     const svc = context.getPublicService(req);
@@ -432,7 +432,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.post('/distinct/:field', async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'distinct');
+    await context.assertAllowed(req, 'distinct', 'advanced');
 
     const field = parsePathParam(req.params.field, 'field');
     const { filter }: DistinctBody = await parseBodyWithSchema(

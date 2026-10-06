@@ -485,6 +485,119 @@ if (output.items[0] !== 'x') throw new Error('processors subpath failed');
 `,
   );
 
+  // OAV-06: exercise variant behavior through installed ESM/CJS entrypoints and
+  // both real publication layouts, using database-free HTTP data routes.
+  writeFileSync(
+    path.resolve(consumerDir, 'operation-access-smoke.cjs'),
+    `const assert = require('node:assert/strict');
+const { once } = require('node:events');
+const express = require('express');
+
+module.exports = async function verifyOperationAccess(createAccessRuntime) {
+  const api = createAccessRuntime();
+  api.setGlobalOptions({ globalPermissions(req) { return req.headers.user === 'admin' ? ['isAdmin'] : []; } });
+  api.setDefaultModelOptions({ operationAccess: { basicRead: true, advancedList: false } });
+  const router = api.createDataRouter('PackedVariantFruit', {
+    basePath: '/fruit', idParam: 'id', idField: 'id',
+    data: [{ id: 'apple', name: 'Apple', secret: 'private' }], // pragma: allowlist secret
+    operationAccess: { list: true, read: true, basicRead: false },
+    permissionSchema: { id: true, name: { list: true, read: true }, secret: false },
+  });
+  const root = api.createRouter({ basePath: '/batch', operationAccess: true });
+  const app = express();
+  app.use(express.json());
+  app.use(router.routes);
+  app.use(root.routes);
+  app.use(api.createOpenApiRouter({ docsPath: false }));
+  const original = router.options;
+  const endpoints = router.router.getEndpoints();
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await once(server, 'listening');
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const url = 'http://127.0.0.1:' + address.port;
+    async function call(route, status, method = 'GET', body, user) {
+      const headers = { 'content-type': 'application/json' };
+      if (user) headers.user = user;
+      const response = await fetch(url + route, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+      assert.equal(response.status, status, method + ' ' + route);
+      return method === 'HEAD' ? undefined : response.json();
+    }
+    async function checkReadOutput(route, method = 'GET', body) {
+      const data = await call(route, 200, method, body);
+      assert.equal(data.name, 'Apple');
+      assert.equal(data.secret, undefined);
+    }
+    await call('/fruit/apple', 401);
+    await call('/fruit/apple', 401, 'HEAD');
+    await checkReadOutput('/fruit/__query/apple', 'POST', { select: ['name', 'secret'] });
+    await checkReadOutput('/fruit/__query/__filter', 'POST', { filter: { id: 'apple' }, select: ['name', 'secret'] });
+    const basicList = await call('/fruit', 200);
+    assert.equal(basicList.data[0].name, 'Apple');
+    await call('/fruit/__query', 200, 'POST', {}); // Does not inherit denied model-default advancedList.
+    const spec = await call('/openapi.json', 200);
+    assert.ok(spec.paths['/fruit/{id}'].get.responses['401']);
+    assert.ok(spec.paths['/fruit/__query/{id}'].post);
+    assert.ok(spec.paths['/fruit/__query/__filter'].post);
+
+    router.operationAccess('basicRead', true);
+    assert.equal(api.runtime.getExactDataOption('PackedVariantFruit', 'operationAccess.read'), true);
+    await checkReadOutput('/fruit/apple');
+    await call('/fruit/apple', 200, 'HEAD');
+    router.setOption('operationAccess.basicRead', false);
+    await call('/fruit/apple', 401);
+    router.set('operationAccess.basicRead', undefined);
+    await checkReadOutput('/fruit/apple');
+
+    router.operationAccess('advancedList', false);
+    await call('/fruit/__query', 401, 'POST', {});
+    await call('/fruit', 200);
+    router.operationAccess('advancedList', 'isAdmin');
+    await call('/fruit/__query', 401, 'POST', {});
+    await call('/fruit/__query', 200, 'POST', {}, 'admin');
+
+    // Replacement overrides the denied base for this endpoint only.
+    router.operationAccess({ list: true, read: false, advancedRead: true });
+    await call('/fruit/apple', 401);
+    await checkReadOutput('/fruit/__query/apple', 'POST', {});
+    const rootResult = await call('/batch', 200, 'POST', [{ target: 'data', name: 'PackedVariantFruit', op: 'read', id: 'apple' }]);
+    assert.equal(rootResult[0].statusCode, 401);
+    assert.equal(rootResult[0].result.code, 'unauthorized');
+    await call('/batch', 400, 'POST', [{ target: 'data', name: 'PackedVariantFruit', op: 'advancedRead', id: 'apple' }]);
+
+    router.setOptions({ operationAccess: { read: true, advancedRead: false } });
+    await call('/fruit', 401); // Replaced list, rather than recursively retaining it.
+    await checkReadOutput('/fruit/apple');
+    await call('/fruit/__query/apple', 401, 'POST', {});
+    assert.deepEqual(original.operationAccess, { list: true, read: true, basicRead: false });
+    assert.equal(Object.isFrozen(original), true);
+    assert.equal(Object.isFrozen(api.runtime.getDataOptions('PackedVariantFruit')), true);
+    assert.deepEqual(router.router.getEndpoints(), endpoints);
+    const updatedSpec = await call('/openapi.json', 200);
+    assert.ok(updatedSpec.paths['/fruit'].get);
+    assert.ok(updatedSpec.paths['/fruit/__query/{id}'].post);
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+  }
+};
+`,
+  );
+  writeFileSync(
+    path.resolve(consumerDir, 'operation-access.esm.mjs'),
+    `import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+import verifyOperationAccess from './operation-access-smoke.cjs';
+await verifyOperationAccess(createAccessRuntime);
+`,
+  );
+  writeFileSync(
+    path.resolve(consumerDir, 'operation-access.cjs.cjs'),
+    `const { createAccessRuntime } = require('@web-ts-toolkit/access-router');
+const verifyOperationAccess = require('./operation-access-smoke.cjs');
+verifyOperationAccess(createAccessRuntime).catch((err) => { console.error(err); process.exitCode = 1; });
+`,
+  );
+
   // ARH-09: strict NodeNext ESM consumer. Uses the README preferred default
   // import plus named helpers, selects the `import` declaration condition
   // (`.d.mts`), and executes actual calls. Under the pre-fix single `.d.ts`
@@ -492,8 +605,8 @@ if (output.items[0] !== 'x') throw new Error('processors subpath failed');
   // CommonJS, so `acl.createRouter` is not callable).
   writeFileSync(
     path.resolve(consumerDir, 'consumer.nodenext.mts'),
-    `import acl, { createAccessRuntime, fromZod, guard, type GuardModelCondition, type RootRouterOptions } from '@web-ts-toolkit/access-router';
-import { Codes, parseBody } from '@web-ts-toolkit/access-router/advanced';
+    `import acl, { createAccessRuntime, fromZod, guard, type GuardModelCondition, type RootRouterOptions, type OperationAccess, type FieldOperationAccess } from '@web-ts-toolkit/access-router';
+import { Codes, parseBody, type AdvancedReadBody } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate, type CopyAndDepopulateOptions, type ProcessCopy } from '@web-ts-toolkit/access-router/processors';
 
 type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
@@ -513,6 +626,20 @@ const runtime = createAccessRuntime();
 const isolatedRouter = runtime.createRouter(opts);
 if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
 
+const access: OperationAccess = { list: true, read: true, basicRead: false, advancedList: 'isAdmin' };
+const fields: FieldOperationAccess = { list: true, read: true };
+const dataRouter = runtime.createDataRouter('TypedVariantFruit', {
+  data: [{ id: 'apple', name: 'Apple' }], operationAccess: access, permissionSchema: { id: fields, name: fields },
+});
+dataRouter.operationAccess('basicRead', false).setOption('operationAccess.basicRead', undefined);
+dataRouter.set('operationAccess.advancedRead', true);
+const readBody: AdvancedReadBody = { options: { populateAccess: 'read' } };
+// @ts-expect-error route-only selectors are not PopulateAccess
+const invalidReadBody: AdvancedReadBody = { options: { populateAccess: 'advancedRead' } };
+// @ts-expect-error route variants do not grant fields
+const invalidFields: FieldOperationAccess = { basicRead: true };
+void [readBody, invalidReadBody, invalidFields];
+
 const handler = guard(condition);
 const stringHandler = guard('isAdmin');
 if (typeof handler !== 'function' || typeof stringHandler !== 'function') throw new Error('guard call failed');
@@ -523,7 +650,7 @@ if (Codes.Success == null) throw new Error('missing Codes export');
 const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [op], processorOptions) as unknown as DepopulatedItems;
 if (out.items[0] !== 'x') throw new Error('processors subpath failed');
 
-export { defaultRouter, isolatedRouter, handler, out };
+export { defaultRouter, isolatedRouter, dataRouter, handler, out };
 `,
   );
 
@@ -532,7 +659,7 @@ export { defaultRouter, isolatedRouter, handler, out };
   writeFileSync(
     path.resolve(consumerDir, 'consumer.nodenext.cts'),
     `import accessRouterModule = require('@web-ts-toolkit/access-router');
-import type { GuardModelCondition, RootRouterOptions } from '@web-ts-toolkit/access-router';
+import type { GuardModelCondition, RootRouterOptions, OperationAccess, FieldOperationAccess } from '@web-ts-toolkit/access-router';
 import advancedModule = require('@web-ts-toolkit/access-router/advanced');
 import processorsModule = require('@web-ts-toolkit/access-router/processors');
 
@@ -550,6 +677,17 @@ const runtime = accessRouterModule.createAccessRuntime();
 const isolatedRouter = runtime.createRouter(opts);
 if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
 
+const access: OperationAccess = { default: true, basicRead: false, advancedList: 'isAdmin' };
+const fields: FieldOperationAccess = { list: true, read: true };
+const dataRouter = runtime.createDataRouter('CjsTypedVariantFruit', {
+  data: [{ id: 'apple', name: 'Apple' }], operationAccess: access, permissionSchema: { id: fields, name: fields },
+});
+dataRouter.setOption('operationAccess.basicRead', undefined).operationAccess('advancedList', false);
+dataRouter.runtime.setDataOption('CjsTypedVariantFruit', 'operationAccess.advancedRead', true);
+// @ts-expect-error variants are not field grants
+const invalidFields: FieldOperationAccess = { advancedRead: true };
+void invalidFields;
+
 const handler = accessRouterModule.guard(condition);
 if (typeof handler !== 'function') throw new Error('guard call failed');
 if (typeof advancedModule.parseBody !== 'function') throw new Error('missing parseBody export');
@@ -562,13 +700,13 @@ const out = processorsModule.copyAndDepopulate(
 ) as unknown as { items: string[]; snapshot: Array<{ _id: string }> };
 if (out.items[0] !== 'x') throw new Error('processors subpath failed');
 
-export { defaultRouter, isolatedRouter, handler, out };
+export { defaultRouter, isolatedRouter, dataRouter, handler, out };
 `,
   );
 
   writeFileSync(
     path.resolve(consumerDir, 'consumer.bundler.ts'),
-    `import acl, { createAccessRuntime, type GuardModelCondition } from '@web-ts-toolkit/access-router';
+    `import acl, { createAccessRuntime, type GuardModelCondition, type OperationAccess } from '@web-ts-toolkit/access-router';
 import { MIDDLEWARE } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
 
@@ -576,13 +714,16 @@ type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
 
 const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
 const runtime = createAccessRuntime();
+const access: OperationAccess = { list: true, read: true, basicRead: false };
+const dataRouter = runtime.createDataRouter('BundlerVariantFruit', { data: [], operationAccess: access });
+dataRouter.set('operationAccess.advancedList', false).setOption('operationAccess.basicRead', undefined);
 const out = copyAndDepopulate(
   { items: [{ _id: 'x' }] },
   [{ src: 'items', dest: 'snapshot' }],
   { mutable: false },
 ) as unknown as DepopulatedItems;
 
-void [acl, runtime, condition, MIDDLEWARE, out];
+void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
 `,
   );
 
@@ -670,6 +811,8 @@ function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCh
   writeConsumerFiles(consumerDir, options);
   run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
+  run('node', ['operation-access.esm.mjs'], consumerDir);
+  run('node', ['operation-access.cjs.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.emit.json'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.mjs'], consumerDir);

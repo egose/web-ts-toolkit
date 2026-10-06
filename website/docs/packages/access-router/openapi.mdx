@@ -46,6 +46,25 @@ Generated documentation includes:
 
 Paths are emitted as OpenAPI-style paths such as `/users/{id}`.
 
+### Operation-access variants and exposure
+
+`operationAccess` denial returns **HTTP 401 Unauthorized**; it does not omit
+endpoints. Basic and advanced model/data/subdocument routes remain in OpenAPI and
+`router.router.getEndpoints()`, even with false guards. Permission setters are
+live and do not require route reconstruction. Express HEAD fallback follows the
+corresponding basic GET guard. See the [routing matrix](./routing#model-router-routes).
+
+Variant keys do not rename existing operation IDs or become root batch `op`
+values. Root entries continue to use base operation names/checks, with entry 401
+inside the HTTP 200 batch envelope. Generated error responses include 401.
+
+Built-in direct/root bodies that support `options.populateAccess` document the
+same `'list' | 'read'` enum they validate; populate descriptor access has that enum
+too. Route variant selectors are invalid data-policy access. The shared Core
+populate boundary also rejects reserved variants in nested generic options or
+descriptors before target persistence, with controlled direct 400/root entry
+400 `bad_request` (see [Services](./services#populate-access-selectors)).
+
 Request bodies that accept `include` (advanced list/read bodies and root
 batch entries) document both the legacy `localField`/`foreignField` shape
 and the correlated shape: `mode: 'correlated'` with `model`, `op`
