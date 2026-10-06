@@ -1,4 +1,11 @@
 import { z } from 'zod';
+/**
+ * VIRT-08 (VIRT-00A D8): root/batch args mirror the model-route preserved
+ * grammar (`select`/`populate`/`sub` selections accept virtual names).
+ * Virtual sort/filter/distinct entries are forwarded to the shared
+ * `PublicService` path and its VIRT-04 model-aware exclusion — root schemas
+ * never duplicate DB field policy and never run getters.
+ */
 import {
   includeSchema,
   fieldsSchema,
@@ -6,6 +13,7 @@ import {
   nonNegativeIntegerString,
   objectOrArraySchema,
   positiveIntegerSchema,
+  populateAccessSchema,
   populateSchema,
   positiveIntegerString,
   projectionSchema,
@@ -41,7 +49,7 @@ const rootModelListOptionsSchema = z
     includePermissions: z.boolean().optional(),
     includeFieldPermissions: z.boolean().optional(),
     includeCount: z.boolean().optional(),
-    populateAccess: z.unknown().optional(),
+    populateAccess: populateAccessSchema.optional(),
     lean: z.boolean().optional(),
   })
   .passthrough();
@@ -65,7 +73,7 @@ const rootModelReadOptionsSchema = z
     includePermissions: z.boolean().optional(),
     includeFieldPermissions: z.boolean().optional(),
     tryList: z.boolean().optional(),
-    populateAccess: z.unknown().optional(),
+    populateAccess: populateAccessSchema.optional(),
     lean: z.boolean().optional(),
   })
   .passthrough();
@@ -83,7 +91,7 @@ const rootModelCreateOptionsSchema = z
     skim: z.boolean().optional(),
     includePermissions: z.boolean().optional(),
     includeFieldPermissions: z.boolean().optional(),
-    populateAccess: z.unknown().optional(),
+    populateAccess: populateAccessSchema.optional(),
   })
   .passthrough();
 
@@ -101,7 +109,7 @@ const rootModelUpdateOptionsSchema = z
     returningAll: z.boolean().optional(),
     includePermissions: z.boolean().optional(),
     includeFieldPermissions: z.boolean().optional(),
-    populateAccess: z.unknown().optional(),
+    populateAccess: populateAccessSchema.optional(),
   })
   .passthrough();
 

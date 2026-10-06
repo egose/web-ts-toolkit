@@ -207,6 +207,7 @@ export default app;
         2,
       )}\n`,
     );
+    writeFileSync(path.resolve(fixtureDir, 'pnpm-workspace.yaml'), 'packages: []\n');
     run('pnpm', ['install', '--no-frozen-lockfile', '--ignore-scripts'], fixtureDir);
 
     cpSync(path.resolve(projectDir, 'dist-local/app.js'), path.resolve(fixtureDir, 'local-bundle.cjs'));

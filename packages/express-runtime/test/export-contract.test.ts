@@ -195,6 +195,8 @@ function installPackedConsumer(): string {
     )}\n`,
   );
 
+  // Keep repository-local TMPDIR consumers outside the parent pnpm workspace.
+  writeFileSync(path.resolve(consumerDir, 'pnpm-workspace.yaml'), 'packages: []\n');
   run('pnpm', ['install', '--no-frozen-lockfile', '--ignore-scripts'], consumerDir);
   return consumerDir;
 }

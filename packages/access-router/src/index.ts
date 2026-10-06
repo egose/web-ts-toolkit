@@ -190,7 +190,14 @@ export type {
 };
 export type { CombinedRouteInput } from './routers';
 export type {
+  DefaultModelRouterOptions,
+  ExtendedDataRouterOptions,
   ExtendedModelRouterOptions,
+  FieldOperationAccess,
+  OperationAccess,
+  PermissionSchema,
+  SubOperationAccess,
+  SubRouteGuardOptions,
   MaybePromise,
   GlobalPermissionValue,
   ModelBaseFilterHook,
@@ -202,16 +209,41 @@ export type {
   ModelListHook,
   ModelOverrideFilterHook,
   ModelValidateHook,
+  ModelVirtualAccess,
+  ModelVirtualRecordAccess,
+  ModelVirtualContext,
+  ModelVirtualDoc,
+  ModelVirtualGetter,
+  ModelVirtualDescriptor,
+  ModelVirtualAccessRecord,
+  ModelVirtualLeaf,
+  ModelVirtuals,
+  VirtualSubModel,
+  WithVirtuals,
 } from './interfaces';
-export type { GuardHook, Validation, RouteGuardAccess } from './interfaces/access';
+export type {
+  GuardHook,
+  Validation,
+  PairedRouteAccess,
+  RouteBaseAccess,
+  RouteGuardAccess,
+  RouteVariant,
+  RouteVariantAccess,
+} from './interfaces/access';
 export * from './permission';
 export * from './plugins';
 export { redactFilter, redactPayload, safeStringify, isLevelEnabled } from './logger-helpers';
 export type { OpLogContext } from './logger-helpers';
 
 type CreateRouter = {
-  <TModel>(model: mongoose.Model<TModel>, options: ModelRouterOptions<TModel>): ModelRouter<TModel>;
-  <TModel>(modelName: string, options: ModelRouterOptions<TModel>): ModelRouter<TModel>;
+  <TModel, TVirtuals extends object = Record<never, never>>(
+    model: mongoose.Model<TModel>,
+    options: ModelRouterOptions<TModel, TVirtuals>,
+  ): ModelRouter<TModel, TVirtuals>;
+  <TModel, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    options: ModelRouterOptions<TModel, TVirtuals>,
+  ): ModelRouter<TModel, TVirtuals>;
   (options: RootRouterOptions): RootRouter;
 };
 

@@ -45,6 +45,10 @@ import type {
   ModelListHook,
   ModelOverrideFilterHook,
   ModelValidateHook,
+  ModelVirtualAccess,
+  ModelVirtualDescriptor,
+  ModelVirtualGetter,
+  ModelVirtuals,
   ValidateRule,
 } from './router-hooks';
 import type { RequestSchemaLike } from '../validation/types';
@@ -62,7 +66,35 @@ type NestedRequestSchema = {
   data?: RequestSchema;
 };
 
-type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
+/**
+ * One field's subdocument route guards: exact variant → field base → field scalar
+ * or closed object. Only an absent field rule falls back to top-level variant/base
+ * guards. A defined object with no applicable key denies; nested `.default` is not
+ * a fallback. Dynamic legacy operation names remain supported.
+ */
+export interface SubOperationAccess {
+  /** Base list guard for this field; fallback for both subdocument list variants. */
+  list?: Validation;
+  /** Base read guard for this field; fallback for both subdocument read variants. */
+  read?: Validation;
+  create?: Validation;
+  update?: Validation;
+  delete?: Validation;
+  /** GET /:id/<field>; undefined inherits this field's `list` rule. */
+  basicList?: Validation;
+  /** POST /:id/<field>/__query; undefined inherits this field's `list` rule. */
+  advancedList?: Validation;
+  /** GET /:id/<field>/:subId (and HEAD); undefined inherits this field's `read` rule. */
+  basicRead?: Validation;
+  /** POST /:id/<field>/:subId/__query; undefined inherits this field's `read` rule. */
+  advancedRead?: Validation;
+  [access: string]: Validation | undefined;
+}
+
+/** Per-field subdocument route objects or scalar guards; field names remain dynamic. */
+export type SubRouteGuardOptions = Record<string, Validation | SubOperationAccess>;
+
+type SubFieldPermissionOptions = Record<string, Validation | Record<string, Validation>>;
 
 export interface RequestSchemas {
   create?: RequestSchema;
@@ -137,6 +169,7 @@ export interface GlobalOptions {
 
 export interface RootRouterOptions {
   basePath: string;
+  /** Guard for the batch endpoint. Entries use target base operations, never basic/advanced variant names. */
   operationAccess?: Validation;
   maxBatchEntries?: number;
   maxOrderGroups?: number;
@@ -144,7 +177,8 @@ export interface RootRouterOptions {
   maxConcurrentOperations?: number;
 }
 
-interface OperationAccess {
+/** Base-operation field grants used by PermissionSchema. Basic/advanced route keys do not grant fields. */
+export interface FieldOperationAccess {
   new?: Validation;
   list?: Validation;
   create?: Validation;
@@ -154,11 +188,78 @@ interface OperationAccess {
   delete?: Validation;
   distinct?: Validation;
   count?: Validation;
+  subs?: Validation | SubFieldPermissionOptions;
+}
+
+/**
+ * Live generated-route guards, separate from PermissionSchema field grants.
+ * An exact basic/advanced rule replaces its base guard; only undefined inherits
+ * the base operation's exact → `.default` → scalar-shorthand resolution. Selected
+ * false/empty-array/false-returning guards are terminal, not ANDed with the base.
+ * Model exact lookup includes runtime-default variants; data has no model defaults.
+ * Denial is HTTP 401; routes remain registered in getEndpoints() and OpenAPI.
+ * Field/row/hook, root-entry, related-target and mutation-response policies keep
+ * their existing base operations. Paths below use the default route segments.
+ */
+export interface OperationAccess extends Omit<FieldOperationAccess, 'subs'> {
+  /** GET /new guard; unpaired, with no basic/advanced override. */
+  new?: Validation;
+  /** Base list guard and fallback for both list routes; also governs model read-to-list retries. */
+  list?: Validation;
+  /** Base create guard and fallback for both model create routes. */
+  create?: Validation;
+  /** Base read guard and fallback for both read variants; advancedRead covers both POST read routes. */
+  read?: Validation;
+  /** Base update guard and fallback for both model update routes. */
+  update?: Validation;
+  /** Base upsert guard and fallback for both upserts; create/update route variants do not gate its branches. */
+  upsert?: Validation;
+  /** DELETE /:id guard; unpaired, with no basic/advanced override. */
+  delete?: Validation;
+  /** Base distinct guard and fallback for GET and POST /distinct/:field. */
+  distinct?: Validation;
+  /** Base count guard and fallback for GET and POST /count. */
+  count?: Validation;
+  /** Fallback for a base operation without an exact rule; explicit base/variant guards take precedence. */
+  default?: Validation;
+  /** GET / (and HEAD) override for model/data list; undefined inherits `list`. */
+  basicList?: Validation;
+  /** POST /__query override for model/data list; undefined inherits `list`. */
+  advancedList?: Validation;
+  /** GET /:id (and HEAD) override for model/data read; undefined inherits `read`. */
+  basicRead?: Validation;
+  /** POST /__query/:id and /__query/__filter override for model/data read; undefined inherits `read`. */
+  advancedRead?: Validation;
+  /** POST / model create override; undefined inherits `create`. */
+  basicCreate?: Validation;
+  /** POST /__mutation model create override; undefined inherits `create`. */
+  advancedCreate?: Validation;
+  /** PATCH /:id model update override; undefined inherits `update`. */
+  basicUpdate?: Validation;
+  /** PATCH /__mutation/:id model update override; undefined inherits `update`. */
+  advancedUpdate?: Validation;
+  /** PUT / model upsert override; undefined inherits `upsert`. */
+  basicUpsert?: Validation;
+  /** PUT /__mutation model upsert override; undefined inherits `upsert`. */
+  advancedUpsert?: Validation;
+  /** GET /count model count override; undefined inherits `count`. */
+  basicCount?: Validation;
+  /** POST /count model filtered-count override; undefined inherits `count`. */
+  advancedCount?: Validation;
+  /** GET /distinct/:field model distinct override; undefined inherits `distinct`. */
+  basicDistinct?: Validation;
+  /** POST /distinct/:field model filtered-distinct override; undefined inherits `distinct`. */
+  advancedDistinct?: Validation;
+  /**
+   * Per-field scalar or closed-object guards, with list/read variants. Legacy scalar
+   * `subs` is accepted but is not an umbrella guard for absent fields; they use top-level rules.
+   */
   subs?: Validation | SubRouteGuardOptions;
 }
 
-type PermissionRule = Validation | OperationAccess;
+type PermissionRule = Validation | FieldOperationAccess;
 
+/** Field grants by base operation. Put basic/advanced route guards in operationAccess, not field-rule objects. */
 export type PermissionSchema<TField extends string = string> = Partial<Record<TField, PermissionRule>>;
 
 interface DocPermissions {
@@ -178,6 +279,14 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
   parentPath?: string;
   queryRouteSegment?: string;
   mutationRouteSegment?: string;
+  /**
+   * Live model route guards: scalar Validation shorthand or base/variant rules.
+   * `{ list: true, read: true, basicRead: false }` denies only GET /:id (and HEAD)
+   * among top-level routes, retaining both advanced read POSTs subject to ordinary
+   * field/row policy. Subdocument reads follow their field-rule precedence.
+   * Exact runtime-default variants precede base fallback; option objects replace
+   * top-level keys shallowly, rather than recursively merging operationAccess.
+   */
   operationAccess?: Validation | OperationAccess;
   modelPermissionPrefix?: string;
   /**
@@ -237,18 +346,84 @@ export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends Def
   'operationAccess.create'?: Validation;
   'operationAccess.distinct'?: Validation;
   'operationAccess.count'?: Validation;
-  'operationAccess.subs'?: SubRouteGuardOptions;
+  'operationAccess.basicList'?: Validation;
+  'operationAccess.advancedList'?: Validation;
+  'operationAccess.basicRead'?: Validation;
+  'operationAccess.advancedRead'?: Validation;
+  'operationAccess.basicCreate'?: Validation;
+  'operationAccess.advancedCreate'?: Validation;
+  'operationAccess.basicUpdate'?: Validation;
+  'operationAccess.advancedUpdate'?: Validation;
+  'operationAccess.basicUpsert'?: Validation;
+  'operationAccess.advancedUpsert'?: Validation;
+  'operationAccess.basicCount'?: Validation;
+  'operationAccess.advancedCount'?: Validation;
+  'operationAccess.basicDistinct'?: Validation;
+  'operationAccess.advancedDistinct'?: Validation;
+  'operationAccess.subs'?: Validation | SubRouteGuardOptions;
 }
 
-export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
+export interface ModelRouterOptions<
+  TModel = unknown,
+  TVirtuals extends object = Record<never, never>,
+> extends DefaultModelRouterOptions<TModel> {
   modelName?: string;
   basePath?: string;
   /**
    * Update grants define assignment boundaries: authorized leaves preserve omitted
    * siblings; a whole-object/array grant permits replacement (no generic deep merge).
    * Send nested JSON; literal dotted client keys are not update operators.
+   * Basic/advanced keys are route guards in operationAccess, not field grants here.
    */
-  permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
+  permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel> | Extract<keyof TVirtuals, string>>;
+  /**
+   * Package-level computed fields ("virtuals", VIRT-01).
+   * Typed getter/descriptor/output generics per VIRT-00A D3: typed getters
+   * use a partial read-only persisted view for their scope, never
+   * `Record<string, unknown>` for a known model; untyped consumers keep an
+   * explicit loose fallback. Per-access records use `default` +
+   * `list`/`create`/`read`/`update` (NOT `delete`/`distinct`/`count`) and
+   * recursive embedded `sub` scopes mirroring
+   * `permissionSchema.<field>.sub`. Inapplicable registered names stay
+   * virtual (never persisted). Mutable post-construction (not a build-time
+   * key); replacement swaps the frozen snapshot so in-flight planning keeps
+   * a coherent version.
+   *
+   * Getters run after `toObject()`/lean normalization (both lean and
+   * hydrated results compute), after internal document-permissions
+   * computation, and before `decorate`/`decorateAll`/tasks and final
+   * trimming. `dependsOn` fields are fetched internally even when the caller
+   * may not receive them, then stripped unless independently selected and
+   * authorized. Virtuals are output-only: registered names (including
+   * embedded `sub` leaves) are excluded from persisted projections, client
+   * write admission, and database sort/filter/distinct handling.
+   *
+   * @example Shortest typed happy-path (persisted model lacks `fullAddress`):
+   * ```ts
+   * import acl from '@web-ts-toolkit/access-router';
+   * interface User { name: string; address: string; }
+   * interface UserVirtuals { fullAddress: string; }
+   * const router = acl.createRouter<User, UserVirtuals>('User', {
+   *   permissionSchema: {
+   *     name: { read: true },
+   *     address: { read: 'canViewAddress' },
+   *     fullAddress: { read: 'canViewAddress' },
+   *   },
+   *   virtuals: {
+   *     fullAddress: {
+   *       dependsOn: ['address'],
+   *       read: async function (doc) {
+   *         if (doc.address === undefined) return undefined;
+   *         return `addr:${doc.address}`;
+   *       },
+   *     },
+   *   },
+   * });
+   * // Selected output: { name: string; fullAddress?: string } — virtual is optional.
+   * void router;
+   * ```
+   */
+  virtuals?: ModelVirtuals<TModel, TVirtuals>;
   alwaysSelectFields?: string[];
   docPermissions?: DocPermissions | ModelDocPermissionsHook;
   /**
@@ -301,9 +476,16 @@ export interface DataRouterOptions<TData = unknown> {
   resolveIdFilter?: DataIdentifierHook<TData>;
   parentPath?: string;
   queryRouteSegment?: string;
+  /**
+   * Live data-route guards: list/read plus basicList/advancedList/basicRead/advancedRead.
+   * Only undefined variants inherit their base; false denies with HTTP 401 while
+   * routes remain registered. Data never inherits model defaults. The broader
+   * legacy operation-rule object and scalar Validation shorthand remain accepted.
+   */
   operationAccess?: Validation | OperationAccess;
   dataName?: string;
   basePath?: string;
+  /** Base-operation field grants, independent of operationAccess's basic/advanced route guards. */
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TData>>;
   baseFilter?: DataBaseFilterHook | Record<string, DataBaseFilterHook>;
   overrideFilter?: DataOverrideFilterHook | Record<string, DataOverrideFilterHook>;
@@ -312,8 +494,8 @@ export interface DataRouterOptions<TData = unknown> {
   requestSchemas?: DataRequestSchemas;
 }
 
-export interface ExtendedModelRouterOptions<TModel = unknown>
-  extends ModelRouterOptions<TModel>, ExtendedDefaultModelRouterOptions<TModel> {
+export interface ExtendedModelRouterOptions<TModel = unknown, TVirtuals extends object = Record<never, never>>
+  extends ModelRouterOptions<TModel, TVirtuals>, ExtendedDefaultModelRouterOptions<TModel> {
   'alwaysSelectFields.default'?: string[];
   'alwaysSelectFields.list'?: string[];
   'alwaysSelectFields.create'?: string[];
@@ -395,9 +577,36 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'defaults.publicReadOptions'?: PublicReadOptions;
   'defaults.publicUpdateArgs'?: PublicUpdateArgs;
   'defaults.publicUpdateOptions'?: PublicUpdateOptions;
+  /**
+   * Virtual dotted keys (VIRT-01): `virtuals`, `virtuals.<name>`,
+   * `virtuals.<name>.<access>`, `virtuals.<field>.sub...` (recursive).
+   * The template fallback preserves typed getter doc views for known
+   * models so unknown persisted getter fields fail (including dotted
+   * setters); embedded `sub` records stay structurally loose here and are
+   * fully validated at runtime against the receiving Mongoose schema +
+   * child scopes.
+   */
+  [key: `virtuals.${string}`]:
+    | ModelVirtuals<TModel, TVirtuals>[Extract<keyof TVirtuals, string>]
+    | ModelVirtualDescriptor<TModel, unknown>
+    | ModelVirtualGetter<TModel, unknown>
+    | { sub?: Record<string, unknown> }
+    | Record<
+        string,
+        | ModelVirtualDescriptor<Record<string, unknown>, unknown>
+        | ModelVirtualGetter<Record<string, unknown>, unknown>
+        | { sub?: unknown }
+      >;
 }
 
 export interface ExtendedDataRouterOptions<TData = unknown> extends DataRouterOptions<TData> {
+  'operationAccess.default'?: Validation;
+  'operationAccess.list'?: Validation;
+  'operationAccess.read'?: Validation;
+  'operationAccess.basicList'?: Validation;
+  'operationAccess.advancedList'?: Validation;
+  'operationAccess.basicRead'?: Validation;
+  'operationAccess.advancedRead'?: Validation;
   'requestSchemas.advancedList'?: RequestSchema;
   'requestSchemas.advancedReadFilter'?: RequestSchema;
   'requestSchemas.advancedRead'?: RequestSchema;

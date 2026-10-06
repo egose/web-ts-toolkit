@@ -1,4 +1,4 @@
-import type { Filter, Include, Populate, Projection, Sort, SubPopulate, Task } from '../interfaces';
+import type { Filter, Include, Populate, PopulateAccess, Projection, Sort, SubPopulate, Task } from '../interfaces';
 
 export type ValidationError = {
   detail: string;
@@ -321,7 +321,7 @@ export type AdvancedListBody = {
     includeFieldPermissions?: boolean;
     includeCount?: boolean;
     includeExtraHeaders?: boolean;
-    populateAccess?: unknown;
+    populateAccess?: PopulateAccess;
   };
 };
 
@@ -341,7 +341,7 @@ export type AdvancedReadFilterBody = {
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
     tryList?: boolean;
-    populateAccess?: unknown;
+    populateAccess?: PopulateAccess;
   };
 };
 
@@ -355,7 +355,7 @@ export type AdvancedReadBody = {
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
     tryList?: boolean;
-    populateAccess?: unknown;
+    populateAccess?: PopulateAccess;
   };
 };
 
@@ -367,7 +367,7 @@ export type AdvancedCreateBody = {
   options?: {
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
-    populateAccess?: unknown;
+    populateAccess?: PopulateAccess;
   };
 };
 
@@ -380,7 +380,7 @@ export type AdvancedUpdateBody = {
     returningAll?: boolean;
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
-    populateAccess?: unknown;
+    populateAccess?: PopulateAccess;
   };
 };
 
@@ -393,7 +393,7 @@ export type AdvancedUpsertBody = {
     returningAll?: boolean;
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
-    populateAccess?: unknown;
+    populateAccess?: PopulateAccess;
   };
 };
 

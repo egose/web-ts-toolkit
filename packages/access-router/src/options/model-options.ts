@@ -5,31 +5,48 @@ import { getActiveRuntime } from '../runtime-context';
 
 const getRuntime = () => getActiveRuntime() ?? defaultRuntime;
 
-export const setModelOptions = <TModel = unknown>(modelName: string, options: ModelRouterOptions<TModel>) => {
+export const setModelOptions = <TModel = unknown, TVirtuals extends object = Record<never, never>>(
+  modelName: string,
+  options: ModelRouterOptions<TModel, TVirtuals>,
+) => {
   getRuntime().setModelOptions(modelName, options);
 };
 
-export const setModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
+export const setModelOption = <
+  K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
+  TModel = unknown,
+  TVirtuals extends object = Record<never, never>,
+>(
   modelName: string,
   key: K,
-  value: ExtendedModelRouterOptions<TModel>[K],
+  value: ExtendedModelRouterOptions<TModel, TVirtuals>[K],
 ) => {
-  getRuntime().setModelOption(modelName, key, value);
+  getRuntime().setModelOption(modelName, key, value as never);
 };
 
-export const getModelOptions = <TModel = unknown>(modelName: string) => {
-  return getRuntime().getModelOptions<TModel>(modelName);
+export const getModelOptions = <TModel = unknown, TVirtuals extends object = Record<never, never>>(
+  modelName: string,
+) => {
+  return getRuntime().getModelOptions<TModel, TVirtuals>(modelName);
 };
 
-export const getModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
+export const getModelOption = <
+  K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
+  TModel = unknown,
+  TVirtuals extends object = Record<never, never>,
+>(
   modelName: string,
   key: K | string,
-  defaultValue?: ExtendedModelRouterOptions<TModel>[K],
+  defaultValue?: ExtendedModelRouterOptions<TModel, TVirtuals>[K],
 ) => {
   return getRuntime().getModelOption(modelName, key, defaultValue);
 };
 
-export const getExactModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
+export const getExactModelOption = <
+  K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
+  TModel = unknown,
+  TVirtuals extends object = Record<never, never>,
+>(
   modelName: string,
   key: K | string,
 ) => {

@@ -26,11 +26,146 @@ const userRouter = acl.createRouter('User', { basePath: '/users' });
 
 const fruitRouter = acl.createDataRouter('fruit', {
   basePath: '/fruit',
+  idParam: 'id',
   idField: 'id',
   data: [{ id: 'apple', name: 'Apple' }],
 });
 
 const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0.0' });
+```
+
+## Basic/advanced operation guards
+
+Use root `OperationAccess` / `ModelRouterOptions` / `DataRouterOptions` types;
+`Validation` = boolean | string | string[] | GuardHook. Root imports are canonical:
+default `acl` for the shared runtime, named `createAccessRuntime` for isolation.
+`PermissionSchema` / `FieldOperationAccess` grant fields by base operation, not variants.
+
+<!-- doc-example: partial -->
+```ts
+import acl from '@web-ts-toolkit/access-router';
+
+// Register User before constructing this model router.
+const router = acl.createRouter('User', {
+  basePath: '/users',
+  operationAccess: { list: true, read: true, basicRead: false, advancedList: 'isAdmin' },
+  permissionSchema: { name: true },
+});
+router.operationAccess('basicRead', false); // Live per-key update, not object replacement.
+router.setOption('operationAccess.basicRead', undefined); // Inherit exact model default, then read.
+router.operationAccess({ list: true, read: true, advancedList: false }); // Replace whole rule object.
+```
+
+Model pairs (paths relative to basePath, default segments):
+
+| Base | Basic key / endpoint | Advanced key / endpoint |
+| --- | --- | --- |
+| list | basicList: GET / | advancedList: POST /__query |
+| read | basicRead: GET /:id | advancedRead: POST /__query/:id and /__query/__filter |
+| create | basicCreate: POST / | advancedCreate: POST /__mutation |
+| update | basicUpdate: PATCH /:id | advancedUpdate: PATCH /__mutation/:id |
+| upsert | basicUpsert: PUT / | advancedUpsert: PUT /__mutation |
+| count | basicCount: GET /count | advancedCount: POST /count |
+| distinct | basicDistinct: GET /distinct/:field | advancedDistinct: POST /distinct/:field |
+
+Data supports only four list/read keys and both advanced read paths; set idParam: 'id'
+explicitly for the illustrated data identifier paths. Each model sub
+field supports subs.<field>.basicList / advancedList / basicRead / advancedRead for
+GET /:id/<field>, POST /:id/<field>/__query, GET /:id/<field>/:subId, and
+POST /:id/<field>/:subId/__query respectively. GET /new, DELETE /:id and subdocument
+create/delete/both PATCH routes keep new/delete/sub create/delete/update base guards.
+
+- Exact live variant replaces the base; only undefined inherits base exact →
+  operationAccess.default → scalar shorthand. False/empty-array/false-returning hooks
+  are terminal. Strings AND space-separated names; arrays OR entries; async hooks use
+  request `this` and AccessRouterPermissions. Operational errors do not fall back.
+- Model exact lookup includes the runtime-default same path before model base/default/
+  shorthand. Options assign shallowly; no recursive default merge or broadcast of new
+  defaults over stored model values. Clearing a stored variant may expose a live default
+  variant. getDefaultModelOption is exact, not alias/default resolution. Data has no
+  model defaults. Use operationAccess: true or { default: true } for broad base fallback.
+- Sub precedence: exact field variant → field base → defined scalar/closed field
+  object → top variant only for an absent field → top base. { items: { read: true } }
+  closes items list even with top list: true. No nested .default fallback. Legacy scalar
+  subs is accepted but does not guard absent fields; use explicit per-field rules.
+- Denial is HTTP 401, not route omission. getEndpoints()/OpenAPI retain denied routes.
+  HEAD follows its basic GET. { list: true, read: true, basicRead: false } denies only
+  GET-by-id/HEAD among top-level routes while both advanced reads work; sub fields use
+  their documented precedence. { list: true, advancedList: false }
+  denies only advanced list; other endpoint guards remain independent.
+- Setters mutate live policy. Dotted paths are setter arguments, not flat constructor
+  properties. operationAccess(key, definedValue) updates one key; object forms replace
+  the entire operationAccess value shallowly. Use setOption(path, undefined) to clear.
+  router.options is a frozen construction snapshot; getter results are frozen snapshots.
+  Read current runtime values again; generic getModelOption/getDataOption is not the
+  route resolver (exact getters expose variant paths, including model-default fallback).
+- Variants do not grant fields, row/filter/hook access, target access, or mutation-output
+  visibility. Model read misses/tryList still require base list; advancedList: true cannot
+  replace denied list, basicList: false cannot block base-list retry. Forbidden/BadRequest
+  never retry. Upsert branches do not require create/update route variants. Root entries
+  retain base op names/checks (entry 401 within HTTP 200); variant op names are invalid.
+  Trusted service calls retain existing checks, with no req.method variant inference.
+- Wire populateAccess/descriptor access is only list/read (PopulateAccess from /advanced).
+  Shared Core populate rejects all fourteen reserved variants in effective options and
+  descriptors, including generic legacy include/subquery options, before target work.
+  Other trusted non-reserved custom strings keep runtime compatibility. BadRequest maps
+  to direct 400/root entry 400 bad_request; legacy read/list target BadRequest propagates
+  instead of silent omission. See README "Basic and advanced operation access" for the
+  full fallback examples, closed-field caveat, setters, and runnable data-router split.
+
+Virtuals (computed fields): package-level async request-aware derived output
+fields, reachable from the root and the existing `./advanced` barrel (no new
+subpaths). One public `select` covers persisted + virtual fields; `dependsOn`
+names are top-level persisted fields relative to the definition scope.
+Selected virtual outputs are optional (`Partial`): authorization, absent
+dependencies, `undefined`, and fail-closed throws can omit them. Virtuals
+compute for lean and hydrated results after internal document permissions and
+before `decorate`/`decorateAll`/tasks; internal-only dependencies are stripped
+before those hooks. Every document-bearing output is covered (direct
+list/read/create/update/upsert/new, populate/include targets incl. nested,
+embedded `sub` scopes, subdocument routes) with target-model trimming on both
+populate and include. Virtuals are output-only: never in persisted
+projections, write admission, or DB sort/filter/distinct. `new()` ignores
+`args.select`; select grammar is unchanged (arbitrary strings accepted).
+Performance: prefer finalized populate/include data over per-row DB calls
+(measured 24 rows: per-row `findById` = 25 driver reads vs populated getter =
+2 reads, same peak bound); `maxHookConcurrency` (default 10) bounds
+concurrently awaited getter + row-finalization orchestration per
+request/runtime only, not query counts. Parent getters see only finalized
+related/embedded outputs, never stripped private fields. See README "Virtuals
+(computed fields)" and "Virtuals compatibility notes" (populate trimming now
+applies incl. no-virtual targets — intended change, not silent compat).
+
+<!-- doc-example: partial -->
+```ts
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
+import type { SelectedPublicOutput } from '@web-ts-toolkit/access-router/advanced';
+
+interface VirtUser {
+  name: string;
+  address: string;
+}
+interface VirtUserVirtuals {
+  fullAddress: string;
+}
+
+// Persisted VirtUser has no fullAddress; the virtual computes it.
+const virtualOptions: ModelRouterOptions<VirtUser, VirtUserVirtuals> = {
+  permissionSchema: {
+    name: { read: true },
+    address: { read: 'canViewAddress' },
+    fullAddress: { read: 'canViewAddress' },
+  },
+  virtuals: {
+    fullAddress: {
+      dependsOn: ['address'],
+      read: async (doc) => (doc.address === undefined ? undefined : `addr:${doc.address}`),
+    },
+  },
+};
+type VirtualSelected = SelectedPublicOutput<VirtUser, ['name', 'fullAddress'], VirtUserVirtuals>;
+const virtualPresent: VirtualSelected = { name: 'Ada', fullAddress: 'addr:a1' };
+const virtualOmitted: VirtualSelected = { name: 'Ada' };
 ```
 
 Validation adapters:
@@ -177,5 +312,5 @@ Business boundary contracts (see the corresponding README sections):
 
 ## Pointers
 
-- README: installation, quickstart, exports, runtime isolation, include safety/counts, nested updates/trusted hooks, hidden subdocument responses, persistence limits and compatibility notes
+- README: installation, quickstart, exports, operation-access matrix/fallback/live updates, runnable data split, runtime isolation, virtuals (computed fields) + access matrix + N+1/bounded-concurrency guidance + compatibility notes, include safety/counts, nested updates/trusted hooks, hidden subdocument responses, persistence limits and compatibility notes
 - website/docs/packages/access-router/: full documentation (routing, configuration, hooks, validation, openapi)

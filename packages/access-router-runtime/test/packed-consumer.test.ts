@@ -314,7 +314,11 @@ function assertIsolatedTransitiveResolution(consumerDir: string): void {
   const runtimeLinkTarget = realpathSync(
     path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router-runtime'),
   );
-  expect(runtimeLinkTarget.startsWith(realpathSync(workspaceRoot))).toBe(false);
+  // Repository-local TMPDIR is valid; resolution must stay inside this
+  // consumer's own install rather than the workspace packages or shared store.
+  const consumerPrefix = path.resolve(consumerDir) + path.sep;
+  const realConsumerPrefix = realpathSync(consumerDir) + path.sep;
+  expect(runtimeLinkTarget.startsWith(realConsumerPrefix)).toBe(true);
 
   // Resolution evidence must come from a plain-node consumer subprocess: the
   // vitest module runner resolves workspace bare specifiers itself, so
@@ -339,8 +343,8 @@ function assertIsolatedTransitiveResolution(consumerDir: string): void {
       consumerDir,
       env,
     ).trim();
-    expect(resolvedEntry.startsWith(workspaceRoot)).toBe(false);
-    expect(realpathSync(resolvedEntry).startsWith(realpathSync(workspaceRoot))).toBe(false);
+    expect(resolvedEntry.startsWith(consumerPrefix)).toBe(true);
+    expect(realpathSync(resolvedEntry).startsWith(realConsumerPrefix)).toBe(true);
     let probeDir = path.dirname(resolvedEntry);
     let installed: PackageJson | undefined;
     let installedDir = '';
@@ -357,7 +361,7 @@ function assertIsolatedTransitiveResolution(consumerDir: string): void {
       probeDir = path.dirname(probeDir);
     }
     expect(installed?.version).toBe(testVersion);
-    expect(realpathSync(installedDir).startsWith(realpathSync(workspaceRoot))).toBe(false);
+    expect(realpathSync(installedDir).startsWith(realConsumerPrefix)).toBe(true);
   }
 }
 

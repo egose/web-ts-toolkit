@@ -1,4 +1,5 @@
 import type { Filter } from './interfaces';
+import type { ModelRouterOptions } from './interfaces';
 import type { PublicService } from './services';
 import type { DataService } from './services';
 
@@ -166,3 +167,113 @@ if (dataSelectedListResult.success) {
   // @ts-expect-error role should be excluded by data-service select typing
   dataSelectedListResult.data[0].role;
 }
+
+// ---------------------------------------------------------------------------
+// VIRT-01 virtual definition types + router option plumbing (VIRT-00A D3).
+// Persisted User has NO fullAddress field; virtual output is optional.
+// ---------------------------------------------------------------------------
+
+interface VirtUser {
+  name: string;
+  address: string;
+}
+
+interface VirtUserVirtuals {
+  fullAddress: string;
+}
+
+const validVirtualOptions: ModelRouterOptions<VirtUser, VirtUserVirtuals> = {
+  permissionSchema: {
+    name: { read: true },
+    address: { read: 'canViewAddress' },
+    fullAddress: { read: 'canViewAddress' },
+  },
+  virtuals: {
+    fullAddress: {
+      dependsOn: ['address'],
+      read: async function (doc, _permissions, _ctx) {
+        if (doc.address === undefined) return undefined;
+        return `addr:${doc.address}`;
+      },
+    },
+  },
+};
+
+void validVirtualOptions;
+
+const validVirtualDescriptorOptions: ModelRouterOptions<VirtUser, VirtUserVirtuals> = {
+  permissionSchema: {
+    name: true,
+    fullAddress: { read: true },
+  },
+  virtuals: {
+    fullAddress: {
+      get: async function (doc) {
+        if (doc.address === undefined) return undefined;
+        return `addr:${doc.address}`;
+      },
+      dependsOn: ['address'],
+    },
+  },
+};
+
+void validVirtualDescriptorOptions;
+
+const invalidVirtualDependsOn: ModelRouterOptions<VirtUser, VirtUserVirtuals> = {
+  permissionSchema: { name: true, fullAddress: true },
+  virtuals: {
+    // @ts-expect-error 'addres' is not a persisted field of User
+    fullAddress: { dependsOn: ['addres'], read: async (doc) => String((doc as never as { addres?: string }).addres) },
+  },
+};
+
+void invalidVirtualDependsOn;
+
+declare const virtService: PublicService<VirtUser, VirtUserVirtuals>;
+
+const virtRead = virtService._read('id1', { select: ['name', 'fullAddress'] as const });
+declare const virtReadResult: Awaited<typeof virtRead>;
+
+if (virtReadResult.success) {
+  const virtName: string = virtReadResult.data.name;
+  void virtName;
+  const virtAddress: string | undefined = virtReadResult.data.fullAddress;
+  void virtAddress;
+
+  // @ts-expect-error address was not selected so it must be excluded
+  virtReadResult.data.address;
+}
+
+// @ts-expect-error virtual fields must never widen persisted filters
+const badVirtualFilter: Filter<VirtUser> = { fullAddress: 'x' };
+
+void badVirtualFilter;
+
+interface VirtContact {
+  displayName: string;
+  email: string;
+}
+
+interface VirtParent {
+  name: string;
+  contacts: VirtContact[];
+}
+
+const validEmbeddedVirtualOptions: ModelRouterOptions<VirtParent, Record<never, never>> = {
+  permissionSchema: { name: true },
+  virtuals: {
+    contacts: {
+      sub: {
+        nick: {
+          dependsOn: ['displayName'],
+          read: async function (doc, _permissions, _ctx) {
+            if (doc.displayName === undefined) return undefined;
+            return `nick:${doc.displayName}`;
+          },
+        },
+      },
+    },
+  },
+};
+
+void validEmbeddedVirtualOptions;

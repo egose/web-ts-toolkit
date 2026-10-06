@@ -8,12 +8,12 @@ export const setDataOptions = <TData = unknown>(dataName: string, options: DataR
   getRuntime().setDataOptions(dataName, options);
 };
 
-export const setDataOption = <K extends keyof DataRouterOptions<TData>, TData = unknown>(
+export const setDataOption = <K extends keyof ExtendedDataRouterOptions<TData>, TData = unknown>(
   dataName: string,
   key: K,
-  value: DataRouterOptions<TData>[K],
+  value: ExtendedDataRouterOptions<TData>[K],
 ) => {
-  getRuntime().setDataOption(dataName, key, value);
+  getRuntime().setDataOption<K, TData>(dataName, key, value);
 };
 
 export const getDataOptions = <TData = unknown>(dataName: string) => {
@@ -24,12 +24,12 @@ export const getDataSnapshot = <TData = unknown>(dataName: string): readonly TDa
   return getRuntime().getDataSnapshot<TData>(dataName);
 };
 
-export const getDataOption = <K extends keyof DataRouterOptions<TData>, TData = unknown>(
+export const getDataOption = <K extends keyof ExtendedDataRouterOptions<TData>, TData = unknown>(
   dataName: string,
   key: K | string,
-  defaultValue?: DataRouterOptions<TData>[K],
+  defaultValue?: ExtendedDataRouterOptions<TData>[K],
 ) => {
-  return getRuntime().getDataOption(dataName, key, defaultValue);
+  return getRuntime().getDataOption<K, TData>(dataName, key, defaultValue);
 };
 
 export const getExactDataOption = <K extends keyof ExtendedDataRouterOptions<TData>, TData = unknown>(

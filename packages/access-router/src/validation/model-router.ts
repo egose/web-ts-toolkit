@@ -1,4 +1,12 @@
 import { z } from 'zod';
+/**
+ * VIRT-08 (VIRT-00A D8): model-route query/body/subdocument/populate
+ * selections preserve the arbitrary-string grammar from `./common`
+ * (virtual names such as `fullAddress` pass through). Virtual
+ * sort/filter/distinct attempts are forwarded untouched to the VIRT-04
+ * model-aware service boundary for exclusion — route schemas never duplicate
+ * DB field policy and never run getters.
+ */
 import {
   fieldsSchema,
   includeSchema,
@@ -6,6 +14,7 @@ import {
   nonNegativeIntegerString,
   objectOrArraySchema,
   positiveIntegerSchema,
+  populateAccessSchema,
   populateSchema,
   positiveIntegerString,
   projectionSchema,
@@ -85,7 +94,7 @@ export const listBodySchema = z
         includeFieldPermissions: z.boolean().optional(),
         includeCount: z.boolean().optional(),
         includeExtraHeaders: z.boolean().optional(),
-        populateAccess: z.unknown().optional(),
+        populateAccess: populateAccessSchema.optional(),
       })
       .passthrough()
       .optional(),
@@ -114,7 +123,7 @@ export const readFilterBodySchema = z
         includePermissions: z.boolean().optional(),
         includeFieldPermissions: z.boolean().optional(),
         tryList: z.boolean().optional(),
-        populateAccess: z.unknown().optional(),
+        populateAccess: populateAccessSchema.optional(),
       })
       .passthrough()
       .optional(),
@@ -133,7 +142,7 @@ export const readByIdBodySchema = z
         includePermissions: z.boolean().optional(),
         includeFieldPermissions: z.boolean().optional(),
         tryList: z.boolean().optional(),
-        populateAccess: z.unknown().optional(),
+        populateAccess: populateAccessSchema.optional(),
       })
       .passthrough()
       .optional(),
@@ -150,7 +159,7 @@ export const advancedCreateBodySchema = z
       .object({
         includePermissions: z.boolean().optional(),
         includeFieldPermissions: z.boolean().optional(),
-        populateAccess: z.unknown().optional(),
+        populateAccess: populateAccessSchema.optional(),
       })
       .passthrough()
       .optional(),
@@ -174,7 +183,7 @@ export const advancedUpdateBodySchema = z
         returningAll: z.boolean().optional(),
         includePermissions: z.boolean().optional(),
         includeFieldPermissions: z.boolean().optional(),
-        populateAccess: z.unknown().optional(),
+        populateAccess: populateAccessSchema.optional(),
       })
       .passthrough()
       .optional(),
@@ -194,7 +203,7 @@ export const advancedUpsertBodySchema = z
         returningAll: z.boolean().optional(),
         includePermissions: z.boolean().optional(),
         includeFieldPermissions: z.boolean().optional(),
-        populateAccess: z.unknown().optional(),
+        populateAccess: populateAccessSchema.optional(),
       })
       .passthrough()
       .optional(),

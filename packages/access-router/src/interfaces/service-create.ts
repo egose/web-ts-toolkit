@@ -6,7 +6,26 @@ export interface PublicCreateArgs {
   tasks?: Task | Task[];
 }
 
-export interface CreateArgs extends Omit<PublicCreateArgs, 'select' | 'tasks'> {}
+export interface CreateArgs extends Omit<PublicCreateArgs, 'select' | 'tasks'> {
+  overrides?: {
+    populate?: Populate[] | string;
+    /**
+     * VIRT-04 internal plan transport (VIRT-00A D6).
+     * Effective mutation output selection carried into internal finalization
+     * before virtual evaluation. Internal create args omit `select` publicly;
+     * this trusted transport supplies the effective selection (explicit
+     * `select` or `undefined` for all) without changing public presentation
+     * (public `_create` still picks after decorate/tasks).
+     */
+    effectiveSelect?: Projection;
+    /**
+     * VIRT-04 initiating operation (VIRT-00A D1). Upsert branches keep
+     * `operation: 'upsert'` while virtual/output/doc accesses follow the
+     * taken branch. Defaults to `'create'` when absent.
+     */
+    operation?: string;
+  };
+}
 
 export interface PublicCreateOptions {
   skim?: boolean;

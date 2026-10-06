@@ -26,7 +26,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     const sub = subs[x];
 
     context.router.get(`/:${context.options.idParam}/${sub}`, async (req: ModelRequest) => {
-      await context.assertAllowed(req, `subs.${sub}.list`);
+      await context.assertAllowed(req, `subs.${sub}.list`, 'basic');
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
       const svc = context.getPublicService(req);
@@ -45,7 +45,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     context.router.post(
       `/:${context.options.idParam}/${sub}/${context.options.queryRouteSegment}`,
       async (req: ModelRequest) => {
-        await context.assertAllowed(req, `subs.${sub}.list`);
+        await context.assertAllowed(req, `subs.${sub}.list`, 'advanced');
 
         const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
         const body = (await parseBodyWithSchema(
@@ -97,7 +97,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     });
 
     context.router.get(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
-      await context.assertAllowed(req, `subs.${sub}.read`);
+      await context.assertAllowed(req, `subs.${sub}.read`, 'basic');
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
       const subId = parsePathParam(req.params.subId, 'subId');
@@ -117,7 +117,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     context.router.post(
       `/:${context.options.idParam}/${sub}/:subId/${context.options.queryRouteSegment}`,
       async (req: ModelRequest) => {
-        await context.assertAllowed(req, `subs.${sub}.read`);
+        await context.assertAllowed(req, `subs.${sub}.read`, 'advanced');
 
         const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');

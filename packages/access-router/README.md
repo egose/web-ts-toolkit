@@ -59,6 +59,7 @@ const userRouter = acl.createRouter('User', {
 
 const fruitRouter = acl.createDataRouter('fruit', {
   basePath: '/fruit',
+  idParam: 'id',
   idField: 'id',
   operationAccess: { list: true, read: true },
   data: [{ id: 'apple', name: 'Apple', public: true }],
@@ -138,6 +139,326 @@ validator sees that transformed envelope, and the service persists only the fina
 `populate`, `tasks`, and allowed `options`. Missing body options fall back to `returning_all`/`include_permissions`
 query params; only `includePermissions`/`includeFieldPermissions`/`populateAccess` (plus `returningAll` for update/upsert) are forwarded.
 
+## Basic and advanced operation access
+
+Configure generated endpoint guards in `operationAccess`. A base rule such as `read`
+covers both variants unless an exact `basicRead` or `advancedRead` rule overrides it.
+Variants authorize **route entry**; field grants remain in `permissionSchema` under
+base names such as `read` and `list`.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+// Both list and both read variants inherit their base guards.
+const baseOnly = {
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+} satisfies ModelRouterOptions;
+
+// Among top-level routes, deny GET /users/:id only; both advanced read POSTs inherit read: true.
+const advancedReadsOnly = {
+  basePath: '/users',
+  operationAccess: { list: true, read: true, basicRead: false },
+  permissionSchema: { name: true },
+} satisfies ModelRouterOptions;
+
+// Keep GET /users, deny POST /users/__query.
+const basicListsOnly = {
+  basePath: '/users',
+  operationAccess: { list: true, read: true, advancedList: false },
+  permissionSchema: { name: true },
+} satisfies ModelRouterOptions;
+// Pass one of these objects to acl.createRouter(UserModel, options).
+```
+
+`basicRead: false` does not affect list, new, count, distinct, or mutation routes;
+their own guards still apply. Subdocument reads follow the field precedence below.
+Denied operations return **HTTP 401 Unauthorized**
+before validation/service dispatch. Every route stays registered in
+`router.router.getEndpoints()` and OpenAPI. Express HEAD fallback uses the
+corresponding GET's basic guard, so HEAD-by-id is denied with basic read.
+
+### Complete operation matrix
+
+Paths are relative to `basePath`, with model defaults `idParam: 'id'`,
+`queryRouteSegment: '__query'`, and `mutationRouteSegment: '__mutation'`.
+Changing those route-shape options changes paths, not guard names. For data routers,
+set `idParam: 'id'` explicitly to use the illustrated identifier paths.
+
+| Base guard        | Basic endpoint → override                        | Advanced endpoint → override                                   |
+| ----------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| `list`            | `GET /` → `basicList`                            | `POST /__query` → `advancedList`                               |
+| `read`            | `GET /:id` → `basicRead`                         | `POST /__query/:id`, `POST /__query/__filter` → `advancedRead` |
+| `create`          | `POST /` → `basicCreate`                         | `POST /__mutation` → `advancedCreate`                          |
+| `update`          | `PATCH /:id` → `basicUpdate`                     | `PATCH /__mutation/:id` → `advancedUpdate`                     |
+| `upsert`          | `PUT /` → `basicUpsert`                          | `PUT /__mutation` → `advancedUpsert`                           |
+| `count`           | `GET /count` → `basicCount`                      | `POST /count` → `advancedCount`                                |
+| `distinct`        | `GET /distinct/:field` → `basicDistinct`         | `POST /distinct/:field` → `advancedDistinct`                   |
+| `subs.<sub>.list` | `GET /:id/<sub>` → `subs.<sub>.basicList`        | `POST /:id/<sub>/__query` → `subs.<sub>.advancedList`          |
+| `subs.<sub>.read` | `GET /:id/<sub>/:subId` → `subs.<sub>.basicRead` | `POST /:id/<sub>/:subId/__query` → `subs.<sub>.advancedRead`   |
+
+Model routers support all fourteen top-level keys. Data routers implement only
+list/read: `basicList`, `advancedList`, `basicRead`, and `advancedRead`, including
+both advanced read paths. Each model subdocument field supports four nested
+list/read keys. Filtered count/distinct POSTs are advanced even without `__query`.
+
+Unpaired routes retain their base guards:
+
+| Endpoint                                      | Guard               |
+| --------------------------------------------- | ------------------- |
+| `GET /new`                                    | `new`               |
+| `DELETE /:id`                                 | `delete`            |
+| `POST /:id/<sub>`                             | `subs.<sub>.create` |
+| `PATCH /:id/<sub>`, `PATCH /:id/<sub>/:subId` | `subs.<sub>.update` |
+| `DELETE /:id/<sub>/:subId`                    | `subs.<sub>.delete` |
+
+### Variant and base fallback
+
+1. Read the exact variant from the owning runtime (model lookup includes the
+   runtime's exact model-default path).
+2. Only if that value is `undefined`, use the existing base operation resolution:
+   exact base rule → `operationAccess.default` → scalar `operationAccess` shorthand.
+   If no valid guard resolves, deny.
+
+The selected variant **replaces** the base guard; the two are not combined or both
+evaluated. Explicit false, an empty array, or a guard returning false is terminal.
+Omitted and explicit undefined variants inherit. With no runtime-default variants
+or other fallback configured:
+
+| Rules                              | Basic list | Advanced list | Root list entry |
+| ---------------------------------- | ---------- | ------------- | --------------- |
+| `list: true`                       | allowed    | allowed       | allowed         |
+| `list: false`                      | denied     | denied        | denied          |
+| `list: true, basicList: false`     | denied     | allowed       | allowed         |
+| `list: true, advancedList: false`  | allowed    | denied        | allowed         |
+| `list: false, basicList: true`     | allowed    | denied        | denied          |
+| only `basicList: true`             | allowed    | denied        | denied          |
+| `list: true, basicList: undefined` | allowed    | allowed       | allowed         |
+
+All rule values use `Validation`: `boolean | string | string[] | GuardHook`.
+Space-separated permission strings AND their names; arrays OR their entries.
+Hooks receive `AccessRouterPermissions`, run with `this` bound to the request,
+and may return a promise. Thrown/rejected operational errors retain normal error
+handling rather than permission fallback.
+
+<!-- doc-example: partial -->
+
+```ts
+import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+acl.setGlobalOptions({
+  globalPermissions(req) {
+    return req.headers.user === 'admin' ? ['isAdmin', 'canReadDetails'] : [];
+  },
+});
+const permissionBased = {
+  operationAccess: {
+    list: true,
+    read: true,
+    advancedList: 'isAdmin',
+    advancedRead: ['canReadDetails', 'isAdmin'],
+    advancedUpdate: async function (permissions) {
+      return permissions.has('isAdmin') && this.headers['x-write-mode'] === 'advanced';
+    },
+  },
+  permissionSchema: { name: { list: true, read: true } },
+} satisfies ModelRouterOptions;
+```
+
+### Shorthand and model defaults
+
+`operationAccess: true` (or another scalar `Validation`) supplies the ordinary
+base fallback. In a rule object, use `default` for that fallback:
+
+<!-- doc-example: partial -->
+
+```ts
+import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+const shorthand = { operationAccess: 'canUseApi' } satisfies ModelRouterOptions;
+const withDefault = {
+  operationAccess: { default: 'canUseApi', list: true, basicRead: false },
+} satisfies ModelRouterOptions;
+
+acl.setDefaultModelOptions({ operationAccess: { list: true, read: true } });
+acl.setDefaultModelOption('operationAccess.advancedRead', 'isAdmin');
+const defaultRead = acl.getDefaultModelOption('operationAccess.advancedRead');
+const defaultsSnapshot = acl.getDefaultModelOptions();
+```
+
+Model options use shallow assignment. Supplying an `operationAccess` object
+replaces that stored object rather than recursively merging default siblings.
+Exact variant lookup separately falls back to the runtime's **same exact path**:
+a runtime-default `advancedRead` can therefore outrank a model's `read`, `default`,
+or scalar shorthand unless the model defines its own `advancedRead`.
+
+Defaults copied into a model's stored options stay there until updated. Changing
+runtime defaults does not broadcast replacements to existing model values;
+setting a stored variant to undefined can expose a live runtime-default variant
+before base fallback. `getDefaultModelOption` reads the requested path exactly;
+it does not resolve variant/base aliases or `operationAccess.default`.
+`getDefaultModelOptions()` returns a frozen snapshot. Data routers use only their
+own options and never inherit model defaults.
+
+### Subdocument field precedence
+
+For a basic list of `comments`, resolve:
+
+1. Exact `subs.comments.basicList`.
+2. Exact `subs.comments.list`.
+3. Defined `subs.comments`: evaluate a scalar guard; an object without the
+   applicable key **denies**, even if top-level list/variants allow.
+4. Only for an absent field rule, top-level exact `basicList`.
+5. Existing top-level base `list` fallback.
+
+The same ordering applies to advanced list and both read variants. No nested
+`.default` fallback is introduced. Exact field lookups retain model-default
+specificity; an inherited defined field also stays closed. The legacy scalar `subs` umbrella is still
+accepted, but **does not guard absent fields**; their fallback bypasses it and
+uses top-level rules. Use explicit per-field rules to guard a field.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+const subdocumentRules = {
+  operationAccess: {
+    list: true,
+    read: true,
+    subs: {
+      comments: { list: true, read: true, basicList: false, advancedRead: 'isAdmin' },
+      // Closed object: both items list routes are denied despite top-level list: true.
+      items: { read: true },
+      attachments: 'isAdmin',
+    },
+  },
+} satisfies ModelRouterOptions;
+```
+
+### Live updates and option snapshots
+
+Use setters to change request-time policy without reconstructing the router:
+
+<!-- doc-example: partial -->
+
+```ts
+import acl from '@web-ts-toolkit/access-router';
+
+// User must already be registered with this runtime.
+const router = acl.createRouter('User', {
+  basePath: '/users',
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+});
+
+router.operationAccess('basicRead', false); // Update one key, keep list/read rules.
+router.operationAccess('subs.comments.basicRead', false);
+router.set('operationAccess.advancedList', 'isAdmin');
+router.setOption('operationAccess.basicRead', undefined); // Restore inheritance.
+acl.setModelOption('User', 'operationAccess.basicRead', false);
+
+// All object forms replace the whole operationAccess object, not a deep merge.
+router.operationAccess({ list: true, read: true, basicRead: false });
+router.setOptions({ operationAccess: { list: true, read: true, advancedList: false } });
+
+const current = router.runtime.getModelOptions('User');
+const exactVariant = router.runtime.getExactModelOption('User', 'operationAccess.basicRead');
+```
+
+`set({ operationAccess: ... })` and `setOption('operationAccess', ...)` have the
+same shallow replacement semantics. Dotted paths are setter arguments, not flat
+properties in constructor options. Updating a nested path under a scalar shorthand
+starts an object; retain a `default` rule if you want the prior broad fallback.
+Use `set`/`setOption` with undefined to clear a variant; the two-argument property
+helper is intended for defined values.
+
+`router.options` is the frozen **construction-time** snapshot. Options getter
+results are also frozen snapshots; fetch again for current stored values. Ordinary
+`getModelOption`/`getDataOption` use generic nested-option fallback, not the
+route-specific variant-to-base resolver. Exact getters inspect the variant path
+(including exact model-default fallback). Request guards read live runtime values.
+Data router setters use the same forms; its owning runtime provides
+`setDataOption`, `getDataOptions`, and `getExactDataOption`.
+
+### Route guards and secondary policy
+
+- Field grants, row filters, validation/prepare/decorate hooks, and related target
+  checks retain base accesses. A variant grant does not grant fields or bypass
+  target authorization.
+- Model `_read`/`_readFilter` misses with `tryList: true` still require **base
+  `list`** to retry. `list: false, advancedList: true` cannot grant retry;
+  `list: true, basicList: false` cannot block it. Forbidden/BadRequest never retry.
+- Upsert keeps its create/update branch policy; authorizing `advancedUpsert` does
+  not also require `advancedCreate` or `advancedUpdate`.
+- Subdocument mutation-response visibility uses base parent/subdocument read/list
+  checks. Disabling basic reads does not hide otherwise readable output. Base
+  response denial can still yield a successful null/empty response after a write
+  (see [Subdocument writes with hidden responses](#subdocument-writes-with-hidden-responses)).
+- Root batches use existing operation names and target base entry checks, with
+  entry 401 inside the HTTP 200 batch envelope. Variants are not new root `op`
+  values. Direct service calls remain trusted application calls with their
+  existing checks; they do not infer basic/advanced access from `req.method`.
+
+**Populate selectors:** wire `options.populateAccess` and descriptor `access`
+accept only `'list' | 'read'` (`PopulateAccess` from `/advanced`). The shared Core
+populate boundary also rejects all fourteen reserved variant names in effective
+option/descriptor access, including generic options forwarded by legacy includes
+and subqueries, before target persistence. Other trusted, non-reserved custom
+access strings keep their existing runtime behavior. Invalid selectors return
+controlled BadRequest (direct HTTP 400; affected root entry 400/`bad_request`).
+Legacy read/list includes now propagate target BadRequest instead of silently
+omitting it, so nested invalid selectors cannot disappear from the result.
+
+### Runnable data-router split
+
+This database-free example exercises the same four data keys after installation:
+
+<!-- doc-example: complete-runtime -->
+
+```ts
+import { once } from 'node:events';
+import express from 'express';
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const runtime = createAccessRuntime();
+const router = runtime.createDataRouter('VariantFruit', {
+  basePath: '/fruit',
+  idParam: 'id',
+  idField: 'id',
+  data: [{ id: 'apple', name: 'Apple' }],
+  operationAccess: { list: true, read: true, basicRead: false },
+  permissionSchema: { id: true, name: true },
+});
+const app = express();
+app.use(express.json());
+app.use(router.routes);
+const server = app.listen(0, '127.0.0.1');
+try {
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
+  const url = `http://127.0.0.1:${address.port}/fruit`;
+  const basic = await fetch(`${url}/apple`);
+  const advanced = await fetch(`${url}/__query/apple`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+  });
+  if (basic.status !== 401 || advanced.status !== 200) throw new Error('Read split failed');
+  const fruit = await advanced.json();
+  if (fruit.name !== 'Apple') throw new Error('Expected the authorized fruit');
+  router.operationAccess('basicRead', true);
+  if ((await fetch(`${url}/apple`)).status !== 200) throw new Error('Live update failed');
+} finally {
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve()));
+  });
+}
+```
+
 ## Basic model GET queries
 
 `GET /users?select=name&sort=name%20-createdAt` projects `name` and sorts by
@@ -173,6 +494,7 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 - `permissionsPlugin` (src/plugins.ts) — Mongoose schema plugin used as `schema.plugin(permissionsPlugin, { modelName })`
 - logger helpers: `redactFilter`, `redactPayload`, `safeStringify`, `isLevelEnabled` + `OpLogContext` type
 - option helpers: `setGlobalOptions`, `setGlobalOption`, `getGlobalOptions`, `getGlobalOption`, `setModelOptions`, `setModelOption`, `getModelOptions`, `getModelOption`, `getModelNames`, `getModelJsonSchema`, `setDefaultModelOptions`, `setDefaultModelOption`, `getDefaultModelOptions`, `getDefaultModelOption`
+- route-policy types: `OperationAccess`, `SubOperationAccess`, `Validation`, `GuardHook`, `RouteVariantAccess`, `ModelRouterOptions`, `DefaultModelRouterOptions`, `DataRouterOptions`, `ExtendedModelRouterOptions`, `ExtendedDefaultModelRouterOptions`, and `ExtendedDataRouterOptions` for typed setters; `PermissionSchema` / `FieldOperationAccess` are separate base-operation field grants. These types are also available from `/advanced`.
 
 Subpath entrypoints:
 
@@ -495,6 +817,191 @@ Root batches retain their HTTP 200 envelope. **Do not retry a successful write j
 because its output is empty.** Actual write denials and validation/persistence failures
 retain their errors. Response visibility needs at most one extra parent query and
 resolves applicable row policies once per mutation, rather than once per returned row.
+
+## Virtuals (computed fields)
+
+Package-level computed output fields ("virtuals") are async, request-aware
+derived fields that behave like first-class response fields. The persisted
+model below has **no** `fullAddress` field; the virtual defines it, the
+permission schema authorizes it, `select` requests it, and the selected output
+keeps it optional (authorization, absent dependencies, `undefined`, and
+fail-closed errors can all omit it).
+
+Canonical import shape: default `acl` for the runtime API (named
+`createAccessRuntime` for an isolated runtime); virtual output types live on
+the existing `./advanced` barrel — no new subpaths.
+
+<!-- doc-example: partial -->
+
+```ts
+import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';
+import type { SelectedPublicOutput } from '@web-ts-toolkit/access-router/advanced';
+
+interface User {
+  name: string;
+  address: string;
+}
+interface UserVirtuals {
+  fullAddress: string;
+}
+
+// The persisted model lacks fullAddress; the virtual computes it.
+const options: ModelRouterOptions<User, UserVirtuals> = {
+  basePath: '/users',
+  permissionSchema: {
+    name: { read: true },
+    address: { read: 'canViewAddress' },
+    fullAddress: { read: 'canViewAddress' },
+  },
+  virtuals: {
+    fullAddress: {
+      dependsOn: ['address'],
+      read: async function (doc) {
+        if (doc.address === undefined) return undefined;
+        return `addr:${doc.address}`;
+      },
+    },
+  },
+};
+
+// Selected output keeps the virtual optional: present when authorized and
+// computed, omitted otherwise.
+type Selected = SelectedPublicOutput<User, ['name', 'fullAddress'], UserVirtuals>;
+const present: Selected = { name: 'Ada', fullAddress: 'addr:a1' };
+const omitted: Selected = { name: 'Ada' };
+// Pass options to acl.createRouter(UserModel, options); request with
+// select: ['name', 'fullAddress']. Live updates use router.virtuals({...})
+// or router.set('virtuals.fullAddress.read', { get, dependsOn }).
+void [options, present, omitted];
+```
+
+There is one public `select` for persisted and virtual fields; the package
+derives internal fetch vs output plans. `dependsOn` names are top-level
+persisted fields relative to the definition's scope (dotted paths and
+virtual-to-virtual dependencies are rejected). Dependencies are fetched
+internally even when the caller may not receive them, then stripped unless
+independently in the original authorized/requested output. Unknown persisted
+getter fields are type errors (and configuration rejections at runtime).
+Virtual names are never added to persisted `Filter`, sort/distinct inputs, or
+client write types.
+
+Lean/hydrated parity: getters always receive an isolated, stable plain-object
+view (`toObject({ virtuals: false })` for documents, recursively isolated
+copies for lean results, with `Date`/`Buffer`/`ObjectId` cloned by their own
+constructors), so package virtuals compute for both lean and hydrated results.
+Only returned field values are committed via document-aware helpers;
+`undefined` omits the field; a throw omits it fail-closed with a structural
+log (no raw values or secret-bearing text). Sibling virtual values are never
+visible regardless of completion order, and mutating getter input cannot change
+response data or lifecycle snapshots. Related documents finalize before parent
+getters run, and embedded children finalize before their parent getter.
+
+Coverage: every document-bearing public model output uses its own model's
+definitions, permissions, selection, and effective access — direct
+list/read/create/update/upsert/`new`-template outputs, Mongoose `populate`
+targets, legacy + correlated `include` targets (including nested includes),
+and embedded-subdocument outputs. Embedded scopes mirror
+`permissionSchema.<field>.sub` (for example `contacts.sub.displayName` with
+`virtuals.contacts.sub.displayName`), support nested arrays/single-nested
+objects, and reuse the owning parent's internally computed grants; dedicated
+`listSub`/`readSub`/`createSub`/`updateSub`/`bulkUpdateSub` routes finalize
+visible rows only (hidden rows never run getters; denied post-save mutation
+rows stay `[]`/`null`). Populate and include targets are trimmed with the
+target model's policy — including registered targets without virtual
+definitions. `select` keeps its arbitrary-string grammar (`?select=name,
+fullAddress`, space/repeated query forms, body arrays/objects, and
+`['-fullAddress']` exclusions all work); `select` on `populate` entries and
+embedded fields follows the same rule.
+
+Access matrix (`context.operation` always carries the initiating public
+operation; the three accesses carry effective visibility):
+
+| Output path                                                                     | `virtualAccess`                       | `outputAccess`                      | grants source                        |
+| ------------------------------------------------------------------------------- | ------------------------------------- | ----------------------------------- | ------------------------------------ |
+| list                                                                            | `list`                                | `list`                              | `list`                               |
+| read / readFilter (incl. `read` using `list` fallback: all three become `list`) | `read` (or fallback `list`)           | same                                | same                                 |
+| create / create branch of upsert                                                | `create`                              | `read`                              | `create`                             |
+| update / update branch of upsert                                                | `update`                              | `read`                              | `update`                             |
+| new template                                                                    | `create`                              | `create`                            | `create`                             |
+| populated target                                                                | target's effective `read`/`list`      | same target access                  | same target access                   |
+| included target (legacy + correlated, incl. nested)                             | include `op` (`read`/`list`)          | same target access                  | same target access                   |
+| embedded values inside a model output                                           | owning output's getter access         | owning output's field-policy access | owning document's internal grants    |
+| listSub / readSub                                                               | `list`/`read`                         | `list`/`read`                       | owning-parent internal `read` grants |
+| createSub / updateSub / bulkUpdateSub response (existing rows post-save)        | initiating `create`/`update`/`update` | `read`                              | owning-parent internal `read` grants |
+
+A create-only getter runs only on create/upsert-create responses; an
+update-only getter only on update/upsert-update responses. On other responses
+the name stays a registered virtual: omitted from output and never entering
+persisted projections, write admission, or sort/filter/distinct handling. A
+read-denied virtual (explicit deny, or document grants fail the rule) never
+runs its getter on any path and fetches nothing for it; a document-dependent
+rule defers to post-fetch evaluation with real grants.
+
+Output-only database/write restrictions: registered virtual names for any
+access (including bare `permissionSchema: true` rules and inapplicable
+descriptors) are excluded from persisted projections, client create/update
+admission (including whole-object/array grants and permissive/Mixed schemas),
+and database sort/filter/distinct field authorization at the model-aware
+service boundary. `delete` (identity only), `exists`, `distinct`, `count`, and
+`countTrusted` never run getters. No submitted or computed virtual value is
+persisted.
+
+Trusted `decorate`/`decorateAll`/tasks boundary: virtuals evaluate before
+`decorate`/`decorateAll`/tasks; internal-only dependency fields are stripped
+before those hooks see the object. Trusted hooks may deliberately construct new
+output from trusted context; no second authorization pass after those hooks is
+promised.
+
+Performance (measured, VIRT-11): prefer authorized finalized populate/include
+data over per-row database calls. On a 24-row list with 2 getters at
+`maxHookConcurrency: 4`, a virtual doing `Address.findById` per document issued
+25 driver reads (1 list + 24 per-row) with peak active getter work 4; the same
+label via `populate: [{ path: 'addrId', select: ['label'] }]` and a getter
+reading the finalized `doc.addrId` object issued 2 driver reads (batched `$in`)
+with identical output and the same peak bound. `maxHookConcurrency` (default
+`10`) is a per-request/per-runtime ceiling on concurrently awaited getter +
+row-finalization orchestration only — not a per-row multiplier, not leaf
+persistence admission, not a process-wide connection limit; trusted getter
+DB/network I/O runs outside the leaf persistence ceiling. Bounds limit
+simultaneous work, not query counts: they do not collapse N+1 into 1.
+Nested/related/embedded work shares the same bounded scheduling (limit-1
+completes without deadlock; input order is preserved). Parent getters see only
+finalized related/embedded outputs and must not rely on a related model's
+stripped private fields.
+
+### Virtuals compatibility notes
+
+These notes describe approved external output/validation behavior; they are
+not silent backward compatibility:
+
+- Target-model populate trimming now applies to populated documents,
+  including registered targets without virtual definitions (previously only
+  query-level `select`/`match` restricted populate output, while includes
+  trimmed via target `Service.find`/`findOne`). Populated responses may now
+  omit fields that previously leaked (for example `alwaysSelect`-forced
+  internal fields). This is an intended behavior change.
+- Selection grammar is unchanged: arbitrary select strings remain accepted
+  (no stricter signed-field/path grammar was adopted), so there is no
+  malformed-path rejection guarantee and no grammar compatibility break.
+  Registered-but-inapplicable virtual names remain virtual.
+- Embedded recursion applies the scope's `permissionSchema.<field>.sub` rules
+  with children finalized before parents; database fetches retain only the
+  needed containers/dependencies (never `.sub` definition paths, and never
+  both a container and its child path in one projection, avoiding path
+  collisions). An omitted parent container is never exposed just because a
+  child virtual uses it internally.
+- Mutation/new selection behavior is unchanged: effective virtual selection is
+  computed before evaluation and carried into the shared finalizer; public
+  `_create` picks by explicit `select` after decorate/tasks and `_update`
+  picks by explicit `select` (else the implicit `returningAll: false` pick);
+  `new()` continues to ignore `args.select` (all applicable `create` virtuals
+  are considered, subject to explicit exclusion). Any future honoring of
+  `new.args.select` is an explicit contract change, not applied here.
+- Release notes for this feature are generated from conventional commits via
+  `pnpm changelog` (`repo-toolkit-changelog`) into the workspace
+  `CHANGELOG.md`; that generated file is intentionally not hand-edited in this
+  task (per repository constraint). The compatibility notes above live in this
+  README section as the shipped consumer record.
 
 ## Persistence concurrency and resource limits
 

@@ -192,6 +192,9 @@ function installBackendConsumer(): string {
       2,
     )}\n`,
   );
+  // Repository-local TMPDIR fixtures must install their own manifest rather
+  // than let pnpm discover the enclosing repository workspace.
+  writeFileSync(path.resolve(consumerDir, 'pnpm-workspace.yaml'), 'packages: []\n');
   run('pnpm', ['install', '--no-frozen-lockfile'], consumerDir);
   for (const file of [
     'consumer.mjs',
@@ -232,6 +235,7 @@ function installBrowserOnlyConsumer(): string {
       2,
     )}\n`,
   );
+  writeFileSync(path.resolve(consumerDir, 'pnpm-workspace.yaml'), 'packages: []\n');
   run('pnpm', ['install', '--no-frozen-lockfile'], consumerDir);
   cpSync(
     path.resolve(consumerSourceDir, 'signer-browser-only.ts'),

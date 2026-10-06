@@ -7,7 +7,7 @@ import { unwrapServiceData } from '../http/response-pipelines/model-response';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
 import { handleResultError } from '../helpers';
-import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter, Sort } from '../interfaces';
+import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter, RouteVariant, Sort } from '../interfaces';
 import { DataService } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { formatListResponse, parseBooleanString } from './shared';
@@ -38,7 +38,7 @@ function setOption<TData>(this: DataRouter<TData>, parentKey: string, optionKey:
   const value = isUndefined(option) ? optionKey : option;
 
   assertMutableRouterOption('data', key);
-  this.runtime.setDataOption(this.dataName, key as keyof DataRouterOptions<TData>, value);
+  this.runtime.setDataOption(this.dataName, key as keyof ExtendedDataRouterOptions<TData>, value);
   return this;
 }
 
@@ -46,6 +46,7 @@ export class DataRouter<TData = unknown> {
   readonly runtime: AccessRuntime;
   readonly dataName: string;
   readonly router: JsonRouter;
+  /** Frozen construction-time snapshot. Read current policy with runtime.getDataOptions(dataName). */
   readonly options: DataRouterOptions<TData>;
   readonly fullBasePath: string;
 
@@ -72,8 +73,8 @@ export class DataRouter<TData = unknown> {
     return req.dacl.getService<TData>(this.dataName);
   }
 
-  private async assertAllowed(req: DataRequest, access: string) {
-    const allowed = await req.dacl.isAllowed(this.dataName, access);
+  private async assertAllowed(req: DataRequest, baseAccess: string, variant: RouteVariant) {
+    const allowed = await req.dacl.isAllowedRoute(this.dataName, baseAccess, variant);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
 
@@ -89,7 +90,7 @@ export class DataRouter<TData = unknown> {
     // LIST //
     //////////
     this.router.get('', async (req: DataRequest) => {
-      await this.assertAllowed(req, 'list');
+      await this.assertAllowed(req, 'list', 'basic');
 
       const { skip, limit, page, page_size, include_count, include_extra_headers } = parseQuery(
         requestSchemas.listQuery,
@@ -127,7 +128,7 @@ export class DataRouter<TData = unknown> {
     // LIST - Advanced //
     /////////////////////
     this.router.post(`/${this.options.queryRouteSegment}`, async (req: DataRequest) => {
-      await this.assertAllowed(req, 'list');
+      await this.assertAllowed(req, 'list', 'advanced');
 
       let {
         filter,
@@ -174,7 +175,7 @@ export class DataRouter<TData = unknown> {
     // READ //
     //////////
     this.router.get(`/:${this.options.idParam}`, async (req: DataRequest) => {
-      await this.assertAllowed(req, 'read');
+      await this.assertAllowed(req, 'read', 'basic');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const svc = this.getService(req);
@@ -197,7 +198,7 @@ export class DataRouter<TData = unknown> {
     // READ - Advanced - Filter //
     //////////////////////////////
     this.router.post(`/${this.options.queryRouteSegment}/__filter`, async (req: DataRequest) => {
-      await this.assertAllowed(req, 'read');
+      await this.assertAllowed(req, 'read', 'advanced');
 
       let { filter, select } = await parseBodyWithSchema(
         dataReadFilterBodySchema,
@@ -228,7 +229,7 @@ export class DataRouter<TData = unknown> {
     // READ - Advanced //
     /////////////////////
     this.router.post(`/${this.options.queryRouteSegment}/:${this.options.idParam}`, async (req: DataRequest) => {
-      await this.assertAllowed(req, 'read');
+      await this.assertAllowed(req, 'read', 'advanced');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       let { select } = await parseBodyWithSchema(
@@ -257,12 +258,21 @@ export class DataRouter<TData = unknown> {
     });
   }
 
-  set<K extends keyof DataRouterOptions<TData>>(key: K, value: DataRouterOptions<TData>[K]): this;
+  /**
+   * Update live behavior with a typed key/path or an options object. Dotted paths
+   * such as `operationAccess.basicRead` update one key; object assignment replaces
+   * supplied top-level values shallowly. The construction-time options snapshot stays fixed.
+   */
+  set<K extends keyof ExtendedDataRouterOptions<TData>>(key: K, value: ExtendedDataRouterOptions<TData>[K]): this;
   set(options: DataRouterOptions<TData>): this;
-  set<K extends keyof DataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
+  set<K extends keyof ExtendedDataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
       assertMutableRouterOption('data', keyOrOptions as string);
-      this.runtime.setDataOption<K, TData>(this.dataName, keyOrOptions as K, value as DataRouterOptions<TData>[K]);
+      this.runtime.setDataOption<K, TData>(
+        this.dataName,
+        keyOrOptions as K,
+        value as ExtendedDataRouterOptions<TData>[K],
+      );
     }
 
     if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
@@ -273,12 +283,14 @@ export class DataRouter<TData = unknown> {
     return this;
   }
 
-  setOption<K extends keyof DataRouterOptions<TData>>(key: K, option: DataRouterOptions<TData>[K]) {
+  /** Set one live option/path; `setOption('operationAccess.basicRead', undefined)` restores inheritance. */
+  setOption<K extends keyof ExtendedDataRouterOptions<TData>>(key: K, option: ExtendedDataRouterOptions<TData>[K]) {
     assertMutableRouterOption('data', key as string);
     this.runtime.setDataOption<K, TData>(this.dataName, key, option);
     return this;
   }
 
+  /** Shallowly replace supplied top-level options; an operationAccess object replaces that entire rule object. */
   setOptions(options: DataRouterOptions<TData>) {
     assertMutableRouterOptions('data', options as Record<string, unknown>);
     this.runtime.setDataOptions<TData>(this.dataName, options);
@@ -290,8 +302,16 @@ export class DataRouter<TData = unknown> {
     this,
     'listHardLimit',
   );
+  /** Base-operation field grants; basic/advanced route guards belong to operationAccess. */
   public permissionSchema: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['permissionSchema']> =
     setOption.bind(this, 'permissionSchema');
+  /**
+   * Live list/read guards plus basicList/advancedList/basicRead/advancedRead.
+   * `operationAccess('basicRead', false)` updates one key and denies GET /:id
+   * (and HEAD) with HTTP 401; registered POST reads still inherit `read`.
+   * `operationAccess({ list: true, read: true })` replaces the whole rule object,
+   * not a deep merge. Use setOption with undefined to restore variant inheritance.
+   */
   public operationAccess: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['operationAccess']> =
     setOption.bind(this, 'operationAccess');
   public baseFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['baseFilter']> = setOption.bind(

@@ -28,6 +28,35 @@ export function isFieldAllowed(field: string, allowedFields: string[]): boolean 
   return new Set(allowedFields.concat(['id', '_id'])).has(field);
 }
 
+/**
+ * VIRT-04 output-only DB guard (VIRT-00A D8).
+ *
+ * Registered virtual names remain virtual even when no getter applies or
+ * their output rule grants visibility. They must never reach the adapter
+ * via sort/filter/distinct, even when `sortableFields` or a permission
+ * rule would otherwise allow the same name. `isVirtualPath` is the
+ * receiving-model scope-aware predicate (top-level + embedded DB paths,
+ * e.g. `fullAddress` and `contacts.nick`); it returns true for virtual
+ * paths including subpaths under a virtual leaf.
+ *
+ * This helper only filters the allowlist; `validateSortFields` (strict
+ * `BadRequest`) and `sanitizeSortFields` (strip posture) then control the
+ * attempt before adapter dispatch with existing persisted-field semantics.
+ */
+export function excludeVirtualsFromAllowedSortFields(
+  allowedFields: string[],
+  isVirtualPath: (field: string) => boolean,
+): string[] {
+  if (!Array.isArray(allowedFields) || allowedFields.length === 0) return allowedFields;
+  return allowedFields.filter((field) => {
+    try {
+      return !isVirtualPath(field);
+    } catch {
+      return true;
+    }
+  });
+}
+
 export function normalizeSort(sort: Sort | Map<string, SortOrder>): {
   fields: NormalizedSortField[];
   errors: SortValidationError[];

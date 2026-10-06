@@ -13,14 +13,35 @@ export interface UpdateOneArgs<T = unknown> extends Omit<PublicUpdateArgs, 'sele
     /** Trusted replacement: nullish generates row policy; false returns Forbidden without filter generation or persistence. */
     filter?: Filter<T>;
     populate?: Populate[] | string;
+    /**
+     * VIRT-04 internal plan transport (VIRT-00A D6).
+     * Effective mutation output selection carried into internal finalization
+     * before virtual evaluation (explicit `select`, `returningAll: false`
+     * implicit `Object.keys(data)+_id`, or `undefined` for all). Public
+     * `_update` still enforces presentation pick after decorate/tasks.
+     */
+    effectiveSelect?: Projection;
+    /**
+     * VIRT-04 initiating operation (VIRT-00A D1). Upsert branches keep
+     * `operation: 'upsert'` while accesses follow the taken branch.
+     * Defaults to `'update'` when absent.
+     */
+    operation?: string;
   };
 }
 
-export interface UpdateByIdArgs<T = unknown> extends Omit<UpdateOneArgs<T>, 'overrides'> {
+export interface UpdateByIdArgs<T = unknown> extends Omit<PublicUpdateArgs, 'select' | 'tasks'> {
   overrides?: {
     populate?: Populate[] | string;
     /** Nullish resolves the identifier; false denies without ID/filter generation or persistence. Objects still receive row policy. */
     idFilter?: Filter<T>;
+    /**
+     * VIRT-04 internal plan transport (VIRT-00A D6): effective output
+     * selection for virtual planning before decorate/tasks.
+     */
+    effectiveSelect?: Projection;
+    /** VIRT-04 initiating operation (VIRT-00A D1); defaults to `'update'`. */
+    operation?: string;
   };
 }
 

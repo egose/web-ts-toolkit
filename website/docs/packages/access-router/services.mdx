@@ -27,11 +27,29 @@ Common public methods:
 
 These methods are what the built-in HTTP routes call internally.
 
+### Route entry and service policy
+
+Basic/advanced `operationAccess` guards authorize the generated endpoint before
+service dispatch, with HTTP 401 on denial. They replace only its initiating guard.
+Direct service calls are trusted application calls and retain their existing
+checks; service methods do not universally enforce initiating operationAccess or
+infer a transport variant from `req.method`.
+
+Field selection, row/filter policy, validate/prepare/decorate hooks, related-model
+checks, and root entry guards remain base-scoped. A permitted variant does not
+grant fields or authorize a related target's advanced endpoint policy.
+`advancedUpsert` does not additionally require `advancedCreate`/`advancedUpdate`;
+its existing create/update branch policy still applies. Root entries keep base
+operation names/checks, returning entry 401 inside their HTTP 200 envelope.
+
 ### Important behavior
 
 - `_read(id, args, { tryList: true })` and `_readFilter(filter, args, options)` can
-  fall back from an authorized read miss to list access, subject to list operation
-  access. `tryList` defaults to true. Forbidden and BadRequest never retry.
+  fall back from an authorized read miss to list access, subject to **base `list`**
+  operation access. `list: false, advancedList: true` cannot permit retry;
+  `list: true, basicList: false` cannot block it. `tryList` defaults to true.
+  Forbidden and BadRequest never retry. Denied route entry is distinct from an
+  allowed read miss (ordinary 404 when retry is disabled).
 - `_update(..., { returningAll: false })` trims the response to the updated fields
 - `_upsert(...)` only supports the default `_id` identifier
 
@@ -56,6 +74,22 @@ instead of Unauthorized; an allowed miss remains Unauthorized. Neither case crea
 or updates a row. Generated direct routes use HTTP 403 and root batches use entry
 403 within HTTP 200. Custom Express handlers own response serialization: returning
 an ErrorResult or calling `res.json(result)` does not automatically set status 403.
+
+### Populate access selectors
+
+Wire `options.populateAccess` and populate descriptor `access` accept only
+`'list' | 'read'` (`PopulateAccess` from the existing `/advanced` entrypoint).
+Related populate/include/subquery checks use target base operations, regardless
+of the initiating basic/advanced endpoint.
+
+The shared Core populate boundary rejects all fourteen reserved route-variant
+names in effective option and per-descriptor access, including generic legacy
+include/subquery options and trusted defaults, before target persistence. Other
+trusted non-reserved custom access strings retain their runtime compatibility.
+Invalid selectors return controlled BadRequest: direct HTTP 400 or affected root
+entry 400/`bad_request` within HTTP 200. Legacy read/list includes now propagate
+target BadRequest instead of silently dropping output, so nested invalid selectors
+are visible. Existing denial/miss cardinality contracts remain.
 
 ### Safe include output and exact counts
 
@@ -162,6 +196,10 @@ access. Full-array create output, including POST `[]`, additionally intersects
 sub read only, not list access. All use read fields plus `_id`; visible counts and
 stored array order are preserved. Bulk request order does not reorder the response;
 service `addFirst` still governs insertion order, without adding an HTTP option.
+
+These visibility checks use **base** parent/subdocument read/list policy. Disabling
+`basicRead`/`basicList` endpoints does not hide otherwise readable mutation output;
+allowing an advanced read route does not override a denied base response guard.
 
 A denied response guard, terminal false policy or no readable match hides output
 without failing the committed write:
