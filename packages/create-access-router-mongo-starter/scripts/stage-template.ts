@@ -66,8 +66,73 @@ export type RegistryVersionsRunner = (command: string, args: string[]) => string
  */
 export const RELEASE_PROBE_PACKAGE = '@web-ts-toolkit/access-router-runtime';
 
+/**
+ * Publish-flow retry defaults for waiting out npm registry replication lag.
+ * `publish-packages` builds the starter immediately after publishing its
+ * `@web-ts-toolkit/*` dependencies, but `pnpm install --lockfile-only` can
+ * still report `ERR_PNPM_NO_MATCHING_VERSION` (latest shows the previous
+ * release) until the new tarballs converge. Retrying with backoff lets the
+ * staged lockfile resolve against the just-published line instead of failing
+ * the whole release.
+ */
+export const STAGE_PUBLISH_RETRY_DEFAULTS = {
+  maxAttempts: 40,
+  retryDelayMs: 15_000,
+} as const;
+
+export interface StagePublishRetryConfig {
+  maxAttempts: number;
+  retryDelayMs: number;
+}
+
+export interface StagePublishRetryDeps {
+  runStage?: (options: StageTemplateOptions) => void;
+  getState?: (releaseVersion: string) => ReleasePublishState;
+  wait?: (delayMs: number) => Promise<void>;
+  log?: (message: string) => void;
+}
+
 const DEFAULT_REGISTRY_RUNNER: RegistryVersionsRunner = (command, args) =>
   execFileSync(command, args, { encoding: 'utf8', stdio: 'pipe' }) as string;
+
+function extractRegistryVersions(parsed: unknown): string[] | null {
+  if (Array.isArray(parsed)) {
+    if (!parsed.every((entry) => typeof entry === 'string')) return null;
+    return parsed as string[];
+  }
+  if (typeof parsed === 'string') return [parsed];
+  if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { versions?: unknown }).versions)) {
+    const versions = (parsed as { versions: unknown }).versions;
+    if ((versions as unknown[]).every((entry) => typeof entry === 'string')) return versions as string[];
+  }
+  return null;
+}
+
+/**
+ * Reads publish-flow retry tuning from the environment. Non-finite or
+ * non-positive values fall back to {@link STAGE_PUBLISH_RETRY_DEFAULTS} so a
+ * malformed CI knob can never disable convergence waiting entirely.
+ */
+export function resolveStagePublishRetryConfig(env: NodeJS.ProcessEnv = process.env): StagePublishRetryConfig {
+  const parsePositiveInt = (raw: string | undefined, fallback: number, allowZero: boolean): number => {
+    if (raw === undefined || raw.trim() === '') return fallback;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return fallback;
+    const floored = Math.floor(parsed);
+    if (allowZero ? floored < 0 : floored <= 0) return fallback;
+    return floored;
+  };
+  return {
+    maxAttempts: parsePositiveInt(env.WTT_STAGE_MAX_ATTEMPTS, STAGE_PUBLISH_RETRY_DEFAULTS.maxAttempts, false),
+    retryDelayMs: parsePositiveInt(env.WTT_STAGE_RETRY_DELAY_MS, STAGE_PUBLISH_RETRY_DEFAULTS.retryDelayMs, true),
+  };
+}
+
+export function defaultStageRetryWait(delayMs: number): Promise<void> {
+  return new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, delayMs);
+  });
+}
 
 /**
  * Reports whether `releaseVersion` is already published to the npm registry.
@@ -80,8 +145,9 @@ export function getReleasePublishState(
 ): ReleasePublishState {
   try {
     const parsed = JSON.parse(run('pnpm', ['view', RELEASE_PROBE_PACKAGE, 'versions', '--json'])) as unknown;
-    if (!Array.isArray(parsed)) return 'unknown';
-    return parsed.includes(releaseVersion) ? 'published' : 'unpublished';
+    const versions = extractRegistryVersions(parsed);
+    if (!versions) return 'unknown';
+    return versions.includes(releaseVersion) ? 'published' : 'unpublished';
   } catch {
     return 'unknown';
   }
@@ -96,6 +162,65 @@ export function getReleasePublishState(
  */
 export function isLockfileInstallFailure(message: string): boolean {
   return message.includes('Command failed: pnpm install');
+}
+
+/**
+ * Stages the template in publish flow (`WTT_RELEASE_VERSION` is set by
+ * `publish-packages`), retrying `pnpm install --lockfile-only` resolution
+ * failures while the just-published `@web-ts-toolkit/*` line converges on the
+ * npm registry. Only installer failures are retried: staging errors (missing
+ * gitignore, symlinks, placeholder or lockfile validation) fail fast on the
+ * first attempt. Never skips staging — a publishable stage requires a real
+ * pnpm resolution, enforced by `validateStagedLockfile`.
+ *
+ * The injected `runStage`/`getState`/`wait` hooks exist for unit tests; the
+ * entry point wires the real `stageTemplate`, registry probe, and timer.
+ */
+export async function stageTemplateWithPublishRetry(
+  options: StageTemplateOptions & { releaseVersion: string },
+  retry: StagePublishRetryConfig,
+  deps: StagePublishRetryDeps = {},
+): Promise<void> {
+  const runStage = deps.runStage ?? ((stageOptions: StageTemplateOptions) => stageTemplate(stageOptions));
+  const getState = deps.getState ?? ((version: string) => getReleasePublishState(version));
+  const wait = deps.wait ?? defaultStageRetryWait;
+  const log = deps.log ?? ((message: string) => console.warn(message));
+  const maxAttempts = Math.max(1, Math.floor(retry.maxAttempts));
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      runStage(options);
+      return;
+    } catch (error) {
+      lastError = error;
+      const reason = error instanceof Error ? error.message : String(error);
+      if (!isLockfileInstallFailure(reason)) throw error;
+      if (attempt >= maxAttempts) break;
+      let publishState: ReleasePublishState;
+      try {
+        publishState = getState(options.releaseVersion);
+      } catch {
+        publishState = 'unknown';
+      }
+      log(
+        `[stage-template] lockfile resolution failed (attempt ${attempt}/${maxAttempts}, ` +
+          `registry reports release ${options.releaseVersion} as ${publishState}); ` +
+          `retrying in ${retry.retryDelayMs}ms (resolution failure: ${reason.split('\n')[0]}).`,
+      );
+      await wait(retry.retryDelayMs);
+    }
+  }
+  const finalReason = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(
+    `Staged lockfile resolution failed after ${maxAttempts} attempt(s) for release ${options.releaseVersion} ` +
+      `(last failure: ${finalReason.split('\n')[0]}). ` +
+      'The just-published @web-ts-toolkit/* line may not have converged on the registry yet; ' +
+      're-run publish-packages from the starter package once `pnpm view ' +
+      `${RELEASE_PROBE_PACKAGE} versions --json` +
+      `\` lists ${options.releaseVersion}.`,
+    { cause: lastError },
+  );
 }
 
 export function normalize(pathValue: string): string {

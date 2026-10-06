@@ -20,8 +20,11 @@ import {
   isLockfileInstallFailure,
   isPrivateDotenvPath,
   normalize,
+  resolveStagePublishRetryConfig,
+  stageTemplateWithPublishRetry,
   EXCLUDED_PATHS,
   GITIGNORE_STAGING_ALIAS,
+  STAGE_PUBLISH_RETRY_DEFAULTS,
   stageTemplate,
   validateStagedLockfile,
   verifyStagedTemplate,
@@ -591,6 +594,9 @@ describe('fail closed on invalid release lockfiles (CARMSF-02)', () => {
   it('classifies the registry publish state without touching the network', () => {
     expect(getReleasePublishState('1.2.3', () => '["1.2.3", "1.2.4"]')).toBe('published');
     expect(getReleasePublishState('9.9.9', () => '["1.2.3", "1.2.4"]')).toBe('unpublished');
+    expect(getReleasePublishState('1.2.3', () => '"1.2.3"')).toBe('published');
+    expect(getReleasePublishState('9.9.9', () => '"1.2.3"')).toBe('unpublished');
+    expect(getReleasePublishState('1.2.3', () => '{"versions": ["1.2.3"]}')).toBe('published');
     expect(
       getReleasePublishState('1.2.3', () => {
         throw new Error('registry unreachable');
@@ -598,6 +604,7 @@ describe('fail closed on invalid release lockfiles (CARMSF-02)', () => {
     ).toBe('unknown');
     expect(getReleasePublishState('1.2.3', () => 'not json')).toBe('unknown');
     expect(getReleasePublishState('1.2.3', () => '{"latest": "1.2.3"}')).toBe('unknown');
+    expect(getReleasePublishState('1.2.3', () => '[1, 2, 3]')).toBe('unknown');
   });
 
   it('detects only lockfile installer failures for build-time tolerance', () => {
@@ -678,5 +685,92 @@ describe('fail closed on invalid release lockfiles (CARMSF-02)', () => {
         }),
       ).toThrow(/packages:|resolution metadata/);
     }, 'carmsf02-verify-');
+  });
+
+  it('resolves publish retry config with safe fallbacks', () => {
+    expect(resolveStagePublishRetryConfig({})).toEqual({
+      maxAttempts: STAGE_PUBLISH_RETRY_DEFAULTS.maxAttempts,
+      retryDelayMs: STAGE_PUBLISH_RETRY_DEFAULTS.retryDelayMs,
+    });
+    expect(resolveStagePublishRetryConfig({ WTT_STAGE_MAX_ATTEMPTS: '5', WTT_STAGE_RETRY_DELAY_MS: '100' })).toEqual({
+      maxAttempts: 5,
+      retryDelayMs: 100,
+    });
+    expect(resolveStagePublishRetryConfig({ WTT_STAGE_MAX_ATTEMPTS: '0', WTT_STAGE_RETRY_DELAY_MS: '-1' })).toEqual({
+      maxAttempts: STAGE_PUBLISH_RETRY_DEFAULTS.maxAttempts,
+      retryDelayMs: STAGE_PUBLISH_RETRY_DEFAULTS.retryDelayMs,
+    });
+    expect(resolveStagePublishRetryConfig({ WTT_STAGE_MAX_ATTEMPTS: 'oops', WTT_STAGE_RETRY_DELAY_MS: '' })).toEqual({
+      maxAttempts: STAGE_PUBLISH_RETRY_DEFAULTS.maxAttempts,
+      retryDelayMs: STAGE_PUBLISH_RETRY_DEFAULTS.retryDelayMs,
+    });
+  });
+
+  it('stageTemplateWithPublishRetry retries installer failures until the registry converges', async () => {
+    let attempts = 0;
+    const states: string[] = [];
+    const waits: number[] = [];
+    await stageTemplateWithPublishRetry(
+      { sourceDir: '/src', targetDir: '/dst', releaseVersion: '0.49.0' },
+      { maxAttempts: 3, retryDelayMs: 5 },
+      {
+        runStage: () => {
+          attempts += 1;
+          if (attempts < 3) throw new Error('Command failed: pnpm install --lockfile-only --ignore-scripts');
+        },
+        getState: (version) => {
+          states.push(version);
+          return attempts < 2 ? 'unpublished' : 'published';
+        },
+        wait: async (delayMs) => {
+          waits.push(delayMs);
+        },
+        log: () => {},
+      },
+    );
+    expect(attempts).toBe(3);
+    expect(states).toEqual(['0.49.0', '0.49.0']);
+    expect(waits).toEqual([5, 5]);
+  });
+
+  it('stageTemplateWithPublishRetry fails fast on non-installer staging errors', async () => {
+    let attempts = 0;
+    await expect(
+      stageTemplateWithPublishRetry(
+        { sourceDir: '/src', targetDir: '/dst', releaseVersion: '0.49.0' },
+        { maxAttempts: 3, retryDelayMs: 0 },
+        {
+          runStage: () => {
+            attempts += 1;
+            throw new Error('Template symlinks are not supported: linked.txt');
+          },
+          wait: async () => {},
+          log: () => {},
+        },
+      ),
+    ).rejects.toThrow('symlinks');
+    expect(attempts).toBe(1);
+  });
+
+  it('stageTemplateWithPublishRetry reports attempts exhausted without fabricating a lockfile', async () => {
+    const logged: string[] = [];
+    await expect(
+      stageTemplateWithPublishRetry(
+        { sourceDir: '/src', targetDir: '/dst', releaseVersion: '0.49.0' },
+        { maxAttempts: 2, retryDelayMs: 0 },
+        {
+          runStage: () => {
+            throw new Error('Command failed: pnpm install --lockfile-only --ignore-scripts');
+          },
+          getState: () => 'unknown',
+          wait: async () => {},
+          log: (message) => {
+            logged.push(message);
+          },
+        },
+      ),
+    ).rejects.toThrow('after 2 attempt(s) for release 0.49.0');
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain('attempt 1/2');
   });
 });
