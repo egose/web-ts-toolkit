@@ -131,6 +131,9 @@ describe('DBJWT-03 device binding construction boundary', () => {
     { name: 'zero nonce lifetime', value: { nonce: { secret: new Uint8Array(32), lifetimeSeconds: 0 } } },
     { name: 'fractional nonce lifetime', value: { nonce: { secret: new Uint8Array(32), lifetimeSeconds: 1.5 } } },
     { name: 'excessive nonce lifetime', value: { nonce: { secret: new Uint8Array(32), lifetimeSeconds: 301 } } },
+    { name: 'string target failure override', value: { ignoreTargetFailure: 'true' } },
+    { name: 'null freshness failure override', value: { ignoreFreshnessFailure: null } },
+    { name: 'numeric replay failure override', value: { ignoreReplayFailure: 1 } },
   ])('fails fast for $name', ({ value }) => {
     const store = constructionStore();
     expect(() =>
@@ -195,6 +198,9 @@ describe('DBJWT-03 policy and immutable security-context primitives (not handler
       proofMaxAgeSeconds: 60,
       clockSkewSeconds: 5,
       nonce: false,
+      ignoreTargetFailure: false,
+      ignoreFreshnessFailure: false,
+      ignoreReplayFailure: false,
     });
     expect(Object.isFrozen(resolved)).toBe(true);
     expect(Object.isFrozen(resolved?.algorithms)).toBe(true);

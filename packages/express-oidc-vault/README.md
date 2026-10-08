@@ -318,6 +318,47 @@ The shared nonce policy signs versioned, random HMAC-SHA-256 challenges bound to
 
 Sessions, authorization transactions, and exchange codes carry optional `deviceBinding: { type: 'dpop', jkt: string }`; transactions/codes also carry optional `browserBindingHash`. Only the canonical RFC 7638 SHA-256 thumbprint is persisted, without a JWK, private key, proof algorithm, or historical mode. Core retains security-owned binding independently of mutable precreate hooks and issuer inputs. All three built-ins implement live preflight reads, atomic exact/null match-and-consume, lineage revocation context, immutable rotation, and shared bounded replay admission; see the provider contracts below. These store primitives do not themselves verify HTTP proofs.
 
+#### Per-check DPoP failure overrides
+
+Steps 6–8 have independent log-and-continue settings. Each check still runs; an enabled setting writes every failure to the server's `console.warn` and continues to the next check. Both vault POSTs and API middleware read these defaults from `process.env` when constructed:
+
+| Step | Check                                                                               | Environment variable                       | `deviceBinding` option   |
+| ---- | ----------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------ |
+| 6    | HTTP method and normalized pinned URL (`htm`/`htu`), including target normalization | `OIDC_VAULT_DPOP_IGNORE_TARGET_FAILURE`    | `ignoreTargetFailure`    |
+| 7    | Signed proof freshness (`iat` age and clock skew)                                   | `OIDC_VAULT_DPOP_IGNORE_FRESHNESS_FAILURE` | `ignoreFreshnessFailure` |
+| 8    | Atomic JTI replay admission, including duplicates, capacity, and provider failures  | `OIDC_VAULT_DPOP_IGNORE_REPLAY_FAILURE`    | `ignoreReplayFailure`    |
+
+Only the exact environment value `true` enables an override; unset, `false`, or any other value retains enforcement. Set whichever flags you need before constructing middleware, for example:
+
+```dotenv
+OIDC_VAULT_DPOP_IGNORE_TARGET_FAILURE=true
+OIDC_VAULT_DPOP_IGNORE_FRESHNESS_FAILURE=false
+OIDC_VAULT_DPOP_IGNORE_REPLAY_FAILURE=true
+```
+
+Explicit booleans on `OidcVaultDeviceBindingOptions` / `OidcVaultApiDeviceBindingOptions` take precedence over the environment for that policy:
+
+```ts
+import type { OidcVaultDeviceBindingOptions } from '@web-ts-toolkit/express-oidc-vault';
+
+const deviceBinding: OidcVaultDeviceBindingOptions = {
+  mode: 'required',
+  ignoreTargetFailure: true,
+  ignoreFreshnessFailure: false,
+  ignoreReplayFailure: false,
+};
+```
+
+An ignored freshness failure still reaches nonce verification and replay admission. To give replay admission a live bounded expiry independently of the rejected `iat`, core uses `now + (proofMaxAgeSeconds + clockSkewSeconds) * 1000` (65 seconds with defaults). A failed configured proof clock is logged and falls back to `Date.now`. Successful replay reservations retain their expiry; duplicates never renew them, even when their failure is ignored. Signature, header/JWK, claim-shape, original-key, API `ath`, and nonce checks retain their normal enforcement.
+
+Console output identifies the step, option/environment variable, and original error (including replay provider causes), for example:
+
+```text
+[express-oidc-vault] DPoP step 8 (replay) failed; continuing (ignoreReplayFailure=true; OIDC_VAULT_DPOP_IGNORE_REPLAY_FAILURE).
+```
+
+Environment changes take effect on newly constructed middleware. Ignored failures go directly to the console; `onError` handles failures that stop the request.
+
 ### POST login and browser-authenticated callback
 
 Configure the vault with the existing stronger store and an opt-in policy:
@@ -1443,9 +1484,9 @@ DPoP replay is a reservation per accepted proof, including API traffic; it is su
 
 `expiresAt` is a future safe-integer epoch in milliseconds, with at most **360000 ms** remaining. Invalid, fractional, unsafe, nonfinite, expired (`<= now`), or overlong windows return `false` without allocation. Valid expired keys may be reserved again. All instances must use identical namespaces/proof windows and synchronized clocks. The approved proof defaults retain at most 70 seconds of validity; provision capacity for unique proofs/second × retained window plus headroom.
 
-Core derives `replayKey = 'dpop:v1:' + base64url(SHA-256(JSON([effectiveNamespace, jkt, jti])))` and expiry **`(iat + proofMaxAgeSeconds + clockSkewSeconds) * 1000`**. Vault space is `['vault', normalizedBackendOrigin, normalizedBasePath, exactIssuer, exactClientId]`; API space is `['api', normalizedPublicOrigin, replayNamespace]`. API path prefix is a target correction, not replay partitioning. The 360000ms ceiling includes future iat skew (maximum age 300 + twice skew 30); no duplicate extends its reservation.
+Core derives `replayKey = 'dpop:v1:' + base64url(SHA-256(JSON([effectiveNamespace, jkt, jti])))` and expiry **`(iat + proofMaxAgeSeconds + clockSkewSeconds) * 1000`**. An explicitly ignored freshness failure instead uses the bounded current-time expiry described under [per-check overrides](#per-check-dpop-failure-overrides). Vault space is `['vault', normalizedBackendOrigin, normalizedBasePath, exactIssuer, exactClientId]`; API space is `['api', normalizedPublicOrigin, replayNamespace]`. API path prefix is a target correction, not replay partitioning. The 360000ms ceiling includes future iat skew (maximum age 300 + twice skew 30); no duplicate extends its reservation.
 
-Every provider accepts `dpopReplayMaxEntries?: number`, default **100000**, positive safe integer. Capacity is per memory object, Redis prefix, or paired Mongo replay collections, shared across backend clients. Configure the same limit on every shared client. Duplicates return `false` even when full; new reservations throw root-exported `OidcVaultDpopReplayCapacityError` at capacity. Live reservations are never evicted and store failure never permits acceptance. API middleware and all DPoP-bearing vault POSTs map failures/capacity to sanitized `503 OIDC_VAULT_DPOP_REPLAY_UNAVAILABLE`.
+Every provider accepts `dpopReplayMaxEntries?: number`, default **100000**, positive safe integer. Capacity is per memory object, Redis prefix, or paired Mongo replay collections, shared across backend clients. Configure the same limit on every shared client. Duplicates return `false` even when full; new reservations throw root-exported `OidcVaultDpopReplayCapacityError` at capacity. Live reservations are never evicted. By default, API middleware and all DPoP-bearing vault POSTs map failures/capacity to sanitized `503 OIDC_VAULT_DPOP_REPLAY_UNAVAILABLE`; `ignoreReplayFailure` logs these failures and continues after attempting admission.
 
 | Provider | Admission/expiry work                                                                                                                                                                                                                                                                                                                                               |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1891,7 +1932,7 @@ Authorization: DPoP <local-access-token>
 DPoP: <fresh-signed-proof-jwt>
 ```
 
-The proof has protected `{ typ: 'dpop+jwt', alg: 'ES256', jwk: <public-P-256-JWK> }` and signed `htm`, absolute `htu` without query/fragment, integer `iat`, fresh `jti`, and API `ath = base64url(SHA-256(ASCII(accessToken)))`. A configured nonce also supplies the signed `nonce`. Signature verification precedes payload/target/key/hash checks. Private/symmetric/remote-key JWKs, critical headers, wrong key/signature/method/URL/hash, and duplicate/stale/replayed proofs fail. Bounds: compact proof 8192 bytes, decoded protected header/JWK 2048 bytes, printable ASCII JTI 1–128 bytes, nonce at most 512 bytes. Raw duplicate Authorization/DPoP fields and comma-joined credentials/proofs are rejected. Generate at least 128 random bits for every JTI and a new proof for every request/retry.
+The proof has protected `{ typ: 'dpop+jwt', alg: 'ES256', jwk: <public-P-256-JWK> }` and signed `htm`, absolute `htu` without query/fragment, integer `iat`, fresh `jti`, and API `ath = base64url(SHA-256(ASCII(accessToken)))`. A configured nonce also supplies the signed `nonce`. Signature verification precedes payload/target/key/hash checks. By default, private/symmetric/remote-key JWKs, critical headers, wrong key/signature/method/URL/hash, and duplicate/stale/replayed proofs fail. The independent [per-check overrides](#per-check-dpop-failure-overrides) apply to method/URL, freshness, and replay failures. Bounds: compact proof 8192 bytes, decoded protected header/JWK 2048 bytes, printable ASCII JTI 1–128 bytes, nonce at most 512 bytes. Raw duplicate Authorization/DPoP fields and comma-joined credentials/proofs are rejected. Generate at least 128 random bits for every JTI and a new proof for every request/retry.
 
 For optional unbound Bearer requests, an omitted proof stays on the unbound path. If a proof is supplied, it must still pass signature/target/API `ath`/nonce/shared replay and never creates `auth.deviceBinding`.
 
@@ -1899,7 +1940,7 @@ API replay uses the shared `['api', normalizedPublicOrigin, replayNamespace]` pr
 
 #### API errors and nonce retry
 
-For the default ES256 policy (`algs` lists the configured allowlist in order):
+With default failure enforcement and the ES256 policy (`algs` lists the configured allowlist in order):
 
 | Condition                                                  | HTTP / code                                                                  | `WWW-Authenticate`                              |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -1933,7 +1974,7 @@ Vault routes and API middleware return sanitized `{ code, message }`. Invalid pr
 | 400                 | `OIDC_VAULT_INVALID_FINGERPRINT`           | `Fingerprint signal is invalid.`                   |
 | 403                 | `OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED`   | `Browser recognition changed; sign in again.`      |
 
-Source failures retain `403 OIDC_VAULT_UNTRUSTED_ORIGIN` with `Login request origin is not trusted.` / `Exchange request origin is not trusted.` / `Refresh request origin is not trusted.` / `Logout request origin is not trusted.`. An authenticated provider-error callback returns fixed `400 OIDC_VAULT_CALLBACK_ERROR` / `OIDC callback failed.`. Replay storage failure/capacity is a fail-closed 503 with no auth challenge; invalid/missing proof 401s use `invalid_dpop_proof`, and API nonce 401s use `use_dpop_nonce`. Vault nonce 400s carry the one `DPoP-Nonce` header without `WWW-Authenticate`. Every response retains `no-store`; original errors reach `hooks.onError` or the separate API `onError`, with replay provider diagnostics in `error.cause`.
+Source failures retain `403 OIDC_VAULT_UNTRUSTED_ORIGIN` with `Login request origin is not trusted.` / `Exchange request origin is not trusted.` / `Refresh request origin is not trusted.` / `Logout request origin is not trusted.`. An authenticated provider-error callback returns fixed `400 OIDC_VAULT_CALLBACK_ERROR` / `OIDC callback failed.`. With default enforcement, replay storage failure/capacity is a fail-closed 503 with no auth challenge; invalid/missing proof 401s use `invalid_dpop_proof`, and API nonce 401s use `use_dpop_nonce`. Vault nonce 400s carry the one `DPoP-Nonce` header without `WWW-Authenticate`. Every response retains `no-store`; failures that stop the request reach `hooks.onError` or the separate API `onError`, with replay provider diagnostics in `error.cause`. Independently ignored failures are logged to `console.warn` as described under [per-check overrides](#per-check-dpop-failure-overrides).
 
 Recommended separation:
 

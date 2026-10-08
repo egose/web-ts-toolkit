@@ -1366,6 +1366,10 @@ function registerRoutes(
  * an enabled nonce secret is copied into private owned storage. Separate opt-in
  * `fingerprintRecognition` settings are detached/frozen; recognition enrolls
  * only at POST login and checks exchange/refresh before credential mutation.
+ * The independent OIDC_VAULT_DPOP_IGNORE_TARGET_FAILURE,
+ * OIDC_VAULT_DPOP_IGNORE_FRESHNESS_FAILURE and OIDC_VAULT_DPOP_IGNORE_REPLAY_FAILURE
+ * environment defaults are captured with the proof policy. Ignored failures
+ * log to console.warn; explicit deviceBinding booleans override those defaults.
  */
 export function createOidcVaultMiddleware(options: OidcVaultOptions): Router {
   const { backendOrigin, config, trustedOrigins, resolvedOptions } = validateOidcVaultOptions(options);

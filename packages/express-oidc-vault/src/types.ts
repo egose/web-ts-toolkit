@@ -49,6 +49,8 @@ export interface OidcVaultDpopNonceOptions {
  * Signature verification precedes claims; strict iat validity is
  * nowSeconds - age - skew < iat <= nowSeconds + skew. APIs additionally match
  * original verified cnf.jkt and SHA-256 ath of the ASCII access token.
+ * Independent failure overrides below run their checks and log to console.warn
+ * before continuing. Environment defaults are captured at middleware construction.
  */
 export interface OidcVaultDpopProofOptions {
   /** Nonempty asymmetric allowlist; default `['ES256']` (P-256). RSA proofs require 2048–4096 bits. */
@@ -59,6 +61,24 @@ export interface OidcVaultDpopProofOptions {
   clockSkewSeconds?: number;
   /** Off by default. Challenges are at most 512 bytes; retry once with a fresh proof, never reuse its JTI. */
   nonce?: false | OidcVaultDpopNonceOptions;
+  /**
+   * Step 6: log failed method/normalized URL checks and continue.
+   * Defaults to OIDC_VAULT_DPOP_IGNORE_TARGET_FAILURE === 'true'; otherwise false.
+   * An explicit boolean overrides the environment for this vault/API policy.
+   */
+  ignoreTargetFailure?: boolean;
+  /**
+   * Step 7: log failed proof age/skew checks and continue, retaining replay tracking
+   * with a bounded expiry from the current time. A failed clock uses Date.now.
+   * Defaults to OIDC_VAULT_DPOP_IGNORE_FRESHNESS_FAILURE === 'true'; otherwise false.
+   */
+  ignoreFreshnessFailure?: boolean;
+  /**
+   * Step 8: attempt atomic replay reservation, log duplicate/admission/provider
+   * failures, and continue. Successful reservations retain their normal lifetime.
+   * Defaults to OIDC_VAULT_DPOP_IGNORE_REPLAY_FAILURE === 'true'; otherwise false.
+   */
+  ignoreReplayFailure?: boolean;
 }
 
 /**
@@ -302,10 +322,11 @@ export interface OidcVaultDpopReplayStore {
   /**
    * Reserve once through expiry. Duplicate/invalid/expired input returns false
    * without extending expiry or allocating state. Capacity/provider failures
-   * throw; callers must fail closed, never evict live reservations. Built-ins
+   * throw; callers fail closed by default, never evict live reservations. Built-ins
    * default to 100000 entries per shared namespace. Expired entries awaiting
    * bounded cleanup may conservatively occupy capacity. Duplicate detection
    * precedes capacity rejection; capacity throws `OidcVaultDpopReplayCapacityError`.
+   * A proof policy with ignoreReplayFailure logs a failed admission and continues.
    */
   reserveDpopProof(input: ReserveDpopProofInput): Promise<boolean>;
 }

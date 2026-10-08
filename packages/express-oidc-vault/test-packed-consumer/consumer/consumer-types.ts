@@ -199,6 +199,9 @@ const proofOptions: OidcVaultDpopProofOptions = {
   proofMaxAgeSeconds: 60,
   clockSkewSeconds: 5,
   nonce: nonceOptions,
+  ignoreTargetFailure: false,
+  ignoreFreshnessFailure: true,
+  ignoreReplayFailure: false,
 };
 const bindingOptions: OidcVaultDeviceBindingOptions = { ...proofOptions, mode: bindingMode };
 const binding: OidcVaultDpopBinding = { type: 'dpop', jkt: 'A'.repeat(43) };

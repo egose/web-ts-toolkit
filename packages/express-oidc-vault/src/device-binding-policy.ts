@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 
+import { resolveDpopFailureOption } from './dpop-failure-policy';
 import { OidcVaultHttpError } from './errors';
 import type { ResolvedOidcVaultFingerprintRecognitionOptions } from './fingerprint-recognition';
 import type { ResolvedOidcVaultTransactionCookieOptions } from './transaction-cookie';
@@ -26,6 +27,9 @@ export interface ResolvedOidcVaultDeviceBindingOptions {
   readonly proofMaxAgeSeconds: number;
   readonly clockSkewSeconds: number;
   readonly nonce: false | ResolvedOidcVaultDpopNonceOptions;
+  readonly ignoreTargetFailure: boolean;
+  readonly ignoreFreshnessFailure: boolean;
+  readonly ignoreReplayFailure: boolean;
 }
 
 export interface ResolvedOidcVaultOptions extends Omit<
@@ -63,7 +67,16 @@ export const resolveDeviceBindingOptions = (
 
   // Capture each declared field once. Do not keep caller-owned containers or
   // arbitrary extension properties, even when the caller freezes its input.
-  const { mode, algorithms, proofMaxAgeSeconds, clockSkewSeconds, nonce } = value;
+  const {
+    mode,
+    algorithms,
+    proofMaxAgeSeconds,
+    clockSkewSeconds,
+    nonce,
+    ignoreTargetFailure,
+    ignoreFreshnessFailure,
+    ignoreReplayFailure,
+  } = value;
   if (mode !== undefined && mode !== 'optional' && mode !== 'required') {
     throw new Error('deviceBinding.mode must be optional or required.');
   }
@@ -98,6 +111,9 @@ export const resolveDeviceBindingOptions = (
     proofMaxAgeSeconds: resolveInteger(proofMaxAgeSeconds, 60, 1, 300, 'deviceBinding.proofMaxAgeSeconds'),
     clockSkewSeconds: resolveInteger(clockSkewSeconds, 5, 0, 30, 'deviceBinding.clockSkewSeconds'),
     nonce: resolvedNonce,
+    ignoreTargetFailure: resolveDpopFailureOption(ignoreTargetFailure, 'target'),
+    ignoreFreshnessFailure: resolveDpopFailureOption(ignoreFreshnessFailure, 'freshness'),
+    ignoreReplayFailure: resolveDpopFailureOption(ignoreReplayFailure, 'replay'),
   });
 };
 

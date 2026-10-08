@@ -8,6 +8,7 @@ import {
   resolveDeviceBindingOrigin,
   type ResolvedOidcVaultDeviceBindingOptions,
 } from './device-binding-policy';
+import { handleDpopCheckFailure } from './dpop-failure-policy';
 import { createDpopNoncePolicy, DPOP_NONCE_MAX_BYTES } from './dpop-nonce';
 import { OidcVaultHttpError, toErrorPayload } from './errors';
 import type { OidcVaultDpopAlgorithm, OidcVaultDpopReplayStore, OidcVaultVerifiedDpopBinding } from './types';
@@ -196,6 +197,8 @@ const replayUnavailable = (cause: unknown): OidcVaultHttpError => {
  * one EVALSHA; Mongo uses serialized transactional capacity accounting and is
  * a contention point (seven normal data commands + commit, more on retries).
  * Shared deployments require identical namespaces/windows and synchronized clocks.
+ * Freshness/replay failure overrides keep checks active and log before continuing.
+ * An ignored age failure uses a bounded current-time expiry for replay admission.
  */
 export const createDpopReplayPolicy = (options: {
   readonly protectionSpace: DpopProtectionSpace;
@@ -239,9 +242,12 @@ export const createDpopReplayPolicy = (options: {
         !isCanonicalDpopJkt(jkt) ||
         !isDpopAlgorithm(alg) ||
         !policy.algorithms.includes(alg) ||
-        !isPrintableIdentifier(jti)
+        !isPrintableIdentifier(jti) ||
+        typeof iat !== 'number' ||
+        !Number.isSafeInteger(iat) ||
+        iat < 0
       ) {
-        throw invalidProof('DPoP verified key/algorithm or signed JTI shape is invalid.');
+        throw invalidProof('DPoP verified key/algorithm or signed iat/JTI shape is invalid.');
       }
       const binding = Object.freeze({ type, jkt, alg });
       let checkedNow: number;
@@ -249,10 +255,22 @@ export const createDpopReplayPolicy = (options: {
         checkedNow = now();
         if (!Number.isSafeInteger(checkedNow) || checkedNow < 0) throw new TypeError('DPoP replay clock is invalid.');
       } catch (error) {
-        throw replayUnavailable(error);
+        handleDpopCheckFailure(policy.ignoreFreshnessFailure, 'freshness', replayUnavailable(error));
+        checkedNow = Date.now();
+        if (!Number.isSafeInteger(checkedNow) || checkedNow < 0)
+          throw replayUnavailable(new TypeError('DPoP fallback clock is invalid.'));
       }
-      const expiresAt = getDpopReplayExpiresAt({ ...policy, iat, now: checkedNow });
-      if (expiresAt === null) throw invalidProof('DPoP signed iat is outside the bounded replay window.');
+      let expiresAt = getDpopReplayExpiresAt({ ...policy, iat, now: checkedNow });
+      if (expiresAt === null) {
+        handleDpopCheckFailure(
+          policy.ignoreFreshnessFailure,
+          'freshness',
+          invalidProof('DPoP signed iat is outside the bounded replay window.'),
+        );
+        // An ignored stale/future iat still needs a live bounded reservation.
+        // Keep replay enforcement independent from freshness enforcement.
+        expiresAt = checkedNow + (policy.proofMaxAgeSeconds + policy.clockSkewSeconds) * 1000;
+      }
 
       if (noncePolicy) {
         if (!noncePolicy.verify(nonce, jkt, checkedNow)) {
@@ -267,18 +285,19 @@ export const createDpopReplayPolicy = (options: {
         throw invalidProof('DPoP signed nonce claim exceeds its string/byte bound.');
       }
 
-      let reserved: boolean;
+      let reservationError: OidcVaultHttpError | undefined;
       try {
-        reserved = await replayStore.reserveDpopProof({
+        const reserved = await replayStore.reserveDpopProof({
           replayKey: createDpopReplayKey(effectiveNamespace, jkt, jti),
           expiresAt,
         });
         if (typeof reserved !== 'boolean')
           throw new TypeError('DPoP replay store returned a non-boolean admission result.');
+        if (!reserved) reservationError = invalidProof('DPoP replay reservation was duplicate or no longer live.');
       } catch (error) {
-        throw replayUnavailable(error);
+        reservationError = replayUnavailable(error);
       }
-      if (!reserved) throw invalidProof('DPoP replay reservation was duplicate or no longer live.');
+      if (reservationError) handleDpopCheckFailure(policy.ignoreReplayFailure, 'replay', reservationError);
       return Object.freeze({ type: 'accepted', binding, expiresAt });
     },
   });
