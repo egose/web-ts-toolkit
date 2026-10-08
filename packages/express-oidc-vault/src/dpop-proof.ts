@@ -8,6 +8,7 @@ import {
   isDpopAlgorithm,
   type ResolvedOidcVaultDeviceBindingOptions,
 } from './device-binding-policy';
+import { handleDpopCheckFailure } from './dpop-failure-policy';
 import { DPOP_NONCE_MAX_BYTES } from './dpop-nonce';
 import type { DpopProofVerificationResult } from './dpop-replay';
 import { normalizeDpopProofTarget } from './dpop-target';
@@ -182,11 +183,13 @@ const publicJwk = (value: unknown, alg: OidcVaultDpopAlgorithm): JWK => {
  * This is read-only: compose inside replayPolicy.verifyAndReserve and perform
  * target/cookie/identity preflight before that callback returns. The shared
  * replay policy owns the final age window, nonce challenge and reservation.
+ * An ignored target-check failure logs and continues within its own boundary;
+ * signature, claim shape, ath and original-key failures still throw.
  */
 export const verifyDpopProof = async (input: {
   readonly proof: string;
   readonly method: string;
-  readonly targetUrl: string;
+  readonly targetUrl: string | (() => string);
   readonly proofOptions: ResolvedOidcVaultDeviceBindingOptions;
   readonly expectedJkt?: string;
   readonly accessToken?: string;
@@ -194,6 +197,7 @@ export const verifyDpopProof = async (input: {
   // Capture scalar authority/allowlist before asynchronous import/verification.
   const { proof, method, targetUrl, proofOptions, expectedJkt, accessToken } = input;
   const algorithms = [...proofOptions.algorithms];
+  const { ignoreTargetFailure } = proofOptions;
   extractDpopProof({ count: 1, value: proof });
   const [encodedHeader, encodedPayload, encodedSignature] = proof.split('.');
   const header = parseObject(decodeBase64url(encodedHeader, DPOP_PROTECTED_HEADER_MAX_BYTES));
@@ -233,13 +237,20 @@ export const verifyDpopProof = async (input: {
   ) {
     throw invalidProof('DPoP signed iat/JTI must be nonnegative integer time and bounded printable ASCII.');
   }
-  if (
-    htm !== method ||
-    typeof method !== 'string' ||
-    method.length === 0 ||
-    normalizeDpopProofTarget(htu) !== targetUrl
-  ) {
-    throw invalidProof('DPoP signed method or normalized public target does not match this request.');
+  try {
+    // Resolve the captured request path here so malformed request/proof targets
+    // and comparison mismatches share the same step-6 failure boundary.
+    const expectedTarget = typeof targetUrl === 'function' ? targetUrl() : targetUrl;
+    if (
+      htm !== method ||
+      typeof method !== 'string' ||
+      method.length === 0 ||
+      normalizeDpopProofTarget(htu) !== expectedTarget
+    ) {
+      throw invalidProof('DPoP signed method or normalized public target does not match this request.');
+    }
+  } catch (error) {
+    handleDpopCheckFailure(ignoreTargetFailure, 'target', error);
   }
   if (
     typeof nonce === 'string' &&

@@ -75,6 +75,10 @@ const mappedFields = (result: OidcVaultAccessTokenValidationResult): OidcVaultAc
  * callbacks/validator methods, URLs, algorithms and secret bytes; the replay
  * store remains the shared atomic service. Responses carry no-store and fixed
  * errors; onError privately observes originals and cannot override failures.
+ * The independent OIDC_VAULT_DPOP_IGNORE_TARGET_FAILURE,
+ * OIDC_VAULT_DPOP_IGNORE_FRESHNESS_FAILURE and OIDC_VAULT_DPOP_IGNORE_REPLAY_FAILURE
+ * environment defaults are captured at construction; ignored failures log to
+ * console.warn. Explicit deviceBinding booleans override those defaults.
  */
 export function createOidcVaultAccessTokenMiddleware(options: OidcVaultAccessTokenMiddlewareOptions): RequestHandler {
   const { validator, deviceBinding: configuredBinding, onAuthContext, onError } = options;
@@ -221,12 +225,11 @@ export function createOidcVaultAccessTokenMiddleware(options: OidcVaultAccessTok
         if (!proof && confirmation)
           throw new OidcVaultHttpError(401, 'OIDC_VAULT_DPOP_REQUIRED', 'DPoP authentication is required.');
         if (proof) {
-          const targetUrl = targetFor!(originalUrl);
           const admission = await replay!.verifyAndReserve(() =>
             verifyDpopProof({
               proof,
               method,
-              targetUrl,
+              targetUrl: () => targetFor!(originalUrl),
               proofOptions: policy,
               accessToken: token!,
               expectedJkt: confirmation?.jkt,

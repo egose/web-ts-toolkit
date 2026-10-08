@@ -69,12 +69,11 @@ export const createVaultRouteProofVerifier = (
     now: options.now,
   });
   const admit = async (request: CapturedVaultRouteProof, proof: string, expectedJkt?: string) => {
-    const targetUrl = targetFor(request.originalUrl);
     const result = await replay.verifyAndReserve(() =>
       verifyDpopProof({
         proof,
         method: request.method,
-        targetUrl,
+        targetUrl: () => targetFor(request.originalUrl),
         proofOptions: policy,
         expectedJkt,
       }),
