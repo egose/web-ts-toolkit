@@ -172,11 +172,9 @@ describe('SVA-05 direct authorized execution', () => {
     });
     await f.execute(async (req) => {
       await expect(
-        req.macl
-          .getService(f.modelName)
-          .pickAllowedFields(previous.data[0], 'list', {
-            documentAuthorization: previous.contexts[0].documentAuthorization,
-          }),
+        req.macl.getService(f.modelName).pickAllowedFields(previous.data[0], 'list', {
+          documentAuthorization: previous.contexts[0].documentAuthorization,
+        }),
       ).rejects.toThrow();
     });
   });
