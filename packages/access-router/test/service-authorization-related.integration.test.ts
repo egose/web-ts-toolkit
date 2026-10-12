@@ -308,20 +308,18 @@ describe('SVA-06 explicit related policies', () => {
               ...f.include(op, correlated),
               filter: { ...(correlated ? { group: { $parent: 'group' } } : {}), tenant: 'a' },
             };
-            const result = await req.macl
-              .getService(f.parentName)
-              .findOne(
-                { _id: f.parents[0]._id },
-                { include } as never,
-                {
-                  ...quiet,
-                  authorization: {
-                    related: {
-                      items: { model: f.targetName, rows: mode === 'scope' ? { mode, filter: {} } : { mode } },
-                    },
+            const result = await req.macl.getService(f.parentName).findOne(
+              { _id: f.parents[0]._id },
+              { include } as never,
+              {
+                ...quiet,
+                authorization: {
+                  related: {
+                    items: { model: f.targetName, rows: mode === 'scope' ? { mode, filter: {} } : { mode } },
                   },
-                } as never,
-              );
+                },
+              } as never,
+            );
             expect(result).toMatchObject({ success: true });
             if (result.success)
               expect((result.data as any).items).toEqual(op === 'count' ? 1 : [expect.objectContaining({ name: 'a' })]);
