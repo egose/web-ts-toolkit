@@ -1,5 +1,6 @@
-import { get, pick } from '@web-ts-toolkit/utils';
+import { get } from '@web-ts-toolkit/utils';
 import { filterCollection, findElement, findElementById, genSubPopulate } from '../helpers';
+import { deepIsolateValue, isolateDocForOutput } from '../helpers/document';
 import { applyUpdate } from '../helpers/apply-update';
 import type {
   ErrorResult,
@@ -16,272 +17,373 @@ import type {
   SubdocumentParentArgs,
   SubdocumentParentOptions,
   SubdocumentReadOptions,
-  SubdocumentRecord,
+  SubdocumentUpdateOptions,
+  SubdocumentDeleteOptions,
 } from '../interfaces';
 import { Codes } from '../enums';
 import { assertPublicAdmission, PublicAdmissionError } from '../validation/public-admission';
-import { sanitizeSubScopeVirtualKeys, stripSubVirtualKeysFromFilter, validateClientFilter } from './base';
+import { sanitizeSubScopeVirtualKeys, validateClientFilter } from './base';
 import type { Service } from './service';
+import { copySubdocumentParent, finalizeSubdocumentRows, prepareSubdocumentPopulate } from '../acl/subdocument-output';
 import {
-  copySubdocumentParent,
-  finalizeSubdocumentRows,
-  prepareSubdocumentOutput,
-  prepareSubdocumentPopulate,
-} from '../acl/subdocument-output';
+  prepareSubdocumentCall,
+  subdocumentGateAllowed,
+  subdocumentInputPolicy,
+  subdocumentParentFilter,
+  subdocumentRows,
+} from '../acl/subdocument-authorization';
+import type { SubdocumentCall } from '../acl/subdocument-authorization';
+import {
+  admitModelInput,
+  assertModelInputComplexity,
+  inputFetchPaths,
+  requestInputFields,
+  resolveInputDocumentGrants,
+} from '../acl/model-input-admission';
+import { ServiceAuthorizationError } from '../acl/service-authorization';
+import { intersectFilters } from '../core-shared';
+import { isExecutionRowDenied } from '../acl/prepared-query';
 
-type IsOperationAllowed = (access: string) => Promise<boolean>;
 type Persist = <T>(operation: () => T | PromiseLike<T>) => Promise<T>;
+const denied = (code: ErrorResult['code'] = Codes.Forbidden): ErrorResult => ({ success: false, kind: 'error', code });
+const invalid = (detail: string): ErrorResult => ({ ...denied(Codes.BadRequest), errors: [{ detail }] });
 
-/** Input admission deliberately uses the existing persisted request-field evaluator. */
-function subdocumentInputFields<T>(service: Service<T>, sub: string, access: 'create' | 'update') {
-  return service.genQuerySelect(access, null, false, [sub, 'sub']);
+async function result<R>(run: () => Promise<R>): Promise<R | ErrorResult> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof ServiceAuthorizationError || error instanceof PublicAdmissionError) return error.result;
+    throw error;
+  }
 }
 
-// Keep the raw parent (including hook inputs) separate from all output copies.
-// Parent visibility is rechecked after persistence using Mongo query semantics.
-async function visibleMutationRows<T>(
-  service: Service<T>,
-  isAllowed: IsOperationAllowed,
-  parentId: unknown,
-  sub: SubdocumentName,
-  rows: Record<string, unknown>[],
-  response: 'create' | 'single' | 'bulk',
-): Promise<Record<string, unknown>[]> {
-  const accesses = ['read', `subs.${sub}.read`];
-  if (response === 'create') accesses.push(`subs.${sub}.list`);
-  if ((await Promise.all(accesses.map(isAllowed))).some((allowed) => !allowed)) return [];
-  const operation = response === 'create' ? 'subCreate' : response === 'single' ? 'subUpdate' : 'subBulkUpdate';
-  const prepared = prepareSubdocumentOutput(
-    service,
-    sub,
-    operation,
-    response === 'create' ? 'create' : 'update',
-    'read',
+async function initialGates<T, V extends object>(service: Service<T, V>, call: SubdocumentCall): Promise<boolean> {
+  // No new blanket guard on the historical route-owned initiating path.
+  return (
+    !call.scoped ||
+    ((await subdocumentGateAllowed(service, call.parent)) && (await subdocumentGateAllowed(service, call.child)))
   );
-  const parentFilter = await service.genFilter('read', { _id: parentId } as Filter<T>);
-  if (parentFilter === false) return [];
+}
+
+async function initialDenial<T, V extends object>(
+  service: Service<T, V>,
+  call: SubdocumentCall,
+): Promise<ErrorResult | undefined> {
+  if (isExecutionRowDenied(service, call.parent.execution)) return denied(Codes.NotFound);
+  if (isExecutionRowDenied(service, call.child.execution)) return denied();
+  if (!(await initialGates(service, call))) return denied();
+}
+
+function parentSelection<T, V extends object>(service: Service<T, V>, call: SubdocumentCall): string {
+  const input = inputFetchPaths(subdocumentInputPolicy(service, call).configuration.catalog);
+  // Identity retention is private fetch authority, not an output/input field grant.
+  return [...new Set(['_id', `${call.sub}._id`, ...input])].map((path) => `+${path}`).join(' ');
+}
+
+async function mutationParent<T, V extends object>(
+  service: Service<T, V>,
+  id: string,
+  call: SubdocumentCall,
+): Promise<{ parent: any } | { error: ErrorResult }> {
+  const filter = await subdocumentParentFilter(service, call.parent, id);
+  if (filter === false) return { error: denied(Codes.NotFound) };
   const parent = await service.findRawParentDoc({
-    filter: { $and: [{ _id: parentId }, parentFilter] } as Filter<T>,
-    select: '',
+    filter,
+    select: parentSelection(service, call),
     populate: [],
-    lean: true,
+    lean: false,
   });
-  if (!parent) return [];
-  const targetFilter =
-    response === 'create'
+  return parent ? { parent } : { error: denied(Codes.NotFound) };
+}
+
+/** Pre-write grants belong to the original owning parent, never a child or output DTO. */
+async function inputAdmission<T, V extends object>(service: Service<T, V>, call: SubdocumentCall, parent: unknown) {
+  const state = subdocumentInputPolicy(service, call);
+  const grants =
+    call.method === 'create'
       ? {}
-      : response === 'single'
-        ? { _id: rows[0]?._id }
-        : { _id: { $in: rows.map((row) => row._id) } };
-  const [readFilter, listFilter] = await Promise.all([
-    service.genFilter(`subs.${sub}.read`, targetFilter as Filter<T>),
-    response === 'create' ? service.genFilter(`subs.${sub}.list`) : Promise.resolve({}),
-  ]);
-  if (readFilter === false || listFilter === false) return [];
-  const visible = filterCollection(filterCollection(rows, listFilter), readFilter);
+      : await resolveInputDocumentGrants({
+          ...state,
+          doc: parent,
+          context: {
+            modelName: state.binding.modelName,
+            mongooseModel: state.binding.model as never,
+            operation: state.access.operation,
+          },
+        });
+  const requestFields = await requestInputFields({
+    ...state,
+    access: call.method === 'create' ? 'create' : 'update',
+    grants,
+    scopePath: call.sub,
+  });
+  return (data: Record<string, unknown>, existing?: unknown) => {
+    const admitted = admitModelInput({
+      data,
+      existing: existing ? (isolateDocForOutput(existing) as Record<string, unknown>) : undefined,
+      requestFields,
+      inputFields: state.inputFields,
+      catalog: state.configuration.catalog,
+      scopePath: call.sub,
+    });
+    // Dedicated request-mode compatibility also excludes a scope's virtual names
+    // within Mixed/plain nesting. Canonical admission has already detached JS data.
+    sanitizeSubScopeVirtualKeys(
+      admitted.allowedData,
+      {
+        virtuals: state.configuration.virtuals as Record<string, unknown>,
+      },
+      call.sub,
+    );
+    return admitted;
+  };
+}
+
+/** Independent read stage. Persistence has succeeded; visibility never turns it into a retryable write error. */
+async function visibleMutationRows<T, V extends object>(
+  service: Service<T, V>,
+  call: SubdocumentCall,
+  parentId: unknown,
+  rows: Record<string, unknown>[],
+) {
   try {
-    return await finalizeSubdocumentRows(service, prepared, parent, visible);
+    const visibility = call.visibility!;
+    const gates = [visibility.parent, visibility.child, ...(visibility.list ? [visibility.list] : [])];
+    if (gates.some((gate) => isExecutionRowDenied(service, gate.execution))) return [];
+    for (const gate of gates) if (!(await subdocumentGateAllowed(service, gate))) return [];
+    const identity = { _id: parentId } as Filter;
+    const filter = await subdocumentRows(service, visibility.parent, identity, identity);
+    if (filter === false) return [];
+    const parent = await service.findRawParentDoc({
+      filter: filter as Filter<T>,
+      select: parentSelection(service, call),
+      populate: [],
+      lean: true,
+    });
+    if (!parent) return [];
+    const selected = call.method === 'create' ? {} : { _id: { $in: rows.map((row) => row._id) } };
+    const read = await subdocumentRows(service, visibility.child, selected, selected, call.sub);
+    const list = visibility.list ? await subdocumentRows(service, visibility.list, {}, {}, call.sub) : {};
+    if (read === false || list === false) return [];
+    const visible = filterCollection(get(parent, call.sub) as Record<string, unknown>[], intersectFilters(read, list));
+    return await finalizeSubdocumentRows(service, call.output!, parent, visible);
   } catch {
-    // The write already succeeded. Never retry it or fall back to raw output.
+    // No retry and no raw-data fallback, including when a post-save hook fails.
     return [];
   }
 }
 
-export async function listSub<T>(
-  service: Service<T>,
+export async function listSub<T, V extends object>(
+  service: Service<T, V>,
   id: SubdocumentId,
   sub: SubdocumentName,
-  options?: SubdocumentListOptions<T>,
+  options?: SubdocumentListOptions<T, any, any>,
 ): Promise<ListResult | ErrorResult> {
-  try {
-    assertPublicAdmission(options);
-  } catch (error) {
-    if (error instanceof PublicAdmissionError) return error.result;
-    throw error;
-  }
-  const { filter, select } = options ?? {};
-  const errors = validateClientFilter(filter as Filter<T>);
-  if (errors.length) return { success: false, kind: 'error', code: Codes.BadRequest, errors };
-  const prepared = prepareSubdocumentOutput(service, sub, 'subList', 'list', 'list', select);
-  const stripped = stripSubVirtualKeysFromFilter(filter as Filter<T>, service.captureVirtualSnapshot(), sub);
-  const parent = await getParentDoc(service, id, sub, null, { access: 'read' });
-  if (!parent) return { success: false, kind: 'error', code: Codes.NotFound };
-  const subFilter = await service.genFilter(`subs.${sub}.list`, stripped as Filter<T>);
-  if (subFilter === false) return { success: false, kind: 'error', code: Codes.Forbidden };
-  const rows = filterCollection(get(parent, sub) as Record<string, unknown>[], subFilter);
-  const data = await finalizeSubdocumentRows(service, prepared, parent, rows);
-  return { success: true, kind: 'list', code: Codes.Success, data, count: data.length };
+  return result(async () => {
+    const call = prepareSubdocumentCall(service, sub, 'list', options);
+    const errors = validateClientFilter(options?.filter);
+    if (errors.length) return { ...denied(Codes.BadRequest), errors };
+    if (options?.filter === false) return denied();
+    const admission = await initialDenial(service, call);
+    if (admission) return admission;
+    const filter = await subdocumentParentFilter(service, call.parent, id);
+    if (filter === false) return denied(Codes.NotFound);
+    const childFilter = await subdocumentRows(service, call.child, options?.filter ?? {}, {}, sub);
+    if (childFilter === false) return denied();
+    const parent = await service.findRawParentDoc({
+      filter,
+      select: parentSelection(service, call),
+      populate: [],
+      lean: false,
+    });
+    if (!parent) return denied(Codes.NotFound);
+    const rows = filterCollection(get(parent, sub) as Record<string, unknown>[], childFilter);
+    const data = await finalizeSubdocumentRows(service, call.output!, parent, rows);
+    return { success: true as const, kind: 'list' as const, code: Codes.Success, data, count: data.length };
+  });
 }
 
-export async function readSub<T>(
-  service: Service<T>,
+export async function readSub<T, V extends object>(
+  service: Service<T, V>,
   id: SubdocumentId,
   sub: SubdocumentName,
   subId: SubdocumentId,
-  options?: SubdocumentReadOptions,
+  options?: SubdocumentReadOptions<T, any, any>,
 ): Promise<SingleResult | ErrorResult> {
-  try {
-    assertPublicAdmission(options);
-  } catch (error) {
-    if (error instanceof PublicAdmissionError) return error.result;
-    throw error;
-  }
-  const { select, populate } = options ?? {};
-  const prepared = prepareSubdocumentOutput(
-    service,
-    sub,
-    'subRead',
-    'read',
-    'read',
-    select,
-    genSubPopulate(sub, populate),
-  );
-  const parentFilter = await service.genFilter('read', await service.genIDFilter(id));
-  if (parentFilter === false) return { success: false, kind: 'error', code: Codes.NotFound };
-  const subFilter = await service.genFilter(`subs.${sub}.read`, { _id: subId } as Filter<T>);
-  if (subFilter === false) return { success: false, kind: 'error', code: Codes.Forbidden };
-  const entries = await prepareSubdocumentPopulate(service, prepared);
-  const parent = await service.findRawParentDoc({ filter: parentFilter, select: '', populate: entries, lean: false });
-  if (!parent) return { success: false, kind: 'error', code: Codes.NotFound };
-  const outputParent = copySubdocumentParent(parent);
-  const row = findElement(get(outputParent, sub) as Record<string, unknown>[], subFilter);
-  if (!row) return { success: false, kind: 'error', code: Codes.NotFound };
-  // Only the visible row reaches target finalizers/getters. Retain the exact
-  // request-mode plans used for fetching; never regenerate target authority.
-  await service.finalizePopulateForSubParent({ [sub]: [row] }, entries, 'subRead');
-  const data = await finalizeSubdocumentRows(service, prepared, parent, [row]);
-  return { success: true, kind: 'single', code: Codes.Success, data: data[0] ?? null };
+  return result(async () => {
+    const call = prepareSubdocumentCall(service, sub, 'read', options);
+    const admission = await initialDenial(service, call);
+    if (admission) return admission;
+    const filter = await subdocumentParentFilter(service, call.parent, id);
+    if (filter === false) return denied(Codes.NotFound);
+    const identity = { _id: subId };
+    const childFilter = await subdocumentRows(service, call.child, identity, identity, sub);
+    if (childFilter === false) return denied();
+    const entries = await prepareSubdocumentPopulate(service, call.output!);
+    const parent = await service.findRawParentDoc({
+      filter,
+      select: parentSelection(service, call),
+      populate: entries,
+      lean: false,
+    });
+    if (!parent) return denied(Codes.NotFound);
+    const row = findElement(get(copySubdocumentParent(parent), sub) as Record<string, unknown>[], childFilter);
+    if (!row) return denied(Codes.NotFound);
+    await service.finalizePopulateForSubParent({ [sub]: [row] }, entries, 'subRead');
+    const data = await finalizeSubdocumentRows(service, call.output!, parent, [row]);
+    return { success: true as const, kind: 'single' as const, code: Codes.Success, data: data[0] ?? null };
+  });
 }
 
-export async function updateSub<T>(
-  service: Service<T>,
+export async function updateSub<T, V extends object>(
+  service: Service<T, V>,
   persist: Persist,
-  isAllowed: IsOperationAllowed,
   id: SubdocumentId,
   sub: SubdocumentName,
   subId: SubdocumentId,
   data: Record<string, unknown>,
+  options?: SubdocumentUpdateOptions<T, any, any>,
 ): Promise<SingleResult | ErrorResult> {
-  const parent = await getParentDoc(service, id, sub, null, { access: 'update' });
-  if (!parent) return { success: false, kind: 'error', code: Codes.NotFound };
-  const [filter, fields] = await Promise.all([
-    service.genFilter(`subs.${sub}.update`, { _id: subId } as Filter<T>),
-    subdocumentInputFields(service, sub, 'update'),
-  ]);
-  if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden };
-  const row = findElement(get(parent, sub) as Record<string, unknown>[], filter);
-  if (!row) return { success: false, kind: 'error', code: Codes.NotFound };
-  const allowed = sanitizeSubScopeVirtualKeys(pick(data, fields), service.captureVirtualSnapshot(), sub);
-  applyUpdate(row, allowed, fields);
-  await persist(() => parent.save());
-  const visible = await visibleMutationRows(service, isAllowed, parent._id, sub, [row], 'single');
-  return { success: true, kind: 'single', code: Codes.Success, data: visible[0] ?? null };
+  return result(async () => {
+    const call = prepareSubdocumentCall(service, sub, 'update', options);
+    assertModelInputComplexity(data, service.getRequestComplexity());
+    assertPublicAdmission(data, 'data');
+    const admission = await initialDenial(service, call);
+    if (admission) return admission;
+    const lookup = await mutationParent(service, id, call);
+    if ('error' in lookup) return lookup.error;
+    const { parent } = lookup;
+    const identity = { _id: subId };
+    const filter = await subdocumentRows(service, call.child, identity, identity, sub);
+    if (filter === false) return denied();
+    const row = findElement(get(parent, sub) as Record<string, unknown>[], filter);
+    if (!row) return denied(Codes.NotFound);
+    const original = isolateDocForOutput(row);
+    const admit = await inputAdmission(service, call, parent);
+    const { allowedData, allowedFields } = admit(data, original);
+    applyUpdate(row, allowedData, allowedFields);
+    await persist(() => parent.save());
+    const visible = await visibleMutationRows(service, call, parent._id, [row]);
+    return { success: true as const, kind: 'single' as const, code: Codes.Success, data: visible[0] ?? null };
+  });
 }
 
-export async function bulkUpdateSub<T>(
-  service: Service<T>,
+export async function bulkUpdateSub<T, V extends object>(
+  service: Service<T, V>,
   persist: Persist,
-  isAllowed: IsOperationAllowed,
   id: SubdocumentId,
   sub: SubdocumentName,
   data: SubdocumentBulkUpdateInput,
+  options?: SubdocumentUpdateOptions<T, any, any>,
 ): Promise<ListResult | ErrorResult> {
-  const { maxBulkItems } = service.getRequestComplexity();
-  if (data.length > maxBulkItems)
-    return {
-      success: false,
-      kind: 'error',
-      code: Codes.BadRequest,
-      errors: [{ detail: `Bulk subdocument update exceeds maximum item count of ${maxBulkItems}` }],
-    };
-  const parent = await getParentDoc(service, id, sub, null, { access: 'update' });
-  if (!parent) return { success: false, kind: 'error', code: Codes.NotFound };
-  const [filter, fields] = await Promise.all([
-    service.genFilter(`subs.${sub}.update`, { _id: { $in: data.map((row) => row._id) } } as Filter<T>),
-    subdocumentInputFields(service, sub, 'update'),
-  ]);
-  if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden };
-  const rows = filterCollection(get(parent, sub) as SubdocumentBulkRecord[], filter).filter((row) =>
-    findElementById(data, row._id as string),
-  );
-  const snapshot = service.captureVirtualSnapshot();
-  for (const row of rows) {
-    const input = findElementById(data, row._id as string);
-    if (input) applyUpdate(row, sanitizeSubScopeVirtualKeys(pick(input as object, fields), snapshot, sub), fields);
-  }
-  await persist(() => parent.save());
-  const visible = await visibleMutationRows(service, isAllowed, parent._id, sub, rows, 'bulk');
-  return { success: true, kind: 'list', code: Codes.Success, data: visible, count: visible.length };
+  return result(async () => {
+    const call = prepareSubdocumentCall(service, sub, 'bulkUpdate', options);
+    const { maxBulkItems } = service.getRequestComplexity();
+    if (data.length > maxBulkItems)
+      return invalid(`Bulk subdocument update exceeds maximum item count of ${maxBulkItems}`);
+    assertModelInputComplexity(data, service.getRequestComplexity());
+    assertPublicAdmission(data, 'data');
+    const admission = await initialDenial(service, call);
+    if (admission) return admission;
+    const lookup = await mutationParent(service, id, call);
+    if ('error' in lookup) return lookup.error;
+    const { parent } = lookup;
+    const selected = { _id: { $in: data.map((row) => row._id) } };
+    const filter = await subdocumentRows(service, call.child, selected, selected, sub);
+    if (filter === false) return denied();
+    const rows = filterCollection(get(parent, sub) as SubdocumentBulkRecord[], filter);
+    const originals = rows.map((row) => isolateDocForOutput(row));
+    const admit = await inputAdmission(service, call, parent);
+    for (const [index, row] of rows.entries()) {
+      const input = findElementById(data, row._id as string);
+      if (input) {
+        const { allowedData, allowedFields } = admit(input, originals[index]);
+        applyUpdate(row, allowedData, allowedFields);
+      }
+    }
+    await persist(() => parent.save());
+    const visible = await visibleMutationRows(service, call, parent._id, rows);
+    return { success: true as const, kind: 'list' as const, code: Codes.Success, data: visible, count: visible.length };
+  });
 }
 
-export async function createSub<T>(
-  service: Service<T>,
+export async function createSub<T, V extends object>(
+  service: Service<T, V>,
   persist: Persist,
-  isAllowed: IsOperationAllowed,
   id: SubdocumentId,
   sub: SubdocumentName,
   data: SubdocumentCreateInput,
-  options?: SubdocumentCreateOptions,
+  options?: SubdocumentCreateOptions<T, any, any>,
 ): Promise<ListResult | ErrorResult> {
-  try {
-    assertPublicAdmission(options);
-  } catch (error) {
-    if (error instanceof PublicAdmissionError) return error.result;
-    throw error;
-  }
-  const { maxBulkItems } = service.getRequestComplexity();
-  if (Array.isArray(data) && data.length > maxBulkItems)
-    return {
-      success: false,
-      kind: 'error',
-      code: Codes.BadRequest,
-      errors: [{ detail: `Bulk subdocument create exceeds maximum item count of ${maxBulkItems}` }],
-    };
-  const parent = await getParentDoc(service, id, sub, null, { access: 'update' });
-  if (!parent) return { success: false, kind: 'error', code: Codes.NotFound };
-  const rows = get(parent, sub) as Record<string, unknown>[];
-  const fields = await subdocumentInputFields(service, sub, 'create');
-  const snapshot = service.captureVirtualSnapshot();
-  const sanitize = (row: SubdocumentRecord) =>
-    sanitizeSubScopeVirtualKeys(pick(row as Record<string, unknown>, fields), snapshot, sub);
-  const allowed = Array.isArray(data) ? data.map(sanitize) : [sanitize(data as SubdocumentRecord)];
-  if (options?.addFirst) rows.unshift(...allowed);
-  else rows.push(...allowed);
-  await persist(() => parent.save());
-  const visible = await visibleMutationRows(service, isAllowed, parent._id, sub, rows, 'create');
-  return { success: true, kind: 'list', code: Codes.Created, data: visible, count: visible.length };
+  return result(async () => {
+    const call = prepareSubdocumentCall(service, sub, 'create', options);
+    const { maxBulkItems } = service.getRequestComplexity();
+    if (Array.isArray(data) && data.length > maxBulkItems)
+      return invalid(`Bulk subdocument create exceeds maximum item count of ${maxBulkItems}`);
+    assertModelInputComplexity(data, service.getRequestComplexity());
+    assertPublicAdmission(data, 'data');
+    const admission = await initialDenial(service, call);
+    if (admission) return admission;
+    const lookup = await mutationParent(service, id, call);
+    if ('error' in lookup) return lookup.error;
+    const { parent } = lookup;
+    const rows = get(parent, sub) as Record<string, unknown>[];
+    const admit = await inputAdmission(service, call, parent);
+    const allowed = (Array.isArray(data) ? data : [data]).map((row) => admit(row).allowedData);
+    if (options?.addFirst) rows.unshift(...allowed);
+    else rows.push(...allowed);
+    await persist(() => parent.save());
+    const visible = await visibleMutationRows(service, call, parent._id, rows);
+    return { success: true as const, kind: 'list' as const, code: Codes.Created, data: visible, count: visible.length };
+  });
 }
 
-export async function deleteSub<T>(
-  service: Service<T>,
+export async function deleteSub<T, V extends object>(
+  service: Service<T, V>,
   persist: Persist,
   id: SubdocumentId,
   sub: SubdocumentName,
   subId: SubdocumentId,
+  options?: SubdocumentDeleteOptions<T, any>,
 ): Promise<SingleResult | ErrorResult> {
-  const parent = await getParentDoc(service, id, sub, null, { access: 'update' });
-  if (!parent) return { success: false, kind: 'error', code: Codes.NotFound };
-  const filter = await service.genFilter(`subs.${sub}.delete`, { _id: subId } as Filter<T>);
-  if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden };
-  const row = findElement(get(parent, sub) as Record<string, unknown>[], filter) as
-    | { _id: unknown; deleteOne?: () => Promise<unknown>; remove?: () => Promise<unknown> }
-    | undefined;
-  if (!row) return { success: false, kind: 'error', code: Codes.NotFound };
-  await ('deleteOne' in row ? row.deleteOne?.() : row.remove?.());
-  await persist(() => parent.save());
-  return { success: true, kind: 'single', code: Codes.Success, data: row._id };
+  return result(async () => {
+    const call = prepareSubdocumentCall(service, sub, 'delete', options);
+    const admission = await initialDenial(service, call);
+    if (admission) return admission;
+    const lookup = await mutationParent(service, id, call);
+    if ('error' in lookup) return lookup.error;
+    const { parent } = lookup;
+    const identity = { _id: subId };
+    const filter = await subdocumentRows(service, call.child, identity, identity, sub);
+    if (filter === false) return denied();
+    const row = findElement(get(parent, sub) as Record<string, unknown>[], filter) as
+      | { _id: unknown; deleteOne?: () => Promise<unknown>; remove?: () => Promise<unknown> }
+      | undefined;
+    if (!row) return denied(Codes.NotFound);
+    await ('deleteOne' in row ? row.deleteOne?.() : row.remove?.());
+    await persist(() => parent.save());
+    return { success: true as const, kind: 'single' as const, code: Codes.Success, data: row._id };
+  });
 }
 
-export async function getParentDoc<T>(
-  service: Service<T>,
+/** Legacy request-only raw parent helper. Dedicated policy calls use the private scoped boundary. */
+export async function getParentDoc<T, V extends object>(
+  service: Service<T, V>,
   id: SubdocumentId,
   sub: SubdocumentName,
   args?: SubdocumentParentArgs,
   options?: SubdocumentParentOptions,
 ) {
+  assertPublicAdmission({ args, options });
   const { access = 'read', lean = false } = options ?? {};
-  const filter = await service.genFilter(access, await service.genIDFilter(id));
+  const identity = deepIsolateValue(await service.genIDFilter(id));
+  const filter = intersectFilters(identity, await service.genFilter(access, deepIsolateValue(identity)));
   if (filter === false) return null;
-  const populate = await service.genPopulate('read', genSubPopulate(sub, args?.populate), [sub, 'sub']);
-  return service.findRawParentDoc({ filter, select: access === 'read' ? '' : sub, populate, lean });
+  const populate = await service.genPopulate('read', genSubPopulate(sub, args?.populate), { scopePath: [sub] });
+  return service.findRawParentDoc({
+    filter: filter as Filter<T>,
+    select: access === 'read' ? '' : sub,
+    populate,
+    lean,
+  });
 }

@@ -194,8 +194,15 @@ export function deriveServiceExecution<T, V extends object>(
   const captured = readServiceAuthorization(record.authorization, record.binding);
   const policy = serviceAuthorizationInput(captured.authorization, captured.relatedTargets);
   const { outputFields, related } = policy;
+  const { inputFields } = captured.authorization;
   const authorization =
-    applicability === 'create' ? { outputFields, related } : applicability === 'output' ? { outputFields } : policy;
+    applicability === 'create'
+      ? { inputFields, outputFields, related }
+      : applicability === 'mutation'
+        ? { ...policy, inputFields }
+        : applicability === 'output'
+          ? { outputFields }
+          : policy;
   const call = resolveServiceAuthorization({
     binding: record.binding,
     access,

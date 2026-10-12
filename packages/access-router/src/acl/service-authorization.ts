@@ -3,7 +3,7 @@
  * until public admission (SVA-01A) is complete. Never re-export runtime issuers.
  */
 import Permission from '../permission';
-import { isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
+import { isCatalogInputPath, isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
 import type { AccessRouterPermissions } from '../permission';
 import type { AccessRouterRequest } from '../interfaces/request';
 import type { Filter } from '../interfaces/query-types';
@@ -36,10 +36,18 @@ export interface AuthorizationAccess {
 /** SVA-02 supplies this catalog from schema.paths/child schemas and the virtual registry. */
 export interface AuthorizationFieldCatalog {
   readonly paths: readonly string[];
+  /** Persisted schema paths before output virtuals/virtual-only containers are added. */
+  readonly persistedPaths?: readonly string[];
+  readonly arrayPaths?: readonly string[];
+  readonly schemaVirtualPaths?: readonly string[];
+  /** Permission metadata ancestors cannot become replacement input boundaries. */
+  readonly metadataPaths?: readonly string[];
   /** Internal schema Map patterns; `$*` is never accepted in a caller path. */
   readonly dynamicPaths?: readonly string[];
   readonly containerPaths?: readonly string[];
   readonly virtualPaths?: readonly string[];
+  /** Registered virtual scope containers, including empty scopes, for input alias exclusion. */
+  readonly virtualScopePaths?: readonly string[];
   readonly opaquePaths?: readonly string[];
   readonly referencePaths?: readonly string[];
   readonly protectedPaths?: readonly string[];
@@ -62,13 +70,14 @@ export interface AuthorizationRelatedTarget {
   readonly relatedTargets?: readonly AuthorizationRelatedTarget[];
 }
 
-export type AuthorizationApplicability = 'service' | 'create' | 'output';
+export type AuthorizationApplicability = 'service' | 'mutation' | 'create' | 'output';
 export type ResolvedRows =
   | { readonly mode: 'request' | 'unrestricted' }
   | { readonly mode: 'scope'; readonly filter: Filter };
 export interface NormalizedServiceAuthorization {
   readonly rows: ResolvedRows;
   readonly outputFields: FieldAuthorization;
+  readonly inputFields: FieldAuthorization;
   readonly related: Readonly<Record<string, NormalizedRelatedAuthorization>>;
 }
 export interface NormalizedRelatedAuthorization extends NormalizedServiceAuthorization {
@@ -169,25 +178,32 @@ function normalizeRows(value: unknown): ResolvedRows {
   return authorizationError('unknown rows mode');
 }
 
-function normalizeFields(value: unknown, configuration: AuthorizationConfiguration): FieldAuthorization {
+function normalizeFields(
+  value: unknown,
+  configuration: AuthorizationConfiguration,
+  dimension: 'outputFields' | 'inputFields' = 'outputFields',
+): FieldAuthorization {
   if (value === undefined) return { mode: 'request' };
-  const input = authorizationRecord(value, 'outputFields');
+  const input = authorizationRecord(value, dimension);
   if (input.mode === 'request' || input.mode === 'unrestricted') {
-    assertAuthorizationKeys(input, ['mode'], 'outputFields');
+    assertAuthorizationKeys(input, ['mode'], dimension);
     return { mode: input.mode };
   }
   if (input.mode === 'grant') {
-    assertAuthorizationKeys(input, ['mode', 'paths'], 'outputFields');
+    assertAuthorizationKeys(input, ['mode', 'paths'], dimension);
     if (!Array.isArray(input.paths)) authorizationError('grant.paths must be an array');
     // Array.from also visits holes; sparse paths are malformed rather than silently skipped.
     const paths = Array.from(input.paths as unknown[]).map((path) => {
       assertAuthorizationPath(path);
       assertCatalogPath(path, configuration);
+      if (dimension === 'inputFields' && !isCatalogInputPath(configuration.catalog, path)) {
+        authorizationError(`ineligible persisted input path: ${path}`);
+      }
       return path;
     });
     return { mode: 'grant', paths: [...new Set(paths)] };
   }
-  return authorizationError('unknown outputFields mode');
+  return authorizationError(`unknown ${dimension} mode`);
 }
 
 function normalizeOperation(value: unknown): OperationAuthorization {
@@ -210,8 +226,10 @@ function normalizePolicy(
     applicability === 'output'
       ? ['outputFields']
       : applicability === 'create'
-        ? ['outputFields', 'related']
-        : ['rows', 'outputFields', 'related'],
+        ? ['inputFields', 'outputFields', 'related']
+        : applicability === 'mutation'
+          ? ['inputFields', 'rows', 'outputFields', 'related']
+          : ['rows', 'outputFields', 'related'],
     'authorization',
   );
   const related: Record<string, NormalizedRelatedAuthorization> = {};
@@ -244,6 +262,7 @@ function normalizePolicy(
   return {
     rows: normalizeRows(input.rows),
     outputFields: normalizeFields(input.outputFields, configuration),
+    inputFields: normalizeFields(input.inputFields, configuration, 'inputFields'),
     related,
   };
 }

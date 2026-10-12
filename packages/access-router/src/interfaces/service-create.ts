@@ -27,6 +27,6 @@ export interface CreateOptions<
   TModel = unknown,
   TVirtuals extends object = Record<never, never>,
 > extends PublicCreateOptions {
-  /** Trusted server-only output/related authority; rows reject and input writes still use request permissions. */
+  /** Trusted server-only independent input/output/related authority; existing-row policies reject. */
   readonly authorization?: CreateAuthorization<TModel, TVirtuals>;
 }

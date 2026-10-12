@@ -197,6 +197,9 @@ export type {
   CreateAuthorization,
   DocumentAuthorization,
   FieldAuthorization,
+  InputFieldAuthorization,
+  InputFieldPath,
+  MutationAuthorization,
   OperationAuthorization,
   OutputAuthorization,
   OutputFieldOptions,
@@ -208,7 +211,35 @@ export type {
   ServiceOutputContext,
   ServiceOutputDecorator,
 } from './interfaces/service-authorization';
-export type { NewArgs, NewOptions } from './interfaces/service';
+export type {
+  NewArgs,
+  NewOptions,
+  PopulatePlanningOptions,
+  SubdocumentName,
+  SubdocumentModel,
+  SubdocumentVirtuals,
+  SubdocumentListOptions,
+  SubdocumentReadOptions,
+  SubdocumentCreateOptions,
+  SubdocumentUpdateOptions,
+  SubdocumentDeleteOptions,
+  PublicSubdocumentListOptions,
+  PublicSubdocumentReadOptions,
+  PublicSubdocumentCreateOptions,
+  PublicSubdocumentMutationOptions,
+} from './interfaces/service';
+export type { DataFieldOptions } from './interfaces/data';
+export type {
+  SubdocumentGateAuthorization,
+  SubdocumentOutputAuthorization,
+  SubdocumentInputAuthorization,
+  SubdocumentReadAuthorization,
+  SubdocumentMutationAuthorization,
+  SubdocumentCreateAuthorization,
+  SubdocumentDeleteAuthorization,
+  SubdocumentVisibilityAuthorization,
+  SubdocumentCreateVisibilityAuthorization,
+} from './interfaces/subdocument-authorization';
 export type {
   DefaultModelRouterOptions,
   ExtendedDataRouterOptions,

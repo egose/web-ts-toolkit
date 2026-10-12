@@ -1,20 +1,19 @@
 import { difference, intersection } from '@web-ts-toolkit/utils';
 import { collectSchemaFields } from '../core-shared';
 import type { AccessRouterBaseRequest, Projection } from '../interfaces';
+import type { AccessRouterPermissions } from '../permission';
 import { pickDocFields, normalizeSelect } from '../helpers';
 
 export async function collectAllowedFieldsForRequest({
   req,
   permissionSchema,
   access,
-  baseFields = [],
   hasPermission,
   functionArgs = [],
 }: {
   req: AccessRouterBaseRequest;
   permissionSchema: Record<string, unknown> | null | undefined;
   access: string;
-  baseFields?: string[];
   hasPermission: (key: string) => boolean;
   functionArgs?: unknown[];
 }) {
@@ -22,9 +21,28 @@ export async function collectAllowedFieldsForRequest({
     req,
     permissionSchema,
     access,
-    baseFields,
     hasPermission,
     functionArgs,
+  });
+}
+
+/** Request/input/metadata rules only. Grants are supplied by the private caller's stage. */
+export function collectModelRequestFields(args: {
+  req: AccessRouterBaseRequest;
+  permissionSchema: Record<string, unknown> | null | undefined;
+  access: string;
+  permissions: AccessRouterPermissions;
+  grants?: Readonly<Record<string, unknown>>;
+  modelPermissionPrefix?: string;
+}): Promise<string[]> {
+  const { permissions, grants = {}, modelPermissionPrefix: prefix = '' } = args;
+  return collectAllowedFieldsForRequest({
+    req: args.req,
+    permissionSchema: args.permissionSchema,
+    access: args.access,
+    hasPermission: (key) =>
+      permissions.has(key) || Boolean(grants[key.startsWith(prefix) ? key.slice(prefix.length) : key]),
+    functionArgs: [permissions, grants],
   });
 }
 
@@ -33,7 +51,6 @@ export async function pickAllowedFieldsForRequest<TDoc>({
   doc,
   permissionSchema,
   access,
-  baseFields = [],
   hasPermission,
   functionArgs = [],
 }: {
@@ -41,7 +58,6 @@ export async function pickAllowedFieldsForRequest<TDoc>({
   doc: TDoc;
   permissionSchema: Record<string, unknown> | null | undefined;
   access: string;
-  baseFields?: string[];
   hasPermission: (key: string) => boolean;
   functionArgs?: unknown[];
 }) {
@@ -49,7 +65,6 @@ export async function pickAllowedFieldsForRequest<TDoc>({
     req,
     permissionSchema,
     access,
-    baseFields,
     hasPermission,
     functionArgs,
   });
@@ -61,7 +76,6 @@ export async function resolveSelectForRequest({
   permissionSchema,
   access,
   targetFields = null,
-  skipChecks = true,
   hasPermission,
   functionArgs = [],
   mode,
@@ -72,7 +86,6 @@ export async function resolveSelectForRequest({
   permissionSchema: Record<string, unknown> | null | undefined;
   access: string;
   targetFields?: Projection;
-  skipChecks?: boolean;
   hasPermission: (key: string) => boolean;
   functionArgs?: unknown[];
   mode: 'model' | 'data';
@@ -94,13 +107,7 @@ export async function resolveSelectForRequest({
     req,
     permissionSchema: persistedSchema,
     access,
-    hasPermission: (key) => {
-      if (hasPermission(key)) {
-        return true;
-      }
-
-      return !!skipChecks && mode !== 'data';
-    },
+    hasPermission,
     functionArgs,
   });
 

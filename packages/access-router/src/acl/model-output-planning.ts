@@ -39,6 +39,7 @@ export function captureModelAuthorizationConfiguration(
     baseFilter: options.baseFilter,
     idField: options.idField,
     resolveIdFilter: options.resolveIdFilter,
+    operationAccess: options.operationAccess,
   };
 }
 

@@ -10,6 +10,7 @@ import {
 import { validateClientFilter } from './base';
 import {
   DataHookContext,
+  DataFieldOptions,
   ErrorResult,
   Filter,
   ListResult,
@@ -31,6 +32,7 @@ import {
 import { Codes } from '../enums';
 import { orderBy, pick } from '@web-ts-toolkit/utils';
 import { resolveRequestComplexity } from '../request-complexity';
+import { assertFieldHelperCall } from '../acl/field-helper-options';
 
 export class DataService<T> {
   protected req: DataRequest;
@@ -171,8 +173,10 @@ export class DataService<T> {
     return resolveRequestComplexity(getGlobalOption('requestComplexity'));
   }
 
-  public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]> {
-    return this.req.dacl.genAllowedFields(this.dataName, doc, access, baseFields);
+  /** Request-schema allowlist, even with null doc. Named options default to {}; no backend elevation. */
+  public async genAllowedFields(doc: unknown, access: SelectAccess, options: DataFieldOptions = {}): Promise<string[]> {
+    assertFieldHelperCall('genAllowedFields', arguments.length, 3, options, 'data');
+    return this.req.dacl.genAllowedFields(this.dataName, doc, access, options);
   }
 
   public genFilter(access?: BaseFilterAccess, filter?: DataFilter<T>): Promise<DataFilter<T>> {
@@ -183,29 +187,39 @@ export class DataService<T> {
     return this.req.dacl.genIDFilter<T>(this.dataName, id);
   }
 
-  public genSelect(
+  /**
+   * Request-only requested-token intersection; no model catalog or document hooks.
+   * Omitted/null/empty/exclusion-only selection yields []; find/findOne interpret it
+   * as no additional projection after request trimming. Named options default to {}.
+   */
+  public async genSelect(
     access: SelectAccess,
     targetFields?: Projection,
-    skipChecks?: boolean,
-    subPaths?: string[],
+    options: DataFieldOptions = {},
   ): Promise<string[]> {
-    return this.req.dacl.genSelect(this.dataName, access, targetFields, skipChecks, subPaths);
+    assertFieldHelperCall('genSelect', arguments.length, 3, options, 'data');
+    return this.req.dacl.genSelect(this.dataName, access, targetFields, options);
   }
 
-  public genQuerySelect(
+  /** Alias of request-only genSelect, including its empty-intersection semantics. */
+  public async genQuerySelect(
     access: SelectAccess,
     targetFields?: Projection,
-    skipChecks?: boolean,
-    subPaths?: string[],
+    options: DataFieldOptions = {},
   ): Promise<string[]> {
-    return this.genSelect(access, targetFields, skipChecks, subPaths);
+    assertFieldHelperCall('genQuerySelect', arguments.length, 3, options, 'data');
+    return this.genSelect(access, targetFields, options);
   }
 
-  public pickAllowedFields<TDoc>(doc: TDoc, access: SelectAccess, baseFields?: string[]): Promise<TDoc> {
-    return this.req.dacl.pickAllowedFields(this.dataName, doc, access, baseFields) as Promise<TDoc>;
+  /** Request-only existing-value pick; no automatic identity/metadata retention or model hooks. */
+  public async pickAllowedFields<TDoc>(doc: TDoc, access: SelectAccess, options: DataFieldOptions = {}): Promise<TDoc> {
+    assertFieldHelperCall('pickAllowedFields', arguments.length, 3, options, 'data');
+    return this.req.dacl.pickAllowedFields(this.dataName, doc, access, options);
   }
 
-  public trimOutputFields<TDoc>(doc: TDoc, access: SelectAccess, baseFields?: string[]): Promise<TDoc> {
-    return this.pickAllowedFields(doc, access, baseFields);
+  /** Alias of request-only pickAllowedFields; named options default to {}. */
+  public async trimOutputFields<TDoc>(doc: TDoc, access: SelectAccess, options: DataFieldOptions = {}): Promise<TDoc> {
+    assertFieldHelperCall('trimOutputFields', arguments.length, 3, options, 'data');
+    return this.pickAllowedFields(doc, access, options);
   }
 }

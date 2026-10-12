@@ -27,9 +27,17 @@ import {
   BaseFilterAccess,
   SingleResult,
   ServiceResult,
+  PublicSubdocumentListOptions,
+  PublicSubdocumentReadOptions,
+  PublicSubdocumentCreateOptions,
+  PublicSubdocumentMutationOptions,
+  SubdocumentModel,
+  SubdocumentCreateInput,
+  SubdocumentBulkUpdateInput,
 } from '../interfaces';
 import { Codes } from '../enums';
 import { createServiceExecution, deriveServiceExecution } from '../acl/service-execution';
+import { assertModelInputComplexity } from '../acl/model-input-admission';
 import {
   executeCreate,
   executePreparedExists,
@@ -51,6 +59,68 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
   TModel,
   TVirtuals
 > {
+  /** Public dispatch stays request-only even for JS callers and transformed envelopes. */
+  override async listSub<S extends string>(
+    id: string,
+    sub: S,
+    options?: PublicSubdocumentListOptions<SubdocumentModel<TModel, S>>,
+  ) {
+    const admission = this.admitPublicCall({ options });
+    if (admission) return admission;
+    return super.listSub(id, sub, pickPublicKeys(options, ['filter', 'select']));
+  }
+
+  override async readSub<S extends string>(id: string, sub: S, subId: string, options?: PublicSubdocumentReadOptions) {
+    const admission = this.admitPublicCall({ options });
+    if (admission) return admission;
+    return super.readSub(id, sub, subId, pickPublicKeys(options, ['select', 'populate']));
+  }
+
+  override async createSub<S extends string>(
+    id: string,
+    sub: S,
+    data: SubdocumentCreateInput,
+    options?: PublicSubdocumentCreateOptions,
+  ) {
+    const admission = this.admitPublicCall({ options, data });
+    if (admission) return admission;
+    return super.createSub(id, sub, data, pickPublicKeys(options, ['addFirst']));
+  }
+
+  override async updateSub<S extends string>(
+    id: string,
+    sub: S,
+    subId: string,
+    data: Record<string, unknown>,
+    options?: PublicSubdocumentMutationOptions,
+  ) {
+    const admission = this.admitPublicCall({ options, data });
+    if (admission) return admission;
+    return super.updateSub(id, sub, subId, data);
+  }
+
+  override async bulkUpdateSub<S extends string>(
+    id: string,
+    sub: S,
+    data: SubdocumentBulkUpdateInput | Record<string, unknown>,
+    options?: PublicSubdocumentMutationOptions,
+  ) {
+    const admission = this.admitPublicCall({ options, data });
+    if (admission) return admission;
+    return super.bulkUpdateSub(id, sub, data);
+  }
+
+  override async deleteSub<S extends string>(
+    id: string,
+    sub: S,
+    subId: string,
+    options?: PublicSubdocumentMutationOptions,
+  ) {
+    const admission = this.admitPublicCall({ options });
+    if (admission) return admission;
+    return super.deleteSub(id, sub, subId);
+  }
+
   async _list<
     TSelect extends Projection | undefined = undefined,
     TPopulate extends Populate[] | string | undefined = undefined,
@@ -508,11 +578,15 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
 
   private admitPublicCall(envelope: unknown): ErrorResult | null {
     try {
+      if (envelope && typeof envelope === 'object' && 'data' in envelope)
+        assertModelInputComplexity(envelope.data, this.getRequestComplexity());
       assertPublicAdmission(envelope);
       assertPublicDefaults(this.defaults);
       return null;
     } catch (error) {
       if (error instanceof PublicAdmissionError) return error.result;
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
       throw error;
     }
   }

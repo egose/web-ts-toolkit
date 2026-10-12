@@ -24,6 +24,65 @@ const safeSegment = (part: string) =>
 
 export const isSafeOutputPath = (path: string): boolean => path.split('.').every(safeSegment);
 
+const inputControlSegments = new Set([
+  '_permissions',
+  '_view',
+  '_edit',
+  'documentAuthorization',
+  'documentAuthorizationStage',
+  'resolvedAuthorization',
+  'execution',
+  'executionContext',
+  'serviceExecutionContext',
+  'preparedQuery',
+  'preparedFilter',
+  'preparedModelQuery',
+  'resolvedIdentifier',
+  'skipParsing',
+  'skipAuthorization',
+  'alreadyAuthorized',
+]);
+
+/** Identity is not elevatable; request-authorized IDs retain their existing behavior. */
+export function isSafeInputPath(path: string, requestIdentity = false): boolean {
+  return (
+    isSafeOutputPath(path) &&
+    path.split('.').every((part) => !inputControlSegments.has(part) && (requestIdentity || part !== '_id'))
+  );
+}
+
+/** Persisted-only view. Output registries never manufacture writable containers. */
+export function isCatalogInputPath(catalog: AuthorizationFieldCatalog, path: string): boolean {
+  if (!isSafeInputPath(path) || !isCatalogOutputPath(catalog, path) || isInputVirtualPath(catalog, path)) return false;
+  if (catalog.metadataPaths?.some((p) => matchesCatalogPattern(path, p, true))) return false;
+  if (
+    [...(catalog.virtualPaths ?? []), ...(catalog.schemaVirtualPaths ?? [])].some((p) =>
+      matchesCatalogPattern(p, path, true),
+    )
+  )
+    return false;
+  return (
+    (catalog.persistedPaths ?? catalog.paths).some((p) => matchesCatalogPattern(p, path)) ||
+    !!catalog.opaquePaths?.some((p) => matchesCatalogPattern(p, path, true))
+  );
+}
+
+/**
+ * Preserve request-input virtual-name exclusion through Mixed/plain nesting. An
+ * ordinary container keeps the current virtual scope; a registered `sub` container
+ * enters its own scope. This does not make same-named fields in other scopes virtual.
+ * Consult only the captured catalog, never output grants or live registry mutation.
+ */
+export function isInputVirtualPath(catalog: AuthorizationFieldCatalog, path: string): boolean {
+  let scope = '';
+  for (const part of path.split('.')) {
+    const scoped = scope ? `${scope}.${part}` : part;
+    if (catalog.virtualPaths?.includes(scoped)) return true;
+    if (catalog.virtualScopePaths?.includes(scoped)) scope = scoped;
+  }
+  return false;
+}
+
 /** `$*` exists only inside the captured catalog, never in a caller grant. */
 export function matchesCatalogPattern(pattern: string, path: string, descendants = false): boolean {
   const expected = pattern.split('.');
@@ -58,6 +117,9 @@ export function captureAuthorizationFieldCatalog(
   const opaque = new Set<string>();
   const references = new Set<string>();
   const virtualPaths = new Set<string>();
+  const virtualScopes = new Set<string>();
+  const schemaVirtualPaths = new Set<string>();
+  const arrays = new Set<string>();
   const protectedPaths = new Set<string>([documentPermissionField, '_doc', '$__', '__v']);
   const add = (path: string) => {
     // Internal map patterns have one safe arbitrary-key segment.
@@ -75,6 +137,7 @@ export function captureAuthorizationFieldCatalog(
     add(path);
     ancestors(path);
     const element = type.$embeddedSchemaType ?? type.embeddedSchemaType ?? type.caster;
+    if (type.instance === 'Array' || type.$isMongooseDocumentArray) arrays.add(path);
     if (type.options?.ref || type.options?.refPath || element?.options?.ref || element?.options?.refPath) {
       references.add(path);
       return;
@@ -98,12 +161,16 @@ export function captureAuthorizationFieldCatalog(
   const visitSchema = (current: Schema, prefix: string, active: Set<Schema>) => {
     const version = current.options.versionKey;
     if (typeof version === 'string') protectedPaths.add(prefix ? `${prefix}.${version}` : version);
+    for (const name of Object.keys(current.virtuals)) {
+      schemaVirtualPaths.add(prefix ? `${prefix}.${name}` : name);
+    }
     for (const [name, raw] of Object.entries(current.paths)) {
       if (name.includes('$*')) continue; // traversed through the owning Map type
       visitType(raw as CatalogSchemaType, prefix ? `${prefix}.${name}` : name, active);
     }
   };
   visitSchema(schema, '', new Set([schema]));
+  const persistedPaths = [...paths];
   const visitVirtuals = (record: Record<string, unknown> | null | undefined, prefix: string) => {
     for (const [name, value] of Object.entries(record ?? {})) {
       if (value === undefined) continue;
@@ -112,6 +179,7 @@ export function captureAuthorizationFieldCatalog(
       if (value && typeof value === 'object' && 'sub' in value) {
         // Registered embedded containers are receiving-model scopes, never ref interiors.
         if (references.has(path)) continue;
+        virtualScopes.add(path);
         add(path);
         containers.add(path);
         visitVirtuals((value as { sub: Record<string, unknown> }).sub, path);
@@ -126,11 +194,16 @@ export function captureAuthorizationFieldCatalog(
   const eligible = [...paths].filter((p) => ![...protectedPaths].some((v) => matchesCatalogPattern(v, p, true)));
   return Object.freeze({
     paths: Object.freeze(eligible.filter((p) => !p.includes('$*'))),
+    persistedPaths: Object.freeze(persistedPaths),
+    arrayPaths: Object.freeze([...arrays]),
+    schemaVirtualPaths: Object.freeze([...schemaVirtualPaths]),
+    metadataPaths: Object.freeze([documentPermissionField]),
     dynamicPaths: Object.freeze(eligible.filter((p) => p.includes('$*'))),
     containerPaths: Object.freeze([...containers]),
     opaquePaths: Object.freeze([...opaque]),
     referencePaths: Object.freeze([...references]),
     virtualPaths: Object.freeze([...virtualPaths]),
+    virtualScopePaths: Object.freeze([...virtualScopes]),
     protectedPaths: Object.freeze([...protectedPaths]),
   });
 }

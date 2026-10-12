@@ -19,6 +19,7 @@ import {
 import { diff } from 'just-diff';
 import MongooseModelAdapter, { admitModelPersistence } from '../model';
 import { getModelOptions } from '../options';
+import { collectModelRequestFields } from '../acl/select-resolution';
 import {
   getDocPermissions,
   genPagination,
@@ -31,11 +32,7 @@ import {
 import { isFieldAllowed, isValidFieldPath, sanitizeSortFields, validateSortFields } from '../helpers/sort-policy';
 import { excludeVirtualsFromAllowedSortFields } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler, SharedHookGate, normalizeHookConcurrencyLimit } from '../helpers/concurrency';
-import {
-  planVirtualProjection,
-  resolveAlwaysSelectForAccess,
-  type VirtualProjectionPlan,
-} from '../acl/virtual-projection';
+import { resolveAlwaysSelectForAccess, type VirtualProjectionPlan } from '../acl/virtual-projection';
 import { compactPersistedProjection, planAuthorizedModelProjection } from '../acl/output-projection';
 import { captureModelAuthorizationConfiguration } from '../acl/model-output-planning';
 import { resolveAuthorizedAccessFilter } from '../acl/filter-resolution';
@@ -79,7 +76,6 @@ import {
   VIRT_ASSOCIATION_VALUES,
   excludeVirtualsFromAllowedFields,
   isVirtualDbPath,
-  sanitizeEmbeddedVirtualKeys,
   stripVirtualKeysFromFilter,
 } from './base';
 import { getPopulateTargetMeta, type PopulateTargetMeta } from '../acl/populate-target';
@@ -89,6 +85,15 @@ import { captureRelatedTargets, createRelatedExecution, relatedPolicy } from '..
 import { assertPopulateAccess } from '../acl/populate-access';
 import { setPopulateTargetMeta } from '../acl/populate-target';
 import { applyUpdate } from '../helpers/apply-update';
+import {
+  admitModelInput,
+  assertModelInputComplexity,
+  inputFetchPaths,
+  requestInputFields,
+  resolveInputDocumentGrants,
+  sanitizePreparedInput,
+  stripDocumentInputVirtuals,
+} from '../acl/model-input-admission';
 import {
   Filter,
   Include,
@@ -138,6 +143,10 @@ import {
   SubdocumentParentArgs,
   SubdocumentParentOptions,
   SubdocumentReadOptions,
+  SubdocumentUpdateOptions,
+  SubdocumentDeleteOptions,
+  SubdocumentModel,
+  SubdocumentVirtuals,
 } from '../interfaces';
 import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
@@ -276,11 +285,19 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   /** Presence, not truthiness: never read a legacy slot or treat it as payload data. */
-  private admitServiceCall(args?: unknown, options?: unknown): void {
+  private admitServiceCall(args?: unknown, options?: unknown, authorizationOptions = true): void {
     for (const [slot, value] of [
       ['args', args],
       ['options', options],
     ] as const) {
+      if (
+        value !== null &&
+        (typeof value === 'object' || typeof value === 'function') &&
+        'authorization' in value &&
+        (slot === 'args' || !authorizationOptions)
+      ) {
+        authorizationError(`${slot}.authorization is unsupported here; inputFields requires model mutation options`);
+      }
       if (value !== null && (typeof value === 'object' || typeof value === 'function') && 'overrides' in value) {
         authorizationError(
           `${slot}.overrides was removed; use ordinary select/populate/query predicates and per-call options.authorization. See the README service overrides migration table`,
@@ -500,105 +517,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     }
   }
 
-  public buildVirtualPlan(args: {
-    snapshot: FinalizeSnapshot;
-    virtualAccess: VirtualOperationAccess;
-    outputAccess: VirtualOperationAccess;
-    docPermissionsAccess: VirtualOperationAccess;
-    requestedSelect?: Projection;
-    effectiveSelect?: Projection;
-    internalFetch?: {
-      baseFields?: string[];
-      joinFields?: string[];
-      identityFields?: string[];
-      extraPersistedFields?: string[];
-    };
-  }): VirtualProjectionPlan {
-    const { snapshot, virtualAccess, outputAccess, docPermissionsAccess, internalFetch } = args;
-    const hasEffective = Object.prototype.hasOwnProperty.call(args, 'effectiveSelect');
-    return planVirtualProjection({
-      receivingModelName: this.modelName,
-      snapshot: {
-        permissionSchema: snapshot.permissionSchema ?? null,
-        virtuals: snapshot.virtuals ?? null,
-        alwaysSelectFields: snapshot.alwaysSelectFields ?? null,
-        modelPermissionPrefix: snapshot.modelPermissionPrefix ?? '',
-        requireExplicitSelect: snapshot.requireExplicitSelect ?? false,
-        documentPermissionField: snapshot.documentPermissionField ?? '_permissions',
-      },
-      virtualAccess,
-      outputAccess,
-      docPermissionsAccess,
-      requestedSelect: args.requestedSelect,
-      ...(hasEffective ? { effectiveSelect: args.effectiveSelect } : {}),
-      scopePath: [],
-      internalFetch: internalFetch ?? {},
-      globalPermissions: this.getVirtualGlobalPermissions(),
-    });
-  }
-
-  /**
-   * VIRT-06 sub-scope planner.
-   *
-   * Builds a `planVirtualProjection` with `scopePath=[sub,'sub']` for
-   * dedicated subdocument routes (`virtuals.<field>.sub.<name>.<access>`).
-   * `dependsOn` resolves relative to that scope (VIRT-00A D5); literal
-   * `.sub` segments never become DB/response names (planner strips them).
-   * Uses the same coherent `snapshot` captured once per sub op.
-   */
-  public buildSubVirtualPlan(
-    sub: string,
-    snapshot: FinalizeSnapshot,
-    virtualAccess: VirtualOperationAccess,
-    outputAccess: VirtualOperationAccess,
-    docPermissionsAccess: VirtualOperationAccess,
-    requestedSelect?: Projection,
-    effectiveSelect?: Projection,
-  ): VirtualProjectionPlan {
-    const hasEffective = effectiveSelect !== undefined || requestedSelect !== undefined;
-    // For sub scopes, `requireExplicitSelect` still applies at sub level:
-    // omitted sub select behaves per planner (all vs _id-only when required).
-    // Pass through both so planner gating stays coherent.
-    const args: {
-      receivingModelName: string;
-      snapshot: {
-        permissionSchema: Record<string, unknown> | null;
-        virtuals: Record<string, unknown> | null;
-        alwaysSelectFields: string[] | Record<string, string[]> | null;
-        modelPermissionPrefix: string;
-        requireExplicitSelect: boolean;
-        documentPermissionField: string;
-      };
-      virtualAccess: VirtualOperationAccess;
-      outputAccess: VirtualOperationAccess;
-      docPermissionsAccess: VirtualOperationAccess;
-      requestedSelect?: Projection;
-      effectiveSelect?: Projection;
-      scopePath: string[];
-      internalFetch: Record<string, never>;
-      globalPermissions: { has: (key: string) => boolean; hasKey: (key: string) => boolean };
-    } = {
-      receivingModelName: this.modelName,
-      snapshot: {
-        permissionSchema: snapshot.permissionSchema ?? null,
-        virtuals: snapshot.virtuals ?? null,
-        alwaysSelectFields: snapshot.alwaysSelectFields ?? null,
-        modelPermissionPrefix: snapshot.modelPermissionPrefix ?? '',
-        requireExplicitSelect: snapshot.requireExplicitSelect ?? false,
-        documentPermissionField: snapshot.documentPermissionField ?? '_permissions',
-      },
-      virtualAccess,
-      outputAccess,
-      docPermissionsAccess,
-      scopePath: [sub, 'sub'],
-      internalFetch: {},
-      globalPermissions: this.getVirtualGlobalPermissions(),
-    };
-    if (requestedSelect !== undefined) args.requestedSelect = requestedSelect;
-    if (hasEffective) args.effectiveSelect = (effectiveSelect ?? requestedSelect) as Projection;
-    return planVirtualProjection(args);
-  }
-
   /**
    * VIRT-06 internal accessors for dedicated subdocument routes.
    * `model-subdocument-service` uses these instead of reaching into
@@ -766,21 +684,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       resolvedQuery: {},
     };
     await this.finalizePopulateForSingleDoc(parentDoc, populateEntries, parentContext, parentOperation, limit, gate);
-  }
-
-  /**
-   * Output-only write admission (VIRT-04 requirement 4). Excludes registered
-   * virtual names for any access (including bare `true` rules and inactive
-   * descriptors) and sanitizes registered embedded virtual keys inside
-   * whole-object/array grants. Trusted prepare/transform authority is
-   * preserved (this runs on client data before validation only); computed
-   * values are assigned only to output copies by the finalizer.
-   */
-  private admitWriteDataForVirtuals<T extends Record<string, unknown>>(allowedData: T, snapshot: FinalizeSnapshot): T {
-    return sanitizeEmbeddedVirtualKeys(
-      allowedData,
-      snapshot as unknown as { virtuals?: Record<string, unknown> | null },
-    );
   }
 
   private filterAllowedFieldsForVirtuals(allowedFields: string[], snapshot: FinalizeSnapshot): string[] {
@@ -1870,9 +1773,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     options?: CreateOptions<TModel, TVirtuals>,
     decorate?: ServiceOutputDecorator,
   ): Promise<AuthorizedListResult<TModel> | ErrorResult> {
+    assertModelInputComplexity(data, this.getRequestComplexity());
     const state = readServiceExecution(this, execution);
-    const virtualSnapshot = readServiceAuthorization(state.authorization, state.binding)
-      .configuration as FinalizeSnapshot;
+    const captured = readServiceAuthorization(state.authorization, state.binding);
     const { populate, select } = this.resolveCreateArgs(args);
     const { includePermissions, includeFieldPermissions, populateAccess } = this.resolveCreateOptions(options);
     const initiatingOperation = state.access.operation;
@@ -1952,13 +1855,12 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         resolvedQuery: resolvedPopulate.length > 0 ? { populate: resolvedPopulate } : {},
       };
 
-      const rawAllowed = await this.genAllowedFields(item, 'create');
-      // VIRT-04 output-only: exclude registered virtuals for any access.
-      const allowedFields = this.filterAllowedFieldsForVirtuals(rawAllowed, virtualSnapshot);
-      const allowedData = this.admitWriteDataForVirtuals(
-        pick(item, allowedFields) as Record<string, unknown>,
-        virtualSnapshot,
-      );
+      const { allowedFields, allowedData } = admitModelInput({
+        data: item,
+        requestFields: await requestInputFields({ ...state, access: 'create' }),
+        inputFields: captured.authorization.inputFields,
+        catalog: captured.configuration.catalog,
+      });
       context.allowedFields = allowedFields;
       context.allowedData = allowedData;
 
@@ -2001,7 +1903,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     }
 
     const items = await mapWithConcurrencyLimit(validationItems, maxBulkConcurrency, async (allowedData, index) => {
-      const preparedData = await this.prepare(allowedData, 'create', contexts[index]);
+      const preparedData = sanitizePreparedInput(
+        await this.prepare(allowedData, 'create', contexts[index]),
+        captured.configuration.catalog,
+      );
       contexts[index].preparedData = preparedData;
       return preparedData;
     });
@@ -2145,8 +2050,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
   /**
    * Update at authorized policy paths: admitted leaves preserve omitted siblings;
-   * whole-authorized objects/arrays replace. Shared by updateById and existing-row
-   * upsert. Validation precedes trusted prepare output (not re-filtered); partial
+   * whole-authorized objects/arrays replace. Input grants are additive, independent
+   * of output and rows. Descendant array grants patch existing objects by index;
+   * only container authority can create/resize/replace arrays. Shared by updateById
+   * and existing-row upsert. Validation precedes trusted prepare output; partial
    * prepare containers preserve omissions. Transform retains explicit document-setter
    * replacement authority. Send nested client JSON, not literal dotted update keys.
    */
@@ -2169,7 +2076,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           docPermissionsAccess: 'update',
         },
         options?.authorization,
-        'service',
+        'mutation',
         this.captureRelated(args, this.defaults.updateOneArgs),
       );
       const query = await prepareModelQuery(this, execution, { kind: 'mutation-lookup', filter });
@@ -2190,10 +2097,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     decorate?: ServiceOutputDecorator,
   ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
+    assertModelInputComplexity(data, this.getRequestComplexity());
 
     const state = readServiceExecution(this, execution);
-    const virtualSnapshot = readServiceAuthorization(state.authorization, state.binding)
-      .configuration as FinalizeSnapshot;
+    const captured = readServiceAuthorization(state.authorization, state.binding);
     const { populate, select } = this.resolveUpdateOneArgs(args);
     const { includePermissions, includeFieldPermissions, populateAccess } = this.resolveUpdateOneOptions(options);
     const initiatingOperation = state.access.operation;
@@ -2224,7 +2131,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // output dependencies without substituting an output projection for write input.
     let doc = (await this.model.findOne({
       filter: _filter,
-      select: updatePlan.persistedFetchSelection.map((path) => `+${path}`),
+      select: uniq([...updatePlan.persistedFetchSelection, ...inputFetchPaths(captured.configuration.catalog)]).map(
+        (path) => `+${path}`,
+      ),
     })) as ModelDocument<TModel> | null;
     if (!doc) {
       this.completeOp('updateOne', startedAt, Codes.NotFound, _filter);
@@ -2253,17 +2162,16 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     context.originalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
     context.originalData = data;
 
-    doc = await this.addDocPermissions(doc, 'update', context);
-
-    context.docPermissions = this.getDocPermissions(doc) as Record<string, unknown>;
     context.currentDocument = doc;
-
-    const rawAllowed = await this.genAllowedFields(doc, 'update');
-    const allowedFields = this.filterAllowedFieldsForVirtuals(rawAllowed, virtualSnapshot);
-    const allowedData = this.admitWriteDataForVirtuals(
-      pick(data, allowedFields) as Record<string, unknown>,
-      virtualSnapshot,
-    );
+    const grants = await resolveInputDocumentGrants({ ...state, doc, context });
+    context.docPermissions = deepIsolateValue(grants);
+    const { allowedFields, allowedData } = admitModelInput({
+      data,
+      existing: context.originalDocumentSnapshot,
+      requestFields: await requestInputFields({ ...state, access: 'update', grants }),
+      inputFields: captured.authorization.inputFields,
+      catalog: captured.configuration.catalog,
+    });
     context.allowedFields = allowedFields;
     context.allowedData = allowedData;
 
@@ -2280,13 +2188,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }
     }
 
-    const prepared = await this.prepare(allowedData, 'update', context);
+    const prepared = sanitizePreparedInput(
+      await this.prepare(allowedData, 'update', context),
+      captured.configuration.catalog,
+    );
 
     context.preparedData = prepared;
     applyUpdate(doc, prepared, allowedFields);
 
     context.modifiedPaths = doc.modifiedPaths();
     doc = assertModelDocument<TModel>(await this.transform(doc, 'update', context), this.modelName, 'transform');
+    stripDocumentInputVirtuals(doc, captured.configuration.catalog);
     context.currentDocument = doc;
     doc = await this.persist(() => doc!.save());
 
@@ -2366,7 +2278,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           docPermissionsAccess: 'update',
         },
         options?.authorization,
-        'service',
+        'mutation',
         this.captureRelated(args, this.defaults.updateByIdArgs),
       );
       const filter = readModelIdentifier(this, execution, await resolveModelIdentifier(this, execution, id));
@@ -2409,7 +2321,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           docPermissionsAccess: 'update',
         },
         options?.authorization,
-        'service',
+        'mutation',
         this.captureRelated(args, this.defaults.upsertArgs),
       );
       const { populate, select } = this.resolveUpsertArgs(args);
@@ -2475,6 +2387,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   public async delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {
+    if (arguments.length > 1) {
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: [{ detail: 'delete does not accept authorization options' }],
+      };
+    }
     const filter = await this.genFilter('delete', await this.genIDFilter(id));
 
     const query = { filter };
@@ -2530,7 +2450,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
   public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<unknown> | ErrorResult> {
     try {
-      this.admitServiceCall(undefined, options);
+      this.admitServiceCall(undefined, options, false);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -2566,6 +2486,18 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // VIRT-04: registered virtuals never reach the adapter because output
     // granted them. Explicit virtual check first (scope-aware, incl.
     // embedded DB paths), then persisted allowlist (filtered for virtuals).
+    // Query fields are request-schema authority, not existing model output. No
+    // document exists at this stage, so hooks receive only empty document grants.
+    const requestFields = () => {
+      const options = this.requestRuntime.getModelOptions(this.modelName);
+      return collectModelRequestFields({
+        req: this.req,
+        permissionSchema: options.permissionSchema as Record<string, unknown>,
+        modelPermissionPrefix: options.modelPermissionPrefix,
+        access: 'read',
+        permissions: this.req.macl.getPermissions(),
+      });
+    };
     try {
       const snapshot = this.captureVirtualSnapshot();
       if (isVirtualDbPath(field, snapshot as unknown as { virtuals?: Record<string, unknown> | null })) {
@@ -2576,7 +2508,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           errors: [{ detail: `Distinct field not allowed: ${field}` }],
         };
       }
-      const rawAllowed = await this.genAllowedFields(null, 'read');
+      const rawAllowed = await requestFields();
       const allowedFields = this.filterAllowedFieldsForVirtuals(rawAllowed, snapshot);
       if (!isFieldAllowed(field, allowedFields)) {
         return {
@@ -2588,7 +2520,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }
       return null;
     } catch {
-      const allowedFields = await this.genAllowedFields(null, 'read');
+      const allowedFields = await requestFields();
       if (!isFieldAllowed(field, allowedFields)) {
         return {
           success: false,
@@ -2602,6 +2534,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   public async distinct(field: string, args?: DistinctArgs<TModel>): Promise<ListResult<unknown> | ErrorResult> {
+    if (arguments.length > 2) {
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: [{ detail: 'distinct does not accept authorization options' }],
+      };
+    }
     try {
       this.admitServiceCall(args);
     } catch (error) {
@@ -2644,6 +2584,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     filter: Filter<TModel>,
     access: BaseFilterAccess = 'list',
   ): Promise<SingleResult<number> | ErrorResult> {
+    if (arguments.length > 2 || typeof access !== 'string') {
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: [{ detail: 'count accepts an access name, not authorization options' }],
+      };
+    }
     const virtualSnapshot = this.captureVirtualSnapshot();
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
@@ -2666,6 +2614,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
    * not a row-authorization option and retains its existing contract.
    */
   public async countTrusted(authorizedFilter: Filter<TModel>): Promise<SingleResult<number> | ErrorResult> {
+    if (arguments.length > 1) {
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: [{ detail: 'countTrusted does not accept authorization options' }],
+      };
+    }
     // VIRT-04: even trusted filters never send virtual names to the adapter.
     // No getters run for scalar/identity-only operations.
     const query = { filter: authorizedFilter };
@@ -2913,19 +2869,21 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     return new Set<string>(docs.map((doc) => String(doc._id)));
   }
 
-  async listSub(
+  /** Dedicated child list; trusted policy uses independent parent-read/child-list gates and rows. */
+  async listSub<S extends string>(
     id: SubdocumentId,
-    sub: SubdocumentName,
-    options?: SubdocumentListOptions<TModel>,
+    sub: S,
+    options?: SubdocumentListOptions<TModel, SubdocumentModel<TModel, S>, SubdocumentVirtuals<TVirtuals, S>>,
   ): Promise<ListResult | ErrorResult> {
     return listSubImpl(this, id, sub, options);
   }
 
-  public async readSub(
+  /** Child-relative output grants never elevate referenced populate targets or the owning parent. */
+  public async readSub<S extends string>(
     id: SubdocumentId,
-    sub: SubdocumentName,
+    sub: S,
     subId: SubdocumentId,
-    options?: SubdocumentReadOptions,
+    options?: SubdocumentReadOptions<TModel, SubdocumentModel<TModel, S>, SubdocumentVirtuals<TVirtuals, S>>,
   ): Promise<SingleResult | ErrorResult> {
     return readSubImpl(this, id, sub, subId, options);
   }
@@ -2935,22 +2893,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
    * Output requires post-save parent read and subdocument read operation/row access;
    * hidden output is successful `data: null` (direct/root-entry 200), not a failed write.
    * Visible output uses read fields plus `_id`. Do not retry solely for null output.
+   * Trusted options.authorization.child.inputFields admits writes; response authority
+   * belongs only in authorization.visibility. Missing dimensions use request rules.
    */
-  public async updateSub(
+  public async updateSub<S extends string>(
     id: SubdocumentId,
-    sub: SubdocumentName,
+    sub: S,
     subId: SubdocumentId,
     data: Record<string, unknown>,
+    options?: SubdocumentUpdateOptions<TModel, SubdocumentModel<TModel, S>, SubdocumentVirtuals<TVirtuals, S>>,
   ): Promise<SingleResult | ErrorResult> {
-    return updateSubImpl(
-      this,
-      this.persist,
-      (access) => this.req.macl.isAllowed(this.modelName, access),
-      id,
-      sub,
-      subId,
-      data,
-    );
+    return updateSubImpl(this, this.persist, id, sub, subId, data, options);
   }
 
   /**
@@ -2959,19 +2912,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
    * uses read fields plus `_id`. Hidden output succeeds with `data: [], count: 0`
    * (direct/root-entry 200); count measures visible rows, not all updated rows.
    */
-  public async bulkUpdateSub(
+  public async bulkUpdateSub<S extends string>(
     id: SubdocumentId,
-    sub: SubdocumentName,
+    sub: S,
     data: SubdocumentBulkUpdateInput | Record<string, unknown>,
+    options?: SubdocumentUpdateOptions<TModel, SubdocumentModel<TModel, S>, SubdocumentVirtuals<TVirtuals, S>>,
   ): Promise<ListResult | ErrorResult> {
-    return bulkUpdateSubImpl(
-      this,
-      this.persist,
-      (access) => this.req.macl.isAllowed(this.modelName, access),
-      id,
-      sub,
-      castArray(data),
-    );
+    return bulkUpdateSubImpl(this, this.persist, id, sub, castArray(data), options);
   }
 
   /**
@@ -2982,29 +2929,23 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
    * (direct/root-entry 201). Visible count/order follow filtered stored rows.
    * Empty output does not mean the write failed; addFirst is a service option.
    */
-  public async createSub(
+  public async createSub<S extends string>(
     id: SubdocumentId,
-    sub: SubdocumentName,
+    sub: S,
     data: SubdocumentCreateInput,
-    options?: SubdocumentCreateOptions,
+    options?: SubdocumentCreateOptions<TModel, SubdocumentModel<TModel, S>, SubdocumentVirtuals<TVirtuals, S>>,
   ): Promise<ListResult | ErrorResult> {
-    return createSubImpl(
-      this,
-      this.persist,
-      (access) => this.req.macl.isAllowed(this.modelName, access),
-      id,
-      sub,
-      data,
-      options,
-    );
+    return createSubImpl(this, this.persist, id, sub, data, options);
   }
 
-  public async deleteSub(
+  /** Trusted parent-update/child-delete gates and rows; no fields/visibility policy. Returns the removed ID. */
+  public async deleteSub<S extends string>(
     id: SubdocumentId,
-    sub: SubdocumentName,
+    sub: S,
     subId: SubdocumentId,
+    options?: SubdocumentDeleteOptions<TModel, SubdocumentModel<TModel, S>>,
   ): Promise<SingleResult | ErrorResult> {
-    return deleteSubImpl(this, this.persist, id, sub, subId);
+    return deleteSubImpl(this, this.persist, id, sub, subId, options);
   }
 
   public async getParentDoc(

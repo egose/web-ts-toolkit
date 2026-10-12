@@ -1,5 +1,5 @@
 import { Projection, Populate, PopulateAccess, Task } from './base';
-import type { ServiceAuthorization } from './service-authorization';
+import type { MutationAuthorization } from './service-authorization';
 
 export interface PublicUpdateArgs {
   select?: Projection;
@@ -36,8 +36,8 @@ export interface UpdateOneOptions<TModel = unknown, TVirtuals extends object = R
   PublicUpdateOptions,
   'returningAll'
 > {
-  /** Trusted server-only rows/output/related authority. Output grants never admit protected writes. */
-  readonly authorization?: ServiceAuthorization<TModel, TVirtuals>;
+  /** Trusted server-only independent input/rows/output/related authority. Output grants never admit writes. */
+  readonly authorization?: MutationAuthorization<TModel, TVirtuals>;
 }
 export interface UpdateByIdOptions<
   TModel = unknown,

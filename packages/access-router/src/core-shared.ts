@@ -305,18 +305,16 @@ export async function collectSchemaFields({
   req,
   permissionSchema,
   access,
-  baseFields = [],
   hasPermission,
   functionArgs = [],
 }: {
   req: AccessRouterBaseRequest;
   permissionSchema: Record<string, unknown> | null | undefined;
   access: string;
-  baseFields?: string[];
   hasPermission: (key: string) => boolean;
   functionArgs?: unknown[];
 }) {
-  const fields = [...(baseFields ?? [])];
+  const fields: string[] = [];
   if (!permissionSchema) return fields;
 
   const { stringHandler, arrayHandler } = createValidator(hasPermission);
@@ -324,8 +322,6 @@ export async function collectSchemaFields({
 
   for (let x = 0; x < keys.length; x++) {
     const key = keys[x];
-    if (baseFields.includes(key)) continue;
-
     const value = extractScopedOutputRule(permissionSchema, key, access);
 
     if (isBoolean(value)) {

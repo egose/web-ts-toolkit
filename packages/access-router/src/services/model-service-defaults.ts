@@ -15,7 +15,10 @@ import type {
   UpsertArgs,
   UpsertOptions,
 } from '../interfaces';
-import type { Service } from './service';
+import type { Service as ModelService } from './service';
+
+// Presentation defaults do not depend on a service's model/virtual authorization methods.
+type Service<T> = Pick<ModelService<T>, 'defaults' | 'getPermissionsPosture'>;
 
 /**
  * Router-level permission postures win over client input and per-operation

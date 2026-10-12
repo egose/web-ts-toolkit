@@ -253,9 +253,14 @@ export interface OperationAccess extends Omit<FieldOperationAccess, 'subs'> {
   subs?: Validation | SubRouteGuardOptions;
 }
 
-type PermissionRule = Validation | FieldOperationAccess;
+type PermissionRule = Validation | (FieldOperationAccess & { sub?: PermissionSchema });
 
-/** Field grants by base operation. Put basic/advanced route guards in operationAccess, not field-rule objects. */
+/**
+ * Field grants by base operation. Put basic/advanced route guards in operationAccess,
+ * not field-rule objects. A field's `sub` defines nested permission-schema rules;
+ * named scopePath uses response segments (['contacts']) to select contacts.sub.
+ * Data helpers keep whole-container picks at root; a scoped child pick applies sub rules.
+ */
 export type PermissionSchema<TField extends string = string> = Partial<Record<TField, PermissionRule>>;
 
 interface DocPermissions {

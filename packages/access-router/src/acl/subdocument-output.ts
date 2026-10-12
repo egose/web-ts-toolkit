@@ -1,4 +1,4 @@
-/** Request-only dedicated subdocument output. Never accepts caller authority. */
+/** Private dedicated output adapter; receives only captured, validated child output authority. */
 import type { Service } from '../services/service';
 import type { ModelHookContext, Populate, Projection } from '../interfaces';
 import { createServiceExecution, getServiceExecutors, readServiceExecution } from './service-execution';
@@ -6,6 +6,7 @@ import {
   getAuthorizationPermissions,
   readServiceAuthorization,
   resolveServiceAuthorization,
+  serviceAuthorizationInput,
 } from './service-authorization';
 import { planAuthorizedModelProjection } from './output-projection';
 import { resolveOutputDocumentAuthorization } from './output-field-filter';
@@ -15,6 +16,9 @@ import { finalizeModelOutputs } from '../output/finalize-model-output';
 import type { FinalizeSnapshot } from '../output/finalize-model-output';
 import { SharedHookGate } from '../helpers/concurrency';
 import { captureRelatedTargets } from './related-execution';
+import type { AuthorizationConfiguration } from './service-authorization';
+import type { AccessRouterPermissions } from '../permission';
+import type { OutputAuthorization } from '../interfaces';
 
 interface SubdocumentOutputPlan {
   execution: import('./service-execution').ServiceExecutionContext;
@@ -38,16 +42,21 @@ export function prepareSubdocumentPopulate(service: object, prepared: Subdocumen
   return populateExecutors.get(service)!(prepared.execution, prepared.populate);
 }
 
-export function prepareSubdocumentOutput<T>(
-  service: Service<T>,
+export function prepareSubdocumentOutput<T, V extends object>(
+  service: Service<T, V>,
   sub: string,
   operation: string,
   virtualAccess: string,
   outputAccess: string,
   select?: Projection,
   populate?: Populate[],
+  captured?: {
+    configuration: AuthorizationConfiguration;
+    permissions: AccessRouterPermissions;
+    authorization: OutputAuthorization;
+  },
 ): SubdocumentOutputPlan {
-  const configuration = { ...getServiceExecutors(service).configuration() };
+  const configuration = { ...(captured?.configuration ?? getServiceExecutors(service).configuration()) };
   // Dedicated child routes have their own operation/row gates. Their field
   // schema is local: the parent's relationship output rule is not a route gate.
   const schema = configuration.permissionSchema as Record<string, unknown>;
@@ -55,7 +64,7 @@ export function prepareSubdocumentOutput<T>(
   const execution = createServiceExecution(
     service,
     { operation, rowAccess: 'read', virtualAccess, outputAccess, docPermissionsAccess: 'read' },
-    undefined,
+    captured?.authorization,
     'service',
     captureRelatedTargets(
       getServiceExecutors(service).binding().runtime as import('../runtime').AccessRuntime,
@@ -64,12 +73,14 @@ export function prepareSubdocumentOutput<T>(
     ),
     undefined,
     configuration,
+    captured?.permissions,
   );
   const state = readServiceExecution(service, execution);
   const binding = { ...state.binding, scopePath: [sub] };
   const view = readServiceAuthorization(state.authorization, state.binding);
   const authorization = resolveServiceAuthorization({
     ...view,
+    authorization: serviceAuthorizationInput(view.authorization, view.relatedTargets),
     binding,
     parent: state.authorization,
     requestPermissions: getAuthorizationPermissions(state.authorization, state.binding),
@@ -78,8 +89,8 @@ export function prepareSubdocumentOutput<T>(
   return { execution, state, plan, populate: populate ?? [] };
 }
 
-export async function finalizeSubdocumentRows<T>(
-  service: Service<T>,
+export async function finalizeSubdocumentRows<T, V extends object>(
+  service: Service<T, V>,
   prepared: SubdocumentOutputPlan,
   parent: unknown,
   rows: unknown[],

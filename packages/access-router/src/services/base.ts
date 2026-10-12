@@ -25,6 +25,8 @@ import type {
   OutputFieldOptions,
   OutputPlanningOptions,
 } from '../interfaces/service-authorization';
+import type { PopulatePlanningOptions } from '../interfaces/service';
+import { assertFieldHelperCall } from '../acl/field-helper-options';
 import {
   assertPublicAdmission,
   forwardPublicArgs,
@@ -692,25 +694,18 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
   }
 
   /**
-   * Output-only existing paths; requires purpose: 'output', never write admission.
+   * Output-only existing paths; supplied options require purpose: 'output', never write admission.
+   * Omission/undefined defaults to { purpose: 'output' }, not a request-schema allowlist.
    * Use the issued document result to reuse same-execution decisions after trimming.
    * Raw policy starts a fresh evaluation (see OutputFieldOptions).
    */
-  public genAllowedFields(
+  public async genAllowedFields(
     doc: unknown,
     access: SelectAccess,
-    options: AllowedOutputFieldOptions<TModel, TVirtuals>,
-  ): Promise<string[]>;
-  /** Legacy request/input admission. */
-  public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]>;
-  public genAllowedFields(
-    doc: unknown,
-    access: SelectAccess,
-    optionsOrBase: AllowedOutputFieldOptions<TModel, TVirtuals> | string[] = [],
+    options: AllowedOutputFieldOptions<TModel, TVirtuals> = { purpose: 'output' },
   ): Promise<string[]> {
-    return Array.isArray(optionsOrBase)
-      ? this.req.macl.genAllowedFields(this.modelName, doc, access, optionsOrBase)
-      : this.req.macl.genAllowedFields<TModel, TVirtuals>(this.modelName, doc, access, optionsOrBase);
+    assertFieldHelperCall('genAllowedFields', arguments.length, 3, options);
+    return this.req.macl.genAllowedFields<TModel, TVirtuals>(this.modelName, doc, access, options);
   }
 
   public genDocPermissions(
@@ -733,70 +728,40 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.req.macl.genIDFilter<TModel>(this.modelName, id);
   }
 
-  public genPopulate(
+  /** Request-only population; named scopePath uses response segments, never positional subPaths. */
+  public async genPopulate(
     access?: SelectAccess,
     populate?: Populate | Populate[] | string | null,
-    subPaths?: string[],
+    options: PopulatePlanningOptions = {},
   ): Promise<Populate[]> {
-    return this.req.macl.genPopulate(this.modelName, access, populate, subPaths) as Promise<Populate[]>;
+    assertFieldHelperCall('genPopulate', arguments.length, 3, options, 'populate');
+    return this.req.macl.genPopulate(this.modelName, access, populate, options) as Promise<Populate[]>;
   }
 
   /**
    * Fresh output-only planner: selection stays independent of additive server authority.
    * Returns persisted fetch inputs including private identity/dependencies, not an output
    * allowlist. Document-dependent rules are deferred; no permission functions/getters run.
-   * Configure extra projected hook inputs with alwaysSelectFields.
+   * Configure extra projected hook inputs with alwaysSelectFields. Omitted/undefined
+   * options equal {} (request-mode output); positional skipChecks/subPaths are removed.
    */
-  public genSelect(
-    access: SelectAccess,
-    targetFields: Projection | undefined,
-    options: OutputPlanningOptions<TModel, TVirtuals>,
-  ): Promise<string[]>;
-  /** Legacy positional request-field helper (including write admission). */
-  public genSelect(
+  public async genSelect(
     access: SelectAccess,
     targetFields?: Projection,
-    skipChecks?: boolean,
-    subPaths?: string[],
-  ): Promise<string[]>;
-  public genSelect(
-    access: SelectAccess,
-    targetFields?: Projection,
-    optionsOrSkipChecks?: OutputPlanningOptions<TModel, TVirtuals> | boolean,
-    subPaths?: string[],
+    options: OutputPlanningOptions<TModel, TVirtuals> = {},
   ): Promise<string[]> {
-    return typeof optionsOrSkipChecks === 'boolean' || optionsOrSkipChecks === undefined
-      ? this.req.macl.genSelect(
-          this.modelName,
-          access,
-          targetFields,
-          optionsOrSkipChecks as boolean | undefined,
-          subPaths,
-        )
-      : this.req.macl.genSelect<TModel, TVirtuals>(this.modelName, access, targetFields, optionsOrSkipChecks);
+    assertFieldHelperCall('genSelect', arguments.length, 3, options);
+    return this.req.macl.genSelect<TModel, TVirtuals>(this.modelName, access, targetFields, options);
   }
 
   /** Alias of genSelect's output planner; virtuals never enter the returned DB projection. */
-  public genQuerySelect(
-    access: SelectAccess,
-    targetFields: Projection | undefined,
-    options: OutputPlanningOptions<TModel, TVirtuals>,
-  ): Promise<string[]>;
-  public genQuerySelect(
+  public async genQuerySelect(
     access: SelectAccess,
     targetFields?: Projection,
-    skipChecks?: boolean,
-    subPaths?: string[],
-  ): Promise<string[]>;
-  public genQuerySelect(
-    access: SelectAccess,
-    targetFields?: Projection,
-    optionsOrSkipChecks?: OutputPlanningOptions<TModel, TVirtuals> | boolean,
-    subPaths?: string[],
+    options: OutputPlanningOptions<TModel, TVirtuals> = {},
   ): Promise<string[]> {
-    return typeof optionsOrSkipChecks === 'boolean' || optionsOrSkipChecks === undefined
-      ? this.genSelect(access, targetFields, optionsOrSkipChecks as boolean | undefined, subPaths)
-      : this.genSelect(access, targetFields, optionsOrSkipChecks);
+    assertFieldHelperCall('genQuerySelect', arguments.length, 3, options);
+    return this.genSelect(access, targetFields, options);
   }
 
   public addEmptyPermissions<T>(doc: T): T {
@@ -820,32 +785,26 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
    * A raw policy starts fresh; an issued document handle reuses its stage after private
    * hook inputs/metadata are trimmed. These inputs are mutually exclusive. Handles
    * require unchanged original/package-associated output; caller copies do not qualify.
+   * Omitted/undefined options equal {} (fresh request-mode output); hydrated inputs are isolated.
    * This generic return type does not guarantee every input field remains present.
    */
-  public pickAllowedFields<T>(doc: T, access: SelectAccess, options: OutputFieldOptions<TModel, TVirtuals>): Promise<T>;
-  /** Legacy positional request/input helper. */
-  public pickAllowedFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T>;
-  public pickAllowedFields<T>(
+  public async pickAllowedFields<T>(
     doc: T,
     access: SelectAccess,
-    optionsOrBase: OutputFieldOptions<TModel, TVirtuals> | string[] = [],
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
   ): Promise<T> {
-    return Array.isArray(optionsOrBase)
-      ? this.req.macl.pickAllowedFields(this.modelName, doc, access, optionsOrBase)
-      : this.req.macl.pickAllowedFields<T, TModel, TVirtuals>(this.modelName, doc, access, optionsOrBase);
+    assertFieldHelperCall('pickAllowedFields', arguments.length, 3, options);
+    return this.req.macl.pickAllowedFields<T, TModel, TVirtuals>(this.modelName, doc, access, options);
   }
 
   /** Alias of pickAllowedFields's output filter; never authorizes writes. */
-  public trimOutputFields<T>(doc: T, access: SelectAccess, options: OutputFieldOptions<TModel, TVirtuals>): Promise<T>;
-  public trimOutputFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T>;
-  public trimOutputFields<T>(
+  public async trimOutputFields<T>(
     doc: T,
     access: SelectAccess,
-    optionsOrBase: OutputFieldOptions<TModel, TVirtuals> | string[] = [],
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
   ): Promise<T> {
-    return Array.isArray(optionsOrBase)
-      ? this.pickAllowedFields(doc, access, optionsOrBase)
-      : this.pickAllowedFields(doc, access, optionsOrBase);
+    assertFieldHelperCall('trimOutputFields', arguments.length, 3, options);
+    return this.pickAllowedFields(doc, access, options);
   }
 
   public prepare<T>(allowedData: T, access: PrepareAccess, context: ModelHookContext): Promise<T> {

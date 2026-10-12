@@ -5,6 +5,7 @@ import type {
   SubdocumentBulkUpdateInput,
   SubdocumentCreateInput,
   SubdocumentRecord,
+  SubdocumentModel,
 } from '../interfaces';
 import {
   type SubListBody,
@@ -55,7 +56,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         )) as SubListBody;
         const svc = context.getPublicService(req);
         const result = await svc.listSub(id, sub, {
-          filter: (body.filter ?? {}) as unknown as Filter<TModel>,
+          filter: (body.filter ?? {}) as Filter<SubdocumentModel<TModel, string>>,
           select: body.select ?? [],
         });
 

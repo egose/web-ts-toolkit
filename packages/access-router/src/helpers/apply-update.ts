@@ -6,6 +6,9 @@ import { isDocument } from '../lib';
  * Only strict ancestors of allowed fields are traversed. Authorized objects and
  * arrays are replacement values, not recursive merges. Extra prepare fields are
  * trusted writes; an omitted child of a partial container is never a deletion.
+ * Model input admission expands descendant array grants to concrete existing-index
+ * paths first (e.g. contacts.0.email). Never pass unexpanded contacts.email here:
+ * every traversed array index must remain a partial boundary, not a replacement.
  */
 export function applyUpdate(target: object, data: object | null | undefined, allowedFields: string[]): void {
   const wholeFields = new Set<string>();
