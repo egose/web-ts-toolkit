@@ -2,6 +2,10 @@
 
 ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 
+Node >=22, Express >=5, Mongoose >=8. Installed entrypoints are root, /advanced,
+and /processors with CJS/ESM and matching .d.ts/.d.mts. README is the self-contained
+usage and breaking-release migration guide; no source deep imports are needed.
+
 ## Main Patterns
 
 <!-- doc-example: partial -->
@@ -33,6 +37,99 @@ const fruitRouter = acl.createDataRouter('fruit', {
 
 const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0.0' });
 ```
+
+## Trusted service authorization
+
+Acquire an internal service from router.getService(req) or req.macl.getService after
+the owning runtime middleware initializes the request. There is no standalone Service
+export. Root and /advanced export type-only ServiceAuthorization, CreateAuthorization,
+OutputAuthorization, FieldAuthorization, RowAuthorization, OperationAuthorization,
+RelatedAuthorization, OutputFieldPath, OutputPlanningOptions, OutputFieldOptions,
+AllowedOutputFieldOptions, DocumentAuthorization, ServiceOutputContext,
+ServiceOutputDecorator, AuthorizedSingleResult/AuthorizedListResult, NewArgs/NewOptions.
+Resolved call/document issuers, execution and prepared-query APIs are private.
+
+<!-- doc-example: partial -->
+```ts
+import type { OutputAuthorization, ServiceAuthorization } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+declare const req: ModelRequest;
+type Order = { status?: string; internalNote?: string; tenantId: string };
+const service = req.macl.getService<Order>('Order');
+const output = { outputFields: { mode: 'grant', paths: ['internalNote'] } } as const satisfies OutputAuthorization<Order>;
+const policy = { ...output, rows: { mode: 'scope', filter: { tenantId: 'trusted-tenant' } } } as const satisfies ServiceAuthorization<Order>;
+const result = await service.findOne({}, { select: ['status', 'internalNote'] }, {
+  authorization: policy, skim: true, includePermissions: false, includeFieldPermissions: false,
+});
+if (result.success) {
+  const picked = await service.pickAllowedFields(result.data, 'read', {
+    documentAuthorization: result.context.documentAuthorization,
+  });
+  await service.trimOutputFields(picked, 'read', { documentAuthorization: result.context.documentAuthorization });
+}
+```
+
+- ALL policy input is trusted server-only. Never accept it from HTTP/OpenAPI/client/
+  React input, public `_` wrappers, defaults, populate descriptors or include/$$sq
+  options. Control-slot authorization, removed overrides and document/prepared/execution
+  state reject with BadRequest, including validator-transformed envelopes. Declared
+  business data named authorization/overrides remains ordinary data.
+- Fields = selected AND (request permission OR explicit grant). Missing dimensions
+  use request mode. Grant is additive even for false/missing rules; unselected grants
+  stay omitted. Unrestricted authorizes selected catalog output, not all fetched keys.
+  Omitted select uses normal fields plus named grants, or the captured catalog under
+  unrestricted; exclusions/requireExplicitSelect remain. No grant promises existence.
+- Known model/virtual shapes get bounded typed dotted paths; unknown/any uses a string
+  fallback subject to runtime schema checks. readonly path arrays work. Use contacts.email,
+  not contacts.sub.email/indices/wildcards. Containers grant selected eligible subtrees;
+  descendants grant minimal ancestors, not siblings. Ref interiors require target policy.
+  Declared select:false fields are eligible; metadata/implementation paths cannot be granted.
+- Immutable call policy is captured once; per-document/scope/access-stage grants and
+  decisions are separate. alwaysSelectFields declares private projected hook inputs such
+  as ownerId. Full grants resolve once even under skim/metadata-disabled/stripped output.
+  Metadata describes request permissions, not backend grants. One contexts[index] per row;
+  handles are non-enumerable context properties, never data or wire tokens.
+- Named pick/trim/genAllowedFields (purpose: 'output') accept raw output-only authorization
+  OR documentAuthorization, never both. The original handle preserves owner decisions
+  after ownerId/_permissions trim. Only unchanged original/package-created output copies
+  qualify; matching IDs/caller spreads/another call or stage do not. Raw policy is fresh
+  evaluation; known trimmed outputs cannot rerun hooks/recover doc-dependent decisions.
+  Helpers filter existing values, without selection/getters/restoration/row checks/writes.
+- Named genSelect/genQuerySelect return fresh fetch projections with private dependencies,
+  not output grants; permission functions/getters do not run while planning. Virtual grants
+  permit selected applicable getters, never DB filters/sorts/distinct/writes. Missing
+  dependencies, undefined and getter errors still omit output.
+- Rows: request = transformed query AND baseFilter; scope replaces only base scope;
+  unrestricted skips only base scope. Configured overrideFilter runs ONCE in EVERY mode,
+  including unrestricted, and its restrictions/false denial still apply. Trusted scope
+  and mandatory ref/join predicates are ANDed afterward. Scope is inert (no $$sq/$$date
+  expansion), {} is explicit all-row within constraints, false is terminal, null/undefined
+  reject. find.totalCount/include counts reuse that prepared scope privately.
+- related.<exact requested path> names its expected registered model and independent
+  operation/rows/outputFields/related policies. Parent grants/unrestricted never elevate
+  targets. A parent customer grant permits only the relationship; granting billingEmail
+  belongs to related.customer.outputFields and a denied target gate needs explicit
+  operation: { mode: 'grant' }. Ref IDs/match/include joins still constrain target rows.
+  Count policies accept only model/operation/rows. getDocumentAuthorization(child) supplies
+  the target handle for that target model's helper; $$sq remains request-only.
+- Reads/update/upsert support rows/output/related; create supports output/related; new
+  supports output only and still IGNORES select. Write admission/validation/save hooks
+  remain; output grants do not authorize input/query fields, sorting/distinct, rows or
+  target operations implicitly. Standalone exists/count/delete/distinct and dedicated
+  subdocument methods retain request-policy APIs. Embedded output inherits owning field
+  paths; inputFields/subdocuments policies are unsupported. Positional skipChecks/baseFields
+  helpers remain isolated legacy compatibility. Trusted decorate/decorateAll/tasks run
+  after finalization and may construct/remove output; no automatic second authorization pass.
+
+Breaking removal: all service overrides controls (select/filter/populate/idFilter/
+effectiveSelect/operation) are removed together. Even empty/null/undefined or mixed
+new/old slots reject before parsing/persistence. Migrate to ordinary select/query/
+populate plus explicit policy; custom IDs use findOne/updateOne; mutation select is
+ordinary and initiating/prepared state is package-private. Old object overrides.filter
+bypassed both hooks; move replaceable user row restrictions from overrideFilter into
+baseFilter. There is no query-transform bypass. See README's full migration table and
+Mongo-backed runnable example for false/missing note rules, denied status, unselected/
+absent values, metadata-disabled handle reuse, rows, virtuals and target scope.
 
 ## Basic/advanced operation guards
 
@@ -302,7 +399,7 @@ Business boundary contracts (see the corresponding README sections):
 - `/processors` `copyAndDepopulate(...)` defaults to conservative `CopyAndDepopulateOutput`; pass an explicit output type when the transformed shape is known. Unsafe paths and missing id fields throw plain `Error` instances.
 - `createDataRouter(...)` holds data in-memory; use it for lightweight/non-persisted resources
 - ACL filter value `false` is a terminal denial. Trusted `overrideFilter` hooks may replace ordinary filters before base-filter composition, but are not called for an existing denial; returning `false` also denies the query.
-- Model service `args.overrides.filter` (findOne/find/updateOne/upsert) and `args.overrides.idFilter` (findById/updateById): false returns Forbidden without fallback filter/ID generation or persistence, including client subqueries. Nullish uses normal generation; trusted object filters replace generated policy, while object idFilters still receive row policy.
+- Removed service overrides always return BadRequest. Use an ordinary false query or rows: { mode: 'scope', filter: false } for terminal Forbidden, and omit row authority for request-policy behavior. A false identifier remains terminal. Late transform denial cannot undo client subqueries needed to parse the ordinary read/list predicate first.
 - `Service.exists`: terminal explicit/base/override false now returns a Forbidden ErrorResult before adapter dispatch in both includeId modes (previously successful false/null). Allowed matches/misses remain true/false, or `{ _id }`/null with includeId. Check success before data.
 - Public `_read`/`_readFilter` tryList never retries Forbidden/BadRequest. Authorized misses retain list fallback and its operation guard. `_upsert` with _id propagates denied exists as Forbidden (previously Unauthorized); allowed miss remains Unauthorized, with no create in either case. Generated direct/root-entry denial status is 403 (root envelope 200). Custom Express routes must map ErrorResult codes to HTTP status themselves; res.json does not do this automatically.
 - Shared-request cross-runtime composition keeps independent state: runtime B never reuses runtime A's permissions or base-filter cache, even with the same `requestPermissionField` name. Same-runtime middleware repeats reuse state without rerunning `globalPermissions`. Pre-populated request permission fields are application-supplied and preserved.
@@ -312,5 +409,5 @@ Business boundary contracts (see the corresponding README sections):
 
 ## Pointers
 
-- README: installation, quickstart, exports, operation-access matrix/fallback/live updates, runnable data split, runtime isolation, virtuals (computed fields) + access matrix + N+1/bounded-concurrency guidance + compatibility notes, include safety/counts, nested updates/trusted hooks, hidden subdocument responses, persistence limits and compatibility notes
+- README: installation, quickstart, exports, trusted service authorization + runnable Mongo example + full breaking overrides migration, operation-access matrix/fallback/live updates, runnable data split, runtime isolation, virtuals (computed fields) + access matrix + N+1/bounded-concurrency guidance + compatibility notes, include safety/counts, nested updates/trusted hooks, hidden subdocument responses, persistence limits and compatibility notes
 - website/docs/packages/access-router/: full documentation (routing, configuration, hooks, validation, openapi)

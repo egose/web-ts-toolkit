@@ -76,6 +76,26 @@ Live property helpers include:
 `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and
 `mutationRouteSegment` determine route shape and are fixed after construction.
 
+### Authority, hook inputs and metadata
+
+Router `defaults`, including dotted setters, contain query/presentation settings only.
+Per-call service authorization, document handles, prepared/execution state and removed
+service overrides are not defaults or HTTP/OpenAPI/client options. Supply trusted
+server-only policy to the service acquired from `router.getService(req)` instead.
+Missing policy dimensions use request authority and never inherit a prior call's elevation.
+
+`alwaysSelectFields` declares persisted inputs needed by document-permission hooks beyond
+selected output, such as `ownerId`. Hooks see the untrimmed projected document; fetch-only
+inputs do not grant output. The immutable call captures configuration, while each document/
+scope/access stage has separate hook grants and decisions. Opaque result-context handles
+preserve them after those inputs and metadata trim. See [Services](./services#call-policy-and-document-result-reuse).
+
+Internal document grants resolve independently of `skim`, `includePermissions`,
+`includeFieldPermissions`, `stripPermissionsField`, `disableFieldPermissions` and exposed-key
+limits. These switches govern request-user metadata serialization; temporary backend grants
+never forge `_view`/`_edit`. `overrideFilter` remains the query-transform hook and runs once
+even in unrestricted row mode; scope/unrestricted replace only `baseFilter` authority.
+
 ## Operation Access
 
 Use `OperationAccess` in `ModelRouterOptions.operationAccess` for all fourteen

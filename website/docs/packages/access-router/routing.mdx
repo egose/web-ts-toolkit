@@ -157,6 +157,13 @@ Operation-specific fields are kept at the top level:
 - `args` for selection, populate, paging, and task inputs
 - `options` for behavior switches such as permissions and counts
 
+Direct routes and root entries are request-only. Trusted service `authorization`, opaque
+document handles, private prepared/execution controls and the removed `overrides` container
+are rejected in control slots, including nested include/populate/`$$sq` options and
+validator-transformed envelopes. They are not client request features. Business data fields
+with those names remain valid under ordinary permissions. Use [internal services](./services#trusted-per-call-authorization)
+from server code for per-call authority; generated route guards still apply independently.
+
 Root entries retain existing base operation names and target base entry checks;
 `basicList`/`advancedRead` (and the other variants) are not valid `op` values.
 Allowing a direct variant does not override a denied root base entry. A denied
@@ -184,7 +191,8 @@ The response wraps each operation as:
 }
 ```
 
-`result` keeps the underlying service response instead of flattening it into a second batch-only format.
+`result` keeps the public service response instead of flattening it into a second batch-only
+format. Internal context(s), prepared state, document handles and query diagnostics are omitted.
 
 ## OpenAPI Router
 

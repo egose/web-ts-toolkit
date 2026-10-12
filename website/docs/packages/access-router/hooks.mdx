@@ -29,13 +29,20 @@ All of these hooks run with `this` bound to the current Express request.
 Return a filter, or `true` / `null` / `undefined` to leave the query unmodified.
 Return `false` for terminal query denial. Model-service `exists` returns Forbidden,
 not a successful miss, and public read `tryList` cannot revive that denial.
+Integrated internal service row policies use this request scope by default. A trusted
+`scope` replaces it; `unrestricted` skips it. Neither changes write-field permissions.
 
 ### `overrideFilter`
 
-Rewrite the caller-provided filter before the base filter is applied.
-An existing false filter skips this hook; returning false also denies the query.
-See [service denial contracts](./services#denial-versus-a-missing-row) for internal
-overrides, existence results and HTTP status mapping.
+Rewrite the ordinary filter once before the chosen row scope is applied. This configured
+hook/setter remains supported after service `overrides` removal and runs in request, scope
+and unrestricted row modes. Its user-dependent restrictions/false denial remain effective;
+mandatory relationship constraints and trusted scope are ANDed afterward. An early false
+query/identifier/scope skips work as applicable; a later hook denial cannot undo subqueries
+already needed to parse a read/list filter. Move replaceable user row restrictions into
+`baseFilter` when migrating old object overrides.filter; there is no transform-bypass option.
+See [service denial contracts](./services#denial-versus-a-missing-row) for migration,
+existence results and HTTP status mapping.
 
 ### `validate`
 
@@ -76,11 +83,23 @@ Use these for audit logs, cache invalidation, and external side effects.
 
 ### `docPermissions`
 
-Return the document-level permission object stored on the configured permission field.
+Return full request-user document grants from the untrimmed **projected** input. Declare
+additional persisted inputs with `alwaysSelectFields` (for example ownerId); the hook does
+not implicitly fetch all stored fields. Integrated output resolves it once per document/
+scope/access stage independently of skim and permission metadata switches. Pre-write and
+post-write output are distinct stages.
+
+Serialization on the configured permission field is separate: disabling/stripping/limiting
+metadata does not erase internal grants. Backend output grants do not forge request-user
+metadata. Later named output helpers reuse original decisions via the opaque result-context
+handle, even after ownerId and metadata trim; a fresh raw policy is new evaluation, not
+document-state reuse. See [Services](./services#call-policy-and-document-result-reuse).
 
 ### `decorate` / `decorateAll`
 
-Use these to shape the response payload before it is returned.
+Use these trusted application stages (and tasks) after authorization/finalization. They
+can intentionally remove/construct output; no automatic second authorization pass is promised.
+Arbitrary replacements/mutations do not acquire valid same-stage document handles.
 
 ## Request Augmentation
 

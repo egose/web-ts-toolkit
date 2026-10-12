@@ -46,6 +46,19 @@ Generated documentation includes:
 
 Paths are emitted as OpenAPI-style paths such as `/users/{id}`.
 
+### Server-only authorization is not request schema
+
+Explicit service policies and opaque document handles belong to trusted backend code,
+not HTTP/OpenAPI/client/React options. Generated bodies/root entries and nested include,
+populate and `$$sq` control slots reject `authorization`, removed service `overrides`
+and private execution/prepared keys with BadRequest, including after custom validators
+transform input. Do not add them to custom request-schema metadata. Ordinary persisted
+business properties with those names remain data under normal field rules.
+
+Response permission metadata describes the request user, not temporary backend grants;
+internal contexts/handles are not serialized. See [Services](./services#trusted-per-call-authorization)
+for the separate service API and installed-package examples.
+
 ### Operation-access variants and exposure
 
 `operationAccess` denial returns **HTTP 401 Unauthorized**; it does not omit
