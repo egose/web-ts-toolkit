@@ -63,7 +63,7 @@ const buildDistinctRuntimeApp = (globalPermissionsFactory: (req: express.Request
       // function form is the dynamic document-level field-permission path:
       // the field is only included in allowedFields when the caller holds
       // the gating permission. Authorization of distinct('secret') consults
-      // genAllowedFields(null,'read'), so docPermissions are empty and the
+      // the private request-field collector, so docPermissions are empty and the
       // decision depends solely on the request's global permissions.
       secret: (_permissions: Set<string>, _docPermissions: Record<string, unknown>) =>
         _permissions.has('canViewSecret'),

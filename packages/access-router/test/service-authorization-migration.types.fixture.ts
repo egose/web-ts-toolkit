@@ -117,8 +117,9 @@ service.findOne({}, {}, { preparedFilter: {} });
 // @ts-expect-error initiating operation remains private, not a renamed option
 service.create({}, {}, { operation: 'upsert' });
 
-// Isolated positional helper compatibility remains; canonical output uses named policy.
+// @ts-expect-error positional helper skipChecks was removed
 service.genSelect('read', select, true);
+// @ts-expect-error positional helper baseFields was removed
 service.pickAllowedFields({}, 'read', ['internalNote']);
 service.genSelect('read', select, { authorization: { outputFields: authorization.outputFields } });
 service.pickAllowedFields({}, 'read', { authorization: { outputFields: authorization.outputFields } });

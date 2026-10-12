@@ -229,7 +229,7 @@ describe('SVA-05 mutation authority and stages', () => {
     });
   });
 
-  it('output grants cannot bypass failed validation, unsupported input authority or virtual write exclusion', async () => {
+  it('output grants cannot bypass failed validation, unsupported authority or virtual write exclusion', async () => {
     const validate = vi.fn(() => false);
     const f = await authorizationFixture({ validate: { create: validate, update: validate } });
     await f.execute(async (req) => {
@@ -243,7 +243,7 @@ describe('SVA-05 mutation authority and stages', () => {
         code: 'bad_request',
       });
       const calls = validate.mock.calls.length;
-      for (const authorization of [{ inputFields: { mode: 'unrestricted' } }, { rows: { mode: 'request' } }]) {
+      for (const authorization of [{ inputFields: { mode: 'invalid' } }, { rows: { mode: 'request' } }]) {
         expect(await service.create({}, {}, { authorization } as never)).toMatchObject({
           success: false,
           code: 'bad_request',

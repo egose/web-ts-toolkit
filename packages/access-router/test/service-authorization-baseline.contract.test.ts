@@ -1,6 +1,6 @@
 /**
  * SVA-00 historical characterization at 0629a53, before explicit authorization.
- * Live assertions now follow the SVA-05/09 replacement contracts. Original
+ * Live assertions now follow the SVA-05/09/F03 replacement contracts. Original
  * service overrides, skim and transport observations remain in D00 and each
  * task's evidence in docs/tasks/20261007-143507-access-router-explicit-service-authorization.md.
  */
@@ -317,16 +317,31 @@ describe('SVA-00 baseline scenarios under the completed replacement contract', (
     });
   });
 
-  it('legacy skipChecks admits key-based fetches, not false rules; baseFields unconditionally authorize a later pick', async () => {
+  it('retires skipChecks/baseFields; named output grants admit declared paths and reject arbitrary keys', async () => {
     const f = await fixture({ permissionSchema: { status: 'owner', internalNote: false } });
     await f.execute(async (req) => {
       const service = req.macl.getService(f.modelName);
-      expect(await service.genSelect('read', ['status', 'internalNote'], true)).toEqual(['status']);
-      expect(await service.genQuerySelect('read', ['status', 'internalNote'], false)).toEqual([]);
+      await expect(service.genSelect('read', ['status', 'internalNote'], true as never)).rejects.toThrow(
+        'have been removed',
+      );
+      await expect(service.genQuerySelect('read', ['status', 'internalNote'], false as never)).rejects.toThrow(
+        'have been removed',
+      );
+      expect(await service.genSelect('read', ['status', 'internalNote'])).toEqual(['status', '_id']);
       const raw = { status: 'ready', internalNote: 'backend-note', absentFromSchema: 'extra' };
       expect(await service.pickAllowedFields(raw, 'read')).toEqual({});
-      const forced = await service.pickAllowedFields(raw, 'read', ['internalNote', 'absentFromSchema']);
-      expect(forced).toEqual({ internalNote: 'backend-note', absentFromSchema: 'extra' });
+      await expect(
+        service.pickAllowedFields(raw, 'read', ['internalNote', 'absentFromSchema'] as never),
+      ).rejects.toThrow('have been removed');
+      const forced = await service.pickAllowedFields(raw, 'read', {
+        authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } },
+      });
+      expect(forced).toEqual({ internalNote: 'backend-note' });
+      await expect(
+        service.pickAllowedFields(raw, 'read', {
+          authorization: { outputFields: { mode: 'grant', paths: ['absentFromSchema'] } },
+        }),
+      ).rejects.toMatchObject({ result: { code: 'bad_request' } });
       expect(await service.trimOutputFields(forced, 'read')).toEqual({});
     });
   });

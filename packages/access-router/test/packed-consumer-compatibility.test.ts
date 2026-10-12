@@ -334,6 +334,7 @@ function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
     return releaseArtifactWorkspaceCache;
   }
 
+  ensureReleaseArtifactBinPackagesBuilt();
   const artifactRoot = path.resolve(workspaceRoot, 'dist', `web-ts-toolkit-${testVersion}`);
   // Rebuild once per suite invocation: an existing version directory may contain
   // another worktree revision. The in-process cache above avoids repeated builds.
@@ -437,6 +438,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'service-authorization-consumer.types.fixture',
     'service-authorization-boundary.types.fixture',
     'service-authorization-migration.types.fixture',
+    'field-helper-migration.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -460,6 +462,10 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
   if (!authorizationExample) throw new Error('Installed README is missing its runnable authorization contract');
   for (const extension of ['mts', 'cts']) {
     writeFileSync(path.resolve(consumerDir, `authorization.readme.${extension}`), authorizationExample);
+    writeFileSync(
+      path.resolve(consumerDir, `field-helper.runtime.${extension}`),
+      readFileSync(path.resolve(packageRoot, 'test/field-helper-consumer.runtime.fixture.ts'), 'utf8'),
+    );
   }
   writeFileSync(
     path.resolve(consumerDir, 'tsconfig.authorization.json'),
@@ -476,7 +482,12 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
         outDir: 'authorization-out',
         types: ['node'],
       },
-      files: ['authorization.readme.mts', 'authorization.readme.cts'],
+      files: [
+        'authorization.readme.mts',
+        'authorization.readme.cts',
+        'field-helper.runtime.mts',
+        'field-helper.runtime.cts',
+      ],
     }),
   );
   writeFileSync(
@@ -852,6 +863,23 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
   );
 
   writeFileSync(
+    path.resolve(consumerDir, 'tsconfig.node16.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'Node16',
+        moduleResolution: 'Node16',
+        strict: true,
+        noEmit: true,
+        skipLibCheck,
+        esModuleInterop: true,
+        types: ['node'],
+      },
+      files: ['field-helper-migration.types.fixture.mts', 'field-helper-migration.types.fixture.cts'],
+    }),
+  );
+
+  writeFileSync(
     path.resolve(consumerDir, 'tsconfig.bundler.json'),
     JSON.stringify(
       {
@@ -918,11 +946,14 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   run('node', ['operation-access.cjs.cjs'], consumerDir);
   run('node', ['private-exports.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.node16.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.emit.json'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.mjs'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.authorization.json'], consumerDir);
+  run('node', ['authorization-out/field-helper.runtime.mjs'], consumerDir);
+  run('node', ['authorization-out/field-helper.runtime.cjs'], consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
   // Include the installed access-router and its implementation in a real Node
@@ -949,23 +980,10 @@ afterAll(async () => {
 });
 
 describe('ARF-09 packed-package compatibility using the real release-artifact pipeline', () => {
-  // Prime both fixture workspaces up-front so the per-test timeout budget is
-  // spent on the consumer smoke checks rather than the (slow, one-time)
-  // workspace + artifact assembly. Without this, the first artifact test body
-  // would absorb the cost of `pnpm --recursive --if-present build` +
-  // `pnpm build-artifact --version <testVersion>` (~40-90s on a fresh runner)
-  // unnecessarily consume the installed-consumer test budget. Both `prepare*Workspace`
-  // helpers are idempotent and cache their result, so priming here is a no-op
-  // for the test bodies.
+  // Tarball checks can run independently without invoking release tooling.
+  // Artifact-only tests lazily prepare their separately cached workspace.
   beforeAll(async () => {
-    // `pnpm build-artifact` scans each package `bin` entry. The CLI packages
-    // below live outside access-router's transitive build closure, so build only
-    // missing bin outputs here. A full workspace build inside Vitest would clean
-    // `packages/access-router/dist` while other parallel files copy/read it.
-    ensureReleaseArtifactBinPackagesBuilt();
-
     preparePackedWorkspace();
-    prepareReleaseArtifactWorkspace();
     authorizationMongo = await MongoMemoryServer.create();
   }, 240_000);
 
@@ -1086,24 +1104,38 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     }
   });
 
-  it('packs and assembles the current JavaScript, declaration graph and shipped docs', () => {
+  it('packs the current JavaScript, declaration graph and shipped docs', () => {
     const packed = preparePackedWorkspace();
     const packedRoot = unpackTarballToDir(packed.tarballs['@web-ts-toolkit/access-router']);
-    const artifactRoot = prepareReleaseArtifactWorkspace().packageDirs['@web-ts-toolkit/access-router'];
     const distRoot = path.resolve(packageRoot, 'dist');
     const emitted = readdirSync(distRoot).filter((file) => /\.(?:js|mjs|ts|mts)$/.test(file));
     expect(emitted).toEqual(expect.arrayContaining(['index.mjs', 'index.d.mts', 'advanced.d.ts', 'processors.js']));
     for (const file of emitted) {
       const current = readFileSync(path.resolve(distRoot, file), 'utf8');
       expect(readFileSync(path.resolve(packedRoot, file), 'utf8'), `packed ${file}`).toBe(current);
-      expect(readFileSync(path.resolve(artifactRoot, 'dist', file), 'utf8'), `artifact ${file}`).toBe(current);
     }
     for (const file of ['README.md', 'llms.txt']) {
       const current = readFileSync(path.resolve(packageRoot, file), 'utf8');
       expect(readFileSync(path.resolve(packedRoot, file), 'utf8'), `packed ${file}`).toBe(current);
-      expect(readFileSync(path.resolve(artifactRoot, file), 'utf8'), `artifact ${file}`).toBe(current);
     }
   });
+
+  it('assembles the current JavaScript, declaration graph and shipped docs in the artifact', () => {
+    const artifactRoot = prepareReleaseArtifactWorkspace().packageDirs['@web-ts-toolkit/access-router'];
+    const distRoot = path.resolve(packageRoot, 'dist');
+    const emitted = readdirSync(distRoot).filter((file) => /\.(?:js|mjs|ts|mts)$/.test(file));
+    expect(emitted).toEqual(expect.arrayContaining(['index.mjs', 'index.d.mts', 'advanced.d.ts', 'processors.js']));
+    for (const file of emitted) {
+      expect(readFileSync(path.resolve(artifactRoot, 'dist', file), 'utf8'), `artifact ${file}`).toBe(
+        readFileSync(path.resolve(distRoot, file), 'utf8'),
+      );
+    }
+    for (const file of ['README.md', 'llms.txt']) {
+      expect(readFileSync(path.resolve(artifactRoot, file), 'utf8'), `artifact ${file}`).toBe(
+        readFileSync(path.resolve(packageRoot, file), 'utf8'),
+      );
+    }
+  }, 240_000);
 
   it.each([
     ['minimum peers', '5.0.0', '8.0.0'],

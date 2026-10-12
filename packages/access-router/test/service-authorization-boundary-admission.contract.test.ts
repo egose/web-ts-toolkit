@@ -482,7 +482,7 @@ describe('SVA-01A actual nested dispatch seams', () => {
 
   it('guards populate and sub-populate before Core target admission or parent persistence', async () => {
     const core = Object.assign(Object.create(Core.prototype), {
-      genSelect: vi.fn(),
+      requestPopulateSelect: vi.fn(),
       req: { macl: { isAllowed: vi.fn() } },
     });
     const { service } = fixture();
@@ -492,14 +492,21 @@ describe('SVA-01A actual nested dispatch seams', () => {
       await expect(core.genPopulate('Source', 'read', populate)).rejects.toMatchObject({ result: denied });
       expect(() => genSubPopulate('contacts', populate as never)).toThrow(PublicAdmissionError);
       expect(await readSub(service, 'id', 'contacts', 'subId', { populate } as never)).toMatchObject(denied);
-      expect(await listSub(service, 'id', 'contacts', { [key]: {} } as never)).toMatchObject(denied);
+      // Internal dedicated authorization is supported by F02. Public dispatch is
+      // the negative boundary for that slot, including on inherited methods.
+      expect(await service.readSub('id', 'contacts', 'subId', { populate })).toMatchObject(denied);
+      expect(await service.listSub('id', 'contacts', { [key]: {} })).toMatchObject(denied);
+      expect(await service.createSub('id', 'contacts', business, { [key]: {} })).toMatchObject(denied);
       const persist = vi.fn();
-      expect(
-        await createSub(service, persist, vi.fn(), 'id', 'contacts', business, { [key]: {} } as never),
-      ).toMatchObject(denied);
+      if (key !== 'authorization') {
+        expect(await listSub(service, 'id', 'contacts', { [key]: {} } as never)).toMatchObject(denied);
+        expect(await createSub(service, persist, 'id', 'contacts', business, { [key]: {} } as never)).toMatchObject(
+          denied,
+        );
+      }
       expect(persist).not.toHaveBeenCalled();
     }
-    expect(core.genSelect).not.toHaveBeenCalled();
+    expect(core.requestPopulateSelect).not.toHaveBeenCalled();
     expect(core.req.macl.isAllowed).not.toHaveBeenCalled();
     expect(service.captureVirtualSnapshot).not.toHaveBeenCalled();
     expect(

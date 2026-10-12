@@ -20,7 +20,7 @@ let sequence = 0;
 const badRequest = { success: false, code: Codes.BadRequest };
 const business = { authorization: { mode: 'invoice' }, overrides: { filter: 'customer preference' } };
 const controls = {
-  authorization: noteGrant,
+  authorization: { ...noteGrant, inputFields: { mode: 'grant', paths: ['internalNote'] } },
   overrides: { select: ['internalNote'], filter: {} },
   documentAuthorization: {},
   documentAuthorizationStage: {},
@@ -255,6 +255,76 @@ function assertPrivateFree(value: unknown, permissionMap = false) {
 }
 
 describe('SVA-08 real backend grants versus public authority injection', () => {
+  it.each(['grant', 'unrestricted'] as const)(
+    'working %s input authority is rejected by every public mutation envelope before effects',
+    async (mode) => {
+      const f = await fixture();
+      const authorization = { inputFields: mode === 'grant' ? { mode, paths: ['internalNote'] } : { mode } };
+      await f.execute(async (req) => {
+        const service = req.macl.getPublicService(f.sourceName);
+        for (const op of ['create', 'update', 'upsert', 'upsert-create'] as const) {
+          const id = String(f.rows[0]._id),
+            data = { name: 'backend', internalNote: `written-${op}` };
+          const internal =
+            op === 'create'
+              ? await service.create(data, {}, { ...quiet, authorization })
+              : op === 'update'
+                ? await service.updateById(id, data, {}, { ...quiet, authorization })
+                : await service.upsert(
+                    op === 'upsert' ? { _id: id } : { name: 'missing' },
+                    data,
+                    {},
+                    { ...quiet, authorization },
+                  );
+          expect(internal).toMatchObject({ success: true });
+          if (!internal.success) throw new Error(internal.code);
+          const output = (Array.isArray(internal.data) ? internal.data[0] : internal.data) as any;
+          expect(output).not.toHaveProperty('internalNote');
+          const persisted = await f.Source.collection.findOne({ _id: output._id });
+          expect(persisted).toHaveProperty('internalNote', `written-${op}`);
+          f.clear();
+          for (const slot of ['args', 'options']) {
+            const args = slot === 'args' ? { authorization } : {};
+            const options = slot === 'options' ? { ...quiet, authorization } : quiet;
+            const rejected =
+              op === 'create'
+                ? await service._create(data, args as never, options as never)
+                : op === 'update'
+                  ? await service._update(id, data, args as never, options as never)
+                  : await service._upsert(
+                      { ...data, ...(op === 'upsert' ? { _id: id } : {}) },
+                      args as never,
+                      options as never,
+                    );
+            expect(rejected).toMatchObject(badRequest);
+            const method = op === 'update' ? 'patch' : op === 'create' ? 'post' : 'put';
+            const url = op === 'update' ? `/sources/__mutation/${id}` : '/sources/__mutation';
+            await request(f.app)
+              [method](url)
+              .send({ data, ...(slot === 'args' ? { authorization } : { options: { authorization } }) })
+              .expect(400);
+            await request(f.app)
+              .post('/root')
+              .send([
+                { target: 'model', name: f.sourceName, op: 'create', data: { name: 'must-not-run' } },
+                {
+                  target: 'model',
+                  name: f.sourceName,
+                  op: op.startsWith('upsert') ? 'upsert' : op,
+                  id,
+                  data,
+                  [slot]: { authorization },
+                },
+              ])
+              .expect(400);
+            f.noWork();
+          }
+          expect(await f.Source.collection.findOne({ _id: output._id })).toEqual(persisted);
+        }
+      });
+    },
+  );
+
   it.each(['list', 'read', 'create', 'update', 'upsert', 'upsert-create'] as const)(
     '%s JS args/options reject controls and reuse stays request-only',
     async (op) => {
@@ -296,6 +366,42 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
       });
     },
   );
+
+  it('input authority does not change initiating route guards or transformed-public admission', async () => {
+    let transformed: unknown;
+    const authorization = { inputFields: { mode: 'grant' as const, paths: ['internalNote'] } };
+    const f = await fixture({
+      operationAccess: { create: false, update: true, basicUpdate: false },
+      requestSchemas: { advancedUpdate: () => ({ success: true, data: transformed }) },
+    });
+    await f.execute(async (req) => {
+      const result = await req.macl
+        .getService(f.sourceName)
+        .create({ name: 'backend', internalNote: 'input-granted' }, {}, { ...quiet, authorization });
+      expect(result).toMatchObject({ success: true });
+      if (!result.success) throw new Error(result.code);
+      expect(await f.Source.collection.findOne({ _id: (result.data[0] as any)._id })).toHaveProperty(
+        'internalNote',
+        'input-granted',
+      );
+    });
+    f.clear();
+    await request(f.app).post('/sources').send({ internalNote: 'attack' }).expect(401);
+    await request(f.app)
+      .post('/sources/__mutation')
+      .send({ data: { internalNote: 'attack' }, options: { authorization } })
+      .expect(401);
+    await request(f.app).patch(`/sources/${f.rows[0]._id}`).send({ internalNote: 'attack' }).expect(401);
+    const root = await request(f.app)
+      .post('/root')
+      .send([{ target: 'model', name: f.sourceName, op: 'create', data: { internalNote: 'attack' } }])
+      .expect(200);
+    expect(root.body[0].result).toMatchObject({ success: false, code: 'unauthorized' });
+    transformed = { data: { internalNote: 'attack' }, options: { authorization } };
+    await request(f.app).patch(`/sources/__mutation/${f.rows[0]._id}`).send({ data: {} }).expect(400);
+    f.noWork();
+    expect(await f.Source.collection.findOne({ _id: f.rows[0]._id })).toHaveProperty('internalNote', 'source-note');
+  });
 
   it.each(['list', 'read', 'create', 'update', 'upsert'] as const)(
     'direct HTTP and root %s reject wire controls before persistence',
@@ -707,7 +813,7 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
     assertPrivateFree(root.body);
   });
 
-  it.each(['inputFields', 'subdocuments'])(
+  it.each(['subdocuments'])(
     'unsupported %s rejects internally and at wire boundaries without granting writes',
     async (key) => {
       const f = await fixture();

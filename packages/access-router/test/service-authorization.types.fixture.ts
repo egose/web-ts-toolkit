@@ -40,9 +40,9 @@ import type {
   PublicUpsertOptions,
   RootQueryEntry,
   ServiceResult,
-  SubdocumentReadOptions,
-  SubdocumentCreateOptions,
-  SubdocumentListOptions,
+  PublicSubdocumentReadOptions,
+  PublicSubdocumentCreateOptions,
+  PublicSubdocumentListOptions,
   UpdateByIdArgs,
   UpdateByIdOptions,
   UpdateOneArgs,
@@ -139,9 +139,9 @@ const virtualFilter: RowAuthorization<Order> = { mode: 'scope', filter: { summar
 grant.paths.push('status');
 // @ts-expect-error policy properties are readonly
 policy.rows = { mode: 'unrestricted' };
-// @ts-expect-error unsupported write elevation
+// @ts-expect-error read policies reject mutation-only write elevation
 const writePolicy: ServiceAuthorization = { inputFields: { mode: 'unrestricted' } };
-// @ts-expect-error dedicated subdocument elevation is deferred
+// @ts-expect-error dedicated policy is separate from the model-root shape
 const subPolicy: ServiceAuthorization = { subdocuments: {} };
 // @ts-expect-error initiating operation is package-owned
 const topOperation: ServiceAuthorization = { operation: { mode: 'grant' } };
@@ -187,9 +187,9 @@ type PublicSurface = [
   PublicUpdateOptions,
   PublicUpsertArgs,
   PublicUpsertOptions,
-  SubdocumentReadOptions,
-  SubdocumentCreateOptions,
-  SubdocumentListOptions,
+  PublicSubdocumentReadOptions,
+  PublicSubdocumentCreateOptions,
+  PublicSubdocumentListOptions,
 ];
 type KeysOfUnion<T> = T extends unknown ? keyof T : never;
 type PublicHasNoControls = Assert<Equal<Extract<KeysOfUnion<PublicSurface[number]>, InternalControl>, never>>;
@@ -204,12 +204,12 @@ type DefaultsHaveNoControls = Assert<Equal<Extract<KeysOfUnion<DefaultOptions>, 
 const publicCreate: PublicCreateOptions = { authorization: policy };
 // @ts-expect-error public reads remain request-only
 const publicRead: PublicReadOptions = { authorization: policy };
-// @ts-expect-error root model envelopes cannot carry authority
 const root: RootQueryEntry = {
   target: 'model',
   name: 'Order',
   op: 'read',
   id: 'id',
+  // @ts-expect-error root model envelopes cannot carry authority
   options: { authorization: policy },
 };
 // @ts-expect-error root data options are not a generic control-slot escape hatch
@@ -233,7 +233,7 @@ service.genSelect('read', ['internalNote'], { authorization: output });
 service.genQuerySelect('read', ['email', 'badge'], planning);
 request.macl!.genSelect<Order, Virtuals>('Order', 'read', undefined, planning);
 request.macl!.genQuerySelect<Order, Virtuals>('Order', 'read', undefined, planning);
-// Legacy positional calls remain available, independently of output authority.
+// @ts-expect-error positional skipChecks/subPaths have been removed
 service.genSelect('create', undefined, false, ['contacts', 'sub']);
 service.genAllowedFields({}, 'read', { authorization: output, purpose: 'output' });
 service.pickAllowedFields({}, 'read', { authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } });
@@ -246,7 +246,8 @@ request.macl!.pickAllowedFields<{}, Order, Virtuals>('Order', {}, 'read', {
   authorization: { outputFields: { mode: 'grant', paths: ['contacts.email'] } },
 });
 request.macl!.trimOutputFields('Order', {}, 'read', { documentAuthorization: handle });
-service.pickAllowedFields({}, 'update', ['internalNote']); // isolated positional compatibility
+// @ts-expect-error arbitrary baseFields have been removed; use explicit output authority
+service.pickAllowedFields({}, 'update', ['internalNote']);
 // @ts-expect-error allowed-field output overload requires an explicit purpose
 service.genAllowedFields({}, 'read', { authorization: policy });
 // @ts-expect-error named output helpers cannot add positional bypass fields

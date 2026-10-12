@@ -19,7 +19,9 @@ import type {
   AdvancedReadFilterBody,
   AdvancedUpdateBody,
   AdvancedUpsertBody,
-  SubdocumentReadOptions,
+  PublicSubdocumentReadOptions,
+  PublicSubdocumentListOptions,
+  PublicSubdocumentCreateOptions,
 } from '../dist/advanced.js';
 import type { AccessRouterRequest } from '../dist/index.js';
 
@@ -40,7 +42,17 @@ type WireOptions<T> = T extends { options?: infer O } ? O : never;
 type NoDefaultAuthority = AssertNever<Extract<AllKeys<DefaultValues | DottedValues>, Forbidden>>;
 type NoWireAuthority = AssertNever<
   Extract<
-    AllKeys<Options | Wire | WireOptions<Wire> | RootQueryEntry | Populate | SubPopulate | SubdocumentReadOptions>,
+    AllKeys<
+      | Options
+      | Wire
+      | WireOptions<Wire>
+      | RootQueryEntry
+      | Populate
+      | SubPopulate
+      | PublicSubdocumentReadOptions
+      | PublicSubdocumentListOptions
+      | PublicSubdocumentCreateOptions
+    >,
     Forbidden
   >
 >;

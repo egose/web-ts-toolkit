@@ -6,6 +6,9 @@ import type {
   CreateAuthorization,
   DocumentAuthorization,
   FieldAuthorization,
+  InputFieldAuthorization,
+  InputFieldPath,
+  MutationAuthorization,
   ModelRouter,
   ModelRouterOptions,
   NewOptions,
@@ -20,6 +23,14 @@ import type {
   ServiceOutputContext,
   ServiceOutputDecorator,
   VirtualSubModel,
+  SubdocumentReadAuthorization,
+  SubdocumentMutationAuthorization,
+  SubdocumentCreateAuthorization,
+  SubdocumentDeleteAuthorization,
+  SubdocumentVisibilityAuthorization,
+  SubdocumentCreateVisibilityAuthorization,
+  SubdocumentModel,
+  SubdocumentName,
 } from '@web-ts-toolkit/access-router';
 import type {
   AdvancedCreateBody,
@@ -36,6 +47,8 @@ import type {
   ModelRequest,
   OutputFieldPath as AdvancedOutputFieldPath,
   ServiceAuthorization as AdvancedServiceAuthorization,
+  InputFieldPath as AdvancedInputFieldPath,
+  MutationAuthorization as AdvancedMutationAuthorization,
   DocumentAuthorization as AdvancedDocumentAuthorization,
   PublicCreateOptions,
   PublicListOptions,
@@ -44,9 +57,12 @@ import type {
   PublicUpsertOptions,
   RootQueryEntry,
   SelectedPublicOutput,
-  SubdocumentCreateOptions,
-  SubdocumentListOptions,
-  SubdocumentReadOptions,
+  PublicSubdocumentCreateOptions,
+  PublicSubdocumentListOptions,
+  PublicSubdocumentReadOptions,
+  PublicSubdocumentMutationOptions,
+  SubdocumentReadAuthorization as AdvancedSubdocumentReadAuthorization,
+  SubdocumentUpdateOptions,
   UpdateByIdOptions,
   UpdateOneOptions,
   UpsertOptions,
@@ -69,6 +85,57 @@ export type EntryParity = Assert<
 >;
 export type PathParity = Assert<Equal<OutputFieldPath<Order, Virtuals>, AdvancedOutputFieldPath<Order, Virtuals>>>;
 export type HandleParity = Assert<Equal<DocumentAuthorization, AdvancedDocumentAuthorization>>;
+export type InputPathParity = Assert<Equal<InputFieldPath<Order>, AdvancedInputFieldPath<Order>>>;
+export type MutationParity = Assert<
+  Equal<MutationAuthorization<Order, Virtuals>, AdvancedMutationAuthorization<Order, Virtuals>>
+>;
+export type SubdocumentParity = Assert<
+  Equal<SubdocumentReadAuthorization<Order>, AdvancedSubdocumentReadAuthorization<Order>>
+>;
+type Contact = SubdocumentModel<Order, 'contacts'>;
+export type SubdocumentInference = Assert<Equal<Contact, { email: string; ssn: string }>>;
+export type EmptyPublicSubMutation = Assert<Equal<PublicSubdocumentMutationOptions['authorization'], never>>;
+const subName: SubdocumentName<Order> = 'contacts';
+// @ts-expect-error scalar model fields are not embedded arrays
+const badSubName: SubdocumentName<Order> = 'tenantId';
+const subRead = {
+  parent: { operation: { mode: 'grant' }, rows: { mode: 'scope', filter: { tenantId: 'a' } } },
+  child: {
+    rows: { mode: 'scope', filter: { email: 'a@example.test' } },
+    outputFields: { mode: 'grant', paths: ['email', 'badge'] },
+  },
+} as const satisfies SubdocumentReadAuthorization<Order, Contact, { badge: string }>;
+const subVisibility: SubdocumentVisibilityAuthorization<Order, Contact, { badge: string }> = {
+  parent: subRead.parent,
+  child: subRead.child,
+};
+const subCreateVisibility: SubdocumentCreateVisibilityAuthorization<Order, Contact, { badge: string }> = {
+  ...subVisibility,
+  list: { operation: { mode: 'grant' }, rows: { mode: 'unrestricted' } },
+};
+const subMutation: SubdocumentMutationAuthorization<Order, Contact, { badge: string }> = {
+  parent: subRead.parent,
+  child: { inputFields: { mode: 'grant', paths: ['email'] } },
+  visibility: subVisibility,
+};
+const subCreate: SubdocumentCreateAuthorization<Order, Contact, { badge: string }> = {
+  child: { inputFields: { mode: 'unrestricted' } },
+  visibility: subCreateVisibility,
+};
+const subDelete: SubdocumentDeleteAuthorization<Order, Contact> = {
+  parent: subRead.parent,
+  child: { operation: { mode: 'grant' } },
+};
+// @ts-expect-error parent fields are inapplicable to a dedicated child operation
+const badSubParent: SubdocumentReadAuthorization<Order> = { parent: { outputFields: { mode: 'request' } } };
+// @ts-expect-error create has no existing-child lookup scope
+const badSubCreate: SubdocumentCreateAuthorization<Order, Contact> = { child: { rows: { mode: 'request' } } };
+// @ts-expect-error update/bulk visibility cannot grant child list (create alone uses it)
+const badSubVisibility: SubdocumentVisibilityAuthorization = { list: { operation: { mode: 'grant' } } };
+// @ts-expect-error no fields or visibility on deletion, including pretyped mutation policies
+const badSubDelete: SubdocumentDeleteAuthorization<Order, Contact> = subMutation;
+// @ts-expect-error mutation writes/visibility cannot be forwarded as read policy
+const badSubRead: SubdocumentReadAuthorization<Order, Contact> = subMutation;
 
 const paths = [
   'internalNote',
@@ -90,7 +157,18 @@ const policy: ServiceAuthorization<Order, Virtuals> = {
   rows: { mode: 'scope', filter: { tenantId: 'a', 'contacts.email': 'a@example.test' } },
   related: { customer: related },
 };
-const create: CreateAuthorization<Order, Virtuals> = { ...output, related: { customer: related } };
+const inputPaths = ['internalNote', 'contacts.email'] as const satisfies readonly InputFieldPath<Order>[];
+const inputFields: InputFieldAuthorization<Order> = { mode: 'grant', paths: inputPaths };
+const mutation: MutationAuthorization<Order, Virtuals> = { ...policy, inputFields };
+const create: CreateAuthorization<Order, Virtuals> = { ...output, inputFields, related: { customer: related } };
+const unknownInput: InputFieldAuthorization = { mode: 'grant', paths: ['dynamic.path'] };
+const anyInput: InputFieldAuthorization<any> = unknownInput;
+const mapInput: InputFieldPath<{ labels: Map<string, { email: string }> }> = 'labels.work.email';
+const mixedInput: InputFieldPath<{ payload: unknown }> = 'payload.business.name';
+// @ts-expect-error BSON implementation properties are not persisted descendants
+const bsonInput: InputFieldPath<{ ref: import('mongoose').Types.ObjectId }> = 'ref.toHexString';
+// @ts-expect-error Date implementation methods are not persisted paths
+const dateInput: InputFieldPath<{ createdAt: Date }> = 'createdAt.getTime';
 const planning: OutputPlanningOptions<Order, Virtuals> = { authorization: output, scopePath: ['contacts'] as const };
 const unknownPolicy: ServiceAuthorization = { outputFields: { mode: 'grant', paths: ['dynamic.path'] } };
 const anyPolicy: ServiceAuthorization<any> = unknownPolicy;
@@ -170,9 +248,31 @@ const badUnrestrictedRows: RowAuthorization = unrestrictedWithFilter;
 const broadOutput: OutputAuthorization<Order, Virtuals> = policy;
 // @ts-expect-error create has no existing-row scope, including from reusable policies
 const broadCreate: CreateAuthorization<Order, Virtuals> = policy;
-// @ts-expect-error write elevation is deferred
+// @ts-expect-error reads cannot accept mutation-only input authority
 const inputPolicy: ServiceAuthorization = { inputFields: { mode: 'unrestricted' } };
-// @ts-expect-error dedicated subdocument elevation is deferred
+// @ts-expect-error reusable mutation policies also reject on reads
+const broadRead: ServiceAuthorization<Order, Virtuals> = mutation;
+// @ts-expect-error a reusable create policy containing input authority cannot be used on reads
+const createAsRead: FindOptions<Order, Virtuals> = { authorization: create };
+// @ts-expect-error input grant paths never include registered output virtuals
+const virtualInput: InputFieldPath<Order> = 'summary';
+// @ts-expect-error embedded virtuals do not enter the persisted input shape
+const embeddedVirtualInput: InputFieldPath<Order> = 'contacts.badge';
+// @ts-expect-error input grants cannot address indices
+const indexedInput: InputFieldPath<Order> = 'contacts.0.email';
+// @ts-expect-error known persisted paths catch typos
+const typoInput: InputFieldPath<Order> = 'internalNotes';
+// @ts-expect-error identity is never elevatable even when present in the model type
+const identityInput: InputFieldPath<{ _id: string; status: string }> = '_id';
+// @ts-expect-error control metadata is never elevatable
+const metadataInput: InputFieldPath<{ nested: { _permissions: object; status: string } }> = 'nested._permissions';
+// @ts-expect-error input grant union rejects wrong-variant paths
+const requestInput: InputFieldAuthorization = { mode: 'request', paths: [] };
+// @ts-expect-error input paths are immutable
+inputFields.paths.push('status');
+// @ts-expect-error related read/count policies never accept mutation authority
+const relatedInput: RelatedAuthorization = { model: 'Order', inputFields };
+// @ts-expect-error dedicated policy is a separate method-specific shape, not a model-root tree
 const subPolicy: ServiceAuthorization = { subdocuments: {} };
 // @ts-expect-error initiating operation is private execution state
 const topOperation: ServiceAuthorization = { operation: { mode: 'grant' } };
@@ -185,6 +285,53 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
   router.setOption('alwaysSelectFields.read', ['status']);
   const service = router.getService(req);
   const sameModel = req.macl.getService<Order, Virtuals>('Order');
+  await service.listSub('id', subName, { filter: { email: 'a@example.test' }, authorization: subRead });
+  await service.readSub('id', 'contacts', 'child-id', { authorization: subRead });
+  const subOptions: SubdocumentUpdateOptions<Order, Contact, { badge: string }> = { authorization: subMutation };
+  await service.updateSub('id', 'contacts', 'child-id', { email: 'changed' }, subOptions);
+  await service.bulkUpdateSub('id', 'contacts', [{ _id: 'child-id', email: 'changed' }], subOptions);
+  await service.createSub('id', 'contacts', { email: 'created' }, { addFirst: true, authorization: subCreate });
+  await service.deleteSub('id', 'contacts', 'child-id', { authorization: subDelete });
+  // @ts-expect-error child output paths are inferred relative to contacts, not the parent model
+  await service.readSub('id', 'contacts', 'child-id', {
+    authorization: { child: { outputFields: { mode: 'grant', paths: ['contacts.email'] } } },
+  });
+  // @ts-expect-error virtual paths cannot become child input fields
+  await service.updateSub(
+    'id',
+    'contacts',
+    'child-id',
+    {},
+    { authorization: { child: { inputFields: { mode: 'grant', paths: ['badge'] } } } },
+  );
+  // @ts-expect-error unrelated parent input is outside the selected child
+  await service.createSub(
+    'id',
+    'contacts',
+    {},
+    { authorization: { child: { inputFields: { mode: 'grant', paths: ['tenantId'] } } } },
+  );
+  // @ts-expect-error read methods reject input even if supplied by a reusable mutation policy
+  await service.readSub('id', 'contacts', 'child-id', subOptions);
+  // @ts-expect-error referenced targets have no dedicated related policy dimension
+  await service.readSub('id', 'contacts', 'child-id', { authorization: { child: { related: {} } } });
+  const publicSub = router.getPublicService(req);
+  await publicSub.listSub('id', 'contacts', { select: ['email'] });
+  await publicSub.readSub('id', 'contacts', 'child-id');
+  await publicSub.createSub('id', 'contacts', { authorization: 'ordinary payload' }, { addFirst: true });
+  await publicSub.updateSub('id', 'contacts', 'child-id', { overrides: 'ordinary payload' });
+  // @ts-expect-error public dedicated list is request-only
+  await publicSub.listSub('id', 'contacts', { authorization: subRead });
+  // @ts-expect-error public dedicated read is request-only
+  await publicSub.readSub('id', 'contacts', 'child-id', { authorization: subRead });
+  // @ts-expect-error public dedicated create is request-only
+  await publicSub.createSub('id', 'contacts', {}, { authorization: subCreate });
+  // @ts-expect-error public dedicated update has no capability slot, including pretyped options
+  await publicSub.updateSub('id', 'contacts', 'child-id', {}, subOptions);
+  // @ts-expect-error public dedicated bulk update is request-only
+  await publicSub.bulkUpdateSub('id', 'contacts', [], { authorization: subMutation });
+  // @ts-expect-error public dedicated delete is request-only
+  await publicSub.deleteSub('id', 'contacts', 'child-id', { authorization: subDelete });
   const options: [
     FindOptions<Order, Virtuals>,
     FindOneOptions<Order, Virtuals>,
@@ -196,9 +343,9 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
     { authorization: policy },
     { authorization: policy },
     { authorization: policy },
-    { authorization: policy },
-    { authorization: policy },
-    { authorization: policy },
+    { authorization: mutation },
+    { authorization: mutation },
+    { authorization: mutation },
   ];
   const createOptions: CreateOptions<Order, Virtuals> = { authorization: create };
   const newOptions: NewOptions<Order, Virtuals> = { authorization: output, skim: true };
@@ -214,6 +361,19 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
   await service.updateOne({}, {}, { select: 'status' }, options[3], decorator);
   await service.updateById('id', {}, { select: { status: 1 } }, options[4]);
   await service.upsert({}, {}, { select: [] }, options[5]);
+  await service.create({ internalNote: 'backend' }, {}, { authorization: { inputFields: { mode: 'unrestricted' } } });
+  // @ts-expect-error a reusable mutation policy is not a read capability
+  await service.findOne({}, {}, { authorization: mutation });
+  // @ts-expect-error input authority is unavailable even with update access on a read method
+  await service.findOne({}, {}, { access: 'update', authorization: mutation });
+  // @ts-expect-error templates cannot write
+  await service.new({}, { authorization: { inputFields } });
+  // @ts-expect-error output helpers cannot consume mutation policy even under update access
+  await service.pickAllowedFields({}, 'update', { authorization: mutation });
+  // @ts-expect-error output planning cannot consume input policy
+  await service.genSelect('create', undefined, { authorization: { inputFields } });
+  // @ts-expect-error public mutations reject internal authority
+  await router.getPublicService(req)._create({}, {}, { authorization: create });
   await service.new({ select: ['-status'] }, newOptions); // select is historically ignored
   await service.genSelect('read', ['internalNote'], { authorization: output });
   await service.genQuerySelect('read', ['email', 'badge'], planning);
@@ -272,8 +432,9 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
   await service.findOne({}, {}, { preparedQuery: {} });
   // @ts-expect-error no public execution option
   await service.findOne({}, {}, { execution: {} });
-  // Isolated legacy overloads remain, independently of the removed service container.
+  // @ts-expect-error positional skipChecks/subPaths are removed in this breaking release
   await service.genSelect('create', undefined, false, ['contacts', 'sub']);
+  // @ts-expect-error arbitrary baseFields are removed; use named output options
   await service.pickAllowedFields({}, 'read', ['status']);
   void forged;
 }
@@ -291,9 +452,9 @@ type PublicOptions =
   | PublicCreateOptions
   | PublicUpdateOptions
   | PublicUpsertOptions
-  | SubdocumentListOptions
-  | SubdocumentReadOptions
-  | SubdocumentCreateOptions;
+  | PublicSubdocumentListOptions
+  | PublicSubdocumentReadOptions
+  | PublicSubdocumentCreateOptions;
 type Controls = 'authorization' | 'overrides' | 'documentAuthorization' | 'execution' | 'preparedQuery' | 'operation';
 type Keys<T> = T extends unknown ? keyof NonNullable<T> : never;
 type OptionsOf<T> = T extends { options?: infer O } ? O : never;
@@ -310,12 +471,12 @@ export type NoWireAuthority = Assert<
 >;
 // @ts-expect-error HTTP advanced bodies cannot express server capabilities
 const wire: AdvancedListBody = { options: { authorization: output } };
-// @ts-expect-error root batch model entries cannot express server capabilities
 const root: RootQueryEntry = {
   target: 'model',
   name: 'Order',
   op: 'read',
   id: 'id',
+  // @ts-expect-error root batch model entries cannot express server capabilities
   options: { authorization: output },
 };
 // @ts-expect-error defaults cannot inherit server authority
@@ -337,11 +498,32 @@ export type PrivatePrepared = import('@web-ts-toolkit/access-router/advanced').P
 export type PrivateIssuer = typeof import('@web-ts-toolkit/access-router').createDocumentAuthorizationStage;
 // @ts-expect-error private executors are not advanced runtime exports
 export type PrivateExecutor = typeof import('@web-ts-toolkit/access-router/advanced').executePreparedFind;
-// @ts-expect-error the export map also blocks source deep imports
 export type PrivateDeepImport =
+  // @ts-expect-error the export map also blocks source deep imports
   import('@web-ts-toolkit/access-router/src/acl/service-authorization').ResolvedServiceAuthorization;
 
 void [
+  badSubName,
+  badSubParent,
+  badSubCreate,
+  badSubVisibility,
+  badSubDelete,
+  badSubRead,
+  anyInput,
+  mapInput,
+  mixedInput,
+  bsonInput,
+  dateInput,
+  broadRead,
+  createAsRead,
+  virtualInput,
+  embeddedVirtualInput,
+  indexedInput,
+  typoInput,
+  identityInput,
+  metadataInput,
+  requestInput,
+  relatedInput,
   anyPolicy,
   indexedPolicy,
   modes,

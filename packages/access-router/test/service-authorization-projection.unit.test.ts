@@ -578,9 +578,10 @@ describe('SVA-02 named model helpers and isolated request admission', () => {
     );
   });
 
-  it('keeps positional write admission and DataCore/DataService-style select checks request-only', async () => {
-    const { service, runtime } = helper();
-    const selected = await runWithRuntime(runtime, () => service.genSelect('read', ['internalNote'], false));
+  it('removes positional admission and keeps the private data selector request-only', async () => {
+    const { service } = helper();
+    await expect(service.genSelect('read', ['internalNote'], false as never)).rejects.toThrow('have been removed');
+    const selected = await service.genSelect('read', ['internalNote']);
     expect(selected).not.toContain('internalNote');
     const rule = vi.fn((p) => p.has('reader'));
     expect(
@@ -589,7 +590,6 @@ describe('SVA-02 named model helpers and isolated request admission', () => {
         permissionSchema: { yes: rule, no: false, absent: 'unknown' },
         access: 'read',
         targetFields: ['yes', 'no', 'absent'],
-        skipChecks: true,
         mode: 'data',
         hasPermission: (p) => permissions.has(p),
         functionArgs: [permissions],

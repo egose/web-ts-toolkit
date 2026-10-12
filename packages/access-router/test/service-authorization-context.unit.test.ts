@@ -175,6 +175,7 @@ describe('SVA-01 private call-policy capture', () => {
     expect(readServiceAuthorization(next, input.binding).authorization).toEqual({
       rows: { mode: 'request' },
       outputFields: { mode: 'request' },
+      inputFields: { mode: 'request' },
       related: {},
     });
     expect(getAuthorizationPermissions(first, input.binding).has('admin')).toBe(false);

@@ -462,6 +462,9 @@ describe('AR-14 published export contract', () => {
       const documented = {
         OutputFieldPath: ['contacts.email', 'runtime schema'],
         FieldAuthorization: ['additive', 'explicit selection', 'selected eligible subtree', 'required output fields'],
+        InputFieldPath: ['persisted-model', 'runtime schema', 'No virtual shape'],
+        InputFieldAuthorization: ['mutation-only', 'by index', 'container authority', 'No row, output'],
+        MutationAuthorization: ['independent of rows/output/related', 'output-only policy'],
         RowAuthorization: ['overrideFilter', 'EVERY mode', 'ANDed', 'Null/undefined'],
         OperationAuthorization: ['target operation', 'not its rows'],
         ServiceAuthorization: [
@@ -472,7 +475,7 @@ describe('AR-14 published export contract', () => {
           'HTTP/OpenAPI/client',
         ],
         RelatedAuthorization: ['parent unrestricted', 'immediate target', 'Count targets'],
-        CreateAuthorization: ['Rows reject', 'writes stay request-authorized'],
+        CreateAuthorization: ['Rows reject', 'input/output/related'],
         OutputAuthorization: ['row/target options reject'],
         DocumentAuthorization: ['projected document snapshot', 'ownerId', 'another', 'reject'],
         ServiceOutputContext: ['public serializers omit', 'no authority is attached to data'],
@@ -480,10 +483,26 @@ describe('AR-14 published export contract', () => {
         AuthorizedListResult: ['same index'],
         ServiceOutputDecorator: ['no automatic', 'mutations/replacements'],
         OutputPlanningOptions: ['persisted fetch inputs', 'alwaysSelectFields'],
-        OutputFieldOptions: ['Mutually exclusive', 'fresh call', 'without rerunning', 'legacy helper'],
-        AllowedOutputFieldOptions: ["purpose: 'output'", 'write admission'],
+        OutputFieldOptions: [
+          'Mutually exclusive',
+          'fresh call',
+          'without rerunning',
+          'Positional baseFields have been removed',
+        ],
+        AllowedOutputFieldOptions: ["purpose: 'output'", 'never a write/schema', 'Null/undefined'],
+        DataFieldOptions: ['request-only', 'No Mongoose catalog', 'empty result'],
+        PopulatePlanningOptions: ['request-only', 'response segments', 'target operation/rows'],
         NewArgs: ['historically ignored'],
         NewOptions: ['ignores select', 'unsupported'],
+        SubdocumentReadAuthorization: ['independent', 'base-operation gates', 'request authority', 'Child paths'],
+        SubdocumentMutationAuthorization: ['independent', 'Visibility', 'null/[]'],
+        SubdocumentCreateAuthorization: ['visible full array', 'no existing-child rows'],
+        SubdocumentDeleteAuthorization: ['Parent update', 'removed ID'],
+        SubdocumentVisibilityAuthorization: ['Independent', 'never inherits writes'],
+        SubdocumentCreateVisibilityAuthorization: ['list AND read', 'read output'],
+        SubdocumentInputAuthorization: ['by index', 'original hydrated owning parent', 'identity'],
+        SubdocumentOutputAuthorization: ['Child-relative', 'referenced targets', 'RAW'],
+        SubdocumentGateAuthorization: ['overrideFilter', 'ANDed', 'False is terminal'],
       };
       const privateNames = [
         'Service',
@@ -518,6 +537,23 @@ describe('AR-14 published export contract', () => {
         'executeCreate',
         'executePreparedCount',
         'executePreparedExists',
+        'admitModelInput',
+        'assertModelInputComplexity',
+        'requestInputFields',
+        'resolveInputDocumentGrants',
+        'inputFetchPaths',
+        'sanitizePreparedInput',
+        'stripDocumentInputVirtuals',
+        'prepareSubdocumentCall',
+        'subdocumentGateAllowed',
+        'subdocumentRows',
+        'subdocumentParentFilter',
+        'subdocumentInputPolicy',
+        'SubdocumentCall',
+        'collectModelRequestFields',
+        'assertFieldHelperCall',
+        'requestFieldScope',
+        'isInputVirtualPath',
       ];
       for (const entry of entries) {
         for (const [name, phrases] of Object.entries(documented)) {
@@ -546,6 +582,52 @@ describe('AR-14 published export contract', () => {
       const macl = type(entries[1], 'ModelRequest').value.getProperty('macl')!;
       const core = checker.getTypeOfSymbolAtLocation(macl, macl.valueDeclaration!);
       expect(hover(core.getProperty('pickAllowedFields')!)).toContain('mutually exclusive');
+      const dataRequest = type(entries[1], 'DataRequest').value.getProperty('dacl')!;
+      const dataCore = checker.getTypeOfSymbolAtLocation(dataRequest, dataRequest.valueDeclaration!);
+      const dataAcquire = type(entries[0], 'DataRouter').value.getProperty('getService')!;
+      const dataService = checker.getReturnTypeOfSignature(
+        checker.getTypeOfSymbolAtLocation(dataAcquire, dataAcquire.valueDeclaration!).getCallSignatures()[0],
+      );
+      const publicAcquire = router.getProperty('getPublicService')!;
+      const publicService = checker.getReturnTypeOfSignature(
+        checker.getTypeOfSymbolAtLocation(publicAcquire, publicAcquire.valueDeclaration!).getCallSignatures()[0],
+      );
+      for (const [receiver, maximum, helpers] of [
+        [
+          core,
+          4,
+          ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
+        ],
+        [
+          service,
+          3,
+          ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
+        ],
+        [
+          publicService,
+          3,
+          ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
+        ],
+        [dataCore, 4, ['genSelect', 'genAllowedFields', 'pickAllowedFields']],
+        [dataService, 3, ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields']],
+      ] as const) {
+        for (const helper of helpers) {
+          const symbol = receiver.getProperty(helper)!;
+          const signatures = checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration!).getCallSignatures();
+          expect(signatures, `${helper} has no retained overload`).toHaveLength(1);
+          const parameters = signatures[0].getParameters();
+          expect(parameters).toHaveLength(maximum);
+          expect(parameters.at(-1)!.name).toBe('options');
+          const declaration = signatures[0].getDeclaration();
+          expect(declaration.parameters.some((parameter) => !!parameter.dotDotDotToken)).toBe(false);
+          const names = parameters.map((parameter) => parameter.name);
+          for (const retired of ['skipChecks', 'subPaths', 'baseFields', 'optionsOrBase', 'optionsOrSkipChecks']) {
+            expect(names).not.toContain(retired);
+          }
+        }
+      }
+      expect(service.getProperty('buildVirtualPlan')).toBeUndefined();
+      expect(service.getProperty('buildSubVirtualPlan')).toBeUndefined();
       for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
         for (const name of [...Object.keys(documented), ...privateNames]) expect(runtime).not.toHaveProperty(name);
       }

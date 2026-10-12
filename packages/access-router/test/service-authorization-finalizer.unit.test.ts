@@ -796,18 +796,16 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     expect(f.hook).not.toHaveBeenCalled();
   });
 
-  it('keeps request-only write admission and legacy baseFields isolated from named output options', async () => {
+  it('defaults to request-mode output, rejects retired baseFields and keeps explicit output authority', async () => {
     const f = fixture();
     const doc = { public: 'yes', internalNote: 'no' };
-    const written = await runWithRuntime(f.runtime, () => f.service.pickAllowedFields(doc, 'update'));
-    expect(written).toEqual({ public: 'yes' });
+    const requestOutput = await f.service.pickAllowedFields(doc, 'update');
+    expect(requestOutput).toEqual({ public: 'yes' });
     expect(await f.service.pickAllowedFields(doc, 'update', { authorization: grant('internalNote') })).toEqual(doc);
-    expect(await runWithRuntime(f.runtime, () => f.service.pickAllowedFields(doc, 'update', ['internalNote']))).toEqual(
-      doc,
+    await expect(f.service.pickAllowedFields(doc, 'update', ['internalNote'] as never)).rejects.toThrow(
+      'have been removed',
     );
-    expect(await runWithRuntime(f.runtime, () => f.service.genAllowedFields(doc, 'update'))).not.toContain(
-      'internalNote',
-    );
+    expect(await f.service.genAllowedFields(doc, 'update')).not.toContain('internalNote');
     const { context, output } = await f.finalize({ ownerId: 'actor', status: 'open' });
     expect(readDocumentAuthorization(context.documentAuthorization, f.binding).outputAccess).toBe('read');
     await expect(
