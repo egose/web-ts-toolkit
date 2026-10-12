@@ -1,8 +1,10 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { buildSync } from 'esbuild';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
@@ -54,6 +56,7 @@ type PackageJson = {
   license?: string;
   repository?: string | { type?: string; url?: string };
   sideEffects?: string[] | boolean;
+  engines?: Record<string, string>;
   files?: string[];
   main?: string;
   module?: string;
@@ -129,13 +132,16 @@ const releaseArtifactBinPackages = [
 ] as const;
 
 const tempRoots: string[] = [];
+let authorizationMongo: MongoMemoryServer;
 
-function run(command: string, args: string[], cwd: string): string {
+function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): string {
   try {
     return execFileSync(command, args, {
       cwd,
       encoding: 'utf8',
       stdio: 'pipe',
+      env: { ...process.env, ...env },
+      timeout: 180_000,
     });
   } catch (err) {
     const error = err as { stdout?: string; stderr?: string; message?: string };
@@ -156,7 +162,7 @@ function ensureReleaseArtifactBinPackagesBuilt(): void {
   const missing = releaseArtifactBinPackages.filter((pkg) => !hasBuiltBinEntries(pkg.dir));
   if (missing.length === 0) return;
 
-  run('pnpm', missing.flatMap((pkg) => ['--filter', pkg.name]).concat(['build']), workspaceRoot);
+  for (const pkg of missing) run('pnpm', ['--filter', pkg.name, 'build'], workspaceRoot);
 }
 
 /**
@@ -424,6 +430,77 @@ function installArtifactConsumer(expressVersion: string, mongooseVersion: string
 
 function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck: boolean }): void {
   const skipLibCheck = !options.fullDeclarationCheck;
+
+  // Compile the SAME strict fixtures against the actual installed publication,
+  // not repository aliases or a manually reconstructed declaration surface.
+  const authorizationFixtures = [
+    'service-authorization-consumer.types.fixture',
+    'service-authorization-boundary.types.fixture',
+    'service-authorization-migration.types.fixture',
+  ];
+  for (const fixture of authorizationFixtures) {
+    const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
+      .replaceAll("'../dist/index.js'", "'@web-ts-toolkit/access-router'")
+      .replaceAll("'../dist/advanced.js'", "'@web-ts-toolkit/access-router/advanced'");
+    for (const extension of ['ts', 'mts', 'cts']) {
+      writeFileSync(path.resolve(consumerDir, `${fixture}.${extension}`), snippet);
+    }
+  }
+  // Execute the shipped README itself in both Node module systems, with a real
+  // database supplied by the suite. Its assertions cover grants/handles/targets.
+  const readme = readFileSync(
+    path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/README.md'),
+    'utf8',
+  );
+  const authorizationExample = [
+    ...readme.matchAll(/<!--\s*doc-example:\s*complete-runtime\s*-->\s*```ts\n([\s\S]*?)```/g),
+  ]
+    .map((match) => match[1])
+    .find((snippet) => snippet.includes('async function runServiceAuthorizationExample()'));
+  if (!authorizationExample) throw new Error('Installed README is missing its runnable authorization contract');
+  for (const extension of ['mts', 'cts']) {
+    writeFileSync(path.resolve(consumerDir, `authorization.readme.${extension}`), authorizationExample);
+  }
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig.authorization.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        strict: true,
+        noUnusedLocals: true,
+        noUnusedParameters: true,
+        skipLibCheck,
+        esModuleInterop: true,
+        outDir: 'authorization-out',
+        types: ['node'],
+      },
+      files: ['authorization.readme.mts', 'authorization.readme.cts'],
+    }),
+  );
+  writeFileSync(
+    path.resolve(consumerDir, 'private-exports.cjs'),
+    `
+const assert = require('node:assert/strict');
+(async () => {
+  const modules = [require('@web-ts-toolkit/access-router'), require('@web-ts-toolkit/access-router/advanced'),
+    await import('@web-ts-toolkit/access-router'), await import('@web-ts-toolkit/access-router/advanced')];
+  for (const entry of modules) {
+    for (const name of ['Service', 'DocumentAuthorization', 'ServiceAuthorization', 'resolveServiceAuthorization',
+      'createServiceExecution', 'createDocumentAuthorizationStage', 'createServiceOutputContext',
+      'prepareModelQuery', 'executePreparedFind', 'executeCreate', 'registerServiceExecutors']) {
+      assert.equal(Object.hasOwn(entry, name), false, name + ' must not be a runtime escape hatch');
+    }
+  }
+  for (const subpath of ['src/acl/service-authorization', 'src/acl/document-authorization',
+    'src/acl/service-execution', 'src/acl/prepared-query', 'dist/index.js']) {
+    assert.throws(() => require.resolve('@web-ts-toolkit/access-router/' + subpath),
+      { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
+  }
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+`,
+  );
 
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
@@ -741,7 +818,11 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
           esModuleInterop: true,
           types: ['node'],
         },
-        include: ['consumer.nodenext.mts', 'consumer.nodenext.cts'],
+        include: [
+          'consumer.nodenext.mts',
+          'consumer.nodenext.cts',
+          ...authorizationFixtures.flatMap((fixture) => [`${fixture}.mts`, `${fixture}.cts`]),
+        ],
       },
       null,
       2,
@@ -763,7 +844,7 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
           esModuleInterop: true,
           types: ['node'],
         },
-        include: ['consumer.nodenext.mts'],
+        include: ['consumer.nodenext.mts', 'consumer.nodenext.cts'],
       },
       null,
       2,
@@ -784,7 +865,7 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
           esModuleInterop: true,
           types: ['node'],
         },
-        include: ['consumer.bundler.ts'],
+        include: ['consumer.bundler.ts', ...authorizationFixtures.map((fixture) => `${fixture}.ts`)],
       },
       null,
       2,
@@ -807,19 +888,61 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
  * skipped to avoid failing on old peer declaration internals unrelated to
  * access-router's emitted declaration graph.
  */
-function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCheck: boolean }): void {
+function runMongoConsumer(file: string, consumerDir: string): Promise<void> {
+  // MongoMemoryServer drains mongod stdout in this process. Keeping its event loop
+  // blocked across several execFileSync workflows can fill that pipe and stall the DB.
+  return new Promise((resolve, reject) => {
+    execFile(
+      'node',
+      [file],
+      {
+        cwd: consumerDir,
+        encoding: 'utf8',
+        timeout: 60_000,
+        env: { ...process.env, MONGODB_URL: authorizationMongo.getUri() },
+      },
+      (error, stdout, stderr) => {
+        if (error)
+          reject(new Error(`Installed authorization workflow failed (${file}):\n${stdout}${stderr}`, { cause: error }));
+        else resolve();
+      },
+    );
+  });
+}
+
+async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCheck: boolean }): Promise<void> {
   writeConsumerFiles(consumerDir, options);
   run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
   run('node', ['operation-access.esm.mjs'], consumerDir);
   run('node', ['operation-access.cjs.cjs'], consumerDir);
+  run('node', ['private-exports.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.emit.json'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.mjs'], consumerDir);
+  run('node', ['nodenext-out/consumer.nodenext.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.authorization.json'], consumerDir);
+  await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
+  await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
+  // Include the installed access-router and its implementation in a real Node
+  // bundle. Keep framework peers external so model/Express identity stays shared.
+  buildSync({
+    absWorkingDir: consumerDir,
+    entryPoints: ['authorization.readme.mts'],
+    outfile: 'authorization.bundle.cjs',
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    target: 'node22',
+    external: ['express', 'mongoose'],
+    logLevel: 'silent',
+  });
+  await runMongoConsumer('authorization.bundle.cjs', consumerDir);
 }
 
-afterAll(() => {
+afterAll(async () => {
+  await authorizationMongo?.stop();
   for (const dir of tempRoots) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -834,7 +957,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
   // unnecessarily consume the installed-consumer test budget. Both `prepare*Workspace`
   // helpers are idempotent and cache their result, so priming here is a no-op
   // for the test bodies.
-  beforeAll(() => {
+  beforeAll(async () => {
     // `pnpm build-artifact` scans each package `bin` entry. The CLI packages
     // below live outside access-router's transitive build closure, so build only
     // missing bin outputs here. A full workspace build inside Vitest would clean
@@ -843,6 +966,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
 
     preparePackedWorkspace();
     prepareReleaseArtifactWorkspace();
+    authorizationMongo = await MongoMemoryServer.create();
   }, 240_000);
 
   it('applies the real `@repo-toolkit/publish-package` manifest transformation to the access-router tarball', () => {
@@ -858,6 +982,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     // tarball to prove the staging + `pnpm pack` round-trips the same fields.
     expect(accessRouterManifest).toEqual(stagedManifest);
     expect(accessRouterManifest.version).toBe(testVersion);
+    expect(accessRouterManifest.engines).toEqual({ node: '>=22' });
     expect(accessRouterManifest.license).toBe(rootPackageJson.license);
     expect(accessRouterManifest.repository).toEqual({
       ...rootPackageJson.repository,
@@ -985,9 +1110,9 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     ['current majors', '5.2.1', '9.8.0'],
   ])(
     'supports %s from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers',
-    (_label, expressVersion, mongooseVersion) => {
+    async (_label, expressVersion, mongooseVersion) => {
       const consumerDir = installPackedConsumer(expressVersion, mongooseVersion);
-      runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
+      await runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
     // Includes install, runtime smoke and three compiler invocations under suite load.
     180000,
@@ -998,9 +1123,9 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     ['current majors', '5.2.1', '9.8.0'],
   ])(
     'supports %s from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers',
-    (_label, expressVersion, mongooseVersion) => {
+    async (_label, expressVersion, mongooseVersion) => {
       const consumerDir = installArtifactConsumer(expressVersion, mongooseVersion);
-      runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
+      await runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
     180000,
   );

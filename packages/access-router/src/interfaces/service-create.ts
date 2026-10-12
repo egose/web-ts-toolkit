@@ -1,4 +1,5 @@
 import { Projection, Populate, PopulateAccess, Task } from './base';
+import type { CreateAuthorization } from './service-authorization';
 
 export interface PublicCreateArgs {
   select?: Projection;
@@ -6,26 +7,7 @@ export interface PublicCreateArgs {
   tasks?: Task | Task[];
 }
 
-export interface CreateArgs extends Omit<PublicCreateArgs, 'select' | 'tasks'> {
-  overrides?: {
-    populate?: Populate[] | string;
-    /**
-     * VIRT-04 internal plan transport (VIRT-00A D6).
-     * Effective mutation output selection carried into internal finalization
-     * before virtual evaluation. Internal create args omit `select` publicly;
-     * this trusted transport supplies the effective selection (explicit
-     * `select` or `undefined` for all) without changing public presentation
-     * (public `_create` still picks after decorate/tasks).
-     */
-    effectiveSelect?: Projection;
-    /**
-     * VIRT-04 initiating operation (VIRT-00A D1). Upsert branches keep
-     * `operation: 'upsert'` while virtual/output/doc accesses follow the
-     * taken branch. Defaults to `'create'` when absent.
-     */
-    operation?: string;
-  };
-}
+export interface CreateArgs extends Omit<PublicCreateArgs, 'tasks'> {}
 
 export interface PublicCreateOptions {
   skim?: boolean;
@@ -34,12 +16,17 @@ export interface PublicCreateOptions {
    * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`
    * when omitted. `includePermissions: true` + `includeFieldPermissions: false`
    * keeps `docPermissions`-hook keys but omits `_view`/`_edit` entirely.
-   * Enabling field maps also computes doc permissions as grant input (even
-   * under skim or when `includePermissions` is false), so the maps match the
-   * `includePermissions: true` output.
+   * Internal document grants are computed independently of both metadata flags
+   * and skim. These maps describe request-user permissions, never backend grants.
    */
   includeFieldPermissions?: boolean;
   populateAccess?: PopulateAccess;
 }
 
-export interface CreateOptions extends PublicCreateOptions {}
+export interface CreateOptions<
+  TModel = unknown,
+  TVirtuals extends object = Record<never, never>,
+> extends PublicCreateOptions {
+  /** Trusted server-only output/related authority; rows reject and input writes still use request permissions. */
+  readonly authorization?: CreateAuthorization<TModel, TVirtuals>;
+}

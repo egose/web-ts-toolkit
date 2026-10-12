@@ -7,6 +7,8 @@ import { AccessRuntime } from '../src/runtime.ts';
 import { setGlobalOptions } from '../src/options/index.ts';
 import { Base } from '../src/services/base.ts';
 import { Service } from '../src/services/service.ts';
+import { registerServiceExecutors } from '../src/acl/service-execution';
+import Permission from '../src/permission';
 
 let modelCounter = 0;
 
@@ -52,6 +54,28 @@ const createFakeAdapter = (modelName: string, overrides: Partial<ModelAdapter> =
   ...overrides,
 });
 
+function registerTarget(target: any, req: ModelRequest) {
+  const runtime = {},
+    model = {};
+  registerServiceExecutors(target, {
+    binding: () => ({ request: req, runtime, model, modelName: 'Post' }),
+    configuration: () => ({ catalog: { paths: [] } }),
+    permissions: () => new Permission({}),
+    parse: async (filter) => filter,
+    validate: () => {},
+    strip: (_execution, filter) => filter,
+    authorize: async (_execution, filter) => ({ transformed: filter, scope: {}, filter }),
+    identifier: vi.fn(),
+    find: (_execution, _query, filter, args, options) => target.find(filter, args, options),
+    groupedCount: (filter, field, values) => target.countByFieldValues(field, values, filter, 'count'),
+    findOne: vi.fn(),
+    updateOne: vi.fn(),
+    create: vi.fn(),
+    exists: vi.fn(),
+    count: vi.fn(),
+  });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   setGlobalOptions({ requestComplexity: {} });
@@ -74,7 +98,7 @@ describe('access-router internals', () => {
       service as never as { genFilter: (access: string, filter: unknown) => Promise<unknown> },
       'genFilter',
     ).mockResolvedValue(authorizedFilter);
-    const createSpy = vi.spyOn(service, 'create').mockResolvedValue({
+    const createSpy = vi.spyOn(service as any, 'createPrepared').mockResolvedValue({
       success: true,
       kind: 'list',
       code: 'created',
@@ -175,7 +199,7 @@ describe('access-router internals', () => {
       { _id: 2, documentIds: ['p2'] },
     ] as never);
     const service = createAdapterService({ macl: {} } as ModelRequest, modelName, adapter);
-    // A trusted ACL override can replace the original foreign constraint entirely.
+    // Query rewriting cannot remove the separately retained foreign constraint.
     const authorizedFilter = { tenant: 'abcdef'.repeat(4) };
     vi.spyOn(service, 'genFilter').mockResolvedValue(authorizedFilter as never);
     const values = ['001', '1', '002'];
@@ -183,7 +207,7 @@ describe('access-router internals', () => {
     expect(cast).toHaveBeenCalledTimes(2);
     expect(aggregate).toHaveBeenCalledOnce();
     expect(aggregate.mock.calls[0][0][0]).toEqual({
-      $match: { tenant: new mongoose.Types.ObjectId(authorizedFilter.tenant) },
+      $match: { tenant: new mongoose.Types.ObjectId(authorizedFilter.tenant), ownerId: { $in: [1, 1, 2] } },
     });
     expect(aggregate.mock.calls[0][0][3]).toEqual({ $match: { foreignValues: { $in: [1, 1, 2] } } });
     expect(values).toEqual(['001', '1', '002']);
@@ -221,6 +245,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = [{ ownerId: 'u1' }, { ownerId: 'u2' }];
@@ -234,7 +259,12 @@ describe('access-router internals', () => {
     })) as Array<Record<string, unknown>>;
 
     expect(publicService.countByFieldValues).toHaveBeenCalledOnce();
-    expect(publicService.countByFieldValues).toHaveBeenCalledWith('ownerId', ['u1', 'u2'], {}, 'count');
+    expect(publicService.countByFieldValues).toHaveBeenCalledWith(
+      'ownerId',
+      ['u1', 'u2'],
+      { ownerId: { $in: ['u1', 'u2'] } },
+      'count',
+    );
     expect(result).toEqual([
       { ownerId: 'u1', postCount: 2 },
       { ownerId: 'u2', postCount: 1 },
@@ -259,6 +289,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = [{ ownerIds: ['u1', 'u2'] }, { ownerIds: ['u2'] }];
@@ -299,6 +330,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = Array.from({ length: 12 }, (_, i) => ({ ownerId: `u${i % 4}` }));
@@ -330,6 +362,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = [{ ownerIds: ['u1', 'u2'] }, { ownerIds: ['u3'] }];

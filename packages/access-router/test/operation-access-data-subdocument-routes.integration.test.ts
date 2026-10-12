@@ -939,7 +939,10 @@ describe('OAV-04 subdocument list/read routes', () => {
     expect(pair.access === 'list' ? fieldRead : fieldList).not.toHaveBeenCalled();
     const accesses = fixture.policySpies.flatMap((spy) => spy.mock.calls.map((call) => call[1]));
     expect(accesses).toContain(`subs.items.${pair.access}`);
-    expect(accesses).toContain(pair.access);
+    // Dedicated output now uses a retained request-mode plan rather than a
+    // second Core.genSelect call. Parent lookup still uses base read access;
+    // exerciseSubPair above asserts the selected list/read response fields.
+    expect(accesses).toContain('read');
     expect(accesses.some((access) => /basic|advanced/.test(String(access)))).toBe(false);
     expect(wrongPolicy).not.toHaveBeenCalled();
   });

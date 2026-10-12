@@ -62,6 +62,9 @@ async function fixture(metadata = '_permissions', targetMetadata = '_permissions
     operationAccess: { read: true, list: !readOnly },
     permissionSchema: { key: true, secret: 'canReadSecret' }, // pragma: allowlist secret
     alwaysSelectFields: { read: [metadata, 'secret'], list: [metadata, 'secret'] },
+    // Persisted metadata is business input only when the configured document
+    // hook explicitly interprets it; it is no longer implicit output authority.
+    docPermissions: (doc) => get(doc, metadata) ?? {},
     defaults: {
       publicListOptions: { skim: true, includePermissions: false },
       publicReadOptions: { skim: true, includePermissions: false },

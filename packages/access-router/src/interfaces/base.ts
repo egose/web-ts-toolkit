@@ -187,7 +187,6 @@ export interface RootDataListQueryEntry extends RootQueryEntryBase<'data', 'list
   args?: DataFindArgs;
   options?: {
     includeCount?: boolean;
-    [key: string]: unknown;
   };
 }
 
@@ -237,8 +236,8 @@ export interface SubQueryEntry {
   op: 'list' | 'read' | string;
   id?: string;
   filter?: Filter;
-  args?: Record<string, unknown>;
-  options?: Record<string, unknown>;
+  args?: PublicListArgs;
+  options?: PublicListOptions & PublicReadOptions;
   sqOptions?: {
     path?: string;
     compact?: boolean;
@@ -307,7 +306,7 @@ export interface ListResult<T = unknown, TInput = unknown, TQuery = unknown> {
   totalCount?: number | null;
   input?: TInput;
   query?: TQuery;
-  contexts?: ModelHookContext[];
+  contexts?: readonly ModelHookContext[];
 }
 
 export type ServiceResult<T = unknown, TError = unknown, TInput = unknown, TQuery = unknown> =

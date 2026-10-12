@@ -82,7 +82,7 @@ export async function resolveSelectForRequest({
 }) {
   const virtualSet = virtualNames instanceof Set ? virtualNames : new Set(virtualNames ?? []);
   // Strip virtual names from every projection input up front, including
-  // `alwaysSelectFields` and trusted overrides, without granting auth.
+  // `alwaysSelectFields` and private fetch inputs, without granting auth.
   const strippedAlways = stripVirtuals(alwaysSelectFields ?? [], virtualSet);
   let normalizedSelect = stripVirtuals(normalizeSelect(targetFields), virtualSet);
   // Persisted-field policy must never see virtual keys, even when the

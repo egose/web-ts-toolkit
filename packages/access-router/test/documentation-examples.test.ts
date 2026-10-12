@@ -3,13 +3,16 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symli
 import os from 'node:os';
 import path from 'node:path';
 import ts from 'typescript';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const packageRoot = path.resolve(__dirname, '..');
 const workspaceRoot = path.resolve(packageRoot, '..', '..');
 const tempDirs: string[] = [];
+let documentationMongo: MongoMemoryServer | undefined;
 
-afterAll(() => {
+afterAll(async () => {
+  await documentationMongo?.stop();
   for (const dir of tempDirs) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -152,6 +155,7 @@ const assembleAllBlocks = (): CompiledBlock[] => {
       markedOnly: true,
     },
     { name: 'routing.mdx', file: '../../website/docs/packages/access-router/routing.mdx', markedOnly: true },
+    { name: 'services.mdx', file: '../../website/docs/packages/access-router/services.mdx', markedOnly: true },
   ];
 
   for (const { name, file, markedOnly } of files) {
@@ -234,9 +238,10 @@ const fixturize = (snippet: string): string => {
 describe('documentation examples compile and complete workflows execute against the published package', () => {
   let consumerDir: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     consumerDir = stageConsumerDir();
-  });
+    documentationMongo = await MongoMemoryServer.create();
+  }, 60_000);
 
   const blocks = assembleAllBlocks();
 
@@ -331,7 +336,10 @@ describe('documentation examples compile and complete workflows execute against 
         }
 
         const runtimeFile = path.resolve(outDir, `${block.name}.runtime.mjs`);
-        const result = run('node', [runtimeFile], consumerDir, { NODE_ENV: 'test' });
+        const result = run('node', [runtimeFile], consumerDir, {
+          NODE_ENV: 'test',
+          MONGODB_URL: documentationMongo!.getUri(),
+        });
         if (result.status !== 0) {
           throw new Error(
             `${block.name} failed runtime workflow execution (${block.sourcePath}):\n` +
@@ -345,7 +353,8 @@ describe('documentation examples compile and complete workflows execute against 
   }
 
   it('README quick start connects to MongoDB before calling app.listen (startup ordering invariant)', () => {
-    const quickStart = extractTsBlocks(readFileSync(path.resolve(packageRoot, 'README.md'), 'utf8')).find((b) =>
+    const readme = readFileSync(path.resolve(packageRoot, 'README.md'), 'utf8');
+    const quickStart = extractTsBlocks(readme.slice(readme.indexOf('## Quick Start'))).find((b) =>
       /\bapp\.listen\s*\(/.test(b.snippet),
     );
     expect(quickStart).toBeDefined();

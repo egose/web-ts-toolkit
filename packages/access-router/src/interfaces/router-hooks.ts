@@ -92,6 +92,12 @@ export type DataOverrideFilterHook = OverrideFilterHook<DataRequest>;
 export type ModelIdentifierHook<TValue = unknown> = IdentifierHook<TValue, ModelRequest>;
 export type DataIdentifierHook<TValue = unknown> = IdentifierHook<TValue, DataRequest>;
 export type ModelValidateHook = ValidateHook<ModelRequest>;
+/**
+ * Request-user grants from untrimmed projected input. Declare private persisted inputs
+ * with alwaysSelectFields. Integrated output resolves once per document/access stage,
+ * independently of skim or metadata serialization; use the result's document handle
+ * for later picks after input/metadata trim. Backend grants do not forge user metadata.
+ */
 export type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
 export type ModelChangeHook = ChangeHook<ModelRequest>;
 export type ModelDocumentHook<TValue = unknown> = DocumentHookChain<TValue, ModelRequest>;

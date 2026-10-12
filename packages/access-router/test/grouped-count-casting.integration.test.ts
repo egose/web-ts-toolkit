@@ -104,7 +104,8 @@ async function fixture(direction: Direction, arrays = false, parentCount = 24, p
     localField: 'join',
     foreignField: 'join',
     filter: { region: String(region) },
-    args: { limit: 1, skip: 100, overrides: { filter: {} } },
+    // SVA-01A rejects control slots; ordinary pagination is still irrelevant to counts.
+    args: { limit: 1, skip: 100 },
   };
   async function invoke(entry: Entry, filter?: object) {
     const isList = entry.endsWith('list');

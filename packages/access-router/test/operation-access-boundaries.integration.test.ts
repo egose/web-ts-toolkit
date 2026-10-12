@@ -803,14 +803,16 @@ describe('OAV-05 populate input boundaries', () => {
         expect(root.body[0].result).not.toHaveProperty('context');
         expectNoWork(f.targetWork);
         expectNoWork(f.leafWork);
-        expect(f.sourceWork.find).toHaveBeenCalledTimes(path.startsWith('include') ? 2 : 0);
+        // Retained related plans recursively validate descriptor accesses at
+        // operation entry; invalid descriptors now fail before source lookup.
+        expect(f.sourceWork.find).toHaveBeenCalledTimes(path.startsWith('include') && location === 'options' ? 2 : 0);
         expectBasePolicy(f);
       },
     );
   }
 
   it.each(['list', 'read'] as const)(
-    'propagates a deeper legacy %s target BadRequest through both include result seams',
+    'preflights a deeper legacy %s target BadRequest before either include result seam dispatches',
     async (op) => {
       const f = await fixture();
       const nested = legacy(f, op, {
@@ -825,9 +827,10 @@ describe('OAV-05 populate input boundaries', () => {
             include: legacy(f, outerOp, { args: { include: nested } }),
           })
           .expect(400);
-        expect(f.targetWork.find.mock.calls.length + f.targetWork.findOne.mock.calls.length).toBe(before + 1);
+        expect(f.targetWork.find.mock.calls.length + f.targetWork.findOne.mock.calls.length).toBe(before);
       }
       expectNoWork(f.leafWork);
+      expectNoWork(f.sourceWork);
     },
   );
 

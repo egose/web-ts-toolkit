@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getGlobalOption } from '../options';
 import { validateRequestComplexity } from '../request-complexity';
 import { stringOrStringArray } from './common';
+import { assertTransformedPublicAdmission } from './public-admission-schema';
 import type {
   AjvErrorObjectLike,
   AjvValidationErrorLike,
@@ -57,6 +58,7 @@ export function parsePathParam(value: string | string[] | undefined, parameter: 
 }
 
 export function parseQuery<TSchema extends z.ZodTypeAny>(schema: TSchema, value: unknown): z.output<TSchema> {
+  assertTransformedPublicAdmission(schema, value);
   const complexityErrors = validateRequestComplexity(value, getGlobalOption('requestComplexity'), 'request');
   if (complexityErrors.length > 0) {
     throw new clientErrors.BadRequestError('Bad Request', { errors: complexityErrors });
@@ -71,6 +73,7 @@ export function parseQuery<TSchema extends z.ZodTypeAny>(schema: TSchema, value:
 }
 
 export function parseBody<TSchema extends z.ZodTypeAny>(schema: TSchema, value: unknown): z.output<TSchema> {
+  assertTransformedPublicAdmission(schema, value);
   const complexityErrors = validateRequestComplexity(value ?? {}, getGlobalOption('requestComplexity'), 'request');
   if (complexityErrors.length > 0) {
     throw new clientErrors.BadRequestError('Bad Request', { errors: complexityErrors });
@@ -84,15 +87,16 @@ export function parseBody<TSchema extends z.ZodTypeAny>(schema: TSchema, value: 
   return result.data;
 }
 
-export function parseBodyWithSchema<TSchema extends z.ZodTypeAny>(
+export async function parseBodyWithSchema<TSchema extends z.ZodTypeAny>(
   schema: TSchema,
   value: unknown,
   userSchema?: RequestSchemaLike,
 ): Promise<z.output<TSchema>> {
   const body = parseBody(schema, value);
-  return isRequestSchema(userSchema)
-    ? (parseUserSchema(userSchema, body) as Promise<z.output<TSchema>>)
-    : Promise.resolve(body);
+  if (!isRequestSchema(userSchema)) return body;
+  const transformed = await parseUserSchema(userSchema, body);
+  assertTransformedPublicAdmission(schema, transformed);
+  return transformed as z.output<TSchema>;
 }
 
 export async function parseNestedBodyWithSchema(
@@ -104,10 +108,12 @@ export async function parseNestedBodyWithSchema(
   const body = parseBody(schema, value) as Record<string, unknown>;
   if (!isRequestSchema(userSchema)) return body;
 
-  return {
+  const transformed = {
     ...body,
     [nestedKey]: await parseUserSchema(userSchema, body?.[nestedKey], [nestedKey]),
   };
+  assertTransformedPublicAdmission(schema, transformed);
+  return transformed;
 }
 
 function throwValidationError(

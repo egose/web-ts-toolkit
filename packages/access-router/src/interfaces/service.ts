@@ -1,6 +1,21 @@
 import { BaseFilterAccess } from './access';
 import { Filter } from './base';
 import { SubPopulate } from './query-types';
+import type { OutputAuthorization } from './service-authorization';
+
+/** Template selection is historically ignored, including empty/exclusion selections. */
+export interface NewArgs {
+  select?: string[];
+}
+
+/** Create-template output options. new() ignores select; rows/related policies are unsupported. */
+export interface NewOptions<TModel = unknown, TVirtuals extends object = Record<never, never>> {
+  skim?: boolean;
+  includePermissions?: boolean;
+  includeFieldPermissions?: boolean;
+  /** Trusted server-only output authority; no persistence or target dispatch is authorized. */
+  readonly authorization?: OutputAuthorization<TModel, TVirtuals>;
+}
 
 export interface DistinctArgs<T = unknown> {
   filter?: Filter<T>;

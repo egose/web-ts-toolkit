@@ -88,8 +88,8 @@ describe('stripPermissionsField', () => {
       .expect(200);
     expect(res.body.data[0]).not.toHaveProperty('_permissions');
     expect(res.body.data[0].name).toBe('alpha');
-    // Data filtering still follows includePermissions:false semantics.
-    expect(res.body.data[0]).not.toHaveProperty('secret');
+    // SVA-05: metadata posture does not discard ordinary document grants.
+    expect(res.body.data[0].secret).toBe('s1');
   });
 
   it('read still enforces grants but strips permission metadata', async () => {

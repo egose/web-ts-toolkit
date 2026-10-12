@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { assertPublicDefaults } from './validation/public-admission';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
 import {
   addLeadingSlash,
@@ -835,6 +836,7 @@ export class AccessRuntime {
     modelName: string,
     options: ModelRouterOptions<TModel, TVirtuals>,
   ) {
+    assertPublicDefaults(options.defaults);
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     const defaultOptions = this.getDefaultModelOptions() as ModelRouterOptions<TModel, TVirtuals>;
     const currentModelOptions = manager.fetch();
@@ -859,6 +861,13 @@ export class AccessRuntime {
   >(modelName: string, key: K, value: ExtendedModelRouterOptions<TModel, TVirtuals>[K]) {
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     const keyStr = String(key);
+
+    if (keyStr === 'defaults') assertPublicDefaults(value);
+    else if (keyStr.startsWith('defaults.')) {
+      const proposed = {};
+      set(proposed, keyStr.slice('defaults.'.length), value);
+      assertPublicDefaults(proposed);
+    }
 
     if (keyStr === 'virtuals' || keyStr.startsWith('virtuals.') || keyStr === 'documentPermissionField') {
       const model = this.getModelInstance(modelName) as mongoose.Model<unknown> | null;

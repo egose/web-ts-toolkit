@@ -667,7 +667,7 @@ describe('model router integration', () => {
       title: 'Bad Request',
       detail: 'Bad Request',
       status: 400,
-      errors: ['Unsupported filter operator: filter.$where'],
+      errors: [{ detail: 'Unsupported filter operator: filter.$where' }],
     });
 
     const exprResponse = await request(app)
@@ -681,7 +681,7 @@ describe('model router integration', () => {
       title: 'Bad Request',
       detail: 'Bad Request',
       status: 400,
-      errors: ['Unsupported filter operator: filter.$expr'],
+      errors: [{ detail: 'Unsupported filter operator: filter.$expr' }],
     });
   });
 

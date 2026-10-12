@@ -5,17 +5,18 @@ import {
   isArray,
   isBoolean,
   isEmpty,
-  isEqual,
   isFunction,
   isPlainObject,
   isString,
 } from '@web-ts-toolkit/utils';
+import { isDeepStrictEqual } from 'node:util';
 import { Cache } from './cache';
 import { createValidator } from './helpers';
 import { AccessRouterBaseRequest, Filter, Validation } from './interfaces';
 import { getGlobalOption } from './options';
 import { getActiveRuntime } from './runtime-context';
 import Permission, { Permissions } from './permission';
+import { extractScopedOutputRule } from './acl/field-authorization';
 
 type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
 
@@ -48,19 +49,28 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
     }
   }
 
-  const dedupeKey = (value: unknown): string => {
+  // Typed, lossless keys for the supported scalar domain. Exotic/BSON values
+  // are kept as clauses (and can still merge by native equality below), never
+  // conflated with JSON strings, objects or another required scope predicate.
+  const dedupeKey = (value: unknown): string | undefined => {
+    if (value instanceof RegExp) return `regexp:${JSON.stringify([value.source, value.flags])}`;
+    if (value instanceof Date) return `date:${value.getTime()}`;
     if (isArray(value)) {
-      return `[${value.map(dedupeKey).join(',')}]`;
+      const entries = Array.from(value, dedupeKey);
+      return entries.every((entry) => entry !== undefined) ? `array:${JSON.stringify(entries)}` : undefined;
     }
 
     if (isPlainObject(value)) {
-      return `{${Object.keys(value)
+      const entries = Object.keys(value)
         .sort()
-        .map((key) => `${key}:${dedupeKey((value as Record<string, unknown>)[key])}`)
-        .join(',')}}`;
+        .map((key) => [key, dedupeKey((value as Record<string, unknown>)[key])]);
+      return entries.every(([, entry]) => entry !== undefined) ? `object:${JSON.stringify(entries)}` : undefined;
     }
 
-    return JSON.stringify(value);
+    if (value === null) return 'null';
+    if (typeof value === 'string') return `string:${JSON.stringify(value)}`;
+    if (['boolean', 'number', 'bigint', 'undefined'].includes(typeof value)) return `${typeof value}:${String(value)}`;
+    return undefined;
   };
 
   const dedupedClauses: Record<string, unknown>[] = [];
@@ -68,8 +78,10 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
   for (let x = 0; x < clauses.length; x++) {
     const clause = clauses[x];
     const key = dedupeKey(clause);
-    if (seenClauses.has(key)) continue;
-    seenClauses.add(key);
+    if (key !== undefined) {
+      if (seenClauses.has(key)) continue;
+      seenClauses.add(key);
+    }
     dedupedClauses.push(clause);
   }
 
@@ -86,7 +98,7 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
     let canMerge = true;
 
     for (const [key, value] of Object.entries(clause)) {
-      if (hasOwn(mergedClause, key) && !isEqual(mergedClause[key], value)) {
+      if (hasOwn(mergedClause, key) && !isDeepStrictEqual(mergedClause[key], value)) {
         canMerge = false;
         break;
       }
@@ -108,7 +120,7 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
   return { $and: finalClauses } as Filter<T>;
 }
 
-function normalizeFilter<T = unknown>(filter: Filter<T> | null | undefined): Filter<T> | null {
+export function normalizeFilter<T = unknown>(filter: Filter<T> | null | undefined): Filter<T> | null {
   if (filter === false) return false;
   if (!filter || !isPlainObject(filter) || isEmpty(filter)) return null;
 
@@ -136,7 +148,12 @@ export async function resolveIdentifierFilter<T = unknown>(
   return { _id: id } as Filter<T>;
 }
 
-export async function resolveAccessFilter<T = unknown>({
+/** AND, never object-spread: fixed joins/scopes must survive query rewriting. */
+export function intersectFilters<T = unknown>(...filters: (Filter<T> | undefined)[]): Filter<T> {
+  return optimizeAndFilter<T>(filters) ?? {};
+}
+
+export async function resolveAccessFilterParts<T = unknown>({
   req,
   permissions,
   cache,
@@ -144,6 +161,7 @@ export async function resolveAccessFilter<T = unknown>({
   access = 'read',
   filter = null,
   getOption,
+  rows = { mode: 'request' },
 }: {
   req: AccessRouterBaseRequest;
   permissions: Permissions;
@@ -152,18 +170,28 @@ export async function resolveAccessFilter<T = unknown>({
   access?: string;
   filter?: Filter<T>;
   getOption: OptionGetter;
-}): Promise<Filter<T>> {
+  rows?: { readonly mode: 'request' | 'unrestricted' } | { readonly mode: 'scope'; readonly filter: Filter<T> };
+}): Promise<{ transformed: Filter<T>; scope: Filter<T>; filter: Filter<T> }> {
   let nextFilter = normalizeFilter<T>(filter);
+
+  if (nextFilter === false || (rows.mode === 'scope' && rows.filter === false)) {
+    return { transformed: false, scope: false, filter: false };
+  }
 
   const overrideFilterFn = getOption(`overrideFilter.${access}`, null);
   if (nextFilter !== false && isFunction(overrideFilterFn)) {
     nextFilter = normalizeFilter<T>(await overrideFilterFn.call(req, nextFilter, permissions));
   }
 
-  if (nextFilter === false) return false;
+  if (nextFilter === false) return { transformed: false, scope: {}, filter: false };
+
+  if (rows.mode !== 'request') {
+    const scope = rows.mode === 'scope' ? rows.filter : {};
+    return { transformed: nextFilter ?? {}, scope, filter: intersectFilters(nextFilter, scope) };
+  }
 
   const baseFilterFn = getOption(`baseFilter.${access}`, null);
-  if (!isFunction(baseFilterFn)) return nextFilter ?? {};
+  if (!isFunction(baseFilterFn)) return { transformed: nextFilter ?? {}, scope: {}, filter: nextFilter ?? {} };
 
   const baseFilter = normalizeFilter<T>(
     (cache.has(cacheKey) ? cache.get(cacheKey) : await baseFilterFn.call(req, permissions)) as
@@ -176,11 +204,13 @@ export async function resolveAccessFilter<T = unknown>({
     cache.set(cacheKey, baseFilter);
   }
 
-  if (baseFilter === false) return false;
-  if (!baseFilter) return nextFilter ?? {};
-  if (!nextFilter) return baseFilter;
+  return { transformed: nextFilter ?? {}, scope: baseFilter ?? {}, filter: intersectFilters(baseFilter, nextFilter) };
+}
 
-  return optimizeAndFilter<T>([baseFilter, nextFilter]);
+export async function resolveAccessFilter<T = unknown>(
+  input: Parameters<typeof resolveAccessFilterParts<T>>[0],
+): Promise<Filter<T>> {
+  return (await resolveAccessFilterParts(input)).filter;
 }
 
 export function getRequestPermissions(req: AccessRouterBaseRequest) {
@@ -296,8 +326,7 @@ export async function collectSchemaFields({
     const key = keys[x];
     if (baseFields.includes(key)) continue;
 
-    const val = permissionSchema[key];
-    const value = (val && (val as Record<string, unknown>)[access]) || val;
+    const value = extractScopedOutputRule(permissionSchema, key, access);
 
     if (isBoolean(value)) {
       if (value) fields.push(key);

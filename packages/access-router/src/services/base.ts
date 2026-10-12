@@ -19,6 +19,20 @@ import { deepIsolateValue, toObject } from '../helpers/document';
 import { isValidFieldPath } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import { PopulateAccessError } from '../acl/populate-access';
+import { transferDocumentAuthorizationGraph } from '../acl/document-authorization';
+import type {
+  AllowedOutputFieldOptions,
+  OutputFieldOptions,
+  OutputPlanningOptions,
+} from '../interfaces/service-authorization';
+import {
+  assertPublicAdmission,
+  forwardPublicArgs,
+  forwardPublicOptions,
+  pickPublicKeys,
+  PublicAdmissionError,
+  requestOnlyServiceOptions,
+} from '../validation/public-admission';
 
 /**
  * VIRT-05 private association transport for legacy list joins.
@@ -28,7 +42,7 @@ import { PopulateAccessError } from '../acl/populate-access';
  * before trim, and returns them as service-only result metadata aligned to
  * rows. `includeDocsList` builds its join index from those paired values +
  * finalized rows, never from trimmed output and never via an
- * `overrides.select` bypass. Metadata lives on symbols outside serializers
+ * output-field grant. Metadata lives on symbols outside serializers
  * and finalized output input; the association phase never reruns target
  * getters. Multiple parents receive isolated finalized copies.
  *
@@ -37,6 +51,12 @@ import { PopulateAccessError } from '../acl/populate-access';
  */
 export const VIRT_ASSOCIATION_FIELD: unique symbol = Symbol('accessRouter.virtAssociationField');
 export const VIRT_ASSOCIATION_VALUES: unique symbol = Symbol('accessRouter.virtAssociationValues');
+
+const copyAuthorizedOutput = <T>(value: T): T => {
+  const copy = deepIsolateValue(value);
+  transferDocumentAuthorizationGraph(value, copy);
+  return copy;
+};
 
 /**
  * VIRT-04 output-only guards at the model-aware service boundary
@@ -564,13 +584,26 @@ import {
   resolveCorrelatedFilterTemplate,
   resolveCorrelatedIdTemplate,
   validateCorrelatedIncludeShape,
-  validateExpandedCorrelatedOperands,
 } from '../correlated-includes';
 import { Codes, FilterOperator } from '../enums';
 import { resolveRequestComplexity, validateRequestComplexity } from '../request-complexity';
 import { getActiveRuntime } from '../runtime-context';
 import { defaultRuntime } from '../runtime';
 import { getRequestWorkState } from '../helpers/request-work';
+import { ServiceAuthorizationError, type ResolvedServiceAuthorization } from '../acl/service-authorization';
+import { createRelatedExecution, relatedPolicy } from '../acl/related-execution';
+import { createServiceExecution } from '../acl/service-execution';
+import { isExecutionRowDenied } from '../acl/prepared-query';
+import {
+  prepareModelQuery,
+  readPreparedModelQuery,
+  resolveModelIdentifier,
+  readModelIdentifier,
+  executePreparedFindOne,
+  executePreparedFind,
+  executePreparedCount,
+  executePreparedGroupedCount,
+} from '../acl/prepared-query';
 
 type CrossResourceModelOperation = 'list' | 'read' | 'count';
 
@@ -658,8 +691,26 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.req.macl.decorateAll(this.modelName, docs, access, context);
   }
 
-  public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]> {
-    return this.req.macl.genAllowedFields(this.modelName, doc, access, baseFields);
+  /**
+   * Output-only existing paths; requires purpose: 'output', never write admission.
+   * Use the issued document result to reuse same-execution decisions after trimming.
+   * Raw policy starts a fresh evaluation (see OutputFieldOptions).
+   */
+  public genAllowedFields(
+    doc: unknown,
+    access: SelectAccess,
+    options: AllowedOutputFieldOptions<TModel, TVirtuals>,
+  ): Promise<string[]>;
+  /** Legacy request/input admission. */
+  public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]>;
+  public genAllowedFields(
+    doc: unknown,
+    access: SelectAccess,
+    optionsOrBase: AllowedOutputFieldOptions<TModel, TVirtuals> | string[] = [],
+  ): Promise<string[]> {
+    return Array.isArray(optionsOrBase)
+      ? this.req.macl.genAllowedFields(this.modelName, doc, access, optionsOrBase)
+      : this.req.macl.genAllowedFields<TModel, TVirtuals>(this.modelName, doc, access, optionsOrBase);
   }
 
   public genDocPermissions(
@@ -690,22 +741,62 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.req.macl.genPopulate(this.modelName, access, populate, subPaths) as Promise<Populate[]>;
   }
 
+  /**
+   * Fresh output-only planner: selection stays independent of additive server authority.
+   * Returns persisted fetch inputs including private identity/dependencies, not an output
+   * allowlist. Document-dependent rules are deferred; no permission functions/getters run.
+   * Configure extra projected hook inputs with alwaysSelectFields.
+   */
+  public genSelect(
+    access: SelectAccess,
+    targetFields: Projection | undefined,
+    options: OutputPlanningOptions<TModel, TVirtuals>,
+  ): Promise<string[]>;
+  /** Legacy positional request-field helper (including write admission). */
   public genSelect(
     access: SelectAccess,
     targetFields?: Projection,
     skipChecks?: boolean,
     subPaths?: string[],
+  ): Promise<string[]>;
+  public genSelect(
+    access: SelectAccess,
+    targetFields?: Projection,
+    optionsOrSkipChecks?: OutputPlanningOptions<TModel, TVirtuals> | boolean,
+    subPaths?: string[],
   ): Promise<string[]> {
-    return this.req.macl.genSelect(this.modelName, access, targetFields, skipChecks, subPaths);
+    return typeof optionsOrSkipChecks === 'boolean' || optionsOrSkipChecks === undefined
+      ? this.req.macl.genSelect(
+          this.modelName,
+          access,
+          targetFields,
+          optionsOrSkipChecks as boolean | undefined,
+          subPaths,
+        )
+      : this.req.macl.genSelect<TModel, TVirtuals>(this.modelName, access, targetFields, optionsOrSkipChecks);
   }
 
+  /** Alias of genSelect's output planner; virtuals never enter the returned DB projection. */
+  public genQuerySelect(
+    access: SelectAccess,
+    targetFields: Projection | undefined,
+    options: OutputPlanningOptions<TModel, TVirtuals>,
+  ): Promise<string[]>;
   public genQuerySelect(
     access: SelectAccess,
     targetFields?: Projection,
     skipChecks?: boolean,
     subPaths?: string[],
+  ): Promise<string[]>;
+  public genQuerySelect(
+    access: SelectAccess,
+    targetFields?: Projection,
+    optionsOrSkipChecks?: OutputPlanningOptions<TModel, TVirtuals> | boolean,
+    subPaths?: string[],
   ): Promise<string[]> {
-    return this.genSelect(access, targetFields, skipChecks, subPaths);
+    return typeof optionsOrSkipChecks === 'boolean' || optionsOrSkipChecks === undefined
+      ? this.genSelect(access, targetFields, optionsOrSkipChecks as boolean | undefined, subPaths)
+      : this.genSelect(access, targetFields, optionsOrSkipChecks);
   }
 
   public addEmptyPermissions<T>(doc: T): T {
@@ -724,12 +815,37 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.req.macl.addFieldPermissions(this.modelName, doc, access, context);
   }
 
-  public pickAllowedFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T> {
-    return this.req.macl.pickAllowedFields(this.modelName, doc, access, baseFields);
+  /**
+   * Filter existing values without selection/getters, restoration, row checks or writes.
+   * A raw policy starts fresh; an issued document handle reuses its stage after private
+   * hook inputs/metadata are trimmed. These inputs are mutually exclusive. Handles
+   * require unchanged original/package-associated output; caller copies do not qualify.
+   * This generic return type does not guarantee every input field remains present.
+   */
+  public pickAllowedFields<T>(doc: T, access: SelectAccess, options: OutputFieldOptions<TModel, TVirtuals>): Promise<T>;
+  /** Legacy positional request/input helper. */
+  public pickAllowedFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T>;
+  public pickAllowedFields<T>(
+    doc: T,
+    access: SelectAccess,
+    optionsOrBase: OutputFieldOptions<TModel, TVirtuals> | string[] = [],
+  ): Promise<T> {
+    return Array.isArray(optionsOrBase)
+      ? this.req.macl.pickAllowedFields(this.modelName, doc, access, optionsOrBase)
+      : this.req.macl.pickAllowedFields<T, TModel, TVirtuals>(this.modelName, doc, access, optionsOrBase);
   }
 
-  public trimOutputFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T> {
-    return this.pickAllowedFields(doc, access, baseFields);
+  /** Alias of pickAllowedFields's output filter; never authorizes writes. */
+  public trimOutputFields<T>(doc: T, access: SelectAccess, options: OutputFieldOptions<TModel, TVirtuals>): Promise<T>;
+  public trimOutputFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T>;
+  public trimOutputFields<T>(
+    doc: T,
+    access: SelectAccess,
+    optionsOrBase: OutputFieldOptions<TModel, TVirtuals> | string[] = [],
+  ): Promise<T> {
+    return Array.isArray(optionsOrBase)
+      ? this.pickAllowedFields(doc, access, optionsOrBase)
+      : this.pickAllowedFields(doc, access, optionsOrBase);
   }
 
   public prepare<T>(allowedData: T, access: PrepareAccess, context: ModelHookContext): Promise<T> {
@@ -785,7 +901,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
   }
 
   protected getClientRequestErrorResult(error: unknown): ErrorResult | null {
-    return error instanceof ClientRequestError || error instanceof PopulateAccessError ? error.result : null;
+    return error instanceof ClientRequestError ||
+      error instanceof PopulateAccessError ||
+      error instanceof PublicAdmissionError ||
+      error instanceof ServiceAuthorizationError
+      ? error.result
+      : null;
   }
 
   protected throwClientRequestError(code: ErrorResult['code'], detail: string): never {
@@ -797,13 +918,19 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     });
   }
 
-  protected async getAuthorizedTargetService(modelName: string, op: CrossResourceModelOperation) {
+  protected async getAuthorizedTargetService(
+    modelName: string,
+    op: CrossResourceModelOperation,
+    path?: string,
+    parentAuthorization?: ResolvedServiceAuthorization,
+  ) {
     const runtime = getActiveRuntime();
     if (runtime && !runtime.hasModel(modelName)) {
       this.throwClientRequestError(Codes.BadRequest, `Model ${modelName} not found`);
     }
 
-    const allowed = await this.req.macl.isAllowed(modelName, op);
+    const policy = path ? relatedPolicy(parentAuthorization, this.relatedBinding(), path) : undefined;
+    const allowed = policy?.operation.mode === 'grant' || (await this.req.macl.isAllowed(modelName, op));
     if (!allowed) {
       this.throwClientRequestError(Codes.Unauthorized, 'Unauthorized');
     }
@@ -811,7 +938,40 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.req.macl.getPublicService(modelName);
   }
 
+  private relatedBinding() {
+    return {
+      request: this.req,
+      runtime: this.requestRuntime,
+      model: this.requestRuntime.getModelInstance(this.modelName)!,
+      modelName: this.modelName,
+    };
+  }
+
+  private relatedExecution(
+    svc: ReturnType<ModelRequest['macl']['getPublicService']>,
+    include: Include,
+    parentAuthorization?: ResolvedServiceAuthorization,
+  ): import('../acl/service-execution').ServiceExecutionContext {
+    const op = include.op;
+    if (!parentAuthorization)
+      return createServiceExecution(svc, {
+        operation: op,
+        rowAccess: op,
+        virtualAccess: op,
+        outputAccess: op,
+        docPermissionsAccess: op,
+      });
+    return createRelatedExecution(
+      svc,
+      { operation: op, rowAccess: op, virtualAccess: op, outputAccess: op, docPermissionsAccess: op },
+      parentAuthorization,
+      this.relatedBinding(),
+      include.path,
+    );
+  }
+
   protected processInclude(include: Include | Include[]) {
+    assertPublicAdmission(include, 'include');
     const items = compact(castArray(include));
     const legacy: LegacyInclude[] = [];
     const correlated: CorrelatedInclude[] = [];
@@ -834,7 +994,10 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
 
       // A legacy-shaped entry carrying $parent markers is malformed
       // correlated input, never an ordinary legacy include (ACI-01 D1.2).
-      if (containsParentMarkerShape(entry)) {
+      // Nested includes own their marker scope: a correlated child is not a
+      // marker on this legacy descriptor. Whole-tree control-slot admission
+      // above still runs before any dispatch.
+      if (containsParentMarkerShape({ ...entry, args: { ...entry.args, include: undefined } })) {
         this.throwClientRequestError(
           Codes.BadRequest,
           'Legacy includes must not contain $parent markers; use a correlated include (mode: "correlated")',
@@ -1045,10 +1208,14 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return ids.size;
   }
 
-  private sanitizeIncludeArgs(args: unknown): Record<string, unknown> {
-    if (!isPlainObject(args)) return {};
-    const { overrides: _clientOverrides, ...trustedArgs } = args as Record<string, unknown>;
-    return trustedArgs;
+  private sanitizeIncludeArgs(args: unknown, op: 'list' | 'read'): Record<string, unknown> {
+    assertPublicAdmission(args);
+    return pickPublicKeys(
+      args,
+      op === 'list'
+        ? ['select', 'populate', 'include', 'sort', 'skip', 'limit', 'page', 'pageSize']
+        : ['select', 'populate', 'include', 'sort'],
+    );
   }
 
   private assertIncludeForeignField(include: LegacyInclude): void {
@@ -1057,7 +1224,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     }
   }
 
-  protected async includeDocs<TDoc>(docs: TDoc | TDoc[], include: Include | Include[]): Promise<TDoc | TDoc[]> {
+  protected async includeDocs<TDoc>(
+    docs: TDoc | TDoc[],
+    include: Include | Include[],
+    parentAuthorization?: ResolvedServiceAuthorization,
+  ): Promise<TDoc | TDoc[]> {
+    assertPublicAdmission(include, 'include');
     if (!include) return docs;
 
     const includes = compact(castArray(include));
@@ -1081,13 +1253,13 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
 
       switch (include.op) {
         case 'count':
-          docList = await this.includeDocsCount<TDoc>(docList, include);
+          docList = await this.includeDocsCount<TDoc>(docList, include, parentAuthorization);
           break;
         case 'read':
-          docList = await this.includeDocsRead<TDoc>(docList, include);
+          docList = await this.includeDocsRead<TDoc>(docList, include, parentAuthorization);
           break;
         case 'list':
-          docList = await this.includeDocsList<TDoc>(docList, include);
+          docList = await this.includeDocsList<TDoc>(docList, include, parentAuthorization);
           break;
       }
     }
@@ -1095,23 +1267,42 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return isSingle ? docList[0] : docList;
   }
 
-  private async includeDocsRead<TDoc>(docs: TDoc[], include: LegacyInclude): Promise<TDoc[]> {
+  private async includeDocsRead<TDoc>(
+    docs: TDoc[],
+    include: LegacyInclude,
+    parentAuthorization?: ResolvedServiceAuthorization,
+  ): Promise<TDoc[]> {
     const { model, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
 
-    const svc = await this.getAuthorizedTargetService(model, 'read');
+    const svc = await this.getAuthorizedTargetService(model, 'read', path, parentAuthorization);
 
     for (let y = 0; y < docs.length; y++) {
       const doc = docs[y];
       const localValue = get(doc, localField);
-      const filter = { ...(_filters ?? {}), [foreignField]: { $in: this.getForeignKeyValues(localValue) } };
-      const trustedOptions = {
-        ...(options as Record<string, unknown>),
-        access: 'read',
+      const execution = this.relatedExecution(svc, include, parentAuthorization);
+      const prepared = await prepareModelQuery(
+        svc,
+        execution,
+        { kind: 'client-read', filter: _filters ?? {} },
+        { [foreignField]: { $in: this.getForeignKeyValues(localValue) } },
+        true,
+      );
+      const { skim, populateAccess } = forwardPublicOptions(options, 'read');
+      const trustedOptions = requestOnlyServiceOptions({
+        skim,
+        populateAccess,
+        access: 'read' as const,
         lean: true,
         includePermissions: false,
         includeFieldPermissions: false,
-      };
-      const result = await svc.findOne(filter, this.sanitizeIncludeArgs(args) as never, trustedOptions as never);
+      });
+      const result = await executePreparedFindOne(
+        svc,
+        execution,
+        prepared,
+        this.sanitizeIncludeArgs(args, 'read') as never,
+        trustedOptions,
+      );
 
       if (!result.success && result.code === Codes.BadRequest) throw new ClientRequestError(result);
       if (result.success) {
@@ -1122,45 +1313,60 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return docs;
   }
 
-  private async includeDocsList<TDoc>(docs: TDoc[], include: LegacyInclude): Promise<TDoc[]> {
+  private async includeDocsList<TDoc>(
+    docs: TDoc[],
+    include: LegacyInclude,
+    parentAuthorization?: ResolvedServiceAuthorization,
+  ): Promise<TDoc[]> {
     const { model, op, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
 
-    const svc = await this.getAuthorizedTargetService(model, op);
+    const svc = await this.getAuthorizedTargetService(model, op, path, parentAuthorization);
 
     const includeLocalValues: unknown[] = [];
     forEach(docs, (doc) => {
       includeLocalValues.push(...this.getForeignKeyValues(get(doc, localField)));
     });
 
-    const filter = { ...(_filters ?? {}), [foreignField]: { $in: flatten(includeLocalValues) } };
-    const authorizedFilter = await svc.genFilter(op, filter);
-    const trustedArgs = {
-      ...this.sanitizeIncludeArgs(args),
-      overrides: {
-        filter: authorizedFilter,
-      },
-    };
+    const execution = this.relatedExecution(svc, include, parentAuthorization);
+    const prepared = await prepareModelQuery(
+      svc,
+      execution,
+      { kind: 'client-read', filter: _filters ?? {} },
+      { [foreignField]: { $in: flatten(includeLocalValues) } },
+      true,
+    );
+    const trustedArgs = this.sanitizeIncludeArgs(args, 'list');
     // VIRT-05: private association transport. Fetch `foreignField`
     // independently of output selection (fetch-only, never an output grant),
     // capture immutable values before trim, index from those paired with
-    // finalized rows. No `overrides.select` bypass, no join-key exposure, no
+    // finalized rows. No implicit output grant, no join-key exposure, no
     // getter rerun. Service-only symbols stay outside serializers/output.
+    const { skim, populateAccess } = forwardPublicOptions(options, 'list');
     const trustedOptions = {
-      ...(options as Record<string, unknown>),
-      lean: true,
-      includePermissions: false,
-      includeFieldPermissions: false,
-      includeCount: false,
+      ...requestOnlyServiceOptions({
+        skim,
+        populateAccess,
+        lean: true,
+        includePermissions: false,
+        includeFieldPermissions: false,
+        includeCount: false,
+      }),
       [VIRT_ASSOCIATION_FIELD]: foreignField,
     };
-    const trustedResult = await svc.find(filter, trustedArgs as never, trustedOptions as never);
+    const trustedResult = await executePreparedFind(
+      svc,
+      execution,
+      prepared,
+      trustedArgs as never,
+      trustedOptions as never,
+    );
 
     if (!trustedResult.success && trustedResult.code === Codes.BadRequest) throw new ClientRequestError(trustedResult);
     if (!trustedResult.success) return docs;
 
     // Materialize each returned row once. Per-parent isolation must copy stable
     // values rather than re-evaluate target presentation accessors for every match.
-    const finalizedRows = (trustedResult.data as unknown[]).map((row) => deepIsolateValue(row));
+    const finalizedRows = (trustedResult.data as unknown[]).map((row) => copyAuthorizedOutput(row));
     let index: ForeignKeyIndex<unknown>;
     const paired = (trustedResult as unknown as Record<symbol, unknown>)[VIRT_ASSOCIATION_VALUES] as
       | unknown[]
@@ -1179,7 +1385,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         }
       }
     } else {
-      // Fallback for targets that did not capture (e.g. older overrides):
+      // Custom target executors may return rows without association metadata:
       // index from trimmed rows. Omitted/denied FKs miss here, which is why
       // the private transport above is required for the symmetric contract.
       index = this.buildForeignKeyIndex(finalizedRows, foreignField);
@@ -1191,20 +1397,32 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       // Isolated copies per parent: multiple parents sharing one logical
       // target must not alias mutable output. Cloning finalized rows (never
       // raw hidden keys) preserves trim/virtuals without rerunning getters.
-      const isolated = matches.map((m) => deepIsolateValue(m));
+      const isolated = matches.map((m) => copyAuthorizedOutput(m));
       setDocValue(doc, path, op === 'list' ? isolated : isolated[0]);
     }
 
     return docs;
   }
 
-  private async includeDocsCount<TDoc>(docs: TDoc[], include: LegacyInclude): Promise<TDoc[]> {
+  private async includeDocsCount<TDoc>(
+    docs: TDoc[],
+    include: LegacyInclude,
+    parentAuthorization?: ResolvedServiceAuthorization,
+  ): Promise<TDoc[]> {
     const { model, path, localField, foreignField, filter: _filters } = include;
 
-    const svc = await this.getAuthorizedTargetService(model, 'count');
+    const svc = await this.getAuthorizedTargetService(model, 'count', path, parentAuthorization);
 
     const localValues = docs.flatMap((doc) => this.getForeignKeyValues(get(doc, localField)));
-    const result = await svc.countByFieldValues(foreignField, localValues, _filters ?? {}, 'count');
+    const execution = this.relatedExecution(svc, include, parentAuthorization);
+    const prepared = await prepareModelQuery(
+      svc,
+      execution,
+      { kind: 'mutation-lookup', filter: _filters ?? {} },
+      { [foreignField]: { $in: localValues } },
+      true,
+    );
+    const result = await executePreparedGroupedCount(svc, execution, prepared, foreignField, localValues);
 
     if (!result.success && result.code === Codes.BadRequest) throw new ClientRequestError(result);
     if (!result.success) return docs;
@@ -1256,7 +1474,9 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     correlatedIncludes: CorrelatedInclude[],
     snapshots?: unknown[],
     depth = 0,
+    parentAuthorization?: ResolvedServiceAuthorization,
   ): Promise<TDoc[]> {
+    assertPublicAdmission(correlatedIncludes, 'include');
     if (correlatedIncludes.length === 0) return docs;
 
     const limits = this.getRequestComplexity();
@@ -1274,13 +1494,13 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     for (const include of correlatedIncludes) {
       switch (include.op) {
         case 'read':
-          await this.includeCorrelatedRead(docs, include, resolvedSnapshots, state, depth);
+          await this.includeCorrelatedRead(docs, include, resolvedSnapshots, state, depth, parentAuthorization);
           break;
         case 'list':
-          await this.includeCorrelatedList(docs, include, resolvedSnapshots, state, depth);
+          await this.includeCorrelatedList(docs, include, resolvedSnapshots, state, depth, parentAuthorization);
           break;
         case 'count':
-          await this.includeCorrelatedCount(docs, include, resolvedSnapshots, state, depth);
+          await this.includeCorrelatedCount(docs, include, resolvedSnapshots, state, depth, parentAuthorization);
           break;
         default:
           this.throwClientRequestError(
@@ -1299,8 +1519,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     snapshots: unknown[],
     state: CorrelatedExecState,
     depth: number,
+    parentAuthorization?: ResolvedServiceAuthorization,
   ): Promise<void> {
-    const svc = await this.getAuthorizedTargetService(include.model, 'read');
+    const svc = await this.getAuthorizedTargetService(include.model, 'read', include.path, parentAuthorization);
+    const execution = this.relatedExecution(svc, include, parentAuthorization);
+    if (isExecutionRowDenied(svc, execution))
+      throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
     const { select, sort, nestedInclude } = this.sanitizeCorrelatedArgs(include);
     const hasId = (include as { id?: unknown }).id !== undefined;
 
@@ -1332,28 +1556,34 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         // No read->list fallback by construction (Service.findOne has none).
         let idFilter: Filter;
         try {
-          idFilter = await svc.genIDFilter(resolvedId);
+          idFilter = readModelIdentifier(svc, execution, await resolveModelIdentifier(svc, execution, resolvedId));
         } catch (error) {
           const clientResult = this.getClientRequestErrorResult(error);
           if (clientResult) throw new ClientRequestError(clientResult);
           throw error;
         }
-        const authorized = await svc.genFilter('read', idFilter);
-        if (authorized === false) {
+        const prepared = await prepareModelQuery(svc, execution, { kind: 'expanded', filter: idFilter }, idFilter);
+        if (readPreparedModelQuery(svc, execution, prepared).filter === false) {
           throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
         }
         this.claimCorrelatedQuerySlot();
         let result: SingleResult | ErrorResult;
         try {
-          result = await svc.findOne(
-            {},
+          result = await executePreparedFindOne(
+            svc,
+            execution,
+            prepared,
             {
               select: select as never,
               sort: sort as never,
               include: nestedInclude as never,
-              overrides: { filter: authorized as never },
             },
-            { access: 'read', lean: true, includePermissions: false, includeFieldPermissions: false } as never,
+            requestOnlyServiceOptions({
+              access: 'read',
+              lean: true,
+              includePermissions: false,
+              includeFieldPermissions: false,
+            }) as never,
           );
         } catch (error) {
           const clientResult = this.getClientRequestErrorResult(error);
@@ -1408,31 +1638,28 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         return;
       }
       const expanded = resolution.filter;
-      const operandErrors = validateExpandedCorrelatedOperands(expanded, this.getRequestComplexity());
-      if (operandErrors.length > 0) {
-        throw new ClientRequestError({
-          success: false,
-          kind: 'error',
-          code: Codes.BadRequest,
-          errors: [{ detail: operandErrors[0].detail }],
-        });
-      }
-      const authorized = await svc.genFilter('read', expanded as never);
-      if (authorized === false) {
+      const prepared = await prepareModelQuery(svc, execution, { kind: 'expanded', filter: expanded }, expanded);
+      if (readPreparedModelQuery(svc, execution, prepared).filter === false) {
         throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
       }
       this.claimCorrelatedQuerySlot();
       let result: SingleResult | ErrorResult;
       try {
-        result = await svc.findOne(
-          {},
+        result = await executePreparedFindOne(
+          svc,
+          execution,
+          prepared,
           {
             select: select as never,
             sort: sort as never,
             include: nestedInclude as never,
-            overrides: { filter: authorized as never },
           },
-          { access: 'read', lean: true, includePermissions: false, includeFieldPermissions: false } as never,
+          requestOnlyServiceOptions({
+            access: 'read',
+            lean: true,
+            includePermissions: false,
+            includeFieldPermissions: false,
+          }) as never,
         );
       } catch (error) {
         const clientResult = this.getClientRequestErrorResult(error);
@@ -1456,8 +1683,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     snapshots: unknown[],
     state: CorrelatedExecState,
     depth: number,
+    parentAuthorization?: ResolvedServiceAuthorization,
   ): Promise<void> {
-    const svc = await this.getAuthorizedTargetService(include.model, 'list');
+    const svc = await this.getAuthorizedTargetService(include.model, 'list', include.path, parentAuthorization);
+    const execution = this.relatedExecution(svc, include, parentAuthorization);
+    if (isExecutionRowDenied(svc, execution))
+      throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
     const { select, sort, skip, limit, page, pageSize, nestedInclude } = this.sanitizeCorrelatedArgs(include);
     const filterTemplate = (include as { filter: Record<string, unknown> }).filter;
     const templateErrors = this.validateClientFilter(filterTemplate as never);
@@ -1496,24 +1727,17 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         return;
       }
       const expanded = resolution.filter;
-      const operandErrors = validateExpandedCorrelatedOperands(expanded, this.getRequestComplexity());
-      if (operandErrors.length > 0) {
-        throw new ClientRequestError({
-          success: false,
-          kind: 'error',
-          code: Codes.BadRequest,
-          errors: [{ detail: operandErrors[0].detail }],
-        });
-      }
-      const authorized = await svc.genFilter('list', expanded as never);
-      if (authorized === false) {
+      const prepared = await prepareModelQuery(svc, execution, { kind: 'expanded', filter: expanded }, expanded);
+      if (readPreparedModelQuery(svc, execution, prepared).filter === false) {
         throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
       }
       this.claimCorrelatedQuerySlot();
       let result: ListResult | ErrorResult;
       try {
-        result = await svc.find(
-          {},
+        result = await executePreparedFind(
+          svc,
+          execution,
+          prepared,
           {
             select: select as never,
             sort: sort as never,
@@ -1522,9 +1746,13 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
             page: page as never,
             pageSize: pageSize as never,
             include: nestedInclude as never,
-            overrides: { filter: authorized as never },
           },
-          { includeCount: false, lean: true, includePermissions: false, includeFieldPermissions: false } as never,
+          requestOnlyServiceOptions({
+            includeCount: false,
+            lean: true,
+            includePermissions: false,
+            includeFieldPermissions: false,
+          }) as never,
         );
       } catch (error) {
         const clientResult = this.getClientRequestErrorResult(error);
@@ -1546,8 +1774,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     snapshots: unknown[],
     state: CorrelatedExecState,
     depth: number,
+    parentAuthorization?: ResolvedServiceAuthorization,
   ): Promise<void> {
-    const svc = await this.getAuthorizedTargetService(include.model, 'count');
+    const svc = await this.getAuthorizedTargetService(include.model, 'count', include.path, parentAuthorization);
+    const execution = this.relatedExecution(svc, include, parentAuthorization);
+    if (isExecutionRowDenied(svc, execution))
+      throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
     const filterTemplate = (include as { filter: Record<string, unknown> }).filter;
     const templateErrors = this.validateClientFilter(filterTemplate as never);
     if (templateErrors.length > 0) {
@@ -1574,25 +1806,16 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         return;
       }
       const expanded = resolution.filter;
-      const operandErrors = validateExpandedCorrelatedOperands(expanded, this.getRequestComplexity());
-      if (operandErrors.length > 0) {
-        throw new ClientRequestError({
-          success: false,
-          kind: 'error',
-          code: Codes.BadRequest,
-          errors: [{ detail: operandErrors[0].detail }],
-        });
-      }
       // Explicit count access (never the Service.count list default) and
       // count semantics independent of any list limit.
-      const authorized = await svc.genFilter('count', expanded as never);
-      if (authorized === false) {
+      const prepared = await prepareModelQuery(svc, execution, { kind: 'expanded', filter: expanded }, expanded);
+      if (readPreparedModelQuery(svc, execution, prepared).filter === false) {
         throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
       }
       this.claimCorrelatedQuerySlot();
       let result: SingleResult<number> | ErrorResult;
       try {
-        result = await svc.countTrusted(authorized as never);
+        result = await executePreparedCount(svc, execution, prepared);
       } catch (error) {
         const clientResult = this.getClientRequestErrorResult(error);
         if (clientResult) throw new ClientRequestError(clientResult);
@@ -1612,6 +1835,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     scheduler = new RequestConcurrencyScheduler(this.getRequestComplexity().maxBulkConcurrency),
     scheduled = false,
   ): Promise<TValue> {
+    assertPublicAdmission(filter, 'data');
     const result = await iterateQuery(
       filter,
       async (fo: FilterOperator, val: unknown, key: string) => {
@@ -1632,23 +1856,25 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
   }
 
   private async handleSubQuery(sq: SubQueryEntry, key: string) {
+    assertPublicAdmission(sq);
     const { model, op, id, filter, args, options, sqOptions = {} } = sq;
 
     let result!: ErrorResult | SingleResult | ListResult;
 
     if (op === 'list') {
       const svc = await this.getAuthorizedTargetService(model, 'list');
-      result = await svc._list(filter, args as never, options as never);
+      result = await svc._list(filter, forwardPublicArgs(args, 'list'), forwardPublicOptions(options, 'list'));
     } else if (op === 'read') {
       const svc = await this.getAuthorizedTargetService(model, 'read');
       // ARF-01: cross-resource read subqueries must not fall back to the
       // target list access path. The fallback is authorized separately above
       // and target list row/field policy would never be re-evaluated.
-      const readOptions = { ...(options as object), tryList: false } as never;
+      const readOptions = { ...forwardPublicOptions(options, 'read'), tryList: false };
+      const readArgs = forwardPublicArgs(args, 'read');
       if (id) {
-        result = await svc._read(id, args as never, readOptions);
+        result = await svc._read(id, readArgs, readOptions);
       } else if (filter) {
-        result = await svc._readFilter(filter, args as never, readOptions);
+        result = await svc._readFilter(filter, readArgs, readOptions);
       } else {
         this.throwClientRequestError(Codes.BadRequest, `Subquery for field ${key} requires an id or filter`);
       }

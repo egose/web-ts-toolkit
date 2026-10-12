@@ -45,6 +45,7 @@ import {
   SubdocumentRecord,
 } from '../interfaces';
 import { Codes } from '../enums';
+import { assertPublicAdmission, pickPublicKeys, PublicAdmissionError } from '../validation/public-admission';
 import { parseBody, rootQuerySchema } from './validation';
 import type { OpenApiRouteDescriptor } from '../openapi';
 import { registerOpenApiRoute } from '../openapi/route-registration';
@@ -231,6 +232,60 @@ export class RootRouter {
   }
 
   private async processOp(req: RootRequest, item: RootQueryEntry, index: number): Promise<RootOperationResult> {
+    try {
+      assertPublicAdmission(item);
+    } catch (error) {
+      if (error instanceof PublicAdmissionError) return this.wrapResult(index, item, error.result);
+      throw error;
+    }
+    // Root dispatch may be used independently of the generated schema. Never
+    // forward an arbitrary JS envelope/args/options into a target service.
+    const entry = item as unknown as Record<string, unknown>;
+    const argumentKeys: Partial<Record<RootModelOperation, string[]>> = {
+      new: ['select'],
+      list: ['select', 'populate', 'include', 'sort', 'skip', 'limit', 'page', 'pageSize', 'tasks'],
+      read: ['select', 'populate', 'include', 'sort', 'tasks'],
+      create: ['select', 'populate', 'tasks'],
+      update: ['select', 'populate', 'tasks'],
+      upsert: ['select', 'populate', 'tasks'],
+      subList: ['select'],
+      subRead: ['select', 'populate'],
+    };
+    const presentation = ['skim', 'includePermissions', 'includeFieldPermissions'];
+    const optionKeys: Partial<Record<RootModelOperation, string[]>> = {
+      new: presentation,
+      list: [...presentation, 'includeCount', 'populateAccess', 'lean'],
+      read: [...presentation, 'populateAccess', 'lean', 'tryList'],
+      create: [...presentation, 'populateAccess'],
+      update: [...presentation, 'populateAccess', 'returningAll'],
+      upsert: [...presentation, 'populateAccess', 'returningAll'],
+    };
+    item = {
+      ...pickPublicKeys<Record<string, unknown>>(entry, [
+        'target',
+        'name',
+        'op',
+        'order',
+        'id',
+        'sub',
+        'subId',
+        'field',
+        'filter',
+        'data',
+      ]),
+      args: pickPublicKeys(
+        entry.args,
+        item.target === 'model'
+          ? (argumentKeys[item.op] ?? [])
+          : item.op === 'list'
+            ? ['select', 'sort', 'skip', 'limit', 'page', 'pageSize']
+            : ['select'],
+      ),
+      options: pickPublicKeys(
+        entry.options,
+        item.target === 'model' ? (optionKeys[item.op] ?? []) : item.op === 'list' ? ['includeCount'] : [],
+      ),
+    } as unknown as RootQueryEntry;
     if (!this.hasTarget(item)) {
       const label = item.target === 'model' ? 'Model' : 'Data';
       return this.wrapResult(index, item, createErrorResult(Codes.BadRequest, `${label} ${item.name} not found`));

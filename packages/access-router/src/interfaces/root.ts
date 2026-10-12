@@ -56,10 +56,6 @@ export * from './request';
 export * from './access';
 export * from './router-hooks';
 
-interface DefaultFindOneArgs<TModel = unknown> extends Omit<FindOneArgs<TModel>, 'overrides'> {}
-interface DefaultFindByIdArgs<TModel = unknown> extends Omit<FindByIdArgs<TModel>, 'overrides'> {}
-interface DefaultFindArgs<TModel = unknown> extends Omit<FindArgs<TModel>, 'overrides'> {}
-
 type RequestSchema = RequestSchemaLike;
 type NestedRequestSchema = {
   default?: RequestSchema;
@@ -125,20 +121,20 @@ export interface DataRequestSchemas {
 }
 
 export interface Defaults<TModel = unknown> {
-  findOneArgs?: DefaultFindOneArgs<TModel>;
-  findOneOptions?: FindOneOptions;
-  findByIdArgs?: DefaultFindByIdArgs<TModel>;
-  findByIdOptions?: FindByIdOptions;
-  findArgs?: DefaultFindArgs<TModel>;
-  findOptions?: FindOptions;
+  findOneArgs?: FindOneArgs<TModel>;
+  findOneOptions?: Omit<FindOneOptions, 'authorization'>;
+  findByIdArgs?: FindByIdArgs<TModel>;
+  findByIdOptions?: Omit<FindByIdOptions, 'authorization'>;
+  findArgs?: FindArgs<TModel>;
+  findOptions?: Omit<FindOptions, 'authorization'>;
   createArgs?: CreateArgs;
-  createOptions?: CreateOptions;
+  createOptions?: Omit<CreateOptions, 'authorization'>;
   updateOneArgs?: UpdateOneArgs<TModel>;
-  updateOneOptions?: UpdateOneOptions;
-  upsertOptions?: UpsertOptions;
+  updateOneOptions?: Omit<UpdateOneOptions, 'authorization'>;
+  upsertOptions?: Omit<UpsertOptions, 'authorization'>;
   updateByIdArgs?: UpdateByIdArgs<TModel>;
   upsertArgs?: UpsertArgs<TModel>;
-  updateByIdOptions?: UpdateByIdOptions;
+  updateByIdOptions?: Omit<UpdateByIdOptions, 'authorization'>;
   existsOptions?: ExistsOptions;
   publicListArgs?: PublicListArgs;
   publicListOptions?: PublicListOptions;
@@ -424,7 +420,13 @@ export interface ModelRouterOptions<
    * ```
    */
   virtuals?: ModelVirtuals<TModel, TVirtuals>;
-  alwaysSelectFields?: string[];
+  /**
+   * Private persisted fetch inputs for projected document hooks (for example ownerId).
+   * An array applies to every access; a per-access record uses its exact entry, then
+   * default. These fields do not grant output. Integrated output captures the inputs
+   * for both output and document-permission access, independently of metadata flags.
+   */
+  alwaysSelectFields?: string[] | Record<string, string[]>;
   docPermissions?: DocPermissions | ModelDocPermissionsHook;
   /**
    * Allowlist of `docPermissions`-hook keys exposed in API responses.
@@ -555,19 +557,20 @@ export interface ExtendedModelRouterOptions<TModel = unknown, TVirtuals extends 
   'requestSchemas.subCreate'?: RequestSchema;
   'requestSchemas.subUpdate'?: RequestSchema;
   'requestSchemas.subBulkUpdate'?: RequestSchema;
-  'defaults.findOneArgs'?: DefaultFindOneArgs<TModel>;
-  'defaults.findOneOptions'?: FindOneOptions;
-  'defaults.findByIdArgs'?: DefaultFindByIdArgs<TModel>;
-  'defaults.findByIdOptions'?: FindByIdOptions;
-  'defaults.findArgs'?: DefaultFindArgs<TModel>;
-  'defaults.findOptions'?: FindOptions;
-  'defaults.createArgs'?: CreateArgs;
-  'defaults.createOptions'?: CreateOptions;
-  'defaults.updateOneArgs'?: UpdateOneArgs<TModel>;
-  'defaults.updateOneOptions'?: UpdateOneOptions;
-  'defaults.updateByIdArgs'?: UpdateByIdArgs<TModel>;
-  'defaults.updateByIdOptions'?: UpdateByIdOptions;
-  'defaults.upsertArgs'?: UpsertArgs<TModel>;
+  'defaults.findOneArgs'?: Defaults<TModel>['findOneArgs'];
+  'defaults.findOneOptions'?: Defaults<TModel>['findOneOptions'];
+  'defaults.findByIdArgs'?: Defaults<TModel>['findByIdArgs'];
+  'defaults.findByIdOptions'?: Defaults<TModel>['findByIdOptions'];
+  'defaults.findArgs'?: Defaults<TModel>['findArgs'];
+  'defaults.findOptions'?: Defaults<TModel>['findOptions'];
+  'defaults.createArgs'?: Defaults<TModel>['createArgs'];
+  'defaults.createOptions'?: Defaults<TModel>['createOptions'];
+  'defaults.updateOneArgs'?: Defaults<TModel>['updateOneArgs'];
+  'defaults.updateOneOptions'?: Defaults<TModel>['updateOneOptions'];
+  'defaults.updateByIdArgs'?: Defaults<TModel>['updateByIdArgs'];
+  'defaults.updateByIdOptions'?: Defaults<TModel>['updateByIdOptions'];
+  'defaults.upsertArgs'?: Defaults<TModel>['upsertArgs'];
+  'defaults.upsertOptions'?: Defaults<TModel>['upsertOptions'];
   'defaults.existsOptions'?: ExistsOptions;
   'defaults.publicListArgs'?: PublicListArgs;
   'defaults.publicListOptions'?: PublicListOptions;

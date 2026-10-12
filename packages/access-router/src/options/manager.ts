@@ -84,22 +84,29 @@ export const getNestedOption = <T extends object, K extends keyof T>(
   manager: OptionsManager<object, T>,
   key: K | string,
   defaultValue?: T[K],
+): unknown => resolveNestedOption((path, fallback) => manager.get(path, fallback as T[K]), String(key), defaultValue);
+
+/** Shared live/captured resolution; only undefined falls through to a fallback. */
+export const resolveNestedOption = (
+  read: (key: string, fallback?: unknown) => unknown,
+  key: string,
+  defaultValue?: unknown,
 ): unknown => {
-  const keys = String(key).split('.');
+  const keys = key.split('.');
   if (keys.length === 1) {
-    return manager.get(key, defaultValue);
+    return read(key, defaultValue);
   }
 
-  let option: unknown = manager.get(key, undefined);
+  let option: unknown = read(key);
   if (option !== undefined) {
     return option;
   }
 
   const parentKey = keys.slice(0, -1).join('.');
-  option = manager.get(`${parentKey}.default`, undefined);
+  option = read(`${parentKey}.default`);
 
   if (option === undefined) {
-    option = manager.get(parentKey, defaultValue);
+    option = read(parentKey, defaultValue);
   }
 
   return option;

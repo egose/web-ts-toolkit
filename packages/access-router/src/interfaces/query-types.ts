@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import type { PublicListArgs, PublicListOptions } from './service-list';
 
 export interface KeyValueProjection {
   [key: string]: 1 | -1;
@@ -211,8 +212,8 @@ export interface LegacyInclude {
   filter?: Filter;
   localField: string;
   foreignField: string;
-  args?: unknown;
-  options?: unknown;
+  args?: Omit<PublicListArgs, 'tasks'>;
+  options?: PublicListOptions;
 }
 
 /**

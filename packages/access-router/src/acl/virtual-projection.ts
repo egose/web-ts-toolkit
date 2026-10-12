@@ -28,10 +28,17 @@
  * explicit deny, missing applicable getter, purely-global miss) omits the
  * candidate and fetches nothing for it.
  */
-import { get, isArray, isBoolean, isFunction, isPlainObject, isString } from '@web-ts-toolkit/utils';
+import { get, isArray, isFunction, isPlainObject } from '@web-ts-toolkit/utils';
 import { normalizeSelect } from '../helpers/query';
-import { createValidator } from '../helpers';
 import type { Projection } from '../interfaces';
+import { classifyRequestFieldRule, extractScopedOutputRule } from './field-authorization';
+import type { FieldAuthorizationState } from './field-authorization';
+import type {
+  AuthorizationBinding,
+  AuthorizationFieldCatalog,
+  ResolvedServiceAuthorization,
+} from './service-authorization';
+import { compactPersistedProjection, planCatalogProjection } from './output-projection';
 
 /** Internal effective data policy, including trusted custom accesses; virtual configuration keys stay narrow. */
 export type VirtualProjectionAccess = 'list' | 'create' | 'read' | 'update' | (string & {});
@@ -39,6 +46,7 @@ export type VirtualProjectionAccess = 'list' | 'create' | 'read' | 'update' | (s
 export type VirtualCandidateAuthState = 'granted' | 'deferred';
 
 export interface VirtualProjectionSnapshot {
+  catalog?: AuthorizationFieldCatalog;
   permissionSchema?: Record<string, unknown> | null;
   virtuals?: Record<string, unknown> | null;
   /** Raw `alwaysSelectFields` option: array or per-access record. */
@@ -57,8 +65,6 @@ export interface VirtualProjectionInternalFetch {
   identityFields?: string[];
   /** Extra persisted fields forced internally (include locals, correlated refs). */
   extraPersistedFields?: string[];
-  /** Trusted select override that must be stripped of virtuals without grant. */
-  trustedOverrideSelect?: Projection;
 }
 
 export interface VirtualProjectionRelatedDescriptor {
@@ -84,6 +90,13 @@ export interface PlanVirtualCandidate {
 }
 
 export interface VirtualProjectionPlan {
+  /** Present on the canonical schema-backed plan; private, never DTO metadata. */
+  authorization?: ResolvedServiceAuthorization;
+  authorizationBinding?: AuthorizationBinding;
+  responseScopePath?: readonly string[];
+  /** Relative leaf decisions, including denied fields. Ancestors do not grant siblings. */
+  fieldStates?: Readonly<Record<string, FieldAuthorizationState>>;
+  minimalAncestorPaths?: readonly string[];
   receivingModelName: string;
   scopePath: string[];
   virtualAccess: VirtualProjectionAccess;
@@ -117,7 +130,7 @@ export interface PlanVirtualProjectionArgs {
   outputAccess: VirtualProjectionAccess;
   docPermissionsAccess: VirtualProjectionAccess;
   requestedSelect?: Projection;
-  /** When present (own property), overrides requireExplicitSelect computation. */
+  /** Package-prepared selection; when present, replaces requireExplicitSelect computation. */
   effectiveSelect?: Projection;
   scopePath?: string[];
   related?: VirtualProjectionRelatedDescriptor[];
@@ -133,7 +146,7 @@ export interface PlanVirtualProjectionArgs {
 const isVirtualContainerValue = (value: unknown): value is { sub: Record<string, unknown> } =>
   isPlainObject(value) && 'sub' in (value as Record<string, unknown>);
 
-const getScopeVirtualsObject = (
+export const getScopeVirtualsObject = (
   rootVirtuals: Record<string, unknown> | null | undefined,
   scopePath: string[] | undefined,
 ): Record<string, unknown> | null => {
@@ -166,7 +179,7 @@ const toSnapshotDescriptor = (
   return { get: record.get as (...args: never[]) => unknown, dependsOn: [...dependsOn] };
 };
 
-const resolveSnapshotDescriptor = (
+export const resolveSnapshotDescriptor = (
   scopeVirtuals: Record<string, unknown> | null,
   virtualName: string,
   access: string,
@@ -192,25 +205,6 @@ const resolveSnapshotDescriptor = (
     if (descriptor) return descriptor;
   }
   return undefined;
-};
-
-const hasModelPermissionValue = (value: unknown, modelPermissionPrefix: string): boolean => {
-  if (!modelPermissionPrefix) return true;
-  if (isString(value)) {
-    return value
-      .trim()
-      .split(' ')
-      .some((item) => item.startsWith(modelPermissionPrefix));
-  }
-  if (isArray(value)) {
-    return (value as unknown[]).some((item) => {
-      if (isString(item) || isArray(item)) {
-        return hasModelPermissionValue(item, modelPermissionPrefix);
-      }
-      return true;
-    });
-  }
-  return isFunction(value);
 };
 
 /** Scoped permissionSchema object for a scopePath (VIRT-00A D2). */
@@ -248,7 +242,7 @@ export const stripVirtualsFromNormalizedSelect = (normalized: string[], virtualN
     const base = token.startsWith('-') ? token.slice(1) : token;
     // Never emit `.sub` definition paths into DB projections.
     if (base.includes('.sub.')) return false;
-    if (virtualNames.has(base)) return false;
+    if ([...virtualNames].some((name) => base === name || base.startsWith(`${name}.`))) return false;
     return true;
   });
 
@@ -256,8 +250,14 @@ export const stripVirtualsFromNormalizedSelect = (normalized: string[], virtualN
 export const isVirtualSelectToken = (token: string, virtualNames: Set<string>): boolean => {
   const base = token.startsWith('-') ? token.slice(1) : token;
   if (base.includes('.sub.')) return true;
-  return virtualNames.has(base);
+  return [...virtualNames].some((name) => base === name || base.startsWith(`${name}.`));
 };
+
+const snapshotVirtualPaths = (registry: Record<string, unknown> | null, prefix = ''): string[] =>
+  Object.entries(registry ?? {}).flatMap(([name, value]) => {
+    const path = prefix ? `${prefix}.${name}` : name;
+    return isVirtualContainerValue(value) ? snapshotVirtualPaths(value.sub, path) : value === undefined ? [] : [path];
+  });
 
 // ---------------------------------------------------------------------------
 // Planner
@@ -273,6 +273,7 @@ const toDbPath = (scopePath: string[], dep: string): string => {
 };
 
 export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualProjectionPlan {
+  if (args.snapshot.catalog) return planCatalogProjection(args);
   const {
     receivingModelName,
     snapshot,
@@ -288,7 +289,7 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
   const requestedSelect = args.requestedSelect;
   const requireExplicitSelect = snapshot.requireExplicitSelect ?? false;
 
-  // Effective select: explicit override wins; otherwise apply
+  // Effective select: package-prepared selection wins; otherwise apply
   // requireExplicitSelect omitted (`undefined`) => `['_id']` (service.ts:226-227).
   const effectiveRaw: Projection | undefined = hasEffective
     ? (args.effectiveSelect as Projection | undefined)
@@ -308,27 +309,21 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
         .map(([k]) => k)
     : [];
   const registrySet = new Set(registryNames);
+  const dbVirtualPaths = new Set(snapshotVirtualPaths(scopeVirtuals));
 
   const scopedPermissionSchema = getScopedPermissionSchema(
     (snapshot.permissionSchema ?? null) as Record<string, unknown> | null,
     scopePath,
   );
   const modelPermissionPrefix = snapshot.modelPermissionPrefix ?? '';
-  const { stringHandler, arrayHandler } = createValidator(
-    (key: string) => globalPermissions.hasKey(key) && globalPermissions.has(key),
-  );
 
   // Always-select (forced fetch, never a grant): strip virtuals up front.
   // Embedded scopes never carry alwaysSelect (core.ts:204-205).
   const rawAlways = scopePath.length > 0 ? [] : resolveAlwaysSelectForAccess(snapshot.alwaysSelectFields, outputAccess);
   const alwaysStripped = stripVirtualsFromNormalizedSelect(
     normalizeSelect(rawAlways as unknown as Projection),
-    registrySet,
+    dbVirtualPaths,
   ).filter((t) => !t.startsWith('-') && !t.includes('.sub.'));
-
-  // Trusted override select: strip virtuals without granting auth.
-  const overrideNorm = normalizeSelect((internalFetch.trustedOverrideSelect ?? null) as Projection);
-  const overrideStripped = stripVirtualsFromNormalizedSelect(overrideNorm, registrySet);
 
   // Persisted defined keys for this scope (excluding virtual leaves).
   const persistedDefined: string[] = scopedPermissionSchema
@@ -368,94 +363,20 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
     const descriptor = resolveSnapshotDescriptor(scopeVirtuals, name, virtualAccess);
     if (!descriptor) continue; // inapplicable stays virtual, never persisted.
 
-    const rawRule = scopedPermissionSchema?.[name] as
-      | Record<string, unknown>
-      | string
-      | string[]
-      | boolean
-      | Function
-      | undefined;
-    let rule: unknown;
-    if (rawRule !== null && typeof rawRule === 'object' && !isArray(rawRule) && !isFunction(rawRule)) {
-      const rec = rawRule as Record<string, unknown>;
-      rule = outputAccess in rec ? rec[outputAccess] : rec;
-      // A bare `{ sub }` container or unrelated object is not a virtual grant.
-      if (rule !== null && typeof rule === 'object' && !isArray(rule) && !isFunction(rule)) continue; // absent/deny
-    } else {
-      rule = rawRule;
-    }
-
-    if (rule === undefined) continue; // absent rule => definite denial.
-    if (isBoolean(rule)) {
-      if (!rule) continue; // explicit deny fetches nothing.
+    const authState = classifyRequestFieldRule(
+      extractScopedOutputRule(scopedPermissionSchema, name, outputAccess),
+      globalPermissions,
+      modelPermissionPrefix,
+    );
+    if (authState !== 'denied')
       candidates.push({
         name,
         descriptor,
-        authState: 'granted',
+        authState,
         dependsOn: [...descriptor.dependsOn],
         virtualAccess,
         outputAccess,
       });
-      continue;
-    }
-    if (isFunction(rule)) {
-      // Never evaluate permission functions during planning; retain for finalizer.
-      candidates.push({
-        name,
-        descriptor,
-        authState: 'deferred',
-        dependsOn: [...descriptor.dependsOn],
-        virtualAccess,
-        outputAccess,
-      });
-      continue;
-    }
-    if (isString(rule)) {
-      if (stringHandler(rule)) {
-        candidates.push({
-          name,
-          descriptor,
-          authState: 'granted',
-          dependsOn: [...descriptor.dependsOn],
-          virtualAccess,
-          outputAccess,
-        });
-      } else if (hasModelPermissionValue(rule, modelPermissionPrefix)) {
-        candidates.push({
-          name,
-          descriptor,
-          authState: 'deferred',
-          dependsOn: [...descriptor.dependsOn],
-          virtualAccess,
-          outputAccess,
-        });
-      }
-      // Purely-global miss => definite denial (omit, fetch nothing).
-      continue;
-    }
-    if (isArray(rule)) {
-      if (arrayHandler(rule as string[] | string[][])) {
-        candidates.push({
-          name,
-          descriptor,
-          authState: 'granted',
-          dependsOn: [...descriptor.dependsOn],
-          virtualAccess,
-          outputAccess,
-        });
-      } else if (hasModelPermissionValue(rule, modelPermissionPrefix)) {
-        candidates.push({
-          name,
-          descriptor,
-          authState: 'deferred',
-          dependsOn: [...descriptor.dependsOn],
-          virtualAccess,
-          outputAccess,
-        });
-      }
-      continue;
-    }
-    // Any other rule shape => definite denial.
   }
 
   const outputVirtualNames = candidates.map((c) => c.name);
@@ -471,39 +392,12 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
   // (`outputPersistedFields`) stays broad on purpose — the VIRT-03 finalizer
   // enforces `outputAccess` with real doc grants — but the fetch set must
   // never load `false`-ruled non-dependency contents into app memory.
-  const isPersistedFetchable = (field: string): boolean => {
-    const rawRule = scopedPermissionSchema?.[field] as
-      | Record<string, unknown>
-      | string
-      | string[]
-      | boolean
-      | Function
-      | undefined;
-    let rule: unknown;
-    if (rawRule !== null && typeof rawRule === 'object' && !isArray(rawRule) && !isFunction(rawRule)) {
-      const rec = rawRule as Record<string, unknown>;
-      rule = outputAccess in rec ? rec[outputAccess] : rec;
-      if (rule !== null && typeof rule === 'object' && !isArray(rule) && !isFunction(rule)) return false;
-    } else {
-      rule = rawRule;
-    }
-    if (rule === undefined) return false;
-    if (isBoolean(rule)) return rule;
-    // Permission functions are never evaluated during planning; retain for
-    // post-fetch evaluation (deferred).
-    if (isFunction(rule)) return true;
-    if (isString(rule)) {
-      if (stringHandler(rule)) return true;
-      if (hasModelPermissionValue(rule, modelPermissionPrefix)) return true;
-      return false;
-    }
-    if (isArray(rule)) {
-      if (arrayHandler(rule as string[] | string[][])) return true;
-      if (hasModelPermissionValue(rule, modelPermissionPrefix)) return true;
-      return false;
-    }
-    return false;
-  };
+  const isPersistedFetchable = (field: string): boolean =>
+    classifyRequestFieldRule(
+      extractScopedOutputRule(scopedPermissionSchema, field, outputAccess),
+      globalPermissions,
+      modelPermissionPrefix,
+    ) !== 'denied';
   const depProvenance: Record<string, string[]> = {};
   // Relative to this scope (e.g. `displayName` inside `contacts.sub`).
   // Parents prefix these to absolute DB paths; never `*.sub.*` def paths.
@@ -526,7 +420,7 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
 
   // Persisted fetch = authorized output persisted (definite denials excluded)
   // + virtual deps (even when denied, stripped post-fetch) + alwaysSelect +
-  // trusted overrides (stripped) + internal join/extra + identity. Never
+  // internal join/extra + identity. Never
   // virtual names, never `.sub` definition paths, never `-_id`. All paths
   // here are relative to this scope (root absolute == relative).
   const fetchSet = new Set<string>();
@@ -535,7 +429,6 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
   }
   for (const d of depRelative) fetchSet.add(d);
   for (const f of alwaysStripped) fetchSet.add(f);
-  for (const f of overrideStripped.filter((t) => !t.startsWith('-'))) fetchSet.add(stripLeadingDash(f));
   for (const f of joinFields.filter((t) => !t.startsWith('-'))) fetchSet.add(stripLeadingDash(f));
   for (const f of [...baseFields, ...identityFields]) {
     const leaf = stripLeadingDash(f);
@@ -562,11 +455,6 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
     ...joinFields.filter((f) => !outputPersistedSet.has(stripLeadingDash(f))),
   ]);
   if (outputIdExcluded) internalOnly.add('_id');
-  // Trusted-override extras that are not output-eligible stay internal.
-  for (const f of overrideStripped.filter((t) => !t.startsWith('-')).map(stripLeadingDash)) {
-    if (!outputPersistedSet.has(f)) internalOnly.add(f);
-  }
-
   // ---- Child plans: embedded scopes retain containers without DB `.sub` --
   const childPlans: Record<string, VirtualProjectionPlan> = {};
   if (scopeVirtuals) {
@@ -632,10 +520,12 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
     }
   }
   // Rebuild fetch list after child retention (keeps deterministic order).
-  persistedFetchSelection = [...fetchSet].filter((f) => f !== '-_id');
+  persistedFetchSelection = compactPersistedProjection(
+    stripVirtualsFromNormalizedSelect([...fetchSet], dbVirtualPaths),
+  );
   if (persistedFetchSelection.length === 0) persistedFetchSelection = ['_id'];
   {
-    const head = outputPersisted.filter((f) => fetchSet.has(f));
+    const head = outputPersisted.filter((f) => persistedFetchSelection.includes(f));
     const rest = persistedFetchSelection.filter((f) => !head.includes(f)).sort();
     persistedFetchSelection = [...head, ...rest];
   }

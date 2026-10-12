@@ -3,9 +3,9 @@
  *
  * One consistent boundary for all document-bearing outputs: plain-object view,
  * internal doc-permissions + global permissions available, document-aware value
- * assignment for lean and hydrated docs, then model permission trim. Callers
- * integrate once in VIRT-04–VIRT-06; this module has no caller integration yet
- * (no `decorate`/`tasks` invocation, no snapshot lifecycle changes).
+ * assignment for lean and hydrated docs, then model permission trim. Captured
+ * authorization plans also issue private per-document results for later picks.
+ * Presentation hooks remain a subsequent application stage.
  *
  * Frozen contracts (VIRT-00A):
  * - D1: explicit `virtualAccess` / `outputAccess` / `docPermissionsAccess`;
@@ -61,6 +61,29 @@ import type {
 import type { AccessRouterBaseRequest, ModelHookContext } from '../interfaces';
 import type { ModelVirtualContext } from '../interfaces/router-hooks';
 import type { Permissions } from '../permission';
+import type { DocumentAuthorization, ServiceOutputContext } from '../interfaces/service-authorization';
+import type { AuthorizationBinding } from '../acl/service-authorization';
+import { getAuthorizationPermissions, readServiceAuthorization } from '../acl/service-authorization';
+import { authorizationError } from '../acl/authorization-snapshot';
+import {
+  associateDocumentAuthorization,
+  createServiceOutputContext,
+  isKnownAuthorizationOutput,
+  readDocumentAuthorization,
+  transferDocumentAuthorizationGraph,
+} from '../acl/document-authorization';
+import type { DocumentAuthorizationStage } from '../acl/document-authorization';
+import {
+  authorizeEmbeddedOutputPlan,
+  copyAuthorizedReference,
+  copyOutputValue,
+  evaluateAuthorizedOutputField,
+  hasWholeOutputValueGrant,
+  resolveOutputDocumentAuthorization,
+  retainOutputMetadata,
+} from '../acl/output-field-filter';
+import { evaluateEffectiveFieldAuthorization, extractScopedOutputRule } from '../acl/field-authorization';
+import { matchesCatalogPattern } from '../acl/field-catalog';
 
 export type VirtualFinalizeAccess = VirtualProjectionAccess;
 
@@ -132,16 +155,30 @@ export interface FinalizeModelOutputArgs {
   traversal?: VirtualTraversalHooks;
   /** Explicit related targets for VIRT-05 hook point (path → target plan). */
   related?: FinalizeRelatedTarget[];
+  /** Package-owned stage, optionally pre-resolved. Input must be its exact unchanged projected plain snapshot. */
+  documentAuthorizationStage?: DocumentAuthorizationStage;
+  /** Package-only embedded ownership: reuse raw owning grants, with scope-local decisions. */
+  owningDocument?: DocumentAuthorization;
+  owningBinding?: AuthorizationBinding;
+  /** Private service handoff, after association; never attach this context to data. Lists supply the row index. */
+  onFinalized?: (output: Record<string, unknown>, context: ServiceOutputContext, index?: number) => void;
 }
 
-export interface FinalizeModelOutputsArgs extends Omit<FinalizeModelOutputArgs, 'input'> {
+export interface FinalizeModelOutputsArgs extends Omit<
+  FinalizeModelOutputArgs,
+  'input' | 'documentAuthorizationStage'
+> {
   inputs: unknown[];
+  /** Optional pre-resolved stage per row. A stage cannot be shared by two rows, even with equal values/IDs. */
+  documentAuthorizationStages?: readonly DocumentAuthorizationStage[];
 }
 
 type InternalFinalizeArgs = FinalizeModelOutputArgs & {
   scopePath: string[];
   sharedGate: SharedHookGate;
   resolvedLimit: number;
+  owningDocument?: DocumentAuthorization;
+  owningBinding?: AuthorizationBinding;
 };
 
 // ---------------------------------------------------------------------------
@@ -302,25 +339,43 @@ const isAbsentDependency = (stableView: Record<string, unknown>, dep: string): b
 // ---------------------------------------------------------------------------
 
 async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Promise<Record<string, unknown>> {
-  // Core also constructs services. Resolve its policy helpers at invocation time
-  // so importing Service directly cannot initialize PublicService before Service.
-  const { evaluateScopedAccessRule, extractScopedOutputRule } = await import('../core');
   const scopePath = args.scopePath;
   const plan = args.plan;
-  const snapshot = args.snapshot;
+  const binding = plan.authorizationBinding;
+  const captured = plan.authorization && binding ? readServiceAuthorization(plan.authorization, binding) : undefined;
+  if (
+    plan.authorization &&
+    (!binding ||
+      binding.request !== args.request ||
+      binding.modelName !== args.receivingModelName ||
+      captured?.access.virtualAccess !== args.virtualAccess ||
+      captured.access.outputAccess !== args.outputAccess ||
+      captured.access.docPermissionsAccess !== args.docPermissionsAccess ||
+      (binding.scopePath ?? []).join('.') !== scopePath.filter((p) => p !== 'sub').join('.'))
+  ) {
+    authorizationError('finalizer call/model/scope/access mismatch');
+  }
+  const snapshot = captured ? (captured.configuration as FinalizeSnapshot) : args.snapshot;
   const limit = args.resolvedLimit;
   const gate = args.sharedGate;
 
   // 1. Normalize to an isolated output object (never mutates input/snapshots).
   const isolated = isolateDocForOutput(input);
   const output = (isPlainObject(isolated) ? isolated : {}) as Record<string, unknown>;
+  // Already-finalized target values can enter this boundary through package traversal.
+  // Preserve their identities only via an explicit package-created copy transfer.
+  if (captured && isPlainObject(input))
+    for (const key of Object.keys(output)) {
+      transferDocumentAuthorizationGraph(input[key], output[key]);
+    }
 
   // Scope-aware context (operation stays initiating; three accesses effective).
   const baseContext = (args.context ?? {}) as ModelHookContext;
-  const operation = baseContext.operation ?? args.operation ?? args.virtualAccess;
+  const operation = captured?.access.operation ?? baseContext.operation ?? args.operation ?? args.virtualAccess;
   const scopeContext = {
     ...baseContext,
     modelName: args.receivingModelName,
+    mongooseModel: captured ? binding!.model : baseContext.mongooseModel,
     operation,
     receivingModelName: args.receivingModelName,
     scopePath: [...scopePath],
@@ -330,8 +385,31 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   } as ModelHookContext & ModelVirtualContext;
 
   // 2. Internal grants available even when metadata disabled (single resolution).
-  const docGrants = await resolveDocPermissions(args, output, scopeContext);
-  const globalPerms = resolveGlobalPermissions(args);
+  let documentAuthorization: DocumentAuthorization | undefined;
+  let metadataSource = output;
+  if (captured) {
+    const projected = args.documentAuthorizationStage ? (input as Record<string, unknown>) : deepIsolateValue(output);
+    metadataSource = deepIsolateValue(output);
+    documentAuthorization = await resolveOutputDocumentAuthorization({
+      authorization: plan.authorization!,
+      binding: binding!,
+      snapshot: projected,
+      context: scopeContext,
+      stage: args.documentAuthorizationStage,
+      owningDocument: args.owningDocument,
+      owningBinding: args.owningBinding,
+      hookGate: gate,
+      knownOutput:
+        !args.documentAuthorizationStage && !!input && typeof input === 'object' && isKnownAuthorizationOutput(input),
+    });
+  }
+  const docGrants = documentAuthorization
+    ? readDocumentAuthorization(documentAuthorization, binding!).grants
+    : await resolveDocPermissions(args, output, scopeContext);
+  scopeContext.docPermissions = deepIsolateValue(docGrants);
+  const globalPerms = captured
+    ? getAuthorizationPermissions(plan.authorization!, binding!)
+    : resolveGlobalPermissions(args);
   const modelPermissionPrefix = snapshot.modelPermissionPrefix ?? '';
   const documentPermissionField = snapshot.documentPermissionField ?? '_permissions';
   const scopedSchema = getScopedPermissionSchema(
@@ -349,25 +427,55 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
     if (!(containerName in output)) continue;
     const rawContainer = (output as Record<string, unknown>)[containerName];
     if (rawContainer === undefined || rawContainer === null) continue;
+    if (captured && hasWholeOutputValueGrant(plan, containerName)) {
+      // A selected opaque root grant covers its safe existing subtree, even
+      // when a dynamic child rule also caused a minimal fallback child plan.
+      output[containerName] = copyOutputValue(
+        rawContainer,
+        plan,
+        [...(binding!.scopePath ?? []), containerName].join('.'),
+      );
+      continue;
+    }
+    // A child plan grants minimal structure, not a scalar ancestor fetched as
+    // a private input (notably a schema-valid Mixed root).
+    if (captured && !isPlainObject(rawContainer) && !Array.isArray(rawContainer)) {
+      delete output[containerName];
+      continue;
+    }
     retainRawAssociation(output, containerName, rawContainer);
     const childSnapshot = snapshot;
     const childBase: InternalFinalizeArgs = {
       ...args,
       scopePath: [...(childPlan.scopePath ?? [...scopePath, containerName, 'sub'])],
-      plan: childPlan,
+      plan: captured ? authorizeEmbeddedOutputPlan(plan, childPlan) : childPlan,
       snapshot: childSnapshot,
       // Embedded reuses the owning parent's grants + accesses (VIRT-00A D2).
       docPermissions: docGrants,
       context: scopeContext as unknown as ModelHookContext,
+      documentAuthorizationStage: undefined,
+      onFinalized: undefined,
+      owningDocument: documentAuthorization,
+      owningBinding: binding,
+      related: [],
     };
     const finalizeOneChild = async (rawChild: unknown): Promise<unknown> => {
-      if (!isPlainObject(rawChild) && !Array.isArray(rawChild)) return deepIsolateValue(rawChild);
+      if (captured && Array.isArray(rawChild)) return mapWithConcurrencyLimit(rawChild, limit, finalizeOneChild);
+      if (!isPlainObject(rawChild) && !Array.isArray(rawChild)) return captured ? null : deepIsolateValue(rawChild);
       if (args.traversal?.finalizeEmbeddedChildren) {
         return args.traversal.finalizeEmbeddedChildren({
           containerName,
-          childPlan,
+          childPlan: childBase.plan,
           rawValue: rawChild,
-          parentArgs: args,
+          parentArgs: captured
+            ? {
+                ...args,
+                owningDocument: documentAuthorization,
+                owningBinding: binding,
+                docPermissions: docGrants,
+                context: scopeContext,
+              }
+            : args,
         });
       }
       return finalizeSingleDoc(childBase, rawChild);
@@ -409,6 +517,10 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       // Related targets resolve their OWN grants (target docPermissionsAccess),
       // never the parent's map.
       docPermissions: undefined,
+      documentAuthorizationStage: undefined,
+      onFinalized: undefined,
+      owningDocument: undefined,
+      owningBinding: undefined,
       context: scopeContext as unknown as ModelHookContext,
       related: target.plan.relatedPlans?.length
         ? (args.related ?? []).filter((entry) => entry.path.startsWith(`${target.path}.`))
@@ -460,23 +572,23 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
     for (const dep of dependsOn) {
       if (typeof dep !== 'string' || isAbsentDependency(stableBase as Record<string, unknown>, dep)) return;
     }
-    const rule = extractScopedOutputRule(scopedSchema, candidate.name, args.outputAccess);
-    // Bare `{ sub }` containers or unknown shapes deny (planner parity).
-    if (rule !== null && typeof rule === 'object' && !Array.isArray(rule) && typeof rule !== 'function') return;
-    const allowed = await evaluateScopedAccessRule({
-      req: args.request,
-      rule,
-      globalPermissions: globalPerms,
-      docPermissions: docGrants,
-      modelPermissionPrefix,
-    });
+    const allowed = documentAuthorization
+      ? await evaluateAuthorizedOutputField(documentAuthorization, binding!, candidate.name)
+      : await evaluateEffectiveFieldAuthorization({
+          req: args.request,
+          path: candidate.name,
+          rules: [extractScopedOutputRule(scopedSchema, candidate.name, args.outputAccess)],
+          globalPermissions: globalPerms,
+          docPermissions: deepIsolateValue(docGrants),
+          modelPermissionPrefix,
+        });
     if (!allowed) return;
     const getter = candidate.descriptor?.get;
     if (typeof getter !== 'function') return;
     const isolatedView = deepIsolateValue(stableBase);
     const virtualContext = {
       ...scopeContext,
-      docPermissions: docGrants,
+      docPermissions: deepIsolateValue(docGrants),
     } as unknown as ModelVirtualContext;
     // Shared gate held ONLY for the getter body (never while awaiting children).
     const outcome = await gate.run(() =>
@@ -526,6 +638,13 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   const eligibleVirtuals = new Set(plan.outputVirtualNames ?? []);
   const allowedPersisted: string[] = [];
   for (const field of eligiblePersisted) {
+    if (documentAuthorization) {
+      // Child plans already apply full-path rules. A denied ancestor cannot
+      // suppress the minimal structure of an authorized descendant.
+      if (plan.childPlans[field] || (await evaluateAuthorizedOutputField(documentAuthorization, binding!, field)))
+        allowedPersisted.push(field);
+      continue;
+    }
     const rule = extractScopedOutputRule(scopedSchema, field, args.outputAccess);
     if (rule !== null && typeof rule === 'object' && !Array.isArray(rule) && typeof rule !== 'function') {
       // Persisted `{ sub }` containers carry the access rule alongside `sub`;
@@ -533,9 +652,10 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       const rec = rule as Record<string, unknown>;
       const accessRule = rec[args.outputAccess];
       if (accessRule === undefined) continue;
-      const allowed = await evaluateScopedAccessRule({
+      const allowed = await evaluateEffectiveFieldAuthorization({
         req: args.request,
-        rule: accessRule,
+        path: field,
+        rules: [accessRule],
         globalPermissions: globalPerms,
         docPermissions: docGrants,
         modelPermissionPrefix,
@@ -543,9 +663,10 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       if (allowed) allowedPersisted.push(field);
       continue;
     }
-    const allowed = await evaluateScopedAccessRule({
+    const allowed = await evaluateEffectiveFieldAuthorization({
       req: args.request,
-      rule,
+      path: field,
+      rules: [rule],
       globalPermissions: globalPerms,
       docPermissions: docGrants,
       modelPermissionPrefix,
@@ -556,12 +677,33 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   for (const name of staged.keys()) {
     if (eligibleVirtuals.has(name)) keep.add(name);
   }
-  if (!plan.outputIdExcluded && '_id' in output) keep.add('_id');
-  if (documentPermissionField in output) keep.add(documentPermissionField);
+  if (!plan.outputIdExcluded && (!captured || plan.fetchIdRetained) && '_id' in output) keep.add('_id');
+  if (!captured && documentPermissionField in output) keep.add(documentPermissionField);
 
   const trimmed: Record<string, unknown> = {};
   for (const key of keep) {
-    if (key in output) trimmed[key] = (output as Record<string, unknown>)[key];
+    if (!(key in output)) continue;
+    if (captured && !plan.childPlans[key]) {
+      const path = [...(binding!.scopePath ?? []), key].join('.');
+      trimmed[key] = captured.configuration.catalog.referencePaths?.some((p) => matchesCatalogPattern(p, path))
+        ? copyAuthorizedReference(output[key], plan, path)
+        : copyOutputValue(output[key], plan, path);
+      if (trimmed[key] === undefined) delete trimmed[key];
+    } else trimmed[key] = output[key];
+  }
+  if (documentAuthorization) {
+    retainOutputMetadata(trimmed, metadataSource, captured!.configuration, binding!.scopePath ?? []);
+    associateDocumentAuthorization(documentAuthorization, binding!, trimmed);
+    args.onFinalized?.(
+      trimmed,
+      createServiceOutputContext(scopeContext, documentAuthorization, {
+        binding: binding!,
+        output: trimmed,
+        outputAccess: args.outputAccess,
+        authorization: plan.authorization,
+        stage: readDocumentAuthorization(documentAuthorization, binding!).stage,
+      }),
+    );
   }
   // Retain private associations for VIRT-05/06 without attaching to output.
   void getRetainedAssociations;
@@ -578,7 +720,7 @@ export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promis
   const gate = args.sharedGate ?? new SharedHookGate(limit);
   const internal: InternalFinalizeArgs = {
     ...args,
-    scopePath: [...(args.scopePath ?? [])],
+    scopePath: [...(args.scopePath ?? args.plan.scopePath ?? [])],
     sharedGate: gate,
     resolvedLimit: limit,
   };
@@ -597,11 +739,21 @@ export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promis
 export async function finalizeModelOutputs(args: FinalizeModelOutputsArgs): Promise<Record<string, unknown>[]> {
   const limit = normalizeHookConcurrencyLimit(args.concurrencyLimit, 10);
   const gate = args.sharedGate ?? new SharedHookGate(limit);
-  const { inputs, ...rest } = args;
-  return mapWithConcurrencyLimit(inputs, limit, (input) => {
+  const { inputs, documentAuthorizationStages, ...rest } = args;
+  if (
+    'documentAuthorizationStage' in args ||
+    (documentAuthorizationStages &&
+      (documentAuthorizationStages.length !== inputs.length ||
+        new Set(documentAuthorizationStages).size !== inputs.length))
+  ) {
+    authorizationError('list finalization requires a distinct document stage per row');
+  }
+  return mapWithConcurrencyLimit(inputs, limit, (input, index) => {
     const internal: InternalFinalizeArgs = {
       ...(rest as FinalizeModelOutputArgs),
-      scopePath: [...(rest.scopePath ?? [])],
+      scopePath: [...(rest.scopePath ?? rest.plan.scopePath ?? [])],
+      onFinalized: rest.onFinalized ? (output, context) => rest.onFinalized!(output, context, index) : undefined,
+      documentAuthorizationStage: documentAuthorizationStages?.[index],
       sharedGate: gate,
       resolvedLimit: limit,
     };

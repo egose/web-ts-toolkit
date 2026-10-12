@@ -1,5 +1,6 @@
 import { z, type RefinementCtx } from 'zod';
 import { isPlainObject } from '@web-ts-toolkit/utils';
+import { publicBoundarySchema } from './public-admission-schema';
 import {
   containsParentMarkerShape,
   findArgsMarkerIssue,
@@ -59,50 +60,56 @@ export const populateAccessSchema = z.enum(['list', 'read']);
  * (e.g. `{ path: 'friend', select: ['tFull'] }`) pass validation and reach
  * VIRT-05 target-model finalization. No getter runs during validation.
  */
-export const populateSchema = z.union([
-  z.string(),
-  z.array(
-    z.union([
-      z.string(),
-      z
-        .object({
-          path: z.string().min(1),
-          select: projectionSchema.optional(),
-          match: z.unknown().optional(),
-          access: populateAccessSchema.optional(),
-        })
-        .passthrough(),
-    ]),
-  ),
-  z
-    .object({
-      path: z.string().min(1),
-      select: projectionSchema.optional(),
-      match: z.unknown().optional(),
-      access: populateAccessSchema.optional(),
-    })
-    .passthrough(),
-]);
-export const subPopulateSchema = z.union([
-  z.string(),
-  z.array(
-    z.union([
-      z.string(),
-      z
-        .object({
-          path: z.string().min(1),
-          select: projectionSchema.optional(),
-        })
-        .passthrough(),
-    ]),
-  ),
-  z
-    .object({
-      path: z.string().min(1),
-      select: projectionSchema.optional(),
-    })
-    .passthrough(),
-]);
+export const populateSchema = publicBoundarySchema(
+  z.union([
+    z.string(),
+    z.array(
+      z.union([
+        z.string(),
+        z
+          .object({
+            path: z.string().min(1),
+            select: projectionSchema.optional(),
+            match: z.unknown().optional(),
+            access: populateAccessSchema.optional(),
+          })
+          .passthrough(),
+      ]),
+    ),
+    z
+      .object({
+        path: z.string().min(1),
+        select: projectionSchema.optional(),
+        match: z.unknown().optional(),
+        access: populateAccessSchema.optional(),
+      })
+      .passthrough(),
+  ]),
+  'populate',
+);
+export const subPopulateSchema = publicBoundarySchema(
+  z.union([
+    z.string(),
+    z.array(
+      z.union([
+        z.string(),
+        z
+          .object({
+            path: z.string().min(1),
+            select: projectionSchema.optional(),
+          })
+          .passthrough(),
+      ]),
+    ),
+    z
+      .object({
+        path: z.string().min(1),
+        select: projectionSchema.optional(),
+      })
+      .passthrough(),
+  ]),
+  'populate',
+);
 const legacyIncludeItemSchema = z
   .object({
     mode: z.enum(['legacy']).optional(),
@@ -264,13 +271,16 @@ const correlatedCountSchema = z
   })
   .strict();
 
-export const includeItemSchema = z.union([
-  legacyIncludeItemSchema,
-  correlatedReadByIdSchema,
-  correlatedReadByFilterSchema,
-  correlatedListSchema,
-  correlatedCountSchema,
-]);
+export const includeItemSchema = publicBoundarySchema(
+  z.union([
+    legacyIncludeItemSchema,
+    correlatedReadByIdSchema,
+    correlatedReadByFilterSchema,
+    correlatedListSchema,
+    correlatedCountSchema,
+  ]),
+  'include',
+);
 
 const correlatedNestedIncludeSchema: z.ZodTypeAny = z.union([includeItemSchema, z.array(includeItemSchema)]);
 

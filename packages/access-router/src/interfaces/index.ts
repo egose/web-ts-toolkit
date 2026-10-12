@@ -7,4 +7,22 @@ export * from './service-read';
 export * from './service-update';
 export * from './service-exists';
 export * from './service';
+export type {
+  AllowedOutputFieldOptions,
+  AuthorizedListResult,
+  AuthorizedSingleResult,
+  CreateAuthorization,
+  DocumentAuthorization,
+  FieldAuthorization,
+  OperationAuthorization,
+  OutputAuthorization,
+  OutputFieldOptions,
+  OutputFieldPath,
+  OutputPlanningOptions,
+  RelatedAuthorization,
+  RowAuthorization,
+  ServiceAuthorization,
+  ServiceOutputContext,
+  ServiceOutputDecorator,
+} from './service-authorization';
 export * from './data';

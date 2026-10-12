@@ -189,6 +189,26 @@ export type {
   OpenApiRouterOptions,
 };
 export type { CombinedRouteInput } from './routers';
+// Only policy inputs and opaque consumer results/handles belong to the package boundary.
+export type {
+  AllowedOutputFieldOptions,
+  AuthorizedListResult,
+  AuthorizedSingleResult,
+  CreateAuthorization,
+  DocumentAuthorization,
+  FieldAuthorization,
+  OperationAuthorization,
+  OutputAuthorization,
+  OutputFieldOptions,
+  OutputFieldPath,
+  OutputPlanningOptions,
+  RelatedAuthorization,
+  RowAuthorization,
+  ServiceAuthorization,
+  ServiceOutputContext,
+  ServiceOutputDecorator,
+} from './interfaces/service-authorization';
+export type { NewArgs, NewOptions } from './interfaces/service';
 export type {
   DefaultModelRouterOptions,
   ExtendedDataRouterOptions,

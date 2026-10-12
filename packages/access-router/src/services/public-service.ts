@@ -29,6 +29,23 @@ import {
   ServiceResult,
 } from '../interfaces';
 import { Codes } from '../enums';
+import { createServiceExecution, deriveServiceExecution } from '../acl/service-execution';
+import {
+  executeCreate,
+  executePreparedExists,
+  executePreparedFindOne,
+  executePreparedUpdateOne,
+  prepareModelQuery,
+  readModelIdentifier,
+  resolveModelIdentifier,
+} from '../acl/prepared-query';
+import {
+  assertPublicAdmission,
+  assertPublicDefaults,
+  pickPublicKeys,
+  PublicAdmissionError,
+  requestOnlyServiceOptions,
+} from '../validation/public-admission';
 
 export class PublicService<TModel = unknown, TVirtuals extends object = Record<never, never>> extends Service<
   TModel,
@@ -42,6 +59,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     args?: Omit<PublicListArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicListOptions,
   ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
+    const admission = this.admitPublicCall({ args, options, filter });
+    if (admission) return admission;
     const { select, populate, include, sort, skip, limit, page, pageSize, tasks } = this.resolvePublicListArgs(args);
     const { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess, lean } =
       this.resolvePublicListOptions(options);
@@ -49,7 +68,14 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     const result = await this.find(
       filter,
       { select, populate, include, sort, skip, limit, page, pageSize },
-      { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess, lean },
+      requestOnlyServiceOptions({
+        skim,
+        includePermissions,
+        includeFieldPermissions,
+        includeCount,
+        populateAccess,
+        lean,
+      }),
       async (doc, context: ModelHookContext) => {
         doc = toObject(doc);
         return this.decorate(doc, 'list', context);
@@ -81,6 +107,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     args?: Omit<PublicCreateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicCreateOptions,
   ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
+    const admission = this.admitPublicCall({ args, options, data });
+    if (admission) return admission;
     const { select, populate, tasks } = this.resolvePublicCreateArgs(args);
     const { skim, includePermissions, includeFieldPermissions, populateAccess } =
       this.resolvePublicCreateOptions(options);
@@ -91,8 +119,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     const effectiveSelect = select as Projection | undefined;
     const result = await this.create(
       data as Record<string, unknown> | Record<string, unknown>[],
-      { populate, overrides: { effectiveSelect } },
-      { skim, includePermissions, includeFieldPermissions, populateAccess },
+      { populate, select: effectiveSelect },
+      requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
       async (doc, context: ModelHookContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
         d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
@@ -113,8 +141,13 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
   async _new(
     args?: { select?: string[] },
     options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean },
-  ): Promise<SingleResult<PublicOutput<TModel, TVirtuals>>> {
-    return this.new(args, options) as Promise<SingleResult<PublicOutput<TModel, TVirtuals>>>;
+  ): Promise<SingleResult<PublicOutput<TModel, TVirtuals>> | ErrorResult> {
+    const admission = this.admitPublicCall({ args, options });
+    if (admission) return admission;
+    return this.new(
+      pickPublicKeys(args, ['select']),
+      requestOnlyServiceOptions(pickPublicKeys(options, ['skim', 'includePermissions', 'includeFieldPermissions'])),
+    ) as Promise<SingleResult<PublicOutput<TModel, TVirtuals>> | ErrorResult>;
   }
 
   async _read<
@@ -125,57 +158,93 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     args?: Omit<PublicReadArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicReadOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
+    const admission = this.admitPublicCall({ args, options });
+    if (admission) return admission;
     const { select, populate, include, tasks } = this.resolvePublicReadArgs(args);
     const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
       this.resolvePublicReadOptions(options);
 
-    let access: FindAccess = 'read';
-    const idFilter = await this.genIDFilter(id);
+    try {
+      let access: FindAccess = 'read';
+      let execution = createServiceExecution(
+        this,
+        {
+          operation: 'read',
+          rowAccess: access,
+          virtualAccess: access,
+          outputAccess: access,
+          docPermissionsAccess: access,
+        },
+        requestOnlyServiceOptions({}).authorization,
+        'service',
+        this.captureRelated({ populate, include }, this.defaults.findOneArgs),
+      );
+      const identifier = await resolveModelIdentifier(this, execution, id);
+      const query = await prepareModelQuery(this, execution, {
+        kind: 'client-read',
+        filter: readModelIdentifier(this, execution, identifier),
+      });
+      let result = await executePreparedFindOne(
+        this,
+        execution,
+        query,
+        { select, populate, include },
+        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess, lean }),
+      );
 
-    let result = await this.findById(
-      id,
-      {
-        select,
-        populate,
-        include,
-        overrides: { idFilter },
-      },
-      { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
-    );
+      // Invalid descriptors and terminal policy denial cannot be repaired by list access.
+      if (!result.success && (result.code === Codes.BadRequest || result.code === Codes.Forbidden)) return result;
 
-    // Invalid descriptors and terminal policy denial cannot be repaired by list access.
-    if (!result.success && (result.code === Codes.BadRequest || result.code === Codes.Forbidden)) return result;
+      // if not found, try to get the doc with 'list' access
+      if (tryList && (!result.success || !result.data)) {
+        const listAllowed = await this.req.macl.isAllowed(this.modelName, 'list');
+        if (!listAllowed) {
+          return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
+        }
 
-    // if not found, try to get the doc with 'list' access
-    if (tryList && (!result.success || !result.data)) {
-      const listAllowed = await this.req.macl.isAllowed(this.modelName, 'list');
-      if (!listAllowed) {
-        return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
+        access = 'list';
+
+        execution = deriveServiceExecution(this, execution, {
+          operation: 'read',
+          rowAccess: access,
+          virtualAccess: access,
+          outputAccess: access,
+          docPermissionsAccess: access,
+        });
+        const fallback = await prepareModelQuery(this, execution, {
+          kind: 'client-read',
+          filter: readModelIdentifier(this, execution, identifier),
+        });
+        result = await executePreparedFindOne(
+          this,
+          execution,
+          fallback,
+          { select, populate, include },
+          requestOnlyServiceOptions({
+            skim,
+            includePermissions,
+            includeFieldPermissions,
+            access,
+            populateAccess,
+            lean,
+          }),
+        );
       }
 
-      access = 'list';
+      if (!result.success) {
+        return result as ErrorResult;
+      }
 
-      result = await this.findById(
-        id,
-        {
-          select,
-          populate,
-          include,
-          overrides: { idFilter },
-        },
-        { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
-      );
+      let doc = toObject(result.data);
+      doc = await this.decorate(doc, access, result.context);
+      doc = this.runTasks(doc as Record<string, unknown>, tasks);
+
+      return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals> };
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
     }
-
-    if (!result.success) {
-      return result as ErrorResult;
-    }
-
-    let doc = toObject(result.data);
-    doc = await this.decorate(doc, access, result.context);
-    doc = this.runTasks(doc as Record<string, unknown>, tasks);
-
-    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals> };
   }
 
   async _readFilter<
@@ -186,6 +255,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     args?: Omit<PublicReadArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate; sort?: Sort },
     options?: PublicReadOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
+    const admission = this.admitPublicCall({ args, options, filter });
+    if (admission) return admission;
     const { select, sort, populate, include, tasks } = this.resolvePublicReadFilterArgs(args);
     const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
       this.resolvePublicReadOptions(options);
@@ -199,9 +270,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         sort,
         populate,
         include,
-        overrides: {},
       },
-      { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
+      requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess, lean }),
     );
 
     // Invalid descriptors and terminal policy denial cannot be repaired by list access.
@@ -223,9 +293,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
           sort,
           populate,
           include,
-          overrides: {},
         },
-        { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
+        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess, lean }),
       );
     }
 
@@ -249,6 +318,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     args?: Omit<PublicUpdateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicUpdateOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
+    const admission = this.admitPublicCall({ args, options, data });
+    if (admission) return admission;
     const { select: requestedSelect, populate, tasks } = this.resolvePublicUpdateArgs(args);
     const select = this.resolveEffectiveSelect(requestedSelect);
     const { skim, returningAll, includePermissions, includeFieldPermissions, populateAccess } =
@@ -256,7 +327,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
 
     // VIRT-04 D6: effective selection before evaluation — explicit `select`,
     // else `returningAll: false` implicit `Object.keys(data)+_id`, else all.
-    // Internal transport via `overrides.effectiveSelect`; presentation pick
+    // Ordinary internal selection; presentation pick
     // after decorate/tasks preserved below.
     let effectiveSelect: Projection | undefined;
     if (select) effectiveSelect = select;
@@ -265,8 +336,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     const result = await this.updateById(
       id,
       data,
-      { populate, overrides: { effectiveSelect } },
-      { skim, includePermissions, includeFieldPermissions, populateAccess },
+      { populate, select: effectiveSelect },
+      requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
       async (doc, context: ModelHookContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
         d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
@@ -293,7 +364,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
    *
    * VIRT-04 D1/D6: both branches keep `operation: 'upsert'` while accesses
    * follow the taken branch (update/read/update vs create/read/create).
-   * Effective selection is carried via internal `overrides.effectiveSelect`
+   * Effective selection is carried via ordinary internal `select`
    * before evaluation; presentation picks after decorate/tasks are preserved.
    * Internal `updateById`/`create` are called directly (not via `_update`/
    * `_create`) so the initiating operation is not overwritten with the
@@ -307,6 +378,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     args?: Omit<PublicUpsertArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicUpsertOptions,
   ): Promise<ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
+    const admission = this.admitPublicCall({ args, options, data });
+    if (admission) return admission;
     const idKey = this.getIdentifier();
     if (idKey !== '_id') {
       return { success: false, kind: 'error', code: Codes.BadRequest, errors: ['not supported custom id field'] };
@@ -315,65 +388,103 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     const { [idKey]: idVal, ...otherData } = data;
     const upsertId = typeof idVal === 'string' ? idVal : undefined;
 
-    if (upsertId) {
-      const existing = await this.exists({ [idKey]: upsertId } as Filter<TModel>, { access: 'update' });
-      if (!existing.success) {
-        return existing as ErrorResult;
+    try {
+      const publicDefaults = upsertId ? this.defaults.publicUpdateArgs : this.defaults.publicCreateArgs;
+      const execution = createServiceExecution(
+        this,
+        {
+          operation: 'upsert',
+          rowAccess: 'update',
+          virtualAccess: 'update',
+          outputAccess: 'read',
+          docPermissionsAccess: 'update',
+        },
+        requestOnlyServiceOptions({}).authorization,
+        'service',
+        this.captureRelated(
+          { populate: args?.populate ?? publicDefaults?.populate },
+          upsertId ? this.defaults.updateOneArgs : this.defaults.createArgs,
+        ),
+      );
+      if (upsertId) {
+        const identifier = await resolveModelIdentifier(this, execution, upsertId);
+        const query = await prepareModelQuery(this, execution, {
+          kind: 'mutation-lookup',
+          filter: readModelIdentifier(this, execution, identifier),
+        });
+        const existing = await executePreparedExists(this, execution, query);
+        if (!existing.success) {
+          return existing as ErrorResult;
+        }
+
+        if (!existing.data) {
+          return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
+        }
+
+        const { select: requestedSelect, populate, tasks } = this.resolvePublicUpdateArgs(args as never);
+        const select = this.resolveEffectiveSelect(requestedSelect);
+        const { skim, returningAll, includePermissions, includeFieldPermissions, populateAccess } =
+          this.resolvePublicUpdateOptions(options as never);
+        let effectiveSelect: Projection | undefined;
+        if (select) effectiveSelect = select;
+        else if (!returningAll) effectiveSelect = [...Object.keys(otherData), '_id'];
+        else effectiveSelect = undefined;
+        const result = await executePreparedUpdateOne(
+          this,
+          execution,
+          query,
+          otherData,
+          { populate, select: effectiveSelect },
+          requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
+          async (doc, context: ModelHookContext): Promise<unknown> => {
+            let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
+            d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
+            d = this.runTasks(d, tasks);
+            if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
+            else if (!returningAll) d = pick(d, [...Object.keys(otherData), '_id']);
+            return d;
+          },
+        );
+        return result as
+          | ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>>
+          | ErrorResult;
       }
 
-      if (!existing.data) {
-        return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
-      }
-
-      const { select: requestedSelect, populate, tasks } = this.resolvePublicUpdateArgs(args as never);
-      const select = this.resolveEffectiveSelect(requestedSelect);
-      const { skim, returningAll, includePermissions, includeFieldPermissions, populateAccess } =
-        this.resolvePublicUpdateOptions(options as never);
-      let effectiveSelect: Projection | undefined;
-      if (select) effectiveSelect = select;
-      else if (!returningAll) effectiveSelect = [...Object.keys(otherData), '_id'];
-      else effectiveSelect = undefined;
-      const result = await this.updateById(
-        upsertId,
-        otherData,
-        { populate, overrides: { effectiveSelect, operation: 'upsert' } },
-        { skim, includePermissions, includeFieldPermissions, populateAccess },
+      const { select, populate, tasks } = this.resolvePublicCreateArgs(args as never);
+      const { skim, includePermissions, includeFieldPermissions, populateAccess } = this.resolvePublicCreateOptions({
+        skim: options?.skim,
+        includePermissions: options?.includePermissions,
+        includeFieldPermissions: options?.includeFieldPermissions,
+        populateAccess: options?.populateAccess,
+      });
+      const createExecution = deriveServiceExecution(
+        this,
+        execution,
+        { operation: 'upsert', virtualAccess: 'create', outputAccess: 'read', docPermissionsAccess: 'create' },
+        'create',
+      );
+      const createResult = await executeCreate(
+        this,
+        createExecution,
+        otherData as Record<string, unknown>,
+        { populate, select: select as Projection | undefined },
+        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
         async (doc, context: ModelHookContext): Promise<unknown> => {
           let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
-          d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
+          d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
           d = this.runTasks(d, tasks);
           if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
-          else if (!returningAll) d = pick(d, [...Object.keys(otherData), '_id']);
           return d;
         },
       );
-      return result as
+      return createResult as unknown as
         | ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>>
         | ErrorResult;
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
     }
-
-    const { select, populate, tasks } = this.resolvePublicCreateArgs(args as never);
-    const { skim, includePermissions, includeFieldPermissions, populateAccess } = this.resolvePublicCreateOptions({
-      skim: options?.skim,
-      includePermissions: options?.includePermissions,
-      includeFieldPermissions: options?.includeFieldPermissions,
-      populateAccess: options?.populateAccess,
-    });
-    const createResult = await this.create(
-      otherData as Record<string, unknown>,
-      { populate, overrides: { effectiveSelect: select as Projection | undefined, operation: 'upsert' } },
-      { skim, includePermissions, includeFieldPermissions, populateAccess },
-      async (doc, context: ModelHookContext): Promise<unknown> => {
-        let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
-        d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
-        d = this.runTasks(d, tasks);
-        if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
-        return d;
-      },
-    );
-    return createResult as unknown as
-      | ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>>
-      | ErrorResult;
   }
 
   async _delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {
@@ -382,13 +493,28 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
   }
 
   async _distinct(field: string, options: DistinctArgs<TModel> = {}): Promise<ListResult<unknown> | ErrorResult> {
-    const result = await this.distinct(field, options);
+    const admission = this.admitPublicCall({ args: options });
+    if (admission) return admission;
+    const result = await this.distinct(field, pickPublicKeys(options, ['filter']));
     return result;
   }
 
   async _count(filter: Filter<TModel>, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
+    const admission = this.admitPublicCall({ filter, options: access });
+    if (admission) return admission;
     const result = await this.count(filter, access);
     return result;
+  }
+
+  private admitPublicCall(envelope: unknown): ErrorResult | null {
+    try {
+      assertPublicAdmission(envelope);
+      assertPublicDefaults(this.defaults);
+      return null;
+    } catch (error) {
+      if (error instanceof PublicAdmissionError) return error.result;
+      throw error;
+    }
   }
 
   private resolvePublicListArgs(args: PublicListArgs = {}) {

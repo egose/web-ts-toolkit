@@ -94,6 +94,7 @@ const packageRoot = path.resolve(__dirname, '..');
 describe('AR-14 published export contract', () => {
   describe('package.json exports field', () => {
     it('declares root, /advanced, and /processors subpaths', () => {
+      expect(Object.keys(pkg.exports).sort()).toEqual(['.', './advanced', './processors']);
       expect(pkg.exports).toMatchObject({
         '.': expect.objectContaining({
           types: {
@@ -348,7 +349,7 @@ describe('AR-14 published export contract', () => {
         }
         return [];
       };
-      const targets = Object.values(pkg.exports).flatMap(collectTargets);
+      const targets = [...Object.values(pkg.exports).flatMap(collectTargets), pkg.main, pkg.module, pkg.types];
       expect(targets.length).toBeGreaterThan(0);
       for (const target of targets) {
         const resolved = path.resolve(packageRoot, target.replace(/^\.\//, ''));
@@ -433,6 +434,120 @@ describe('AR-14 published export contract', () => {
         expect(hover(router.type.getProperty('operationAccess')!)).toContain("operationAccess('basicRead', false)");
         expect(hover(router.type.getProperty('setOptions')!)).toContain('replaces that entire rule object');
         expect(hover(router.type.getProperty('setOption')!)).toContain('undefined');
+      }
+    });
+
+    it.each(['d.ts', 'd.mts'])('SVA-10 exports consumer policy/handle types with editor JSDoc in %s', (extension) => {
+      const ts = require('typescript') as typeof import('typescript');
+      const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));
+      const program = ts.createProgram(entries, {
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        noEmit: true,
+        skipLibCheck: true,
+        types: [],
+      });
+      const checker = program.getTypeChecker();
+      const exported = (entry: string) =>
+        checker.getExportsOfModule(checker.getSymbolAtLocation(program.getSourceFile(entry)!)!);
+      const type = (entry: string, name: string) => {
+        let symbol = exported(entry).find((candidate) => candidate.name === name)!;
+        expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
+        if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+        return { symbol, value: checker.getDeclaredTypeOfSymbol(symbol) };
+      };
+      const hover = (symbol: import('typescript').Symbol) =>
+        ts.displayPartsToString(symbol.getDocumentationComment(checker));
+      const documented = {
+        OutputFieldPath: ['contacts.email', 'runtime schema'],
+        FieldAuthorization: ['additive', 'explicit selection', 'selected eligible subtree', 'required output fields'],
+        RowAuthorization: ['overrideFilter', 'EVERY mode', 'ANDed', 'Null/undefined'],
+        OperationAuthorization: ['target operation', 'not its rows'],
+        ServiceAuthorization: [
+          'immutable call policy',
+          'server-only',
+          'overrides',
+          'breaking release',
+          'HTTP/OpenAPI/client',
+        ],
+        RelatedAuthorization: ['parent unrestricted', 'immediate target', 'Count targets'],
+        CreateAuthorization: ['Rows reject', 'writes stay request-authorized'],
+        OutputAuthorization: ['row/target options reject'],
+        DocumentAuthorization: ['projected document snapshot', 'ownerId', 'another', 'reject'],
+        ServiceOutputContext: ['public serializers omit', 'no authority is attached to data'],
+        AuthorizedSingleResult: ['no stronger field-existence inference'],
+        AuthorizedListResult: ['same index'],
+        ServiceOutputDecorator: ['no automatic', 'mutations/replacements'],
+        OutputPlanningOptions: ['persisted fetch inputs', 'alwaysSelectFields'],
+        OutputFieldOptions: ['Mutually exclusive', 'fresh call', 'without rerunning', 'legacy helper'],
+        AllowedOutputFieldOptions: ["purpose: 'output'", 'write admission'],
+        NewArgs: ['historically ignored'],
+        NewOptions: ['ignores select', 'unsupported'],
+      };
+      const privateNames = [
+        'Service',
+        'Core',
+        'ResolvedServiceAuthorization',
+        'NormalizedServiceAuthorization',
+        'AuthorizationBinding',
+        'AuthorizationAccess',
+        'AuthorizationConfiguration',
+        'AuthorizationFieldCatalog',
+        'ServiceExecutionContext',
+        'ServiceExecutionState',
+        'PreparedModelQuery',
+        'ResolvedIdentifier',
+        'QueryInput',
+        'DocumentAuthorizationStage',
+        'resolveServiceAuthorization',
+        'readServiceAuthorization',
+        'serviceAuthorizationInput',
+        'createDocumentAuthorizationStage',
+        'resolveDocumentAuthorization',
+        'associateDocumentAuthorization',
+        'transferDocumentAuthorizationGraph',
+        'createServiceOutputContext',
+        'createServiceExecution',
+        'registerServiceExecutors',
+        'prepareModelQuery',
+        'resolveModelIdentifier',
+        'executePreparedFindOne',
+        'executePreparedFind',
+        'executePreparedUpdateOne',
+        'executeCreate',
+        'executePreparedCount',
+        'executePreparedExists',
+      ];
+      for (const entry of entries) {
+        for (const [name, phrases] of Object.entries(documented)) {
+          for (const phrase of phrases) expect(hover(type(entry, name).symbol), `${name} hover`).toContain(phrase);
+        }
+        const names = exported(entry).map((symbol) => symbol.name);
+        for (const name of privateNames) expect(names, `${path.basename(entry)} hides ${name}`).not.toContain(name);
+        const context = type(entry, 'ServiceOutputContext').value;
+        expect(hover(context.getProperty('documentAuthorization')!)).toContain('Non-enumerable');
+        expect(hover(context.getProperty('getDocumentAuthorization')!)).toContain('cannot issue new authority');
+      }
+      const router = type(entries[0], 'ModelRouter').value;
+      expect(hover(type(entries[0], 'ModelRouterOptions').value.getProperty('alwaysSelectFields')!)).toContain(
+        'per-access record',
+      );
+      expect(hover(type(entries[0], 'ModelDocPermissionsHook').symbol)).toContain('independently of skim');
+      const acquire = router.getProperty('getService')!;
+      expect(hover(acquire)).toContain('req.macl');
+      const service = checker.getReturnTypeOfSignature(
+        checker.getTypeOfSymbolAtLocation(acquire, acquire.valueDeclaration!).getCallSignatures()[0],
+      );
+      expect(hover(service.getProperty('genSelect')!)).toContain('not an output');
+      expect(hover(service.getProperty('genAllowedFields')!)).toContain("purpose: 'output'");
+      expect(hover(service.getProperty('pickAllowedFields')!)).toContain('mutually exclusive');
+      expect(hover(service.getProperty('trimOutputFields')!)).toContain('never authorizes writes');
+      const macl = type(entries[1], 'ModelRequest').value.getProperty('macl')!;
+      const core = checker.getTypeOfSymbolAtLocation(macl, macl.valueDeclaration!);
+      expect(hover(core.getProperty('pickAllowedFields')!)).toContain('mutually exclusive');
+      for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
+        for (const name of [...Object.keys(documented), ...privateNames]) expect(runtime).not.toHaveProperty(name);
       }
     });
 

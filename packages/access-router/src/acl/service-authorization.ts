@@ -1,0 +1,352 @@
+/**
+ * SVA-01 private primitives only. No service/planner/finalizer calls this module
+ * until public admission (SVA-01A) is complete. Never re-export runtime issuers.
+ */
+import Permission from '../permission';
+import { isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
+import type { AccessRouterPermissions } from '../permission';
+import type { AccessRouterRequest } from '../interfaces/request';
+import type { Filter } from '../interfaces/query-types';
+import type {
+  FieldAuthorization,
+  OperationAuthorization,
+  RelatedAuthorization,
+  ServiceAuthorization,
+} from '../interfaces/service-authorization';
+import { authorizationError, authorizationRecord, copyAuthorizationValue } from './authorization-snapshot';
+export { ServiceAuthorizationError } from './authorization-snapshot';
+
+export interface AuthorizationBinding {
+  readonly request: AccessRouterRequest;
+  readonly runtime: object;
+  /** Actual registered model identity, not just its name. */
+  readonly model: object;
+  readonly modelName: string;
+  readonly scopePath?: readonly string[];
+}
+
+export interface AuthorizationAccess {
+  readonly operation: string;
+  readonly rowAccess?: string;
+  readonly virtualAccess: string;
+  readonly outputAccess: string;
+  readonly docPermissionsAccess: string;
+}
+
+/** SVA-02 supplies this catalog from schema.paths/child schemas and the virtual registry. */
+export interface AuthorizationFieldCatalog {
+  readonly paths: readonly string[];
+  /** Internal schema Map patterns; `$*` is never accepted in a caller path. */
+  readonly dynamicPaths?: readonly string[];
+  readonly containerPaths?: readonly string[];
+  readonly virtualPaths?: readonly string[];
+  readonly opaquePaths?: readonly string[];
+  readonly referencePaths?: readonly string[];
+  readonly protectedPaths?: readonly string[];
+}
+
+export interface AuthorizationConfiguration {
+  readonly catalog: AuthorizationFieldCatalog;
+  readonly documentPermissionField?: string;
+  /** Captured permission schema, virtual descriptors, always-select and metadata posture. */
+  readonly [key: string]: unknown;
+}
+
+/** Package-resolved requested descriptors, not a user-declared model registry. */
+export interface AuthorizationRelatedTarget {
+  readonly path: string;
+  readonly modelName: string;
+  readonly configuration: AuthorizationConfiguration;
+  /** Passthrough is the existing global unregistered-populate opt-out, not a caller policy. */
+  readonly kind?: 'output' | 'count' | 'passthrough';
+  readonly relatedTargets?: readonly AuthorizationRelatedTarget[];
+}
+
+export type AuthorizationApplicability = 'service' | 'create' | 'output';
+export type ResolvedRows =
+  | { readonly mode: 'request' | 'unrestricted' }
+  | { readonly mode: 'scope'; readonly filter: Filter };
+export interface NormalizedServiceAuthorization {
+  readonly rows: ResolvedRows;
+  readonly outputFields: FieldAuthorization;
+  readonly related: Readonly<Record<string, NormalizedRelatedAuthorization>>;
+}
+export interface NormalizedRelatedAuthorization extends NormalizedServiceAuthorization {
+  readonly model: string;
+  readonly operation: OperationAuthorization;
+}
+
+/** Package derivation must not turn normalized count defaults into supplied
+ * output/related dimensions. Raw caller policy still receives strict validation.
+ */
+export function serviceAuthorizationInput(
+  policy: NormalizedServiceAuthorization,
+  targets: readonly AuthorizationRelatedTarget[],
+): ServiceAuthorization {
+  const related: Record<string, RelatedAuthorization> = {};
+  for (const [path, child] of Object.entries(policy.related)) {
+    const target = targets.find((entry) => entry.path === path);
+    if (!target) authorizationError(`unused related path: ${path}`);
+    related[path] =
+      target.kind === 'count'
+        ? { model: child.model, operation: child.operation, rows: child.rows }
+        : {
+            model: child.model,
+            operation: child.operation,
+            ...serviceAuthorizationInput(child, target.relatedTargets ?? []),
+          };
+  }
+  return { rows: policy.rows, outputFields: policy.outputFields, related };
+}
+
+declare const resolvedAuthorizationBrand: unique symbol;
+export interface ResolvedServiceAuthorization {
+  readonly [resolvedAuthorizationBrand]: true;
+}
+
+interface CallRecord {
+  binding: AuthorizationBinding;
+  access: AuthorizationAccess;
+  configuration: AuthorizationConfiguration;
+  policy: NormalizedServiceAuthorization;
+  relatedTargets: readonly AuthorizationRelatedTarget[];
+  permissions: Readonly<Record<string, boolean>>;
+  provenance: ResolvedServiceAuthorization;
+}
+const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
+export function assertAuthorizationPath(path: unknown): asserts path is string {
+  if (typeof path !== 'string' || !isSafeOutputPath(path)) {
+    authorizationError(`invalid response path: ${String(path)}`);
+  }
+}
+
+function overlaps(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}.`) || b.startsWith(`${a}.`);
+}
+
+function assertUnprotected(path: string, configuration: AuthorizationConfiguration): void {
+  assertAuthorizationPath(path);
+  // Metadata ancestors reject as well. Implementation descendants (e.g. a
+  // child's version key) stay excluded by the catalog without prohibiting an
+  // otherwise valid grant to the whole embedded business container.
+  if (
+    overlaps(path, configuration.documentPermissionField ?? '_permissions') ||
+    configuration.catalog.protectedPaths?.some((p) => matchesCatalogPattern(p, path, true))
+  ) {
+    authorizationError(`protected output path: ${path}`);
+  }
+}
+
+function assertCatalogPath(path: string, configuration: AuthorizationConfiguration): void {
+  assertUnprotected(path, configuration);
+  const catalog = configuration.catalog;
+  if (
+    catalog.referencePaths?.some((ref) => matchesCatalogPattern(ref, path, true) && !matchesCatalogPattern(ref, path))
+  ) {
+    authorizationError(`referenced fields require related authority: ${path}`);
+  }
+  if (!isCatalogOutputPath(catalog, path)) {
+    authorizationError(`unknown output path: ${path}`);
+  }
+}
+
+export function assertAuthorizationKeys(value: Record<string, unknown>, keys: readonly string[], label: string): void {
+  for (const key of Object.keys(value)) if (!keys.includes(key)) authorizationError(`unsupported ${label} key: ${key}`);
+}
+
+function normalizeRows(value: unknown): ResolvedRows {
+  if (value === undefined) return { mode: 'request' };
+  const input = authorizationRecord(value, 'rows');
+  if (input.mode === 'request' || input.mode === 'unrestricted') {
+    assertAuthorizationKeys(input, ['mode'], 'rows');
+    return { mode: input.mode };
+  }
+  if (input.mode === 'scope') {
+    assertAuthorizationKeys(input, ['mode', 'filter'], 'rows');
+    if (input.filter !== false) authorizationRecord(input.filter, 'scope.filter');
+    return { mode: 'scope', filter: input.filter as Filter };
+  }
+  return authorizationError('unknown rows mode');
+}
+
+function normalizeFields(value: unknown, configuration: AuthorizationConfiguration): FieldAuthorization {
+  if (value === undefined) return { mode: 'request' };
+  const input = authorizationRecord(value, 'outputFields');
+  if (input.mode === 'request' || input.mode === 'unrestricted') {
+    assertAuthorizationKeys(input, ['mode'], 'outputFields');
+    return { mode: input.mode };
+  }
+  if (input.mode === 'grant') {
+    assertAuthorizationKeys(input, ['mode', 'paths'], 'outputFields');
+    if (!Array.isArray(input.paths)) authorizationError('grant.paths must be an array');
+    // Array.from also visits holes; sparse paths are malformed rather than silently skipped.
+    const paths = Array.from(input.paths as unknown[]).map((path) => {
+      assertAuthorizationPath(path);
+      assertCatalogPath(path, configuration);
+      return path;
+    });
+    return { mode: 'grant', paths: [...new Set(paths)] };
+  }
+  return authorizationError('unknown outputFields mode');
+}
+
+function normalizeOperation(value: unknown): OperationAuthorization {
+  if (value === undefined) return { mode: 'request' };
+  const input = authorizationRecord(value, 'related.operation');
+  assertAuthorizationKeys(input, ['mode'], 'related.operation');
+  if (input.mode !== 'request' && input.mode !== 'grant') authorizationError('unknown operation mode');
+  return { mode: input.mode as 'request' | 'grant' };
+}
+
+function normalizePolicy(
+  value: unknown,
+  applicability: AuthorizationApplicability,
+  configuration: AuthorizationConfiguration,
+  targets: readonly AuthorizationRelatedTarget[],
+): NormalizedServiceAuthorization {
+  const input = value === undefined ? {} : authorizationRecord(value, 'authorization');
+  assertAuthorizationKeys(
+    input,
+    applicability === 'output'
+      ? ['outputFields']
+      : applicability === 'create'
+        ? ['outputFields', 'related']
+        : ['rows', 'outputFields', 'related'],
+    'authorization',
+  );
+  const related: Record<string, NormalizedRelatedAuthorization> = {};
+  if (input.related !== undefined) {
+    for (const [path, entry] of Object.entries(authorizationRecord(input.related, 'related'))) {
+      assertUnprotected(path, configuration);
+      const matches = targets.filter((target) => target.path === path);
+      if (matches.length !== 1) authorizationError(`unused or ambiguous related path: ${path}`);
+      const target = matches[0];
+      if (target.kind === 'passthrough') authorizationError(`related policy requires a registered target: ${path}`);
+      const child = authorizationRecord(entry, `related.${path}`);
+      assertAuthorizationKeys(
+        child,
+        target.kind === 'count'
+          ? ['model', 'operation', 'rows']
+          : ['model', 'operation', 'rows', 'outputFields', 'related'],
+        `related.${path}`,
+      );
+      if (typeof child.model !== 'string' || !child.model || child.model !== target.modelName) {
+        authorizationError(`related model mismatch: ${path}`);
+      }
+      const { model, operation, ...policy } = child;
+      related[path] = {
+        model: model as string,
+        operation: normalizeOperation(operation),
+        ...normalizePolicy(policy, 'service', target.configuration, target.relatedTargets ?? []),
+      };
+    }
+  }
+  return {
+    rows: normalizeRows(input.rows),
+    outputFields: normalizeFields(input.outputFields, configuration),
+    related,
+  };
+}
+
+function scope(binding: AuthorizationBinding): readonly string[] {
+  return binding.scopePath ?? [];
+}
+
+function sameScope(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((part, index) => part === b[index]);
+}
+
+function callRecord(call: ResolvedServiceAuthorization): CallRecord {
+  const record = calls.get(call);
+  if (!record) authorizationError('invalid resolved call');
+  return record;
+}
+
+export function assertAuthorizationBinding(call: ResolvedServiceAuthorization, binding: AuthorizationBinding): void {
+  const expected = callRecord(call).binding;
+  if (
+    expected.request !== binding.request ||
+    expected.runtime !== binding.runtime ||
+    expected.model !== binding.model ||
+    expected.modelName !== binding.modelName ||
+    !sameScope(scope(expected), scope(binding))
+  ) {
+    authorizationError('request/runtime/model/scope binding mismatch');
+  }
+}
+
+export interface ResolveServiceAuthorizationInput {
+  readonly binding: AuthorizationBinding;
+  readonly access: AuthorizationAccess;
+  readonly configuration: AuthorizationConfiguration;
+  readonly requestPermissions: AccessRouterPermissions;
+  readonly authorization?: unknown;
+  readonly applicability?: AuthorizationApplicability;
+  readonly relatedTargets?: readonly AuthorizationRelatedTarget[];
+  /** Explicit package-derived branch/target; supplies provenance only, never implicit authority. */
+  readonly parent?: ResolvedServiceAuthorization;
+}
+
+/** Synchronous capture must occur before any operation hook/await. Omitted policy is request-only. */
+export function resolveServiceAuthorization(input: ResolveServiceAuthorizationInput): ResolvedServiceAuthorization {
+  const raw = copyAuthorizationValue(input.authorization);
+  const configuration = copyAuthorizationValue(input.configuration, true);
+  const targets = copyAuthorizationValue(input.relatedTargets ?? [], true);
+  const policy = copyAuthorizationValue(normalizePolicy(raw, input.applicability ?? 'service', configuration, targets));
+  const scopePath = Array.from(scope(input.binding));
+  for (const part of scopePath) {
+    assertAuthorizationPath(part);
+    if (part.includes('.')) authorizationError('scopePath requires response segments');
+  }
+  if (input.parent) {
+    const parent = callRecord(input.parent).binding;
+    if (parent.request !== input.binding.request || parent.runtime !== input.binding.runtime) {
+      authorizationError('derived call request/runtime mismatch');
+    }
+  }
+  const permissions = Object.fromEntries(
+    input.requestPermissions.keys.map((key) => [key, input.requestPermissions.has(key)]),
+  );
+  const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
+  calls.set(call, {
+    binding: Object.freeze({ ...input.binding, scopePath: Object.freeze(scopePath) }),
+    access: copyAuthorizationValue(input.access),
+    configuration,
+    policy,
+    relatedTargets: targets,
+    permissions: Object.freeze(permissions),
+    provenance: input.parent ? callRecord(input.parent).provenance : call,
+  });
+  return call;
+}
+
+/** Detached frozen records/arrays; mutable BSON/Date/Map leaves are detached on every read. */
+export function readServiceAuthorization(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  const record = callRecord(call);
+  return copyAuthorizationValue(
+    {
+      authorization: record.policy,
+      configuration: record.configuration,
+      access: record.access,
+      relatedTargets: record.relatedTargets,
+    },
+    true,
+  );
+}
+
+export function getAuthorizationPermissions(
+  call: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+): AccessRouterPermissions {
+  assertAuthorizationBinding(call, binding);
+  const permission = new Permission({ ...callRecord(call).permissions });
+  // Freeze both the public view and its implementation-owned arrays/record.
+  for (const value of Object.values(permission)) if (value && typeof value === 'object') Object.freeze(value);
+  Object.freeze(permission);
+  return permission;
+}
+
+export function getAuthorizationProvenance(call: ResolvedServiceAuthorization): ResolvedServiceAuthorization {
+  return callRecord(call).provenance;
+}
