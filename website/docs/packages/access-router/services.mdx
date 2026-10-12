@@ -31,11 +31,13 @@ These methods are what the built-in HTTP routes call internally.
 
 Internal `find`/`findOne`/`findById`, `updateOne`/`updateById` and `upsert` accept
 `options.authorization` with independent `rows`, `outputFields` and `related`
-dimensions. `create` accepts output/related only; `new` accepts output only and
+dimensions. Model `create`, `updateOne`/`updateById` and both `upsert` branches also
+accept independent `inputFields` authority. `create` rejects rows; `new` accepts output only and
 continues to **ignore select**, including empty/exclusion selections. Standalone
-`exists`/`count`/`delete`/`distinct` and dedicated subdocument operations retain their
-request-policy APIs. Embedded output inside integrated parent/target results inherits
-that model's field paths; a new `subdocuments` policy or input-field elevation is unsupported.
+`exists`/`count`/`delete`/`distinct` retain request-policy APIs. Dedicated subdocument
+methods have their own parent/child/visibility policy below. Embedded output inside
+integrated parent/target results inherits that model's output field paths; there is
+no recursive `subdocuments` tree on model-root authorization.
 
 All authorization input is **trusted server-only**. Use `router.getService(req)` or
 `req.macl.getService(...)` after the owning runtime's middleware initializes the request.
@@ -83,6 +85,134 @@ fallback. A container grants its selected eligible subtree; a leaf grants only i
 branch/minimal ancestors, not siblings. Schema `select: false` is eligible, while
 identity/permission metadata and implementation fields retain separate rules.
 
+### Mutation-only input grants
+
+Use `MutationAuthorization<TModel, TVirtuals>` for updates/upserts and
+`CreateAuthorization<TModel, TVirtuals>` for creates. `ServiceAuthorization` remains
+read-only. `InputFieldAuthorization<TModel>` / `InputFieldPath<TModel>` are exported
+from root and `/advanced`; input paths never use the virtual generic.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { MutationAuthorization } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+type Order = { internalNote?: string; contacts: { email: string; ssn: string }[] };
+declare const req: ModelRequest;
+declare const orderId: string;
+const authorization = {
+  inputFields: { mode: 'grant', paths: ['internalNote', 'contacts.email'] },
+} as const satisfies MutationAuthorization<Order>;
+const result = await req.macl.getService<Order>('Order').updateById(orderId, {
+  internalNote: 'server decision', contacts: [{ email: 'corrected@example.test' }],
+}, { select: ['internalNote'] }, { authorization });
+// Persisted note; no response elevation. Contact 0 keeps its denied ssn sibling.
+```
+
+Missing/request input policy retains request admission; `grant` is additive and an
+empty grant adds nothing. `unrestricted` admits eligible persisted roots. Neither
+mode grants output, rows, query fields, route guards, related operations or `$$sq`.
+Runtime schema validation rejects unknown/virtual/identity/control paths, indices,
+brackets, `sub` markers and wildcards. Safe Mixed/Map paths work; referenced interiors
+do not. Business payload fields named authorization/overrides remain ordinary data.
+
+Leaf writes preserve denied/omitted siblings. Object/array **container** authority
+replaces the eligible subtree (including omitted children, null/empty values, array
+length and order). **Descendant array grants patch existing object elements by index**,
+not ID: trailing/omitted elements remain; excess/null/scalar/hole slots cannot alter
+structure. No absent array creation is allowed through descendants, including on
+create/upsert-create. Authorize the array/ancestor container, or rely on existing
+request container permission, for structural writes. These rules recurse into nested
+and Mixed arrays. Elevated embedded replacements omit supplied IDs; normal Mongoose
+ID generation applies unless request authority already permits IDs.
+
+Validation, preparation, transforms, afterPersist/change hooks and Mongoose save
+remain active. Whole-container/prepared values exclude virtuals and control metadata
+even in JS containers with permissive schemas. Pre-write update document grants see
+schema-hidden embedded input and remain private and separate from fresh
+post-write output grants; input `_permissions` never establishes authority. Metadata
+continues to describe the actor. Reads/new/output helpers/related read-count targets/
+public/default options reject `inputFields`, including reusable mutation policies.
+For migration, grant the specific input path and separately derive `{ outputFields }`
+for output helpers. See the installed README for the complete contract and executable
+Mongo persistence example.
+
+Mutation payloads obey `requestComplexity` through class/Map contents and sparse arrays,
+and cycles reject before parsing/input hooks. Admission and prepared sanitization also
+cap structural depth at 100 and nodes at 20,000. Untouched persisted virtual siblings
+outside the write boundary remain unchanged and excluded from ordinary output.
+
+### Dedicated parent/child authorization
+
+Internal `listSub`, `readSub`, `createSub`, `updateSub`, `bulkUpdateSub` and `deleteSub`
+accept a final options object with `authorization: { parent, child, visibility }`.
+The named field must be a top-level embedded Mongoose document array. Child fields
+and row predicates are relative to its element (`email`); parent rows belong to the
+owning model (`tenantId`). Literal names infer bounded child/virtual paths. The
+installed README has the complete method/applicability table and runnable Mongo example.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { SubdocumentMutationAuthorization } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+type Order = { tenantId: string; contacts: { email: string; ssn: string }[] };
+declare const req: ModelRequest;
+declare const orderId: string;
+declare const childId: string;
+const authorization = {
+  parent: { operation: { mode: 'grant' }, rows: { mode: 'scope', filter: { tenantId: 'server-tenant' } } },
+  child: { operation: { mode: 'grant' }, inputFields: { mode: 'grant', paths: ['email'] } },
+  visibility: {
+    parent: { operation: { mode: 'grant' }, rows: { mode: 'scope', filter: { tenantId: 'server-tenant' } } },
+    child: { operation: { mode: 'grant' }, outputFields: { mode: 'grant', paths: ['email'] } },
+  },
+} as const satisfies SubdocumentMutationAuthorization<Order, Order['contacts'][number]>;
+const result = await req.macl.getService<Order>('Order').updateSub(
+  orderId, 'contacts', childId, { email: 'corrected@example.test' }, { authorization },
+);
+```
+
+Supplying a policy (even `{}`) opts into independent **base-operation** gates:
+parent read for list/read, parent update for every mutation, and the corresponding
+`subs.<sub>.<operation>` child gate. Missing dimensions use request authority;
+operation grants authorize only their own gate. No-policy calls retain historical
+route-owned initiating admission. PublicService overrides reject these capabilities,
+including JS/transformed inputs, so basic/advanced route guards retain their contract.
+
+Parent accepts only operation/rows. Read/list child accepts operation/rows/outputFields;
+update/bulk child accepts operation/rows/inputFields. Create child has operation/inputFields
+and rejects rows. Delete accepts operation/rows only and returns the removed ID. Neither
+parent nor child accepts `related`: populated targets keep their own request authority.
+
+Mutation visibility is independent: `visibility.parent` authorizes parent read,
+`visibility.child` child read/rows/outputFields. Create additionally requires child
+list/rows via `visibility.list`; update/bulk reject that dimension. Missing visibility
+uses request-only read/list gates. A successful hidden write returns null/[] as below.
+Output grants cannot write; input grants cannot grant response visibility.
+
+Rows replace/skip only baseFilter. The configured overrideFilter still runs once;
+captured parent ID, owner scope and selected child IDs/array membership are ANDed
+afterward, including for in-place rewriting. False remains terminal. Scope predicates
+stay inert and schema-validated; policy arrays, paths and predicates obey existing
+request complexity bounds. Unsupported dimensions and invalid paths reject before writes.
+
+Child writes reuse model input semantics for nested containers/arrays: descendants
+patch existing objects by index, container authority replaces only that child's
+eligible subtree, and outer membership changes only through create/delete. Update
+document grants use the original hydrated raw parent; output resolves a fresh parent
+read-stage result. Virtual access is list/read/create/update, output fields are list
+for list and read otherwise, and document-grant access is read. Mongoose validation/
+save hooks remain active; dedicated calls do not invoke root mutation hook chains on
+a child. Virtual/control/identity input exclusion and original actor isolation remain.
+Dedicated Mixed/plain writes also retain their recursive virtual-name scrub; explicit
+input grants to those virtual aliases reject before effects.
+
+Root and `/advanced` export method-specific `Subdocument*Authorization` policies and
+internal `Subdocument*Options`. Public adapters should migrate to
+`PublicSubdocumentListOptions`, `PublicSubdocumentReadOptions`,
+`PublicSubdocumentCreateOptions` and empty `PublicSubdocumentMutationOptions`.
+
 ### Call policy and document-result reuse
 
 One immutable call policy governs fetch planning and output. Each document/scope/access
@@ -104,8 +234,39 @@ fresh evaluation; a recognized trimmed output keeps explicit/unconditional grant
 rerun its hook or recover lost document-dependent decisions. A fresh unassociated input needs
 the projected hook inputs. Helpers filter existing values, without selection, virtual getter
 execution, restoration, row checks or write authority. Named `genSelect`/`genQuerySelect` return
-fresh fetch projections with private inputs, not output grants. Positional `skipChecks`/
-`baseFields` overloads remain isolated legacy compatibility APIs.
+fresh fetch projections with private inputs, not output grants. Omitted/undefined helper
+options now use the same canonical request-mode output semantics as `{}`; hydrated picks
+are isolated, and serialized permissions never grant fields. `genAllowedFields` defaults
+to `{ purpose: 'output' }` and reports existing paths, not an input/schema allowlist.
+Supplied objects still require that purpose; nullish documents yield `[]` without hooks.
+`requireExplicitSelect` restricts omitted/undefined selection; explicit null/empty
+selection retains all-candidates compatibility, still subject to field authorization.
+
+**Next breaking release:** positional `skipChecks`/`subPaths` and arbitrary `baseFields`
+are removed now, with no adapter. JS booleans/arrays/extra arguments (including explicit
+`undefined` plus an extra argument) reject with actionable BadRequest errors; installed
+TypeScript calls reject too. Use named output grants/handles and `scopePath: ['contacts']`.
+Request/input, distinct/sort and request-user `_view`/`_edit` keep their separate evaluation.
+Model input keeps scope-aware virtual-name exclusion through Mixed/plain and prepared
+containers; explicit alias grants reject, while untouched persisted siblings remain intact.
+Obsolete `buildVirtualPlan`/`buildSubVirtualPlan` service builders are removed in favor of
+the named fetch helpers; retained execution plans and system retention remain private.
+
+`genPopulate(access?, populate?, options?)` takes request-only `PopulatePlanningOptions`
+with ordinary response `scopePath` segments. Source fields, target operation/rows and
+field checks remain request-only; private source fetch does not authorize population.
+Use service `populate` plus `authorization.related` when backend target authority is needed.
+
+`DataCore`/`DataService` field helpers instead accept **`DataFieldOptions`** (root and
+`/advanced`), with only readonly `scopePath` and `{}` defaults. They retain the request-only
+data evaluator, with no Mongoose catalogs, model document hooks or new DataService authority.
+Allowed-fields is still a schema allowlist (even with null input); pick/trim retain allowed
+existing values, with whole-container behavior and no automatic identity/metadata retention.
+Data selection is the intersection of normalized requested tokens and request fields.
+For compatibility, empty intersections—including omitted/null/empty, exclusion-only and
+denied-only selections—mean no extra projection after request trimming in find/findOne.
+Old data `skipChecks` never elevated fields; arbitrary `baseFields` elevation is removed
+and unsupported. See the shipped README's named-helper migration table and data example.
 
 ### Row and related target scope
 
@@ -341,7 +502,9 @@ sub read only, not list access. All use read fields plus `_id`; visible counts a
 stored array order are preserved. Bulk request order does not reorder the response;
 service `addFirst` still governs insertion order, without adding an HTTP option.
 
-These visibility checks use **base** parent/subdocument read/list policy. Disabling
+These visibility checks default to **base** parent/subdocument read/list policy.
+Trusted dedicated calls can explicitly configure `authorization.visibility`; no
+mutation authority flows into it. Public routes always use request authority. Disabling
 `basicRead`/`basicList` endpoints does not hide otherwise readable mutation output;
 allowing an advanced read route does not override a denied base response guard.
 

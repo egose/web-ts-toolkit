@@ -42,7 +42,8 @@ const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0
 
 Acquire an internal service from router.getService(req) or req.macl.getService after
 the owning runtime middleware initializes the request. There is no standalone Service
-export. Root and /advanced export type-only ServiceAuthorization, CreateAuthorization,
+export. Root and /advanced export type-only ServiceAuthorization, MutationAuthorization,
+CreateAuthorization, InputFieldAuthorization, InputFieldPath,
 OutputAuthorization, FieldAuthorization, RowAuthorization, OperationAuthorization,
 RelatedAuthorization, OutputFieldPath, OutputPlanningOptions, OutputFieldOptions,
 AllowedOutputFieldOptions, DocumentAuthorization, ServiceOutputContext,
@@ -95,10 +96,15 @@ if (result.success) {
   qualify; matching IDs/caller spreads/another call or stage do not. Raw policy is fresh
   evaluation; known trimmed outputs cannot rerun hooks/recover doc-dependent decisions.
   Helpers filter existing values, without selection/getters/restoration/row checks/writes.
+  Omitted/undefined options now use the same fresh request-mode OUTPUT semantics as {};
+  genAllowedFields defaults to { purpose: 'output' } and reports existing paths (null -> []).
+  Supplied genAllowedFields objects still require purpose. Hydrated inputs are isolated.
 - Named genSelect/genQuerySelect return fresh fetch projections with private dependencies,
   not output grants; permission functions/getters do not run while planning. Virtual grants
   permit selected applicable getters, never DB filters/sorts/distinct/writes. Missing
   dependencies, undefined and getter errors still omit output.
+  requireExplicitSelect restricts omitted/undefined select; explicit null/empty keeps
+  all-candidates selection compatibility, still subject to request rules/explicit policy.
 - Rows: request = transformed query AND baseFilter; scope replaces only base scope;
   unrestricted skips only base scope. Configured overrideFilter runs ONCE in EVERY mode,
   including unrestricted, and its restrictions/false denial still apply. Trusted scope
@@ -112,14 +118,107 @@ if (result.success) {
   operation: { mode: 'grant' }. Ref IDs/match/include joins still constrain target rows.
   Count policies accept only model/operation/rows. getDocumentAuthorization(child) supplies
   the target handle for that target model's helper; $$sq remains request-only.
-- Reads/update/upsert support rows/output/related; create supports output/related; new
-  supports output only and still IGNORES select. Write admission/validation/save hooks
+- Reads support rows/output/related; update/upsert also accept independent inputFields;
+  create supports input/output/related; new supports output only and still IGNORES select.
+  MutationAuthorization types update/upsert; ServiceAuthorization remains read-only.
+  InputFieldAuthorization<TModel>/InputFieldPath<TModel> use only persisted paths, no
+  virtual generic. Missing/request preserves request admission; grant adds named paths;
+  unrestricted admits eligible persisted roots. Input grants never authorize output,
+  rows, route gates, related targets or $$sq. Input/validation/save hooks
   remain; output grants do not authorize input/query fields, sorting/distinct, rows or
-  target operations implicitly. Standalone exists/count/delete/distinct and dedicated
-  subdocument methods retain request-policy APIs. Embedded output inherits owning field
-  paths; inputFields/subdocuments policies are unsupported. Positional skipChecks/baseFields
-  helpers remain isolated legacy compatibility. Trusted decorate/decorateAll/tasks run
+  target operations implicitly. Standalone exists/count/delete/distinct retain request-policy
+  APIs. Embedded output inherits owning field paths; dedicated methods use the separate
+  parent/child/visibility API below, not a model-root subdocuments tree. Positional
+  skipChecks/subPaths/baseFields are REMOVED in the next breaking release, no adapter.
+  Booleans/arrays/extra arguments (including undefined + extra) reject with BadRequest.
+  Trusted decorate/decorateAll/tasks run
   after finalization and may construct/remove output; no automatic second authorization pass.
+- Input leaf grants preserve omitted/denied siblings. Object/array container authority
+  replaces the eligible subtree, including null/empty values and array cardinality.
+  Array descendants (contacts.email) patch existing object elements by index, not ID:
+  no creation/append/reorder/delete/scalar-slot replacement. Short inputs preserve trailing
+  elements; excess/null/scalar/hole slots are ignored. Creating arrays, including on
+  create/upsert-create, requires container authority (request or explicit). These rules
+  recurse into nested and Mixed arrays. Virtuals, identity, configured permission/version
+  metadata, prototype and execution/prepared controls cannot be elevated; whole-container
+  and prepared values exclude virtuals/control metadata even in permissive schemas. Safe Mixed/Map business
+  values and payload fields named authorization/overrides keep their ordinary meaning.
+- Update resolves pre-write document grants privately from hydrated persisted input,
+  including positively fetched schema-hidden embedded fields;
+  create has no pre-document hook grant. Never trust input _permissions. Post-write output
+  resolves a separate stage. Hooks/Mongoose save remain active; metadata describes the
+  actor. Read/new/output-helper/related/public/default policies reject inputFields.
+  Migrate writes with explicit input grants; derive only outputFields for output helpers.
+  Scope-aware virtual-name aliases in Mixed/plain input and prepared containers remain
+  excluded (root receipt also excludes bag.receipt); explicit alias grants reject.
+  Descendant patches do not scrub unrelated existing siblings.
+  Mutation payloads obey requestComplexity through class/Map contents and sparse arrays;
+  cycles reject before input hooks. Admission/prepared sanitization additionally cap
+  structural depth at 100 and nodes at 20,000; grants do not bypass these bounds.
+
+Named helper migration:
+- Model genSelect/genQuerySelect(access, select?, OutputPlanningOptions?) default to {}.
+  pickAllowedFields/trimOutputFields(doc, access, OutputFieldOptions?) default to {}.
+  genAllowedFields(doc, access, AllowedOutputFieldOptions?) defaults to { purpose: 'output' }.
+  Core prepends modelName. No hidden legacy defaults or arbitrary baseFields authority.
+- Scope: { scopePath: ['contacts'] }, never ['contacts', 'sub']; model grants use owning
+  paths such as contacts.email. genPopulate(access?, populate?, PopulatePlanningOptions?)
+  accepts scope only and keeps request-only source/target gates. Private source fetch is
+  not population authority. Use service populate + related policies for target grants.
+  Obsolete buildVirtualPlan/buildSubVirtualPlan builders are removed; retained plans are private.
+- DataFieldOptions (root and /advanced) supports only readonly scopePath. DataCore has
+  genSelect/genAllowedFields/pickAllowedFields with dataName first; DataService adds
+  genQuerySelect/trimOutputFields aliases. All default to {} and stay request-only, with
+  no Mongoose catalog/model document hooks/automatic identity metadata/new data authority.
+  Functions receive request permissions only. Data allowed-fields is a schema allowlist;
+  picked containers remain whole values unless a scoped child helper is used.
+- Data genSelect intersects requested tokens with allowed fields. Empty intersections
+  (including omitted/null/empty/exclusion-only/denied-only selection) mean no extra
+  projection after request trimming in find/findOne: all request-authorized fields remain.
+  Old data skipChecks was ineffective; old baseFields elevation is removed/unsupported.
+  Model policies/handles and old positional forms reject. Input/distinct/user metadata
+  retain explicit private request evaluation, never model output authority.
+
+Dedicated subdocuments (trusted server-only):
+- Internal listSub/readSub/createSub/updateSub/bulkUpdateSub/deleteSub accept final
+  options.authorization = { parent, child, visibility }. Only top-level embedded
+  document arrays; child paths/rows are child-relative, parent rows are owning-model
+  paths. SubdocumentModel<Parent, 'contacts'> extracts a child. Runtime checks reject
+  invalid fields, reference interiors, unsafe/deep paths and inapplicable dimensions
+  before writes. Policies/scopes/arrays use snapshot and requestComplexity limits.
+- Supplying a policy, including {}, opts into independent parent and child BASE
+  operation gates. Parent is read for list/read and update for mutations; child is
+  subs.<sub>.<operation>. Omitted dimensions use request. No-policy calls preserve
+  historical route-owned initiating guards. A grant authorizes exactly its gate.
+- Parent: operation/rows only. Child list/read: operation/rows/outputFields. Child
+  update/bulk: operation/rows/inputFields. Child create: operation/inputFields (no rows).
+  Delete: operation/rows only, removed ID result. No dedicated related policy: populate
+  targets stay request-only. Parent/child grants cannot elevate each other or a target.
+- visibility.parent is parent READ operation/rows; visibility.child is child READ
+  operation/rows/outputFields. Create also requires child LIST operation/rows through
+  visibility.list; update/bulk reject list. No mutation authority is inherited. Hidden
+  successful writes return null (single) or []/count:0 (bulk/create), never a retryable
+  visibility error. Create returns the visible full array; bulk returns visible selected
+  rows in stored order. Delete has no visibility. Counts are visible counts.
+- Scoped rows cannot erase owning-parent ID, owner constraints or selected child IDs/
+  array membership, even through in-place overrideFilter rewriting. Transformation still
+  executes once in every row mode; false is terminal; scope operands never expand markers.
+- Child input uses InputFieldAuthorization semantics: nested array descendants patch
+  existing objects by index; explicit containers replace only the eligible child subtree.
+  Outer membership changes only via create/delete. Virtual/control/identity elevation is
+  excluded. Update pre-write grants use original hydrated RAW parent; output resolves fresh
+  read-stage parent grants, no serialized metadata. Virtual access list/read/create/update;
+  output access list for lists, read otherwise; document-grant access read. Save/validation
+  remain active; model-root prepare/transform/afterPersist are not child hooks.
+  Dedicated Mixed/plain writes retain recursive virtual-name scrubbing; explicit
+  input grants matching those aliases reject before effects.
+- Root and /advanced export SubdocumentReadAuthorization, SubdocumentMutationAuthorization,
+  SubdocumentCreateAuthorization, SubdocumentDeleteAuthorization, SubdocumentVisibilityAuthorization
+  and SubdocumentCreateVisibilityAuthorization (<Parent, Child, ChildVirtuals>; delete omits V).
+  Subdocument*Options are internal; public adapters use PublicSubdocumentListOptions,
+  PublicSubdocumentReadOptions, PublicSubdocumentCreateOptions and empty
+  PublicSubdocumentMutationOptions. Public/root/nested/JS/custom-validator controls reject;
+  defaults and request actors never carry authority. See README for typed usage/migration.
 
 Breaking removal: all service overrides controls (select/filter/populate/idFilter/
 effectiveSelect/operation) are removed together. Even empty/null/undefined or mixed

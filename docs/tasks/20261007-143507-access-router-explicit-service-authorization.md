@@ -4,7 +4,7 @@ Created: 2026-10-07 14:35:07 PDT (`20261007-143507`, generated with `date`).
 
 Revised: 2026-10-07 15:01:39 PDT. Review revision: fixed the breaking-release removal target, moved public-input enforcement ahead of runtime authorization, narrowed this release to override replacement, and separated call policy from document permission results.
 
-Status: completed — all 13 original required tasks (SVA-00 through SVA-11 including SVA-01A) and all seven required independent-review follow-ups (SVA-11-F01 through SVA-11-F07) have passing completion evidence. The complete feature/task record was independently reviewed on 2026-10-11. SVA-F01 through SVA-F03 remain deferred by explicit maintainer choice; release version/date remain release administration.
+Status: completed, including all activated authorization follow-ups — all 13 original required tasks (SVA-00 through SVA-11 including SVA-01A) and all seven original independent-review fixes (SVA-11-F01 through SVA-11-F07) have passing completion evidence. The original feature/task record was independently reviewed on 2026-10-11. The maintainer activated SVA-F01 through SVA-F03 on 2026-10-12; each was implemented and verified in its separate session. Fresh independent SVA-F04 review, its four corrective follow-ups and full serial workspace/artifact integration are completed. Exact contracts, findings and final evidence are in `docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`. Release version/date remain release administration. Earlier deferral and handoff statements below describe historical scope/states.
 
 Reviewed baseline: `0629a53`; motivating behavior introduced by `9ba3712` (`feat: harden access router virtuals and route access planning`). Worktree was clean before this task file was added.
 
@@ -2176,13 +2176,40 @@ Completion evidence:
 - Requested opt-out paths are captured privately as passthrough descriptors. They cannot receive a caller related policy; only that captured path permits the existing raw projected target copy. Public prepared read/upsert entrypoints capture effective related descriptors too. Raw-policy helpers have no such descriptor authority; registered targets retain their normal authenticated finalization.
 - **Two red internal/public actual-output cases** now pass, plus a new both-upsert-branches case preserving request-only writes. Default scalar-ID behavior, projected private-field omission, forged raw-helper input and before-persistence rejection of unregistered related policy all pass. README clarifies the compatibility boundary. Final SVA-11 gates passed.
 
-## Deferred follow-up tasks
+## Previously deferred follow-up tasks
 
-These tasks record work deliberately removed from the first-release scope after review. They require a separate implementation request/plan activation and are not release prerequisites.
+These tasks record work deliberately removed from the original first-release scope after review. The maintainer supplied the separate implementation request on 2026-10-12. All three features and their independent final integration are now completed in `docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`, including subdocument write elevation and next-breaking-release helper removal. The original deferral rationales and earlier handoff states below are retained as history; the new execution record defines the delivered contracts, ownership, verification, and independent review.
+
+Final follow-up integration (2026-10-12): SVA-F04 independently audited runtime/types/
+docs/tests and corrected composite input bounds, untouched stored-virtual sibling
+deletion, a shifted private-boundary test call, and two lint-only formatting issues.
+All four findings are completed. Full workspace build/test/lint, final package typecheck,
+dry-run packaging and sentinel artifact verification pass: **11,349 passing workspace
+test executions**, including **101 access-router files / 2,183 tests** and all **8
+packed/artifact cases** (including the three previously reserved artifact-tree cases).
+CHANGELOG retains blob `c0561a1048c2341b14dd7f9d3e7c1fc055ae1880`. See **F04 final
+integration and completion evidence** in the linked execution record for exact commands,
+test accounting, the two unrelated historical TODO/conditional entries and final status.
+
+Coordinator follow-up review (2026-10-12 16:12:46 PDT): all three implementations,
+four independent-review fixes, task statuses, installed-consumer evidence and final
+workspace checks are complete. The final diff/CHANGELOG/release-metadata checks pass;
+see **Coordinator final review** in the linked execution record.
 
 ### Task SVA-F01: Design explicit write-field elevation as an independent capability
 
-Status: deferred
+Status: completed
+
+Activation: 2026-10-12; implementation task SVA-F01 in `docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`.
+
+Completion evidence: see **F01 completion evidence — 2026-10-12** and **F01 handoff
+to F02 and F03** in that execution record. Delivered mutation-only
+`authorization.inputFields` request/grant/unrestricted, persisted path types/runtime
+admission, separate pre-write grants, safe nested/array/JS-container semantics,
+public-boundary coverage and installed documentation/types. Dependency build,
+package typecheck and **18 files / 569 focused tests** passed. The interrupted work
+was preserved and its remaining findings fixed in the resumed dedicated session.
+CHANGELOG retains blob `c0561a1048c2341b14dd7f9d3e7c1fc055ae1880`.
 
 Priority: P2
 
@@ -2213,7 +2240,26 @@ Deferral rationale: trusted backend output/row access is fully replaceable witho
 
 ### Task SVA-F02: Design dedicated subdocument parent/child authorization APIs
 
-Status: deferred
+Status: completed
+
+Execution: fresh dedicated F02 implementation session; contract and evidence are
+recorded under SVA-F02 in the activated execution record. F01 is complete;
+write elevation and independent post-write visibility are required.
+
+Completion evidence: see **F02 completion evidence — 2026-10-12** and **F02 handoff
+to F03 — caller inventory and private replacements** in
+`docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`. Delivered
+method-specific internal `{ parent, child, visibility }` policy on dedicated
+list/read/create/update/bulk-update/delete, scoped child input/output, independently
+gated post-write read/create-list visibility, captured raw-parent grants, immutable
+identifier/selection constraints, public option splitting/dispatch enforcement and
+installed docs/types. Build, package typecheck, targeted lint and **23 files / 749
+unique tests** passed, including **59 new Mongo policy tests** with stored-state
+assertions. All discovered F02 regressions are fixed. F01 is preserved; F03/F04
+remain pending in the execution record. CHANGELOG retains blob
+`c0561a1048c2341b14dd7f9d3e7c1fc055ae1880`.
+
+Activation: 2026-10-12; implementation task SVA-F02 in `docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`. Write elevation is included, so SVA-F01 is a prerequisite.
 
 Priority: P2
 
@@ -2244,7 +2290,35 @@ Deferral rationale: ordinary embedded output grants ship now, while dedicated su
 
 ### Task SVA-F03: Retire legacy positional helper overloads after consumer characterization
 
-Status: deferred
+Status: completed
+
+Execution: fresh dedicated F03 implementation session, no subdelegation. F01 and
+F02 are complete. Current caller inventory, exact removal/default/data contract,
+and verification evidence are maintained under SVA-F03 in
+`docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`.
+The activated phase supersedes the historical retained-helper scope below.
+
+Completion evidence: see **F03 completion evidence — 2026-10-12**, its exact
+verification ledger and **F03 independent-review handoff** in
+`docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`. Removed all
+positional skipChecks/subPaths/arbitrary baseFields helper overloads across model
+Core/Base and DataCore/DataService, including alias/wrapper count enforcement and
+undefined-plus-extra TS/JS rejection. Model defaults now use canonical named output;
+data/populate have typed named request-only scopes. Request input, metadata and
+distinct use private collectors; target/source gates and F01/F02 behavior remain.
+Shipped docs, emitted root/advanced declarations and actual installed CJS/ESM,
+Node16/NodeNext/Bundler consumers agree. Broad verification additionally restored
+Mixed virtual-name input alias exclusion with stored-state regressions and migrated
+an obsolete F02 public-boundary fixture without weakening its assertions.
+
+Dependency build, package typecheck, targeted lint and **102 files / 2,192 unique
+tests** passed: **100 access-router files / 2,162 tests**, **5 actual packed-tarball
+compatibility cases**, and **25 decorator consumer tests**. Three artifact-only cases
+and full workspace gates remain with pending F04's fresh independent reviewer.
+No F03 blocker, adapter, new entrypoint or transport capability remains. CHANGELOG
+retains blob `c0561a1048c2341b14dd7f9d3e7c1fc055ae1880`.
+
+Activation: 2026-10-12; implementation task SVA-F03 in `docs/tasks/20261012-090227-access-router-authorization-follow-ups.md`. Removal and migration are targeted together at the next breaking release.
 
 Priority: P2
 
