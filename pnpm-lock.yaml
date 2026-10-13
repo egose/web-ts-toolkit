@@ -716,7 +716,7 @@ importers:
         version: link:../express-oidc-vault
       mongodb:
         specifier: ^6.20.0
-        version: 6.21.0(socks@2.8.9)
+        version: 6.21.0(socks@2.8.10)
     devDependencies:
       '@types/node':
         specifier: ^25.9.5
@@ -754,7 +754,7 @@ importers:
         version: 5.2.1(supports-color@10.2.2)
       mongodb:
         specifier: ^6.20.0
-        version: 6.21.0(socks@2.8.9)
+        version: 6.21.0(socks@2.8.10)
       mongodb-memory-server:
         specifier: ^11.2.0
         version: 11.2.0(socks@2.8.10)(supports-color@10.2.2)
@@ -782,7 +782,7 @@ importers:
     devDependencies:
       '@fast-csv/parse':
         specifier: ^5.0.7
-        version: 5.0.7
+        version: 5.0.8
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -2403,8 +2403,8 @@ packages:
   '@fast-csv/format@5.0.7':
     resolution: {integrity: sha512-VdypoRxv7PF+LsyPouTMKdB0d76hync+gLpgdNqfqVK44MsgW4oiCJSdrki2FisWT7v2QGUYDHjp4L7w5oO6gw==}
 
-  '@fast-csv/parse@5.0.7':
-    resolution: {integrity: sha512-MeuDeQj0DVmIGWky8STaKtvj232Gpq8kjrOGplHJ99Os7OO5CetVfXvUGqX/3GHYFOUsz6FK8isWtDY2XTFNWw==}
+  '@fast-csv/parse@5.0.8':
+    resolution: {integrity: sha512-i2R1TWa2tgRn9YEsNplzdCv0z8J1O85nUIqPdAQtQOheZ+Pw/3AhekI27Yp095r7qSJK0l8KwphK8WzB3aCtog==}
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -7756,9 +7756,6 @@ packages:
   lodash.escaperegexp@4.1.2:
     resolution: {integrity: sha512-TM9YBvyC84ZxE3rgfefxUWiQKLilstD6k7PTGt6wfbtXF8ixIJLOL3VYyV/z+ZiPLsVxAsKAFVwWlWeb2Y8Yyw==}
 
-  lodash.groupby@4.6.0:
-    resolution: {integrity: sha512-5dcWxm23+VAoz+awKmBaiBvzox8+RqMgFhi7UvX9DHZr2HdxHXM/Wrf8cfKpsW37RNrvtPn6hSwNqurSILbmJw==}
-
   lodash.isplainobject@4.0.6:
     resolution: {integrity: sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==}
 
@@ -7767,9 +7764,6 @@ packages:
 
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
-
-  lodash.uniq@4.5.0:
-    resolution: {integrity: sha512-xfBaXQd9ryd9dlSDvnvI0lvxfLJlYAZzXomUYzLKtUeOQvOP5piqAWuGtrhWeqaXK9hhoM/iyJc5AV+XfsX3HQ==}
 
   lodash.uniqby@4.7.0:
     resolution: {integrity: sha512-e/zcLx6CSbmaEgFHCA7BnoQKyCtKMxnuWrJygbwPs/AIn+IMKl66L8/s+wBUn5LRw2pZx3bUHibiV1b6aTWIww==}
@@ -12138,11 +12132,7 @@ snapshots:
     dependencies:
       lodash.escaperegexp: 4.1.2
 
-  '@fast-csv/parse@5.0.7':
-    dependencies:
-      lodash.escaperegexp: 4.1.2
-      lodash.groupby: 4.6.0
-      lodash.uniq: 4.5.0
+  '@fast-csv/parse@5.0.8': {}
 
   '@floating-ui/core@1.8.0':
     dependencies:
@@ -17689,15 +17679,11 @@ snapshots:
 
   lodash.escaperegexp@4.1.2: {}
 
-  lodash.groupby@4.6.0: {}
-
   lodash.isplainobject@4.0.6: {}
 
   lodash.isstring@4.0.1: {}
 
   lodash.merge@4.6.2: {}
-
-  lodash.uniq@4.5.0: {}
 
   lodash.uniqby@4.7.0: {}
 
@@ -18017,13 +18003,13 @@ snapshots:
       - socks
       - supports-color
 
-  mongodb@6.21.0(socks@2.8.9):
+  mongodb@6.21.0(socks@2.8.10):
     dependencies:
       '@mongodb-js/saslprep': 1.4.13
       bson: 6.10.4
       mongodb-connection-string-url: 3.0.2
     optionalDependencies:
-      socks: 2.8.9
+      socks: 2.8.10
 
   mongodb@7.5.0(socks@2.8.10):
     dependencies:
