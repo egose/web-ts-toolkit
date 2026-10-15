@@ -541,6 +541,24 @@ function _createMdxContent(props) {
       }), " handles batch payloads that dispatch to model or data operations."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Use it when you want a single request to run multiple operations in order."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Construct it with the single-options overload\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "api.createRouter({ basePath: '/batch', operationAccess: true })"
+      }), " and mount ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".routes"
+      }), ".\nIts runtime must also own the target registrations. Limits default to\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxBatchEntries: 100"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxOrderGroups: 25"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxConcurrentOperations: 10"
+      }), ".\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxOrderGroups"
+      }), " bounds ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "both"
+      }), " distinct group count and each numeric order:\nat the default, orders are integers in 0..25 inclusive (omission is 0), but at most\n25 different values can occur. A lone order 26 or all 26 values 0..25 reject before\nentry dispatch. Invalid/non-positive/unsafe constructor limits use the defaults."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Groups execute in ascending order; operations within each group share the whole-\noperation concurrency ceiling. Results retain input order. Hook-chain and persistence\npools are separate request/runtime budgets. Batches are non-transactional; unexpected\nrejection can leave already-committed writes."
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Each batch item uses:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -602,6 +620,17 @@ function _createMdxContent(props) {
         }), " for behavior switches such as permissions and counts"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Direct routes and root entries are request-only. Trusted service ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "authorization"
+      }), ", opaque\ndocument handles, private prepared/execution controls and the removed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "overrides"
+      }), " container\nare rejected in control slots, including nested include/populate/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$sq"
+      }), " options and\nvalidator-transformed envelopes. They are not client request features. Business data fields\nwith those names remain valid under ordinary permissions. Use ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./services#trusted-per-call-authorization",
+        children: "internal services"
+      }), "\nfrom server code for per-call authority; generated route guards still apply independently."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Root entries retain existing base operation names and target base entry checks;\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "basicList"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
@@ -635,7 +664,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "result"
-      }), " keeps the underlying service response instead of flattening it into a second batch-only format."]
+      }), " keeps the public service response instead of flattening it into a second batch-only\nformat. Internal context(s), prepared state, document handles and query diagnostics are omitted."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "openapi-router",
       children: "OpenAPI Router"

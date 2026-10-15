@@ -134,6 +134,14 @@ function _createMdxContent(props) {
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Requires Node.js >=22, Express >=5 and Mongoose >=8. TypeScript applications also\nneed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "typescript"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@types/node"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@types/express"
+      }), ". The installed package README\ncontains a self-contained quick start, configuration map and migration guide."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -143,11 +151,9 @@ function _createMdxContent(props) {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["default export ", (0,jsx_runtime.jsx)(_components.code, {
           children: "acl"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["named export ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " — canonical shared-runtime API; named ", (0,jsx_runtime.jsx)(_components.code, {
           children: "acl"
-        })]
+        }), " is identical"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "createAccessRuntime()"
@@ -169,7 +175,7 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "permissionsPlugin"
-        }), " for schema-based permission access"]
+        }), " — optional hydrated-document metadata alias, not field enforcement"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "RootRouter"
@@ -178,8 +184,10 @@ function _createMdxContent(props) {
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "DataRouter"
         })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "option getters and setters for global, model, and data options"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["global/model option helpers; data option helpers are on the owning ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "api.runtime"
+        })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Low-level entrypoints:"
@@ -205,8 +213,23 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl from '@web-ts-toolkit/access-router';\n\nacl.setGlobalOptions({\n  globalPermissions(req) {\n    return req.headers.user === 'admin' ? ['isAdmin'] : [];\n  },\n});\n\nconst fruitRouter = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idField: 'id',\n  operationAccess: { list: true, read: true },\n  permissionSchema: {\n    id: true,\n    name: 'isAdmin',\n    public: true,\n  },\n});\n\nconst userRouter = acl.createRouter('User', {\n  basePath: '/users',\n});\n"
+        children: "import express from 'express';\nimport acl from '@web-ts-toolkit/access-router';\n\n// Public reference data: explicit route and field permissions, no database connection.\nconst fruitRouter = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idParam: 'id',\n  idField: 'id',\n  operationAccess: { list: true, read: true },\n  permissionSchema: {\n    id: true,\n    name: true,\n    public: true,\n  },\n});\n\nconst app = express();\napp.use(express.json());\napp.use(fruitRouter.routes);\napp.listen(3000);\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "GET /fruit"
+      }), " returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ data, meta }"
+      }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GET /fruit/apple"
+      }), " returns the readable fruit.\nFor model routes, pass a Mongoose model to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createRouter(model, options)"
+      }), " and connect\nMongoDB before listening. For actor-specific grants, configure ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "globalPermissions"
+      }), "\nfrom an authenticated server-side actor as shown in ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./configuration#global-options",
+        children: "Configuration"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
       children: "When To Use It"

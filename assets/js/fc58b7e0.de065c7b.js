@@ -110,6 +110,7 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -204,17 +205,25 @@ function _createMdxContent(props) {
         children: "exists"
       }), " returns Forbidden,\nnot a successful miss, and public read ", (0,jsx_runtime.jsx)(_components.code, {
         children: "tryList"
-      }), " cannot revive that denial."]
+      }), " cannot revive that denial.\nIntegrated internal service row policies use this request scope by default. A trusted\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "scope"
+      }), " replaces it; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unrestricted"
+      }), " skips it. Neither changes write-field permissions."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "overridefilter",
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "overrideFilter"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Rewrite the caller-provided filter before the base filter is applied.\nAn existing false filter skips this hook; returning false also denies the query.\nSee ", (0,jsx_runtime.jsx)(_components.a, {
+      children: ["Rewrite the ordinary filter once before the chosen row scope is applied. This configured\nhook/setter remains supported after service ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "overrides"
+      }), " removal and runs in request, scope\nand unrestricted row modes. Its user-dependent restrictions/false denial remain effective;\nmandatory relationship constraints and trusted scope are ANDed afterward. An early false\nquery/identifier/scope skips work as applicable; a later hook denial cannot undo subqueries\nalready needed to parse a read/list filter. Move replaceable user row restrictions into\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "baseFilter"
+      }), " when migrating old object overrides.filter; there is no transform-bypass option.\nSee ", (0,jsx_runtime.jsx)(_components.a, {
         href: "./services#denial-versus-a-missing-row",
         children: "service denial contracts"
-      }), " for internal\noverrides, existence results and HTTP status mapping."]
+      }), " for migration,\nexistence results and HTTP status mapping."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "validate",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -272,8 +281,17 @@ function _createMdxContent(props) {
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "docPermissions"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Return the document-level permission object stored on the configured permission field."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Return full request-user document grants from the untrimmed ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "projected"
+      }), " input. Declare\nadditional persisted inputs with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "alwaysSelectFields"
+      }), " (for example ownerId); the hook does\nnot implicitly fetch all stored fields. Integrated output resolves it once per document/\nscope/access stage independently of skim and permission metadata switches. Pre-write and\npost-write output are distinct stages."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Serialization on the configured permission field is separate: disabling/stripping/limiting\nmetadata does not erase internal grants. Backend output grants do not forge request-user\nmetadata. Later named output helpers reuse original decisions via the opaque result-context\nhandle, even after ownerId and metadata trim; a fresh raw policy is new evaluation, not\ndocument-state reuse. See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./services#call-policy-and-document-result-reuse",
+        children: "Services"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
       id: "decorate--decorateall",
       children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -282,7 +300,7 @@ function _createMdxContent(props) {
         children: "decorateAll"
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use these to shape the response payload before it is returned."
+      children: "Use these trusted application stages (and tasks) after authorization/finalization. They\ncan intentionally remove/construct output; no automatic second authorization pass is promised.\nArbitrary replacements/mutations do not acquire valid same-stage document handles."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "request-augmentation",
       children: "Request Augmentation"
@@ -323,7 +341,15 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "permissionsPlugin"
-      }), " adds a virtual permission field to a schema and reads the configured document permission field from the active router options."]
+      }), " adds only a hydrated Mongoose getter alias (default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissions"
+      }), ")\nfor existing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_doc[documentPermissionField]"
+      }), " metadata, usually ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_permissions"
+      }), ".\nIt uses active-runtime options, falling back to the default runtime outside managed\nexecution. It does not compute grants, authenticate an actor or enable field\nenforcement; routers/services enforce their policies without the plugin, including\nlean results. The alias is separate from package-level computed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "virtuals"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",

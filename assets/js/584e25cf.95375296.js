@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-md-584.json
-const site_docs_packages_express_oidc_vault_md_584_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault","title":"@web-ts-toolkit/express-oidc-vault","description":"OIDC session middleware for Express with body or cookie session transport and server-side storage of upstream refresh tokens and logout-capable id_tokens.","source":"@site/docs/packages/express-oidc-vault.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault","permalink":"/docs/packages/express-oidc-vault","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":6,"frontMatter":{"sidebar_label":"Express OIDC Vault","sidebar_position":6},"sidebar":"packagesSidebar","previous":{"title":"Express JSON Router","permalink":"/docs/packages/express-json-router"},"next":{"title":"OIDC Vault Memory Store","permalink":"/docs/packages/express-oidc-vault-memory-store"}}');
+const site_docs_packages_express_oidc_vault_md_584_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault","title":"@web-ts-toolkit/express-oidc-vault","description":"OIDC session middleware for Express with body or cookie session transport and server-side storage of upstream refresh tokens and logout-capable id_tokens.","source":"@site/docs/packages/express-oidc-vault.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault","permalink":"/docs/packages/express-oidc-vault","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":6,"frontMatter":{"sidebar_label":"Express OIDC Vault","sidebar_position":6},"sidebar":"packagesSidebar","previous":{"title":"Express JSON Router","permalink":"/docs/packages/express-json-router"},"next":{"title":"OIDC Vault DPoP Client","permalink":"/docs/packages/oidc-vault-dpop-client"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.3.0/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(4686);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.3.0_react@19.3.0/node_modules/@mdx-js/react/lib/index.js
@@ -60,6 +60,10 @@ const toc = [{
   "value": "What It Exposes",
   "id": "what-it-exposes",
   "level": 2
+}, {
+  "value": "Browser wire types",
+  "id": "browser-wire-types",
+  "level": 3
 }, {
   "value": "Frontend Storage Policy",
   "id": "frontend-storage-policy",
@@ -456,7 +460,9 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Use ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "named imports from the package root"
-      }), ". There is no default export or public subpath API."]
+      }), " for backend APIs; there is no default export. Browser DTO consumers can use the pure ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/wire"
+      }), " type entry."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -521,6 +527,40 @@ function _createMdxContent(props) {
           children: "OidcVaultDpopReplayCapacityError"
         })]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "browser-wire-types",
+      children: "Browser wire types"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "import type"
+      }), " from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-oidc-vault/wire"
+      }), " for\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLoginInitiationInput"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLoginInitiationResult"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultExchangeResult"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLogoutResult"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultSessionTransport"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultTokenIssueResult"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultUserProfile"
+      }), ". These seven DTOs stay\nsingle-sourced and root-importable by backends. The pure entry has no Express\naugmentation or Node types; strict DOM-only Bundler/NodeNext consumers work.\nIt has both ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wire.d.mts"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wire.d.ts"
+      }), " declaration conditions and empty\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wire.mjs"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wire.js"
+      }), " runtime entries. The\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "/docs/packages/oidc-vault-dpop-client",
+        children: "browser client"
+      }), " bundles its needed DTO declarations,\nso its consumers need no backend package or Node/Express ambient types."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "frontend-storage-policy",
       children: "Frontend Storage Policy"
@@ -1614,26 +1654,69 @@ function _createMdxContent(props) {
       id: "persistent-key-dpop-spa-example",
       children: "Persistent-key DPoP SPA example"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The shipped README contains a ", (0,jsx_runtime.jsx)(_components.a, {
-        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#standalone-body-transport-dpop-client",
-        children: "standalone body-transport client"
-      }), ", including key persistence, proof signing, POST login/exchange/API/refresh/logout and nonce retry, with no repo-only imports. For cookie coordination and a fuller scoped fetch helper, install the published browser client ", (0,jsx_runtime.jsx)(_components.a, {
-        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md",
-        children: "@web-ts-toolkit/oidc-vault-dpop-client"
-      }), " in your frontend. Its four intended APIs are getOrCreateDpopKey, createDpopProof, createOidcVaultDpopSession and fetchWithDpop; they are not Express package exports."]
+      children: ["Install the ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "/docs/packages/oidc-vault-dpop-client",
+        children: "published browser client"
+      }), " in your\nfrontend for body or cookie sessions. It includes persistent keys, POST\nlogin/exchange/refresh/logout, bounded HTTP/nonce handling and scoped API fetch.\nUse named root exports: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createOidcVaultDpopSession"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "fetchWithDpop"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getOrCreateDpopKey"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createDpopProof"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DpopNonceCache"
+      }), " and the recognition/error\nAPIs. The backend's shipped ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#browser-dpop-client",
+        children: "quickstart"
+      }), "\npairs with its complete server; this configuration pairs with the runnable app:"]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createOidcVaultDpopSession, fetchWithDpop } from '@web-ts-toolkit/oidc-vault-dpop-client';\n\nconst backendOrigin = 'http://127.0.0.1:4318';\nconst session = createOidcVaultDpopSession({ backendOrigin, basePath: '/auth/oidc/body', sessionTransport: 'body' }); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.\n\nexport const signIn = (): Promise<void> => session.login('/callback?transport=body');\n\nexport async function bootstrapBoundAuth(): Promise<void> {\n  const url = new URL(location.href);\n  const code = url.searchParams.get('code');\n  if (code) {\n    url.searchParams.delete('code');\n    history.replaceState(null, '', url.href);\n    await session.exchange(code);\n  } else {\n    await session.refresh(); // Persisted key; no access-token Authorization/ath.\n  }\n}\n\nexport async function getBoundProfile(): Promise<unknown> {\n  const response = await fetchWithDpop(\n    { session, apis: [{ origin: backendOrigin, replayNamespace: 'oidc-vault-dpop-example-api' }] },\n    `${backendOrigin}/api/profile`,\n  );\n  if (!response.ok) throw new Error('Protected API request failed.');\n  return response.json();\n}\nexport const signOut = (): Promise<void> => session.logout();\n"
+        children: "import {\n  createOidcVaultDpopSession,\n  fetchWithDpop,\n  OidcVaultDpopClientError,\n} from '@web-ts-toolkit/oidc-vault-dpop-client';\n\nconst backendOrigin = 'http://127.0.0.1:4318';\nconst session = createOidcVaultDpopSession({\n  backendOrigin,\n  basePath: '/auth/oidc/body',\n  sessionTransport: 'body',\n  requestTimeoutMs: 15_000,\n  maxResponseBytes: 1_048_576,\n}); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.\n\nexport const signIn = (): Promise<void> => session.login('/callback?transport=body');\n\nexport async function bootstrapBoundAuth(): Promise<'ready' | 'sign-in'> {\n  try {\n    const url = new URL(location.href);\n    const code = url.searchParams.get('code');\n    if (code !== null) {\n      url.searchParams.delete('code');\n      history.replaceState(null, '', url.href);\n      await session.exchange(code);\n    } else {\n      await session.refresh(); // Persisted key; no access-token Authorization/ath.\n    }\n    return 'ready';\n  } catch (error) {\n    if (error instanceof OidcVaultDpopClientError && error.requiresLogin) return 'sign-in';\n    throw error;\n  }\n}\n\nexport async function getBoundProfile(signal?: AbortSignal): Promise<unknown> {\n  const response = await fetchWithDpop(\n    { session, apis: [{ origin: backendOrigin, pathPrefix: '/api', replayNamespace: 'oidc-vault-dpop-example-api' }] },\n    `${backendOrigin}/api/profile`,\n    { signal },\n  );\n  if (!response.ok) throw new Error('Protected API request failed.');\n  return response.json();\n}\nexport const signOut = (): Promise<void> => session.logout();\n\nexport async function recoverBrowserKey(): Promise<void> {\n  await session.resetKey(); // Explicit recovery action for an unusable persisted key.\n  await signIn();\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Repository commands: pnpm --filter oidc-vault-dpop-example dev", ":server", " and, in another terminal, pnpm --filter oidc-vault-dpop-example dev; open ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "127.0.0.1:4317/?transport=body"
       }), " or cookie. The local fixture IdP is 4319; backend 4318, two public mounts /auth/oidc/body and /auth/oidc/cookie. Your own core default mount is /auth/oidc. Match frontend/server mounts/origins and API replayNamespace exactly."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Login creates a non-extractable ES256/P-256 private CryptoKey plus public JWK in IndexedDB before navigation, scoped by frontend/backend/basePath; atomic first-key creation has one winner. Key loss/change requires fresh login, not rebinding/Bearer fallback. Tokens stay memory-only; body handles/pending key markers use sessionStorage, cookie handles remain backend HttpOnly (not JWT sid). All flows need secure context, Web Crypto and IndexedDB CryptoKey clone; cookie mode additionally requires Web Locks/BroadcastChannel. Cookie refresh has per-context single-flight plus same-origin lock/winner-token coordination, including current recognition. Body handles remain tab-local."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Each request/retry signs fresh JTI/iat/signature; API-only ath. Fetch is exact-origin scoped with auth-bearing redirects rejected, one nonce retry total and at most one refresh/retry for DPoP invalid_token. Proof errors/403/503/network failures do not trigger generic refresh loops. Mutations are single-attempt unless explicit authorized server-idempotent/replayable-body retry is selected. CORS must allow explicit frontend origin/credentials and Content-Type/Authorization/DPoP/configured fingerprint; expose DPoP-Nonce/WWW-Authenticate. These settings do not replace vault Origin checks. Same-site loopback browser checks passed on Chromium 151/Firefox 153; WebKit/Safari was not certified due to unavailable Linux libraries, and arbitrary cross-site HTTPS/third-party-cookie/external-IdP behavior is deployment-specific. Browser locks are not a backend refresh lease."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Login creates a non-extractable P-256 key in IndexedDB before navigation, scoped\nby frontend/backend/basePath, with atomic first-key-wins. Key loss/change needs\nfresh login; an existing corrupt key needs explicit reset-then-login. Tokens\nremain memory-only; handles/pending login are tab-local sessionStorage or backend\nHttpOnly cookies. Both transports use FIFO mutations and refresh coalescing until\nan intervening mutation. Cookie mode adds Web Locks/BroadcastChannel and a 180 ms\npeer wait. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clear"
+      }), " invalidates local auth/owned HTTP but keeps the key; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dispose"
+      }), "\ncloses a context while keeping committed reload state; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "resetKey"
+      }), " removes only\nthe scoped key/metadata. Await clear/reset before teardown if persistence must\nfinish. Only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "logout"
+      }), " requests server revocation. Reset cannot revoke old\nsessions/JWTs or remove HttpOnly cookies; other sessions sharing the key need login."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Each attempt signs a fresh proof/JTI, with API-only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ath"
+      }), ". API scopes use the\nlongest normalized segment ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pathPrefix"
+      }), "; omission or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/"
+      }), " is origin-wide.\nUnreserved path escapes/dots normalize in both outbound URL and proof, reserved\nseparators stay encoded, and query data is preserved. Independent gateway\nservices need distinct replay namespaces. Valid response nonces teach the\n64-tuple oldest-remembered cache even on success/single-attempt requests. Vaults\nretry a usable nonce once then throw non-terminal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DPOP_NONCE_RETRY_EXHAUSTED"
+      }), ";\nretry-enabled APIs allow one nonce retry and one ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "invalid_token"
+      }), " refresh budget.\nMutations remain single-attempt unless the operation owns a server idempotency\ncontract. Final API responses are caller-owned. Terminal session/key/browser/\nrecognition errors require login; proof/nonce/transient failures retain auth,\nand unknown vault codes become ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_REQUEST_FAILED"
+      }), ", not a generic 401 logout."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Vault HTTP defaults to ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "15,000 ms"
+      }), " through headers/body/JSON and ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "1 MiB"
+      }), " of\nstreamed bytes. Queue/storage/crypto/recognition/other locks are outside that\ndeadline; timers cannot preempt synchronous work or suspended tabs. API/proof\nsignals stop the caller's wait without cancelling shared refresh or already-\nstarted crypto. API bodies are caller-owned. Abort/timeout is not rollback of\nserver mutation/Set-Cookie; a lost body-handle rotation can require fresh login.\nThere is no automatic timeout/network mutation retry. A zero-lifetime refresh\nkeeps its handle but API use stops with non-terminal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DPOP_ACCESS_TOKEN_EXPIRED"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["CORS must allow explicit frontend origins/credentials and\nContent-Type/Authorization/DPoP/configured fingerprint; expose\nDPoP-Nonce/WWW-Authenticate. Vault Origin checks remain independent. Recorded\nChromium/Firefox checks use same-site loopback; Safari/WebKit and arbitrary\ncross-site HTTPS/third-party-cookie deployments need their own verification.\nBrowser locks coordinate one frontend origin/partition/scope, not distributed\nbackend refresh leases. The ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md",
+        children: "shipped guide"
+      }), "\ncontains full defaults, errors, recovery and upgrade notes."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "default-unbound-bearer-frontend",
       children: "Default unbound bearer frontend"
@@ -2123,18 +2206,40 @@ function _createMdxContent(props) {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "accessToken"
-        }), ": nonempty opaque string, returned verbatim without trimming or a new whitespace policy;"]
+        }), ": nonempty opaque string for unbound issuance, returned verbatim without trimming; bound issuance requires the profile below;"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "expiresIn"
-        }), ": finite nonnegative safe-integer seconds, from 0 through ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Number.MAX_SAFE_INTEGER"
-        }), ";"]
+        }), ": finite nonnegative safe-integer seconds; bound issuance also requires a safe ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "expiresIn * 1000"
+        }), " conversion;"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "tokenType"
         }), ": exact Bearer or DPoP. Unbound permits Bearer or omission (undefined stays absent in JSON); bound requires exact DPoP and compact signed JWT with matching cnf.jkt from the verified IssueTokenInput.deviceBinding. Null/lowercase/whitespace variants and bound Bearer output are invalid."]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "bound local-JWT profile"
+      }), " requires three nonempty canonical unpadded\nbase64url segments, a signing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "alg"
+      }), " other than ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "none"
+      }), ", no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "b64: false"
+      }), ", exactly\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cnf: { jkt }"
+      }), " matching the canonical RFC 7638 SHA-256 thumbprint, and mandatory\nnonnegative safe-integer ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exp"
+      }), " epoch seconds with safe ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exp * 1000"
+      }), ". Unsupported\nconfirmation extensions and unsafe/missing expiry fail. Both JWT validator\nmethods enforce the profile after JOSE verification and before ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mapClaims"
+      }), ";\ngeneric unbound JWT optional-exp behavior and opaque issuance remain compatible."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "expiresIn: 0"
+      }), " remains valid and can deliver a rotated handle/cookie, but no live\nreusable API/peer credential. Browser parsing validates clock/conversion/addition\nbefore capping the response deadline by JWT expiry; expired peers are ignored.\nThese decode-only checks are response-contract validation, not JWT authentication."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Only these three fields are copied once into a fresh result. Extra fields (including upstream tokens, ", (0,jsx_runtime.jsx)(_components.code, {
         children: "metadata"
@@ -2160,12 +2265,31 @@ function _createMdxContent(props) {
         children: "error"
       }), " (narrow it before use); allowed-field getter exceptions also enter rollback."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Core decodes trusted issuer output only to check the cnf contract; APIs independently verify JWT signature/issuer/audience/expiry. Local signing algorithms and proof algorithms are independent. Issuers receive owned session/plain containers with reserved recognition evidence omitted; original key/lineage rollback authority survives mutable hooks/issuer calls. This contains accidental extensions, while issuers/hooks remain trusted code with request/response access. Deliberate secrets in allowed fields are not redacted."
+      children: "Core decodes trusted issuer output only to check the bound-token contract; APIs independently verify JWT signature/issuer/audience/expiry. Local signing algorithms and proof algorithms are independent. Issuers receive owned session/plain containers with reserved recognition evidence omitted; original key/lineage rollback authority survives mutable hooks/issuer calls. This contains accidental extensions, while issuers/hooks remain trusted code with request/response access. Deliberate secrets in allowed fields are not redacted."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "migration-and-behavior-changes",
       children: "Migration And Behavior Changes"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Browser DTO type imports can use the pure ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/express-oidc-vault/wire"
+        }), " entry. Backend root type imports and strict ESM/CJS ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "req.auth"
+        }), " augmentation are preserved. The companion client now ships DOM-only declarations and requires Node >=22.12.0 for CJS tooling."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Bound JWTs now require exact canonical ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "cnf.jkt"
+        }), ", canonical compact encoding and safe mandatory ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "exp"
+        }), " seconds; bound ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "expiresIn"
+        }), " must convert safely to milliseconds. Invalid output fails with sanitized HTTP 500/original-lineage rollback. Both validator paths reject invalid bound profiles before mapping; generic unbound/opaque and zero-lifetime output compatibility remain."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Use the published client in place of the former standalone browser implementation. See its ", (0,jsx_runtime.jsx)(_components.a, {
+          href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md#upgrade-notes",
+          children: "upgrade notes"
+        }), " for FIFO/cleanup, finite HTTP bounds, terminal/recoverable errors, nonce learning, gateway normalization and explicit key recovery. Installed keys retain the historical database name/schema."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Optional-only endpoint settings previously ignored now select manual mode and fail without the complete manual set. Supply all required manual values or remove endpoint settings to use discovery. Correct malformed optional discovery capabilities at the provider, or omit unsupported fields."
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "DPoP remains opt-in: an object defaults to optional; required rejects legacy unbound records and requires fresh proof-aware login. Later proofs never enroll/rebind legacy records, and disabled DPoP rejects existing bound credentials. Recognition is independent, POST-only enrollment and fresh login on enrolled change."
@@ -2275,9 +2399,9 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The JWT helper exposes validate(token) and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "validateWithRequest({ token, scheme, req })"
-      }), ". It snapshots verified ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "cnf before mapClaims"
-      }), ", discarding mapper-supplied confirmation/deviceBinding. An unbound legacy result omits confirmation; request-aware unbound is explicit null. Bound confirmation survives mapper removal and is rejected when DPoP is disabled. Supported cnf is exactly ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ". Both verify the bound profile's safe mandatory expiry after JOSE verification and ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "before mapClaims"
+      }), "; generic unbound JWT expiry stays optional. It snapshots verified cnf before mapping, discarding mapper-supplied confirmation/deviceBinding. An unbound legacy result omits confirmation; request-aware unbound is explicit null. Bound confirmation survives mapper removal and is rejected when DPoP is disabled. Supported cnf is exactly ", (0,jsx_runtime.jsx)(_components.code, {
         children: "{ jkt: '<canonical SHA-256 thumbprint>' }"
       }), "; malformed/null/unsupported cnf is an invalid token, never legacy. The helper verifies JWTs; the API middleware verifies possession."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {

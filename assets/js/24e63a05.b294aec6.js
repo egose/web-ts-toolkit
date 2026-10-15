@@ -47,6 +47,10 @@ const toc = [{
   "id": "what-gets-documented",
   "level": 2
 }, {
+  "value": "Server-only authorization is not request schema",
+  "id": "server-only-authorization-is-not-request-schema",
+  "level": 3
+}, {
   "value": "Operation-access variants and exposure",
   "id": "operation-access-variants-and-exposure",
   "level": 3
@@ -140,6 +144,22 @@ function _createMdxContent(props) {
       children: ["Paths are emitted as OpenAPI-style paths such as ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/users/{id}"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "server-only-authorization-is-not-request-schema",
+      children: "Server-only authorization is not request schema"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Explicit service policies and opaque document handles belong to trusted backend code,\nnot HTTP/OpenAPI/client/React options. Generated bodies/root entries and nested include,\npopulate and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$sq"
+      }), " control slots reject ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "authorization"
+      }), ", removed service ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "overrides"
+      }), "\nand private execution/prepared keys with BadRequest, including after custom validators\ntransform input. Do not add them to custom request-schema metadata. Ordinary persisted\nbusiness properties with those names remain data under normal field rules."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Response permission metadata describes the request user, not temporary backend grants;\ninternal contexts/handles are not serialized. See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./services#trusted-per-call-authorization",
+        children: "Services"
+      }), "\nfor the separate service API and installed-package examples."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "operation-access-variants-and-exposure",
       children: "Operation-access variants and exposure"

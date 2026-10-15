@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-configuration-mdx-71b.json
-const site_docs_packages_access_router_configuration_mdx_71b_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/configuration","title":"Configuration","description":"Global Options","source":"@site/docs/packages/access-router/configuration.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/configuration","permalink":"/docs/packages/access-router/configuration","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":3,"frontMatter":{"sidebar_label":"Configuration","sidebar_position":3},"sidebar":"packagesSidebar","previous":{"title":"Routing","permalink":"/docs/packages/access-router/routing"},"next":{"title":"Services","permalink":"/docs/packages/access-router/services"}}');
+const site_docs_packages_access_router_configuration_mdx_71b_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/configuration","title":"Configuration","description":"Configuration has separate layers: runtime GlobalOptions, shared model starting","source":"@site/docs/packages/access-router/configuration.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/configuration","permalink":"/docs/packages/access-router/configuration","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":3,"frontMatter":{"sidebar_label":"Configuration","sidebar_position":3},"sidebar":"packagesSidebar","previous":{"title":"Routing","permalink":"/docs/packages/access-router/routing"},"next":{"title":"Services","permalink":"/docs/packages/access-router/services"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.3.0/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(4686);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.3.0_react@19.3.0/node_modules/@mdx-js/react/lib/index.js
@@ -51,6 +51,10 @@ const toc = [{
   "id": "model-router-options",
   "level": 2
 }, {
+  "value": "Authority, hook inputs and metadata",
+  "id": "authority-hook-inputs-and-metadata",
+  "level": 3
+}, {
   "value": "Operation Access",
   "id": "operation-access",
   "level": 2
@@ -69,6 +73,10 @@ const toc = [{
 }, {
   "value": "Persistence admission",
   "id": "persistence-admission",
+  "level": 3
+}, {
+  "value": "Hook admission and nested service calls",
+  "id": "hook-admission-and-nested-service-calls",
   "level": 3
 }, {
   "value": "OpenAPI Router Options",
@@ -115,13 +123,29 @@ function _createMdxContent(props) {
         id: "configuration",
         children: "Configuration"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Configuration has separate layers: runtime ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GlobalOptions"
+      }), ", shared model starting\ndefaults, per-model/data/root options, model per-method ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaults"
+      }), ", request ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "args"
+      }), "/\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "options"
+      }), ", and trusted service ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "authorization"
+      }), ". Data/root routers do not inherit model\ndefaults; authorization is never a default or wire option. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAccessRuntime()"
+      }), "\nreturns a bound API whose ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".runtime"
+      }), " owns the options and registries."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "global-options",
       children: "Global Options"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Set once per runtime with ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Configure a runtime with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "acl.setGlobalOptions(...)"
-      }), "."]
+      }), " or the corresponding isolated\nAPI method. Assignment is shallow. Request initialization and hook/persistence\ncaptures are not restarted by later setters."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -149,8 +173,10 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "acl.setGlobalOptions({\n  requestPermissionField: '_permissions',\n  globalPermissions(req) {\n    return req.headers.user === 'admin' ? ['isAdmin'] : [];\n  },\n});\n"
+        children: "import acl from '@web-ts-toolkit/access-router';\n\ndeclare module '@web-ts-toolkit/access-router' {\n  interface AccessRouterRequestExtensions {\n    actor?: { permissions: string[] }; // set by application authentication middleware\n  }\n}\n\nacl.setGlobalOptions({\n  requestPermissionField: '_permissions',\n  globalPermissions(req) {\n    return req.actor?.permissions ?? [];\n  },\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Null/undefined resolver results establish empty grants, replacing prior runtime-owned\nvalues. Application-supplied unowned maps are preserved; same-runtime middleware\nreuses its initialized state. Populate targets require runtime registration by default."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "default-model-options",
       children: "Default Model Options"
@@ -331,6 +357,56 @@ function _createMdxContent(props) {
       }), ", and\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "mutationRouteSegment"
       }), " determine route shape and are fixed after construction."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "authority-hook-inputs-and-metadata",
+      children: "Authority, hook inputs and metadata"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Router ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaults"
+      }), ", including dotted setters, contain query/presentation settings only.\nPer-call service authorization, document handles, prepared/execution state and removed\nservice overrides are not defaults or HTTP/OpenAPI/client options. Supply trusted\nserver-only policy to the service acquired from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.getService(req)"
+      }), " instead.\nMissing policy dimensions use request authority and never inherit a prior call's elevation."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "alwaysSelectFields"
+      }), " declares persisted inputs needed by document-permission hooks beyond\nselected output, such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ownerId"
+      }), ". Hooks see the untrimmed projected document; fetch-only\ninputs do not grant output. The immutable call captures configuration, while each document/\nscope/access stage has separate hook grants and decisions. Opaque result-context handles\npreserve them after those inputs and metadata trim. See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./services#call-policy-and-document-result-reuse",
+        children: "Services"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Internal document grants resolve independently of ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includePermissions"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includeFieldPermissions"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "stripPermissionsField"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "disableFieldPermissions"
+      }), " and exposed-key\nlimits. These switches govern request-user metadata serialization; temporary backend grants\nnever forge ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_view"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_edit"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "overrideFilter"
+      }), " remains the query-transform hook and runs once\neven in unrestricted row mode; scope/unrestricted replace only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "baseFilter"
+      }), " authority."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "skim"
+      }), " is a deprecated compatibility no-op in canonical model operations. True, false\nand omission all retain authorization, document grants, virtuals and decoration.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "lean"
+      }), " separately chooses Mongoose hydration; it does not skip field enforcement."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["At each method resolver, non-nullish supplied values win over its ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaults"
+      }), " bucket,\nthen built-ins. Public wrappers resolve ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "public*Args"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "public*Options"
+      }), " before internal\nmethods; already-resolved flags take precedence over internal defaults. Public upsert\nuses its create/update branch's public bucket. A model service captures current presentation\ndefaults from its originating runtime per call; per-call model authority captures current\npolicy before awaiting hooks. Retained services keep their original core, actor, model\nconnection and related registry across a same-request runtime handoff. Base-filter cache\nentries are reused only for the same model/access and policy function.\nRequest base-filter caches remain owned by their request/runtime/access."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "operation-access",
       children: "Operation Access"
@@ -642,6 +718,8 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "persistence-admission",
       children: "Persistence admission"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Both concurrency limits are normalized and captured together on first use of a\nrequest/runtime's private work state. Existing owners retain that capture after\nconfiguration changes; new requests capture the new limits."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "maxBulkConcurrency"
@@ -654,6 +732,31 @@ function _createMdxContent(props) {
       }), " separately limits whole root operations per\norder group. Permits release on success/error with FIFO transfer; release does not\ncancel submitted siblings or refund the cumulative correlated-query budget."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "This is an adapter-operation ceiling, not a count of MongoDB driver commands: one\noperation can issue multiple commands via Mongoose middleware/populate. Router ACL,\nprepare, afterPersist and decorate run outside the permit; Mongoose middleware is\ninside the awaited operation. Direct DB/network calls in trusted hooks are outside\nadmission. This is not a process-wide connection limit, transaction/optimistic-edit\nguard or throughput guarantee. Controlled nested-query tests measured peak collection\ncalls falling from 9 to 3 at limit 3; that does not bound arbitrary middleware fan-out."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "hook-admission-and-nested-service-calls",
+      children: "Hook admission and nested service calls"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "maxHookConcurrency"
+      }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "10"
+      }), ") counts independent ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "hook chains"
+      }), " across one\nrequest/runtime's services, root entries, includes, populate and subdocuments. The\npool covers model document-grant hooks (including pre-write/helper/owning-parent\nstages), virtual getters, model/data ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "decorate"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "decorateAll"
+      }), ", service output\ndecorators and data request-field selection/trimming stages. Other guards, row/ID\nfilters, model field-rule callbacks and write lifecycle hooks are outside this pool."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["A hook can await a nested service at limit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "1"
+      }), ". Private async context lets its\ndescendant hooks reuse the chain, while each callback scope admits ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "one immediate\nchild branch at a time"
+      }), ", FIFO through descendant settlement. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Promise.all"
+      }), " sibling\nhook stages therefore serialize rather than bypassing admission. Waiting ancestors\nare additional frames, not additional permits: the limit bounds independent leaf\nbranches, not all unsettled callbacks. Reentrant depth is capped at 64 admission\nscopes per chain, including internal wrappers; overflow uses the existing hook\nfailure policy. Settled scopes close to new reentry and drain queued children even\non failure; detached late continuations reacquire root admission. Await hook work\nand avoid cross-branch dependency cycles. Root and child queues each transfer FIFO."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Row/traversal maps retain per-call worker limits and stable output/context order.\nHook and persistence pools are separate; no persistence permit is held over hooks\nor orchestration. Trusted direct DB/network fan-out, total queued work and query\ncounts are outside these limits. They do not provide process-wide connection limits\nor automatic N+1 batching."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "openapi-router-options",
       children: "OpenAPI Router Options"
@@ -794,6 +897,22 @@ function _createMdxContent(props) {
           children: "dataName"
         })
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Set both ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idParam"
+      }), " (Express parameter name) and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idField"
+      }), " (lookup field) explicitly\nfor data identifier routes; data has no model-default layer. Callable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "resolveIdFilter"
+      }), "\ntakes precedence over ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idField"
+      }), " for both model and data lookups. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), " describes\nan external mount prefix in metadata/logging; mount that prefix in Express yourself."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Data owns configured nested/native values and rejects unsupported values at assignment.\nServices capture one dataset version and detach only selected/page-returned values.\nFrozen snapshot native properties return detached mutable copies on access; native\nidentity is not stable. Replace through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.data(next)"
+      }), " or runtime data setters.\nSee the installed README's “In-memory data ownership” for the exact supported values."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "option-apis",
       children: "Option APIs"
@@ -853,7 +972,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "router.options"
-      }), " is a frozen construction-time snapshot. Getter results are frozen\nsnapshots too; fetch again for current stored values. Generic\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), " is a frozen construction-time snapshot. Getter results are frozen\nsnapshots too (with data's native-copy behavior above); fetch again for current stored values. Generic\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "getModelOption"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "getDataOption"
