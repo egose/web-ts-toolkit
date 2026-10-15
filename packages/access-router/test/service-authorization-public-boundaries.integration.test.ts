@@ -299,8 +299,8 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
             expect(rejected).toMatchObject(badRequest);
             const method = op === 'update' ? 'patch' : op === 'create' ? 'post' : 'put';
             const url = op === 'update' ? `/sources/__mutation/${id}` : '/sources/__mutation';
-            await request(f.app)
-              [method](url)
+            const agent = request(f.app);
+            await agent[method](url)
               .send({ data, ...(slot === 'args' ? { authorization } : { options: { authorization } }) })
               .expect(400);
             await request(f.app)
@@ -423,8 +423,8 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
               : '/sources/__mutation';
       for (const [key, value] of Object.entries(controls)) {
         for (const injection of [{ [key]: value }, { options: { [key]: value } }]) {
-          await request(f.app)
-            [method](url)
+          const agent = request(f.app);
+          await agent[method](url)
             .send({ data: { name: 'blocked' }, ...injection })
             .expect(400);
           f.noWork();
@@ -943,8 +943,8 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
             select: ['name', 'authorization', 'overrides', 'internalNote'],
             options: quiet,
           };
-      const response = await request(f.app)
-        [method](url)
+      const agent = request(f.app);
+      const response = await agent[method](url)
         .send(body)
         .expect(nestedData ? 201 : 200);
       expect(response.body).toMatchObject(business);

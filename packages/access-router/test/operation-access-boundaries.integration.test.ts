@@ -1120,8 +1120,8 @@ describe('OAV-05 root entry and trusted service boundaries', () => {
           tenant: 'allowed',
           privateNote: 'client-note',
         };
-        const result = await request(f.app)
-          [method](`/oav05-sources/internal/service/${operation}`)
+        const agent = request(f.app);
+        const result = await agent[method](`/oav05-sources/internal/service/${operation}`)
           .send({
             id: String(f.sourceRead._id),
             filter: { _id: String(f.sourceRead._id) },
@@ -1518,6 +1518,9 @@ describe('OAV-05 read retries and mutation visibility', () => {
                 : [{ _id: subId, value: 9, privateNote: 'client-note' }];
           const beforeSave = f.sourceWork.save.mock.calls.length;
           const beforeFind = f.sourceWork.findOne.mock.calls.length;
+          const directMethod = op === 'create' ? 'post' : 'patch';
+          const directUrl = `/oav05-sources/${id}/items${op === 'single' ? `/${subId}` : ''}`;
+          const directAgent = request(f.app);
           const response =
             entry === 'root'
               ? await sendRoot(f, {
@@ -1529,10 +1532,7 @@ describe('OAV-05 read retries and mutation visibility', () => {
                   ...(op === 'single' ? { subId } : {}),
                   data,
                 }).expect(200)
-              : await request(f.app)
-                  [op === 'create' ? 'post' : 'patch'](
-                    `/oav05-sources/${id}/items${op === 'single' ? `/${subId}` : ''}`,
-                  )
+              : await directAgent[directMethod](directUrl)
                   .send(data)
                   .expect(op === 'create' ? 201 : 200);
           const result = entry === 'root' ? response.body[0].result : { data: response.body };
