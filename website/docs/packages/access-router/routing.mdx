@@ -140,6 +140,20 @@ Both advanced reads share `advancedRead`; HEAD follows the basic GET guard.
 
 Use it when you want a single request to run multiple operations in order.
 
+Construct it with the single-options overload
+`api.createRouter({ basePath: '/batch', operationAccess: true })` and mount `.routes`.
+Its runtime must also own the target registrations. Limits default to
+`maxBatchEntries: 100`, `maxOrderGroups: 25`, `maxConcurrentOperations: 10`.
+`maxOrderGroups` bounds **both** distinct group count and each numeric order:
+at the default, orders are integers in 0..25 inclusive (omission is 0), but at most
+25 different values can occur. A lone order 26 or all 26 values 0..25 reject before
+entry dispatch. Invalid/non-positive/unsafe constructor limits use the defaults.
+
+Groups execute in ascending order; operations within each group share the whole-
+operation concurrency ceiling. Results retain input order. Hook-chain and persistence
+pools are separate request/runtime budgets. Batches are non-transactional; unexpected
+rejection can leave already-committed writes.
+
 Each batch item uses:
 
 - `target`: `model` or `data`

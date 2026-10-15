@@ -186,4 +186,158 @@ describe.each(browserNames)('DBJWT-10 real %s OIDC + IndexedDB + CORS lifecycle'
       }
     },
   );
+
+  it.each(['body', 'cookie'] as const)(
+    'clear during real key lookup supersedes refresh promptly (%s)',
+    async (transport) => {
+      const fixture = await startBrowserFixture(browser);
+      try {
+        const page = await openApp(fixture, transport);
+        await loginApp(page);
+        const scope = {
+          name: 'authority',
+          transport,
+          backendOrigin: fixture.backend.backendOrigin,
+          basePath: `${EXAMPLE_BASE_PATH}/${transport}`,
+        };
+        await callBrowser(page, 'createSession', scope);
+        await callBrowser(page, 'refresh', { name: scope.name });
+        const requests = fixture.backend.requests.length;
+        await callBrowser(page, 'holdKeyLookup', { gate: 'key' });
+        await callBrowser(page, 'beginSessionOperation', { name: scope.name, id: 'refresh', operation: 'refresh' });
+        await expect.poll(() => callBrowser(page, 'gateReady', { id: 'key' })).toBe(true);
+        await callBrowser(page, 'beginSessionOperation', { name: scope.name, id: 'clear', operation: 'clear' });
+        expect(await callBrowser(page, 'memoryToken', { name: scope.name })).toBeUndefined();
+        expect(JSON.stringify(await page.evaluate(() => ({ ...sessionStorage })))).not.toContain('sessionId');
+        await callBrowser(page, 'releaseGate', { id: 'key' });
+        expect(await callBrowser(page, 'finishSessionOperation', { id: 'refresh' })).toEqual({
+          ok: false,
+          code: 'DPOP_OPERATION_SUPERSEDED',
+        });
+        expect(await callBrowser(page, 'finishSessionOperation', { id: 'clear' })).toEqual({ ok: true });
+        expect(fixture.backend.requests.length).toBe(requests);
+        if (transport === 'cookie')
+          expect(await callBrowser(page, 'readCookieVersion', scope)).toMatchObject({ active: false });
+      } finally {
+        await fixture.close();
+      }
+    },
+  );
+
+  it.each(['body', 'cookie'] as const)(
+    'dispose suppresses navigation from a held real login response (%s)',
+    async (transport) => {
+      const fixture = await startBrowserFixture(browser);
+      try {
+        const page = await openApp(fixture, transport);
+        const scope = {
+          name: 'closing-login',
+          transport,
+          backendOrigin: fixture.backend.backendOrigin,
+          basePath: `${EXAMPLE_BASE_PATH}/${transport}`,
+          captureNavigation: true,
+        };
+        await callBrowser(page, 'createSession', scope);
+        await callBrowser(page, 'holdSessionResponse', { name: scope.name, route: 'login', gate: 'response' });
+        await callBrowser(page, 'beginSessionOperation', { name: scope.name, id: 'login', operation: 'login' });
+        await expect.poll(() => callBrowser(page, 'gateReady', { id: 'response' })).toBe(true);
+        await callBrowser(page, 'disposeSession', { name: scope.name });
+        await callBrowser(page, 'releaseGate', { id: 'response' });
+        expect(await callBrowser(page, 'finishSessionOperation', { id: 'login' })).toEqual({
+          ok: false,
+          code: 'DPOP_SESSION_DISPOSED',
+        });
+        expect(await callBrowser(page, 'navigationCount', { name: scope.name })).toBe(0);
+        expect(
+          fixture.backend.requests
+            .filter((request) => request.path.endsWith('/login'))
+            .map((request) => request.status),
+        ).toEqual([400, 200]);
+        expect(fixture.idp.stats.authorizations).toBe(0);
+      } finally {
+        await fixture.close();
+      }
+    },
+  );
+
+  it.each(['body', 'cookie'] as const)(
+    'logout queued behind a held refresh revokes the rotated server session (%s)',
+    async (transport) => {
+      const fixture = await startBrowserFixture(browser);
+      try {
+        const page = await openApp(fixture, transport);
+        await loginApp(page);
+        const scope = {
+          name: 'ordered',
+          transport,
+          backendOrigin: fixture.backend.backendOrigin,
+          basePath: `${EXAMPLE_BASE_PATH}/${transport}`,
+        };
+        await callBrowser(page, 'createSession', scope);
+        await callBrowser(page, 'refresh', { name: scope.name });
+        const start = fixture.backend.requests.length;
+        await callBrowser(page, 'holdSessionResponse', { name: scope.name, route: 'refresh', gate: 'rotation' });
+        await callBrowser(page, 'beginSessionOperation', { name: scope.name, id: 'refresh', operation: 'refresh' });
+        await expect.poll(() => callBrowser(page, 'gateReady', { id: 'rotation' })).toBe(true);
+        await callBrowser(page, 'beginSessionOperation', { name: scope.name, id: 'logout', operation: 'logout' });
+        await callBrowser(page, 'releaseGate', { id: 'rotation' });
+        expect(await callBrowser(page, 'finishSessionOperation', { id: 'refresh' })).toEqual({ ok: true });
+        expect(await callBrowser(page, 'finishSessionOperation', { id: 'logout' })).toEqual({ ok: true });
+        const calls = fixture.backend.requests.slice(start).filter((request) => request.status === 200);
+        expect(calls.map((request) => request.path)).toEqual([`${scope.basePath}/refresh`, `${scope.basePath}/logout`]);
+        if (transport === 'body') {
+          const first = calls[0].body as { sessionId: string };
+          const last = calls[1].body as { sessionId: string };
+          expect(last.sessionId).not.toBe(first.sessionId);
+          expect(await fixture.backend.store.getSession(last.sessionId)).toBeNull();
+        } else
+          expect((await fixture.context.cookies()).some((cookie) => cookie.name === 'oidc_vault_session_cookie')).toBe(
+            false,
+          );
+        expect(await callBrowser(page, 'memoryToken', { name: scope.name })).toBeUndefined();
+      } finally {
+        await fixture.close();
+      }
+    },
+  );
+
+  it.each(['clear', 'resetKey', 'dispose'] as const)(
+    '%s aborts an actual in-flight cookie metadata put',
+    async (action) => {
+      const fixture = await startBrowserFixture(browser);
+      try {
+        const page = await openApp(fixture, 'cookie');
+        await loginApp(page);
+        const scope = {
+          name: 'write-authority',
+          transport: 'cookie' as const,
+          backendOrigin: fixture.backend.backendOrigin,
+          basePath: `${EXAMPLE_BASE_PATH}/cookie`,
+        };
+        await callBrowser(page, 'createSession', scope);
+        await callBrowser(page, 'refresh', { name: scope.name });
+        const previous = await callBrowser(page, 'readCookieVersion', scope);
+        await callBrowser(page, 'invalidateDuringCookieWrite', { name: scope.name, id: 'invalidate', action });
+        await callBrowser(page, 'beginSessionOperation', { name: scope.name, id: 'refresh', operation: 'refresh' });
+        expect(await callBrowser(page, 'finishSessionOperation', { id: 'refresh' })).toEqual({
+          ok: false,
+          code: action === 'dispose' ? 'DPOP_SESSION_DISPOSED' : 'DPOP_OPERATION_SUPERSEDED',
+        });
+        expect(await callBrowser(page, 'finishSessionOperation', { id: 'invalidate' })).toEqual({ ok: true });
+        expect(await callBrowser(page, 'cookieWriteEvidence', { id: 'invalidate' })).toEqual({
+          started: true,
+          clearedImmediately: true,
+          requestSucceeded: false,
+          requestError: 'AbortError',
+        });
+        const current = await callBrowser(page, 'readCookieVersion', scope);
+        if (action === 'clear') expect(current?.active).toBe(false);
+        else if (action === 'resetKey') expect(current).toBeUndefined();
+        else expect(current).toEqual(previous);
+        expect(await callBrowser(page, 'memoryToken', { name: scope.name })).toBeUndefined();
+      } finally {
+        await fixture.close();
+      }
+    },
+  );
 });

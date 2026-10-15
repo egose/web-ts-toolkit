@@ -102,6 +102,42 @@ describe('ARF-14 strict packed-consumer types', () => {
     ['NodeNext', 'cts', 'NodeNext'],
     ['Node16', 'mts', 'Node16'],
     ['Node16', 'cts', 'Node16'],
+  ])('ARL-08 checks installed numeric count API (%s / %s)', (resolution, extension, module) => {
+    const source = `grouped-count-${resolution}.${extension}`;
+    writeFileSync(
+      path.resolve(consumerDir, source),
+      readFileSync(path.resolve(packageRoot, 'test/grouped-count-consumer.types.fixture.ts'), 'utf8'),
+    );
+    const config = `tsconfig-grouped-count-${resolution}-${extension}.json`;
+    writeFileSync(
+      path.resolve(consumerDir, config),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module,
+          moduleResolution: resolution,
+          strict: true,
+          noUnusedLocals: true,
+          noUnusedParameters: true,
+          noEmit: true,
+          skipLibCheck: true,
+          esModuleInterop: true,
+          types: ['node'],
+        },
+        files: [source],
+      }),
+    );
+    const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+    expect(result.stdout + result.stderr).toBe('');
+    expect(result.status).toBe(0);
+  });
+
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
   ])('SVA-F03 checks finite named helper migrations (%s / %s)', (resolution, extension, module) => {
     const source = `field-helper-${resolution}.${extension}`;
     writeFileSync(

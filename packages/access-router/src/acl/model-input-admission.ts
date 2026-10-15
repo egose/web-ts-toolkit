@@ -4,6 +4,8 @@ import type { ModelHookContext, ModelRequest } from '../interfaces';
 import { mongo, type Document } from 'mongoose';
 import type { FieldAuthorization } from '../interfaces/service-authorization';
 import { deepIsolateValue, isMongooseDocument } from '../helpers/document';
+import { getRequestWorkState } from '../helpers/request-work';
+import type { AccessRuntime } from '../runtime';
 import { warn as warnLog } from '../logger-helpers';
 import {
   resolveRequestComplexity,
@@ -354,11 +356,14 @@ export async function resolveInputDocumentGrants(args: {
   const hook = getCapturedAuthorizationOption(configuration, 'docPermissions.update');
   if (typeof hook !== 'function') return {};
   try {
-    const grants = await hook.call(
-      args.binding.request,
-      args.doc,
-      getAuthorizationPermissions(args.authorization, args.binding),
-      args.context,
+    const grants = await getRequestWorkState(args.binding.request, args.binding.runtime as AccessRuntime).hookGate.run(
+      () =>
+        hook.call(
+          args.binding.request,
+          args.doc,
+          getAuthorizationPermissions(args.authorization, args.binding),
+          args.context,
+        ),
     );
     return record(grants) ? copyAuthorizationValue(grants) : {};
   } catch (error) {

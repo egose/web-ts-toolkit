@@ -1,32 +1,10 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 /**
- * VIRT-03/VIRT-00A D7 scheduling scope (frozen).
- *
- * - `maxHookConcurrency` (default 10) is a per-request/per-runtime ceiling on
- *   concurrently awaited virtual/getter + row-finalization orchestration work,
- *   NOT a per-row multiplier and NOT a process-wide connection limit.
- * - Top-level lists finalize rows through ONE bounded map
- *   (`mapWithConcurrencyLimit` / `RequestConcurrencyScheduler.map` worker-pool
- *   shape, stable index-keyed results preserving input order regardless of
- *   completion order) so active getter work is bounded by the limit, never
- *   `rows × getters` unbounded `Promise.all`.
- * - Nested include/populate/embedded/descendant work uses bounded child maps
- *   with a finite bound derived from the same limit (sequential or sub-pooled
- *   traversal); recursion depth is additionally bounded by validated plan depth
- *   (`maxCorrelatedDepth` and per-request correlated budgets for correlated
- *   paths). Recursive orchestration NEVER holds leaf persistence permits
- *   (`RequestConcurrencyScheduler.work`, which admits only leaf
- *   adapter/document persistence ops) while awaiting descendant finalization
- *   or application hooks — maps bound their own orchestration workers and
- *   release before awaiting children, so limit-1 configurations complete.
- * - Getters' own trusted direct DB/network I/O is outside the leaf
- *   persistence ceiling (no dataloader/batching in v1; N+1 guidance in
- *   VIRT-10/VIRT-11).
- *
- * `mapWithConcurrencyLimit` bounds orchestration workers per call. For
- * cross-row getter ceilings (peak active getters ≤ limit across a top-level
- * list), combine ONE row map with the shared {@link SharedHookGate} for
- * getter bodies: rows release orchestration workers before awaiting children
- * and getters hold the shared gate only for the getter body itself.
+ * Per-call orchestration workers, with index-keyed results regardless of
+ * completion order. Recursive maps hold no shared persistence or hook permit.
+ * Actual hook admission belongs to the request/runtime's SharedHookGate; map
+ * worker counts are not a global bound on waiting orchestration frames.
  */
 export const mapWithConcurrencyLimit = async <TInput, TOutput>(
   items: TInput[],
@@ -50,13 +28,37 @@ export const mapWithConcurrencyLimit = async <TInput, TOutput>(
   return results;
 };
 
-export class RequestConcurrencyScheduler {
-  readonly limit: number;
+/** Each instance owns a distinct permit pool. Transfer directly to the oldest waiter. */
+class FifoAdmission {
   private activeWork = 0;
   private readonly waiters: Array<() => void> = [];
 
+  constructor(private readonly limit: number) {}
+
+  async run<TOutput>(operation: () => TOutput | PromiseLike<TOutput>): Promise<TOutput> {
+    if (this.activeWork >= this.limit) {
+      await new Promise<void>((resolve) => this.waiters.push(resolve));
+    } else {
+      this.activeWork += 1;
+    }
+    try {
+      return await operation();
+    } finally {
+      const next = this.waiters.shift();
+      if (next)
+        next(); // Transfer this permit directly; no queue jumping.
+      else this.activeWork -= 1;
+    }
+  }
+}
+
+export class RequestConcurrencyScheduler {
+  readonly limit: number;
+  private readonly persistence: FifoAdmission;
+
   constructor(limit: number) {
     this.limit = Math.max(1, limit);
+    this.persistence = new FifoAdmission(this.limit);
   }
 
   // Each map bounds its own orchestration workers. Recursive maps never hold
@@ -74,58 +76,84 @@ export class RequestConcurrencyScheduler {
   }
 
   // Only leaf persistence operations belong here, not service/hook callbacks.
-  // All work calls on this scheduler share a FIFO admission ceiling.
-  async work<TOutput>(operation: () => TOutput | PromiseLike<TOutput>): Promise<TOutput> {
-    if (this.activeWork >= this.limit) {
-      await new Promise<void>((resolve) => this.waiters.push(resolve));
-    } else {
-      this.activeWork += 1;
-    }
-    try {
-      return await operation();
-    } finally {
-      const next = this.waiters.shift();
-      if (next)
-        next(); // Transfer this permit directly; no queue jumping.
-      else this.activeWork -= 1;
-    }
+  work<TOutput>(operation: () => TOutput | PromiseLike<TOutput>): Promise<TOutput> {
+    return this.persistence.run(operation);
   }
 }
 
+interface HookFrame {
+  gate: SharedHookGate;
+  parent: HookFrame | undefined;
+  depth: number;
+  open: boolean;
+  children: FifoAdmission;
+  pending: number;
+  drained?: () => void;
+}
+
+// One private async context; no caller-provided reentry token or request/DTO slot.
+// The gate identity, not the ambient runtime, determines reentrant ownership.
+const hookFrames = new AsyncLocalStorage<HookFrame>();
+const MAX_HOOK_DEPTH = 64;
+
 /**
- * Shared hook-orchestration gate for VIRT-03 finalization (VIRT-00A D7).
+ * Request/runtime-owned admission of hook chains, separate from persistence.
+ * Outside a live same-gate callback scope, work acquires a root permit FIFO.
+ * Nested hooks reuse that chain, but each frame admits only ONE child branch
+ * (including its descendants) at a time, FIFO. Promise.all siblings cannot
+ * bypass admission. At most `limit` independent leaf branches run; recursively
+ * waiting ancestors are extra frames, not extra permits (up to 64 admission
+ * scopes per chain). Root FIFO and child FIFO are separate: descendants must
+ * progress before unrelated roots to support awaiting services at limit one.
  *
- * Distinct from {@link RequestConcurrencyScheduler.work} (leaf persistence
- * permits): this gate admits virtual getter bodies only, never persistence
- * ops. A single gate instance is shared across all rows of a top-level list
- * so peak active getter work stays at or below the configured limit instead
- * of multiplying by row count. Callers hold the gate only for the getter body
- * itself — never while awaiting descendant finalization — so limit-1
- * configurations complete without deadlock. FIFO admission keeps completion
- * order independent of input order; the surrounding row map preserves stable
- * index-keyed output association regardless of completion order.
+ * Settlement closes a frame to new reentry and drains already-queued children
+ * before releasing its branch, on success or failure. Detached continuations
+ * from closed frames reacquire root admission. Trusted hooks must await their
+ * work and avoid cross-branch dependency cycles. This does not constrain their
+ * own direct DB/network fan-out, queued work totals, or process-wide connections.
  */
 export class SharedHookGate {
   readonly limit: number;
-  private active = 0;
-  private readonly waiters: Array<() => void> = [];
+  private readonly roots: FifoAdmission;
 
   constructor(limit: number) {
-    this.limit = Math.max(1, Math.floor(limit) || 1);
+    this.limit = normalizeHookConcurrencyLimit(limit);
+    this.roots = new FifoAdmission(this.limit);
   }
 
   async run<TOutput>(operation: () => TOutput | PromiseLike<TOutput>): Promise<TOutput> {
-    if (this.active >= this.limit) {
-      await new Promise<void>((resolve) => this.waiters.push(resolve));
-    } else {
-      this.active += 1;
+    let parent = hookFrames.getStore();
+    while (parent && parent.gate !== this) parent = parent.parent;
+    // Do not skip a closed same-owner frame to borrow a still-live ancestor.
+    if (!parent?.open) return this.roots.run(() => this.invoke(operation, 1));
+    if (parent.depth >= MAX_HOOK_DEPTH) {
+      throw new RangeError(`Maximum reentrant hook depth of ${MAX_HOOK_DEPTH} exceeded`);
     }
+    parent.pending++;
     try {
-      return await operation();
+      return await parent.children.run(() => this.invoke(operation, parent.depth + 1));
     } finally {
-      const next = this.waiters.shift();
-      if (next) next();
-      else this.active -= 1;
+      if (--parent.pending === 0) parent.drained?.();
+    }
+  }
+
+  private async invoke<TOutput>(operation: () => TOutput | PromiseLike<TOutput>, depth: number): Promise<TOutput> {
+    const frame: HookFrame = {
+      gate: this,
+      parent: hookFrames.getStore(),
+      depth,
+      open: true,
+      children: new FifoAdmission(1),
+      pending: 0,
+    };
+    try {
+      return await hookFrames.run(frame, operation);
+    } finally {
+      frame.open = false;
+      if (frame.pending)
+        await new Promise<void>((resolve) => {
+          frame.drained = resolve;
+        });
     }
   }
 }

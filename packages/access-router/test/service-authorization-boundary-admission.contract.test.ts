@@ -58,13 +58,15 @@ const correlated = {
 // Actual wrapper/Base methods, instrumented immediately receiving service seams.
 // No new authority is evaluated here; SVA-08 owns integrated grant controls.
 function fixture() {
+  const req = { macl: { isAllowed: vi.fn().mockResolvedValue(true) } };
   const service = Object.assign(Object.create(PublicService.prototype), {
     defaults: {},
-    options: {},
+    getModelRouterOptions: () => ({}),
     modelName: 'Source',
     model: { mongooseModel: {} },
-    baseFieldsExt: ['_id'],
-    req: { macl: { isAllowed: vi.fn().mockResolvedValue(true) } },
+    baseFields: ['_id'],
+    req,
+    requestCore: req.macl,
     find: vi.fn().mockResolvedValue(list),
     findOne: vi.fn().mockResolvedValue(single),
     findById: vi.fn().mockResolvedValue(single),
@@ -84,7 +86,7 @@ function fixture() {
   const target = {
     find: vi.fn().mockResolvedValue({ ...list, data: [{ key: 1, authorization: 'ordinary' }], count: 1 }),
     findOne: vi.fn().mockResolvedValue({ ...single, data: business }),
-    countByFieldValues: vi.fn().mockResolvedValue({ ...single, data: new Map() }),
+    countByFieldValues: vi.fn().mockResolvedValue({ ...single, data: new Map<string, number>() }),
     genFilter: vi.fn((_access, filter) => filter),
     _list: vi.fn().mockResolvedValue(list),
     _read: vi.fn().mockResolvedValue(single),

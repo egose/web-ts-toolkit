@@ -9,8 +9,10 @@ Task files are shared and committed. Never record machine-specific absolute
 paths (e.g. `/home/<user>/...`, `/tmp/...` outside the repo, `$HOME/...`).
 
 - Use the `<repo-root>` placeholder for the repository root in commands,
-  examples, and completion evidence: `TMPDIR=<repo-root> ...`,
-  `node scripts/build-<map-id>-zone.mjs --root <repo-root>`.
+  examples, and completion evidence: `TMPDIR='<repo-root>' ...`,
+  `node scripts/build-<map-id>-zone.mjs --root '<repo-root>'`.
+  Replace the placeholder with the actual checkout path before execution;
+  never run a command with the literal placeholder text.
 - Use repo-relative paths for files and fixtures (`docs/tasks/...`,
   `apps/client/...`). Use `$PWD` / `$(pwd)` only when a tool strictly
   requires an absolute path at runtime, and note it is the repo checkout.

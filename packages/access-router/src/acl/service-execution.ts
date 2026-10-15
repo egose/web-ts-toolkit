@@ -19,6 +19,7 @@ import { authorizationError } from './authorization-snapshot';
 import type { AccessRouterPermissions } from '../permission';
 import type { DocumentAuthorizationStage } from './document-authorization';
 import type { Service } from '../services/service';
+import type { GroupedCountInput } from '../services/grouped-count';
 import type {
   FindArgs,
   FindOneArgs,
@@ -110,8 +111,8 @@ export interface ServiceExecutors<T, V extends object> {
   groupedCount(
     filter: Filter<T>,
     foreignField: string,
-    values: readonly unknown[],
-  ): Promise<SingleResult<Map<string, Set<string>>> | ErrorResult>;
+    input: GroupedCountInput,
+  ): Promise<SingleResult<number[]> | ErrorResult>;
 }
 // Generic association is checked at registration/read; never accepted structurally at dispatch.
 const executors = new WeakMap<object, ServiceExecutors<any, any>>();

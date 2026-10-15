@@ -92,7 +92,13 @@ export const loginApp = async (page: Page, recognition = false): Promise<void> =
   }
   await page.locator('#continue').click();
   await page.waitForURL(/\/callback\?transport=/);
-  await page.waitForFunction(() => document.querySelector('#status')?.getAttribute('data-state') === 'signed-in');
+  try {
+    await page.waitForFunction(() => document.querySelector('#status')?.getAttribute('data-state') === 'signed-in');
+  } catch (error) {
+    throw new Error(`Callback did not sign in: current=${await page.locator('#status').textContent()}`, {
+      cause: error,
+    });
+  }
 };
 
 type BridgeApi = typeof Bridge;

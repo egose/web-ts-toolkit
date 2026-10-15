@@ -14,7 +14,6 @@ import { isolateDocForOutput } from '../helpers/document';
 import { transferDocumentAuthorizationGraph } from './document-authorization';
 import { finalizeModelOutputs } from '../output/finalize-model-output';
 import type { FinalizeSnapshot } from '../output/finalize-model-output';
-import { SharedHookGate } from '../helpers/concurrency';
 import { captureRelatedTargets } from './related-execution';
 import type { AuthorizationConfiguration } from './service-authorization';
 import type { AccessRouterPermissions } from '../permission';
@@ -102,14 +101,11 @@ export async function finalizeSubdocumentRows<T, V extends object>(
     mongooseModel: state.binding.model as ModelHookContext['mongooseModel'],
     operation: state.access.operation,
   };
-  const limit = service.getVirtualHookConcurrencyLimit();
-  const gate = new SharedHookGate(limit);
   const owningDocument = await resolveOutputDocumentAuthorization({
     authorization: state.authorization,
     binding: state.binding,
     snapshot: isolateDocForOutput(parent) as Record<string, unknown>,
     context,
-    hookGate: gate,
   });
   return finalizeModelOutputs({
     receivingModelName: state.binding.modelName,
@@ -121,8 +117,6 @@ export async function finalizeSubdocumentRows<T, V extends object>(
     ...state.access,
     owningDocument,
     owningBinding: state.binding,
-    concurrencyLimit: limit,
-    sharedGate: gate,
   });
 }
 

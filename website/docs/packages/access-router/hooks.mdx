@@ -138,7 +138,12 @@ router.router.get('/admin', guard('isAdmin'), async () => {
 
 ## Permissions Plugin
 
-`permissionsPlugin` adds a virtual permission field to a schema and reads the configured document permission field from the active router options.
+`permissionsPlugin` adds only a hydrated Mongoose getter alias (default `permissions`)
+for existing `_doc[documentPermissionField]` metadata, usually `_permissions`.
+It uses active-runtime options, falling back to the default runtime outside managed
+execution. It does not compute grants, authenticate an actor or enable field
+enforcement; routers/services enforce their policies without the plugin, including
+lean results. The alias is separate from package-level computed `virtuals`.
 
 ```ts
 schema.plugin(permissionsPlugin, {

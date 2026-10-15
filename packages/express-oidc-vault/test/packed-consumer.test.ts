@@ -57,11 +57,13 @@ const packageRoot = path.resolve(__dirname, '..');
 const consumerSourceDir = path.resolve(packageRoot, 'test-packed-consumer', 'consumer');
 const packageName = '@web-ts-toolkit/express-oidc-vault';
 const memoryPackageName = '@web-ts-toolkit/express-oidc-vault-memory-store';
+const clientPackageName = '@web-ts-toolkit/oidc-vault-dpop-client';
 const providerNames = [
   memoryPackageName,
   '@web-ts-toolkit/express-oidc-vault-redis-store',
   '@web-ts-toolkit/express-oidc-vault-mongodb-store',
 ];
+const documentationDependencyNames = [...providerNames, clientPackageName];
 const testVersion = '0.99.0-test';
 const packageDirRelative = 'packages/express-oidc-vault';
 
@@ -123,7 +125,7 @@ function containsDisallowedPublishedValue(value: unknown): boolean {
 function buildPublishedManifest(source = sourcePackageJson, directory = packageDirRelative): PackageJson {
   return createPublishPackageJson(source as Record<string, unknown>, {
     version: testVersion,
-    internalPackageNames: new Set([packageName, ...providerNames]),
+    internalPackageNames: new Set([packageName, ...documentationDependencyNames]),
     rootMetadata: {
       author: rootPackageJson.author,
       bugs: rootPackageJson.bugs,
@@ -163,9 +165,9 @@ function preparePackedWorkspace(): PackedWorkspace {
   run('pnpm', ['pack', '--pack-destination', tarballDir], stageDir);
   // Core's prebuild is complete. Build each documentation dependency alone,
   // sequentially, so a clean checkout can compile every installed wiring example.
-  const providerTarballs: Record<string, string> = {};
-  const providerManifests: Record<string, PackageJson> = {};
-  for (const name of providerNames) {
+  const dependencyTarballs: Record<string, string> = {};
+  const dependencyManifests: Record<string, PackageJson> = {};
+  for (const name of documentationDependencyNames) {
     run('pnpm', ['--filter', name, 'build'], workspaceRoot);
     const directory = `packages/${name.split('/')[1]}`;
     const root = path.resolve(workspaceRoot, directory);
@@ -174,11 +176,11 @@ function preparePackedWorkspace(): PackedWorkspace {
     const stage = path.resolve(tempRoot, name.replace(/[@/]/g, '_'));
     stagePublishedPackage(stage, published, root);
     run('pnpm', ['pack', '--pack-destination', tarballDir], stage);
-    providerTarballs[name] = path.resolve(
+    dependencyTarballs[name] = path.resolve(
       tarballDir,
       `${name.replace('@web-ts-toolkit/', 'web-ts-toolkit-')}-${testVersion}.tgz`,
     );
-    providerManifests[name] = published;
+    dependencyManifests[name] = published;
   }
 
   const tarball = path.resolve(tarballDir, `web-ts-toolkit-express-oidc-vault-${testVersion}.tgz`);
@@ -188,8 +190,8 @@ function preparePackedWorkspace(): PackedWorkspace {
 
   packedWorkspaceCache = {
     tempRoot,
-    tarballs: { [packageName]: tarball, ...providerTarballs },
-    manifests: { [packageName]: manifest, ...providerManifests },
+    tarballs: { [packageName]: tarball, ...dependencyTarballs },
+    manifests: { [packageName]: manifest, ...dependencyManifests },
   };
   return packedWorkspaceCache;
 }
@@ -213,11 +215,10 @@ function installPackedConsumer(): string {
         type: 'module',
         dependencies: {
           [packageName]: `file:${packed.tarballs[packageName]}`,
-          ...Object.fromEntries(providerNames.map((name) => [name, `file:${packed.tarballs[name]}`])),
+          ...Object.fromEntries(documentationDependencyNames.map((name) => [name, `file:${packed.tarballs[name]}`])),
           express: sourcePackageJson.devDependencies?.express,
           jose: sourcePackageJson.dependencies?.jose,
           cors: '^2.8.6',
-          idb: '^8.0.3',
           redis: '^5.9.0',
           mongodb: '^6.20.0',
         },
@@ -253,6 +254,47 @@ function copyConsumerSources(consumerDir: string): void {
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
   }
+  for (const source of ['wire-types', 'wire-root-types']) {
+    for (const extension of ['ts', 'cts']) {
+      cpSync(path.resolve(consumerSourceDir, `${source}.ts`), path.resolve(consumerDir, `${source}.${extension}`));
+    }
+  }
+  for (const [config, file] of [
+    ['tsconfig-nodenext.json', 'wire-root-types.ts'],
+    ['tsconfig-nodenext-cts.json', 'wire-root-types.cts'],
+    ['tsconfig-bundler.json', 'wire-root-types.ts'],
+  ]) {
+    const target = path.resolve(consumerDir, config);
+    const value = JSON.parse(readFileSync(target, 'utf8')) as { include: string[] };
+    value.include.push(file);
+    writeFileSync(target, JSON.stringify(value));
+  }
+}
+
+function compileWireConsumers(consumerDir: string): void {
+  for (const mode of ['NodeNext', 'Bundler']) {
+    const config = `tsconfig-wire-${mode}.json`;
+    writeFileSync(
+      path.resolve(consumerDir, config),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+          module: mode === 'NodeNext' ? 'NodeNext' : 'ESNext',
+          moduleResolution: mode,
+          strict: true,
+          skipLibCheck: false,
+          noEmit: true,
+          types: [],
+        },
+        files: mode === 'NodeNext' ? ['wire-types.ts', 'wire-types.cts'] : ['wire-types.ts'],
+      }),
+    );
+    const files = run('pnpm', ['exec', 'tsc', '-p', config, '--listFiles'], consumerDir);
+    expect(files).not.toMatch(/[/\\]@types[/\\]|express-serve-static-core|express-oidc-vault[/\\]index\.d\./);
+    expect(files).toContain('/wire.d.mts');
+    if (mode === 'NodeNext') expect(files).toContain('/wire.d.ts');
+  }
 }
 
 function compileInstalledReadme(consumerDir: string): void {
@@ -270,7 +312,6 @@ function compileInstalledReadme(consumerDir: string): void {
   const backendSnippets = [
     server,
     snippet('### POST login and browser-authenticated callback'),
-    snippet('### Sender-constrained exchange, refresh and logout'),
     snippet('## Optional Fingerprint Recognition (Not PoP)'),
     snippet('## Local Access Token Example (unbound Bearer)'),
     snippet('## Access Token Validation Middleware'),
@@ -283,14 +324,15 @@ function compileInstalledReadme(consumerDir: string): void {
     snippet('### Manual endpoint mode'),
     snippet('### Audit and user provisioning hooks'),
   ];
-  // The POST/config snippets above are individually complete. Wire DTO snippets
-  // are extracted by their function names to avoid selecting a preceding config.
+  // Pure wire snippets are compiled in the DOM-only lane, not rescued by the
+  // backend's Express/Node ambient types.
+  const wireSnippets: string[] = [];
   for (const name of ['initiateLogin', 'exchangeBoundCode']) {
     const code = [...readme.matchAll(/```ts\n([\s\S]*?)\n```/g)].find((match) =>
       match[1].includes(`async function ${name}(`),
     )?.[1];
     if (!code) throw new Error(`Installed DTO snippet missing: ${name}`);
-    backendSnippets.push(code);
+    wireSnippets.push(code);
   }
   const files = backendSnippets.map((code, index) => {
     const file = `readme-backend-${index}.ts`;
@@ -322,14 +364,23 @@ function compileInstalledReadme(consumerDir: string): void {
     }),
   );
   const browserSnippets = [
-    snippet('### Standalone body-transport DPoP client'),
+    snippet('### Browser DPoP client'),
+    snippet('### Low-level proof signing for an owned request'),
     snippet('### Default unbound bearer frontend'),
     snippet('### Cookie transport frontend example'),
     snippet('### Frontend signal adapter'),
+    snippet('### Published recognition adapter'),
+    ...wireSnippets,
   ];
+  const website = readFileSync(path.resolve(workspaceRoot, 'website/docs/packages/express-oidc-vault.md'), 'utf8');
+  const websiteClient = [...website.matchAll(/```ts\n([\s\S]*?)\n```/g)].find((match) =>
+    match[1].includes('async function bootstrapBoundAuth('),
+  )?.[1];
+  if (!websiteClient) throw new Error('Website browser-client example missing.');
+  browserSnippets.push(websiteClient);
   const browserFiles = browserSnippets.map((code, index) => {
-    expect(code).not.toContain('@web-ts-toolkit/express');
-    const file = index === 0 ? 'readme-browser.ts' : `readme-browser-${index}.ts`;
+    expect(code).not.toMatch(/@web-ts-toolkit\/express-oidc-vault['"]/);
+    const file = index === 1 ? 'readme-proof.ts' : `readme-browser-${index}.ts`;
     writeFileSync(path.resolve(consumerDir, file), `${code}\nexport {};\n`);
     return file;
   });
@@ -349,15 +400,26 @@ function compileInstalledReadme(consumerDir: string): void {
       files: browserFiles,
     }),
   );
-  for (const config of [
-    'tsconfig-readme-nodenext.json',
-    'tsconfig-readme-bundler.json',
-    'tsconfig-readme-browser.json',
-  ]) {
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig-readme-browser-nodenext.json'),
+    JSON.stringify({
+      compilerOptions: {
+        ...options,
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        types: [],
+      },
+      files: browserFiles,
+    }),
+  );
+  for (const config of ['tsconfig-readme-nodenext.json', 'tsconfig-readme-bundler.json']) {
     run('pnpm', ['exec', 'tsc', '-p', config], consumerDir);
   }
-  // Compile a real proof from the extracted browser code and authenticate it
-  // using installed core + memory packages (both CJS and ESM conditions).
+  for (const config of ['tsconfig-readme-browser.json', 'tsconfig-readme-browser-nodenext.json']) {
+    const files = run('pnpm', ['exec', 'tsc', '-p', config, '--listFiles'], consumerDir);
+    expect(files).not.toMatch(/[/\\]@types[/\\]|express-serve-static-core|express-oidc-vault[/\\]index\.d\./);
+  }
+  // Execute the extracted owned-request example with the installed browser
+  // client, authenticating its real proof using packed core + memory packages.
   run('node', ['docs-runtime.mjs', 'esm'], consumerDir);
   run('node', ['docs-runtime.mjs', 'cjs'], consumerDir);
 }
@@ -397,20 +459,45 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
         require: './index.js',
         default: './index.js',
       },
+      './wire': {
+        types: {
+          import: './wire.d.mts',
+          require: './wire.d.ts',
+          default: './wire.d.ts',
+        },
+        import: './wire.mjs',
+        require: './wire.js',
+        default: './wire.js',
+      },
     });
     expect(packedManifest.sideEffects).toBe(false);
     expect(packedManifest.peerDependencies).toEqual({ express: '>=5.0.0' });
     expect(packedManifest.dependencies).toEqual({ jose: '^6.1.0' });
     expect(packedManifest.engines).toEqual({ node: '>=22.12.0' });
+    expect(packed.manifests[clientPackageName].engines).toEqual({ node: '>=22.12.0' });
     expect(packedManifest.devDependencies).toBeUndefined();
     expect(packedManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);
-    for (const emitted of ['index.js', 'index.mjs', 'index.d.ts', 'index.d.mts']) {
+    for (const emitted of [
+      'index.js',
+      'index.mjs',
+      'index.d.ts',
+      'index.d.mts',
+      'wire.js',
+      'wire.mjs',
+      'wire.d.ts',
+      'wire.d.mts',
+    ]) {
       expect(existsSync(path.resolve(unpackRoot, emitted))).toBe(true);
     }
     for (const declaration of ['index.d.ts', 'index.d.mts']) {
       const text = readFileSync(path.resolve(unpackRoot, declaration), 'utf8');
-      expect(text).not.toMatch(/from ['"]\.|\/src\/|reference path=/);
+      expect(text).not.toMatch(/\/src\/|reference path=/);
+      const specifiers = [...text.matchAll(/from ['"]([^'"]+)['"]/g)].map((match) => match[1]);
+      expect([...new Set(specifiers.filter((specifier) => specifier.startsWith('.')))]).toEqual([
+        declaration.endsWith('.d.mts') ? './wire.mjs' : './wire.js',
+      ]);
+      expect(text).toContain("declare module 'express-serve-static-core'");
       for (const contract of [
         'OidcVaultDeviceBindingOptions',
         'OidcVaultApiDeviceBindingOptions',
@@ -422,6 +509,17 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
       }
       expect(text).toContain('No live reservation is evicted');
       expect(text).toContain('Create the OIDC lifecycle router using a named package-root import');
+    }
+    for (const declaration of ['wire.d.ts', 'wire.d.mts']) {
+      const text = readFileSync(path.resolve(unpackRoot, declaration), 'utf8');
+      expect(text).not.toMatch(/\bimport\b|express|node:|NodeJS|declare module/);
+      expect(text).toContain('safe exp * 1000 milliseconds');
+      expect(text).toContain('no live reusable API credential');
+    }
+    for (const entry of ['wire.js', 'wire.mjs']) {
+      expect(readFileSync(path.resolve(unpackRoot, entry), 'utf8')).not.toMatch(
+        /\brequire\s*\(|\bimport\b|express|node:/,
+      );
     }
   }, 180_000);
 
@@ -445,6 +543,10 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
       'index.d.ts',
       'index.js',
       'index.mjs',
+      'wire.d.mts',
+      'wire.d.ts',
+      'wire.js',
+      'wire.mjs',
       'package.json',
     ].sort();
     expect(paths).toEqual(expectedFiles);
@@ -455,11 +557,34 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     const consumerDir = installPackedConsumer();
     copyConsumerSources(consumerDir);
 
-    run('node', ['consumer.cjs'], consumerDir);
-    run('node', ['consumer.mjs'], consumerDir);
+    for (const node of new Set(
+      [process.execPath, process.env.DPOP_TEST_NODE].filter((value): value is string => !!value),
+    )) {
+      run(node, ['consumer.cjs'], consumerDir);
+      run(node, ['consumer.mjs'], consumerDir);
+      run(
+        node,
+        [
+          '--input-type=commonjs',
+          '-e',
+          "require('node:assert/strict').deepEqual(Object.keys(require('@web-ts-toolkit/express-oidc-vault/wire')), [])",
+        ],
+        consumerDir,
+      );
+      run(
+        node,
+        [
+          '--input-type=module',
+          '-e',
+          "import assert from 'node:assert/strict'; import * as wire from '@web-ts-toolkit/express-oidc-vault/wire'; assert.deepEqual(Object.keys(wire), [])",
+        ],
+        consumerDir,
+      );
+    }
     run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
     run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json'], consumerDir);
     run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+    compileWireConsumers(consumerDir);
     compileInstalledReadme(consumerDir);
 
     const nodenextTrace = run(

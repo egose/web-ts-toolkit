@@ -1,20 +1,18 @@
 /**
- * ATT-04 shared bounded Redis replay admission (task sections 4.1/4.4).
+ * Shared bounded Redis replay admission.
  *
- * Admission contract (shared with ATT-03 memory; see `test/store-conformance.ts`):
+ * Admission contract shared with memory and MongoDB:
  *
  * - `reserve({ replayKey, retainUntilMs })` returns
  *   `'reserved' | 'duplicate' | 'expired'`.
- * - The canonical deadline field is `retainUntilMs`
- *   (see `AttestationStoreReserveInput`). A `retainUntil` alias is accepted at
- *   runtime for callers written against the task-text shorthand; when both are
- *   present the canonical field wins.
+ * - `retainUntilMs` is the absolute epoch-ms deadline from verified proof timing,
+ *   including the cluster clock guard, never a relative TTL.
  * - Malformed inputs (non-object, bad opaque key bounds 1–256 printable
  *   ASCII, non-safe-integer deadlines) reject with `AttestationProtocolError`
  *   WITHOUT touching Redis (no allocation, `sendCommand` never called).
  * - Live/overlong enforcement uses Redis server `TIME` inside one atomic Lua
- *   admission (`src/stores/redis-script.ts`): `retainUntil <= now` returns
- *   `'expired'`; `retainUntil - now > 240000` throws `AttestationProtocolError`
+ *   admission: `retainUntilMs <= nowMs` returns
+ *   `'expired'`; `retainUntilMs - nowMs > 240000` throws `AttestationProtocolError`
  *   instead of truncating; duplicates return `'duplicate'` even when full and
  *   never change their score; at most 64 expired entries plus the requested
  *   expired one are reclaimed per admission; shared `ZCARD` capacity is checked
@@ -32,20 +30,18 @@
  *   maxEntries = 50000 })`. The public client type is the narrow structural
  *   `sendCommand(args: string[]): Promise<unknown>` contract compatible with
  *   `node-redis`; the library never creates, connects, or closes clients and
- *   never imports a Redis driver (driver is a dev dependency for tests only).
+ *   never imports a Redis driver. Callers own command/queue deadlines and retries.
  * - One same-slot sorted set per shared prefix
  *   (`<keyPrefix>:attestation-proofs`) holds opaque keys + absolute scores.
  *   All clients sharing a prefix MUST configure identical `maxEntries`;
- *   mixed capacities admit under the smallest view and reject under the
- *   largest, breaking the shared bound.
+ *   mixed capacities break the shared bound.
  * - Steady-state `EVALSHA`; on cold start / definite `NOSCRIPT`
  *   nonexecution the runner `SCRIPT LOAD`s and retries exactly once. Uncertain
  *   network timeouts are never retried as though nothing committed: a timeout
  *   may have committed server-side but never executes a handler or falls back
  *   to memory (the middleware maps it to `ATTESTATION_REPLAY_UNAVAILABLE`
- *   without calling `next`). No non-atomic `GET`/`SET`, no separate capacity
- *   counter, no `nowSkewToleranceMs` hidden clamp — the adapter receives
- *   section 4.4's exact `retainUntil`.
+ *   without calling `next`). The adapter preserves the verifier's exact
+ *   `retainUntilMs` rather than clamping it.
  *
  * Capacity / failure / rate notes (no fabricated bytes-per-entry benchmark):
  *
@@ -56,9 +52,8 @@
  * - Redis eviction, restore/state loss, or failover can erase replay
  *   reservations. When relying on window-wide admission history, use a
  *   suitably configured dedicated `noeviction` deployment with persistence /
- *   replication appropriate to your recovery objectives; after state loss a
- *   fresh proof is required and old proofs may be admitted once more (they
- *   still fail verifier age rules once stale).
+ *   replication appropriate to your recovery objectives; after state loss old
+ *   proofs may be admitted again while still valid under verifier age rules.
  * - Sharing is one ledger key per prefix: independent prefixes (and memory
  *   objects) intentionally do not coordinate. Restarts do not reset Redis
  *   state, but `SCRIPT FLUSH` only forces a reload, never a second admission.
@@ -216,9 +211,18 @@ class RedisAttestationStore implements AttestationStore {
  * sorted-set ledger.
  *
  * Pass an already-connected client (or compatible `sendCommand` adapter); the
- * store never connects, disconnects, or attaches listeners. All clients of a
- * prefix must use identical `maxEntries`. See the module header for capacity,
- * failure, and lifecycle notes.
+ * caller owns connection, listeners, command deadlines, and shutdown. Defaults:
+ * `keyPrefix: 'wtt-attestation'`, `maxEntries: 50000`. All clients sharing the
+ * prefix need identical capacity; verifiers in a protection space also need
+ * identical time policy/key windows and clocks within `clusterClockGuardMs`
+ * of Redis `TIME`.
+ *
+ * Absolute `retainUntilMs` scores never slide on duplicates; live entries are
+ * never evicted by this adapter. Capacity throws `AttestationCapacityError`,
+ * malformed inputs throw `AttestationProtocolError`, and dependency failures
+ * throw `AttestationRedisStoreError`. There is no direct-call wait timeout or
+ * retry after uncertain command execution. Eviction/state loss/failover can
+ * erase replay history; configure Redis persistence and noeviction accordingly.
  */
 export function createRedisAttestationStore(options: CreateRedisAttestationStoreOptions): AttestationStore {
   return new RedisAttestationStore(options);

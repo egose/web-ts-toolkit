@@ -42,7 +42,7 @@ npm install @web-ts-toolkit/express-oidc-vault-memory-store
 
 Main exports:
 
-Use **named imports from the package root**. There is no default export or public subpath API.
+Use **named imports from the package root** for backend APIs; there is no default export. Browser DTO consumers can use the pure `/wire` type entry.
 
 - `createOidcVaultMiddleware(...)`
 - `createOidcVaultAccessTokenMiddleware(...)`
@@ -52,6 +52,19 @@ Use **named imports from the package root**. There is no default export or publi
 - `type OidcVaultFingerprintRecognitionOptions` for separate opt-in recognition
 - `OidcVaultDeviceBindingOptions`, `OidcVaultApiDeviceBindingOptions`, `OidcVaultDpopBinding`, `OidcVaultVerifiedDpopBinding`, proof/nonce options, POST-login DTOs and `OidcVaultTransactionCookieOptions`
 - `OidcVaultRequestAwareAccessTokenValidator`, mandatory verified `OidcVaultAccessTokenConfirmation`, `OidcVaultDeviceBindingStoreProvider`, exact/null match inputs, `OidcVaultDpopReplayStore`, revocation context and `OidcVaultDpopReplayCapacityError`
+
+### Browser wire types
+
+Use `import type` from `@web-ts-toolkit/express-oidc-vault/wire` for
+`OidcVaultLoginInitiationInput`, `OidcVaultLoginInitiationResult`,
+`OidcVaultExchangeResult`, `OidcVaultLogoutResult`, `OidcVaultSessionTransport`,
+`OidcVaultTokenIssueResult`, and `OidcVaultUserProfile`. These seven DTOs stay
+single-sourced and root-importable by backends. The pure entry has no Express
+augmentation or Node types; strict DOM-only Bundler/NodeNext consumers work.
+It has both `wire.d.mts` / `wire.d.ts` declaration conditions and empty
+`wire.mjs` / `wire.js` runtime entries. The
+[browser client](./oidc-vault-dpop-client.md) bundles its needed DTO declarations,
+so its consumers need no backend package or Node/Express ambient types.
 
 ## Frontend Storage Policy
 
@@ -405,44 +418,111 @@ Omitting `sessionTtlMs` assigns no default session expiry and retains applicatio
 
 ### Persistent-key DPoP SPA example
 
-The shipped README contains a [standalone body-transport client](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#standalone-body-transport-dpop-client), including key persistence, proof signing, POST login/exchange/API/refresh/logout and nonce retry, with no repo-only imports. For cookie coordination and a fuller scoped fetch helper, install the published browser client [@web-ts-toolkit/oidc-vault-dpop-client](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md) in your frontend. Its four intended APIs are getOrCreateDpopKey, createDpopProof, createOidcVaultDpopSession and fetchWithDpop; they are not Express package exports.
+Install the [published browser client](./oidc-vault-dpop-client.md) in your
+frontend for body or cookie sessions. It includes persistent keys, POST
+login/exchange/refresh/logout, bounded HTTP/nonce handling and scoped API fetch.
+Use named root exports: `createOidcVaultDpopSession`, `fetchWithDpop`,
+`getOrCreateDpopKey`, `createDpopProof`, `DpopNonceCache` and the recognition/error
+APIs. The backend's shipped [quickstart](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#browser-dpop-client)
+pairs with its complete server; this configuration pairs with the runnable app:
 
 ```ts
-import { createOidcVaultDpopSession, fetchWithDpop } from '@web-ts-toolkit/oidc-vault-dpop-client';
+import {
+  createOidcVaultDpopSession,
+  fetchWithDpop,
+  OidcVaultDpopClientError,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 const backendOrigin = 'http://127.0.0.1:4318';
-const session = createOidcVaultDpopSession({ backendOrigin, basePath: '/auth/oidc/body', sessionTransport: 'body' }); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.
+const session = createOidcVaultDpopSession({
+  backendOrigin,
+  basePath: '/auth/oidc/body',
+  sessionTransport: 'body',
+  requestTimeoutMs: 15_000,
+  maxResponseBytes: 1_048_576,
+}); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.
 
 export const signIn = (): Promise<void> => session.login('/callback?transport=body');
 
-export async function bootstrapBoundAuth(): Promise<void> {
-  const url = new URL(location.href);
-  const code = url.searchParams.get('code');
-  if (code) {
-    url.searchParams.delete('code');
-    history.replaceState(null, '', url.href);
-    await session.exchange(code);
-  } else {
-    await session.refresh(); // Persisted key; no access-token Authorization/ath.
+export async function bootstrapBoundAuth(): Promise<'ready' | 'sign-in'> {
+  try {
+    const url = new URL(location.href);
+    const code = url.searchParams.get('code');
+    if (code !== null) {
+      url.searchParams.delete('code');
+      history.replaceState(null, '', url.href);
+      await session.exchange(code);
+    } else {
+      await session.refresh(); // Persisted key; no access-token Authorization/ath.
+    }
+    return 'ready';
+  } catch (error) {
+    if (error instanceof OidcVaultDpopClientError && error.requiresLogin) return 'sign-in';
+    throw error;
   }
 }
 
-export async function getBoundProfile(): Promise<unknown> {
+export async function getBoundProfile(signal?: AbortSignal): Promise<unknown> {
   const response = await fetchWithDpop(
-    { session, apis: [{ origin: backendOrigin, replayNamespace: 'oidc-vault-dpop-example-api' }] },
+    { session, apis: [{ origin: backendOrigin, pathPrefix: '/api', replayNamespace: 'oidc-vault-dpop-example-api' }] },
     `${backendOrigin}/api/profile`,
+    { signal },
   );
   if (!response.ok) throw new Error('Protected API request failed.');
   return response.json();
 }
 export const signOut = (): Promise<void> => session.logout();
+
+export async function recoverBrowserKey(): Promise<void> {
+  await session.resetKey(); // Explicit recovery action for an unusable persisted key.
+  await signIn();
+}
 ```
 
 Repository commands: pnpm --filter oidc-vault-dpop-example dev:server and, in another terminal, pnpm --filter oidc-vault-dpop-example dev; open **127.0.0.1:4317/?transport=body** or cookie. The local fixture IdP is 4319; backend 4318, two public mounts /auth/oidc/body and /auth/oidc/cookie. Your own core default mount is /auth/oidc. Match frontend/server mounts/origins and API replayNamespace exactly.
 
-Login creates a non-extractable ES256/P-256 private CryptoKey plus public JWK in IndexedDB before navigation, scoped by frontend/backend/basePath; atomic first-key creation has one winner. Key loss/change requires fresh login, not rebinding/Bearer fallback. Tokens stay memory-only; body handles/pending key markers use sessionStorage, cookie handles remain backend HttpOnly (not JWT sid). All flows need secure context, Web Crypto and IndexedDB CryptoKey clone; cookie mode additionally requires Web Locks/BroadcastChannel. Cookie refresh has per-context single-flight plus same-origin lock/winner-token coordination, including current recognition. Body handles remain tab-local.
+Login creates a non-extractable P-256 key in IndexedDB before navigation, scoped
+by frontend/backend/basePath, with atomic first-key-wins. Key loss/change needs
+fresh login; an existing corrupt key needs explicit reset-then-login. Tokens
+remain memory-only; handles/pending login are tab-local sessionStorage or backend
+HttpOnly cookies. Both transports use FIFO mutations and refresh coalescing until
+an intervening mutation. Cookie mode adds Web Locks/BroadcastChannel and a 180 ms
+peer wait. `clear` invalidates local auth/owned HTTP but keeps the key; `dispose`
+closes a context while keeping committed reload state; `resetKey` removes only
+the scoped key/metadata. Await clear/reset before teardown if persistence must
+finish. Only `logout` requests server revocation. Reset cannot revoke old
+sessions/JWTs or remove HttpOnly cookies; other sessions sharing the key need login.
 
-Each request/retry signs fresh JTI/iat/signature; API-only ath. Fetch is exact-origin scoped with auth-bearing redirects rejected, one nonce retry total and at most one refresh/retry for DPoP invalid_token. Proof errors/403/503/network failures do not trigger generic refresh loops. Mutations are single-attempt unless explicit authorized server-idempotent/replayable-body retry is selected. CORS must allow explicit frontend origin/credentials and Content-Type/Authorization/DPoP/configured fingerprint; expose DPoP-Nonce/WWW-Authenticate. These settings do not replace vault Origin checks. Same-site loopback browser checks passed on Chromium 151/Firefox 153; WebKit/Safari was not certified due to unavailable Linux libraries, and arbitrary cross-site HTTPS/third-party-cookie/external-IdP behavior is deployment-specific. Browser locks are not a backend refresh lease.
+Each attempt signs a fresh proof/JTI, with API-only `ath`. API scopes use the
+longest normalized segment `pathPrefix`; omission or `/` is origin-wide.
+Unreserved path escapes/dots normalize in both outbound URL and proof, reserved
+separators stay encoded, and query data is preserved. Independent gateway
+services need distinct replay namespaces. Valid response nonces teach the
+64-tuple oldest-remembered cache even on success/single-attempt requests. Vaults
+retry a usable nonce once then throw non-terminal `DPOP_NONCE_RETRY_EXHAUSTED`;
+retry-enabled APIs allow one nonce retry and one `invalid_token` refresh budget.
+Mutations remain single-attempt unless the operation owns a server idempotency
+contract. Final API responses are caller-owned. Terminal session/key/browser/
+recognition errors require login; proof/nonce/transient failures retain auth,
+and unknown vault codes become `OIDC_REQUEST_FAILED`, not a generic 401 logout.
+
+Vault HTTP defaults to **15,000 ms** through headers/body/JSON and **1 MiB** of
+streamed bytes. Queue/storage/crypto/recognition/other locks are outside that
+deadline; timers cannot preempt synchronous work or suspended tabs. API/proof
+signals stop the caller's wait without cancelling shared refresh or already-
+started crypto. API bodies are caller-owned. Abort/timeout is not rollback of
+server mutation/Set-Cookie; a lost body-handle rotation can require fresh login.
+There is no automatic timeout/network mutation retry. A zero-lifetime refresh
+keeps its handle but API use stops with non-terminal `DPOP_ACCESS_TOKEN_EXPIRED`.
+
+CORS must allow explicit frontend origins/credentials and
+Content-Type/Authorization/DPoP/configured fingerprint; expose
+DPoP-Nonce/WWW-Authenticate. Vault Origin checks remain independent. Recorded
+Chromium/Firefox checks use same-site loopback; Safari/WebKit and arbitrary
+cross-site HTTPS/third-party-cookie deployments need their own verification.
+Browser locks coordinate one frontend origin/partition/scope, not distributed
+backend refresh leases. The [shipped guide](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md)
+contains full defaults, errors, recovery and upgrade notes.
 
 ### Default unbound bearer frontend
 
@@ -898,18 +978,34 @@ That local access token is separate from the upstream IdP token. The upstream re
 
 `tokenIssuer.issue` must resolve to a non-null, non-array object with:
 
-- `accessToken`: nonempty opaque string, returned verbatim without trimming or a new whitespace policy;
-- `expiresIn`: finite nonnegative safe-integer seconds, from 0 through `Number.MAX_SAFE_INTEGER`;
+- `accessToken`: nonempty opaque string for unbound issuance, returned verbatim without trimming; bound issuance requires the profile below;
+- `expiresIn`: finite nonnegative safe-integer seconds; bound issuance also requires a safe `expiresIn * 1000` conversion;
 - `tokenType`: exact Bearer or DPoP. Unbound permits Bearer or omission (undefined stays absent in JSON); bound requires exact DPoP and compact signed JWT with matching cnf.jkt from the verified IssueTokenInput.deviceBinding. Null/lowercase/whitespace variants and bound Bearer output are invalid.
+
+The **bound local-JWT profile** requires three nonempty canonical unpadded
+base64url segments, a signing `alg` other than `none`, no `b64: false`, exactly
+`cnf: { jkt }` matching the canonical RFC 7638 SHA-256 thumbprint, and mandatory
+nonnegative safe-integer `exp` epoch seconds with safe `exp * 1000`. Unsupported
+confirmation extensions and unsafe/missing expiry fail. Both JWT validator
+methods enforce the profile after JOSE verification and before `mapClaims`;
+generic unbound JWT optional-exp behavior and opaque issuance remain compatible.
+
+`expiresIn: 0` remains valid and can deliver a rotated handle/cookie, but no live
+reusable API/peer credential. Browser parsing validates clock/conversion/addition
+before capping the response deadline by JWT expiry; expired peers are ignored.
+These decode-only checks are response-contract validation, not JWT authentication.
 
 Only these three fields are copied once into a fresh result. Extra fields (including upstream tokens, `metadata`, `sessionId`, `user`, and `toJSON`) are ignored without evaluating their getters. The vault supplies the response session ID/profile: body transport includes `sessionId`, cookie transport omits it, and `user` is the session profile. Omitting `tokenIssuer` is supported and returns no local token fields.
 
 Malformed results return HTTP 500 with `{"code":"OIDC_VAULT_INTERNAL_ERROR","message":"Unexpected OIDC vault error."}` inside issuance rollback: the logical lineage is revoked and cookie transport clears its cookie instead of minting one. Exchange has already consumed its code; refresh has already contacted the provider and rotated the handle, and its success notification does not run. Correct the issuer and start a new login. Field-specific diagnostics are the original `hooks.onError` context `error` (narrow it before use); allowed-field getter exceptions also enter rollback.
 
-Core decodes trusted issuer output only to check the cnf contract; APIs independently verify JWT signature/issuer/audience/expiry. Local signing algorithms and proof algorithms are independent. Issuers receive owned session/plain containers with reserved recognition evidence omitted; original key/lineage rollback authority survives mutable hooks/issuer calls. This contains accidental extensions, while issuers/hooks remain trusted code with request/response access. Deliberate secrets in allowed fields are not redacted.
+Core decodes trusted issuer output only to check the bound-token contract; APIs independently verify JWT signature/issuer/audience/expiry. Local signing algorithms and proof algorithms are independent. Issuers receive owned session/plain containers with reserved recognition evidence omitted; original key/lineage rollback authority survives mutable hooks/issuer calls. This contains accidental extensions, while issuers/hooks remain trusted code with request/response access. Deliberate secrets in allowed fields are not redacted.
 
 ## Migration And Behavior Changes
 
+- Browser DTO type imports can use the pure `@web-ts-toolkit/express-oidc-vault/wire` entry. Backend root type imports and strict ESM/CJS `req.auth` augmentation are preserved. The companion client now ships DOM-only declarations and requires Node >=22.12.0 for CJS tooling.
+- Bound JWTs now require exact canonical `cnf.jkt`, canonical compact encoding and safe mandatory `exp` seconds; bound `expiresIn` must convert safely to milliseconds. Invalid output fails with sanitized HTTP 500/original-lineage rollback. Both validator paths reject invalid bound profiles before mapping; generic unbound/opaque and zero-lifetime output compatibility remain.
+- Use the published client in place of the former standalone browser implementation. See its [upgrade notes](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md#upgrade-notes) for FIFO/cleanup, finite HTTP bounds, terminal/recoverable errors, nonce learning, gateway normalization and explicit key recovery. Installed keys retain the historical database name/schema.
 - Optional-only endpoint settings previously ignored now select manual mode and fail without the complete manual set. Supply all required manual values or remove endpoint settings to use discovery. Correct malformed optional discovery capabilities at the provider, or omit unsupported fields.
 - DPoP remains opt-in: an object defaults to optional; required rejects legacy unbound records and requires fresh proof-aware login. Later proofs never enroll/rebind legacy records, and disabled DPoP rejects existing bound credentials. Recognition is independent, POST-only enrollment and fresh login on enrolled change.
 - Invalid transaction/code TTLs previously had store-dependent behavior; supply positive safe-integer milliseconds. `sessionTtlMs` is opt-in for new sessions and never renews on refresh. Custom clocks are now sampled during construction.
@@ -1052,7 +1148,7 @@ Default JWT claim mapping:
 - `scope` -> `auth.scope`
 - full verified payload -> `auth.claims`
 
-The JWT helper exposes validate(token) and `validateWithRequest({ token, scheme, req })`. It snapshots verified **cnf before mapClaims**, discarding mapper-supplied confirmation/deviceBinding. An unbound legacy result omits confirmation; request-aware unbound is explicit null. Bound confirmation survives mapper removal and is rejected when DPoP is disabled. Supported cnf is exactly `{ jkt: '<canonical SHA-256 thumbprint>' }`; malformed/null/unsupported cnf is an invalid token, never legacy. The helper verifies JWTs; the API middleware verifies possession.
+The JWT helper exposes validate(token) and `validateWithRequest({ token, scheme, req })`. Both verify the bound profile's safe mandatory expiry after JOSE verification and **before mapClaims**; generic unbound JWT expiry stays optional. It snapshots verified cnf before mapping, discarding mapper-supplied confirmation/deviceBinding. An unbound legacy result omits confirmation; request-aware unbound is explicit null. Bound confirmation survives mapper removal and is rejected when DPoP is disabled. Supported cnf is exactly `{ jkt: '<canonical SHA-256 thumbprint>' }`; malformed/null/unsupported cnf is an invalid token, never legacy. The helper verifies JWTs; the API middleware verifies possession.
 
 ### Request-aware API policy and public URL
 

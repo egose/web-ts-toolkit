@@ -210,7 +210,12 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
 
   async _new(
     args?: { select?: string[] },
-    options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean },
+    options?: {
+      /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
+      skim?: boolean;
+      includePermissions?: boolean;
+      includeFieldPermissions?: boolean;
+    },
   ): Promise<SingleResult<PublicOutput<TModel, TVirtuals>> | ErrorResult> {
     const admission = this.admitPublicCall({ args, options });
     if (admission) return admission;
@@ -267,7 +272,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
 
       // if not found, try to get the doc with 'list' access
       if (tryList && (!result.success || !result.data)) {
-        const listAllowed = await this.req.macl.isAllowed(this.modelName, 'list');
+        const listAllowed = await this.requestCore.isAllowed(this.modelName, 'list');
         if (!listAllowed) {
           return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
         }
@@ -349,7 +354,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
 
     // if not found, try to get the doc with 'list' access
     if (tryList && (!result.success || !result.data)) {
-      const listAllowed = await this.req.macl.isAllowed(this.modelName, 'list');
+      const listAllowed = await this.requestCore.isAllowed(this.modelName, 'list');
       if (!listAllowed) {
         return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
       }

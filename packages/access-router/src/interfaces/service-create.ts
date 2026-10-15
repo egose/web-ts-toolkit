@@ -10,6 +10,7 @@ export interface PublicCreateArgs {
 export interface CreateArgs extends Omit<PublicCreateArgs, 'tasks'> {}
 
 export interface PublicCreateOptions {
+  /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
   includePermissions?: boolean;
   /**

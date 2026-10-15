@@ -1,5 +1,5 @@
 /**
- * ATT-02 Express body-parser capture integration (task sections 4.2-4.3, 4.5).
+ * Express body-parser capture integration for exact submitted bytes.
  *
  * Expected mount order (documented contract):
  *
@@ -40,7 +40,7 @@
  * `500 ATTESTATION_BODY_CAPTURE_REQUIRED`).
  *
  * `verify` never mutates `req.body`; it only observes. `errorHandler` is
- * narrow: only supported parser size/encoding failures map to section 4.5;
+ * narrow: only supported parser size/encoding failures map to fixed 413/415 errors;
  * every other parser error retains application/parser policy via `next(err)`.
  */
 import { createHash } from 'node:crypto';
@@ -49,13 +49,16 @@ import { AttestationProtocolError, DEFAULT_MAX_BODY_BYTES, MAX_BODY_BYTES_HARD_C
 import { AttestationError } from './errors.js';
 import type { AttestationBodyCapture, CreateAttestationBodyCaptureOptions } from './server-types.js';
 
+/** Frozen observation of the exact parser bytes, never reconstructed from `req.body`. */
 export interface AttestationBodyRecord {
   readonly digestHex: string;
   readonly byteLength: number;
 }
 
 export interface AttestationBodyCaptureWithRecord extends AttestationBodyCapture {
+  /** Returns a frozen copy, or undefined if no parser capture ran for this request. */
   readonly getRecord: (req: unknown) => AttestationBodyRecord | undefined;
+  /** Validated byte budget; use the same value as the parser and browser wrapper limits. */
   readonly maxBodyBytes: number;
 }
 
@@ -142,13 +145,18 @@ function sendCaptureError(
 }
 
 /**
- * Create the parser `verify` callback + narrow error mapper.
+ * Create the Express parser `verify` callback and narrow error handler.
  *
  * `maxBodyBytes` defaults to 1 MiB and must be a positive safe integer up to
  * the v1 hard cap of 16 MiB. Configure the SAME value as the Express parser
  * `limit` option and always use `inflate: false`. Applications may choose a
  * smaller limit. Over-limit bodies fail in the parser (mapped to 413 before
- * the guard) before any replay allocation.
+ * the guard) before any replay allocation. Pass `capture.verify` directly to
+ * `express.json`/`urlencoded`/`text`/`raw`; mount `capture.errorHandler` after
+ * parsers and before the guard. The callbacks are assignable to Express types.
+ * Size/encoding failures map to fixed 413/415; other parser errors go to
+ * `next(err)`. Capture observes the bytes without mutating `req.body`.
+ * Uncaptured nonempty bodies fail at the guard with BODY_CAPTURE_REQUIRED.
  */
 export function createAttestationBodyCapture(
   options: CreateAttestationBodyCaptureOptions = {},

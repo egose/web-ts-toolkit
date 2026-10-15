@@ -28,6 +28,16 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./wire": {
+      "types": {
+        "import": "./dist/wire.d.mts",
+        "require": "./dist/wire.d.ts",
+        "default": "./dist/wire.d.ts"
+      },
+      "import": "./dist/wire.mjs",
+      "require": "./dist/wire.js",
+      "default": "./dist/wire.js"
     }
   },
   "scripts": {

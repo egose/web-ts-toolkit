@@ -1,10 +1,10 @@
 /**
- * ATT-02 verify-before-reserve Express middleware (task sections 4.4-4.5).
+ * Verify-before-reserve Express middleware.
  *
- * Stage order per request (spies + handler counters in
- * `test/verification-order.test.ts` prove this; status codes alone do not):
+ * Stage order per request:
  *
- * 1. single-header extraction (missing/duplicate/comma-joined rejected),
+ * 1. bounded proof preflight (missing/duplicate/comma-joined/noncanonical
+ *    rejected) and single raw content-type extraction,
  * 2. owned provider snapshot (`getSnapshot` bounded by `operationTimeoutMs`),
  * 3. first time/deadline + request-target/content-type/body/HMAC check,
  * 4. time recheck immediately before reservation (async provider delay that
@@ -24,7 +24,7 @@
  * `req.auth`, never consumes OIDC records, and contains no hardcoded
  * health/asset exclusions — mount it on selected routes only.
  *
- * Controlled failures respond directly with fixed section 4.5
+ * Controlled failures respond directly with fixed
  * `{ code, message }` JSON plus `Cache-Control: no-store`. Only a
  * pre-handler stale-key rejection carries `X-Attestation-Error: stale-key`
  * (the single stale-key retry signal). No raw key/nonce/signature/body,
@@ -46,9 +46,11 @@ import type {
   CreateRequestAttestationMiddlewareOptions,
 } from './server-types.js';
 import { getAttestationBodyRecord } from './body-capture.js';
-import { checkProofTiming, copyAttestationSnapshot, verifyAttestationProof } from './verify.js';
+import { checkProofTiming, copyAttestationSnapshot, preflightAttestationProof } from './verify.js';
+import type { AttestationVerifiedProof } from './verify.js';
 import { AttestationCapacityError } from './stores/memory.js';
 
+/** Sanitized failure observation; excludes request/key/body/provider diagnostics. */
 export interface AttestationDiagnosticEvent {
   readonly code: AttestationErrorCode;
   readonly status: number;
@@ -57,6 +59,7 @@ export interface AttestationDiagnosticEvent {
 export type AttestationDiagnosticHook = (event: AttestationDiagnosticEvent) => void;
 
 export type CreateRequestAttestationMiddlewareOptionsWithDiagnostic = CreateRequestAttestationMiddlewareOptions & {
+  /** Optional synchronous observation of fixed code/status only; hook failure never changes admission. */
   readonly onDiagnostic?: AttestationDiagnosticHook;
 };
 
@@ -386,12 +389,26 @@ function resolveConfig(options: CreateRequestAttestationMiddlewareOptionsWithDia
 /**
  * Create the verify-before-reserve Express guard.
  *
+ * Mount after exact-byte parser capture and its error handler on selected API
+ * routes. The returned function assigns directly to `express.RequestHandler`.
+ * Missing/empty proofs fail with 403 ATTESTATION_MISSING; duplicate, comma-joined,
+ * oversized, or noncanonical proofs and raw duplicate Content-Type fields fail
+ * with 403 ATTESTATION_MALFORMED before provider/replay work. Only a stale-key failure
+ * carries `X-Attestation-Error: stale-key`; all provider read/snapshot failures
+ * use fixed 503 ATTESTATION_KEYS_UNAVAILABLE without that marker.
+ *
  * Required `publicOrigin`/`replayNamespace`/services are validated once and
  * frozen; key snapshots are owned per request while service references stay
  * live. Async provider/store waits are bounded by `operationTimeoutMs`
  * (default 5000 ms, allowed 1-60000 ms); a late settlement after the bound
  * can never resume the rejected request, call `next`, or release a possibly
- * committed reservation.
+ * committed reservation. Driver/provider cancellation and deadlines stay caller-owned.
+ *
+ * Public HMAC material does not authenticate a user/session. Auth before this
+ * guard can avoid replay allocation for unauthorized requests; guard-first can
+ * reject invalid proofs before auth work but reserves even if later auth fails.
+ * Reservations remain committed after downstream failure. Durable business
+ * idempotency and authorization are application responsibilities.
  */
 export function createRequestAttestationMiddleware(
   options: CreateRequestAttestationMiddlewareOptionsWithDiagnostic,
@@ -401,40 +418,21 @@ export function createRequestAttestationMiddleware(
   const middleware = (req: unknown, res: unknown, next: (err?: unknown) => void): void => {
     void Promise.resolve()
       .then(async () => {
+        const verifyProof = preflightAttestationProof(extractRawHeader(req, config.headerNameLower));
+        // Node discards duplicate Content-Type values in `headers`; rawHeaders
+        // is needed even for identical duplicates. A comma within one field is
+        // preserved (for example, inside a quoted parameter).
+        const contentTypeHeader = extractRawHeader(req, 'content-type');
         let nowMs = checkedNow(config.now);
-
-        let headerValue: string | readonly string[] | undefined;
-        try {
-          headerValue = extractRawHeader(req, config.headerNameLower);
-        } catch (error) {
-          if (error instanceof AttestationError) {
-            sendControlledError(res, error, config);
-            return;
-          }
-          throw error;
-        }
-
-        let snapshotRaw: AttestationKeySnapshot | Promise<AttestationKeySnapshot>;
-        try {
-          const pending = config.keyProvider.getSnapshot();
-          snapshotRaw = await withOperationTimeout(Promise.resolve(pending), config.operationTimeoutMs);
-        } catch (error) {
-          if (error instanceof AttestationError) {
-            sendControlledError(res, error, config);
-            return;
-          }
-          sendControlledError(res, new AttestationError('ATTESTATION_KEYS_UNAVAILABLE'), config);
-          return;
-        }
 
         let snapshot: AttestationKeySnapshot;
         try {
+          const pending = config.keyProvider.getSnapshot();
+          const snapshotRaw = await withOperationTimeout(Promise.resolve(pending), config.operationTimeoutMs);
           snapshot = copyAttestationSnapshot(snapshotRaw);
-        } catch (error) {
-          if (error instanceof AttestationError) {
-            sendControlledError(res, error, config);
-            return;
-          }
+        } catch {
+          // Every provider failure, including typed errors and snapshot
+          // accessors, is operational. Only proof validation can signal stale.
           sendControlledError(res, new AttestationError('ATTESTATION_KEYS_UNAVAILABLE'), config);
           return;
         }
@@ -446,7 +444,6 @@ export function createRequestAttestationMiddleware(
           readonly headers?: Record<string, string | string[] | undefined>;
         };
         const originalUrl = typeof record.originalUrl === 'string' ? record.originalUrl : record.url;
-        const contentTypeHeader = (record.headers?.['content-type'] as string | string[] | undefined) ?? undefined;
         const contentEncodingHeader =
           (record.headers?.['content-encoding'] as string | string[] | undefined) ?? undefined;
 
@@ -461,10 +458,9 @@ export function createRequestAttestationMiddleware(
           throw error;
         }
 
-        let verified: Awaited<ReturnType<typeof verifyAttestationProof>>;
+        let verified: AttestationVerifiedProof;
         try {
-          verified = verifyAttestationProof({
-            headerValue,
+          verified = verifyProof({
             method: record.method,
             originalUrl,
             publicPathPrefix: config.publicPathPrefix,

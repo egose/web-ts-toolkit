@@ -1,5 +1,5 @@
 /**
- * ATT-02 pure request verification (task sections 4.2-4.5).
+ * Pure request verification with no replay allocation.
  *
  * No replay allocation, no network, no timers, no Express response writing.
  * The middleware orchestrates the stage order:
@@ -10,11 +10,11 @@
  * 4. HMAC-SHA-256 comparison with `timingSafeEqual` on fixed-length bytes.
  *
  * Time is rechecked by the middleware after async provider work, immediately
- * before reservation, and before calling the handler after reservation
- * (section 4.4). This module exposes `checkProofTiming` for those repeats so
+ * before reservation, and before calling the handler after reservation.
+ * This module exposes `checkProofTiming` for those repeats so
  * every check uses the same single formula.
  *
- * Error mapping uses only section 4.5 fixed `{ code, message }` values via
+ * Error mapping uses only fixed `{ code, message }` values via
  * `AttestationError`. No raw key, nonce, signature, body, provider error, or
  * requested key identifier is echoed, and no `WWW-Authenticate` header is
  * produced here (the middleware sends responses).
@@ -36,12 +36,13 @@ import {
 } from './shared/codec.js';
 import { evaluateProofTiming } from './shared/time-policy.js';
 import { AttestationProtocolError, EMPTY_BODY_SHA256_HEX, REPLAY_KEY_PREFIX } from './shared/types.js';
-import type { ProofTiming, ResolvedTimePolicy } from './shared/types.js';
+import type { ProofTiming, ResolvedTimePolicy, TransactionIdFields } from './shared/types.js';
 import { AttestationError } from './errors.js';
 import type { AttestationErrorCode, AttestationKeyEntry, AttestationKeySnapshot } from './server-types.js';
 
 export { EMPTY_BODY_SHA256_HEX };
 
+/** Low-level verifier input. Supply trusted origin/policy/key state and a digest of captured exact bytes. */
 export interface AttestationVerifyInput {
   readonly headerValue: string | readonly string[] | undefined;
   readonly method: unknown;
@@ -57,6 +58,7 @@ export interface AttestationVerifyInput {
   readonly publicOrigin: string;
 }
 
+/** Signature/timing verification result; no nonce has been reserved yet. */
 export interface AttestationVerifiedProof {
   readonly keyId: string;
   readonly timestampMs: number;
@@ -64,6 +66,7 @@ export interface AttestationVerifiedProof {
   readonly keyEntry: AttestationKeyEntry;
   readonly timing: ProofTiming;
   readonly replayKey: string;
+  /** Absolute epoch-ms replay retention deadline, including the cluster clock guard. */
   readonly retainUntilMs: number;
   readonly method: string;
   readonly requestTarget: string;
@@ -122,10 +125,10 @@ export function copyAttestationSnapshot(snapshot: unknown): AttestationKeySnapsh
     }
     const currentKeyId = record.currentKeyId as string;
     return Object.freeze({ currentKeyId, keys: Object.freeze(copied) });
-  } catch (error) {
-    if (error instanceof AttestationError) {
-      throw error;
-    }
+  } catch {
+    // Provider-owned accessors can throw typed attestation errors too. All
+    // snapshot read/validation failures are operational, never client proofs
+    // of staleness, and must not carry provider diagnostics into responses.
     fail('ATTESTATION_KEYS_UNAVAILABLE');
   }
 }
@@ -181,7 +184,7 @@ export function resolveRequestTarget(originalUrl: unknown, publicPathPrefix: str
   }
 }
 
-/** Single final Content-Type value. Duplicate/controls => MALFORMED. */
+/** Single final Content-Type value. Duplicate fields/controls => MALFORMED; commas within one field are preserved. */
 export function resolveContentType(header: string | readonly string[] | undefined | null): string {
   try {
     if (header === undefined || header === null) {
@@ -258,11 +261,27 @@ export function deriveReplayKey(input: {
  * Pure pre-reservation verification. Performs header/codec, snapshot lookup,
  * time, target, content-type/encoding, body digest, and HMAC stages in order
  * and returns the owned timing + replay key for the middleware to reserve.
+ * Always validates the raw proof first; malformed framing cannot be bypassed
+ * with a decoded envelope. Throws fixed `AttestationError` failures. This helper
+ * neither authenticates the caller nor reserves the nonce: prefer the Express
+ * guard for atomic admission and its final timing checks around asynchronous work.
  */
 export function verifyAttestationProof(input: AttestationVerifyInput): AttestationVerifiedProof {
+  return preflightAttestationProof(input.headerValue)(input);
+}
+
+/**
+ * Internal shared boundary for the middleware and public pure verifier.
+ * Validate the bounded raw proof now and capture its decoded envelope in a
+ * private continuation. No caller-supplied decoded envelope or skip-validation
+ * flag can reach verification; this helper is not exported by either entry.
+ */
+export function preflightAttestationProof(
+  rawHeader: AttestationVerifyInput['headerValue'],
+): (input: Omit<AttestationVerifyInput, 'headerValue'>) => AttestationVerifiedProof {
   let headerValue: string | null;
   try {
-    headerValue = extractSingleHeaderValue(input.headerValue);
+    headerValue = extractSingleHeaderValue(rawHeader);
   } catch {
     fail('ATTESTATION_MALFORMED');
   }
@@ -270,18 +289,20 @@ export function verifyAttestationProof(input: AttestationVerifyInput): Attestati
     fail('ATTESTATION_MISSING');
   }
 
-  let envelope: {
-    readonly keyId: string;
-    readonly timestampMs: number;
-    readonly nonceHex: string;
-    readonly mac: string;
-  };
+  let envelope: TransactionIdFields;
   try {
     envelope = decodeTransactionId(headerValue);
   } catch {
     fail('ATTESTATION_MALFORMED');
   }
 
+  return (input) => verifyDecodedAttestationProof(input, envelope);
+}
+
+function verifyDecodedAttestationProof(
+  input: Omit<AttestationVerifyInput, 'headerValue'>,
+  envelope: TransactionIdFields,
+): AttestationVerifiedProof {
   const snapshot = copyAttestationSnapshot(input.snapshot);
   const keyEntry = snapshot.keys.find((entry) => entry.keyId === envelope.keyId);
   if (keyEntry === undefined) {

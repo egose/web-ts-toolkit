@@ -28,6 +28,7 @@ export interface NewArgs {
 
 /** Create-template output options. new() ignores select; rows/related policies are unsupported. */
 export interface NewOptions<TModel = unknown, TVirtuals extends object = Record<never, never>> {
+  /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
   includePermissions?: boolean;
   includeFieldPermissions?: boolean;

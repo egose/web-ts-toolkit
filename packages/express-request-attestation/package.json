@@ -40,7 +40,8 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.signer-browser.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.signer-browser.json && pnpm typecheck:declarations",
+    "typecheck:declarations": "tsc --noEmit -p test-decl-consumer/tsconfig-nodenext.json && tsc --noEmit -p test-decl-consumer/tsconfig-bundler.json && tsc --noEmit -p test-decl-consumer/tsconfig-browser.json",
     "test": "pnpm build && pnpm test:node && pnpm test:redis && pnpm test:mongo && pnpm test:browser && pnpm test:packed-consumer",
     "test:node": "vitest run --config vitest.node.config.mts",
     "test:redis": "vitest run --config vitest.redis.config.mts",

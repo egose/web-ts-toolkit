@@ -67,7 +67,7 @@ function registerTarget(target: any, req: ModelRequest) {
     authorize: async (_execution, filter) => ({ transformed: filter, scope: {}, filter }),
     identifier: vi.fn(),
     find: (_execution, _query, filter, args, options) => target.find(filter, args, options),
-    groupedCount: (filter, field, values) => target.countByFieldValues(field, values, filter, 'count'),
+    groupedCount: (filter, field, input) => target.groupedCount(filter, field, input),
     findOne: vi.fn(),
     updateOne: vi.fn(),
     create: vi.fn(),
@@ -117,8 +117,8 @@ describe('access-router internals', () => {
   it('builds grouped counts with the requested access filter and canonical keys', async () => {
     const modelName = `AclServiceInternal${++modelCounter}`;
     const aggregateSpy = vi.fn().mockResolvedValue([
-      { _id: 'u1', documentIds: ['p1', 'p2'] },
-      { _id: 'u2', documentIds: ['p2'] },
+      { _id: 0, count: 2 },
+      { _id: 1, count: 1 },
     ]);
 
     const service = createAdapterService(
@@ -139,8 +139,8 @@ describe('access-router internals', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.get('u1')).toEqual(new Set(['p1', 'p2']));
-      expect(result.data.get('u2')).toEqual(new Set(['p2']));
+      expect(result.data.get('u1')).toBe(2);
+      expect(result.data.get('u2')).toBe(1);
     }
   });
 
@@ -195,8 +195,9 @@ describe('access-router internals', () => {
     const adapter = new Model(modelName, runtime);
     const cast = vi.spyOn(adapter, 'castFilter');
     const aggregate = vi.spyOn(adapter, 'aggregate').mockResolvedValue([
-      { _id: 1, documentIds: ['p1', 'p2'] },
-      { _id: 2, documentIds: ['p2'] },
+      { _id: 0, count: 2 },
+      { _id: 1, count: 2 },
+      { _id: 2, count: 1 },
     ] as never);
     const service = createAdapterService({ macl: {} } as ModelRequest, modelName, adapter);
     // Query rewriting cannot remove the separately retained foreign constraint.
@@ -209,14 +210,19 @@ describe('access-router internals', () => {
     expect(aggregate.mock.calls[0][0][0]).toEqual({
       $match: { tenant: new mongoose.Types.ObjectId(authorizedFilter.tenant), ownerId: { $in: [1, 1, 2] } },
     });
-    expect(aggregate.mock.calls[0][0][3]).toEqual({ $match: { foreignValues: { $in: [1, 1, 2] } } });
+    const facets = aggregate.mock.calls[0][0][2].$facet;
+    expect(Object.values(facets).map((branch: any) => branch[0])).toEqual([
+      { $match: { ownerId: { $in: [1] } } },
+      { $match: { ownerId: { $in: [1] } } },
+      { $match: { ownerId: { $in: [2] } } },
+    ]);
     expect(values).toEqual(['001', '1', '002']);
     expect(authorizedFilter.tenant).toBe('abcdef'.repeat(4));
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.get('001')).toEqual(new Set(['p1', 'p2']));
-      expect(result.data.get('1')).toEqual(new Set(['p1', 'p2']));
-      expect(result.data.get('002')).toEqual(new Set(['p2']));
+      expect(result.data.get('001')).toBe(2);
+      expect(result.data.get('1')).toBe(2);
+      expect(result.data.get('002')).toBe(1);
     }
     // Persistence errors must not be mislabeled as schema-cast BadRequest.
     const databaseError = new Error('aggregate failed');
@@ -228,15 +234,11 @@ describe('access-router internals', () => {
   });
 
   it('batches include count lookups into a single query', async () => {
-    const counts = new Map([
-      ['u1', new Set(['p1', 'p2'])],
-      ['u2', new Set(['p3'])],
-    ]);
     const publicService = {
-      countByFieldValues: vi.fn().mockResolvedValue({
+      groupedCount: vi.fn().mockResolvedValue({
         success: true,
         kind: 'single',
-        data: counts,
+        data: [2, 1],
       }),
     };
     const req = {
@@ -258,13 +260,12 @@ describe('access-router internals', () => {
       args: { limit: 1 },
     })) as Array<Record<string, unknown>>;
 
-    expect(publicService.countByFieldValues).toHaveBeenCalledOnce();
-    expect(publicService.countByFieldValues).toHaveBeenCalledWith(
-      'ownerId',
-      ['u1', 'u2'],
-      { ownerId: { $in: ['u1', 'u2'] } },
-      'count',
-    );
+    expect(publicService.groupedCount).toHaveBeenCalledOnce();
+    expect(publicService.groupedCount).toHaveBeenCalledWith({ ownerId: { $in: ['u1', 'u2'] } }, 'ownerId', {
+      values: ['u1', 'u2'],
+      aliases: ['u1', 'u2'],
+      groups: [[0], [1]],
+    });
     expect(result).toEqual([
       { ownerId: 'u1', postCount: 2 },
       { ownerId: 'u2', postCount: 1 },
@@ -272,15 +273,11 @@ describe('access-router internals', () => {
   });
 
   it('counts each target row once for source and target arrays', async () => {
-    const counts = new Map([
-      ['u1', new Set(['p1', 'p2'])],
-      ['u2', new Set(['p2', 'p3'])],
-    ]);
     const publicService = {
-      countByFieldValues: vi.fn().mockResolvedValue({
+      groupedCount: vi.fn().mockResolvedValue({
         success: true,
         kind: 'single',
-        data: counts,
+        data: [3, 2],
       }),
     };
     const req = {
@@ -305,6 +302,11 @@ describe('access-router internals', () => {
       { ownerIds: ['u1', 'u2'], postCount: 3 },
       { ownerIds: ['u2'], postCount: 2 },
     ]);
+    expect(publicService.groupedCount).toHaveBeenCalledWith({ ownerIds: { $in: ['u1', 'u2'] } }, 'ownerIds', {
+      values: ['u1', 'u2'],
+      aliases: ['u1', 'u2'],
+      groups: [[0, 1], [1]],
+    });
   });
 
   it('indexes include list matches instead of rescanning target rows per source row', async () => {

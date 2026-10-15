@@ -27,12 +27,28 @@ pnpm add @web-ts-toolkit/express-oidc-vault express
 
 For the quick start, also install `@web-ts-toolkit/express-oidc-vault-memory-store`. TypeScript applications need `@types/express` and `@types/node` as development dependencies. Express `>=5.0.0` is the runtime peer dependency.
 
-Use **named imports from the package root**. There is no default export or public subpath API.
+Use **named imports from the package root** for backend APIs; there is no default export. The pure [`/wire` type entry](#browser-wire-types) is available for browser DTO consumers.
 
 ## Requirements
 
 - Node.js `>=22.12.0`. The published CJS entry (`index.js`) synchronously requires the ESM-only `jose` dependency, which needs Node's `require(esm)` support. That support is enabled by default starting with Node `22.12.0`; earlier Node 22 releases fail to load the CJS root with `ERR_REQUIRE_ESM` unless an experimental flag is passed. Both the CJS (`require`) and ESM (`import`) roots load without experimental flags on every verified runtime (`22.12.0`, `22.18.0`, `22.20.0`, `24.x`, `26.x`).
 - TypeScript consumers typecheck with `skipLibCheck: false` under strict `NodeNext`/`Bundler` settings. ESM consumers resolve the `import` declaration condition (`index.d.mts`); CommonJS (`.cts`) consumers resolve the `require` condition (`index.d.ts`). Both include the public Express `req.auth` augmentation. Workspace builds place these files under `dist/`; release packaging moves them to the package root and rewrites metadata accordingly. Consumer imports always use the package name.
+
+### Browser wire types
+
+`@web-ts-toolkit/express-oidc-vault/wire` exports **types only**:
+`OidcVaultLoginInitiationInput`, `OidcVaultLoginInitiationResult`,
+`OidcVaultExchangeResult`, `OidcVaultLogoutResult`, `OidcVaultSessionTransport`,
+`OidcVaultTokenIssueResult`, and `OidcVaultUserProfile`. These are the same
+single-sourced DTOs available at the backend root. Use `import type` from
+`/wire` in browser code; it has no Express augmentation or Node type dependency.
+Its ESM/CJS declarations are `wire.d.mts` / `wire.d.ts`, with empty
+`wire.mjs` / `wire.js` runtime entries and no runtime imports. Both layouts
+follow the workspace/release path rules above.
+
+The companion browser client bundles the DTO declarations it needs, so installing
+`@web-ts-toolkit/oidc-vault-dpop-client` needs neither this backend package nor
+Express/Node ambient types. See [Browser DPoP client](#browser-dpop-client).
 
 ## Frontend Storage Policy
 
@@ -107,19 +123,19 @@ Cookie-authenticated `refresh` and `logout` requests use a fail-closed CSRF poli
 
 **Session transport and device-binding mode are independent options.** Opt-in POST login and guarded exchange always need the temporary transaction cookie, including with `sessionTransport: 'body'`. The session cookie is separate and starts at successful exchange. Same-site subdomains can use Lax cookies with credentialed cross-origin requests; cross-origin does not itself mean cross-site. Cross-site SPAs need an explicit HTTPS `transactionCookie: { sameSite: 'none' }` as well as suitable session-cookie settings, credentialed CORS, and a browser policy that permits those cookies.
 
-Recommended frontend boot flow:
+Recommended frontend boot flow (default unbound transport):
 
 1. Read `sessionId` from `sessionStorage`.
 2. If present, call `POST /auth/oidc/refresh` immediately.
 3. If refresh succeeds, replace the stored `sessionId` with the rotated value and keep the returned `accessToken` in memory only.
-4. If refresh fails, clear `sessionStorage` and treat the user as logged out.
+4. On a terminal session error, clear the handle and route to sign-in. A transient/proof/nonce failure is not evidence that the session was revoked; retain recovery state and apply the operation's retry contract.
 
 If you use `sessionTransport: 'cookie'`, the frontend boot flow becomes simpler:
 
 1. Keep `accessToken` in memory only.
 2. Call `POST /auth/oidc/refresh` on app startup.
 3. Let the backend read and rotate the session cookie.
-4. Clear in-memory auth state if refresh fails.
+4. On a terminal session error, clear local auth and route to sign-in. The DPoP client classifies these using `OidcVaultDpopClientError.requiresLogin`, not HTTP status alone.
 
 ## Endpoints
 
@@ -300,7 +316,7 @@ For cookie transport, change `sessionTransport` to `'cookie'` and configure the 
 
 ### Device-binding policy and issuance contracts
 
-The package root exposes policy, record, local-issuer, guarded-store, POST-login DTO/cookie, and request-aware API contracts. **The backend lifecycle is implemented:** POST initiation, cookie-authenticated callback, original-key exchange/refresh/logout (including unexpired aliases), and API proof/nonce/shared replay enforcement. The [private persistent-key SPA example](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md) includes both transports, an Express/local IdP fixture, and real-browser redirect/reload/IndexedDB/CORS/nonce/cross-tab checks. [Request-aware DPoP APIs](#request-aware-dpop-apis) describes API configuration.
+The package root exposes policy, record, local-issuer, guarded-store, POST-login DTO/cookie, and request-aware API contracts. **The backend lifecycle is implemented:** POST initiation, cookie-authenticated callback, original-key exchange/refresh/logout (including unexpired aliases), and API proof/nonce/shared replay enforcement. The [persistent-key SPA example](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md) includes both transports, an Express/local IdP fixture, and real-browser redirect/reload/IndexedDB/CORS/nonce/cross-tab checks. [Request-aware DPoP APIs](#request-aware-dpop-apis) describes API configuration.
 
 `OidcVaultOptions.deviceBinding?: OidcVaultDeviceBindingOptions` is opt-in. Omitting it preserves bearer behavior. An object defaults to `mode: 'optional'`; `required` rejects unbound context. Legacy records are never enrolled by a later proof, and stored bound credentials never become bearer credentials by omission. Construction requires all six `OidcVaultDeviceBindingStoreProvider` capabilities and a static HTTPS `backendOrigin`, except loopback HTTP development.
 
@@ -385,10 +401,13 @@ app.use(
 
 The initiation wire contract is **`POST <basePath>/login`**, `Content-Type: application/json`, body **`{ returnTo?: string }`**, response **`200 { authorizationUrl: string }`** (`OidcVaultLoginInitiationInput` / `OidcVaultLoginInitiationResult`). The key is selected only by a verified DPoP header. `returnTo` is read only from JSON and uses the existing same-frontend-origin policy; query-string/body JWK/thumbprint shortcuts do not select binding. In optional mode, no proof creates an unbound cookie-guarded POST transaction; any supplied invalid proof fails. Required mode needs a proof and rejects legacy GET login before discovery or state allocation. GET in disabled/optional mode remains the unbound redirect and ignores proof/key shortcuts.
 
-A browser using a persistent key can initiate as follows; the [complete SPA helpers](#persistent-key-dpop-spa-example) generate/persist the key and bound retries:
+A browser using a persistent key can initiate as follows; the [published browser client](#browser-dpop-client) generates/persists the key and bounds retries:
 
 ```ts
-import type { OidcVaultLoginInitiationInput, OidcVaultLoginInitiationResult } from '@web-ts-toolkit/express-oidc-vault';
+import type {
+  OidcVaultLoginInitiationInput,
+  OidcVaultLoginInitiationResult,
+} from '@web-ts-toolkit/express-oidc-vault/wire';
 
 async function initiateLogin(freshDpopProof: string): Promise<OidcVaultLoginInitiationResult> {
   // Proof: typ=dpop+jwt, allowed public JWK, POST, pinned absolute login htu,
@@ -436,7 +455,7 @@ Vault POST proofs use the exact method and pinned `backendOrigin` plus externall
 For example, with a configured local issuer, the exchange response can be checked without backend deep imports (the caller supplies a fresh proof from its persistent original key):
 
 ```ts
-import type { OidcVaultExchangeResult } from '@web-ts-toolkit/express-oidc-vault';
+import type { OidcVaultExchangeResult } from '@web-ts-toolkit/express-oidc-vault/wire';
 
 async function exchangeBoundCode(code: string, freshDpopProof: string): Promise<OidcVaultExchangeResult> {
   const response = await fetch('https://api.example.com/auth/oidc/exchange', {
@@ -558,7 +577,9 @@ async function initiateRecognizedLogin(getSignal: () => Promise<string | undefin
 
 Obtain the same current signal through the source at `/exchange` (body `{ code }`) and `/refresh` (body `{ sessionId }` or cookie `{}`). Login/exchange always use `credentials: 'include'` for the temporary cookie; cookie refresh does too. On a recognition 403, start fresh login rather than a refresh retry loop. CORS must allow the configured fingerprint header and `Content-Type`, explicit trusted origins and credentials; also allow `Authorization`/`DPoP` and expose `DPoP-Nonce`/`WWW-Authenticate` when using DPoP. Cross-site SPAs may need explicit HTTPS `transactionCookie: { sameSite: 'none' }`; browser third-party-cookie policy still applies.
 
-The published browser client [`@web-ts-toolkit/oidc-vault-dpop-client`](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md) ships this generic adapter as `createDeviceFingerprint(source, { headerName? })` plus a structural optional-vendor adapter (not a backend package export):
+### Published recognition adapter
+
+The published browser client [`@web-ts-toolkit/oidc-vault-dpop-client`](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md) ships this generic adapter as `createDeviceFingerprint(source, { headerName? })` plus a structural optional-vendor adapter:
 
 ```ts
 // In your frontend, after choosing to collect recognition:
@@ -605,358 +626,157 @@ Omitting `sessionTtlMs` assigns no default session expiry and retains applicatio
 
 ## Frontend Integration Example
 
-### Standalone body-transport DPoP client
-
-For the [complete server above](#complete-dpop-server), install `jose` + `idb` in a browser-bundled TypeScript app. This self-contained, **single-tab body-transport** recipe includes persistent key creation, POST login, callback exchange, API proof/nonce retry, refresh after JWT expiry, and logout. It uses only browser libraries and application code; nothing is imported from an Express package at browser runtime. Configure `backendOrigin`/`basePath` to the exact public mount and keep the same key throughout.
-
-```sh
-pnpm add jose idb
-```
-
-```ts
-import { base64url, calculateJwkThumbprint, decodeJwt, SignJWT, type JWK } from 'jose';
-import { openDB, type DBSchema } from 'idb';
-
-const backendOrigin = 'https://api.example.com';
-const basePath = '/auth/oidc';
-const scope = JSON.stringify(['oidc-vault-dpop-v1', location.origin, backendOrigin, basePath]);
-const handleName = `dpop:handle:${scope}`;
-const pendingName = `dpop:pending:${scope}`;
-interface Key {
-  privateKey: CryptoKey;
-  publicJwk: JWK;
-  jkt: string;
-}
-interface Database extends DBSchema {
-  keys: { key: string; value: Key };
-}
-interface Handle {
-  sessionId: string;
-  jkt: string;
-}
-interface Token {
-  accessToken: string;
-  expiresAt: number;
-  jkt: string;
-}
-let token: Token | undefined; // Never persist the access token.
-let refreshPromise: Promise<Token> | undefined;
-const nonces = new Map<string, string>();
-const database = () =>
-  openDB<Database>('my-app-dpop', 1, {
-    upgrade(db) {
-      db.createObjectStore('keys');
-    },
-  });
-function clearAuth(): void {
-  token = undefined;
-  nonces.clear();
-  sessionStorage.removeItem(handleName);
-  sessionStorage.removeItem(pendingName);
-}
-function requireLogin(): never {
-  clearAuth();
-  throw new Error('Sign in again.');
-}
-function readHandle(): Handle {
-  const value: unknown = JSON.parse(sessionStorage.getItem(handleName) ?? 'null');
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    !('sessionId' in value) ||
-    typeof value.sessionId !== 'string' ||
-    !value.sessionId ||
-    !('jkt' in value) ||
-    typeof value.jkt !== 'string'
-  )
-    return requireLogin();
-  return { sessionId: value.sessionId, jkt: value.jkt };
-}
-async function readKey(create = false, expectedJkt?: string): Promise<Key> {
-  if (!isSecureContext || !crypto.subtle || !globalThis.indexedDB) return requireLogin();
-  const db = await database();
-  try {
-    let key = await db.get('keys', scope);
-    if (!key) {
-      if (!create) return requireLogin(); // Only a fresh login may create a key.
-      const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
-      const jwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
-      const publicJwk: JWK = { kty: 'EC', crv: 'P-256', x: jwk.x!, y: jwk.y! };
-      const candidate: Key = { privateKey: pair.privateKey, publicJwk, jkt: await calculateJwkThumbprint(publicJwk) };
-      // Crypto outside the transaction; one atomic first-key winner across tabs.
-      const tx = db.transaction('keys', 'readwrite');
-      key = await tx.store.get(scope);
-      if (!key) {
-        await tx.store.add(candidate, scope);
-        key = candidate;
-      }
-      await tx.done;
-    }
-    const algorithm = key.privateKey?.algorithm as EcKeyAlgorithm | undefined;
-    if (
-      !(key.privateKey instanceof CryptoKey) ||
-      key.privateKey.type !== 'private' ||
-      key.privateKey.extractable ||
-      algorithm?.name !== 'ECDSA' ||
-      algorithm.namedCurve !== 'P-256' ||
-      key.publicJwk?.kty !== 'EC' ||
-      key.publicJwk.crv !== 'P-256' ||
-      Object.keys(key.publicJwk).length !== 4 ||
-      (await calculateJwkThumbprint(key.publicJwk)) !== key.jkt ||
-      (expectedJkt !== undefined && expectedJkt !== key.jkt)
-    )
-      return requireLogin();
-    const publicKey = await crypto.subtle.importKey(
-      'jwk',
-      key.publicJwk,
-      { name: 'ECDSA', namedCurve: 'P-256' },
-      true,
-      ['verify'],
-    );
-    const data = new TextEncoder().encode('dpop-key-pair-check');
-    const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key.privateKey, data);
-    if (!(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, publicKey, signature, data)))
-      return requireLogin();
-    return key;
-  } finally {
-    db.close();
-  }
-}
-function target(url: URL): string {
-  // URL already normalizes host/default port/dot segments. Normalize unreserved
-  // escapes before final dot removal; preserve reserved escapes such as %2F.
-  const path = url.pathname.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => {
-    const c = String.fromCharCode(parseInt(hex, 16));
-    return /^[A-Za-z0-9._~-]$/.test(c) ? c : `%${hex.toUpperCase()}`;
-  });
-  return new URL(`${url.origin}${path}`).href; // No query or fragment.
-}
-export async function signRequestProof(
-  key: Key,
-  method: string,
-  url: URL,
-  accessToken?: string,
-  nonce?: string,
-): Promise<string> {
-  const ath =
-    accessToken === undefined
-      ? undefined
-      : base64url.encode(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(accessToken))));
-  return new SignJWT({
-    htm: method,
-    htu: target(url),
-    iat: Math.floor(Date.now() / 1000),
-    jti: base64url.encode(crypto.getRandomValues(new Uint8Array(16))),
-    ...(ath === undefined ? {} : { ath }),
-    ...(nonce === undefined ? {} : { nonce }),
-  })
-    .setProtectedHeader({ typ: 'dpop+jwt', alg: 'ES256', jwk: key.publicJwk })
-    .sign(key.privateKey);
-}
-function rememberNonce(space: string, response: Response): boolean {
-  const nonce = response.headers.get('DPoP-Nonce');
-  if (!nonce || nonce.length > 512 || !/^[\x20-\x7e]+$/.test(nonce)) return false;
-  nonces.set(space, nonce);
-  return true;
-}
-async function post(route: 'login' | 'exchange' | 'refresh' | 'logout', body: object, key: Key): Promise<unknown> {
-  const url = new URL(`${backendOrigin}${basePath}/${route}`);
-  const space = JSON.stringify(['vault', scope, key.jkt]);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    key = await readKey(false, key.jkt);
-    const proof = await signRequestProof(key, 'POST', url, undefined, nonces.get(space));
-    const response = await fetch(url, {
-      method: 'POST',
-      redirect: 'error',
-      cache: 'no-store',
-      credentials: route === 'login' || route === 'exchange' ? 'include' : 'omit',
-      headers: { 'Content-Type': 'application/json', DPoP: proof },
-      body: JSON.stringify(body),
-    });
-    const value: unknown = await response.json();
-    if (response.ok) return value;
-    const code = value && typeof value === 'object' && 'code' in value ? value.code : undefined;
-    if (
-      response.status === 400 &&
-      code === 'OIDC_VAULT_USE_DPOP_NONCE' &&
-      attempt === 0 &&
-      rememberNonce(space, response)
-    )
-      continue;
-    if (code === 'OIDC_VAULT_INVALID_SESSION' || code === 'OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED')
-      return requireLogin();
-    throw new Error('Vault request failed.'); // Do not silently retry proof/503/network failures.
-  }
-  throw new Error('Repeated nonce challenge.');
-}
-function accept(value: unknown, key: Key): Token {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    !('accessToken' in value) ||
-    typeof value.accessToken !== 'string' ||
-    !('tokenType' in value) ||
-    value.tokenType !== 'DPoP' ||
-    !('expiresIn' in value) ||
-    typeof value.expiresIn !== 'number' ||
-    !Number.isSafeInteger(value.expiresIn) ||
-    value.expiresIn < 0 ||
-    !('sessionId' in value) ||
-    typeof value.sessionId !== 'string'
-  )
-    return requireLogin();
-  // Check the trusted server's response contract; this decoding is NOT JWT authentication.
-  const cnf = decodeJwt(value.accessToken).cnf as { jkt?: unknown } | undefined;
-  if (cnf?.jkt !== key.jkt) return requireLogin();
-  sessionStorage.setItem(handleName, JSON.stringify({ sessionId: value.sessionId, jkt: key.jkt }));
-  token = { accessToken: value.accessToken, expiresAt: Date.now() + value.expiresIn * 1000, jkt: key.jkt };
-  return token;
-}
-export async function signIn(): Promise<void> {
-  clearAuth();
-  const key = await readKey(true);
-  sessionStorage.setItem(pendingName, key.jkt);
-  const value = await post('login', { returnTo: '/callback' }, key);
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    !('authorizationUrl' in value) ||
-    typeof value.authorizationUrl !== 'string'
-  )
-    return requireLogin();
-  const url = new URL(value.authorizationUrl);
-  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return requireLogin();
-  location.assign(url.href);
-}
-export function refresh(): Promise<Token> {
-  if (!refreshPromise)
-    refreshPromise = (async () => {
-      const handle = readHandle();
-      const key = await readKey(false, handle.jkt);
-      return accept(await post('refresh', { sessionId: handle.sessionId }, key), key);
-    })().finally(() => {
-      refreshPromise = undefined;
-    });
-  return refreshPromise; // No access token/Authorization/ath needed, even after expiry.
-}
-export async function bootstrap(): Promise<void> {
-  const url = new URL(location.href);
-  const code = url.searchParams.get('code');
-  if (code) {
-    url.searchParams.delete('code');
-    history.replaceState(null, '', url.href);
-    const pending = sessionStorage.getItem(pendingName);
-    if (!pending) return requireLogin();
-    const key = await readKey(false, pending);
-    accept(await post('exchange', { code }, key), key);
-    sessionStorage.removeItem(pendingName);
-  } else if (sessionStorage.getItem(handleName)) {
-    await refresh();
-  }
-}
-export async function getProfile(): Promise<unknown> {
-  const url = new URL(`${backendOrigin}/api/profile`); // Fixed API scope; no arbitrary credential target.
-  let credential = token;
-  let refreshed = false;
-  if (!credential || credential.expiresAt <= Date.now()) {
-    credential = await refresh();
-    refreshed = true;
-  }
-  const space = JSON.stringify(['api', url.origin, 'app-api-v1', credential.jkt]);
-  let nonceRetried = false;
-  for (;;) {
-    const key = await readKey(false, credential.jkt);
-    const proof = await signRequestProof(key, 'GET', url, credential.accessToken, nonces.get(space));
-    const response = await fetch(url, {
-      redirect: 'error',
-      credentials: 'omit',
-      cache: 'no-store',
-      headers: { Authorization: `DPoP ${credential.accessToken}`, DPoP: proof },
-    });
-    const error = /(?:^|,\s*)DPoP\s+error="([a-z_]+)"(?:,|$)/i.exec(
-      response.headers.get('WWW-Authenticate') ?? '',
-    )?.[1];
-    if (response.status === 401 && error === 'use_dpop_nonce' && !nonceRetried && rememberNonce(space, response)) {
-      nonceRetried = true;
-      await response.body?.cancel();
-      continue;
-    }
-    if (response.status === 401 && error === 'invalid_token' && !refreshed) {
-      refreshed = true;
-      await response.body?.cancel();
-      credential = await refresh();
-      continue;
-    }
-    if (!response.ok) throw new Error('Protected API request failed.');
-    return response.json();
-  }
-}
-export async function signOut(): Promise<void> {
-  const handle = readHandle();
-  const key = await readKey(false, handle.jkt);
-  try {
-    await post('logout', { sessionId: handle.sessionId }, key);
-  } finally {
-    clearAuth();
-  }
-}
-```
-
-Wire it to a sign-in button (`signIn()`), callback/app startup (`bootstrap()`), a profile action (`getProfile()`), and logout (`signOut()`). Keep these operations sequential around login/logout. Storage/crypto failures stop the operation; clear frontend auth and request fresh login, without an ephemeral-key or Bearer fallback. This recipe's body handle is **tab-local**: atomic key creation does not coordinate shared refresh authority. Do not copy handles or rely on opener-cloned sessionStorage. The example helpers below add cookie-mode Web Locks/BroadcastChannel, richer scoped fetch/body retry rules, current recognition and error handling.
-
-### Persistent-key DPoP SPA example
+### Browser DPoP client
 
 For a bound flow, install the published browser client
 [`@web-ts-toolkit/oidc-vault-dpop-client`](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md)
 in your frontend (it brings `jose` + `idb` as runtime dependencies) and use its
 named root exports. These are **versioned package exports**, separate from the
-Express package. The complete example app's server uses required DPoP, a local
-issuer, and API request-aware validation; its default mounts are
-`/auth/oidc/body` and `/auth/oidc/cookie`. Your own core mount can use the
-default `/auth/oidc`.
+Express package. This complete browser module pairs with the
+[DPoP server above](#complete-dpop-server) at `/auth/oidc`:
 
 ```sh
 pnpm add @web-ts-toolkit/oidc-vault-dpop-client
 ```
 
 ```ts
-import { createOidcVaultDpopSession, fetchWithDpop } from '@web-ts-toolkit/oidc-vault-dpop-client';
+import {
+  createOidcVaultDpopSession,
+  fetchWithDpop,
+  OidcVaultDpopClientError,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
 
-const backendOrigin = 'http://127.0.0.1:4318';
-const session = createOidcVaultDpopSession({ backendOrigin, basePath: '/auth/oidc/body', sessionTransport: 'body' }); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.
+const backendOrigin = 'https://api.example.com';
+const session = createOidcVaultDpopSession({
+  backendOrigin,
+  basePath: '/auth/oidc',
+  sessionTransport: 'body',
+  requestTimeoutMs: 15_000,
+  maxResponseBytes: 1_048_576,
+});
 
-export const signIn = (): Promise<void> => session.login('/callback?transport=body');
+export const signIn = (): Promise<void> => session.login('/callback');
 
-export async function bootstrapBoundAuth(): Promise<void> {
-  const url = new URL(location.href);
-  const code = url.searchParams.get('code');
-  if (code) {
-    url.searchParams.delete('code');
-    history.replaceState(null, '', url.href);
-    await session.exchange(code);
-  } else {
-    await session.refresh(); // Persisted key; no access-token Authorization/ath.
+export async function bootstrapBoundAuth(): Promise<'ready' | 'sign-in'> {
+  try {
+    const url = new URL(location.href);
+    const code = url.searchParams.get('code');
+    if (code !== null) {
+      url.searchParams.delete('code');
+      history.replaceState(null, '', url.href);
+      await session.exchange(code);
+    } else {
+      await session.refresh(); // Persisted key; no access-token Authorization/ath.
+    }
+    return 'ready';
+  } catch (error) {
+    if (error instanceof OidcVaultDpopClientError && error.requiresLogin) return 'sign-in';
+    throw error; // Retain state on transient/proof/nonce errors; no blanket retry.
   }
 }
 
-export async function getBoundProfile(): Promise<unknown> {
+export async function getBoundProfile(signal?: AbortSignal): Promise<unknown> {
   const response = await fetchWithDpop(
-    { session, apis: [{ origin: backendOrigin, replayNamespace: 'oidc-vault-dpop-example-api' }] },
+    { session, apis: [{ origin: backendOrigin, pathPrefix: '/api', replayNamespace: 'app-api-v1' }] },
     `${backendOrigin}/api/profile`,
+    { signal },
   );
   if (!response.ok) throw new Error('Protected API request failed.');
   return response.json();
 }
 export const signOut = (): Promise<void> => session.logout();
+
+// Explicit user action for an existing corrupt key; ordinary sign-in needs no reset.
+export async function recoverBrowserKey(): Promise<void> {
+  await session.resetKey();
+  await signIn();
+}
 ```
 
-To run this flow live against the example vault/API server and local IdP (repository root, two terminals: `pnpm --filter oidc-vault-dpop-example dev:server`, then `pnpm --filter oidc-vault-dpop-example dev`), open http://127.0.0.1:4317/?transport=body (or `cookie`).
+For cookie transport, select `sessionTransport: 'cookie'` on both sides and the
+matching public mount. The runnable [SPA + vault/API + local IdP example](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md)
+uses separate `/auth/oidc/body` and `/auth/oidc/cookie` mounts and cookie names.
 
-`login()` atomically creates a non-extractable ES256/P-256 private CryptoKey in IndexedDB **before** POST initiation/navigation; callback, exchange, refresh and API use that same origin/backend/basePath-scoped key. Key loss requires fresh login. Tokens stay in memory; body handles use sessionStorage, cookie handles stay backend-only. Login/exchange always include credentials for the temporary cookie. Cookie-mode refresh uses a per-context promise plus Web Locks/BroadcastChannel winner-token delivery, with current-recognition matching and fresh independent API proofs. All flows require a secure context, Web Crypto, sessionStorage and IndexedDB CryptoKey structured clone; **cookie mode additionally requires Web Locks/BroadcastChannel**. Unsupported capabilities fail explicitly, with no ephemeral-key/Bearer fallback.
+`login()` atomically persists a non-extractable P-256 key before POST/navigation.
+Exchange/refresh/API/logout use that existing key; loss/change requires fresh
+login, while an existing unusable key needs explicit `resetKey()` then login.
+Tokens stay in memory, body handles/pending login in tab-local sessionStorage,
+and cookie handles in backend HttpOnly cookies. All flows require secure-context
+Web Crypto and IndexedDB CryptoKey persistence; cookie mode additionally needs
+Web Locks/BroadcastChannel. There is no implicit replacement-key/Bearer fallback.
 
-`fetchWithDpop` uses mandatory `Authorization: DPoP`, a fresh proof/ath each attempt, exact configured API origins and `redirect: 'error'`. It allows one nonce retry total and at most one refresh/retry for `DPoP error="invalid_token"`; refresh itself has no ath and works after JWT expiry. Mutating methods are single-attempt unless an authorized server-idempotent contract is explicitly selected with `retry: 'idempotent'`; retry-enabled bodies must be replayable. CORS allows explicit origins/credentials and Content-Type/Authorization/DPoP/configured fingerprint, exposing DPoP-Nonce/WWW-Authenticate. See the [example README](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md) for exact wire DTOs, external-IdP environment settings, commands and deployment limits.
+Both transports use a lifecycle FIFO, with refresh sharing until an intervening
+mutation. Cookie mode adds same-origin/scope locks and a bounded 180 ms live-peer
+token wait. `clear()` immediately invalidates local auth/owned HTTP and preserves
+the key; `dispose()` closes the context while preserving committed reload state;
+`resetKey()` atomically deletes only this scope's key/coordination records.
+Await clear/reset before disposing if their persistence must finish. Only
+`logout()` requests server revocation. Reset cannot remove HttpOnly cookies,
+revoke old sessions/JWTs, or undo already-started API work; other sessions sharing
+the deleted key need fresh login.
+
+Vault attempts default to **15,000 ms** through headers/body/JSON parsing and
+**1 MiB** of streamed response bytes. These limits exclude queue/storage/crypto/
+recognition/other lock owners and cannot preempt synchronous JavaScript or a
+suspended tab. Clear/reset/dispose abort owned HTTP waits; `fetchWithDpop` and
+`createDpopProof` accept a caller `signal`. Aborting one API waiter does not
+cancel shared refresh. API response bodies remain caller-owned and outside the
+vault limits. A lost mutation response leaves server commit/Set-Cookie uncertain:
+no automatic timeout/network retry; a lost body-handle rotation may need login.
+
+`fetchWithDpop` owns auth headers and rejects redirects. API `pathPrefix`
+uses longest normalized segment matching; omission or `/` is origin-wide.
+Outbound paths share proof normalization (unreserved escapes/dots normalize,
+reserved separators stay encoded); query data stays intact. Use separate
+`replayNamespace`s for independent gateway services. Valid response nonces are
+learned even from success or a single-attempt mutation for the next explicit
+call. Each cache holds 64 space/key tuples, evicting the oldest remembered; it
+does not infer nonce TTLs. Vaults retry a usable nonce once, then report
+non-terminal `DPOP_NONCE_RETRY_EXHAUSTED`; retry-enabled APIs allow one nonce
+retry and one `invalid_token` refresh budget. Final API responses belong to the
+caller. Mutations stay single-attempt unless `retry: 'idempotent'` is justified
+by the server operation. Fresh proofs/JTIs are mandatory on every attempt.
+
+Use `requiresLogin`, not every HTTP 401, for session recovery: terminal session,
+browser/key-binding and enrolled recognition errors clear auth; recoverable
+proof/nonce/transient errors retain it. Unknown vault codes become fixed
+`OIDC_REQUEST_FAILED`; API HTTP failures are returned as `Response`s. A valid
+zero-lifetime refresh retains its rotated handle but `fetchWithDpop` stops with
+non-terminal `DPOP_ACCESS_TOKEN_EXPIRED` instead of sending an expired token or
+looping. Full tables and upgrade guidance ship in the
+[client README](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md).
 
 The example has real redirect/reload/cookie/CORS/key/expiry/retry/tab coverage on **Chromium 151 and Firefox 153**. Its tests use cross-origin **same-site loopback** HTTP. WebKit/Safari is not certified in the recorded environment because required Linux libraries were unavailable; arbitrary HTTPS cross-site/third-party-cookie policies and external IdPs need deployment-specific checks. Browser locks coordinate only the same frontend origin/storage partition/vault scope; they do not supply a distributed backend refresh lease.
+
+### Low-level proof signing for an owned request
+
+Prefer `fetchWithDpop` for session-backed APIs. When your application already
+owns key/session validation and the HTTP/retry policy, the root proof helper
+can sign one attempt. Supply a live same-key JWT and obtain the key via
+`session.getKey()` immediately before use; recreate the proof for every retry.
+This example intentionally returns one response for the caller to handle:
+
+```ts
+import { createDpopProof, type DpopKey } from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+export async function getWithProof(
+  key: DpopKey,
+  accessToken: string,
+  nonce?: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const url = 'https://api.example.com/api/profile?view=summary';
+  const proof = await createDpopProof(key, { method: 'GET', url, accessToken, nonce, signal });
+  return fetch(url, {
+    method: 'GET',
+    credentials: 'omit',
+    redirect: 'error',
+    cache: 'no-store',
+    signal,
+    headers: { Authorization: `DPoP ${accessToken}`, DPoP: proof },
+  });
+}
+```
 
 ### Default unbound bearer frontend
 
@@ -1694,9 +1514,13 @@ That local token is separate from the upstream IdP access token:
 
 `tokenIssuer.issue` must resolve to a non-null, non-array object with:
 
-- `accessToken`: nonempty opaque string, returned verbatim without trimming or a new whitespace policy;
-- `expiresIn`: finite nonnegative safe-integer seconds, from 0 through `Number.MAX_SAFE_INTEGER`;
-- `tokenType`: exact `'Bearer'` or `'DPoP'`. **Unbound issuance** permits only `'Bearer'` or omission; omitted/undefined stays absent in JSON. **Bound issuance** requires exact `'DPoP'` and a compact signed JWT carrying matching `cnf.jkt`. Null, lowercase, whitespace variants, and a bound Bearer result are invalid.
+- `accessToken`: nonempty opaque string for unbound issuance, returned verbatim without trimming; bound issuance requires the JWT profile below;
+- `expiresIn`: finite nonnegative safe-integer seconds, from 0 through `Number.MAX_SAFE_INTEGER` for unbound issuance. Bound issuance additionally requires `expiresIn * 1000` to be safe;
+- `tokenType`: exact `'Bearer'` or `'DPoP'`. **Unbound issuance** permits only `'Bearer'` or omission; omitted/undefined stays absent in JSON. **Bound issuance** requires exact `'DPoP'`. Null, lowercase, whitespace variants, and a bound Bearer result are invalid.
+
+The **bound local-JWT profile** is a compact signed JWT with three nonempty canonical unpadded base64url segments, a nonempty signing `alg` other than `none` (no `b64: false` payload), exactly `cnf: { jkt }`, and a mandatory `exp`. The `jkt` must be the matching canonical RFC 7638 SHA-256 thumbprint (43 base64url characters with canonical final bits); additional confirmation fields/methods are unsupported. `exp` is a nonnegative safe integer in epoch **seconds**, and `exp * 1000` must also be a safe integer (so `exp <= Math.floor(Number.MAX_SAFE_INTEGER / 1000)`). Both the issuer boundary and built-in JWT validator enforce this profile.
+
+`expiresIn: 0` remains valid output: the response can still deliver a rotated body handle or set a rotated cookie. It supplies no live reusable API/peer credential. The companion browser client caps its deadline by both `now + expiresIn * 1000` and JWT `exp * 1000`, checking the clock, conversions, and addition for safe nonnegative integers before clamping. It retains zero-lifetime response handles and rejects expired effective peer credentials. Browser decoding and trusted issuer output checks are **not JWT authentication**; JOSE/API expiry enforcement remains authoritative.
 
 Only these three fields are copied once into a fresh result. Extra fields (including upstream tokens, `metadata`, `sessionId`, `user`, and `toJSON`) are ignored without evaluating their getters. The vault supplies the response session ID/profile. Omitting `tokenIssuer` is supported and returns no local token fields.
 
@@ -1708,11 +1532,14 @@ This projection contains accidental result extensions. Issuers/hooks remain trus
 
 ## Migration And Behavior Changes
 
+- Declaration upgrade: browser DTO consumers can switch type-only imports from the backend root to `@web-ts-toolkit/express-oidc-vault/wire`. All seven DTO root imports and backend `req.auth` augmentation remain supported in strict ESM/CJS consumers. The companion client now ships DOM-only declarations and requires Node **>=22.12.0** for CJS tooling.
+- Browser-client upgrade: use the [published client quickstart](#browser-dpop-client) in place of the old standalone implementation. Its shipped [upgrade notes](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md#upgrade-notes) cover finite HTTP budgets/cancellation, FIFO/cleanup, terminal versus recoverable errors, single-attempt nonce learning, gateway path normalization and explicit scoped key recovery. Existing browser keys keep their database name/schema.
 - Optional-only endpoint settings previously ignored now select manual mode and fail without the complete manual set. Supply all required manual values or remove endpoint settings to use discovery. Correct malformed optional discovery capabilities at the provider, or omit unsupported fields.
 - DPoP remains opt-in: omitted policy preserves unbound behavior; an object defaults to optional, required rejects legacy unbound use. New binding is selected only by proof-aware POST login. Disabling DPoP or omitting later proofs never downgrades existing bound records/JWTs. Recognition remains a separate opt-in with POST-only enrollment; a changed enrolled signal requires fresh login.
 - Invalid transaction/code TTLs previously had store-dependent behavior; supply positive safe-integer milliseconds. `sessionTtlMs` is opt-in for new sessions and never renews on refresh. Custom clocks are now sampled during construction.
 - Route each session to its owning issuer/client configuration. Known foreign live sessions now fail with 401. Correct inaccurate stored identity only from trusted provenance or require login again; do not remove identity fields to bypass the guard. Legacy omissions and shared code/alias limits remain as described above.
 - Issuers must return the declared local credential shape; previously accepted malformed results now fail with rollback. Extra result properties no longer extend/override JSON responses.
+- Bound JWT upgrade: emit exactly `cnf: { jkt }`, canonical compact encoding, and a safe integer `exp` with safe milliseconds; bound `expiresIn` must also convert safely to milliseconds. Unsupported confirmation extensions and missing/unsafe expiry now fail issuance with the same sanitized HTTP 500/original-lineage rollback. Already-issued invalid bound JWTs fail both built-in validator methods **before `mapClaims`**. Generic unbound JWT optional-exp behavior and opaque unbound issuance remain compatible; zero-lifetime responses still carry session-rotation results.
 - Provider network/reset failures now produce sanitized endpoint-specific 502s instead of generic internal errors. Cancellation no longer waits for an uncooperative cleanup promise. Alias-retention wording reflects existing SVH-05 behavior, with no store migration.
 
 ## Access Token Validation Middleware
@@ -1866,6 +1693,8 @@ Default JWT claim mapping:
 If you need a custom mapping, pass `mapClaims(...)` to `createOidcVaultJwtAccessTokenValidator(...)`. The helper verifies the JWT first, snapshots its original `cnf` **before** mapping, and discards mapper-supplied `confirmation` and `deviceBinding`. Deleting/mutating `claims.cnf` or returning only a subject cannot remove the proof requirement. Supported `cnf` is exactly `{ jkt: '<canonical SHA-256 thumbprint>' }`; null, malformed values, and other confirmation methods are invalid tokens, never legacy unbound tokens. Construction copies secret/JWK/allowlist/audience containers and captures the mapper.
 
 The helper implements both `validate(token)` and `validateWithRequest({ token, scheme, req })`. Its legacy result omits confirmation only for an originally unbound JWT, and reports a bound confirmation so even binding-disabled vault API middleware refuses a known bound-token downgrade. The helper itself authenticates JWT data; proof enforcement is performed by the middleware below.
+
+In **both methods**, a cryptographically verified bound JWT must also satisfy the [bound local-JWT profile](#local-issuer-result-contract), including mandatory safe `exp`, before `mapClaims` runs. A mapper cannot repair missing expiry or unsupported confirmation. JOSE still verifies signature, expiration, and configured issuer/audience/algorithms first. Genuinely unbound JWTs retain JOSE's generic optional-exp contract; this bound profile does not impose a new token-purpose or mandatory-exp policy on them.
 
 ### Request-aware DPoP APIs
 

@@ -66,9 +66,7 @@ async function fixture(direction: Direction, arrays = false, parentCount = 24, p
   sourceRouter.router.post('/internal/count', async (req, res) => {
     const service = req.macl.getPublicService(targetName);
     const result = await service.countByFieldValues('join', req.body.values, req.body.filter ?? {}, 'count');
-    res.json(
-      result.success ? { ...result, data: Array.from(result.data, ([key, ids]) => [key, Array.from(ids)]) } : result,
-    );
+    res.json(result.success ? { ...result, data: Array.from(result.data) } : result);
   });
   const app = express();
   app.use(express.json());

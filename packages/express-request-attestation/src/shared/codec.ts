@@ -1,5 +1,5 @@
 /**
- * ATT-01 shared wire codec: strict transaction-ID envelope framing, MAC input
+ * Shared wire codec: strict transaction-ID envelope framing, MAC input
  * construction, and every field/target/content-type/origin/header validator.
  *
  * Bounds are enforced BEFORE decoding, recursion, or allocation. All helpers
@@ -44,6 +44,17 @@ const BODY_HASH_HEX_PATTERN = /^[0-9a-f]{64}$/;
 const HTTP_TOKEN_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const HEX_BYTE_PATTERN = /^[0-9a-fA-F]{2}$/;
 
+function assertEncodedTransactionIdBound(value: string): void {
+  // Canonical base64url is ASCII, so its character and byte counts agree.
+  // Reject oversized strings before scanning or allocating UTF-8 bytes; the
+  // decoder rejects any non-ASCII alphabet within this bound separately.
+  if (value.length > MAX_ENCODED_TRANSACTION_ID_BYTES) {
+    throw new AttestationProtocolError(
+      `encoded transactionId must be at most ${MAX_ENCODED_TRANSACTION_ID_BYTES} bytes`,
+    );
+  }
+}
+
 /**
  * Header names that must never be configured as the signature field: auth
  * and cookie credentials, host/origin addressing, body metadata, and the
@@ -69,7 +80,7 @@ function isLoopbackHostname(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '[::1]' || /^127\./.test(hostname);
 }
 
-/** Key IDs match `[A-Za-z0-9_-]{1,64}` (task section 4.1 snapshot rules). */
+/** Key IDs match `[A-Za-z0-9_-]{1,64}`. */
 export function validateKeyId(keyId: unknown): asserts keyId is string {
   if (typeof keyId !== 'string' || !KEY_ID_PATTERN.test(keyId) || keyId.length > MAX_KEY_ID_LENGTH) {
     throw new AttestationProtocolError('keyId must match [A-Za-z0-9_-]{1,64}');
@@ -277,7 +288,8 @@ export function canonicalizeRequestTarget(target: unknown): string {
 /**
  * Configured signature header-name validation. Names must be valid HTTP
  * tokens and must not collide with auth, cookie, host/origin, body-metadata,
- * or the package's `x-attestation-error` response marker.
+ * or the package's `x-attestation-error` response marker. This is general HTTP
+ * validation; `fetchWithAttestation` additionally rejects browser-forbidden names.
  */
 export function validateHeaderName(name: unknown): asserts name is string {
   if (typeof name !== 'string' || name.length === 0) {
@@ -297,7 +309,8 @@ export function validateHeaderName(name: unknown): asserts name is string {
 /**
  * Exactly-one incoming signature field. Returns `null` when absent (the
  * server maps that to `ATTESTATION_MISSING`); throws on duplicate raw-header
- * presentations or comma-joined values instead of selecting one value.
+ * presentations, oversized fields, or comma-joined values instead of selecting
+ * one value. Envelope decoding performs the remaining canonicality checks.
  */
 export function extractSingleHeaderValue(raw: string | readonly string[] | undefined): string | null {
   if (raw === undefined) {
@@ -314,6 +327,7 @@ export function extractSingleHeaderValue(raw: string | readonly string[] | undef
   if (typeof value !== 'string' || value.length === 0) {
     return null;
   }
+  assertEncodedTransactionIdBound(value);
   if (value.includes(',')) {
     throw new AttestationProtocolError('comma-joined signature headers are not allowed');
   }
@@ -399,11 +413,7 @@ export function encodeTransactionId(fields: TransactionIdFields): string {
   const encoded = base64urlEncode(
     canonicalJsonBytes([PROTOCOL_VERSION, fields.keyId, fields.timestampMs, fields.nonceHex, fields.mac]),
   );
-  if (utf8ByteLength(encoded) > MAX_ENCODED_TRANSACTION_ID_BYTES) {
-    throw new AttestationProtocolError(
-      `encoded transactionId must be at most ${MAX_ENCODED_TRANSACTION_ID_BYTES} bytes`,
-    );
-  }
+  assertEncodedTransactionIdBound(encoded);
   return encoded;
 }
 
@@ -411,19 +421,21 @@ export function encodeTransactionId(fields: TransactionIdFields): string {
  * Strict envelope decode. The 1024-byte bound is enforced BEFORE decoding;
  * then canonical base64url, UTF-8, canonical JSON array shape, version 1,
  * and every field rule are enforced. Unknown versions, extra array fields,
- * alternate numeric spellings, padding, and duplicate protocol material all
- * throw.
+ * alternate numeric spellings, padding, UTF-8 BOMs, and duplicate protocol
+ * material all throw.
  */
 export function decodeTransactionId(headerValue: unknown): TransactionIdFields {
   if (typeof headerValue !== 'string' || headerValue.length === 0) {
     throw new AttestationProtocolError('transactionId must be a non-empty string');
   }
-  if (utf8ByteLength(headerValue) > MAX_ENCODED_TRANSACTION_ID_BYTES) {
-    throw new AttestationProtocolError(
-      `encoded transactionId must be at most ${MAX_ENCODED_TRANSACTION_ID_BYTES} bytes`,
-    );
-  }
+  assertEncodedTransactionIdBound(headerValue);
   const bytes = base64urlDecode(headerValue);
+  // TextDecoder normally consumes a leading BOM. Reject it before UTF-8
+  // decoding so canonicality covers the exact envelope bytes, not just the
+  // resulting JSON text. General-purpose UTF-8 decoding stays independent.
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    throw new AttestationProtocolError('transactionId must not contain a UTF-8 BOM');
+  }
   const text = utf8Decode(bytes);
   const envelope = parseCanonicalJsonArray(text, 5);
   const [version, keyId, timestampMs, nonceHex, mac] = envelope;

@@ -334,6 +334,9 @@ operation names/checks, returning entry 401 inside their HTTP 200 envelope.
 
 ### Important behavior
 
+- `skim` is deprecated and retained as a compatibility no-op. Authorization,
+  document grants, virtuals and decoration run regardless of its value. Use `lean`
+  for hydration and the explicit metadata flags for serialization choices.
 - `_read(id, args, { tryList: true })` and `_readFilter(filter, args, options)` can
   fall back from an authorized read miss to list access, subject to **base `list`**
   operation access. `list: false, advancedList: true` cannot permit retry;
@@ -409,11 +412,30 @@ Legacy `op: 'count'` uses one grouped aggregate per include execution for all pa
 counting distinct authorized target documents independently of listHardLimit and
 include pagination. Duplicate local/foreign array keys or documents matching multiple
 local keys do not inflate a parent's count; misses yield zero. The target schema casts
-the authorized match (including tenant filters) and foreign operands before/after
-unwind, retaining original parent-key association for normalized ObjectId/String keys
+the authorized match (including tenant filters) and independent foreign operands
+before aggregation, retaining original parent-key association for normalized ObjectId/String keys
 and query setters. Invalid casts return controlled BadRequest rather than zero.
 Terminal false count row policy retains legacy omitted output; the grouped service
 returns Forbidden. Operation denials prevent target work.
+
+Mongo returns numeric parent-group counts, never matching target-ID arrays. Internal
+`countByFieldValues(foreignField, values, filter = {}, access = 'list')` now returns
+`Promise<SingleResult<Map<string, number>> | ErrorResult>`, with readonly inputs and
+zero for missing original `String(value)` aliases. Replace `.get(key)?.size` with
+`.get(key) ?? 0`. Per-key counts can overlap; do not sum them for a multi-key union.
+Pass `count` as the access for count row policy; this helper accepts no authorization
+options. Parent-union execution remains private.
+
+Both paths enforce fixed limits: 1,000 groups, 10,000 key occurrences, 64 KiB per
+BSON key/alias, 1 MiB cumulative BSON-key plus alias bytes, depth 8 / 20,000 key nodes,
+and 1,024 UTF-8 foreign-path bytes. Original and cast group operands must fit;
+excess returns BadRequest before aggregate dispatch. See the shipped README's
+“Numeric grouped-count service API (breaking migration)” for the complete contract.
+
+Attachments are tracked separately from their original projected source. Source
+permission hooks/dependencies retain original values at collisions; only explicitly
+produced target results are restored after source filtering. A legacy read miss
+does not turn a denied or unselected source value into an attachment.
 
 Casting does not execute `countDocuments` middleware/plugins or consume a persistence
 permit; the aggregate is admitted and runs aggregate middleware. Arbitrary model

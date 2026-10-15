@@ -1,12 +1,10 @@
 /**
- * ATT-01 shared browser-safe protocol DTOs, constants, and error type.
+ * Shared browser-safe v1 protocol types, constants, and error type.
  *
- * This module is imported by BOTH public entries (`.` and `./signer`), so it
- * must stay free of Node built-ins, Express/Redis types, `Buffer`, `NodeJS`,
- * and `node:*` imports. See `tsconfig.signer-browser.json`, which typechecks
- * the signer closure with `types: []` to enforce that boundary.
+ * Both public entries (`.` and `./signer`) export these types. The browser
+ * entry requires no Node, Express, Redis, or MongoDB dependencies or types.
  *
- * Protocol summary (task section 4.2):
+ * Protocol summary:
  *
  * ```text
  * nonceHex    = lowercase hex of 16 cryptographically random bytes
@@ -46,9 +44,9 @@ export const NONCE_BYTES_LENGTH = 16 as const;
 /** Raw HMAC-SHA-256 output length in bytes (43 unpadded base64url chars). */
 export const MAC_BYTES_LENGTH = 32 as const;
 
-/** Key identifiers match `[A-Za-z0-9_-]{1,64}` (task section 4.1). */
+/** Key identifiers match `[A-Za-z0-9_-]{1,64}`. */
 export const MAX_KEY_ID_LENGTH = 64 as const;
-/** Replay namespaces match `[A-Za-z0-9_-]{1,128}` (task section 4.2). */
+/** Replay namespaces match `[A-Za-z0-9_-]{1,128}`. */
 export const MAX_REPLAY_NAMESPACE_LENGTH = 128 as const;
 
 /** Encoded transaction-ID header value: at most 1024 UTF-8 bytes. */
@@ -69,7 +67,7 @@ export const MAX_HEADER_NAME_BYTES = 128 as const;
 export const DEFAULT_MAX_BODY_BYTES = 1048576 as const;
 export const MAX_BODY_BYTES_HARD_CAP = 16777216 as const;
 
-/** Time policy defaults and bounds in milliseconds (task section 4.4). */
+/** Time policy defaults and bounds in milliseconds. */
 export const DEFAULT_MAX_AGE_MS = 30_000 as const;
 export const MIN_MAX_AGE_MS = 1_000 as const;
 export const MAX_MAX_AGE_MS = 120_000 as const;
@@ -89,7 +87,7 @@ export const EMPTY_BODY_SHA256_HEX = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e464
  * Error thrown by shared protocol helpers for malformed input, failed
  * canonical checks, bound violations, and invalid option values.
  *
- * Server middleware (ATT-02) maps these to the fixed section 4.5 HTTP errors
+ * Server middleware maps request failures to fixed HTTP errors
  * without echoing key material, nonces, signatures, or request bodies.
  */
 export class AttestationProtocolError extends Error {
@@ -159,43 +157,61 @@ export interface TransactionIdFields {
 
 /**
  * Low-level signer input. Callers supply explicit timestamp/nonce/body digest
- * so identical inputs are deterministic; only the request wrapper (ATT-07)
- * chooses fresh timestamps/nonces automatically.
+ * so identical inputs are deterministic; `fetchWithAttestation` chooses fresh
+ * timestamps/nonces automatically. Public HMAC proofs do not authenticate users.
  */
 export interface SignInput {
+  /** Actual request method, normalized to uppercase. */
   readonly method: string;
+  /** Externally visible origin-form path/query; preserve percent escapes, slashes, and query order. */
   readonly requestTarget: string;
+  /** Final Content-Type including multipart boundary, or empty for an absent field. */
   readonly contentType: string;
+  /** Lowercase SHA-256 hex of the exact submitted bytes; hash zero bytes for an empty body. */
   readonly bodyHashHex: string;
+  /** Nonnegative safe-integer epoch milliseconds. */
   readonly timestampMs: number;
+  /** Fresh 128-bit nonce as 32 lowercase hex characters; use `generateNonceHex()`. */
   readonly nonceHex: string;
 }
 
 /**
- * Low-level HMAC signer (implemented with WebCrypto in ATT-06). A returned
- * signer exposes immutable protection-space binding plus `sign(input)`.
+ * Low-level WebCrypto HMAC signer with immutable protection-space binding.
+ * Publicly delivered key material provides no caller/session authentication.
  */
 export interface RequestSigner {
   readonly version: 1;
   readonly keyId: string;
   readonly publicOrigin: string;
   readonly replayNamespace: string;
+  /** Deterministic for explicit inputs; returns a canonical envelope or rejects with a local protocol/client error. */
   sign(input: SignInput): Promise<string>;
 }
 
-/** Options accepted by `createRequestSigner` (ATT-06). */
+/** Explicit key and protection-space binding for `createRequestSigner`. */
 export interface RequestSignerOptions {
+  /** Provisioned key identifier matching `[A-Za-z0-9_-]{1,64}`. */
   readonly keyId: string;
-  /** Exactly 32 bytes; copied on input, never exposed. */
+  /** Exactly 32 bytes; copied on input. Non-extractable wrapping does not hide publicly delivered material. */
   readonly key: Uint8Array;
+  /** Static canonical HTTPS origin (loopback HTTP allowed), identical to the verifier. */
   readonly publicOrigin: string;
+  /** Namespace matching `[A-Za-z0-9_-]{1,128}`, identical to the verifier. */
   readonly replayNamespace: string;
 }
 
-/** Partial time-policy overrides in milliseconds. */
+/**
+ * Partial time-policy overrides in milliseconds. All verifiers in one
+ * `(publicOrigin, replayNamespace)` must share these values, replay state,
+ * and per-key acceptance windows. A live policy migration needs a coordinated
+ * new protection space, retaining the old ledger through its last `retainUntilMs`.
+ */
 export interface TimePolicyOptions {
+  /** Maximum proof age; default 30000 ms, safe integer in 1000–120000. */
   readonly maxAgeMs?: number;
+  /** Client clock allowance; default 5000 ms, safe integer in 0–30000. */
   readonly clockSkewMs?: number;
+  /** Pairwise verifier/store clock difference; default 5000 ms (0–30000). Extends retention, not freshness. */
   readonly clusterClockGuardMs?: number;
 }
 

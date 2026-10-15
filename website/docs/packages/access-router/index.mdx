@@ -13,19 +13,22 @@ ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 npm install @web-ts-toolkit/access-router express mongoose
 ```
 
+Requires Node.js >=22, Express >=5 and Mongoose >=8. TypeScript applications also
+need `typescript`, `@types/node` and `@types/express`. The installed package README
+contains a self-contained quick start, configuration map and migration guide.
+
 ## What It Exposes
 
 Main entrypoint:
 
-- default export `acl`
-- named export `acl`
+- default export `acl` — canonical shared-runtime API; named `acl` is identical
 - `createAccessRuntime()` for isolated runtime state
 - `createOpenApiRouter(...)` for `/openapi.json` and Swagger UI routes
 - `combineRoutes(...)` for mounting multiple routers together
 - `guard(...)` for route guards
-- `permissionsPlugin` for schema-based permission access
+- `permissionsPlugin` — optional hydrated-document metadata alias, not field enforcement
 - `RootRouter`, `ModelRouter`, `DataRouter`
-- option getters and setters for global, model, and data options
+- global/model option helpers; data option helpers are on the owning `api.runtime`
 
 Low-level entrypoints:
 
@@ -37,30 +40,33 @@ Low-level entrypoints:
 ## Quick Start
 
 ```ts
+import express from 'express';
 import acl from '@web-ts-toolkit/access-router';
 
-acl.setGlobalOptions({
-  globalPermissions(req) {
-    return req.headers.user === 'admin' ? ['isAdmin'] : [];
-  },
-});
-
+// Public reference data: explicit route and field permissions, no database connection.
 const fruitRouter = acl.createDataRouter('fruit', {
   basePath: '/fruit',
   data: [{ id: 'apple', name: 'Apple', public: true }],
+  idParam: 'id',
   idField: 'id',
   operationAccess: { list: true, read: true },
   permissionSchema: {
     id: true,
-    name: 'isAdmin',
+    name: true,
     public: true,
   },
 });
 
-const userRouter = acl.createRouter('User', {
-  basePath: '/users',
-});
+const app = express();
+app.use(express.json());
+app.use(fruitRouter.routes);
+app.listen(3000);
 ```
+
+`GET /fruit` returns `{ data, meta }`; `GET /fruit/apple` returns the readable fruit.
+For model routes, pass a Mongoose model to `createRouter(model, options)` and connect
+MongoDB before listening. For actor-specific grants, configure `globalPermissions`
+from an authenticated server-side actor as shown in [Configuration](./configuration#global-options).
 
 ## When To Use It
 

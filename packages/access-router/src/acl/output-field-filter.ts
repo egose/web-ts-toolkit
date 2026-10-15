@@ -5,7 +5,7 @@ import type { DocumentAuthorization } from '../interfaces/service-authorization'
 import type { AccessRuntime } from '../runtime';
 import type { AccessRouterPermissions } from '../permission';
 import { deepIsolateValue, isolateDocForOutput } from '../helpers/document';
-import type { SharedHookGate } from '../helpers/concurrency';
+import { getRequestWorkState } from '../helpers/request-work';
 import { warn as warnLog } from '../logger-helpers';
 import { authorizationError } from './authorization-snapshot';
 import {
@@ -59,7 +59,6 @@ export async function resolveOutputDocumentAuthorization(args: {
   owningDocument?: DocumentAuthorization;
   owningBinding?: AuthorizationBinding;
   knownOutput?: boolean;
-  hookGate?: SharedHookGate;
 }): Promise<DocumentAuthorization> {
   const { authorization, binding } = args;
   const { configuration, access } = readServiceAuthorization(authorization, binding);
@@ -72,7 +71,7 @@ export async function resolveOutputDocumentAuthorization(args: {
     if (typeof hook !== 'function') return {};
     try {
       const run = () => hook.call(this, doc, permissions, args.context);
-      const grants = await (args.hookGate ? args.hookGate.run(run) : run());
+      const grants = await getRequestWorkState(binding.request, binding.runtime as AccessRuntime).hookGate.run(run);
       return isPlainObject(grants) ? grants : {};
     } catch (error) {
       warnLog('docPermissions hook failed; applying empty document permissions', {

@@ -1,6 +1,7 @@
 /**
  * Browser-only DPoP client wire DTOs, single-sourced from the backend.
- * Type-only re-export: erased at build, no runtime `express`/`node:*` pull.
+ * The pure backend entry has no server types or augmentation. Its declarations
+ * are bundled into this client; the import is erased from browser JavaScript.
  */
 export type {
   OidcVaultExchangeResult,
@@ -10,4 +11,4 @@ export type {
   OidcVaultSessionTransport,
   OidcVaultTokenIssueResult,
   OidcVaultUserProfile,
-} from '@web-ts-toolkit/express-oidc-vault';
+} from '@web-ts-toolkit/express-oidc-vault/wire';

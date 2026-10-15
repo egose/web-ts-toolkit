@@ -81,6 +81,8 @@ import type {
 } from './interfaces/service-authorization';
 import { planModelOutputForHelper } from './acl/model-output-planning';
 import { filterModelOutputForHelper } from './acl/output-field-filter';
+import { getRequestWorkState } from './helpers/request-work';
+import { constructOwnedModelService, registerModelCoreOwner } from './acl/model-service-owner';
 
 type InternalModelHookContext = ModelHookContext & {
   fieldPermissionAccess?: {
@@ -119,6 +121,7 @@ export class Core {
       baseFilter: new Cache<string, unknown>(),
     };
     registerRequestRowCache(this, this.caches.baseFilter);
+    registerModelCoreOwner(this, this.req, this.requestRuntime);
   }
 
   getIdentifier(modelName: string) {
@@ -358,7 +361,7 @@ export class Core {
             return requireRegisteredPopulateModels ? null : ret;
           }
 
-          const allowedTargetOperation = await this.req.macl.isAllowed(refModelName, populateAccess);
+          const allowedTargetOperation = await this.isAllowed(refModelName, populateAccess);
           if (!allowedTargetOperation) {
             return null;
           }
@@ -535,7 +538,9 @@ export class Core {
     if (isFunction(docPermissionsFn)) {
       const permissions = this.getGlobalPermissions();
       try {
-        docPermissions = await docPermissionsFn.call(this.req, doc, permissions, context);
+        docPermissions = await getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+          docPermissionsFn.call(this.req, doc, permissions, context),
+        );
       } catch (error) {
         // docPermissions failures are fail-closed: keep request handling alive,
         // attach an empty permissions object, and emit a structured warning.
@@ -624,7 +629,7 @@ export class Core {
       if (context.fieldPermissionAccess?.readIds) {
         readExists = context.fieldPermissionAccess.readIds.has(docId);
       } else {
-        const existsResult = await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'read' });
+        const existsResult = await this.getService(modelName).exists({ _id: doc._id }, { access: 'read' });
         readExists = existsResult.success ? !!existsResult.data : false;
       }
     }
@@ -633,7 +638,7 @@ export class Core {
       if (context.fieldPermissionAccess?.updateIds) {
         updateExists = context.fieldPermissionAccess.updateIds.has(docId);
       } else {
-        const existsResult = await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'update' });
+        const existsResult = await this.getService(modelName).exists({ _id: doc._id }, { access: 'update' });
         updateExists = existsResult.success ? !!existsResult.data : false;
       }
     }
@@ -688,7 +693,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
 
-    return runDecorateHook({ req: this.req, hook: decorate, doc, permissions, context });
+    return runDecorateHook({ req: this.req, runtime: this.requestRuntime, hook: decorate, doc, permissions, context });
   }
 
   async decorateAll<T>(
@@ -700,7 +705,14 @@ export class Core {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
-    return runDecorateAllHook({ req: this.req, hook: decorateAll, docs, permissions, context });
+    return runDecorateAllHook({
+      req: this.req,
+      runtime: this.requestRuntime,
+      hook: decorateAll,
+      docs,
+      permissions,
+      context,
+    });
   }
 
   runTasks<T extends object>(modelName: string, docObject: T, task: Task | Task[]): T {
@@ -817,11 +829,11 @@ export class Core {
 
   /** Acquire a model service for trusted server calls; authorization belongs to each call's options, never defaults. */
   getService<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
-    return new Service<TModel, TVirtuals>(this.req, modelName);
+    return constructOwnedModelService(this, () => new Service<TModel, TVirtuals>(this.req, modelName));
   }
 
   getPublicService<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
-    return new PublicService<TModel, TVirtuals>(this.req, modelName);
+    return constructOwnedModelService(this, () => new PublicService<TModel, TVirtuals>(this.req, modelName));
   }
 
   service<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {

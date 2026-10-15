@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Core } from '../src/core';
 import { Service } from '../src/services/service';
+import { prepareCountValues } from '../src/services/grouped-count';
 import { AccessRuntime } from '../src/runtime';
 import { runWithRuntime } from '../src/runtime-context';
 import Permission from '../src/permission';
@@ -143,7 +144,7 @@ describe('SVA-04 private prepared queries', () => {
       );
       expect(await executePreparedCount(f.service, execution, query)).toMatchObject({ data: 7 });
       expect(await executePreparedExists(f.service, execution, query, true)).toMatchObject({ data: { _id: 'found' } });
-      await executePreparedGroupedCount(f.service, execution, query, 'join', ['parent']);
+      await executePreparedGroupedCount(f.service, execution, query, 'join', prepareCountValues(['parent']));
       expect(f.adapter.find.mock.calls[0][0].filter).toEqual(expected);
       expect(f.adapter.countDocuments).toHaveBeenCalledTimes(2);
       expect(f.adapter.countDocuments).toHaveBeenLastCalledWith(expected);

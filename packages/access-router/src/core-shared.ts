@@ -179,6 +179,9 @@ export async function resolveAccessFilterParts<T = unknown>({
   }
 
   const overrideFilterFn = getOption(`overrideFilter.${access}`, null);
+  // Capture both policy functions before a transform can suspend. Fresh calls
+  // may see replacement options, but this call must retain its original policy.
+  const baseFilterFn = rows.mode === 'request' ? getOption(`baseFilter.${access}`, null) : null;
   if (nextFilter !== false && isFunction(overrideFilterFn)) {
     nextFilter = normalizeFilter<T>(await overrideFilterFn.call(req, nextFilter, permissions));
   }
@@ -190,18 +193,18 @@ export async function resolveAccessFilterParts<T = unknown>({
     return { transformed: nextFilter ?? {}, scope, filter: intersectFilters(nextFilter, scope) };
   }
 
-  const baseFilterFn = getOption(`baseFilter.${access}`, null);
   if (!isFunction(baseFilterFn)) return { transformed: nextFilter ?? {}, scope: {}, filter: nextFilter ?? {} };
 
+  // The cache belongs to a core, access AND policy version. Replacing a policy
+  // on a retained service must not reuse an earlier function's cached grant.
+  const cached = cache.get(cacheKey) as { resolver: unknown; filter: Filter<T> | null } | undefined;
+  const reusable = cached?.resolver === baseFilterFn;
   const baseFilter = normalizeFilter<T>(
-    (cache.has(cacheKey) ? cache.get(cacheKey) : await baseFilterFn.call(req, permissions)) as
-      | Filter<T>
-      | null
-      | undefined,
+    (reusable ? cached.filter : await baseFilterFn.call(req, permissions)) as Filter<T> | null | undefined,
   );
 
-  if (!cache.has(cacheKey)) {
-    cache.set(cacheKey, baseFilter);
+  if (!reusable) {
+    cache.set(cacheKey, { resolver: baseFilterFn, filter: baseFilter });
   }
 
   return { transformed: nextFilter ?? {}, scope: baseFilter ?? {}, filter: intersectFilters(baseFilter, nextFilter) };
@@ -247,12 +250,14 @@ export async function setRequestPermissions(req: AccessRouterBaseRequest) {
   // runtime on this shared request: resolve independently and take ownership.
 
   const globalPermissions = getGlobalOption('globalPermissions');
-  if (!isFunction(globalPermissions)) return;
+  const permissions = isFunction(globalPermissions) ? await globalPermissions.call(req, req) : undefined;
 
-  const permissions = await globalPermissions.call(req, req);
+  // Empty results also replace prior runtime-owned grants, without mutating
+  // the previous map. Missing/non-callable resolvers follow the same rule.
   if (isPlainObject(permissions)) req[requestPermissionField] = permissions;
   else if (isArray(permissions)) req[requestPermissionField] = arrayToRecord(permissions as string[]);
   else if (isString(permissions)) req[requestPermissionField] = { [permissions]: true };
+  else req[requestPermissionField] = {};
 
   owners.set(requestPermissionField, activeRuntime);
 }

@@ -79,6 +79,7 @@ describe('CLIENT-05 browser (jsdom) bundle smoke', () => {
         throw new Error('no refresh in smoke');
       },
       clear: async () => {},
+      resetKey: async () => {},
     } as never;
     await expect(
       pkg.fetchWithDpop(

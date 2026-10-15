@@ -567,7 +567,7 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     const work = async (result) => {
       active++;
       peak = Math.max(peak, active);
-      await new Promise((resolve) => setTimeout(resolve, 1));
+      await new Promise<void>((resolve) => setImmediate(resolve));
       active--;
       return result;
     };
@@ -575,11 +575,13 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       docPermissions: { read: () => work({ owner: true }) },
       virtuals: { contacts: { sub: { badge: { get: () => work('v'), dependsOn: [] } } } },
     });
+    f.runtime.setGlobalOptions({ requestComplexity: { maxHookConcurrency: 2 } });
     const args = f.make(['contacts.badge'], grant('contacts.badge'));
     const output = await finalizeModelOutputs({
       ...args,
       inputs: Array.from({ length: 5 }, () => ({ contacts })),
-      concurrencyLimit: 2,
+      // Authenticated output uses its captured owner, not a per-call override.
+      concurrencyLimit: 99,
     });
     expect(output).toEqual(Array.from({ length: 5 }, () => ({ contacts: [{ badge: 'v' }, { badge: 'v' }] })));
     expect(peak).toBe(2);

@@ -1,5 +1,6 @@
 /** Private authenticated query transport. No constructors or flags on service options. */
 import type { Service } from '../services/service';
+import type { GroupedCountInput } from '../services/grouped-count';
 import type {
   Filter,
   FindArgs,
@@ -217,8 +218,8 @@ export async function executePreparedGroupedCount<T, V extends object>(
   execution: ServiceExecutionContext,
   query: PreparedModelQuery,
   foreignField: string,
-  values: readonly unknown[],
+  input: GroupedCountInput,
 ) {
   const { filter } = readPreparedModelQuery(receiver, execution, query);
-  return filter === false ? denied() : getServiceExecutors(receiver).groupedCount(filter, foreignField, values);
+  return filter === false ? denied() : getServiceExecutors(receiver).groupedCount(filter, foreignField, input);
 }

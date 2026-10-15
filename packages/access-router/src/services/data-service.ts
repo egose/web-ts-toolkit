@@ -1,4 +1,5 @@
-import { getDataOptions, getDataSnapshot, getGlobalOption } from '../options';
+import { getDataOptions } from '../options';
+import { copyDataValue, getOwnedDataSnapshot } from '../options/data-values';
 import {
   findElement,
   filterCollection,
@@ -33,23 +34,33 @@ import { Codes } from '../enums';
 import { orderBy, pick } from '@web-ts-toolkit/utils';
 import { resolveRequestComplexity } from '../request-complexity';
 import { assertFieldHelperCall } from '../acl/field-helper-options';
+import { getActiveRuntime, runWithRuntime } from '../runtime-context';
+import { defaultRuntime } from '../runtime';
+import { getRequestWorkState } from '../helpers/request-work';
 
+/**
+ * Request-only data queries over one captured configuration version. find/findOne/
+ * findById return detached, mutable selected values (including supported natives);
+ * list detachment is page-only and precedes response decoration.
+ */
 export class DataService<T> {
   protected req: DataRequest;
   protected dataName: string;
   protected options: DataRouterOptions<T>;
   protected data: T[];
+  private readonly requestRuntime = getActiveRuntime() ?? defaultRuntime;
+  private readonly core: DataRequest['dacl'];
 
   constructor(req: DataRequest, dataName: string) {
     this.req = req;
+    this.core = req.dacl;
     this.dataName = dataName;
     this.options = getDataOptions<T>(dataName);
-    // ARH-11: reuse the shared immutable snapshot created on assignment rather
-    // than cloning all records per request. Captured once per service so a
-    // replacement leaves this in-flight reader on its coherent version. Served
-    // rows are shaped into new objects per request; no query-result caching and
-    // no mutable internal references are exposed.
-    this.data = getDataSnapshot<T>(dataName) as T[];
+    // Capture the owned version corresponding to these options, without reading
+    // public native getters or cloning the dataset. Only final selected results
+    // are detached below; replacement cannot change this in-flight version.
+    this.data = getOwnedDataSnapshot(this.options.data) as T[];
+    getRequestWorkState(this.req, this.requestRuntime);
   }
 
   public async findOne<TSelect extends Projection | undefined = undefined>(
@@ -77,7 +88,13 @@ export class DataService<T> {
     doc = (await this.trimOutputFields(doc, access)) as T;
     if (_select.length > 0) doc = pick(doc as object, _select) as T;
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc as SelectedPublicOutput<T, TSelect>, query };
+    return {
+      success: true,
+      kind: 'single',
+      code: Codes.Success,
+      data: copyDataValue(doc) as SelectedPublicOutput<T, TSelect>,
+      query,
+    };
   }
 
   public async findById<TSelect extends Projection | undefined = undefined>(
@@ -143,7 +160,7 @@ export class DataService<T> {
     const trimmed = await mapWithConcurrencyLimit(pagedDocs, maxHookConcurrency, async (doc) => {
       doc = await this.trimOutputFields(doc, 'list');
       if (_select.length > 0) doc = pick(doc as object, _select) as T;
-      return doc;
+      return copyDataValue(doc);
     });
 
     if (!hasExplicitLimit && trimmed.length === totalCount) {
@@ -162,29 +179,39 @@ export class DataService<T> {
   }
 
   public decorate<TDoc>(doc: TDoc, access: DecorateAccess, context?: DataHookContext): Promise<TDoc> {
-    return this.req.dacl.decorate(this.dataName, doc, access, context);
+    return this.withCore((core) => core.decorate(this.dataName, doc, access, context));
   }
 
   public decorateAll<TDoc>(docs: TDoc[], access: DecorateAllAccess, context?: DataHookContext): Promise<TDoc[]> {
-    return this.req.dacl.decorateAll(this.dataName, docs, access, context);
+    return this.withCore((core) => core.decorateAll(this.dataName, docs, access, context));
+  }
+
+  // Retain both the admission owner and its option lookup after req.dacl handoff.
+  private withCore<TResult>(operation: (core: DataRequest['dacl']) => TResult): TResult {
+    return runWithRuntime(this.requestRuntime, () => operation(this.core));
   }
 
   public getRequestComplexity() {
-    return resolveRequestComplexity(getGlobalOption('requestComplexity'));
+    const { scheduler, hookGate } = getRequestWorkState(this.req, this.requestRuntime);
+    return {
+      ...resolveRequestComplexity(this.requestRuntime.getGlobalOption('requestComplexity')),
+      maxBulkConcurrency: scheduler.limit,
+      maxHookConcurrency: hookGate.limit,
+    };
   }
 
   /** Request-schema allowlist, even with null doc. Named options default to {}; no backend elevation. */
   public async genAllowedFields(doc: unknown, access: SelectAccess, options: DataFieldOptions = {}): Promise<string[]> {
     assertFieldHelperCall('genAllowedFields', arguments.length, 3, options, 'data');
-    return this.req.dacl.genAllowedFields(this.dataName, doc, access, options);
+    return this.withCore((core) => core.genAllowedFields(this.dataName, doc, access, options));
   }
 
   public genFilter(access?: BaseFilterAccess, filter?: DataFilter<T>): Promise<DataFilter<T>> {
-    return this.req.dacl.genFilter<T>(this.dataName, access, filter);
+    return this.withCore((core) => core.genFilter<T>(this.dataName, access, filter));
   }
 
   public genIDFilter(id: string): Promise<DataFilter<T>> {
-    return this.req.dacl.genIDFilter<T>(this.dataName, id);
+    return this.withCore((core) => core.genIDFilter<T>(this.dataName, id));
   }
 
   /**
@@ -198,7 +225,7 @@ export class DataService<T> {
     options: DataFieldOptions = {},
   ): Promise<string[]> {
     assertFieldHelperCall('genSelect', arguments.length, 3, options, 'data');
-    return this.req.dacl.genSelect(this.dataName, access, targetFields, options);
+    return this.withCore((core) => core.genSelect(this.dataName, access, targetFields, options));
   }
 
   /** Alias of request-only genSelect, including its empty-intersection semantics. */
@@ -214,7 +241,7 @@ export class DataService<T> {
   /** Request-only existing-value pick; no automatic identity/metadata retention or model hooks. */
   public async pickAllowedFields<TDoc>(doc: TDoc, access: SelectAccess, options: DataFieldOptions = {}): Promise<TDoc> {
     assertFieldHelperCall('pickAllowedFields', arguments.length, 3, options, 'data');
-    return this.req.dacl.pickAllowedFields(this.dataName, doc, access, options);
+    return this.withCore((core) => core.pickAllowedFields(this.dataName, doc, access, options));
   }
 
   /** Alias of request-only pickAllowedFields; named options default to {}. */

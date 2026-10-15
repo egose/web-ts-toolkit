@@ -439,6 +439,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'service-authorization-boundary.types.fixture',
     'service-authorization-migration.types.fixture',
     'field-helper-migration.types.fixture',
+    'grouped-count-consumer.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -875,7 +876,12 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         esModuleInterop: true,
         types: ['node'],
       },
-      files: ['field-helper-migration.types.fixture.mts', 'field-helper-migration.types.fixture.cts'],
+      files: [
+        'field-helper-migration.types.fixture.mts',
+        'field-helper-migration.types.fixture.cts',
+        'grouped-count-consumer.types.fixture.mts',
+        'grouped-count-consumer.types.fixture.cts',
+      ],
     }),
   );
 
@@ -986,6 +992,44 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     preparePackedWorkspace();
     authorizationMongo = await MongoMemoryServer.create();
   }, 240_000);
+
+  it.each([
+    ['minimum peers', '5.0.0', '8.0.0'],
+    ['current majors', '5.2.1', '9.8.0'],
+  ])(
+    'ARL-08 installs the numeric count API with %s in Bundler, NodeNext and Node16',
+    (label, expressVersion, mongooseVersion) => {
+      const consumerDir = installPackedConsumer(expressVersion, mongooseVersion);
+      const source = 'grouped-count-consumer.types.fixture';
+      const snippet = readFileSync(path.resolve(packageRoot, `test/${source}.ts`), 'utf8');
+      for (const extension of ['ts', 'mts', 'cts']) {
+        writeFileSync(path.resolve(consumerDir, `${source}.${extension}`), snippet);
+      }
+      for (const resolution of ['Bundler', 'NodeNext', 'Node16']) {
+        const config = `tsconfig-grouped-count-${resolution}.json`;
+        writeFileSync(
+          path.resolve(consumerDir, config),
+          JSON.stringify({
+            compilerOptions: {
+              target: 'ES2022',
+              module: resolution === 'Bundler' ? 'ESNext' : resolution,
+              moduleResolution: resolution,
+              strict: true,
+              noUnusedLocals: true,
+              noUnusedParameters: true,
+              noEmit: true,
+              skipLibCheck: label !== 'current majors',
+              esModuleInterop: true,
+              types: ['node'],
+            },
+            files: resolution === 'Bundler' ? [`${source}.ts`] : [`${source}.mts`, `${source}.cts`],
+          }),
+        );
+        expect(run('pnpm', ['exec', 'tsc', '-p', config], consumerDir)).toBe('');
+      }
+    },
+    180_000,
+  );
 
   it('applies the real `@repo-toolkit/publish-package` manifest transformation to the access-router tarball', () => {
     const packed = preparePackedWorkspace();

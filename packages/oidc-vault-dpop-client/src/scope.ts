@@ -1,9 +1,3 @@
-/**
- * Browser-only DPoP client (CLIENT-02 port of apps/oidc-vault-dpop-example/src/auth/*).
- * No `node:*` or `express` imports. Browser globals (crypto.subtle, indexedDB,
- * sessionStorage, navigator.locks, BroadcastChannel) only behind
- * assertDpopBrowserFeatures / lazy factory calls, never at module top-level.
- */
 import { OidcVaultDpopClientError } from './errors';
 
 const invalidTarget = (): OidcVaultDpopClientError =>
@@ -18,6 +12,8 @@ const normalizePath = (origin: string, path: string): string => {
     const character = String.fromCharCode(Number.parseInt(hex, 16));
     return /^[A-Za-z0-9._~-]$/.test(character) ? character : `%${hex.toUpperCase()}`;
   });
+  // Concatenation keeps //host-looking paths on the pinned origin. Never use
+  // relative URL resolution or decode reserved escapes into path separators.
   return new URL(`${origin}${decoded}`).pathname;
 };
 
@@ -42,16 +38,41 @@ export const normalizeDpopTarget = (value: string | URL): string => {
 export const normalizeStaticOrigin = (value: string): string => {
   const target = normalizeDpopTarget(value);
   const url = new URL(value);
-  if (url.pathname !== '/' || url.search || url.hash || target !== `${url.origin}/`) throw invalidTarget();
+  // Check the supplied syntax too: parsing erases /x/.. and empty ?/# markers,
+  // none of which belong in an origin-only credential configuration.
+  if (
+    !/^https?:\/\/[^/\\?#]+\/?$/i.test(value) ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash ||
+    target !== `${url.origin}/`
+  ) {
+    throw invalidTarget();
+  }
   if (url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
     throw new OidcVaultDpopClientError('INSECURE_DPOP_ORIGIN', 'DPoP requires HTTPS or loopback development.');
   }
   return url.origin;
 };
 
+/** API path scopes use exactly the proof path's escape/dot normalization. */
+export const normalizeDpopPathPrefix = (origin: string, value?: string): string => {
+  if (value === undefined) return '/';
+  if (typeof value !== 'string' || value.startsWith('//') || /[?#]/.test(value)) throw invalidTarget();
+  const path = normalizePath(origin, value);
+  // A configured scope is an absolute path, not an authority-like reference,
+  // including one exposed by removing dot segments. Encoded slashes stay data.
+  if (path.startsWith('//')) throw invalidTarget();
+  return path.replace(/\/+$/g, '') || '/';
+};
+
+/** Persistent key identity; use the same public origins/mount as the session and backend. */
 export interface DpopKeyScope {
+  /** Browser location.origin, HTTPS or loopback HTTP. */
   frontendOrigin: string;
+  /** Public vault origin, HTTPS or loopback HTTP, with no path/query/fragment. */
   backendOrigin: string;
+  /** Absolute public mount; unreserved escapes, dot segments and trailing slashes normalize. */
   basePath: string;
 }
 
@@ -68,7 +89,7 @@ export const resolveDpopScope = (scope: DpopKeyScope): Readonly<DpopKeyScope & {
   });
 };
 
-/** No capability fallback: an ephemeral/extractable key would break this example's contract. */
+/** No capability fallback: an ephemeral/extractable key would break persistent binding. */
 export const assertDpopBrowserFeatures = (cookieTransport = false): void => {
   if (
     globalThis.isSecureContext !== true ||

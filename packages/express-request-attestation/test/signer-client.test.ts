@@ -24,6 +24,11 @@ import {
   isSignerClientError,
 } from '../src/signer.js';
 import type { RequestSigner } from '../src/signer.js';
+import { runDiscoveryResponseTests } from './discovery-response.cases.js';
+import { runDiscoveryFetchReceiverTests } from './fetch-receiver.cases.js';
+
+runDiscoveryResponseTests({ SignerClientError, createSignerClient, fetchSignerBundle });
+runDiscoveryFetchReceiverTests({ createSignerClient, fetchSignerBundle });
 
 const API_ORIGIN = 'https://attestation.example.com';
 const NAMESPACE = 'att-fixture';
@@ -32,6 +37,7 @@ const KEY_ID = 'fixture-key-01';
 const SIGNER_URL = 'https://attestation.example.com/attestation/signer.abc123.mjs';
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -467,6 +473,285 @@ describe('fetchSignerBundle discovery fetch contract', () => {
   });
 });
 
+describe('incremental metadata stream limits', () => {
+  function loadResponse(response: Response, signal?: AbortSignal) {
+    const loadModule = vi.fn(async () => ({ signer: makeSigner() }));
+    const promise = fetchSignerBundle({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: mockFetch([response]).fetchImpl,
+      loadModule,
+      ...(signal === undefined ? {} : { signal }),
+    });
+    let outcome: PromiseSettledResult<unknown> | undefined;
+    const settled = promise.then(
+      (value) => {
+        outcome = { status: 'fulfilled', value };
+      },
+      (reason: unknown) => {
+        outcome = { status: 'rejected', reason };
+      },
+    );
+    return { settled, outcome: () => outcome, loadModule };
+  }
+
+  it.each(['settles', 'rejects', 'never settles'] as const)(
+    'rejects 4097 bytes before EOF when metadata cancellation %s',
+    async (cancellation) => {
+      vi.useFakeTimers();
+      let sink!: ReadableStreamDefaultController<Uint8Array>;
+      let pulls = 0;
+      const cancel = vi.fn(() => {
+        if (cancellation === 'rejects') return Promise.reject(new Error('metadata cancel rejected'));
+        if (cancellation === 'never settles') return new Promise<void>(() => undefined);
+      });
+      const stream = new ReadableStream<Uint8Array>(
+        {
+          start(controller) {
+            sink = controller;
+          },
+          pull(controller) {
+            if (++pulls === 1) controller.enqueue(new Uint8Array(SIGNER_METADATA_BYTE_CAP));
+            else if (pulls === 2) controller.enqueue(new Uint8Array(1));
+            // No EOF: a whole-response accumulator cannot reach its cap check.
+          },
+          cancel,
+        },
+        { highWaterMark: 0 },
+      );
+      const result = loadResponse(new Response(stream));
+      try {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(result.outcome()).toMatchObject({
+          status: 'rejected',
+          reason: {
+            name: 'SignerClientError',
+            code: 'SIGNER_LOAD_FAILED',
+            message: expect.stringContaining('4096-byte cap'),
+          },
+        });
+        expect(pulls).toBe(2);
+        expect(cancel).toHaveBeenCalledTimes(1);
+        expect(stream.locked).toBe(false);
+        expect(result.loadModule).not.toHaveBeenCalled();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        sink.error(new Error('finite pre-fix test cleanup'));
+        await result.settled;
+      }
+    },
+  );
+
+  it('accepts exact-cap UTF-8 split across tiny chunks with interleaved empty chunks', async () => {
+    const text = JSON.stringify(makeMetadata({ note: 'café 🌍' }));
+    const encoded = new TextEncoder().encode(text);
+    const bytes = new TextEncoder().encode(text + ' '.repeat(SIGNER_METADATA_BYTE_CAP - encoded.length));
+    let position = 0;
+    let empty = true;
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          if (position === bytes.length) controller.close();
+          else if (empty) controller.enqueue(new Uint8Array(0));
+          else controller.enqueue(bytes.subarray(position, ++position));
+          empty = !empty;
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const result = loadResponse(new Response(stream));
+    await result.settled;
+    expect(result.outcome()).toMatchObject({ status: 'fulfilled', value: { signer: { keyId: KEY_ID } } });
+    expect(result.loadModule).toHaveBeenCalledTimes(1);
+    expect(stream.locked).toBe(false);
+  });
+
+  it('rejects invalid UTF-8 without importing and releases its reader', async () => {
+    const response = new Response(new Uint8Array([0xc3, 0x28]));
+    const result = loadResponse(response);
+    await result.settled;
+    expect(result.outcome()).toMatchObject({
+      status: 'rejected',
+      reason: { code: 'SIGNER_LOAD_FAILED', message: expect.stringContaining('valid UTF-8') },
+    });
+    expect(response.body?.locked).toBe(false);
+    expect(result.loadModule).not.toHaveBeenCalled();
+  });
+
+  it.each(['arrayBuffer', 'text'] as const)(
+    'rejects %s-only substitutes without unbounded buffering',
+    async (method) => {
+      const raw = JSON.stringify(makeMetadata());
+      const read = vi.fn(async () => (method === 'text' ? raw : new TextEncoder().encode(raw).buffer));
+      const result = loadResponse({ ok: true, [method]: read } as unknown as Response);
+      await result.settled;
+      expect(result.outcome()).toMatchObject({ status: 'rejected', reason: { code: 'SIGNER_LOAD_FAILED' } });
+      expect(read).not.toHaveBeenCalled();
+      expect(result.loadModule).not.toHaveBeenCalled();
+    },
+  );
+
+  it('bounds standalone body consumption at 5000 ms without waiting for cancellation', async () => {
+    vi.useFakeTimers();
+    let sink!: ReadableStreamDefaultController<Uint8Array>;
+    const cancel = vi.fn(() => new Promise<void>(() => undefined));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        sink = controller;
+      },
+      cancel,
+    });
+    const result = loadResponse(new Response(stream));
+    try {
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(result.outcome()).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(result.outcome()).toMatchObject({
+        status: 'rejected',
+        reason: { name: 'SignerClientError', code: 'SIGNER_LOAD_FAILED', message: expect.stringContaining('5000 ms') },
+      });
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(stream.locked).toBe(false);
+      expect(result.loadModule).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      sink.error(new Error('finite pre-fix test cleanup'));
+      await result.settled;
+    }
+  });
+
+  it('propagates mid-body abort to an injected native response and absorbs cancellation rejection', async () => {
+    vi.useFakeTimers();
+    let sink!: ReadableStreamDefaultController<Uint8Array>;
+    const cancel = vi.fn(() => Promise.reject(new Error('metadata cancel rejected')));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        sink = controller;
+      },
+      cancel,
+    });
+    const controller = new AbortController();
+    const add = vi.spyOn(controller.signal, 'addEventListener');
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const result = loadResponse(new Response(stream), controller.signal);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      controller.abort(new Error('caller stopped discovery'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(result.outcome()).toMatchObject({
+        status: 'rejected',
+        reason: { code: 'SIGNER_LOAD_FAILED', message: expect.stringContaining('discovery was aborted') },
+      });
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0]?.[1]);
+      expect(stream.locked).toBe(false);
+      expect(result.loadModule).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      sink.error(new Error('finite pre-fix test cleanup'));
+      await result.settled;
+    }
+  });
+
+  it('scopes the standalone deadline to body reading, excluding headers and module evaluation', async () => {
+    vi.useFakeTimers();
+    const headers = deferred<Response>();
+    const module = deferred<{ signer: RequestSigner }>();
+    const loadModule = vi.fn(() => module.promise);
+    const pending = fetchSignerBundle({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: mockFetch(async () => headers.promise).fetchImpl,
+      loadModule,
+    });
+    const result = Promise.allSettled([pending]);
+    try {
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(loadModule).not.toHaveBeenCalled();
+      headers.resolve(jsonResponse(makeMetadata()));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(loadModule).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(6000);
+      module.resolve({ signer: makeSigner() });
+      expect(await result).toMatchObject([{ status: 'fulfilled' }]);
+    } finally {
+      headers.resolve(jsonResponse(makeMetadata()));
+      module.resolve({ signer: makeSigner() });
+      await result;
+    }
+  });
+
+  it('retains a configured client load bound above 5000 ms without adding a per-body cap', async () => {
+    vi.useFakeTimers();
+    let sink!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        sink = controller;
+      },
+    });
+    const client = createSignerClient({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: mockFetch([new Response(stream)]).fetchImpl,
+      loadModule: async () => ({ signer: makeSigner() }),
+      loadTimeoutMs: 10000,
+    });
+    const result = Promise.allSettled([client.getSigner()]);
+    try {
+      await vi.advanceTimersByTimeAsync(6000);
+      sink.enqueue(new TextEncoder().encode(JSON.stringify(makeMetadata())));
+      sink.close();
+      expect(await result).toMatchObject([{ status: 'fulfilled' }]);
+      expect(stream.locked).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      client.dispose();
+    }
+  });
+
+  it('does not let productive empty metadata starve the whole-load deadline', async () => {
+    vi.useFakeTimers();
+    const empty = new Uint8Array(0);
+    let pulls = 0;
+    const cancel = vi.fn(() => new Promise<void>(() => undefined));
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          if (++pulls > 50000) controller.close();
+          else controller.enqueue(empty);
+        },
+        cancel,
+      },
+      { highWaterMark: 0 },
+    );
+    const loadModule = vi.fn(async () => ({ signer: makeSigner() }));
+    const client = createSignerClient({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: mockFetch([new Response(stream)]).fetchImpl,
+      loadModule,
+      loadTimeoutMs: 20,
+    });
+    const result = Promise.allSettled([client.getSigner()]);
+    try {
+      await vi.advanceTimersByTimeAsync(20);
+      expect(await result).toMatchObject([{ status: 'rejected', reason: { code: 'SIGNER_LOAD_TIMEOUT' } }]);
+      expect(pulls).toBeLessThan(50000);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(stream.locked).toBe(false);
+      expect(loadModule).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      client.dispose();
+    }
+  });
+});
+
 describe('createSignerClient single-flight, generations, and disposal', () => {
   it('shares one metadata/module load across concurrent getSigner callers', async () => {
     const { fetchImpl, calls } = mockFetch([jsonResponse(makeMetadata())]);
@@ -607,6 +892,340 @@ describe('createSignerClient single-flight, generations, and disposal', () => {
     client.dispose();
   });
 
+  it.each(['metadata', 'module'] as const)(
+    'shares one replacement through repeated stale challenges during %s loading',
+    async (phase) => {
+      const oldSigner = makeSigner();
+      const newSigner = makeSigner('key-new-01');
+      const metadataGate = deferred<void>();
+      const moduleGate = deferred<{ signer: RequestSigner }>();
+      const moduleStarted = deferred<void>();
+      let discoveries = 0;
+      const { fetchImpl, calls } = mockFetch(async () => {
+        if (++discoveries === 1) {
+          return jsonResponse(makeMetadata());
+        }
+        await metadataGate.promise;
+        return jsonResponse(makeMetadata({ keyId: newSigner.keyId, signerUrl: 'signer.new.mjs' }));
+      });
+      const loadModule = vi.fn(async (url: string) => {
+        if (url === SIGNER_URL) {
+          return { signer: oldSigner };
+        }
+        moduleStarted.resolve(undefined);
+        return moduleGate.promise;
+      });
+      const client = createSignerClient({
+        metadataUrl: METADATA_URL,
+        apiOrigin: API_ORIGIN,
+        replayNamespace: NAMESPACE,
+        fetch: fetchImpl,
+        loadModule,
+      });
+      try {
+        expect(await client.getSigner()).toBe(oldSigner);
+        client.invalidate(oldSigner.keyId);
+        client.invalidate(oldSigner.keyId);
+        const replacement = client.getSigner();
+        const replacementResult = Promise.allSettled([replacement]);
+        if (phase === 'module') {
+          metadataGate.resolve(undefined);
+          await moduleStarted.promise;
+        }
+        const peers = Array.from({ length: 8 }, () => {
+          client.invalidate(oldSigner.keyId);
+          return client.getSigner();
+        });
+        const peerResults = Promise.allSettled(peers);
+        metadataGate.resolve(undefined);
+        moduleGate.resolve({ signer: newSigner });
+        const results = [...(await replacementResult), ...(await peerResults)];
+        expect(results).toEqual(Array.from({ length: 9 }, () => ({ status: 'fulfilled', value: newSigner })));
+        expect(peers.every((peer) => peer === replacement)).toBe(true);
+        expect(calls).toHaveLength(2);
+        expect(loadModule).toHaveBeenCalledTimes(2);
+        client.invalidate(oldSigner.keyId);
+        expect(await client.getSigner()).toBe(newSigner);
+        expect(calls).toHaveLength(2);
+      } finally {
+        metadataGate.resolve(undefined);
+        moduleGate.resolve({ signer: newSigner });
+        client.dispose();
+      }
+    },
+  );
+
+  it.each(['metadata', 'module', 'recovery'] as const)(
+    'shares the third-generation %s load with a late challenge from the first key',
+    async (phase) => {
+      const firstSigner = makeSigner('key-first-01');
+      const secondSigner = makeSigner('key-second-01');
+      const thirdSigner = makeSigner('key-third-01');
+      const metadataGate = deferred<void>();
+      const moduleGate = deferred<{ signer: RequestSigner }>();
+      const moduleStarted = deferred<void>();
+      let discoveries = 0;
+      const { fetchImpl, calls } = mockFetch(async () => {
+        discoveries += 1;
+        const signer = discoveries === 1 ? firstSigner : discoveries === 2 ? secondSigner : thirdSigner;
+        const metadata = makeMetadata({ keyId: signer.keyId, signerUrl: `signer.${signer.keyId}.mjs` });
+        if (discoveries === 3 && phase === 'recovery') {
+          return jsonResponse(metadata, 503);
+        }
+        if (discoveries >= 3) {
+          await metadataGate.promise;
+        }
+        return jsonResponse(metadata);
+      });
+      const loadModule = vi.fn(async (url: string) => {
+        if (url.endsWith(`signer.${firstSigner.keyId}.mjs`)) {
+          return { signer: firstSigner };
+        }
+        if (url.endsWith(`signer.${secondSigner.keyId}.mjs`)) {
+          return { signer: secondSigner };
+        }
+        moduleStarted.resolve(undefined);
+        return moduleGate.promise;
+      });
+      const client = createSignerClient({
+        metadataUrl: METADATA_URL,
+        apiOrigin: API_ORIGIN,
+        replayNamespace: NAMESPACE,
+        fetch: fetchImpl,
+        loadModule,
+      });
+      try {
+        expect(await client.getSigner()).toBe(firstSigner);
+        client.invalidate(firstSigner.keyId);
+        expect(await client.getSigner()).toBe(secondSigner);
+        client.invalidate(secondSigner.keyId);
+        if (phase === 'recovery') {
+          await expect(client.getSigner()).rejects.toMatchObject({ code: 'SIGNER_LOAD_FAILED' });
+        }
+        const replacement = client.getSigner();
+        const replacementResult = Promise.allSettled([replacement]);
+        if (phase !== 'metadata') {
+          metadataGate.resolve(undefined);
+          await moduleStarted.promise;
+        }
+        client.invalidate(firstSigner.keyId);
+        const peer = client.getSigner();
+        const peerResult = Promise.allSettled([peer]);
+        metadataGate.resolve(undefined);
+        moduleGate.resolve({ signer: thirdSigner });
+        const results = [...(await replacementResult), ...(await peerResult)];
+        expect.soft(calls).toHaveLength(phase === 'recovery' ? 4 : 3);
+        expect.soft(loadModule).toHaveBeenCalledTimes(3);
+        expect.soft(results).toEqual([
+          { status: 'fulfilled', value: thirdSigner },
+          { status: 'fulfilled', value: thirdSigner },
+        ]);
+        expect(peer).toBe(replacement);
+        expect(await client.getSigner()).toBe(thirdSigner);
+      } finally {
+        metadataGate.resolve(undefined);
+        moduleGate.resolve({ signer: thirdSigner });
+        client.dispose();
+      }
+    },
+  );
+
+  it('can invalidate an installed same-key signer again after an earlier replacement', async () => {
+    // Native import caching may return the same signer object for this URL.
+    const signer = makeSigner();
+    const { fetchImpl, calls } = mockFetch(async () => jsonResponse(makeMetadata()));
+    const loadModule = vi.fn(async () => ({ signer }));
+    const client = createSignerClient({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: fetchImpl,
+      loadModule,
+    });
+    try {
+      expect(await client.getSigner()).toBe(signer);
+      for (let loads = 2; loads <= 3; loads += 1) {
+        client.invalidate(signer.keyId);
+        expect(await client.getSigner()).toBe(signer);
+        expect(calls).toHaveLength(loads);
+        expect(loadModule).toHaveBeenCalledTimes(loads);
+      }
+    } finally {
+      client.dispose();
+    }
+  });
+
+  it('shares a fresh recovery load despite repeated stale challenges after replacement failure', async () => {
+    const newSigner = makeSigner('key-new-01');
+    const recoveryGate = deferred<void>();
+    let discoveries = 0;
+    const { fetchImpl, calls } = mockFetch(async () => {
+      discoveries += 1;
+      if (discoveries <= 2) {
+        return jsonResponse(makeMetadata(), discoveries === 1 ? 200 : 503);
+      }
+      await recoveryGate.promise;
+      return jsonResponse(makeMetadata({ keyId: newSigner.keyId, signerUrl: 'signer.new.mjs' }));
+    });
+    const loadModule = vi.fn(async (url: string) => ({ signer: url === SIGNER_URL ? makeSigner() : newSigner }));
+    const client = createSignerClient({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: fetchImpl,
+      loadModule,
+    });
+    try {
+      await client.getSigner();
+      client.invalidate(KEY_ID);
+      const failed = await Promise.allSettled([client.getSigner(), client.getSigner()]);
+      expect(failed).toEqual(
+        Array.from({ length: 2 }, () => ({
+          status: 'rejected',
+          reason: expect.objectContaining({ code: 'SIGNER_LOAD_FAILED' }),
+        })),
+      );
+      const recovery = client.getSigner();
+      const recoveryResult = Promise.allSettled([recovery]);
+      client.invalidate(KEY_ID);
+      const peer = client.getSigner();
+      const peerResult = Promise.allSettled([peer]);
+      recoveryGate.resolve(undefined);
+      expect([...(await recoveryResult), ...(await peerResult)]).toEqual([
+        { status: 'fulfilled', value: newSigner },
+        { status: 'fulfilled', value: newSigner },
+      ]);
+      expect(peer).toBe(recovery);
+      expect(calls).toHaveLength(3);
+      expect(loadModule).toHaveBeenCalledTimes(2);
+    } finally {
+      recoveryGate.resolve(undefined);
+      client.dispose();
+    }
+  });
+
+  it('keeps disposal ownership of current metadata after an obsolete load rejects', async () => {
+    const obsoleteMetadata = deferred<Response>();
+    const currentMetadata = deferred<Response>();
+    let discoveries = 0;
+    const { fetchImpl, calls } = mockFetch(async (_url, init) => {
+      if (++discoveries === 1) {
+        return obsoleteMetadata.promise;
+      }
+      init?.signal?.addEventListener(
+        'abort',
+        () => currentMetadata.reject(new DOMException('metadata aborted', 'AbortError')),
+        { once: true },
+      );
+      return currentMetadata.promise;
+    });
+    const loadModule = vi.fn(async () => ({ signer: makeSigner() }));
+    const client = createSignerClient({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: fetchImpl,
+      loadModule,
+    });
+    try {
+      const obsoleteResult = Promise.allSettled([client.getSigner()]);
+      client.invalidate(KEY_ID);
+      const currentResult = Promise.allSettled([client.getSigner()]);
+      obsoleteMetadata.reject(new Error('old discovery failed'));
+      await expect(obsoleteResult).resolves.toEqual([
+        { status: 'rejected', reason: expect.objectContaining({ code: 'SIGNER_LOAD_FAILED' }) },
+      ]);
+      const currentSignal = calls[1]?.init?.signal;
+      expect(currentSignal?.aborted).toBe(false);
+      client.dispose();
+      const wasAborted = currentSignal?.aborted;
+      // Also settle a fetch implementation that ignores abort, so a failed
+      // cancellation assertion cannot leave a test waiter or timer behind.
+      currentMetadata.resolve(jsonResponse(makeMetadata()));
+      await expect(currentResult).resolves.toEqual([
+        { status: 'rejected', reason: expect.objectContaining({ code: 'SIGNER_LOAD_FAILED' }) },
+      ]);
+      expect(wasAborted).toBe(true);
+      expect(loadModule).not.toHaveBeenCalled();
+      expect(calls).toHaveLength(2);
+    } finally {
+      obsoleteMetadata.reject(new Error('test cleanup'));
+      currentMetadata.resolve(jsonResponse(makeMetadata()));
+      client.dispose();
+    }
+  });
+
+  it.each(['resolve', 'reject'] as const)(
+    'keeps a replacement after an obsolete timeout and discards a late native-loader %s',
+    async (settlement) => {
+      vi.useFakeTimers();
+      const obsoleteModule = deferred<{ signer: RequestSigner }>();
+      const moduleStarted = deferred<void>();
+      const replacementMetadata = deferred<void>();
+      const newSigner = makeSigner('key-new-01');
+      let discoveries = 0;
+      const { fetchImpl, calls } = mockFetch(async () => {
+        if (++discoveries === 1) {
+          return jsonResponse(makeMetadata());
+        }
+        await replacementMetadata.promise;
+        return jsonResponse(makeMetadata({ keyId: newSigner.keyId, signerUrl: 'signer.new.mjs' }));
+      });
+      const loadModule = vi.fn(async (url: string) => {
+        if (url === SIGNER_URL) {
+          moduleStarted.resolve(undefined);
+          return obsoleteModule.promise;
+        }
+        return { signer: newSigner };
+      });
+      const client = createSignerClient({
+        metadataUrl: METADATA_URL,
+        apiOrigin: API_ORIGIN,
+        replayNamespace: NAMESPACE,
+        fetch: fetchImpl,
+        loadModule,
+        loadTimeoutMs: 50,
+      });
+      try {
+        const obsoleteResult = Promise.allSettled([client.getSigner()]);
+        await moduleStarted.promise;
+        await vi.advanceTimersByTimeAsync(10);
+        client.invalidate(KEY_ID);
+        const replacement = client.getSigner();
+        const replacementResult = Promise.allSettled([replacement]);
+        // The old deadline fires at 50ms; the replacement's is still 10ms away.
+        await vi.advanceTimersByTimeAsync(40);
+        await expect(obsoleteResult).resolves.toEqual([
+          { status: 'rejected', reason: expect.objectContaining({ code: 'SIGNER_LOAD_TIMEOUT' }) },
+        ]);
+        const peer = client.getSigner();
+        const peerResult = Promise.allSettled([peer]);
+        if (settlement === 'resolve') {
+          obsoleteModule.resolve({ signer: makeSigner() });
+        } else {
+          obsoleteModule.reject(new Error('late module failure'));
+        }
+        await vi.advanceTimersByTimeAsync(0);
+        replacementMetadata.resolve(undefined);
+        expect([...(await replacementResult), ...(await peerResult)]).toEqual([
+          { status: 'fulfilled', value: newSigner },
+          { status: 'fulfilled', value: newSigner },
+        ]);
+        expect(peer).toBe(replacement);
+        expect(await client.getSigner()).toBe(newSigner);
+        expect(calls).toHaveLength(2);
+        expect(loadModule).toHaveBeenCalledTimes(2);
+        expect(calls[0]?.init?.signal?.aborted).toBe(true);
+        expect(calls[1]?.init?.signal?.aborted).toBe(false);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        obsoleteModule.resolve({ signer: makeSigner() });
+        replacementMetadata.resolve(undefined);
+        client.dispose();
+      }
+    },
+  );
+
   it('dispose is terminal and discards late settlements', async () => {
     const gate = deferred<Response>();
     const { fetchImpl } = mockFetch(async () => gate.promise);
@@ -685,37 +1304,144 @@ describe('createSignerClient single-flight, generations, and disposal', () => {
     client.dispose();
   });
 
-  it('stops after one refetch when the key is unchanged or the second load also fails', async () => {
-    // Same key on refetch: original import error surfaces, no third fetch.
-    const staleMeta = makeMetadata({ keyId: 'key-same-01', signerUrl: `${API_ORIGIN}/attestation/signer.same.mjs` });
-    const sameMeta = makeMetadata({ keyId: 'key-same-01', signerUrl: `${API_ORIGIN}/attestation/signer.same.mjs` });
-    const first = mockFetch([jsonResponse(staleMeta), jsonResponse(sameMeta)]);
-    const clientSame = createSignerClient({
-      metadataUrl: METADATA_URL,
-      apiOrigin: API_ORIGIN,
-      replayNamespace: NAMESPACE,
-      fetch: first.fetchImpl,
-      loadModule: async () => {
-        throw new Error('module gone');
-      },
-    });
-    await expect(clientSame.getSigner()).rejects.toMatchObject({ code: 'SIGNER_LOAD_FAILED' });
-    expect(first.calls).toHaveLength(2);
-    clientSame.dispose();
+  it.each(['import', 'validation'] as const)(
+    'recovers from module %s failure when the refetch changes the URL but keeps the key',
+    async (failure) => {
+      const signer = makeSigner();
+      const { fetchImpl, calls } = mockFetch([
+        jsonResponse(makeMetadata()),
+        jsonResponse(makeMetadata({ signerUrl: 'signer.new-runtime.mjs' })),
+      ]);
+      const loadModule = vi.fn(async (url: string) => {
+        if (url === SIGNER_URL) {
+          if (failure === 'import') {
+            throw new Error('old deployment module gone');
+          }
+          return { signer: makeSigner('wrong-key') };
+        }
+        return { signer };
+      });
+      const client = createSignerClient({
+        metadataUrl: METADATA_URL,
+        apiOrigin: API_ORIGIN,
+        replayNamespace: NAMESPACE,
+        fetch: fetchImpl,
+        loadModule,
+      });
+      try {
+        const results = await Promise.all([client.getSigner(), client.getSigner(), client.getSigner()]);
+        expect(results).toEqual([signer, signer, signer]);
+        expect(await client.getSigner()).toBe(signer);
+        expect(calls).toHaveLength(2);
+        expect(loadModule.mock.calls).toEqual([[SIGNER_URL], [`${API_ORIGIN}/attestation/signer.new-runtime.mjs`]]);
+      } finally {
+        client.dispose();
+      }
+    },
+  );
 
-    // Metadata-phase failure never refetches: oversized discovery fails once.
-    const big = `{"version":1,"padding":"${'b'.repeat(5000)}"}`;
-    const second = mockFetch([textResponse(big)]);
-    const clientMetaFail = createSignerClient({
+  it.each([SIGNER_URL, './signer.abc123.mjs'])(
+    'stops after one refetch with unchanged validated identity (%s)',
+    async (signerUrl) => {
+      const { fetchImpl, calls } = mockFetch([jsonResponse(makeMetadata()), jsonResponse(makeMetadata({ signerUrl }))]);
+      const originalError = new SignerClientError('SIGNER_LOAD_FAILED', 'module gone');
+      const loadModule = vi.fn(async () => {
+        throw originalError;
+      });
+      const client = createSignerClient({
+        metadataUrl: METADATA_URL,
+        apiOrigin: API_ORIGIN,
+        replayNamespace: NAMESPACE,
+        fetch: fetchImpl,
+        loadModule,
+      });
+      try {
+        await expect(client.getSigner()).rejects.toBe(originalError);
+        expect(calls).toHaveLength(2);
+        expect(loadModule).toHaveBeenCalledTimes(1);
+      } finally {
+        client.dispose();
+      }
+    },
+  );
+
+  it.each([KEY_ID, 'key-new-01'])(
+    'stops on the second module failure, then permits explicit recovery (refetched key %s)',
+    async (keyId) => {
+      const freshMetadata = makeMetadata({ keyId, signerUrl: 'signer.new.mjs' });
+      const { fetchImpl, calls } = mockFetch([
+        jsonResponse(makeMetadata()),
+        jsonResponse(freshMetadata),
+        jsonResponse(freshMetadata),
+      ]);
+      const signer = makeSigner(keyId);
+      let imports = 0;
+      const loadModule = vi.fn(async (url: string) => {
+        if (++imports <= 2) {
+          throw new Error(`module unavailable: ${url}`);
+        }
+        return { signer };
+      });
+      const client = createSignerClient({
+        metadataUrl: METADATA_URL,
+        apiOrigin: API_ORIGIN,
+        replayNamespace: NAMESPACE,
+        fetch: fetchImpl,
+        loadModule,
+      });
+      try {
+        await expect(client.getSigner()).rejects.toMatchObject({ code: 'SIGNER_LOAD_FAILED' });
+        expect(calls).toHaveLength(2);
+        expect(loadModule.mock.calls).toEqual([[SIGNER_URL], [`${API_ORIGIN}/attestation/signer.new.mjs`]]);
+        expect(await client.getSigner()).toBe(signer);
+        expect(calls).toHaveLength(3);
+        expect(loadModule).toHaveBeenCalledTimes(3);
+      } finally {
+        client.dispose();
+      }
+    },
+  );
+
+  it('validates the refetched same-key module URL before considering another import', async () => {
+    const { fetchImpl, calls } = mockFetch([
+      jsonResponse(makeMetadata()),
+      jsonResponse(makeMetadata({ signerUrl: 'https://other.example.com/signer.new.mjs' })),
+    ]);
+    const loadModule = vi.fn(async () => {
+      throw new Error('module gone');
+    });
+    const client = createSignerClient({
       metadataUrl: METADATA_URL,
       apiOrigin: API_ORIGIN,
       replayNamespace: NAMESPACE,
-      fetch: second.fetchImpl,
+      fetch: fetchImpl,
+      loadModule,
+    });
+    try {
+      await expect(client.getSigner()).rejects.toMatchObject({ code: 'SIGNER_ORIGIN_MISMATCH' });
+      expect(calls).toHaveLength(2);
+      expect(loadModule).toHaveBeenCalledTimes(1);
+    } finally {
+      client.dispose();
+    }
+  });
+
+  it('does not refetch metadata-phase failures', async () => {
+    const big = `{"version":1,"padding":"${'b'.repeat(5000)}"}`;
+    const { fetchImpl, calls } = mockFetch([textResponse(big)]);
+    const client = createSignerClient({
+      metadataUrl: METADATA_URL,
+      apiOrigin: API_ORIGIN,
+      replayNamespace: NAMESPACE,
+      fetch: fetchImpl,
       loadModule: async () => ({ signer: makeSigner() }),
     });
-    await expect(clientMetaFail.getSigner()).rejects.toMatchObject({ code: 'SIGNER_LOAD_FAILED' });
-    expect(second.calls).toHaveLength(1);
-    clientMetaFail.dispose();
+    try {
+      await expect(client.getSigner()).rejects.toMatchObject({ code: 'SIGNER_LOAD_FAILED' });
+      expect(calls).toHaveLength(1);
+    } finally {
+      client.dispose();
+    }
   });
 
   it('writes no storage, touches no DOM, and patches no global fetch', async () => {

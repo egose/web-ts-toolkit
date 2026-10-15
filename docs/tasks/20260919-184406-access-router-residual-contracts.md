@@ -4,7 +4,7 @@ Created: 2026-09-19 18:44:06 local time (`date +%Y%m%d-%H%M%S`).
 
 ## Objective and scope
 
-Continue the completed [business-boundary review](20260926-145743-access-router-business-boundary-review.md)
+Continue the completed [business-boundary review](20260919-145743-access-router-business-boundary-review.md)
 by closing four concrete residual server issues in three implementation tasks and an
 independent integration task. The user requested continuation using the same isolated,
 sequential sub-agent workflow. Preserve all existing uncommitted ABB work. Do not edit
@@ -967,3 +967,10 @@ exhaustive dependency audit, production performance study or optional-feature ba
 - `git diff -- CHANGELOG.md` is empty. No user work was reverted, no commit was made,
   and no generated package output was manually edited. Final outcome: **complete**;
   no accepted ARC requirement or verification blocker remains.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

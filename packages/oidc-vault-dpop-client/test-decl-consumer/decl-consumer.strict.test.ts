@@ -83,11 +83,16 @@ describe('oidc-vault-dpop-client built-declaration consumer (CLIENT-06)', () => 
         backendOrigin: 'https://auth.example.com',
         basePath: '/auth/oidc/body',
         sessionTransport: 'body',
+        requestTimeoutMs: 15_000,
+        maxResponseBytes: 1_048_576,
       };
       const session = createOidcVaultDpopSession(options);
       expectTypeAssignableTo<OidcVaultDpopSession>(session);
       expectTypeAssignableTo<string>(session.scopeId);
       expectTypeAssignableTo<'body' | 'cookie'>(session.sessionTransport);
+      expectTypeAssignableTo<Promise<void>>(session.resetKey());
+      // @ts-expect-error — reset is scoped by the session, never an arbitrary key id.
+      session.resetKey('another-scope');
     };
     void checkTypes;
     expect(createOidcVaultDpopSession).toBeDefined();
@@ -120,6 +125,29 @@ describe('oidc-vault-dpop-client built-declaration consumer (CLIENT-06)', () => 
     void checkTypes;
   });
 
+  it('types independent gateway services with optional path scopes and per-service credentials', () => {
+    const checkTypes = () => {
+      const origin = 'https://gateway.example.com';
+      const apis = [
+        { origin, pathPrefix: '/orders', replayNamespace: 'orders-api' },
+        { origin, pathPrefix: '/billing', replayNamespace: 'billing-api', credentials: 'include' },
+        { origin, pathPrefix: '/orders/admin/', replayNamespace: 'orders-admin-api', credentials: 'omit' },
+      ] as const satisfies readonly DpopApi[];
+      const session = {} as OidcVaultDpopSession;
+      const context: DpopFetchContext = { session, apis };
+      expectTypeAssignableTo<Promise<Response>>(fetchWithDpop(context, `${origin}/orders?limit=20`));
+      expectTypeAssignableTo<Promise<Response>>(fetchWithDpop(context, `${origin}/billing/invoices`));
+      // Omission and explicit root remain valid origin-wide policies.
+      expectTypeAssignableTo<DpopApi>({ origin, replayNamespace: 'origin-wide' });
+      expectTypeAssignableTo<DpopApi>({ origin, pathPrefix: '/', replayNamespace: 'root-fallback' });
+      // @ts-expect-error — a path prefix is an optional string, not a URL object.
+      expectTypeAssignableTo<DpopApi>({ origin, replayNamespace: 'bad', pathPrefix: new URL(origin) });
+      // @ts-expect-error — API credentials are explicitly omit/include, never Fetch's same-origin default.
+      expectTypeAssignableTo<DpopApi>({ origin, replayNamespace: 'bad', credentials: 'same-origin' });
+    };
+    void checkTypes;
+  });
+
   it('keeps proof/key/fingerprint helpers typed', () => {
     const checkTypes = () => {
       const scope: DpopKeyScope = {
@@ -129,7 +157,11 @@ describe('oidc-vault-dpop-client built-declaration consumer (CLIENT-06)', () => 
       };
       expectTypeAssignableTo<Promise<DpopKey>>(getOrCreateDpopKey(scope));
       const key = {} as DpopKey;
-      const proofInput: DpopProofInput = { method: 'GET', url: 'https://api.example.com/things' };
+      const proofInput: DpopProofInput = {
+        method: 'GET',
+        url: 'https://api.example.com/things',
+        signal: new AbortController().signal,
+      };
       expectTypeAssignableTo<Promise<string>>(createDpopProof(key, proofInput));
       const source = fingerprintJsSignalSource(async () => {
         throw new Error('no vendor fingerprint in typecheck');

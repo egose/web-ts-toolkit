@@ -16,7 +16,9 @@ export interface UpdateByIdArgs<T = unknown> extends Omit<PublicUpdateArgs, 'tas
 export interface UpsertArgs<T = unknown> extends UpdateOneArgs<T> {}
 
 export interface PublicUpdateOptions {
+  /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
+  /** Default true. Without explicit select, false selects submitted top-level keys plus _id for update output; grants still apply. */
   returningAll?: boolean;
   includePermissions?: boolean;
   /**

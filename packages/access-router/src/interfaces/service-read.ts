@@ -8,6 +8,7 @@ export interface PublicReadArgs {
 }
 
 export interface PublicReadOptions {
+  /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
   populateAccess?: PopulateAccess;
   lean?: boolean;
@@ -16,9 +17,8 @@ export interface PublicReadOptions {
    * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`
    * when omitted. `includePermissions: true` + `includeFieldPermissions: false`
    * keeps `docPermissions`-hook keys but omits `_view`/`_edit` entirely.
-   * Enabling field maps also computes doc permissions as grant input (even
-   * under skim or when `includePermissions` is false), so the maps match the
-   * `includePermissions: true` output.
+   * Full internal document grants resolve independently of both metadata flags
+   * and skim. These maps describe request-user permissions, never backend grants.
    */
   includeFieldPermissions?: boolean;
   /** Retry an authorized read miss with list access (default true); requires list operation access. Forbidden/BadRequest never retry. */

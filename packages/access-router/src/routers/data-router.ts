@@ -6,7 +6,7 @@ import { decorateDataListResult, decorateDataSingleResult } from '../http/respon
 import { unwrapServiceData } from '../http/response-pipelines/model-response';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
-import { handleResultError } from '../helpers';
+import { handleResultError, parseSelectParam } from '../helpers';
 import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter, RouteVariant, Sort } from '../interfaces';
 import { DataService } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
@@ -92,7 +92,7 @@ export class DataRouter<TData = unknown> {
     this.router.get('', async (req: DataRequest) => {
       await this.assertAllowed(req, 'list', 'basic');
 
-      const { skip, limit, page, page_size, include_count, include_extra_headers } = parseQuery(
+      const { skip, limit, page, page_size, include_count, include_extra_headers, select, sort } = parseQuery(
         requestSchemas.listQuery,
         req.query,
       );
@@ -104,7 +104,7 @@ export class DataRouter<TData = unknown> {
 
       const result = await svc.find(
         {},
-        { skip, limit, page, pageSize: page_size },
+        { select: parseSelectParam(select), sort, skip, limit, page, pageSize: page_size },
         {
           includeCount,
         },

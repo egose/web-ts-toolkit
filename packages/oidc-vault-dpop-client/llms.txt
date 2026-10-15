@@ -1,45 +1,60 @@
-@web-ts-toolkit/oidc-vault-dpop-client: browser-only DPoP client for
-@web-ts-toolkit/express-oidc-vault vault flows (body + cookie transports).
-Vanilla TS, no framework, no default export. Full guide: README.md.
+@web-ts-toolkit/oidc-vault-dpop-client — browser DPoP vault sessions and API fetch.
+Start with README.md: Quickstart, Recovery, Lifecycle, HTTP, Gateway, Upgrade notes.
 
 Install: pnpm add @web-ts-toolkit/oidc-vault-dpop-client
-(jose + idb ride as dependencies; no separate install needed.)
-
-Imports (named root only):
+jose + idb are dependencies. No Express/backend runtime or ambient types needed.
+Node tooling/import/require: >=22.12.0 (CJS uses default require(esm) for jose).
+Browser sessions need secure-context Web Crypto, IndexedDB CryptoKey persistence
+and sessionStorage; cookie mode also needs Web Locks + BroadcastChannel.
+Named root imports only, no default export/subpaths or src/dist deep imports:
   import { createOidcVaultDpopSession, fetchWithDpop } from
     '@web-ts-toolkit/oidc-vault-dpop-client';
-Also root-exported: getOrCreateDpopKey, createDpopProof, DpopNonceCache,
-createDeviceFingerprint, fingerprintJsSignalSource, OidcVaultDpopClientError,
-plus DpopKey/Scope, DpopAccessToken, DpopFetchContext/Options/Api,
-OidcVaultDpopSession/Options, DeviceFingerprint types.
+Other runtime exports: getOrCreateDpopKey, createDpopProof, DpopNonceCache,
+createDeviceFingerprint, fingerprintJsSignalSource, OidcVaultDpopClientError.
+Full root type list and member contracts: README API reference + index.d.mts.
+Both declaration conditions are DOM-only (types:[], skipLibCheck:false).
+Wire DTOs come from express-oidc-vault/wire at build time and are bundled here.
 
-Workflow 1 — vault session lifecycle:
-  session = createOidcVaultDpopSession({ backendOrigin, basePath,
-    sessionTransport: 'body' | 'cookie' });  // basePath = exact mount
-  login(returnTo?) -> exchange(code) -> getAccessToken/refresh -> logout.
-  login/exchange always credentials:include; refresh/logout body=omit+sessionId,
-  cookie=include+{} (never sessionId in cookie JSON). Vault nonce failures are
-  HTTP 400 OIDC_VAULT_USE_DPOP_NONCE with one retry. Key loss (DPOP_KEY_LOST)
-  requires fresh login; never fall back to Bearer or ephemeral keys.
-  Access JWT: memory only. Body handle: tab-local sessionStorage. Cookie
-  handle: backend HttpOnly. Keys: IndexedDB scoped
-  [frontendOrigin, backendOrigin, basePath]. Cookie mode also needs Web Locks
-  + BroadcastChannel. Cross-site HTTPS needs transactionCookie sameSite none,
-  trustedOrigins, credentialed CORS exposing DPoP-Nonce/WWW-Authenticate.
+Session: createOidcVaultDpopSession({backendOrigin,basePath,sessionTransport})
+defaults to /auth/oidc + body. login -> exchange(code) -> API/refresh -> logout.
+Bootstrap removes/exchanges a callback code once or refreshes existing storage.
+login/exchange include temporary cookies; refresh/logout body=omit+sessionId,
+cookie=include+{} (no handle in JSON). JWTs: memory; handles/pending login:
+tab-local sessionStorage; scoped keys/coordination metadata: IndexedDB.
 
-Workflow 2 — bound API fetch:
-  fetchWithDpop({ session, apis: [{ origin, replayNamespace }] }, url, opts?).
-  Owns Authorization/DPoP, redirect:error, no-store; fresh proof+ath per
-  attempt. API nonce failures are 401 use_dpop_nonce with one retry; only
-  invalid_token triggers one refresh. GET/HEAD/OPTIONS retryable; mutations
-  single-attempt unless retry:'idempotent' with a server idempotency contract.
+Bound profile: exact DPoP, canonical compact signed JWT, exact cnf:{jkt}, safe
+mandatory exp seconds/millisecond arithmetic. Decoding is NOT authentication;
+APIs verify JWT/proof. Server unbound/opaque compatibility remains. expiresIn:0
+retains rotation handles but no live API/peer token (DPOP_ACCESS_TOKEN_EXPIRED).
 
-Workflow 3 — optional recognition (opt-in change detection, never PoP):
-  fingerprint = createDeviceFingerprint(async () => signal | undefined);
-  Pass { fingerprint } to session options. 403
-  OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED -> clear auth, fresh login.
+Lifecycle/recovery: FIFO mutations; refresh coalesces until an intervening call.
+Cookie mode adds same-origin/scope locks + 180ms peer wait. clear invalidates local
+auth/owned HTTP but retains key; dispose closes context and retains reload state.
+resetKey deletes only scoped key+metadata; await then login. Existing corrupt keys
+need this explicit recovery; no automatic reset/Bearer fallback. logout requests
+server revocation; reset leaves old sessions/JWTs until revocation/expiry.
+DPOP_OPERATION_SUPERSEDED / DPOP_SESSION_DISPOSED are non-terminal; stale work
+cannot publish/navigate/clear newer auth. See README's cleanup/recovery tables.
 
-Limits: Chromium 151 + Firefox 153 evidenced (same-site loopback); Safari/
-WebKit uncertified; third-party-cookie policy is deployment-specific.
-Backend wire tables stay authoritative in express-oidc-vault README.
-Live example: apps/oidc-vault-dpop-example (both transports + browsers).
+HTTP: requestTimeoutMs=15000 ms per vault headers/body/JSON attempt;
+maxResponseBytes=1048576 streamed bytes. Bounds exclude queue/storage/key/hooks/
+other locks. Timeout/size errors retain auth. API/proof signal stops only this
+waiter, not shared refresh/already-started crypto. API bodies are caller-owned.
+Abort is not server/Set-Cookie rollback; lost rotation can need login. No network retry.
+
+API: fetchWithDpop({session,apis},url,options?). DpopApi.pathPrefix uses longest
+normalized segment match; omission/root is origin-wide, duplicates reject.
+Outbound paths normalize unreserved escapes/dots, preserve reserved separators
+and query data. Separate gateway namespaces isolate nonces. Auth headers are
+owned; redirect:error, no-store, API credentials:omit default. Fresh proof/JTI/ath.
+Retry-enabled APIs: one use_dpop_nonce retry + one invalid_token refresh budget;
+only unambiguous HTTP-401 DPoP challenges qualify. Mutations default single-attempt;
+'idempotent' needs a server contract; 'never' forbids retries. Learn success/final
+nonces even without retry: 64 tuples, oldest-remembered eviction, no inferred TTL.
+Vaults retry nonce once, then DPOP_NONCE_RETRY_EXHAUSTED; final API Responses are caller-owned.
+
+Errors: requiresLogin covers terminal session/key/browser/recognition failures,
+not every 401. Proof/nonce/transient errors retain auth; unknown server codes ->
+fixed OIDC_REQUEST_FAILED. Optional recognition is change detection, never PoP.
+Limits: same-origin locks are not distributed leases. Chromium/Firefox loopback
+evidence does not certify Safari/WebKit/cross-site cookies; see README.

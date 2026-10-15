@@ -1,3 +1,4 @@
+import express from 'express';
 import {
   createAttestationBodyCapture,
   createMemoryAttestationStore,
@@ -25,14 +26,31 @@ const keyProvider: AttestationKeyProvider = createStaticKeyProvider({
 });
 const store: AttestationStore = createMemoryAttestationStore();
 const capture = createAttestationBodyCapture({ maxBodyBytes });
-const guard = createRequestAttestationMiddleware({ publicOrigin, replayNamespace, keyProvider, store });
-const router = createSignerBundleRouter({ publicOrigin, replayNamespace, keyProvider });
+const guard: express.RequestHandler = createRequestAttestationMiddleware({
+  publicOrigin,
+  replayNamespace,
+  keyProvider,
+  store,
+});
+const router: express.Router = createSignerBundleRouter({ publicOrigin, replayNamespace, keyProvider });
+const parser: express.RequestHandler = express.json({
+  limit: maxBodyBytes,
+  verify: capture.verify,
+  inflate: false,
+});
+const captureErrorHandler: express.ErrorRequestHandler = capture.errorHandler;
 
 const entryKeyId: string = entry.keyId;
-void [keyProvider, store, capture, guard, router, entryKeyId];
+const app = express();
+app.use('/attestation', router);
+app.use(parser);
+app.use(captureErrorHandler);
+app.post('/api/submit', guard, (_req, res) => {
+  res.json({ ok: true });
+});
+void [app, entryKeyId];
 
-// MONGO-03: Bundler resolution also sees the MongoDB replay store without the
-// `mongodb` driver installed.
+// Bundler resolution also sees the structural Mongo store without driver imports.
 declare const mongoDb: MongoAttestationStoreDb;
 const mongoStore: AttestationStore = createMongoAttestationStore({ db: mongoDb });
 

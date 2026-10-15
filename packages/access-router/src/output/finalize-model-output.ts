@@ -22,21 +22,13 @@
  *   (`missing` or `undefined`) omits; present `null`/`0`/`false`/`''` runs.
  * - D6: effective selection computed before evaluation (captured plan);
  *   internal-only deps stripped before `decorate`/tasks see the object.
- * - D7 scheduling scope (recorded here, see `helpers/concurrency.ts`):
- *   `maxHookConcurrency` (default 10) bounds active virtual/getter +
- *   row-finalization orchestration work per top-level list, NOT per-row
- *   multiplied and NOT a persistence ceiling. Top-level lists finalize rows
- *   through ONE bounded map (stable index-keyed results regardless of
- *   completion order). Nested include/populate/embedded work uses bounded child
- *   maps with a finite bound derived from the same limit (sequential or
- *   sub-pooled); recursion depth is bounded by validated plan depth
- *   (`maxCorrelatedDepth` + correlated budgets for correlated paths). Recursive
- *   orchestration NEVER holds leaf persistence permits
- *   (`RequestConcurrencyScheduler.work`) while awaiting descendants or hooks —
- *   maps bound their own orchestration workers and the shared {@link SharedHookGate}
- *   is held only for getter bodies, so limit-1 completes. Getters' own trusted
- *   direct DB/network I/O is outside the leaf persistence ceiling (no
- *   dataloader/batching in v1).
+ * - D7/ARL-07: per-call row/child maps preserve order; the request/runtime
+ *   gate admits independent hook chains across all services and output scopes.
+ *   Nested service hooks reuse a chain with FIFO, one-child-at-a-time admission
+ *   at each frame, so limit-one reentry completes without unbounded fan-out.
+ *   Waiting ancestors are not separate permits; admission depth is capped at
+ *   64. No persistence permit is held over hooks or descendant orchestration.
+ *   Trusted direct I/O and query totals are outside persistence admission.
  * - D8: arbitrary select strings preserved; registered virtuals stay virtual.
  *
  * Failure logging uses allowlisted structural metadata only
@@ -52,6 +44,8 @@ import {
   setDocValue,
 } from '../helpers/document';
 import { mapWithConcurrencyLimit, normalizeHookConcurrencyLimit, SharedHookGate } from '../helpers/concurrency';
+import { getRequestWorkState } from '../helpers/request-work';
+import type { AccessRuntime } from '../runtime';
 import { runVirtualGetter } from '../acl/hook-runner';
 import type {
   VirtualProjectionAccess,
@@ -148,9 +142,9 @@ export interface FinalizeModelOutputArgs {
   docPermissions?: Record<string, unknown>;
   /** Global permissions override; otherwise derived from `request`. */
   globalPermissions?: { has: (key: string) => boolean; hasKey?: (key: string) => boolean };
-  /** `maxHookConcurrency` scope (default 10). Shared across rows+getters. */
+  /** Standalone unbound finalizer limit; authenticated calls use their owner's capture. */
   concurrencyLimit?: number;
-  /** Shared gate across a list operation (created per call when absent). */
+  /** Private owning service gate for legacy unbound subdocument plans. */
   sharedGate?: SharedHookGate;
   traversal?: VirtualTraversalHooks;
   /** Explicit related targets for VIRT-05 hook point (path → target plan). */
@@ -280,20 +274,19 @@ const resolveDocPermissions = async (
   };
   try {
     if (req?.macl?.resolveFinalizerDocPermissions) {
-      return await req.macl.resolveFinalizerDocPermissions(
-        args.receivingModelName,
-        isolatedForHook,
-        args.docPermissionsAccess,
-        scopeContext,
-        undefined,
+      return await args.sharedGate.run(() =>
+        req.macl!.resolveFinalizerDocPermissions!(
+          args.receivingModelName,
+          isolatedForHook,
+          args.docPermissionsAccess,
+          scopeContext,
+          undefined,
+        ),
       );
     }
     if (req?.macl?.genDocPermissions) {
-      const grants = (await req.macl.genDocPermissions(
-        args.receivingModelName,
-        isolatedForHook,
-        args.docPermissionsAccess,
-        scopeContext,
+      const grants = (await args.sharedGate.run(() =>
+        req.macl!.genDocPermissions!(args.receivingModelName, isolatedForHook, args.docPermissionsAccess, scopeContext),
       )) as Record<string, unknown>;
       (scopeContext as ModelHookContext).docPermissions = grants ?? {};
       return grants ?? {};
@@ -311,11 +304,8 @@ const resolveDocPermissions = async (
     ) as unknown;
     if (typeof hook === 'function') {
       const globalPerms = resolveGlobalPermissions(args);
-      const grants = (await (hook as Function).call(
-        args.request,
-        isolatedForHook,
-        globalPerms,
-        scopeContext,
+      const grants = (await args.sharedGate.run(() =>
+        (hook as Function).call(args.request, isolatedForHook, globalPerms, scopeContext),
       )) as Record<string, unknown>;
       const normalized = isPlainObject(grants) ? (grants as Record<string, unknown>) : {};
       (scopeContext as ModelHookContext).docPermissions = normalized;
@@ -398,7 +388,6 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       stage: args.documentAuthorizationStage,
       owningDocument: args.owningDocument,
       owningBinding: args.owningBinding,
-      hookGate: gate,
       knownOutput:
         !args.documentAuthorizationStage && !!input && typeof input === 'object' && isKnownAuthorizationOutput(input),
     });
@@ -590,24 +579,23 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       ...scopeContext,
       docPermissions: deepIsolateValue(docGrants),
     } as unknown as ModelVirtualContext;
-    // Shared gate held ONLY for the getter body (never while awaiting children).
-    const outcome = await gate.run(() =>
-      runVirtualGetter({
-        req: args.request,
-        getter: getter as Function,
-        view: isolatedView,
-        permissions: globalPerms as unknown as Permissions,
-        context: virtualContext,
-        logMeta: {
-          modelName: args.receivingModelName,
-          scope: scopeLabel,
-          field: candidate.name,
-          virtualAccess: args.virtualAccess,
-          outputAccess: args.outputAccess,
-          operation,
-        },
-      }),
-    );
+    // A getter may await a service: its descendant hooks reuse a bounded chain.
+    const outcome = await runVirtualGetter({
+      req: args.request,
+      gate,
+      getter: getter as Function,
+      view: isolatedView,
+      permissions: globalPerms as unknown as Permissions,
+      context: virtualContext,
+      logMeta: {
+        modelName: args.receivingModelName,
+        scope: scopeLabel,
+        field: candidate.name,
+        virtualAccess: args.virtualAccess,
+        outputAccess: args.outputAccess,
+        operation,
+      },
+    });
     if (!outcome.ok) return;
     if (outcome.value === undefined) return;
     staged.set(candidate.name, deepIsolateValue(outcome.value));
@@ -712,12 +700,18 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   return trimmed;
 }
 
-/**
- * Finalize a single document through the shared boundary.
- */
+function finalizerGate(args: FinalizeModelOutputArgs | FinalizeModelOutputsArgs): SharedHookGate {
+  const binding = args.plan.authorizationBinding;
+  if (binding) return getRequestWorkState(binding.request, binding.runtime as AccessRuntime).hookGate;
+  // Services supply their captured owner even for legacy unbound embedded plans.
+  // Only standalone internal finalizer callers use the explicit local fallback.
+  return args.sharedGate ?? new SharedHookGate(normalizeHookConcurrencyLimit(args.concurrencyLimit));
+}
+
+/** Finalize a single document through the shared boundary. */
 export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promise<Record<string, unknown>> {
-  const limit = normalizeHookConcurrencyLimit(args.concurrencyLimit, 10);
-  const gate = args.sharedGate ?? new SharedHookGate(limit);
+  const gate = finalizerGate(args);
+  const limit = gate.limit;
   const internal: InternalFinalizeArgs = {
     ...args,
     scopePath: [...(args.scopePath ?? args.plan.scopePath ?? [])],
@@ -728,17 +722,14 @@ export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promis
 }
 
 /**
- * Finalize a top-level list through ONE bounded row map with a shared hook
- * gate, so peak active getter work stays at or below `concurrencyLimit`
- * (default `maxHookConcurrency`, 10) instead of multiplying by row count.
- * Results preserve input order regardless of completion order. No persistence
- * permits are held while awaiting hooks/descendants; nested child maps use the
- * same finite limit with the gate held only for getter bodies, so limit-1
- * completes.
+ * Finalize rows with stable output indices and per-call bounded workers.
+ * Authenticated calls share request/runtime hook-chain admission with other
+ * services; waiting recursive callback frames are not extra permits. Neither
+ * row maps nor hook callbacks hold persistence permits.
  */
 export async function finalizeModelOutputs(args: FinalizeModelOutputsArgs): Promise<Record<string, unknown>[]> {
-  const limit = normalizeHookConcurrencyLimit(args.concurrencyLimit, 10);
-  const gate = args.sharedGate ?? new SharedHookGate(limit);
+  const gate = finalizerGate(args);
+  const limit = gate.limit;
   const { inputs, documentAuthorizationStages, ...rest } = args;
   if (
     'documentAuthorizationStage' in args ||

@@ -79,12 +79,18 @@ interface RootQueryEntryBase<TTarget extends RootTarget, TOp extends string> {
   target: TTarget;
   name: string;
   op: TOp;
+  /** Execution group (default 0); non-negative safe integer also bounded by RootRouterOptions.maxOrderGroups. */
   order?: number;
 }
 
 export interface RootModelNewQueryEntry extends RootQueryEntryBase<'model', 'new'> {
   args?: { select?: string[] };
-  options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean };
+  options?: {
+    /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
+    skim?: boolean;
+    includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
+  };
 }
 
 export interface RootModelListQueryEntry extends RootQueryEntryBase<'model', 'list'> {

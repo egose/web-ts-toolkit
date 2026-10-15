@@ -126,22 +126,20 @@ async function fixture() {
 }
 
 describe('SVA-F03 private query-field and populate request boundaries', () => {
-  it('distinct uses request-schema rules with empty grants, not null-document output fields', async () => {
+  it('distinct requires request-proven rules without fabricating document grants or invoking output helpers', async () => {
     const f = await fixture();
     await f.execute(async (req) => {
       const service = f.router.getService(req);
       expect(await service.genAllowedFields(null, 'read')).toEqual([]);
       const outputHelper = vi.spyOn(req.macl, 'genAllowedFields');
       expect(await service.distinct('name')).toMatchObject({ success: true, data: ['parent'] });
-      expect(await service.distinct('dynamic')).toMatchObject({ success: true, data: ['request-query'] });
+      expect(await service.distinct('dynamic')).toMatchObject({ success: false, code: 'forbidden' });
       expect(await service.distinct('owned')).toMatchObject({ success: false, code: 'forbidden' });
       expect(f.hook).not.toHaveBeenCalled();
       expect(outputHelper).not.toHaveBeenCalled();
-      for (const [permissions, grants] of f.fieldRule.mock.calls) {
-        expect(permissions).toBe(req.macl.getPermissions());
-        expect(grants).toEqual({});
-      }
-      for (const context of f.fieldRule.mock.contexts) expect(context).toBe(req);
+      expect(f.fieldRule).not.toHaveBeenCalled();
+      expect(req.macl.getPermissions().has('reader')).toBe(true);
+      expect(req.macl.getPermissions().has('admin')).toBe(false);
     });
   });
 

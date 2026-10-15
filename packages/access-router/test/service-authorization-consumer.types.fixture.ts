@@ -292,23 +292,23 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
   await service.bulkUpdateSub('id', 'contacts', [{ _id: 'child-id', email: 'changed' }], subOptions);
   await service.createSub('id', 'contacts', { email: 'created' }, { addFirst: true, authorization: subCreate });
   await service.deleteSub('id', 'contacts', 'child-id', { authorization: subDelete });
-  // @ts-expect-error child output paths are inferred relative to contacts, not the parent model
   await service.readSub('id', 'contacts', 'child-id', {
+    // @ts-expect-error child output paths are inferred relative to contacts, not the parent model
     authorization: { child: { outputFields: { mode: 'grant', paths: ['contacts.email'] } } },
   });
-  // @ts-expect-error virtual paths cannot become child input fields
   await service.updateSub(
     'id',
     'contacts',
     'child-id',
     {},
+    // @ts-expect-error virtual paths cannot become child input fields
     { authorization: { child: { inputFields: { mode: 'grant', paths: ['badge'] } } } },
   );
-  // @ts-expect-error unrelated parent input is outside the selected child
   await service.createSub(
     'id',
     'contacts',
     {},
+    // @ts-expect-error unrelated parent input is outside the selected child
     { authorization: { child: { inputFields: { mode: 'grant', paths: ['tenantId'] } } } },
   );
   // @ts-expect-error read methods reject input even if supplied by a reusable mutation policy

@@ -4,12 +4,15 @@
  * exclusions, no `req.auth` mutation, stale-key marker discipline).
  */
 import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
+import type { IncomingHttpHeaders } from 'node:http';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   ATTESTATION_ERROR_RESPONSE_HEADER,
+  AttestationError,
   DEFAULT_ATTESTATION_HEADER,
   buildMacInputBytes,
   createAttestationBodyCapture,
@@ -41,6 +44,8 @@ function staticProvider(snapshot: AttestationKeySnapshot) {
 function signProof(input: {
   keyId?: string;
   key?: Uint8Array;
+  replayNamespace?: string;
+  publicOrigin?: string;
   timestampMs: number;
   nonceHex: string;
   method: string;
@@ -52,8 +57,8 @@ function signProof(input: {
   const key = input.key ?? KEY_BYTES;
   const bodyHashHex = createHash('sha256').update(input.bodyBytes).digest('hex');
   const macInput = buildMacInputBytes({
-    replayNamespace: NAMESPACE,
-    publicOrigin: PUBLIC_ORIGIN,
+    replayNamespace: input.replayNamespace ?? NAMESPACE,
+    publicOrigin: input.publicOrigin ?? PUBLIC_ORIGIN,
     keyId,
     timestampMs: input.timestampMs,
     nonceHex: input.nonceHex,
@@ -78,6 +83,35 @@ async function startApp(app: express.Express): Promise<{ baseUrl: string; close:
     baseUrl: `http://127.0.0.1:${address.port}`,
     close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
   };
+}
+
+/** Send actual separate HTTP fields; Fetch would comma-join duplicate fields. */
+function rawGet(
+  baseUrl: string,
+  headers: string[],
+): Promise<{
+  status: number | undefined;
+  headers: IncomingHttpHeaders;
+  body: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      `${baseUrl}/api/items`,
+      { headers: ['Host', new URL(baseUrl).host, ...headers], agent: false },
+      (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => {
+          body += chunk;
+        });
+        response.on('error', reject);
+        response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body }));
+      },
+    );
+    request.on('error', reject);
+    request.setTimeout(1000, () => request.destroy(new Error('raw HTTP request timed out')));
+    request.end();
+  });
 }
 
 interface GuardSetup {
@@ -292,31 +326,37 @@ describe('tamper-every-field invalidation', () => {
     'keyId',
     'timestamp',
     'nonce',
-  ])('rejects tampered %s', async (field) => {
-    const setup = await setupGuardedApp();
+  ] as const)('rejects tampered %s', async (field) => {
+    // Both key IDs are active with identical material: changing the ID must
+    // reach HMAC verification, rather than merely the unknown-key rejection.
+    const snapshot = snapshotFor(NOW);
+    const otherKeyId = 'mw-key-02';
+    const setup = await setupGuardedApp({
+      provider: staticProvider({
+        ...snapshot,
+        keys: [...snapshot.keys, { ...snapshot.keys[0], keyId: otherKeyId }],
+      }),
+    });
     try {
       const raw = JSON.stringify({ a: 1 });
       const base = {
         timestampMs: NOW - 5000,
         nonceHex: nonce(),
         method: 'POST',
-        requestTarget: '/api/submit',
+        requestTarget: '/api/submit?tag=a&tag=b&q=x+y',
         contentType: 'application/json',
         bodyBytes: Buffer.from(raw, 'utf8'),
       };
       let header = signProof(base);
-      let sendTarget = '/api/submit';
+      let sendTarget = base.requestTarget;
       let sendBody: string | Buffer = raw;
       let sendContentType = 'application/json';
       let sendMethod = 'POST';
       if (field === 'method') {
         sendMethod = 'PUT';
       } else if (field === 'path') {
-        sendTarget = '/api/submit/';
+        sendTarget = '/api/submit/?tag=a&tag=b&q=x+y';
       } else if (field === 'queryOrder' || field === 'querySpelling') {
-        // Sign for ordered queries, send reordered/respelled.
-        const target = '/api/submit?tag=a&tag=b&q=x+y';
-        header = signProof({ ...base, requestTarget: target });
         sendTarget = field === 'queryOrder' ? '/api/submit?tag=b&tag=a&q=x+y' : '/api/submit?tag=a&tag=b&q=x%20y';
       } else if (field === 'contentType') {
         sendContentType = 'application/json; charset=utf-8';
@@ -324,17 +364,25 @@ describe('tamper-every-field invalidation', () => {
         sendBody = '{"a": 1}';
       } else if (field === 'bodyBytes') {
         sendBody = JSON.stringify({ a: 2 });
-      } else if (
-        field === 'namespace' ||
-        field === 'origin' ||
-        field === 'version' ||
-        field === 'keyId' ||
-        field === 'timestamp' ||
-        field === 'nonce'
-      ) {
-        // Envelope-level tampering: flip the last char of the encoded ID.
-        // Any envelope change invalidates the MAC or the envelope itself.
-        header = `${header.slice(0, -1)}${header.slice(-1) === 'A' ? 'B' : 'A'}`;
+      } else if (field === 'namespace') {
+        header = signProof({ ...base, replayNamespace: `${NAMESPACE}-other` });
+      } else if (field === 'origin') {
+        header = signProof({ ...base, publicOrigin: 'https://other.example.com' });
+      } else {
+        // Change the named field while preserving the original MAC and all
+        // other envelope fields; serialize canonically even for version 2.
+        const envelope = JSON.parse(Buffer.from(header, 'base64url').toString('utf8')) as unknown[];
+        const index = { version: 0, keyId: 1, timestamp: 2, nonce: 3 }[field];
+        const value = {
+          version: 2,
+          keyId: otherKeyId,
+          timestamp: base.timestampMs + 1,
+          nonce: `${base.nonceHex[0] === '0' ? '1' : '0'}${base.nonceHex.slice(1)}`,
+        }[field];
+        expect(index).toBeDefined();
+        expect(envelope[index]).not.toBe(value);
+        envelope[index] = value;
+        header = Buffer.from(JSON.stringify(envelope)).toString('base64url');
       }
       const response = await fetch(`${setup.baseUrl}${sendTarget}`, {
         method: sendMethod,
@@ -344,10 +392,23 @@ describe('tamper-every-field invalidation', () => {
       expect(response.status).toBe(403);
       expect(response.headers.get('cache-control')).toBe('no-store');
       expect(response.headers.get('www-authenticate')).toBeNull();
+      expect(response.headers.get('x-attestation-error')).toBeNull();
       const payload = (await response.json()) as { code: string };
-      expect(['ATTESTATION_MALFORMED', 'ATTESTATION_INVALID_SIGNATURE']).toContain(payload.code);
+      expect(payload.code).toBe(field === 'version' ? 'ATTESTATION_MALFORMED' : 'ATTESTATION_INVALID_SIGNATURE');
       expect(setup.handlerCalls()).toBe(0);
       expect(setup.storeReserveCalls()).toBe(0);
+
+      // Rejection did not spend the original nonce; the actual signed request
+      // with its untampered envelope still succeeds exactly once.
+      const valid = await fetch(`${setup.baseUrl}${base.requestTarget}`, {
+        method: base.method,
+        headers: { 'content-type': base.contentType, [DEFAULT_ATTESTATION_HEADER]: signProof(base) },
+        body: raw,
+      });
+      expect(valid.status).toBe(200);
+      await valid.json();
+      expect(setup.handlerCalls()).toBe(1);
+      expect(setup.storeReserveCalls()).toBe(1);
     } finally {
       await setup.close();
     }
@@ -499,6 +560,99 @@ describe('fixed error mapping', () => {
     expect(nextCalled).toBe(false);
     expect(status).toBe(403);
     expect(payload).toEqual({ code: 'ATTESTATION_MALFORMED', message: 'Request signature is invalid.' });
+  });
+
+  it.each(['identical', 'conflicting'])('rejects %s raw Content-Type fields before dependencies', async (kind) => {
+    const getSnapshot = vi.fn(() => snapshotFor(NOW));
+    const setup = await setupGuardedApp({ provider: { getSnapshot } });
+    try {
+      const header = signProof({
+        timestampMs: NOW - 5000,
+        nonceHex: nonce(),
+        method: 'GET',
+        requestTarget: '/api/items',
+        contentType: 'text/plain',
+        bodyBytes: Buffer.alloc(0),
+      });
+      const fields = [DEFAULT_ATTESTATION_HEADER, header, 'Content-Type', 'text/plain'];
+      const response = await rawGet(setup.baseUrl, [
+        ...fields,
+        'cOnTeNt-TyPe',
+        kind === 'identical' ? 'text/plain' : 'application/json',
+      ]);
+      expect(response.status).toBe(403);
+      expect(JSON.parse(response.body)).toEqual({
+        code: 'ATTESTATION_MALFORMED',
+        message: 'Request signature is invalid.',
+      });
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(response.headers['x-attestation-error']).toBeUndefined();
+      expect(getSnapshot).not.toHaveBeenCalled();
+      expect(setup.storeReserveCalls()).toBe(0);
+      expect(setup.handlerCalls()).toBe(0);
+
+      const valid = await rawGet(setup.baseUrl, fields);
+      expect(valid.status).toBe(200);
+      expect(getSnapshot).toHaveBeenCalledTimes(1);
+      expect(setup.storeReserveCalls()).toBe(1);
+      expect(setup.handlerCalls()).toBe(1);
+    } finally {
+      await setup.close();
+    }
+  });
+
+  it.each(['identical', 'conflicting'])('rejects %s raw proof fields before dependencies', async (kind) => {
+    const getSnapshot = vi.fn(() => snapshotFor(NOW));
+    const setup = await setupGuardedApp({ provider: { getSnapshot } });
+    try {
+      const input = {
+        timestampMs: NOW - 5000,
+        nonceHex: nonce(),
+        method: 'GET',
+        requestTarget: '/api/items',
+        contentType: '',
+        bodyBytes: Buffer.alloc(0),
+      };
+      const first = signProof(input);
+      const second = kind === 'identical' ? first : signProof({ ...input, nonceHex: nonce() });
+      const response = await rawGet(setup.baseUrl, [
+        DEFAULT_ATTESTATION_HEADER,
+        first,
+        DEFAULT_ATTESTATION_HEADER.toUpperCase(),
+        second,
+      ]);
+      expect(response.status).toBe(403);
+      expect(JSON.parse(response.body)).toEqual({
+        code: 'ATTESTATION_MALFORMED',
+        message: 'Request signature is invalid.',
+      });
+      expect(getSnapshot).not.toHaveBeenCalled();
+      expect(setup.storeReserveCalls()).toBe(0);
+      expect(setup.handlerCalls()).toBe(0);
+    } finally {
+      await setup.close();
+    }
+  });
+
+  it('preserves commas inside a single Content-Type field', async () => {
+    const setup = await setupGuardedApp();
+    try {
+      const contentType = 'text/plain; note="a,b"';
+      const header = signProof({
+        timestampMs: NOW - 5000,
+        nonceHex: nonce(),
+        method: 'GET',
+        requestTarget: '/api/items',
+        contentType,
+        bodyBytes: Buffer.alloc(0),
+      });
+      const response = await rawGet(setup.baseUrl, [DEFAULT_ATTESTATION_HEADER, header, 'Content-Type', contentType]);
+      expect(response.status).toBe(200);
+      expect(setup.storeReserveCalls()).toBe(1);
+      expect(setup.handlerCalls()).toBe(1);
+    } finally {
+      await setup.close();
+    }
   });
 
   it('maps oversized encoded IDs and malformed envelopes to MALFORMED', async () => {
@@ -669,7 +823,40 @@ describe('fixed error mapping', () => {
     }
   });
 
-  it('maps provider faults and malformed snapshots to 503 KEYS_UNAVAILABLE (never STALE)', async () => {
+  const providerFaults: { name: string; getSnapshot: () => unknown }[] = [
+    {
+      name: 'throw',
+      getSnapshot: () => {
+        throw new Error('kms down');
+      },
+    },
+    { name: 'reject', getSnapshot: () => Promise.reject(new Error('read failed')) },
+    { name: 'malformed', getSnapshot: () => ({ currentKeyId: 'x', keys: [] }) },
+    ...(['ATTESTATION_STALE_KEY', 'ATTESTATION_EXPIRED', 'ATTESTATION_KEYS_UNAVAILABLE'] as const).flatMap((code) => {
+      const fault = new AttestationError(code);
+      fault.message = 'private provider diagnostic';
+      return [
+        {
+          name: `typed ${code} throw`,
+          getSnapshot: () => {
+            throw fault;
+          },
+        },
+        { name: `typed ${code} rejection`, getSnapshot: () => Promise.reject(fault) },
+        {
+          name: `snapshot accessor ${code}`,
+          getSnapshot: () => ({
+            get currentKeyId() {
+              throw fault;
+            },
+            keys: [],
+          }),
+        },
+      ];
+    }),
+  ];
+
+  it.each(providerFaults)('maps provider $name to fixed 503 KEYS_UNAVAILABLE', async ({ getSnapshot }) => {
     const raw = JSON.stringify({ a: 1 });
     const header = signProof({
       timestampMs: NOW - 5000,
@@ -679,35 +866,27 @@ describe('fixed error mapping', () => {
       contentType: 'application/json',
       bodyBytes: Buffer.from(raw),
     });
-    const cases: { name: string; provider: { getSnapshot: () => unknown } }[] = [
-      {
-        name: 'throw',
-        provider: {
-          getSnapshot: () => {
-            throw new Error('kms down');
-          },
-        },
-      },
-      { name: 'reject', provider: { getSnapshot: () => Promise.reject(new Error('read failed')) } },
-      {
-        name: 'malformed',
-        provider: { getSnapshot: (() => ({ currentKeyId: 'x', keys: [] })) as unknown as () => unknown },
-      },
-    ];
-    for (const entry of cases) {
-      const setup = await setupGuardedApp({ provider: entry.provider as never });
-      try {
-        const response = await fetch(`${setup.baseUrl}/api/submit`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', [DEFAULT_ATTESTATION_HEADER]: header },
-          body: raw,
-        });
-        expect(response.status, entry.name).toBe(503);
-        expect(((await response.json()) as { code: string }).code, entry.name).toBe('ATTESTATION_KEYS_UNAVAILABLE');
-        expect(setup.storeReserveCalls(), entry.name).toBe(0);
-      } finally {
-        await setup.close();
-      }
+    const diagnostic = vi.fn();
+    const setup = await setupGuardedApp({ provider: { getSnapshot } as never, onDiagnostic: diagnostic });
+    try {
+      const response = await fetch(`${setup.baseUrl}/api/submit`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', [DEFAULT_ATTESTATION_HEADER]: header },
+        body: raw,
+      });
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        code: 'ATTESTATION_KEYS_UNAVAILABLE',
+        message: 'Request signing keys are unavailable.',
+      });
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('x-attestation-error')).toBeNull();
+      expect(response.headers.get('www-authenticate')).toBeNull();
+      expect(diagnostic.mock.calls).toEqual([[{ code: 'ATTESTATION_KEYS_UNAVAILABLE', status: 503 }]]);
+      expect(setup.storeReserveCalls()).toBe(0);
+      expect(setup.handlerCalls()).toBe(0);
+    } finally {
+      await setup.close();
     }
   });
 

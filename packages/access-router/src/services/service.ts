@@ -18,8 +18,8 @@ import {
 } from '@web-ts-toolkit/utils';
 import { diff } from 'just-diff';
 import MongooseModelAdapter, { admitModelPersistence } from '../model';
-import { getModelOptions } from '../options';
-import { collectModelRequestFields } from '../acl/select-resolution';
+import { modelServiceOptions } from '../acl/model-service-owner';
+import { isDistinctFieldAuthorized } from '../acl/distinct-field-authorization';
 import {
   getDocPermissions,
   genPagination,
@@ -29,9 +29,10 @@ import {
   stripUnexposedDocPermissions,
   toObject,
 } from '../helpers';
-import { isFieldAllowed, isValidFieldPath, sanitizeSortFields, validateSortFields } from '../helpers/sort-policy';
+import { isValidFieldPath, sanitizeSortFields, validateSortFields } from '../helpers/sort-policy';
 import { excludeVirtualsFromAllowedSortFields } from '../helpers/sort-policy';
-import { RequestConcurrencyScheduler, SharedHookGate, normalizeHookConcurrencyLimit } from '../helpers/concurrency';
+import { RequestConcurrencyScheduler, type SharedHookGate } from '../helpers/concurrency';
+import { getRequestWorkState } from '../helpers/request-work';
 import { resolveAlwaysSelectForAccess, type VirtualProjectionPlan } from '../acl/virtual-projection';
 import { compactPersistedProjection, planAuthorizedModelProjection } from '../acl/output-projection';
 import { captureModelAuthorizationConfiguration } from '../acl/model-output-planning';
@@ -71,6 +72,7 @@ import Permission from '../permission';
 import { intersectFilters } from '../core-shared';
 import { validateExpandedCorrelatedOperands } from '../correlated-includes';
 import { finalizeModelOutput, type FinalizeSnapshot } from '../output/finalize-model-output';
+import { getIncludeOriginal, getIncludeSource, restoreIncludeOutput } from '../output/include-output';
 import {
   VIRT_ASSOCIATION_FIELD,
   VIRT_ASSOCIATION_VALUES,
@@ -150,6 +152,12 @@ import {
 } from '../interfaces';
 import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
+import {
+  assertCountForeignFieldSize,
+  castCountGroups,
+  prepareCountValues,
+  type GroupedCountInput,
+} from './grouped-count';
 import type { OpLogContext } from '../logger-helpers';
 import { debug as debugLog, summarizeFilter } from '../logger-helpers';
 import { isDocument } from '../lib';
@@ -235,9 +243,10 @@ const unsetDocPath = (doc: unknown, path: string): void => {
  * - Output-only admission runs before validation/persistence; computed
  *   values are assigned only to output copies (finalizer), never to
  *   persisted docs/snapshots.
- * - `maxHookConcurrency` bounds active getter + row-finalization work via
- *   ONE bounded row map + shared `SharedHookGate` (stable order, limit-1
- *   completes, no persistence permits held).
+ * - Per-call row maps preserve order; request/runtime hook-chain admission
+ *   shares one pool across independent services and reentrant descendants.
+ *   Waiting ancestor frames are not separate permits. No persistence permit
+ *   is held over hooks or recursive orchestration.
  */
 type VirtualOperationAccess = 'list' | 'create' | 'read' | 'update';
 
@@ -246,10 +255,21 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   TVirtuals
 > {
   protected model: any;
-  protected options: ModelRouterOptions<TModel, TVirtuals>;
-  public defaults: Defaults<TModel>;
+  protected get options(): ModelRouterOptions<TModel, TVirtuals> {
+    return modelServiceOptions(this, () => this.getModelRouterOptions(this.modelName));
+  }
+  private defaultsOverride?: Defaults<TModel>;
+  public get defaults(): Defaults<TModel> {
+    return this.defaultsOverride ?? this.options.defaults ?? {};
+  }
+  public set defaults(value: Defaults<TModel>) {
+    this.defaultsOverride = value;
+  }
   protected baseFields: string[];
-  protected baseFieldsExt: string[];
+  protected get baseFieldsExt(): string[] {
+    return this.baseFields.concat(this.options.documentPermissionField);
+  }
+  private readonly hookGate = getRequestWorkState(this.req, this.requestRuntime).hookGate;
   private readonly persist = <T>(operation: () => T | PromiseLike<T>): Promise<T> =>
     this.getCorrelatedExecState().scheduler.work(operation);
 
@@ -262,11 +282,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   protected createModelAdapter(modelName: string): any {
-    return new MongooseModelAdapter(modelName);
+    return new MongooseModelAdapter(modelName, this.requestRuntime);
   }
 
   protected getModelRouterOptions(modelName: string): ModelRouterOptions<TModel, TVirtuals> {
-    return getModelOptions<TModel, TVirtuals>(modelName);
+    return this.requestRuntime.getModelOptions<TModel, TVirtuals>(modelName);
   }
 
   /**
@@ -350,36 +370,27 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
     lean?: boolean;
-    includePaths?: string[];
     sharedGate?: SharedHookGate;
     privateAssociationField?: string;
   }): Promise<{ data: Record<string, unknown>; context: ServiceOutputContext }> {
     const { plan, context } = args;
     const { authorization, authorizationBinding: binding } = plan;
     const { access, configuration } = readServiceAuthorization(authorization!, binding!);
-    const snapshot = isolateDocForOutput(args.doc) as Record<string, unknown>;
+    const source = getIncludeSource(args.doc);
+    const snapshot = isolateDocForOutput(source) as Record<string, unknown>;
     // Hydrated parents can contain package-finalized target DTOs. Transfer each
     // child explicitly while making the plain projected input for this stage.
     for (const key of Object.keys(snapshot))
-      transferDocumentAuthorizationGraph(getDocValue(args.doc as never, key), snapshot[key]);
-    const savedIncludes = new Map<string, unknown>();
-    for (const path of args.includePaths ?? []) {
-      const value = get(snapshot, path);
-      if (value !== undefined) {
-        savedIncludes.set(path, value);
-        unsetDocPath(snapshot, path);
-      }
-    }
-    // Nested includes have consumed this fetch-only input. Detach their output
-    // first, so an attachment deliberately reusing the FK path is preserved.
+      transferDocumentAuthorizationGraph(getDocValue(source as never, key), snapshot[key]);
+    // Nested includes have consumed this fetch-only input. Their produced output
+    // is held separately, so cleanup cannot remove an attachment reusing the FK.
     if (args.privateAssociationField) unsetDocPath(snapshot, args.privateAssociationField);
-    const gate = args.sharedGate ?? new SharedHookGate(this.getVirtualHookConcurrencyLimit());
+    const gate = this.hookGate;
     const handle = await resolveOutputDocumentAuthorization({
       authorization: authorization!,
       binding: binding!,
       snapshot,
       context,
-      hookGate: gate,
     });
     const { stage, grants } = readDocumentAuthorization(handle, binding!);
     context.docPermissions = deepIsolateValue(grants);
@@ -405,7 +416,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // Finish metadata and include attachment on a fresh copy. Never mutate an
     // already-associated output or infer authority from serialized permissions.
     const output = deepIsolateValue(finalized);
-    for (const [path, value] of savedIncludes) set(output, path, value);
+    const includeOrigins = restoreIncludeOutput(args.doc, output);
     const field = (configuration.documentPermissionField as string) ?? '_permissions';
     unsetDocPath(output, field);
     if (!configuration.stripPermissionsField) {
@@ -424,8 +435,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       } else if (!args.includePermissions) this.addEmptyPermissions(output);
       stripUnexposedDocPermissions(this.modelName, output);
     }
-    this.preservePermissionsVirtual(args.doc, output, args.lean);
-    transferDocumentAuthorizationGraph(finalized, output);
+    this.preservePermissionsVirtual(getIncludeOriginal(args.doc), output, args.lean);
+    transferDocumentAuthorizationGraph(finalized, output, includeOrigins);
     return {
       data: output,
       context: createServiceOutputContext(finalizedContext, handle, {
@@ -492,7 +503,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
   public getVirtualGlobalPermissions(): { has: (key: string) => boolean; hasKey: (key: string) => boolean } {
     try {
-      const macl = this.req?.macl as unknown as {
+      const macl = this.requestCore as unknown as {
         getPermissions?: () => { has: (k: string) => boolean; hasKey: (k: string) => boolean };
       };
       const perms = macl?.getPermissions?.();
@@ -507,14 +518,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   public getVirtualHookConcurrencyLimit(): number {
-    try {
-      return normalizeHookConcurrencyLimit(
-        (this.getRequestComplexity() as { maxHookConcurrency?: unknown }).maxHookConcurrency,
-        10,
-      );
-    } catch {
-      return 10;
-    }
+    return this.hookGate.limit;
   }
 
   /**
@@ -576,9 +580,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
    * boundary with scope ` [sub,'sub']`, owning-parent `read` grants, and
    * scoped rules. Children (deeper nested + related via `related`) finalize
    * before sub getters; only finalized children appear in getter views.
-   * Uses ONE bounded row map + shared `SharedHookGate` (stable order,
-   * peak ≤ `maxHookConcurrency`, limit-1 completes, no persistence permits
-   * held). Callers must filter rows (existing row/operation filters) BEFORE
+   * Uses a bounded row map + request/runtime hook-chain admission (stable
+   * order, limit-one reentry, no persistence permits held). Waiting ancestor
+   * callback frames do not consume extra permits. Callers must filter rows BEFORE
    * calling; hidden rows never reach getters. Never mutates inputs.
    */
   public async finalizeSubRowsWithVirtuals(args: {
@@ -607,7 +611,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     } = args;
     if (!Array.isArray(rows) || rows.length === 0) return [];
     const hookLimit = this.getVirtualHookConcurrencyLimit();
-    const gate = new SharedHookGate(hookLimit);
+    const gate = this.hookGate;
     const mongooseModel = this.getServiceMongooseModel();
     const { finalizeModelOutputs } = await import('../output/finalize-model-output');
     return finalizeModelOutputs({
@@ -674,8 +678,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     sharedGate?: SharedHookGate,
   ): Promise<void> {
     if (!parentDoc || !Array.isArray(populateEntries) || populateEntries.length === 0) return;
-    const limit = hookLimit ?? this.getVirtualHookConcurrencyLimit();
-    const gate = sharedGate ?? new SharedHookGate(limit);
+    const gate = this.hookGate;
+    const limit = gate.limit;
     const mongooseModel = this.getServiceMongooseModel();
     const parentContext: ModelHookContext = {
       mongooseModel: mongooseModel as never,
@@ -746,8 +750,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
    *   IDs when population is skipped, arrays, and dotted paths through
    *   embedded arrays (e.g. `contacts.friend`). One evaluation per logical
    *   target output, no in-place mutation of shared/cached instances (targets
-   *   are replaced, never mutated; parents are fresh per-query docs, consistent
-   *   with `includeDocs` in-place attachment), isolated copies per parent,
+   *   are replaced, never mutated; include parents use detached source views),
+   *   isolated copies per parent,
    *   bounded via the shared `SharedHookGate` + `mapWithConcurrencyLimit`
    *   (no unbounded fan-out, limit-1 completes, no persistence permits held).
    * - Association transport stays service-only (symbols, outside serializers
@@ -836,7 +840,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         continue;
       }
       const policy = relatedPolicy(state.authorization, state.binding, descriptor.path);
-      const svc = this.req.macl.getPublicService(modelName);
+      const svc = this.requestCore.getPublicService(modelName);
       const child = createRelatedExecution(
         svc,
         {
@@ -851,7 +855,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         descriptor.path,
       );
       if (isExecutionRowDenied(svc, child)) continue;
-      if (policy?.operation.mode !== 'grant' && !(await this.req.macl.isAllowed(modelName, targetAccess))) continue;
+      if (policy?.operation.mode !== 'grant' && !(await this.requestCore.isAllowed(modelName, targetAccess))) continue;
       // Match is a required relationship constraint, even when a transform rewrites ordinary input.
       const match = (descriptor.match ?? {}) as Filter;
       const query = await prepareModelQuery(svc, child, { kind: 'client-read', filter: match }, {}, true);
@@ -900,6 +904,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     parentContext: ModelHookContext,
     hookLimit: number,
     sharedGate: SharedHookGate,
+    originalTarget: unknown = rawTarget,
   ): Promise<unknown> {
     if (rawTarget === null || rawTarget === undefined) return rawTarget;
     if (this.isScalarPopulateValue(rawTarget)) return rawTarget;
@@ -922,7 +927,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       cache = new WeakMap();
       this.populateOutputCache.set(meta, cache);
     }
-    const existing = cache.get(rawTarget as object);
+    // Include source copies retain the actual fetched target identity for cache
+    // reuse. Never infer this identity from IDs/values or finalize the original.
+    const cacheKey = originalTarget && typeof originalTarget === 'object' ? originalTarget : (rawTarget as object);
+    const existing = cache.get(cacheKey);
     if (existing) {
       const source = await existing;
       const copy = deepIsolateValue(source);
@@ -961,7 +969,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       concurrencyLimit: hookLimit,
       sharedGate,
     });
-    cache.set(rawTarget as object, pending);
+    cache.set(cacheKey, pending);
     const finalized = await pending;
     const copy = deepIsolateValue(finalized);
     transferDocumentAuthorizationGraph(finalized, copy);
@@ -979,10 +987,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     parentContext: ModelHookContext,
     hookLimit: number,
     sharedGate: SharedHookGate,
+    original: unknown = current,
   ): Promise<void> {
     if (current === null || current === undefined) return;
     if (Array.isArray(current)) {
-      for (const el of current) {
+      for (const [index, el] of current.entries()) {
         await this.finalizePopulatePath(
           el,
           segments,
@@ -992,6 +1001,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           parentContext,
           hookLimit,
           sharedGate,
+          Array.isArray(original) ? original[index] : undefined,
         );
       }
       return;
@@ -1000,6 +1010,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     if (segIdx >= segments.length) return;
     const key = segments[segIdx];
     let child: unknown;
+    let originalChild: unknown;
     try {
       child = getDocValue(current as never, key);
       if (child === undefined) {
@@ -1009,6 +1020,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           return;
         }
       }
+      originalChild = original === current ? child : getDocValue(original as never, key);
     } catch {
       return;
     }
@@ -1020,13 +1032,21 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       // Leaf: finalize target doc(s), leave scalars untouched.
       if (Array.isArray(child)) {
         const out: unknown[] = [];
-        for (const el of child) {
+        for (const [index, el] of child.entries()) {
           if (el === null || el === undefined || this.isScalarPopulateValue(el)) {
             out.push(el);
             continue;
           }
           out.push(
-            await this.finalizeSinglePopulateTarget(el, meta, parentOperation, parentContext, hookLimit, sharedGate),
+            await this.finalizeSinglePopulateTarget(
+              el,
+              meta,
+              parentOperation,
+              parentContext,
+              hookLimit,
+              sharedGate,
+              Array.isArray(originalChild) ? originalChild[index] : undefined,
+            ),
           );
         }
         try {
@@ -1043,6 +1063,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           parentContext,
           hookLimit,
           sharedGate,
+          originalChild,
         );
         try {
           setDocValue(current as never, key, finalized);
@@ -1060,6 +1081,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         parentContext,
         hookLimit,
         sharedGate,
+        originalChild,
       );
     }
   }
@@ -1081,7 +1103,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       if (!meta) continue;
       const segments = (entry as Populate).path.split('.').filter(Boolean);
       if (segments.length === 0) continue;
-      await this.finalizePopulatePath(doc, segments, 0, meta, parentOperation, parentContext, hookLimit, sharedGate);
+      await this.finalizePopulatePath(
+        getIncludeSource(doc),
+        segments,
+        0,
+        meta,
+        parentOperation,
+        parentContext,
+        hookLimit,
+        sharedGate,
+        getIncludeOriginal(doc),
+      );
     }
   }
 
@@ -1122,13 +1154,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     super(req, modelName);
 
     this.model = admitModelPersistence(this.createModelAdapter(modelName), this.getCorrelatedExecState().scheduler);
-    this.options = this.getModelRouterOptions(modelName);
-    this.defaults = this.options.defaults || {};
     registerSubdocumentPopulateExecutor(this, (execution, populate) =>
       this.genExecutionPopulate(execution, 'read', populate),
     );
     this.baseFields = ['_id'];
-    this.baseFieldsExt = this.baseFields.concat(this.options.documentPermissionField);
     registerServiceExecutors(this, {
       binding: () => ({
         request: this.req,
@@ -1140,7 +1169,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         this.requestRuntime.getModelInstance(this.modelName)
           ? captureModelAuthorizationConfiguration(this.requestRuntime, this.modelName)
           : { catalog: { paths: [] }, ...this.options },
-      permissions: () => this.req.macl.getPermissions?.() ?? new Permission({}),
+      permissions: () => this.requestCore.getPermissions?.() ?? new Permission({}),
       parse: (filter) => this.parseClientData(filter, this.getCorrelatedExecState().scheduler),
       validate: (filter, expanded) => {
         const errors = expanded
@@ -1156,7 +1185,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       identifier: (id) => this.genIDFilter(id),
       authorize: (execution, filter) => {
         const state = readServiceExecution(this, execution);
-        return resolveAuthorizedAccessFilter(this.req.macl, state.authorization, state.binding, filter, () =>
+        return resolveAuthorizedAccessFilter(this.requestCore, state.authorization, state.binding, filter, () =>
           this.genFilter(state.access.rowAccess as BaseFilterAccess, filter),
         ) as Promise<{ transformed: Filter<TModel>; scope: Filter<TModel>; filter: Filter<TModel> }>;
       },
@@ -1184,7 +1213,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         data: await this.model.countDocuments(filter),
         query: { filter },
       }),
-      groupedCount: (filter, field, values) => this.countPreparedByFieldValues(field, values, filter),
+      groupedCount: (filter, field, input) => this.countPreparedByFieldValueGroups(field, input, filter),
     });
   }
 
@@ -1254,9 +1283,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     if (!Array.isArray(queryParts)) return queryParts;
     const [_filter, _populate, allowedSortFields] = queryParts;
 
-    const { includes, correlatedIncludes, includeLocalFields, includePaths, correlatedReferenceFields } =
-      processedInclude;
-    const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
+    const { includes, correlatedIncludes, includeLocalFields, correlatedReferenceFields } = processedInclude;
     // VIRT-04: plan fetch vs output (VIRT-02) with effective accesses.
     // `access` is effective (`read` or `list` fallback); `operation` stays
     // initiating (`read`) per VIRT-00A D1.
@@ -1336,9 +1363,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     try {
       doc = await this.includeDocs(doc, includes, state.authorization);
       if (correlatedIncludes.length > 0) {
-        const docList = [doc];
-        await this.includeCorrelatedDocs(docList, correlatedIncludes, correlatedSnapshots, 0, state.authorization);
-        doc = docList[0];
+        [doc] = await this.includeCorrelatedDocs(
+          [doc],
+          correlatedIncludes,
+          correlatedSnapshots,
+          0,
+          state.authorization,
+        );
       }
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
@@ -1355,7 +1386,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // copies, bounded via shared gate). Parent grants above stay raw;
     // snapshots were already cloned pre-attachment.
     const findOneHookLimit = this.getVirtualHookConcurrencyLimit();
-    const findOneGate = new SharedHookGate(findOneHookLimit);
+    const findOneGate = this.hookGate;
     if (Array.isArray(_populate) && _populate.length > 0) {
       try {
         await this.finalizePopulateForSingleDoc(
@@ -1384,7 +1415,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         includePermissions,
         includeFieldPermissions,
         lean,
-        includePaths: [...includePaths, ...correlatedOutputPaths],
         sharedGate: findOneGate,
       });
     } catch (error) {
@@ -1527,9 +1557,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     if (!Array.isArray(queryParts)) return queryParts;
     const [_filter, _populate, pagination, rawAllowedSortFields] = queryParts;
 
-    const { includes, correlatedIncludes, includeLocalFields, includePaths, correlatedReferenceFields } =
-      processedInclude;
-    const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
+    const { includes, correlatedIncludes, includeLocalFields, correlatedReferenceFields } = processedInclude;
 
     // VIRT-04: fetch vs output planning (VIRT-02) for list/list/list.
     const virtualPlan = this.executionOutputPlan(execution, requestedSelect, {
@@ -1636,7 +1664,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // VIRT-05 getter isolation: association-only FKs (neither declared as a
     // virtual dependency nor ordinarily selected/allowed) must not leak into
     // target getter input. Strip diagnostic snapshots now; the finalizer strips
-    // its own input after detaching includes, preserving output attachments
+    // its own source input independently of produced include attachments,
     // even when they reuse this path. `_id` is always retained for policy work.
     let privateAssociationField: string | undefined;
     if (findAssociationField && findAssociationField !== '_id') {
@@ -1678,15 +1706,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     const outputContexts: ServiceOutputContext[] = [];
 
     const fieldPermissionAccess = includeFieldPermissions
-      ? await this.getFieldPermissionAccess(docs.map((doc) => doc._id))
+      ? await this.getFieldPermissionAccess(docs.map((doc) => getDocValue(getIncludeSource(doc) as never, '_id')))
       : undefined;
 
-    // VIRT-04 + VIRT-00A D7: ONE bounded row map + shared hook gate so peak
-    // active getter work stays ≤ maxHookConcurrency (never rows×getters).
-    // Stable index-keyed results preserve input order; no persistence permits
-    // held while awaiting finalization/hooks; limit-1 completes.
+    // Bound row workers per call and hook chains per request/runtime. Preserve
+    // input/context indices even when unrelated services interleave. Neither
+    // row traversal nor hooks hold a persistence permit.
     const hookLimit = this.getVirtualHookConcurrencyLimit();
-    const sharedGate = new SharedHookGate(hookLimit);
+    const sharedGate = this.hookGate;
     docs = await mapWithConcurrencyLimit(docs, hookLimit, async (doc, i) => {
       this.asServiceHookContext(contexts[i]).fieldPermissionAccess = fieldPermissionAccess;
 
@@ -1710,12 +1737,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         includePermissions,
         includeFieldPermissions,
         lean,
-        includePaths: [...includePaths, ...correlatedOutputPaths],
         sharedGate,
         privateAssociationField,
       });
       outputContexts[i] = output.context;
-      return decorate ? await decorate(output.data, output.context) : output.data;
+      return decorate ? await sharedGate.run(() => decorate(output.data, output.context)) : output.data;
     });
 
     this.completeOp('find', startedAt, Codes.Success, _filter);
@@ -1912,7 +1938,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     });
 
     const hookLimit = this.getVirtualHookConcurrencyLimit();
-    const createGate = new SharedHookGate(hookLimit);
+    const createGate = this.hookGate;
     const outputContexts: ServiceOutputContext[] = [];
 
     const createdDocs = (await this.model.create(items)) as Array<ModelDocument<TModel>>;
@@ -1948,7 +1974,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         sharedGate: createGate,
       });
       outputContexts[index] = output.context;
-      return decorate ? await decorate(output.data, output.context) : output.data;
+      return decorate ? await createGate.run(() => decorate(output.data, output.context)) : output.data;
     });
 
     return {
@@ -2225,7 +2251,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // parent getters (own plans/contexts, trimming even without virtuals).
     if (_populate) {
       const updateHookLimit = this.getVirtualHookConcurrencyLimit();
-      const updateGate = new SharedHookGate(updateHookLimit);
+      const updateGate = this.hookGate;
       await this.finalizePopulateForSingleDoc(
         doc,
         _populate as Populate[],
@@ -2243,7 +2269,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       includeFieldPermissions,
       lean: false,
     });
-    const outputDoc = decorate ? await decorate(output.data, output.context) : output.data;
+    const outputDoc = decorate ? await this.hookGate.run(() => decorate(output.data, output.context)) : output.data;
 
     this.completeOp('updateOne', startedAt, Codes.Success, _filter);
     return {
@@ -2483,56 +2509,38 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   protected async authorizeDistinctField(field: string): Promise<ErrorResult | null> {
-    // VIRT-04: registered virtuals never reach the adapter because output
-    // granted them. Explicit virtual check first (scope-aware, incl.
-    // embedded DB paths), then persisted allowlist (filtered for virtuals).
-    // Query fields are request-schema authority, not existing model output. No
-    // document exists at this stage, so hooks receive only empty document grants.
-    const requestFields = () => {
-      const options = this.requestRuntime.getModelOptions(this.modelName);
-      return collectModelRequestFields({
-        req: this.req,
-        permissionSchema: options.permissionSchema as Record<string, unknown>,
-        modelPermissionPrefix: options.modelPermissionPrefix,
-        access: 'read',
-        permissions: this.req.macl.getPermissions(),
-      });
-    };
     try {
-      const snapshot = this.captureVirtualSnapshot();
-      if (isVirtualDbPath(field, snapshot as unknown as { virtuals?: Record<string, unknown> | null })) {
-        return {
-          success: false,
-          kind: 'error',
-          code: Codes.Forbidden,
-          errors: [{ detail: `Distinct field not allowed: ${field}` }],
-        };
-      }
-      const rawAllowed = await requestFields();
-      const allowedFields = this.filterAllowedFieldsForVirtuals(rawAllowed, snapshot);
-      if (!isFieldAllowed(field, allowedFields)) {
-        return {
-          success: false,
-          kind: 'error',
-          code: Codes.Forbidden,
-          errors: [{ detail: `Distinct field not allowed: ${field}` }],
-        };
-      }
-      return null;
+      // No document exists here. Request rules must prove disclosure of the
+      // complete raw value, without field callbacks, document or backend grants.
+      const configuration = captureModelAuthorizationConfiguration(this.requestRuntime, this.modelName);
+      if (
+        !isVirtualDbPath(field, { virtuals: configuration.virtuals as Record<string, unknown> | null | undefined }) &&
+        isDistinctFieldAuthorized({
+          field,
+          schema: this.model.mongooseModel.schema,
+          configuration,
+          permissions: this.requestCore.getPermissions(),
+        })
+      )
+        return null;
     } catch {
-      const allowedFields = await requestFields();
-      if (!isFieldAllowed(field, allowedFields)) {
-        return {
-          success: false,
-          kind: 'error',
-          code: Codes.Forbidden,
-          errors: [{ detail: `Distinct field not allowed: ${field}` }],
-        };
-      }
-      return null;
+      // An unprovable schema/policy decision is denial, never an allowlist retry.
     }
+    return {
+      success: false,
+      kind: 'error',
+      code: Codes.Forbidden,
+      errors: [{ detail: `Distinct field not allowed: ${field}` }],
+    };
   }
 
+  /**
+   * Raw distinct values under request read/row policy; backend output grants do not apply.
+   * Before persistence, the explicit field rule and every returned descendant must be
+   * request-proven. Callable/document-dependent rules, protected/virtual values, Mixed,
+   * whole Maps and other unprovable composites return Forbidden. Explicit typed scalar
+   * children remain eligible. Values are never trimmed or re-deduplicated after Mongo.
+   */
   public async distinct(field: string, args?: DistinctArgs<TModel>): Promise<ListResult<unknown> | ErrorResult> {
     if (arguments.length > 2) {
       return {
@@ -2580,6 +2588,15 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length, query };
   }
 
+  /**
+   * Exact numeric count under request row policy, independent of list pagination.
+   * `access` selects baseFilter/overrideFilter access (default `list`; pass `count`
+   * for count policy). Custom entrypoints establish their own operation guard.
+   * False is terminal Forbidden; an allowed miss succeeds with zero. No output
+   * fields/getters are computed, and no authorization-options argument is accepted.
+   * For per-key numeric counts use countByFieldValues; for one union use an ordinary
+   * `$in` filter here instead of summing overlapping per-key counts.
+   */
   public async count(
     filter: Filter<TModel>,
     access: BaseFilterAccess = 'list',
@@ -2609,9 +2626,12 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   /**
-   * Legacy trusted count helper. Package-owned correlated execution uses
-   * authenticated prepared queries instead. This separate legacy helper is
-   * not a row-authorization option and retains its existing contract.
+   * Legacy count of an already-authorized server predicate. The caller supplies the
+   * complete row constraint: this helper does not run client parsing/validation or
+   * baseFilter/overrideFilter. False remains Forbidden and virtual predicates are
+   * excluded. It accepts no authorization/options argument. Prefer count for request
+   * policy. Package-owned correlated execution uses authenticated prepared queries
+   * instead; this is not a public prepared-query capability or a wire option.
    */
   public async countTrusted(authorizedFilter: Filter<TModel>): Promise<SingleResult<number> | ErrorResult> {
     if (arguments.length > 1) {
@@ -2643,18 +2663,55 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   /**
-   * Group target document IDs by original parent-key aliases using one aggregate.
-   * Resolves the requested row policy (legacy count includes pass `count`), casts
-   * authorized filters/foreign operands with the target schema, and deduplicates IDs
-   * independently of pagination. Cast failures return BadRequest; false policy returns
-   * Forbidden. Casting does not execute countDocuments middleware/plugins.
+   * Exact numeric document counts per original `String(value)` alias, in one Mongo
+   * aggregate independent of list pagination. Includes zero for missing keys; repeated
+   * original aliases use their first operand. Distinct aliases normalized by schema
+   * casting/setters get equal counts. Each group uses Mongo query `$in` semantics,
+   * including literal array/object equality, null/missing and dotted array traversal.
+   * Repeated foreign/nested array entries count once.
+   * Counts for different keys can overlap: do not sum them to count a multi-key union.
+   *
+   * BREAKING: returns Map<string, number>, replacing the former unbounded ID-set API.
+   * Legacy includes privately count whole parent-key groups; no target IDs are returned.
+   * Resolves the requested row policy (default `list`; pass `count` for count policy).
+   * No authorization/prepared options are accepted. False policy returns Forbidden;
+   * schema-cast/input-limit failures return BadRequest, before aggregate dispatch.
+   * Casting uses the owning schema, without executing countDocuments middleware.
+   *
+   * Fixed per-call bounds: 1,000 input values/groups, 10,000 key occurrences, 64 KiB
+   * per BSON key/alias, 1 MiB cumulative BSON-key plus alias bytes, depth 8 / 20,000
+   * key nodes, 1,024 foreign-path bytes. Raw and cast grouped operands are bounded.
+   * Operands are snapshotted before awaited hooks; regex/executable keys are rejected.
+   * Plain object operands beginning with `$` reject unless they contain both `$ref`
+   * and `$id` (Mongo's literal DBRef exception). Nested literal dollar fields are data.
+   *
+   * @returns A SingleResult with Map<string, number> data, or an ErrorResult. Check
+   * success before data; migrate `data.get(key)?.size` to `data.get(key) ?? 0`.
+   * @example
+   * ```ts
+   * import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+   * export async function invoiceCounts(req: ModelRequest) {
+   *   const lines = req.macl.getService<{ invoiceId: string }>('InvoiceLine');
+   *   const result = await lines.countByFieldValues('invoiceId', ['a', 'b'], {}, 'count');
+   *   if (result.success) return Object.fromEntries(result.data);
+   *   return result;
+   * }
+   * ```
    */
   public async countByFieldValues(
     foreignField: string,
-    values: unknown[],
+    values: readonly unknown[],
     filter: Filter<TModel> = {},
     access: BaseFilterAccess = 'list',
-  ): Promise<SingleResult<Map<string, Set<string>>> | ErrorResult> {
+  ): Promise<SingleResult<Map<string, number>> | ErrorResult> {
+    if (arguments.length > 4 || typeof access !== 'string') {
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: [{ detail: 'countByFieldValues accepts an access name, not authorization options' }],
+      };
+    }
     if (!isValidFieldPath(foreignField)) {
       return {
         success: false,
@@ -2682,6 +2739,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     try {
+      assertCountForeignFieldSize(foreignField);
+      const input = prepareCountValues(values);
       const execution = createServiceExecution(this, {
         operation: 'count',
         rowAccess: access,
@@ -2690,9 +2749,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         docPermissionsAccess: access,
       });
       const query = await prepareModelQuery(this, execution, { kind: 'mutation-lookup', filter }, {
-        [foreignField]: { $in: uniqBy(values, (value) => String(value)) },
+        [foreignField]: { $in: input.values },
       } as Filter<TModel>);
-      return await executePreparedGroupedCount(this, execution, query, foreignField, values);
+      const result = await executePreparedGroupedCount(this, execution, query, foreignField, input);
+      if (result.success === false) return result;
+      return { ...result, data: new Map(input.aliases.map((alias, index) => [alias, result.data[index]])) };
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -2700,11 +2761,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     }
   }
 
-  private async countPreparedByFieldValues(
+  private async countPreparedByFieldValueGroups(
     foreignField: string,
-    values: readonly unknown[],
+    input: GroupedCountInput,
     filter: Filter<TModel>,
-  ): Promise<SingleResult<Map<string, Set<string>>> | ErrorResult> {
+  ): Promise<SingleResult<number[]> | ErrorResult> {
     if (
       !isValidFieldPath(foreignField) ||
       isVirtualDbPath(foreignField, this.captureVirtualSnapshot() as { virtuals?: Record<string, unknown> })
@@ -2716,7 +2777,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         errors: [{ detail: `Invalid include foreignField: ${foreignField}` }],
       };
     }
-    const uniqueValues = uniqBy([...values], (value) => String(value));
+    assertCountForeignFieldSize(foreignField);
+    const uniqueValues = input.values;
     // Also constrain private callers; row transforms can never erase this join.
     filter = intersectFilters(filter, { [foreignField]: { $in: uniqueValues } } as Filter<TModel>);
 
@@ -2725,6 +2787,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
     let matchFilter = filter as Record<string, unknown>;
     let castValues = uniqueValues;
+    let groups: ReturnType<typeof castCountGroups>;
     try {
       if (this.model.castFilter) {
         matchFilter = this.model.castFilter(matchFilter);
@@ -2732,10 +2795,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         // Keep this independent of ACL query transformation/scope composition.
         const foreignFilter = this.model.castFilter({ [foreignField]: { $in: uniqueValues } });
         castValues = foreignFilter[foreignField]?.$in;
-        if (!Array.isArray(castValues) || castValues.length !== uniqueValues.length) {
-          throw new Error('Foreign field query casting must retain the join operands');
-        }
       }
+      groups = castCountGroups(input, castValues);
     } catch {
       // Only synchronous schema casting is in this boundary, never persistence.
       // Avoid exposing values from trusted ACL filters in the client error detail.
@@ -2743,37 +2804,55 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         success: false,
         kind: 'error',
         code: Codes.BadRequest,
-        errors: [{ detail: 'Invalid grouped include count filter or foreign-key value' }],
+        errors: [{ detail: 'Invalid grouped count filter or foreign-key value, or count input limit exceeded' }],
       };
     }
 
+    if (groups.length === 0) return { success: true, kind: 'single', code: Codes.Success, data: [], query };
+
+    // Native query matching is essential: aggregation $in/$setIntersection on a
+    // dotted field expression is not equivalent for literal arrays or multikey
+    // traversal (including missing children). Share one authorized candidate stream
+    // across bounded count-only facets, rather than approximating the query matcher.
+    const foreignRoot = foreignField.split('.')[0];
     const rows = (await this.model.aggregate([
       { $match: matchFilter },
+      // Keep the whole join subtree so projection cannot alter equality/traversal.
+      // Target identity is discarded unless it is itself the join input.
+      { $project: { _id: 0, [foreignRoot]: 1 } },
       {
-        $project: {
-          foreignValues: {
-            $cond: [{ $isArray: `$${foreignField}` }, `$${foreignField}`, [`$${foreignField}`]],
-          },
-        },
+        $facet: Object.fromEntries(
+          groups.map(({ group, keys }) => [
+            `g${group}`,
+            [
+              { $match: { [foreignField]: { $in: keys } } },
+              { $count: 'count' },
+              { $project: { _id: { $literal: group }, count: 1 } },
+            ],
+          ]),
+        ),
       },
-      { $unwind: '$foreignValues' },
-      { $match: { foreignValues: { $in: castValues } } },
-      { $group: { _id: '$foreignValues', documentIds: { $addToSet: '$_id' } } },
-    ])) as Array<{ _id: unknown; documentIds: unknown[] }>;
+      // Each facet emits zero or one numeric row. Neither facet state nor its
+      // result document grows with the number/size of matching target identities.
+      { $project: { rows: { $concatArrays: groups.map(({ group }) => `$g${group}`) } } },
+      { $unwind: '$rows' },
+      { $replaceRoot: { newRoot: '$rows' } },
+    ])) as Array<{ _id: number; count: number }>;
 
-    const grouped = new Map<string, Set<string>>();
+    // Only bounded group ordinals and numbers cross the adapter boundary. No
+    // document identity is projected, accumulated, scanned or unioned in Node.
+    const counts = new Array<number>(input.groups.length).fill(0);
+    if (rows.length > counts.length) throw new Error('Invalid numeric grouped count result');
     for (const row of rows) {
-      const key = String(row._id);
-      const ids = grouped.get(key) ?? new Set<string>();
-      for (const id of row.documentIds) ids.add(String(id));
-      grouped.set(key, ids);
-    }
-    const counts = new Map<string, Set<string>>();
-    for (let i = 0; i < uniqueValues.length; i++) {
-      // Casting can normalize a key (uppercase ObjectId hex, string setters,
-      // numeric strings). Attachment still looks up the original parent key.
-      const ids = grouped.get(String(castValues[i]));
-      if (ids) counts.set(String(uniqueValues[i]), ids);
+      if (
+        !Number.isSafeInteger(row._id) ||
+        row._id < 0 ||
+        row._id >= counts.length ||
+        !Number.isSafeInteger(row.count) ||
+        row.count < 0
+      )
+        throw new Error('Invalid numeric grouped count result');
+      counts[row._id] = row.count;
     }
 
     return { success: true, kind: 'single', code: Codes.Success, data: counts, query };

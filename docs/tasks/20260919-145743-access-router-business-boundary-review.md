@@ -140,7 +140,7 @@ Completion evidence (ABB-01):
     read-by-filter and read-by-id, plus in-process service methods.
   - `packages/access-router/test/correlated-includes.resolver.test.ts`: register a
     real offline source model for the existing model-aware include processor tests.
-  - `docs/tasks/20260926-145743-access-router-business-boundary-review.md`: ABB-01
+  - `docs/tasks/20260919-145743-access-router-business-boundary-review.md`: ABB-01
     status, implementation findings, verification evidence and documentation handoff.
 - Commands/results (all from repository root, build/test/typecheck invocations
   serialized):
@@ -257,7 +257,7 @@ Completion evidence (ABB-02):
   - `packages/access-router/test/nested-update-integrity.integration.test.ts`:
     **46 real-Mongo tests** with raw collection reloads, avoiding Mongoose defaults
     concealing missing persisted data.
-  - `docs/tasks/20260926-145743-access-router-business-boundary-review.md`: task
+  - `docs/tasks/20260919-145743-access-router-business-boundary-review.md`: task
     status, decisions, evidence and explicit ABB-06 handoff.
 - Commands/results (repository root; builds, focused runs and typechecks serialized):
   - `pnpm --filter @web-ts-toolkit/access-router... build` — **passed on all three
@@ -389,7 +389,7 @@ Completion evidence (ABB-03):
   - `packages/access-router/test/subdocument-mutation-visibility.integration.test.ts`:
     **69 real-Mongo tests**, using raw collection reloads to verify committed writes
     and protected input fields independently of returned visibility.
-  - `docs/tasks/20260926-145743-access-router-business-boundary-review.md`: status,
+  - `docs/tasks/20260919-145743-access-router-business-boundary-review.md`: status,
     necessary call-site scope, evidence and ABB-06 compatibility handoff.
 - Commands/results (repository root; build, focused-suite and typecheck invocations
   serialized):
@@ -525,7 +525,7 @@ Completion evidence (ABB-04):
     FIFO/rejection/order, bulk attempts, and request/runtime ownership.
   - `packages/access-router/test/request-persistence-concurrency.test.ts`: fifteen
     HTTP/Mongoose execution tests with instrumented collection-boundary doubles.
-  - `docs/tasks/20260926-145743-access-router-business-boundary-review.md`: status,
+  - `docs/tasks/20260919-145743-access-router-business-boundary-review.md`: status,
     explicit necessary scope, evidence and ABB-06 public-contract handoff.
 - Before/after instrumentation: peak **active collection operations**, counted at
   cursor `toArray` / `findOne` / `countDocuments` / write commands, NOT at service
@@ -666,7 +666,7 @@ Completion evidence (ABB-05):
   - `packages/access-router/test/service.internal.test.ts`: two additional adapter
     tests covering copy/receiver/permit behavior, query setters, numeric aliases,
     trusted filter replacement, independent operand casting and persistence errors.
-  - `docs/tasks/20260926-145743-access-router-business-boundary-review.md`: status,
+  - `docs/tasks/20260919-145743-access-router-business-boundary-review.md`: status,
     necessary scope, evidence and ABB-06 handoff.
 - Commands/results (repository root; build, test and typecheck invocations serialized):
   - `pnpm --filter @web-ts-toolkit/access-router... build` — **passed three times**,
@@ -792,7 +792,7 @@ Completion evidence (ABB-06):
     counts, partial updates and successful hidden response shapes.
   - `website/docs/packages/access-router/validation.mdx`: service-level metadata
     preflight/cast failures and removal of stale legacy-behavior claim.
-  - `docs/tasks/20260926-145743-access-router-business-boundary-review.md`: ABB-06
+  - `docs/tasks/20260919-145743-access-router-business-boundary-review.md`: ABB-06
     status, completion evidence and compatibility delivery notes below.
 - Commands/results (repository root except the stated pack working directory;
   build, test invocations and typecheck serialized):
@@ -1019,7 +1019,7 @@ Completion evidence (ABB-07):
     30s first pack/manifest/allowlist fixture deadline.
   - `packages/access-router-runtime/test/config-loader.test.ts`: one 60s outer
     five-subprocess matrix deadline, retaining each subprocess's 10s bound.
-  - `docs/tasks/20260926-145743-access-router-business-boundary-review.md`: status,
+  - `docs/tasks/20260919-145743-access-router-business-boundary-review.md`: status,
     discoveries, explicit integration scope, failed/passing command evidence and
     independent acceptance verdicts. No other files edited by this reviewer.
 
@@ -1346,7 +1346,7 @@ order; all seven task statuses above are now completed. Root `CHANGELOG.md` is u
 
 ## Consequential deferrals
 
-Continuation: [Residual contracts](20260926-184406-access-router-residual-contracts.md)
+Continuation: [Residual contracts](20260919-184406-access-router-residual-contracts.md)
 now tracks implementation of ARH D1/D2/D3 and the bare-literal-escape finding, following
 the user's request to continue. The historical scope and completed ABB evidence remain
 unchanged; the continuation document owns those new execution statuses.
@@ -1388,3 +1388,10 @@ review. Report the exact file path, resolved findings and actual verification re
   fresh packed/artifact checks; workspace execution totals are 5,384 passed with one
   pre-existing TODO. Build, typecheck, lint and diff checks passed. Earlier backlog
   deferrals and documented review limitations are retained; no new blocker remains.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

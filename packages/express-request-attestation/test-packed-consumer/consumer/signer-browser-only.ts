@@ -1,6 +1,7 @@
 import {
   createRequestSigner,
   createSignerClient,
+  fetchSignerBundle,
   fetchWithAttestation,
   type SignerClient,
 } from '@web-ts-toolkit/express-request-attestation/signer';
@@ -44,5 +45,26 @@ async function direct(): Promise<string> {
   });
 }
 
-void [signerClient, example, direct];
+async function explicitNativeFetch(request: Request): Promise<readonly [Response, Response]> {
+  const discovery = {
+    metadataUrl: `${apiOrigin}/attestation/signer-meta`,
+    apiOrigin,
+    replayNamespace,
+    fetch: globalThis.fetch,
+  };
+  await fetchSignerBundle(discovery);
+  const client: SignerClient = createSignerClient(discovery);
+  try {
+    await client.getSigner();
+    const options = { signerClient: client, apiOrigin, replayNamespace };
+    return [
+      await fetchWithAttestation(request, undefined, { ...options, fetch: globalThis.fetch }),
+      await fetchWithAttestation(request, undefined, { ...options, fetchFn: globalThis.fetch }),
+    ];
+  } finally {
+    client.dispose();
+  }
+}
+
+void [signerClient, example, direct, explicitNativeFetch];
 export {};

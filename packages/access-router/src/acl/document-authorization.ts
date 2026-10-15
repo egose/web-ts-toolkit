@@ -325,33 +325,48 @@ export function getAssociatedDocumentAuthorization(
   return record.handle;
 }
 
-/** Preserve authenticated descendants when package code makes an isolated same-stage copy. */
-export function transferDocumentAuthorizationGraph(source: unknown, copy: unknown, seen = new WeakSet<object>()): void {
-  if (source instanceof Document) source = (source as unknown as { _doc: object })._doc;
-  if (!source || !copy || typeof source !== 'object' || typeof copy !== 'object') return;
-  if (seen.has(source)) return;
-  seen.add(source);
-  const association = outputs.get(source);
-  if (association) {
-    const stage = stageRecord(documentRecord(association.handle).stage);
-    transferDocumentAuthorization(
-      association.handle,
-      {
-        binding: stage.binding,
-        output: source,
-        outputAccess: readServiceAuthorization(stage.call, stage.binding).access.outputAccess,
-        authorization: stage.call,
-        stage: documentRecord(association.handle).stage,
-      },
-      copy,
-    );
-  }
-  for (const key of Object.keys(copy)) {
-    const descriptor = Object.getOwnPropertyDescriptor(source, key);
-    if (descriptor && 'value' in descriptor) {
-      transferDocumentAuthorizationGraph(descriptor.value, (copy as Record<string, unknown>)[key], seen);
+/** Preserve authenticated descendants of package-created copies. Include assembly may supply exact
+ * finalized origins for replacement roots; neither output paths nor DTO values establish ownership.
+ */
+export function transferDocumentAuthorizationGraph(
+  source: unknown,
+  copy: unknown,
+  copyOrigins?: WeakMap<object, object>,
+): void {
+  const seen = new WeakSet<object>();
+  const visit = (source: unknown, copy: unknown): void => {
+    if (!copy || typeof copy !== 'object' || seen.has(copy)) return;
+    seen.add(copy);
+    source = copyOrigins?.get(copy) ?? source;
+    if (source instanceof Document) source = (source as unknown as { _doc: object })._doc;
+    const original = source && typeof source === 'object' ? source : undefined;
+    if (!original && !copyOrigins) return;
+    const association = original && outputs.get(original);
+    if (association) {
+      const stage = stageRecord(documentRecord(association.handle).stage);
+      transferDocumentAuthorization(
+        association.handle,
+        {
+          binding: stage.binding,
+          output: original!,
+          outputAccess: readServiceAuthorization(stage.call, stage.binding).access.outputAccess,
+          authorization: stage.call,
+          stage: documentRecord(association.handle).stage,
+        },
+        copy,
+      );
     }
-  }
+    for (const key of Object.keys(copy)) {
+      const descriptor = original && Object.getOwnPropertyDescriptor(original, key);
+      if (descriptor && 'value' in descriptor) {
+        visit(descriptor.value, (copy as Record<string, unknown>)[key]);
+      } else if (copyOrigins) {
+        // A new dotted attachment can create containers absent from source output.
+        visit(undefined, (copy as Record<string, unknown>)[key]);
+      }
+    }
+  };
+  visit(source, copy);
 }
 
 /** Non-enumerable immutable authority properties; legacy diagnostics stay separate and editable. */

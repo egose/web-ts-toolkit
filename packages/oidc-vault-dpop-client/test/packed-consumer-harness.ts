@@ -32,7 +32,6 @@ export const rootPackageJson = JSON.parse(readFileSync(path.resolve(workspaceRoo
 };
 
 export const typescriptVersion = rootPackageJson.devDependencies.typescript;
-export const nodeTypesVersion = rootPackageJson.devDependencies['@types/node'];
 
 const tempRoots: string[] = [];
 
@@ -67,6 +66,7 @@ export function run(command: string, args: string[], cwd: string): string {
       cwd,
       encoding: 'utf8',
       stdio: 'pipe',
+      maxBuffer: 16 * 1024 * 1024,
     });
   } catch (error) {
     const caught = error as { stdout?: string; stderr?: string; status?: number; message?: string };
@@ -137,9 +137,9 @@ export function unpackTarballToDir(tarballPath: string): string {
 
 /**
  * Install the packed tarball into a fresh external consumer tree under
- * `/tmp` via a `file:` dependency (plus `typescript` + `@types/node` from
- * the registry for the strict typecheck lanes, exactly how an external
- * consumer resolves them). Returns the consumer directory.
+ * `/tmp` via a `file:` dependency plus TypeScript. No Node/Express types or
+ * backend package are installed: browser declarations must stand alone.
+ * Returns the consumer directory.
  */
 export function installPackedConsumer(): string {
   const tarball = preparePackedTarball();
@@ -158,7 +158,6 @@ export function installPackedConsumer(): string {
         },
         devDependencies: {
           typescript: typescriptVersion,
-          '@types/node': nodeTypesVersion,
         },
       },
       null,

@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 /**
  * Build target — single shared `es2022` baseline at the intersection of the
  * supported runtimes:
- *   - Node >= 22 (the `engines.node` floor; the emitted bundle needs nothing newer)
+ *   - Node >= 22.12.0 (CJS loads ESM-only jose via default require(esm) support)
  *   - evergreen browsers (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+;
  *     see `browserslist` in package.json)
  *

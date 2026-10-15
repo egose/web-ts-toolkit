@@ -1173,7 +1173,7 @@ test/access-router-client.correlated-includes.integration.test.ts` —
   (owner ACI-06/ACI-07).
 
 - Resolution (2026-09-26): FU-ACI05-2 is implemented and verified by
-  [ARC-03](20260926-184406-access-router-residual-contracts.md#task-arc-03-match-bare-escaped-parent-markers-as-literal-records).
+  [ARC-03](20260919-184406-access-router-residual-contracts.md#task-arc-03-match-bare-escaped-parent-markers-as-literal-records).
   Bare escapes now receive literal `$eq` equality; explicit equality remains
   supported. Its Completion evidence records fresh before/after real-Mongo
   direct/root read/list/count checks. The failures and workaround above describe
@@ -1317,7 +1317,7 @@ Requirements:
   auto-wrapping (owner ACI-07).
 
 - Resolution (2026-09-26): FU-ACI06-2 is the same defect as FU-ACI05-2,
-  resolved by [ARC-03](20260926-184406-access-router-residual-contracts.md#task-arc-03-match-bare-escaped-parent-markers-as-literal-records).
+  resolved by [ARC-03](20260919-184406-access-router-residual-contracts.md#task-arc-03-match-bare-escaped-parent-markers-as-literal-records).
   Current server README/llms/website prose documents bare literal equality and
   preserved explicit `$eq`; the historical workaround above remains relevant to
   older servers. The independent release-version follow-up FU-ACI06-1 remains.
@@ -1474,3 +1474,10 @@ Follow the task-as-you-go skill. When starting work, mark a task `in_progress` o
 When completing a task, append changed files, verification commands/results, acceptance evidence, and follow-up task IDs. Do not mark implementation complete solely because code or this document was written. Keep historical findings intact and add resolution evidence rather than rewriting the baseline.
 
 Current unresolved design decisions are bounded by ACI-01; all implementation tasks (ACI-01 through ACI-07) are completed with evidence recorded above. Open deferrals are tracked as FU-\* follow-ups in the per-task completion records.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

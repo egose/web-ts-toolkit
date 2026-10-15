@@ -13,6 +13,7 @@ import {
   executePreparedCount,
   executePreparedExists,
 } from '../src/acl/prepared-query';
+import { prepareCountValues } from '../src/services/grouped-count';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -290,10 +291,15 @@ describe('SVA-04 row authorization', () => {
         const count = mode === 'unrestricted' ? 2 : 1;
         expect(await executePreparedCount(f.service, execution, query)).toMatchObject({ data: count });
         expect(await executePreparedExists(f.service, execution, query)).toMatchObject({ data: true });
-        const grouped = await executePreparedGroupedCount(f.service, execution, query, 'join', ['parent', 'other']);
+        const grouped = await executePreparedGroupedCount(
+          f.service,
+          execution,
+          query,
+          'join',
+          prepareCountValues(['parent', 'other']),
+        );
         expect(grouped.success).toBe(true);
-        expect((grouped as any).data.get('parent').size).toBe(count);
-        expect((grouped as any).data.has('other')).toBe(false);
+        if (grouped.success) expect(grouped.data).toEqual([count, 0]);
         expect(transform).toHaveBeenCalledTimes(1);
       });
     },

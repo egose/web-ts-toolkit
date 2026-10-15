@@ -7,37 +7,44 @@ import type {
   ModelHookContext,
 } from '../interfaces';
 import type { Permissions } from '../permission';
+import type { AccessRuntime } from '../runtime';
+import { getRequestWorkState } from '../helpers/request-work';
+import type { SharedHookGate } from '../helpers/concurrency';
 
 export async function runDecorateHook<TDoc>({
   req,
+  runtime,
   hook,
   doc,
   permissions,
   context,
 }: {
   req: AccessRouterBaseRequest;
+  runtime: AccessRuntime;
   hook: Function | Function[];
   doc: TDoc;
   permissions: Permissions;
   context: ModelHookContext | DataHookContext;
 }) {
-  return callHookChain(req, hook, doc, permissions, context);
+  return getRequestWorkState(req, runtime).hookGate.run(() => callHookChain(req, hook, doc, permissions, context));
 }
 
 export async function runDecorateAllHook<TDoc>({
   req,
+  runtime,
   hook,
   docs,
   permissions,
   context,
 }: {
   req: AccessRouterBaseRequest;
+  runtime: AccessRuntime;
   hook: Function | Function[];
   docs: TDoc[];
   permissions: Permissions;
   context: ModelHookContext | DataHookContext;
 }) {
-  return callHookChain(req, hook, docs, permissions, context);
+  return getRequestWorkState(req, runtime).hookGate.run(() => callHookChain(req, hook, docs, permissions, context));
 }
 
 export interface VirtualGetterLogMeta {
@@ -60,6 +67,7 @@ export interface VirtualGetterLogMeta {
  */
 export async function runVirtualGetter({
   req,
+  gate,
   getter,
   view,
   permissions,
@@ -67,6 +75,7 @@ export async function runVirtualGetter({
   logMeta,
 }: {
   req: AccessRouterBaseRequest;
+  gate: SharedHookGate;
   getter: Function;
   view: unknown;
   permissions: Permissions;
@@ -74,7 +83,7 @@ export async function runVirtualGetter({
   logMeta: VirtualGetterLogMeta;
 }): Promise<{ ok: true; value: unknown } | { ok: false }> {
   try {
-    const value = await (getter as Function).call(req, view, permissions, context);
+    const value = await gate.run(() => (getter as Function).call(req, view, permissions, context));
     return { ok: true, value };
   } catch {
     try {

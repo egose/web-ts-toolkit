@@ -35,12 +35,14 @@ import {
 } from './acl/select-resolution';
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
-import { runWithRuntime } from './runtime-context';
+import { getActiveRuntime, runWithRuntime } from './runtime-context';
+import { getRequestWorkState } from './helpers/request-work';
 import { resolveRouteOperationAccess } from './operation-access';
 import { assertFieldHelperCall, requestFieldScope } from './acl/field-helper-options';
 
 export class DataCore {
   private req: DataRequest;
+  private readonly requestRuntime = getActiveRuntime() ?? defaultRuntime;
   private caches: {
     baseFilter: Cache<string, Filter>;
   };
@@ -87,13 +89,15 @@ export class DataCore {
 
     const permissions = this.getGlobalPermissions();
 
-    return collectAllowedFieldsForRequest({
-      req: this.req,
-      permissionSchema,
-      access,
-      hasPermission: (key) => permissions.has(key),
-      functionArgs: [permissions],
-    });
+    return getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+      collectAllowedFieldsForRequest({
+        req: this.req,
+        permissionSchema,
+        access,
+        hasPermission: (key) => permissions.has(key),
+        functionArgs: [permissions],
+      }),
+    );
   }
 
   /** Request-only existing-value pick. No automatic identity/metadata retention; options default to {}. */
@@ -107,14 +111,16 @@ export class DataCore {
     const permissionSchema = this.fieldPermissionSchema(dataName, options);
     const permissions = this.getGlobalPermissions();
 
-    return pickAllowedFieldsForRequest({
-      req: this.req,
-      doc,
-      permissionSchema,
-      access,
-      hasPermission: (key) => permissions.has(key),
-      functionArgs: [permissions],
-    });
+    return getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+      pickAllowedFieldsForRequest({
+        req: this.req,
+        doc,
+        permissionSchema,
+        access,
+        hasPermission: (key) => permissions.has(key),
+        functionArgs: [permissions],
+      }),
+    );
   }
 
   /**
@@ -133,15 +139,17 @@ export class DataCore {
 
     const permissions = this.getGlobalPermissions();
 
-    return resolveSelectForRequest({
-      req: this.req,
-      permissionSchema,
-      access,
-      targetFields,
-      hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
-      functionArgs: [permissions],
-      mode: 'data',
-    });
+    return getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+      resolveSelectForRequest({
+        req: this.req,
+        permissionSchema,
+        access,
+        targetFields,
+        hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
+        functionArgs: [permissions],
+        mode: 'data',
+      }),
+    );
   }
 
   private fieldPermissionSchema(dataName: string, options: DataFieldOptions) {
@@ -158,6 +166,7 @@ export class DataCore {
     const permissions = this.getGlobalPermissions();
     return runDecorateHook({
       req: this.req,
+      runtime: this.requestRuntime,
       hook: decorate,
       doc,
       permissions,
@@ -180,6 +189,7 @@ export class DataCore {
 
     return runDecorateAllHook({
       req: this.req,
+      runtime: this.requestRuntime,
       hook: decorateAll,
       docs,
       permissions,

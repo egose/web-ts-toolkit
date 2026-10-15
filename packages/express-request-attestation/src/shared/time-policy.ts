@@ -1,13 +1,12 @@
 /**
- * ATT-01 time acceptance and replay retention: one formula everywhere
- * (task section 4.4). Milliseconds consistently.
+ * Time acceptance and replay retention: one formula everywhere, in milliseconds.
  *
  * ```text
  * reject future proof if timestampMs > nowMs + clockSkewMs
- * timeDeadline  = timestampMs + maxAgeMs + clockSkewMs
- * proofDeadline = min(timeDeadline, acceptedKey.acceptUntil)
- * reject when nowMs >= proofDeadline or acceptedKey is not active at nowMs
- * retainUntil   = proofDeadline + clusterClockGuardMs
+ * timeDeadlineMs = timestampMs + maxAgeMs + clockSkewMs
+ * proofDeadlineMs = min(timeDeadlineMs, acceptedKey.acceptUntil)
+ * reject when nowMs >= proofDeadlineMs or acceptedKey is not active at nowMs
+ * retainUntilMs = proofDeadlineMs + clusterClockGuardMs
  * ```
  *
  * `clusterClockGuardMs` is a declared maximum pairwise clock difference
@@ -43,6 +42,9 @@ function assertPolicyField(name: string, value: number, min: number, max: number
 /**
  * Validate partial overrides and return the frozen effective policy.
  * Unknown option keys are rejected so typos cannot silently widen windows.
+ * Defaults are 30000 ms age, 5000 ms skew, and 5000 ms cluster clock guard.
+ * A protection space must use identical policy values and key acceptance
+ * windows everywhere; the returned policy does not coordinate deployments.
  */
 export function resolveTimePolicy(options: TimePolicyOptions = {}): ResolvedTimePolicy {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
@@ -66,12 +68,12 @@ export function resolveTimePolicy(options: TimePolicyOptions = {}): ResolvedTime
 /**
  * Evaluate one proof's timing against a KNOWN key entry's acceptance window.
  *
- * Key-status ordering follows section 4.5: unknown/inactive well-formed key
+ * Key-status ordering: unknown/inactive well-formed key
  * IDs are `stale-key` (the caller determines key lookup; pass the entry's
  * window here), a known active key with an elapsed timestamp is `expired`,
  * and excessive future skew is `future`. The verifier repeats this check
  * after async provider work, immediately before reservation, and before
- * calling the handler after reservation (ATT-02).
+ * calling the handler after reservation.
  *
  * Deadline arithmetic must remain safe integers; a timestamp so large that
  * `timestampMs + maxAgeMs + clockSkewMs` leaves safe-integer range cannot
@@ -155,7 +157,7 @@ export function maxVerifierRemainingMs(policy: ResolvedTimePolicy): number {
 }
 
 /**
- * Store admission bound: `maxAgeMs + 2 * clockSkewMs + 2 * clockGuardMs`
+ * Store admission bound: `maxAgeMs + 2 * clockSkewMs + 2 * clusterClockGuardMs`
  * (default 50000 ms). A store clock may additionally trail the verifier by
  * the declared guard. Capped globally at 240000 ms.
  */

@@ -1,5 +1,5 @@
 /**
- * ATT-05 owned key rotation (task sections 4.1/4.6).
+ * Owned key rotation with explicit acceptance windows.
  *
  * - `generateAttestationKey(keyId, { acceptFrom, acceptUntil })` creates one
  *   random 32-byte entry for an explicit acceptance window.
@@ -8,7 +8,7 @@
  *   `replace(snapshot)`; external cron/KMS/config code owns provisioning and
  *   refresh. No default polling timer, no hardcoded grace policy.
  *
- * Snapshot rules (section 4.1):
+ * Snapshot rules:
  *
  * - Snapshots have `currentKeyId` plus a bounded list of 1-16 entries
  *   `{ keyId, key: Uint8Array(32), acceptFrom, acceptUntil }`.
@@ -30,7 +30,7 @@
  *   snapshot.
  * - Rejected replacements leave the previous valid snapshot intact
  *   (atomic). Provider/read failure is operational `503` at the verifier,
- *   never a stale-key client error (see `verify.ts`).
+ *   never a stale-key client error.
  *
  * Runbook (finite acceptance, application-configured):
  *
@@ -62,7 +62,7 @@ import type {
   AttestationRotatingKeyProvider,
 } from './server-types.js';
 
-/** Maximum retained keys per snapshot (section 4.1). */
+/** Maximum retained keys per snapshot. */
 export const MAX_RETAINED_ATTESTATION_KEYS = 16 as const;
 
 const SNAPSHOT_OPTION_KEYS: ReadonlySet<string> = new Set(['currentKeyId', 'keys']);
@@ -177,7 +177,10 @@ function ownSnapshot(input: AttestationKeySnapshotInput): AttestationKeySnapshot
 
 /**
  * Create one random 32-byte key entry for an explicit acceptance window.
- * Uses `node:crypto` randomness; the returned entry owns its bytes (frozen).
+ * Uses `node:crypto` randomness. Times are nonnegative safe-integer epoch ms
+ * with inclusive `acceptFrom` and exclusive `acceptUntil`. Distribute the same
+ * entry/window to every verifier; do not generate independent per-instance keys.
+ * The entry is frozen and owns its bytes; providers copy those bytes on input.
  */
 export function generateAttestationKey(
   keyId: string,
@@ -210,6 +213,8 @@ export function generateAttestationKey(
  * Create an immutable static key provider. The input snapshot is copied on
  * entry; every `getSnapshot()` returns a fresh owned copy. No timers,
  * network, or storage work occurs at construction or on reads.
+ * Invalid snapshots throw `AttestationProtocolError`. Retain 1–16 keys;
+ * `currentKeyId` must name a present entry, which discovery checks for activity.
  */
 export function createStaticKeyProvider(snapshot: AttestationKeySnapshotInput): AttestationKeyProvider {
   const owned = ownSnapshot(snapshot);
@@ -230,7 +235,9 @@ export function createStaticKeyProvider(snapshot: AttestationKeySnapshotInput): 
  * fresh IDs are allowed. No historical tombstone ledger is kept: an ID that
  * is no longer retained may be reintroduced, but provisioners must never
  * reintroduce a retired ID with different material (generate unique
- * version/random identifiers).
+ * version/random identifiers). All verifiers need the same material, windows,
+ * and time policy. Provision/refresh externally; replacement starts no polling
+ * and does not cancel requests already holding a previous snapshot.
  */
 export function createRotatingKeyProvider(snapshot: AttestationKeySnapshotInput): AttestationRotatingKeyProvider {
   let current = ownSnapshot(snapshot);

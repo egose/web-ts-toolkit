@@ -8,7 +8,7 @@ Continue the json-frame review requested after the completed business-contract p
 
 Scope: `packages/json-frame` runtime override normalization and inferred records API, focused regression/declaration tests, shipped README and corresponding website guidance when contracts need clarification. No root `CHANGELOG.md` edits. Record release evidence in this document. Preserve all existing and concurrent unrelated worktree changes and previous json-frame work.
 
-Related completed plan: `docs/tasks/20260926-184842-json-frame-business-contract-review.md`. Earlier health/initial/boundary plans linked there were checked for overlap. This follow-up addresses new counterexamples, not a claim that previously recorded checks were never run. JFP-02 extends JFC-02 with Object-member and mixed numeric/string spelling cases absent from its regression matrix.
+Related completed plan: `docs/tasks/20260919-184842-json-frame-business-contract-review.md`. Earlier health/initial/boundary plans linked there were checked for overlap. This follow-up addresses new counterexamples, not a claim that previously recorded checks were never run. JFP-02 extends JFC-02 with Object-member and mixed numeric/string spelling cases absent from its regression matrix.
 
 Non-goals: new query/aggregation engine, row/column accessor features, full Table Schema validation, deep immutability, new runtime dependencies, changes to known orient dimensional loss, or reopening documented `maxNodes` exclusions as vulnerabilities. Slice/iterator/column-access additions remain optional future product work without enough evidence to justify API growth here.
 
@@ -415,3 +415,10 @@ All four tasks completed in separate sequential sessions, each with actual Compl
 - Reviewed the final own-key override fix and inferred-key helpers, including structural open-index detection, declared optionality and numeric-key canonicalization. Reviewed current scoped file status and independent criterion-level verdicts, artifact checks and compiler/runtime evidence.
 - Accepted the fresh **531/531** package result and eight-configuration independent type matrix. Scoped lint and coordinator `git diff --check` passed. Coordinator `git diff -- CHANGELOG.md` was empty. No implementation changes followed the passing independent review; this final edit records sign-off only.
 - Final plan status: **complete**, with no outstanding acceptance blocker. This follow-up did not repeat the prior unrelated full-workspace failures or claim they were resolved. Explicit domain assertions, conservative open-dictionary typing, compiler-version coverage and other documented boundaries remain as stated above.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

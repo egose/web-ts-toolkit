@@ -363,6 +363,63 @@ describe('browser-safe helpers (no Math.random fallback)', () => {
     }
   });
 
+  it.each(['rejection', 'throw'] as const)(
+    'shares a typed WebCrypto import %s across concurrent callers and recovers on the next attempt',
+    async (failure) => {
+      const fixture = doc.cases[0];
+      const signer = createRequestSigner({
+        keyId: fixture.keyId,
+        key: hexToBytes(fixture.keyHex),
+        publicOrigin: fixture.publicOrigin,
+        replayNamespace: fixture.replayNamespace,
+      });
+      const input = {
+        method: fixture.method,
+        requestTarget: fixture.requestTarget,
+        contentType: fixture.contentType,
+        bodyHashHex: fixture.bodyHashHex,
+        timestampMs: fixture.timestampMs,
+        nonceHex: fixture.nonceHex,
+      };
+      const cause = new Error('temporary WebCrypto import failure');
+      let rejectImport!: (error: unknown) => void;
+      const importGate = new Promise<CryptoKey>((_resolve, reject) => {
+        rejectImport = reject;
+      });
+      const importKey = vi.spyOn(globalThis.crypto.subtle, 'importKey').mockImplementationOnce(() => {
+        if (failure === 'throw') {
+          throw cause;
+        }
+        return importGate;
+      });
+      const sign = vi.spyOn(globalThis.crypto.subtle, 'sign');
+      expect(importKey).not.toHaveBeenCalled();
+      const pending = Promise.allSettled([signer.sign(input), signer.sign(input), signer.sign(input)]);
+      expect(importKey).toHaveBeenCalledTimes(1);
+      expect(sign).not.toHaveBeenCalled();
+      if (failure === 'rejection') {
+        rejectImport(cause);
+      }
+      const failures = await pending;
+      expect(sign).not.toHaveBeenCalled();
+      // Recovery uses real WebCrypto and an independently committed proof,
+      // including another concurrent group sharing a single successful import.
+      const recovered = await Promise.all([signer.sign(input), signer.sign(input), signer.sign(input)]);
+      expect(recovered).toEqual([fixture.transactionId, fixture.transactionId, fixture.transactionId]);
+      expect(await signer.sign(input)).toBe(fixture.transactionId);
+      expect(importKey).toHaveBeenCalledTimes(2);
+      const errors = failures.map((result) => {
+        expect(result.status).toBe('rejected');
+        return result.status === 'rejected' ? (result.reason as unknown) : result.value;
+      });
+      for (const error of errors) {
+        expect(error).toBeInstanceOf(SignerClientError);
+        expect(error).toMatchObject({ code: 'SIGNER_PREPARATION_FAILED', cause });
+        expect(error).toBe(errors[0]);
+      }
+    },
+  );
+
   it('fails closed without WebCrypto subtle (actionable secure-context error)', async () => {
     const signer = createRequestSigner({
       keyId: 'fixture-key-01',
