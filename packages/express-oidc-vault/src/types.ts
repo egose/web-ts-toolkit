@@ -4,6 +4,19 @@ import type { Request, Response } from 'express';
 import type {} from 'express-serve-static-core';
 import type { JWK } from 'jose';
 
+import type { OidcVaultSessionTransport, OidcVaultTokenIssueResult, OidcVaultUserProfile } from './wire';
+
+// Preserve all backend root type imports; browser DTOs have a pure entry of their own.
+export type {
+  OidcVaultExchangeResult,
+  OidcVaultLoginInitiationInput,
+  OidcVaultLoginInitiationResult,
+  OidcVaultLogoutResult,
+  OidcVaultSessionTransport,
+  OidcVaultTokenIssueResult,
+  OidcVaultUserProfile,
+} from './wire';
+
 export type OidcVaultRouteName = 'login' | 'callback' | 'exchange' | 'refresh' | 'logout' | 'backchannel-logout';
 
 /** Enabling the option defaults to `optional`; omitting it keeps bearer behavior. */
@@ -124,14 +137,6 @@ export interface OidcVaultApiDeviceBindingOptions extends OidcVaultDeviceBinding
   replayStore: OidcVaultDpopReplayStore;
   /** Epoch-millisecond clock for proof age/nonce/replay; default Date.now. Shared instances need synchronized clocks. */
   now?: () => number;
-}
-
-export interface OidcVaultUserProfile {
-  sub: string;
-  email?: string;
-  name?: string;
-  preferredUsername?: string;
-  [key: string]: unknown;
 }
 
 /**
@@ -565,20 +570,6 @@ export interface IssueTokenInput {
 }
 
 /**
- * Local application credentials returned by `OidcVaultTokenIssuer.issue`.
- * Runtime validation copies only these fields into a fresh result; additional
- * properties are ignored and cannot override the response's session ID/user.
- */
-export interface OidcVaultTokenIssueResult {
-  /** Nonempty opaque token for unbound issuance; bound issuance requires a compact signed JWT with matching `cnf.jkt`. */
-  accessToken: string;
-  /** Token lifetime in seconds: a finite, nonnegative safe integer (zero is valid). */
-  expiresIn: number;
-  /** Exact `DPoP` is required when bound. Unbound permits only `Bearer` or omission; omitted/undefined stays absent in JSON. */
-  tokenType?: 'Bearer' | 'DPoP';
-}
-
-/**
  * Trusted application token issuer for exchange and refresh. Return a non-null,
  * non-array object satisfying `OidcVaultTokenIssueResult`; only its declared
  * credential fields enter the response. This contains accidental extensions,
@@ -606,7 +597,7 @@ export interface OidcVaultAccessTokenValidationResult {
   confirmation?: OidcVaultAccessTokenConfirmation | null;
 }
 
-/** Canonical RFC 7638 SHA-256 thumbprint derived from verified token/introspection data, never from a proof alone. */
+/** Exact one-field confirmation: canonical RFC 7638 SHA-256 thumbprint from verified token/introspection data, never from a proof alone. */
 export interface OidcVaultAccessTokenConfirmation {
   jkt: string;
 }
@@ -689,13 +680,18 @@ export interface OidcVaultAuthenticatedRequest extends Request {
   auth?: OidcVaultAuthContext;
 }
 
-/** Local JWT verification options, independent of the asymmetric DPoP proof policy; captured at construction. */
+/**
+ * Local JWT verification options, independent of the asymmetric DPoP proof
+ * policy; captured at construction. JWTs with cnf require the supported exact
+ * jkt profile and a nonnegative safe-integer exp with safe milliseconds in both
+ * validator methods. Unbound JWTs retain JOSE's optional-exp behavior.
+ */
 export interface OidcVaultJwtAccessTokenValidatorOptions {
   key: CryptoKey | KeyObject | JWK | Uint8Array;
   issuer?: string;
   audience?: string | string[];
   algorithms?: string[];
-  /** Verified cnf is snapshotted before this mapper; mapper-supplied confirmation/deviceBinding is ignored. */
+  /** JOSE verification and bound-JWT profile/expiry checks precede this mapper. Original cnf is snapshotted; mapper-supplied confirmation/deviceBinding is ignored. */
   mapClaims?(claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult;
 }
 
@@ -730,55 +726,10 @@ export interface OidcVaultConfig {
   scopes?: string;
 }
 
-export interface OidcVaultLogoutResult {
-  /**
-   * Successful logout commits revocation before upstream work and clears the
-   * session cookie under cookie transport. Built-in live handles and unexpired
-   * aliases authenticate the surviving lineage's provider/original binding;
-   * wrong identity, missing/wrong/stale/replayed proof, or disabled acceptance
-   * of a bound lineage fails without deleting or clearing. No currently live
-   * target is idempotent success without deletion or proof reservation. Aliases
-   * grant revocation only, not refresh authentication or upstream redirects.
-   * Old custom bearer stores without revocation context retain legacy alias
-   * deletion behavior. Stateless application access tokens are not invalidated.
-   * Local-only logout (`redirect` unset or `false`) never contacts the provider.
-   * Redirected logout (`redirect: true`)
-   * treats the upstream end-session redirect as best-effort: when provider
-   * discovery fails or no `endSessionEndpoint` is available, the route still
-   * returns this local success. Discovery errors reach `onError` without
-   * undoing revocation or skipping the live session's `onLogout` notification.
-   */
-  loggedOut: true;
-}
-
 export interface OidcVaultBackchannelLogoutResult {
   loggedOut: true;
   revokedSessions: number;
 }
-
-export interface OidcVaultExchangeResult extends Partial<OidcVaultTokenIssueResult> {
-  /** Authoritative vault handle in body transport; omitted from cookie-transport JSON. */
-  sessionId?: string;
-  /** Session profile; extra token-issuer result properties cannot override it. */
-  user?: OidcVaultUserProfile;
-}
-
-/** JSON body for opt-in `POST <basePath>/login`; proof/key and recognition signals belong in their configured headers, not the body. */
-export interface OidcVaultLoginInitiationInput {
-  /** Optional destination on the configured frontend origin. Query-string returnTo is ignored by POST login. */
-  returnTo?: string;
-}
-
-/**
- * Exact successful POST-login JSON. Navigate to this URL after storing a proof
- * key when DPoP is enabled. Use credentials: 'include' even with body session
- * transport: initiation sets a temporary HttpOnly transaction cookie.
- */
-export interface OidcVaultLoginInitiationResult {
-  authorizationUrl: string;
-}
-
-export type OidcVaultSessionTransport = 'body' | 'cookie';
 
 export type OidcVaultCookieDeploymentMode = 'same-origin' | 'same-site' | 'cross-site';
 

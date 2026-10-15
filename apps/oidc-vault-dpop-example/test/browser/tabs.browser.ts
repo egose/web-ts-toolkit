@@ -125,4 +125,136 @@ describe.each(browserNames)('DBJWT-10 real %s cross-tab key/refresh coordination
       await fixture.close();
     }
   });
+
+  it('a disposed tab queued on a real peer-held Web Lock does no key, metadata or HTTP work when admitted', async () => {
+    const fixture = await startBrowserFixture(browser);
+    try {
+      const first = await openApp(fixture, 'cookie');
+      await loginApp(first);
+      // Keep the second page's UI on the independent body scope: only its test
+      // session listens on the shared cookie channel while opens are counted.
+      const second = await openApp(fixture, 'body');
+      const scope = {
+        name: 'queued-tab',
+        transport: 'cookie' as const,
+        backendOrigin: fixture.backend.backendOrigin,
+        basePath: `${EXAMPLE_BASE_PATH}/cookie`,
+      };
+      const { scopeId } = await callBrowser(second, 'createSession', scope);
+      await callBrowser(second, 'refresh', { name: scope.name });
+      await callBrowser(first, 'holdCookieLock', { scopeId, gate: 'peer-lock' });
+      await expect.poll(() => callBrowser(first, 'gateReady', { id: 'peer-lock' })).toBe(true);
+      await callBrowser(second, 'watchDatabaseOpens', {});
+      const requests = fixture.backend.requests.length;
+      await callBrowser(second, 'beginSessionOperation', {
+        name: scope.name,
+        id: 'queued-login',
+        operation: 'login',
+      });
+      await expect.poll(() => callBrowser(first, 'cookieLockQueue', { scopeId })).toEqual({ held: 1, pending: 1 });
+      await callBrowser(second, 'disposeSession', { name: scope.name });
+      await callBrowser(first, 'releaseGate', { id: 'peer-lock' });
+      expect(await callBrowser(second, 'finishSessionOperation', { id: 'queued-login' })).toEqual({
+        ok: false,
+        code: 'DPOP_SESSION_DISPOSED',
+      });
+      expect(await callBrowser(second, 'databaseOpenCount', {})).toBe(0);
+      expect(fixture.backend.requests.length).toBe(requests);
+      expect(await callBrowser(first, 'readCookieVersion', scope)).toMatchObject({ active: true });
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it.each(['clear', 'token'] as const)(
+    'DPH-10: a stale %s envelope with an aborted native metadata read preserves the newer login',
+    async (type) => {
+      const fixture = await startBrowserFixture(browser);
+      try {
+        const first = await openApp(fixture, 'cookie');
+        await loginApp(first);
+        // Only this test session listens on the cookie scope in the second page.
+        const second = await openApp(fixture, 'body');
+        const scope = {
+          name: 'peer-admission',
+          transport: 'cookie' as const,
+          backendOrigin: fixture.backend.backendOrigin,
+          basePath: `${EXAMPLE_BASE_PATH}/cookie`,
+        };
+        const { scopeId } = await callBrowser(second, 'createSession', scope);
+        await callBrowser(second, 'capturePeerMessage', { scopeId, id: 'old', type });
+        const old = (await callBrowser(second, 'refresh', { name: scope.name })).tokens[0];
+        if (type === 'token')
+          await expect.poll(() => callBrowser(second, 'capturedPeerMessage', { id: 'old' })).toBeDefined();
+        await loginApp(first);
+        const current = (await callBrowser(second, 'refresh', { name: scope.name })).tokens[0];
+        expect(current.generation).not.toBe(old.generation);
+        await expect.poll(() => callBrowser(second, 'capturedPeerMessage', { id: 'old' })).toBeDefined();
+        const message = (await callBrowser(second, 'capturedPeerMessage', { id: 'old' }))!;
+        expect(message.type).toBe(type);
+        expect(message.generation).not.toBe(current.generation);
+        const version = await callBrowser(first, 'readCookieVersion', scope);
+        const refreshes = fixture.idp.stats.refreshes;
+        await callBrowser(second, 'failNextCookieLookup', { scopeId, id: 'advisory-read' });
+        await callBrowser(first, 'broadcastCookieMessage', { scopeId, message });
+        await expect
+          .poll(() => callBrowser(second, 'cookieLookupEvidence', { id: 'advisory-read' }))
+          .toEqual({
+            started: true,
+            error: 'AbortError',
+          });
+        expect(await callBrowser(second, 'memoryToken', { name: scope.name })).toEqual(current);
+        expect(await callBrowser(first, 'readCookieVersion', scope)).toEqual(version);
+        expect(
+          (await callBrowser(second, 'apiFetch', { name: scope.name, backendOrigin: scope.backendOrigin })).status,
+        ).toBe(200);
+        expect(fixture.idp.stats.refreshes).toBe(refreshes);
+      } finally {
+        await fixture.close();
+      }
+    },
+  );
+
+  it('DPH-10: a new login queued behind an older peer clear on a real Web Lock retains initiation authority', async () => {
+    const fixture = await startBrowserFixture(browser);
+    try {
+      const first = await openApp(fixture, 'cookie');
+      await loginApp(first);
+      const second = await openApp(fixture, 'body');
+      const scope = {
+        name: 'peer-clear-login',
+        transport: 'cookie' as const,
+        backendOrigin: fixture.backend.backendOrigin,
+        basePath: `${EXAMPLE_BASE_PATH}/cookie`,
+        captureNavigation: true,
+      };
+      const { scopeId } = await callBrowser(second, 'createSession', scope);
+      const old = (await callBrowser(second, 'refresh', { name: scope.name })).tokens[0];
+      await callBrowser(first, 'holdCookieLock', { scopeId, gate: 'peer-lock' });
+      await expect.poll(() => callBrowser(first, 'gateReady', { id: 'peer-lock' })).toBe(true);
+      const cleared = { jkt: old.jkt, generation: 'peer-cleared-generation', active: false };
+      await callBrowser(first, 'seedCookieVersion', { ...scope, version: cleared });
+      await callBrowser(first, 'broadcastCookieMessage', {
+        scopeId,
+        message: { type: 'clear', sender: 'clearing-peer', jkt: cleared.jkt, generation: cleared.generation },
+      });
+      // The first page's UI also listens to the scope, so both callbacks queue.
+      await expect.poll(() => callBrowser(first, 'cookieLockQueue', { scopeId })).toEqual({ held: 1, pending: 2 });
+      await callBrowser(second, 'beginSessionOperation', { name: scope.name, id: 'login', operation: 'login' });
+      await callBrowser(first, 'releaseGate', { id: 'peer-lock' });
+      expect(await callBrowser(second, 'finishSessionOperation', { id: 'login' })).toEqual({ ok: true });
+      expect(await callBrowser(second, 'navigationCount', { name: scope.name })).toBe(1);
+      expect(await second.evaluate((id) => sessionStorage.getItem(`oidc-vault-dpop:pending:${id}`), scopeId)).toBe(
+        JSON.stringify({ jkt: old.jkt }),
+      );
+      const current = await callBrowser(first, 'readCookieVersion', scope);
+      expect(current).toMatchObject({ active: false, jkt: old.jkt });
+      expect(current?.generation).not.toBe(cleared.generation);
+      expect(
+        fixture.backend.requests.filter((request) => request.path.endsWith('/login')).map((request) => request.status),
+      ).toEqual([400, 200, 400, 200]);
+    } finally {
+      await fixture.close();
+    }
+  });
 });

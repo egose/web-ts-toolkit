@@ -567,5 +567,6 @@ Deferred decisions — resolved as implemented:
 Follow-ups from CLIENT-10:
 
 - AREA-01 (P2, trim backend transitive `express-serve-static-core` augmentation from `.d.mts`): deliberately deferred. Types-only, zero runtime effect; stripping risks breaking the single-source DTO contract. Revisit on consumer report.
+  - Resolution (2026-10-12): [DPH-08](./20261012-163240-dpop-server-client-health.md#task-dph-08-isolate-browser-declarations-and-finish-installed-consumer-guidance) isolates a single-sourced pure wire entry, verifies packed DOM-only declarations, and preserves backend root types/`req.auth` augmentation.
 - AREA-02 (P2, `readPeerToken` unit tests): completed — `packages/oidc-vault-dpop-client/test/read-peer-token.unit.test.ts`, 8 tests pass (adopt/wrong-jkt/stale-generation/expired/non-DPoP/non-object/cnf-mismatch/expiry-clamp). Typecheck + eslint clean.
 - AREA-03 (P3, Chromium flake): stands as recorded (single flake, immediate rerun 21/21); capture spec + trace if it recurs.

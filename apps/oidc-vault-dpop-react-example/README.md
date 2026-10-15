@@ -19,7 +19,8 @@ Open **http://127.0.0.1:4320/**, click **Sign in via OIDC provider**, then **Con
 ## Notes
 
 - One `createOidcVaultDpopSession` singleton per page lifetime (`src/auth.ts`, lazy — construction touches `sessionStorage`). Same persistent IndexedDB key backs login, exchange, refresh, logout, and API proofs.
-- Access JWT stays in memory; the body handle lives in `sessionStorage`. Key loss requires fresh login — no Bearer fallback.
+- Access JWT stays in memory; the body handle lives in `sessionStorage`. Missing/changed keys require fresh login. An existing corrupt key needs explicit `await getSession().resetKey()` before login; it removes only this scope's key/metadata and does not revoke server sessions. No Bearer or implicit replacement-key fallback.
 - No `StrictMode` in `src/main.tsx`: the one-time callback `?code=` exchange must run exactly once.
 - No client router: the callback is the same page reading `?code=` on boot.
 - Cookie transport variant: use `basePath: '/auth/oidc/cookie'` with `sessionTransport: 'cookie'` (backend mounts both; see the shared server).
+- Session lifecycle mutations use FIFO ordering and refresh coalescing. `clear` invalidates frontend auth while retaining the key; `dispose` closes the context while retaining reload state; `logout` calls the server. Use `requiresLogin`, not every 401, for terminal errors. The client defaults to 15,000 ms / 1 MiB per vault attempt; API cancellation is caller-owned. Full nonce, gateway `pathPrefix`, zero-lifetime, recovery and upgrade contracts: [shipped client guide](../../packages/oidc-vault-dpop-client/README.md).

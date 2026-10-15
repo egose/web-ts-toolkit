@@ -1,13 +1,9 @@
 /**
  * `@web-ts-toolkit/express-request-attestation/signer` — browser entry.
  *
- * Browser-safe ONLY: this module and everything it imports (`src/shared/*`,
- * `./request-signer.js`, `./signer-client.js`, `./client-errors.js`,
- * `./request-body.js`, `./attested-fetch.js`) must
- * never import Express, Redis, `Buffer`, `NodeJS`, or `node:*` types or
- * values. `tsconfig.signer-browser.json` typechecks this closure with
- * `types: []`, and the built `dist/signer.{js,mjs,d.ts,d.mts}` must contain
- * no Node runtime graph. Browser-only installs never need the Express peer.
+ * Browser-safe named exports only. This entry requires no Express, Redis,
+ * MongoDB, Buffer, or Node types/runtime graph. Browser-only TypeScript apps
+ * can use ES2022 + DOM/DOM.Iterable libraries with `types: []`.
  *
  * Required browser capabilities (feature-detected on use, never at import):
  * a secure context, `TextEncoder`/`TextDecoder`, `crypto.subtle`
@@ -15,7 +11,7 @@
  * Import time performs no network requests, timers, key generation, or
  * storage access (`sideEffects: false`).
  *
- * Final public surface (ATT-08 verified): WebCrypto signing plus the
+ * Public surface: WebCrypto signing plus the
  * generation-aware ESM module client, bounded body materialization, and
  * prepared signed fetch with one stale-key retry.
  * Public HMAC material delivered in JavaScript stays accessible to every
@@ -109,14 +105,14 @@ export type {
   TransactionIdFields,
 } from './shared/types.js';
 
-// ATT-06: typed client failures.
+// Typed client failures.
 export { isSignerClientError, SignerClientError } from './client-errors.js';
 export type { SignerClientErrorCode } from './client-errors.js';
 
-// ATT-06: low-level WebCrypto HMAC signer plus browser-safe helpers.
+// Low-level WebCrypto HMAC signer plus browser-safe helpers.
 export { createRequestSigner, generateNonceHex, hashBodySha256Hex } from './request-signer.js';
 
-// ATT-06: bounded discovery plus generation-aware single-flight client.
+// Bounded discovery plus generation-aware single-flight client.
 export {
   createSignerClient,
   DEFAULT_SIGNER_LOAD_TIMEOUT_MS,
@@ -131,7 +127,7 @@ export type {
   SignerModuleLoader,
 } from './signer-client.js';
 
-// ATT-07: bounded body materialization plus prepared fetch with one stale-key retry.
+// Bounded body materialization plus prepared fetch with one stale-key retry.
 export {
   ATTESTED_FETCH_MAX_BODY_BYTES_HARD_CAP,
   DEFAULT_ATTESTED_FETCH_BODY_READ_TIMEOUT_MS,

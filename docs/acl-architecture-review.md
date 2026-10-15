@@ -1,5 +1,12 @@
 # ACL Architecture Review
 
+Historical review: the original observations below describe the pre-authorization
+implementation. Explicit model output planning and SVA-F03 retire positional
+`skipChecks`/`subPaths`/`baseFields`; request/input/data evaluation stays separate.
+Current contracts and resolution evidence are in
+`docs/tasks/20261012-090227-access-router-authorization-follow-ups.md` (SVA-F03)
+and `packages/access-router/README.md` (named-helper breaking migration).
+
 ## Purpose
 
 This document summarizes the main philosophy of the ACL package and identifies the strongest opportunities for encapsulation, optimization, and cleanup, with emphasis on readability and maintainability.

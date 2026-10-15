@@ -487,7 +487,7 @@ Completion evidence (MSGR-04, fresh isolated sequential implementation session):
   `git diff --check`, and `git diff --exit-code -- CHANGELOG.md` — all passed,
   no output. Reviewed source/test/docs diffs for preservation of prior work.
   Final whitespace checks also passed for the untracked regression/task files:
-  `git diff --check && git diff --no-index --check -- /dev/null packages/message-service/test/message-service.authoritative-reads.test.ts && git diff --no-index --check -- /dev/null docs/tasks/20260926-185326-message-service-residual-workflow-health.md`.
+  `git diff --check && git diff --no-index --check -- /dev/null packages/message-service/test/message-service.authoritative-reads.test.ts && git diff --no-index --check -- /dev/null docs/tasks/20260919-185326-message-service-residual-workflow-health.md`.
   All build/test/check commands ran serially; all edits used `apply_patch`.
   No stash/revert, root CHANGELOG edits, or manual generated-output edits.
 - Limitations/follow-up: no new independent implementation follow-up. MSGR-05
@@ -985,7 +985,7 @@ Completion evidence (MSGR-07, fresh sequential investigation session):
   literal case reached the descriptor rejection in `src/helpers.ts:22` in the
   version executed by Vitest. These are query-preparation assertions, not MongoDB
   or missing-output errors. Inspected its source imports, assertions, and the
-  existing [client plan](20260926-215404-access-router-client-business-contracts.md)
+  existing [client plan](20260920-215404-access-router-client-business-contracts.md)
   **CLC-04 (`in_progress`)**, whose finding, limits, ownership and acceptance
   exactly cover those failures. The helper had already gained traversal
   validation by post-run inspection, confirming ongoing implementation; that
@@ -1005,7 +1005,7 @@ Completion evidence (MSGR-07, fresh sequential investigation session):
   preserved; no agents spawned, no process killed, no manual `dist` edits, and
   no root CHANGELOG edits. `git diff --check` and
   `git diff --exit-code HEAD -- CHANGELOG.md` passed; the final untracked-document
-  whitespace check, `git diff --no-index --check -- /dev/null docs/tasks/20260926-185326-message-service-residual-workflow-health.md`, also passed. Prior root lint/build and
+  whitespace check, `git diff --no-index --check -- /dev/null docs/tasks/20260919-185326-message-service-residual-workflow-health.md`, also passed. Prior root lint/build and
   separate host acceptance were not repeated. This completed investigation
   supersedes the outstanding root-failure diagnosis, not the historical evidence
   or the still-failing full-workspace gate.
@@ -1017,3 +1017,10 @@ owned client work. The standard root run now provides 336/336 message-service an
 812/812 access-router results without special test settings. Coordinator
 whitespace checks and the HEAD-to-worktree root CHANGELOG check passed. No
 message-service implementation change or duplicate client task was warranted.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

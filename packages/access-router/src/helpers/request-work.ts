@@ -1,10 +1,11 @@
 import type { AccessRuntime } from '../runtime';
 import { resolveRequestComplexity } from '../request-complexity';
-import { RequestConcurrencyScheduler } from './concurrency';
+import { RequestConcurrencyScheduler, SharedHookGate } from './concurrency';
 
 interface RequestWorkState {
   totalQueries: number;
-  scheduler: RequestConcurrencyScheduler;
+  readonly scheduler: RequestConcurrencyScheduler;
+  readonly hookGate: SharedHookGate;
 }
 
 // One Express request may traverse more than one runtime. Neither permits nor
@@ -19,11 +20,13 @@ export function getRequestWorkState(req: object, runtime: AccessRuntime): Reques
   }
   let state = owners.get(runtime);
   if (!state) {
+    // Capture both resource limits together, once for this request/runtime.
+    // Later runtime configuration changes apply to new request owners only.
+    const limits = resolveRequestComplexity(runtime.getGlobalOption('requestComplexity'));
     state = {
       totalQueries: 0,
-      scheduler: new RequestConcurrencyScheduler(
-        resolveRequestComplexity(runtime.getGlobalOption('requestComplexity')).maxBulkConcurrency,
-      ),
+      scheduler: new RequestConcurrencyScheduler(limits.maxBulkConcurrency),
+      hookGate: new SharedHookGate(limits.maxHookConcurrency),
     };
     owners.set(runtime, state);
   }

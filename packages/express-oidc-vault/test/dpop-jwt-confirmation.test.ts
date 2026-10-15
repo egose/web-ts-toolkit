@@ -15,12 +15,11 @@ const INVALID = {
   clientMessage: 'Access token validation failed.',
 };
 const tokenFor = (claims: Record<string, unknown>, key = SECRET): Promise<string> =>
-  new SignJWT({ sub: 'original-subject', ...claims })
+  new SignJWT({ sub: 'original-subject', exp: Math.floor(Date.now() / 1000) + 900, ...claims })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer('https://issuer.example')
     .setAudience('api-audience')
     .setIssuedAt()
-    .setExpirationTime('15m')
     .sign(key);
 const inputFor = (token: string): OidcVaultAccessTokenRequestInput => ({
   token,
@@ -144,6 +143,73 @@ describe('DBJWT-06 JWT confirmation survives verified-claims mapping', () => {
       code: 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED',
     });
     expect(mapClaims).not.toHaveBeenCalled();
+  });
+});
+
+describe('DPH-01 bound JWT deadline profile', () => {
+  it.each([
+    ['missing', undefined],
+    ['fractional', Math.floor(Date.now() / 1000) + 900.5],
+    ['unsafe seconds', Number.MAX_SAFE_INTEGER + 1],
+    ['unsafe milliseconds', Math.floor(Number.MAX_SAFE_INTEGER / 1000) + 1],
+  ])('rejects %s bound exp before a mapper can add or repair it in BOTH methods', async (_name, exp) => {
+    const mapClaims = vi.fn((claims: Record<string, unknown>) => {
+      claims.exp = Math.floor(Date.now() / 1000) + 900;
+      delete claims.cnf;
+      return { subject: 'mapped-subject' };
+    });
+    const validator = createOidcVaultJwtAccessTokenValidator({ key: SECRET, mapClaims });
+    const token = await tokenFor({ cnf: { jkt: JKT }, exp });
+    await expect(validator.validate(token)).rejects.toMatchObject(INVALID);
+    await expect(validator.validateWithRequest(inputFor(token))).rejects.toMatchObject(INVALID);
+    expect(mapClaims).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['null', null, 'ERR_JWT_CLAIM_VALIDATION_FAILED'],
+    ['string', '9999999999', 'ERR_JWT_CLAIM_VALIDATION_FAILED'],
+    ['negative', -1, 'ERR_JWT_EXPIRED'],
+    ['expired', 0, 'ERR_JWT_EXPIRED'],
+  ])('retains JOSE rejection of %s exp in BOTH methods', async (_name, exp, code) => {
+    const mapClaims = vi.fn(() => ({ subject: 'unused' }));
+    const validator = createOidcVaultJwtAccessTokenValidator({ key: SECRET, mapClaims });
+    const token = await tokenFor({ cnf: { jkt: JKT }, exp });
+    await expect(validator.validate(token)).rejects.toMatchObject({ code });
+    await expect(validator.validateWithRequest(inputFor(token))).rejects.toMatchObject({ code });
+    expect(mapClaims).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, Math.floor(Date.now() / 1000) + 900.5, Number.MAX_SAFE_INTEGER])(
+    'preserves generic unbound exp compatibility (%s) in BOTH methods',
+    async (exp) => {
+      const mapClaims = vi.fn(() => ({ subject: 'unbound-subject' }));
+      const validator = createOidcVaultJwtAccessTokenValidator({ key: SECRET, mapClaims });
+      const token = await tokenFor({ exp });
+      expect(await validator.validate(token)).toEqual({ subject: 'unbound-subject' });
+      expect(await validator.validateWithRequest(inputFor(token))).toEqual({
+        subject: 'unbound-subject',
+        confirmation: null,
+      });
+      expect(mapClaims).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('accepts the largest exp with safe milliseconds in BOTH methods', async () => {
+    const validator = createOidcVaultJwtAccessTokenValidator({ key: SECRET });
+    const token = await tokenFor({ cnf: { jkt: JKT }, exp: Math.floor(Number.MAX_SAFE_INTEGER / 1000) });
+    expect((await validator.validate(token)).confirmation).toEqual({ jkt: JKT });
+    expect((await validator.validateWithRequest(inputFor(token))).confirmation).toEqual({ jkt: JKT });
+  });
+
+  it('rejects noncanonical compact encoding only for bound JWTs, after JOSE verifies', async () => {
+    const mapClaims = vi.fn(() => ({ subject: 'mapped-subject' }));
+    const validator = createOidcVaultJwtAccessTokenValidator({ key: SECRET, mapClaims });
+    // Padding changes the encoding, not the signature bytes JOSE verifies.
+    const bound = `${await tokenFor({ cnf: { jkt: JKT } })}=`;
+    await expect(validator.validate(bound)).rejects.toMatchObject(INVALID);
+    await expect(validator.validateWithRequest(inputFor(bound))).rejects.toMatchObject(INVALID);
+    expect(mapClaims).not.toHaveBeenCalled();
+    expect(await validator.validate(`${await tokenFor({})}=`)).toMatchObject({ subject: 'mapped-subject' });
   });
 });
 

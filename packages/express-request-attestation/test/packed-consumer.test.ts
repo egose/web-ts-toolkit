@@ -1,9 +1,12 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import ts from 'typescript';
 import { afterAll, describe, expect, it } from 'vitest';
+import { runInstalledBrowserScenario, type BrowserScenario } from './installed-browser-harness.js';
 
 const publisherRequire = createRequire(require.resolve('@repo-toolkit/release-artifact')) as NodeRequire;
 const { createPublishPackageJson, DEFAULT_PACKAGE_FILES, DEFAULT_VERSION_PLACEHOLDER } = publisherRequire(
@@ -80,7 +83,14 @@ function trackTempRoot(dir: string): string {
 
 function run(command: string, args: string[], cwd: string): string {
   try {
-    return execFileSync(command, args, { cwd, encoding: 'utf8', stdio: 'pipe', maxBuffer: 16 * 1024 * 1024 });
+    return execFileSync(command, args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: 120_000,
+      killSignal: 'SIGKILL',
+    });
   } catch (error) {
     const caught = error as { stdout?: string; stderr?: string; status?: number; message?: string };
     const detail = [caught.stdout, caught.stderr].filter(Boolean).join('\n');
@@ -165,6 +175,35 @@ function unpackTarballToDir(tarballPath: string): string {
   return path.resolve(unpackRoot, 'package');
 }
 
+/** Keep strict consumer compiles meaningful: assertions must not hide incompatible public types. */
+function checkedConsumerSource(code: string, fileName: string): ts.SourceFile {
+  expect(code, fileName).not.toMatch(/@ts-(?:ignore|expect-error|nocheck)\b/);
+  const source = ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, true);
+  function visit(node: ts.Node): void {
+    if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
+      // Literal narrowing is fine; asserting an arbitrary handler/body type is not.
+      expect(node.type.getText(source), `${fileName}: suppressing type assertion`).toBe('const');
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return source;
+}
+
+function expectHoverDocs(text: string, name: string, contractTerms: string[]): void {
+  const source = ts.createSourceFile('public.d.ts', text, ts.ScriptTarget.Latest, true);
+  const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
+  expect(declaration, `${name} must be declared`).toBeDefined();
+  if (declaration === undefined) throw new Error(`Missing public declaration: ${name}`);
+  const docs = ts
+    .getJSDocCommentsAndTags(declaration)
+    .map((comment) => comment.getText(source))
+    .join('\n');
+  for (const term of contractTerms) {
+    expect(docs, `${name} hover must describe ${term}`).toContain(term);
+  }
+}
+
 function installBackendConsumer(): string {
   const packed = preparePackedWorkspace();
   const consumerDir = trackTempRoot(mkdtempSync(path.join(os.tmpdir(), 'attestation-backend-consumer-')));
@@ -207,8 +246,14 @@ function installBackendConsumer(): string {
     'tsconfig-nodenext-cts.json',
     'tsconfig-bundler.json',
     'tsconfig-browser.json',
+    'installed-browser-server.mjs',
+    'installed-browser.mjs',
+    'installed-browser.html',
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
+    if (/\.[cm]?ts$/.test(file)) {
+      checkedConsumerSource(readFileSync(path.resolve(consumerDir, file), 'utf8'), file);
+    }
   }
   return consumerDir;
 }
@@ -245,7 +290,7 @@ function installBrowserOnlyConsumer(): string {
   return consumerDir;
 }
 
-function compileInstalledReadme(consumerDir: string): void {
+function compileInstalledReadme(consumerDir: string, mode: 'all' | 'browser' = 'all'): void {
   const readme = readFileSync(
     path.resolve(consumerDir, 'node_modules', '@web-ts-toolkit', 'express-request-attestation', 'README.md'),
     'utf8',
@@ -261,7 +306,14 @@ function compileInstalledReadme(consumerDir: string): void {
     expect(code).not.toContain('PLACEHOLDER');
     expect(code).not.toContain("from './src/");
     expect(code).not.toContain('from "../src/');
-    const isSigner = code.includes('/signer');
+    const source = checkedConsumerSource(code, `README example ${index + 1}.ts`);
+    const isSigner = source.statements.some(
+      (node) =>
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === `${packageName}/signer`,
+    );
+    if (mode === 'browser' && !isSigner) return;
     const file = isSigner ? `readme-browser-${index}.ts` : `readme-backend-${index}.ts`;
     writeFileSync(path.resolve(consumerDir, file), `${code}\nexport {};\n`);
     if (isSigner) {
@@ -270,7 +322,7 @@ function compileInstalledReadme(consumerDir: string): void {
       backendFiles.push(file);
     }
   });
-  if (backendFiles.length === 0 || browserFiles.length === 0) {
+  if ((mode === 'all' && backendFiles.length === 0) || browserFiles.length === 0) {
     throw new Error('Installed README must contain both backend and /signer examples');
   }
   // Backend snippets must not leak into the browser-only compile and vice versa.
@@ -279,22 +331,25 @@ function compileInstalledReadme(consumerDir: string): void {
     expect(code).not.toContain("from 'express'");
     expect(code).not.toContain('from "express"');
   }
-  writeFileSync(
-    path.resolve(consumerDir, 'tsconfig-readme-backend.json'),
-    JSON.stringify({
-      compilerOptions: {
-        target: 'ES2022',
-        module: 'NodeNext',
-        moduleResolution: 'NodeNext',
-        strict: true,
-        skipLibCheck: false,
-        noEmit: true,
-        esModuleInterop: true,
-        types: ['node'],
-      },
-      include: backendFiles,
-    }),
-  );
+  if (mode === 'all') {
+    writeFileSync(
+      path.resolve(consumerDir, 'tsconfig-readme-backend.json'),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          strict: true,
+          skipLibCheck: false,
+          noEmit: true,
+          esModuleInterop: true,
+          types: ['node'],
+        },
+        include: backendFiles,
+      }),
+    );
+    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-readme-backend.json'], consumerDir);
+  }
   writeFileSync(
     path.resolve(consumerDir, 'tsconfig-readme-browser.json'),
     JSON.stringify({
@@ -312,119 +367,10 @@ function compileInstalledReadme(consumerDir: string): void {
       include: browserFiles,
     }),
   );
-  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-readme-backend.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-readme-browser.json'], consumerDir);
-}
-
-async function runInstalledRouterBrowserCheck(consumerDir: string): Promise<void> {
-  const serverScript = path.resolve(consumerDir, 'installed-router-server.mjs');
-  writeFileSync(
-    serverScript,
-    `import express from 'express';
-import {
-  createMemoryAttestationStore,
-  createRequestAttestationMiddleware,
-  createSignerBundleRouter,
-  createStaticKeyProvider,
-  generateAttestationKey,
-} from '@web-ts-toolkit/express-request-attestation';
-
-const app = express();
-app.get('/', (_req, res) => res.type('html').send('<html><body>attestation</body></html>'));
-const server = app.listen(0, '127.0.0.1');
-await new Promise((resolve) => server.on('listening', resolve));
-const address = server.address();
-const baseUrl = 'http://127.0.0.1:' + address.port;
-const now = Date.now();
-const entry = generateAttestationKey('v1-installed-01', { acceptFrom: now - 60000, acceptUntil: now + 60000 });
-const keyProvider = createStaticKeyProvider({ currentKeyId: entry.keyId, keys: [entry] });
-const store = createMemoryAttestationStore({ now: () => now });
-const guard = createRequestAttestationMiddleware({
-  publicOrigin: baseUrl,
-  replayNamespace: 'packed-installed',
-  keyProvider,
-  store,
-  now: () => now,
-});
-app.use('/attestation', createSignerBundleRouter({
-  publicOrigin: baseUrl,
-  replayNamespace: 'packed-installed',
-  keyProvider,
-  now: () => now,
-}));
-app.use('/api', guard);
-app.post('/api/submit', (_req, res) => res.json({ ok: true }));
-console.log('READY ' + baseUrl);
-await new Promise(() => undefined);
-`,
+  console.info(
+    `Installed README (${mode}): ${backendFiles.length} backend / ${browserFiles.length} browser examples compiled strictly.`,
   );
-  const child = spawn('node', [serverScript], { cwd: consumerDir, stdio: ['ignore', 'pipe', 'pipe'] });
-  let stdout = '';
-  let stderr = '';
-  child.stdout?.on('data', (chunk) => {
-    stdout += String(chunk);
-  });
-  child.stderr?.on('data', (chunk) => {
-    stderr += String(chunk);
-  });
-  const baseUrl = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`installed server did not start: ${stdout} ${stderr}`)), 15_000);
-    const check = (): void => {
-      const match = /READY (http:\/\/[^\s]+)/.exec(stdout);
-      if (match?.[1] !== undefined) {
-        clearTimeout(timer);
-        resolve(match[1]);
-        return;
-      }
-      if (child.exitCode !== null) {
-        clearTimeout(timer);
-        reject(new Error(`installed server exited early: ${stdout} ${stderr}`));
-        return;
-      }
-      setTimeout(check, 50);
-    };
-    check();
-  });
-  try {
-    const { chromium } = await import('playwright');
-    const browser = await chromium.launch();
-    try {
-      const meta = (await (await fetch(`${baseUrl}/attestation/signer-meta`)).json()) as {
-        keyId: string;
-        signerUrl: string;
-      };
-      expect(meta.keyId).toBe('v1-installed-01');
-      const page = await browser.newPage();
-      await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
-      const transactionId = (await page.evaluate(
-        [
-          '(async () => {',
-          `  const signerUrl = ${JSON.stringify(meta.signerUrl)};`,
-          '  const mod = await import(signerUrl);',
-          "  if (typeof mod.signer?.sign !== 'function') {",
-          "    throw new Error('installed module does not export signer.sign');",
-          '  }',
-          '  return mod.signer.sign({',
-          "    method: 'POST',",
-          "    requestTarget: '/api/submit',",
-          "    contentType: '',",
-          "    bodyHashHex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',", // pragma: allowlist secret
-          '    timestampMs: ' + String(Date.now()) + ',',
-          "    nonceHex: '0123456789abcdef0123456789abcdef',", // pragma: allowlist secret
-          '  });',
-          '})()',
-        ].join('\n'),
-      )) as string;
-      expect(typeof transactionId).toBe('string');
-      expect(transactionId.length).toBeGreaterThan(0);
-      await page.close();
-    } finally {
-      await browser.close();
-    }
-  } finally {
-    child.kill('SIGKILL');
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
 }
 
 afterAll(() => {
@@ -433,7 +379,7 @@ afterAll(() => {
   }
 });
 
-describe('ATT-08 packed-package consumer compatibility', () => {
+describe('packed-package consumer compatibility', () => {
   it('applies the real publish manifest transformation with flattened release paths', () => {
     const packed = preparePackedWorkspace();
     const stagedManifest = packed.manifest;
@@ -485,12 +431,15 @@ describe('ATT-08 packed-package consumer compatibility', () => {
     expect(existsSync(path.resolve(unpackRoot, 'signer.mjs'))).toBe(true);
     expect(readdirSync(unpackRoot).includes('dist')).toBe(false);
 
-    for (const declaration of ['index.d.ts', 'index.d.mts', 'signer.d.ts', 'signer.d.mts']) {
+    const declarations = readdirSync(unpackRoot).filter((file) => /\.d\.[cm]?ts$/.test(file));
+    for (const declaration of declarations) {
       const text = readFileSync(path.resolve(unpackRoot, declaration), 'utf8');
       expect(text).not.toMatch(/\/src\//);
       expect(text).not.toMatch(/reference path=/);
       expect(text).not.toMatch(/from ['"]\.\.\/src\//);
       expect(text).not.toMatch(/from ['"]\.\/src\//);
+      expect(text).not.toMatch(/\b(?:R?ATT|MONGO)-\d+\b|\bscaffold\b|\btask[- ]text\b|\bsection \d+\.\d+/);
+      expect(text).not.toMatch(/\bretainUntil\b/);
       // Relative imports that remain must be explicit file imports with
       // extensions (the bundled time-policy chunk), never extensionless
       // directory imports that plain Node ESM cannot resolve.
@@ -503,6 +452,29 @@ describe('ATT-08 packed-package consumer compatibility', () => {
         expect(existsSync(direct) || existsSync(asDts) || existsSync(asDmts)).toBe(true);
       }
       expect(containsDisallowedPublishedValue(text)).toBe(false);
+    }
+    for (const extension of ['d.ts', 'd.mts']) {
+      const server = readFileSync(path.resolve(unpackRoot, `index.${extension}`), 'utf8');
+      expectHoverDocs(server, 'createRequestAttestationMiddleware', [
+        'express.RequestHandler',
+        'operationTimeoutMs',
+        'Public HMAC',
+      ]);
+      expectHoverDocs(server, 'createAttestationBodyCapture', ['inflate: false', 'capture.errorHandler', '413/415']);
+      expectHoverDocs(server, 'createMongoAttestationStore', [
+        'createIndex({ kind: 1, retainUntilMs: 1 })',
+        'expireAfterSeconds',
+        'deadlines',
+      ]);
+      expectHoverDocs(server, 'createSignerBundleRouter', ['/signer-meta', '/prefix/', 'operationTimeoutMs']);
+      const signer = readFileSync(path.resolve(unpackRoot, `signer.${extension}`), 'utf8');
+      expectHoverDocs(signer, 'createSignerClient', [
+        'multiple rotations behind',
+        'whole headers/body/import/refetch',
+        'dispose()',
+      ]);
+      expectHoverDocs(signer, 'fetchSignerBundle', ['5000 ms', 'response headers', 'whole-load']);
+      expectHoverDocs(signer, 'fetchWithAttestation', ['no-cors', 'first stale response', 'caller-owned']);
     }
     const indexText = readFileSync(path.resolve(unpackRoot, 'index.d.ts'), 'utf8');
     expect(indexText).toContain('createRequestAttestationMiddleware');
@@ -598,7 +570,10 @@ describe('ATT-08 packed-package consumer compatibility', () => {
     expect(existsSync(path.resolve(consumerDir, 'node_modules', 'express'))).toBe(false);
     expect(existsSync(path.resolve(consumerDir, 'node_modules', 'redis'))).toBe(false);
     expect(existsSync(path.resolve(consumerDir, 'node_modules', 'mongodb'))).toBe(false);
+    expect(existsSync(path.resolve(consumerDir, 'node_modules', '@types', 'express'))).toBe(false);
+    expect(existsSync(path.resolve(consumerDir, 'node_modules', '@types', 'node'))).toBe(false);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-browser.json'], consumerDir);
+    compileInstalledReadme(consumerDir, 'browser');
     const output = run(
       'node',
       [
@@ -611,8 +586,301 @@ describe('ATT-08 packed-package consumer compatibility', () => {
     expect(output.trim()).toBe('function');
   }, 180_000);
 
-  it('serves flattened signer assets from the installed tarball in a real browser', async () => {
-    const consumerDir = installBackendConsumer();
-    await runInstalledRouterBrowserCheck(consumerDir);
-  }, 180_000);
+  // One isolated install, with a fresh server process and Chromium context for
+  // each case (no shared key, replay, cookie, module, or preflight cache state).
+  let browserConsumerDir: string | undefined;
+  const browserScenarios: Array<
+    BrowserScenario & {
+      statuses: number[];
+      preflights: number;
+      discoveries: number;
+      keyModules: number;
+      reserves: number;
+    }
+  > = [
+    {
+      name: 'same-origin default credentials reach the authenticated handler',
+      crossOrigin: false,
+      includeCredentials: false,
+      rotate: false,
+      exposeMarker: true,
+      statuses: [200],
+      preflights: 0,
+      discoveries: 1,
+      keyModules: 1,
+      reserves: 1,
+    },
+    {
+      name: 'cross-origin explicit cookies recover once from an exposed stale-key challenge',
+      crossOrigin: true,
+      includeCredentials: true,
+      rotate: true,
+      exposeMarker: true,
+      statuses: [403, 200],
+      preflights: 2,
+      discoveries: 2,
+      keyModules: 2,
+      reserves: 1,
+    },
+    {
+      name: 'cross-origin missing marker exposure returns a readable stale response without retry',
+      crossOrigin: true,
+      includeCredentials: true,
+      rotate: true,
+      exposeMarker: false,
+      statuses: [403],
+      preflights: 1,
+      discoveries: 1,
+      keyModules: 1,
+      reserves: 0,
+    },
+    {
+      name: 'cross-origin default credentials omit the cookie and return a readable auth failure',
+      crossOrigin: true,
+      includeCredentials: false,
+      rotate: false,
+      exposeMarker: true,
+      statuses: [401],
+      preflights: 1,
+      discoveries: 1,
+      keyModules: 1,
+      reserves: 0,
+    },
+    {
+      name: 'explicit native fetch in fetchSignerBundle discovers before a credentialed POST',
+      crossOrigin: true,
+      includeCredentials: true,
+      rotate: false,
+      exposeMarker: true,
+      nativeFetch: 'standalone',
+      // Standalone discovery precedes a separate default client; native module caching is shared.
+      statuses: [200],
+      preflights: 1,
+      discoveries: 2,
+      keyModules: 1,
+      reserves: 1,
+    },
+    {
+      name: 'explicit native fetch in createSignerClient shares discovery and reloads on rotation',
+      crossOrigin: true,
+      includeCredentials: true,
+      rotate: true,
+      exposeMarker: true,
+      nativeFetch: 'client',
+      statuses: [403, 200],
+      preflights: 2,
+      discoveries: 2,
+      keyModules: 2,
+      reserves: 1,
+    },
+    {
+      name: 'explicit native fetch in prepared fetch preserves both credentialed attempts',
+      crossOrigin: true,
+      includeCredentials: true,
+      rotate: true,
+      exposeMarker: true,
+      nativeFetch: 'fetch',
+      statuses: [403, 200],
+      preflights: 2,
+      discoveries: 2,
+      keyModules: 2,
+      reserves: 1,
+    },
+    {
+      name: 'explicit native fetchFn in prepared fetch preserves both credentialed attempts',
+      crossOrigin: true,
+      includeCredentials: true,
+      rotate: true,
+      exposeMarker: true,
+      nativeFetch: 'fetchFn',
+      statuses: [403, 200],
+      preflights: 2,
+      discoveries: 2,
+      keyModules: 2,
+      reserves: 1,
+    },
+  ];
+
+  it.each(browserScenarios)(
+    'installed Chromium: $name',
+    async (scenario) => {
+      browserConsumerDir ??= installBackendConsumer();
+      const requestTarget = '/api/submit?part=two%2Fparts&order=1&order=2';
+      // Whitespace, UTF-8, and query spelling make reserialization observable.
+      const bodyText = '{\n  "message": "café / 雪 🚀",\n  "items": [3, 1],\n  "enabled": true\n}\n';
+      const capturedBody = {
+        digestHex: createHash('sha256').update(bodyText).digest('hex'),
+        byteLength: Buffer.byteLength(bodyText),
+      };
+      const { ready, browser, report, pageErrors, chromiumVersion } = await runInstalledBrowserScenario(
+        browserConsumerDir,
+        scenario,
+        { requestTarget, bodyText },
+      );
+      const api = report.traffic.filter((row) => row.target.startsWith('/api/') && row.method !== 'OPTIONS');
+      const preflights = report.traffic.filter((row) => row.method === 'OPTIONS');
+      const discovery = report.traffic.filter((row) => row.target === '/attestation/signer-meta');
+      const keyModules = report.traffic.filter((row) => /^\/attestation\/signer\.[a-f0-9]{64}\.mjs$/.test(row.target));
+      const runtimes = report.traffic.filter((row) => /^\/attestation\/runtime\.[a-f0-9]{64}\.mjs$/.test(row.target));
+      const publicEntry = report.traffic.filter((row) => row.target === '/installed-signer.mjs');
+      console.info(`Installed Chromium ${chromiumVersion}: ${scenario.name}`, {
+        apiStatuses: api.map((row) => row.status),
+        preflights: preflights.length,
+        discoveries: discovery.length,
+        keyModules: keyModules.length,
+        runtimeModules: runtimes.length,
+        bodyBytes: capturedBody.byteLength,
+        ...report.counters,
+      });
+
+      expect(path.relative(browserConsumerDir, ready.signerEntry)).toMatch(/^node_modules\//);
+      expect(ready.signerEntry).toMatch(/\/signer\.mjs$/);
+      expect(ready.signerEntry).not.toMatch(/\/(src|dist)\//);
+      expect(pageErrors).toEqual([]);
+      expect(browser.secureContext).toBe(true);
+      expect(browser.visibleCookies).toBe(''); // The HTTP session cookie is HttpOnly.
+      expect(browser.credentials).toBe(scenario.includeCredentials ? 'include' : 'same-origin');
+      expect(browser.callerBodyUsed).toBe(false);
+      expect(browser.callerBodyText).toBe(bodyText);
+      expect(browser.discoveryProbe).toEqual(
+        scenario.nativeFetch === 'standalone' || scenario.nativeFetch === 'client'
+          ? {
+              kind: scenario.nativeFetch,
+              keyId: 'installed-k1',
+              publicOrigin: ready.apiOrigin,
+              replayNamespace: ready.replayNamespace,
+              shared: scenario.nativeFetch === 'client' ? true : null,
+            }
+          : null,
+      );
+      expect(browser.response).toMatchObject({
+        status: scenario.statuses.at(-1),
+        type: scenario.crossOrigin ? 'cors' : 'basic',
+        url: `${ready.apiOrigin}${requestTarget}`,
+        redirected: false,
+        marker: null,
+        bodyUsed: false,
+        bodyLocked: false,
+      });
+
+      expect(publicEntry).toHaveLength(1);
+      expect(publicEntry[0]).toMatchObject({ method: 'GET', status: 200, fetchDest: 'script' });
+      expect(discovery).toHaveLength(scenario.discoveries);
+      expect(keyModules).toHaveLength(scenario.keyModules);
+      expect(new Set(keyModules.map((row) => row.target)).size).toBe(scenario.keyModules);
+      expect(runtimes).toHaveLength(1); // Native module cache shares the runtime across the replacement import.
+      for (const row of [...discovery, ...keyModules, ...runtimes]) {
+        expect(row).toMatchObject({ method: 'GET', status: 200, fetchMode: 'cors' });
+        if (scenario.crossOrigin) {
+          expect(row).toMatchObject({ origin: ready.webOrigin, allowOrigin: ready.webOrigin, cookie: null });
+        }
+      }
+      for (const row of discovery) {
+        expect(row).toMatchObject({ cookie: null, fetchDest: 'empty', cacheControl: 'no-store' });
+      }
+      for (const row of [...keyModules, ...runtimes]) {
+        expect(row).toMatchObject({ fetchDest: 'script', cacheControl: 'public, max-age=31536000, immutable' });
+      }
+
+      const authenticated = !scenario.crossOrigin || scenario.includeCredentials;
+      expect(api.map((row) => row.status)).toEqual(scenario.statuses);
+      expect(report.counters).toEqual({
+        captureCalls: scenario.statuses.length,
+        authCalls: scenario.statuses.length,
+        authorizedCalls: authenticated ? scenario.statuses.length : 0,
+        guardCalls: authenticated ? scenario.statuses.length : 0,
+        rotations: scenario.rotate ? 1 : 0,
+        reserveCalls: scenario.reserves,
+        successfulReservations: scenario.reserves,
+        businessCalls: scenario.reserves,
+      });
+      for (const row of api) {
+        expect(row).toMatchObject({
+          method: 'POST',
+          target: requestTarget,
+          origin: scenario.crossOrigin ? ready.webOrigin : ready.apiOrigin,
+          contentType: 'application/json; charset=utf-8',
+          fetchMode: 'cors',
+          fetchDest: 'empty',
+          proofHeaderCount: 1,
+          rawBodyHex: Buffer.from(bodyText).toString('hex'),
+          capturedBody,
+          parsedBody: JSON.parse(bodyText),
+          cookie: authenticated ? report.sessionCookie : null,
+          principal: authenticated ? 'installed-browser-user' : null,
+        });
+        expect(row.proof).not.toBe('caller-proof-must-be-replaced');
+        expect(row.envelope).not.toBeNull();
+        expect(row.envelope?.nonceHex).toMatch(/^[a-f0-9]{32}$/);
+        expect(row.envelope?.mac).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        expect(row.envelope?.timestampMs).toBeGreaterThanOrEqual(row.receivedAtMs - 10_000);
+        expect(row.envelope?.timestampMs).toBeLessThanOrEqual(row.receivedAtMs);
+        if (scenario.crossOrigin) {
+          expect(row).toMatchObject({ allowOrigin: ready.webOrigin, allowCredentials: 'true' });
+        }
+      }
+      expect(api[0]?.envelope?.keyId).toBe('installed-k1');
+      if (scenario.statuses.length === 2) {
+        expect(api[1]?.envelope?.keyId).toBe('installed-k2');
+        expect(api[1]?.proof).not.toBe(api[0]?.proof);
+        expect(api[1]?.envelope?.nonceHex).not.toBe(api[0]?.envelope?.nonceHex);
+        expect(api[1]?.envelope?.mac).not.toBe(api[0]?.envelope?.mac);
+        expect(api[1]?.envelope?.timestampMs).toBeGreaterThanOrEqual(api[0]?.envelope?.timestampMs ?? Infinity);
+        expect(api[1]?.rawBodyHex).toBe(api[0]?.rawBodyHex);
+      }
+      if (scenario.rotate) {
+        expect(api[0]).toMatchObject({
+          status: 403,
+          marker: 'stale-key',
+          exposedHeaders: scenario.exposeMarker ? 'x-attestation-error' : null,
+          cacheControl: 'no-store',
+          countersAtResponse: { reserveCalls: 0, successfulReservations: 0, businessCalls: 0 },
+        });
+      }
+
+      expect(preflights).toHaveLength(scenario.preflights);
+      for (const row of preflights) {
+        expect(row).toMatchObject({
+          target: requestTarget,
+          origin: ready.webOrigin,
+          cookie: null,
+          proof: null,
+          proofHeaderCount: 0,
+          requestedMethod: 'POST',
+          status: 204,
+          allowOrigin: ready.webOrigin,
+          allowCredentials: 'true',
+          allowMethods: 'POST',
+          allowHeaders: 'content-type, x-client-transaction-id',
+          maxAge: '0',
+          countersAtResponse: { reserveCalls: 0, businessCalls: 0 },
+        });
+        expect(row.requestedHeaders.sort()).toEqual(['content-type', 'x-client-transaction-id']);
+      }
+      expect(report.reservations.map((row) => row.result)).toEqual(Array(scenario.reserves).fill('reserved'));
+      if (scenario.reserves === 1) {
+        const effect = {
+          principal: 'installed-browser-user',
+          body: JSON.parse(bodyText),
+          target: requestTarget,
+          capturedBody,
+        };
+        expect(report.effects).toEqual([effect]);
+        expect(JSON.parse(browser.response.text)).toEqual({ ok: true, ...effect });
+        expect(report.reservations[0]?.replayKey).toMatch(/^att:v1:[a-f0-9]{64}$/);
+      } else {
+        expect(report.effects).toEqual([]);
+        expect(browser.response.cacheControl).toBe('no-store');
+        expect(JSON.parse(browser.response.text)).toEqual(
+          scenario.rotate
+            ? {
+                code: 'ATTESTATION_STALE_KEY',
+                message: 'Request signing key is no longer accepted.',
+              }
+            : { code: 'UNAUTHORIZED', message: 'Fixture session is required.' },
+        );
+      }
+    },
+    180_000,
+  );
 });

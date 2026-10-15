@@ -473,10 +473,10 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       const raw = await hook.call({}, {}, new Permission({ admin: true }) as any, { operation: 'read' });
       expect(raw).toEqual({});
 
-      // Real field-access resolution: Core.genAllowedFields delegates to
+      // Private request/input/metadata field resolution uses
       // collectAllowedFieldsForRequest with
       // hasPermission = (key) => permissions.has(key) || Boolean(docPermissions[key])
-      // (see packages/access-router/src/core.ts). Feed the decorated hook's real
+      // (see access-router/src/acl/select-resolution.ts). Feed the decorated hook's real
       // output through it with and without a global grant.
       const permissionSchema = { secret: 'admin' } as Record<string, unknown>; // pragma: allowlist secret
       const resolveFields = (globalPermissions: any) =>
@@ -484,7 +484,6 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
           req: {} as any,
           permissionSchema,
           access: 'read',
-          baseFields: [],
           hasPermission: (key: string) => globalPermissions.has(key) || Boolean((raw as Record<string, unknown>)[key]),
           functionArgs: [],
         });

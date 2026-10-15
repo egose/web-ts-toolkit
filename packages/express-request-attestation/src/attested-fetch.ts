@@ -1,9 +1,7 @@
 /**
- * ATT-07 prepared signed fetch with one stale-key retry (task sections 4.5/4.6).
+ * Prepared signed fetch with one pre-handler stale-key retry.
  *
- * Browser-safe ONLY: no Node built-ins, Express/Redis types, `Buffer`,
- * `NodeJS`, or `node:*` imports. Part of the `./signer` closure typechecked
- * by `tsconfig.signer-browser.json` (`types: []`).
+ * Browser-safe: use the `/signer` entry without Express or Node dependencies/types.
  *
  * - `fetchWithAttestation(input, init, options)` builds one immutable request
  *   snapshot from `string | URL | Request` input plus `RequestInit`. Actual
@@ -13,14 +11,18 @@
  *   `keepalive`) are preserved. Only the configured API origin is signed;
  *   unrelated origins fail locally without sending auth or signature material.
  * - The serialized body is materialized ONCE within the byte cap/read
- *   deadline (`request-body.ts`), then those same bytes plus the final content
- *   type are hashed and reused for both attempts. Normal finite `BodyInit`
+ *   deadline, then those same bytes plus the final content
+ *   type and one body digest are reused for both attempts. Normal finite `BodyInit`
  *   values and replayable `Request`s are supported; caller JSON objects must
  *   be serialized with `JSON.stringify` first. `FormData` is serialized
  *   through a `Request` first and its bytes/boundary are preserved verbatim
  *   (never reconstructed on retry, never `.arrayBuffer()` on `FormData`
  *   itself). A `Request` body uses a byte-counting reader with cancellation
- *   and timeout rather than rejecting on stream type alone.
+ *   and timeout rather than rejecting on stream type alone. Inherited bodies
+ *   are cloned before reading so finite caller Requests remain reusable,
+ *   including concurrent calls. Non-null `init.body` supplies a replacement;
+ *   `null`/`undefined` inherit the body, as in Fetch. Explicit replacement
+ *   streams transfer ownership, including aliases of the original's body.
  * - Each attempt mints one fresh 128-bit nonce (`generateNonceHex`) and one
  *   validated `now()` timestamp. Loaded signer protection space must match
  *   the allowed `apiOrigin`/`replayNamespace` before signing. The caller
@@ -28,6 +30,9 @@
  * - Signed attempts use `redirect: 'manual'`; redirect results are
  *   exposed/returned without forwarding a signature. `Content-Encoding` other
  *   than identity/absent fails locally (v1 identity-only profile).
+ * - `no-cors` and browser-forbidden proof fields fail before body/signer work
+ *   when statically known. Each constructed Request must retain the exact proof
+ *   before transport is invoked; unrestricted temporary Headers are insufficient.
  * - At most one retry, only on the pre-handler stale-key signal: expected
  *   `403` plus `X-Attestation-Error: stale-key`. The error response is
  *   inspected via headers only (never consumed), only the observed key is
@@ -35,41 +40,29 @@
  *   timestamp/nonce. A second stale challenge stops. Expired/future/replay/
  *   invalid proofs, operational `5xx`, auth failures, redirects, network
  *   uncertainty, and handler uncertainty never retry.
+ * - The first stale response remains untouched until the retry Request is
+ *   built. Reload/signing/construction failure or a repeated envelope returns
+ *   that readable response. Abandoned bodies are cancelled without awaiting
+ *   producer cleanup, with cancellation rejection observed. Caller abort stops
+ *   this invocation's preparation wait without disposing the shared signer client.
  *
- * Composition (tested in `test/fetch-client.test.ts`, documented for ATT-08):
+ * Application auth retries call this wrapper again for a fresh proof. The
+ * server guard never establishes or rewrites authentication. Auth-before-guard
+ * avoids replay allocation for rejected credentials; guard-first can reject
+ * bad proofs before auth work but reserves even if later auth fails. Durable
+ * business idempotency and retry decisions remain application-owned.
  *
- * ```ts
- * import express from 'express';
- * import { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';
- * import {
- *   createAttestationBodyCapture,
- *   createRequestAttestationMiddleware,
- * } from '@web-ts-toolkit/express-request-attestation';
- *
- * const capture = createAttestationBodyCapture({ maxBodyBytes });
- * const guard = createRequestAttestationMiddleware({ publicOrigin, replayNamespace, keyProvider, store });
- * const app = express();
- * // Vault router owns its base path: mount once, never double-prefix.
- * app.use(createOidcVaultMiddleware({ basePath: '/auth/oidc', backendOrigin, storeProvider, config }));
- * // Capture JSON bytes before both validators on selected API routes only.
- * app.use(express.json({ limit: maxBodyBytes, verify: capture.verify, inflate: false }));
- * app.use(capture.errorHandler);
- * app.post('/api/submit', guard, requireBearerAuth, handler);
- * // Asset/OPTIONS/OIDC navigation/callback/backchannel routes stay reachable
- * // under their own policies; the guard never enrolls DPoP bindings or
- * // rewrites `req.auth`, and every auth refresh re-signs via a fresh wrapper call.
- * ```
- *
- * Browser CORS/CSP (application-configured, verified in tests):
+ * Browser CORS/CSP (application-configured):
  *
  * - Allow the configured signature field plus actual `Content-Type`,
  *   `Authorization`/DPoP headers as needed; expose `X-Attestation-Error` so
  *   the wrapper can see the retry marker; allow credentialed origins only when
  *   the application explicitly uses `credentials: 'include'`.
- * - Native module imports require `script-src` + CORS for the public module
- *   URLs. Same-origin uses the native default; cross-origin deployments must
- *   explicitly configure CORS for metadata/module fetches (which use
- *   `cache: no-store`, `credentials: omit`, `redirect: error`).
+ * - Native module imports require `script-src` + CORS for key and runtime URLs;
+ *   metadata/API fetches need suitable `connect-src`. Discovery uses
+ *   no-store/omit/error, while dynamic imports follow native module rules.
+ *   Asset modules must not redirect to other origins. Let OPTIONS reach the
+ *   application's CORS handler before the server attestation guard.
  *
  * Public HMAC material stays accessible to every caller despite
  * non-extractable `CryptoKey` wrapping; this wrapper provides request-format
@@ -102,6 +95,34 @@ export const DEFAULT_ATTESTED_FETCH_BODY_READ_TIMEOUT_MS = 5000 as const;
 const MIN_FETCH_TIMEOUT_MS = 1 as const;
 const MAX_FETCH_TIMEOUT_MS = 60000 as const;
 
+// Fetch transport restrictions are narrower than general HTTP header validity.
+// Keep them out of the shared/server validator. Cookie2 and User-Agent are also
+// rejected by Chromium's Request guard, despite no longer being in Fetch's list.
+const FORBIDDEN_FETCH_HEADER_NAMES: ReadonlySet<string> = new Set([
+  'accept-charset',
+  'accept-encoding',
+  'access-control-request-headers',
+  'access-control-request-method',
+  'connection',
+  'content-length',
+  'cookie',
+  'cookie2',
+  'date',
+  'dnt',
+  'expect',
+  'host',
+  'keep-alive',
+  'origin',
+  'referer',
+  'set-cookie',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'user-agent',
+  'via',
+]);
+
 const FETCH_WITH_ATTESTATION_OPTION_KEYS: ReadonlySet<string> = new Set([
   'signerClient',
   'apiOrigin',
@@ -116,23 +137,29 @@ const FETCH_WITH_ATTESTATION_OPTION_KEYS: ReadonlySet<string> = new Set([
 
 /** Options for `fetchWithAttestation` (all validation is strict). */
 export interface FetchWithAttestationOptions {
-  /** Generation-aware signer client (ATT-06). Required, retained by reference. */
+  /** Caller-owned shared signer client, retained by reference; abort never disposes it. */
   readonly signerClient: SignerClient;
   /** Pinned API origin; only this origin is signed. Required. */
   readonly apiOrigin: string;
   /** Protection-space namespace; must match the loaded signer. Required. */
   readonly replayNamespace: string;
-  /** Injected fetch (preferred name, matches task text). Defaults to global fetch. */
+  /** API transport, default global fetch. Must honor the Request signal; no package transport deadline or uncertain retry. */
   readonly fetch?: typeof fetch;
-  /** Alias for `fetch` (matches ATT-01 scaffold). At most one may be set. */
+  /** Compatibility alias for `fetch`; set at most one of the two options. */
   readonly fetchFn?: typeof fetch;
-  /** Signature header field. Defaults to `x-client-transaction-id`. */
+  /**
+   * Signature field, default `x-client-transaction-id`. Shared HTTP validation
+   * rejects malformed/reserved names with `AttestationProtocolError`. Otherwise
+   * valid browser-forbidden fields (including `sec-*`, `proxy-*`, `Cookie2`, and
+   * `User-Agent`) fail locally with `SIGNER_PREPARATION_FAILED` before body
+   * preparation or signer work. The field must be writable by browser Fetch.
+   */
   readonly headerName?: string;
   /** Body budget, default 1 MiB, hard cap 16 MiB. Must match server/parser limits. */
   readonly maxBodyBytes?: number;
-  /** Bounded body-read deadline, default 5000 ms, allowed 1–60000 ms. */
+  /** Body-read deadline only, default 5000 ms (integer 1–60000); distinct from signer load and API transport waits. */
   readonly bodyReadTimeoutMs?: number;
-  /** Epoch-millisecond clock for per-attempt timestamps. Defaults to `Date.now`. */
+  /** Per-attempt clock, default `Date.now`; must return nonnegative safe-integer epoch milliseconds. */
   readonly now?: () => number;
 }
 
@@ -160,7 +187,8 @@ function resolveFetchImpl(fetchAlias: unknown, fetchFnAlias: unknown): typeof fe
         'fetch is unavailable. Prepared fetch requires a fetch implementation.',
       );
     }
-    return globalFetch as typeof fetch;
+    // Native Window.fetch rejects the configuration object as its receiver.
+    return (globalFetch as typeof fetch).bind(globalThis);
   }
   if (typeof candidate !== 'function') {
     throw new AttestationProtocolError('fetchWithAttestation fetch must be a function');
@@ -201,6 +229,25 @@ function validateBodyReadTimeoutMs(value: unknown): number {
   return value;
 }
 
+function assertFetchProofHeaderName(headerName: string): void {
+  const lower = headerName.toLowerCase();
+  if (lower.startsWith('sec-') || lower.startsWith('proxy-') || FORBIDDEN_FETCH_HEADER_NAMES.has(lower)) {
+    throw new SignerClientError(
+      'SIGNER_PREPARATION_FAILED',
+      'Attestation headerName must be writable by browser Fetch; browser-forbidden request headers cannot carry a proof.',
+    );
+  }
+}
+
+function assertAttestableMode(mode: RequestMode | undefined): void {
+  if (mode === 'no-cors') {
+    throw new SignerClientError(
+      'SIGNER_PREPARATION_FAILED',
+      'Request mode no-cors cannot carry an attestation proof. Use cors or same-origin.',
+    );
+  }
+}
+
 function resolveOptions(options: FetchWithAttestationOptions): ResolvedFetchOptions {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
     throw new AttestationProtocolError('fetchWithAttestation options must be an object');
@@ -227,6 +274,7 @@ function resolveOptions(options: FetchWithAttestationOptions): ResolvedFetchOpti
   );
   const headerName = options.headerName ?? DEFAULT_ATTESTATION_HEADER;
   validateHeaderName(headerName);
+  assertFetchProofHeaderName(headerName);
   const maxBodyBytes = validateMaxBodyBytes(options.maxBodyBytes);
   const bodyReadTimeoutMs = validateBodyReadTimeoutMs(options.bodyReadTimeoutMs);
   const now = options.now ?? Date.now;
@@ -412,9 +460,20 @@ function buildSignedRequest(snapshot: PreparedSnapshot, headerName: string, tran
   if (bodyForFetch !== null) {
     init.body = bodyForFetch as BodyInit;
   }
+  let request: Request | undefined;
   try {
-    return new Request(snapshot.url, init);
+    request = new Request(snapshot.url, init);
+    // Native request guards can silently discard or normalize a field that an
+    // unrestricted Headers object accepted, including value-dependent guards.
+    if (request.headers.get(headerName) !== transactionId) {
+      throw new SignerClientError(
+        'SIGNER_PREPARATION_FAILED',
+        'Prepared request did not retain the exact attestation proof header.',
+      );
+    }
+    return request;
   } catch (error) {
+    cancelOwnedBody(request);
     if (error instanceof SignerClientError || error instanceof AttestationProtocolError) {
       throw error;
     }
@@ -433,11 +492,157 @@ function isStaleKeyRetryCandidate(response: Response): boolean {
   }
 }
 
+/** Only call for a body this invocation owns and will neither return nor send. */
+function cancelOwnedBody(owner: Request | Response | undefined): void {
+  try {
+    // Native tee cancellation may wait for a caller-owned sibling indefinitely.
+    // A locked transport body remains the transport's responsibility.
+    void owner?.body?.cancel().catch(() => undefined);
+  } catch {
+    // Synchronous faults from substitutes must not replace the operation's result.
+  }
+}
+
+function throwIfAborted(signal: AbortSignal | null): void {
+  if (signal?.aborted) {
+    if (signal.reason !== undefined) throw signal.reason;
+    throw new SignerClientError('SIGNER_PREPARATION_FAILED', 'Request was aborted before sending.');
+  }
+}
+
+/** Stop this waiter, not the caller-owned client's shared load/native crypto. */
+async function withPreparationAbort<T>(signal: AbortSignal | null, prepare: () => Promise<T>): Promise<T> {
+  throwIfAborted(signal);
+  if (signal === null) return prepare();
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => {
+      try {
+        throwIfAborted(signal);
+      } catch (reason) {
+        reject(reason);
+      }
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    // Install both rejection observers before invoking preparation. Late shared
+    // load/crypto failures remain observed after abort has won the race.
+    return await Promise.race([Promise.resolve().then(prepare), aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
+function copyRequestWithoutBody(input: Request): Request {
+  // Chromium disturbs input.body even for new Request(input, { body: override }).
+  // A bodyless template preserves the supported native settings without touching
+  // a used/locked caller stream or creating an unused tee. Native construction
+  // below still applies init (including header replacement and null signal).
+  return new Request(input.url, {
+    method: input.method,
+    headers: input.headers,
+    credentials: input.credentials,
+    signal: input.signal,
+    mode: input.mode === 'navigate' ? 'same-origin' : input.mode,
+    cache: input.cache,
+    referrer: input.referrer,
+    referrerPolicy: input.referrerPolicy,
+    integrity: input.integrity,
+    keepalive: input.keepalive,
+    redirect: input.redirect,
+  });
+}
+
+async function prepareSnapshot(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  overridingBody: boolean,
+  config: ResolvedFetchOptions,
+): Promise<PreparedSnapshot> {
+  let unreadOwner: Request | undefined;
+  try {
+    let base: Request;
+    try {
+      let source = input;
+      if (input instanceof Request) {
+        if (overridingBody) {
+          source = copyRequestWithoutBody(input);
+        } else if (input.body !== null) {
+          // Until construction succeeds this clone owns the internal branch.
+          unreadOwner = input.clone();
+          source = unreadOwner;
+        }
+      }
+      base = new Request(source as RequestInfo, init);
+      // Native construction transfers an inherited clone body to base. Only
+      // base can cancel it now; the caller's tee branch is never ours to cancel.
+      unreadOwner = base;
+    } catch (error) {
+      if (error instanceof SignerClientError || error instanceof AttestationProtocolError) throw error;
+      const message = error instanceof Error ? `: ${error.message}` : '';
+      throw new SignerClientError('SIGNER_PREPARATION_FAILED', `Request could not be prepared${message}.`);
+    }
+
+    // Native dictionary conversion may resolve a non-string mode only during
+    // construction. Check again before the bounded reader takes body ownership.
+    assertAttestableMode(base.mode);
+    // Mode/origin/encoding/abort rejection owns cleanup before a reader exists.
+    if (new URL(base.url).origin !== config.apiOrigin) {
+      throw new SignerClientError(
+        'SIGNER_ORIGIN_MISMATCH',
+        'Request origin does not match the configured API origin. Signatures are only attached to the configured API origin.',
+      );
+    }
+    assertAllowedContentEncoding(base.headers);
+    throwIfAborted(base.signal);
+
+    // Transfer disposal responsibility to the bounded reader. It cancels once
+    // on failure and releases its lock; do not cancel that stream a second time.
+    unreadOwner = undefined;
+    const bodyBytes = await materializeRequestBodyBytes(base, {
+      maxBodyBytes: config.maxBodyBytes,
+      signal: base.signal,
+      timeoutMs: config.bodyReadTimeoutMs,
+    });
+    return buildPreparedSnapshot(base, bodyBytes);
+  } finally {
+    cancelOwnedBody(unreadOwner);
+  }
+}
+
 /**
  * Prepare one immutable request snapshot, sign the exact bytes sent, and
- * retry at most once on the pre-handler stale-key marker.
+ * retry at most once on `403` plus `X-Attestation-Error: stale-key`. Only the
+ * pinned API origin is signed; Authorization/credentials follow native Fetch
+ * options, and signed attempts always use manual redirects. Body bytes and
+ * their digest are reused, with a fresh nonce/timestamp on each attempt.
  *
- * See the module header for the full preparation/retry/composition contract.
+ * After general option validation, `no-cors` and browser-forbidden fields reject with
+ * `SIGNER_PREPARATION_FAILED` before body/signer work when statically known.
+ * `init.mode` is sampled once before `init.body`; an undefined mode inherits the
+ * Request's mode (or Fetch's default). Supported `cors`/`same-origin` settings
+ * are preserved. Every constructed attempt must retain the exact proof.
+ *
+ * Inherited finite Request bodies are cloned, leaving the original readable for
+ * concurrent/repeated calls. Non-null `init.body` overrides even used/locked
+ * originals; `null`/`undefined` inherit and require an unused, unlocked body.
+ * Explicit stream bodies (even aliases of the original's body) transfer reading/
+ * cancellation ownership after native construction succeeds. The byte cap covers
+ * reader-owned storage, not native tee queues retained for the caller's original
+ * Request. Reuse refers to the original Request's current body, not the identity
+ * of a raw stream reference saved before native cloning. Construction failure
+ * leaves an unaccepted explicit stream caller-owned.
+ *
+ * Reload/signing/retry-construction failure or a repeated envelope returns the
+ * untouched first stale response. Only a prepared retry (or caller abort)
+ * abandons it; cancellation is nonblocking with rejection observed. Caller abort
+ * stops waiting for preparation, without disposing the shared signer client or
+ * cancelling native module/crypto execution, and rejects with the caller's exact
+ * reason. Dispatched readers belong to native Fetch/the injected transport,
+ * which must honor the forwarded signal. Transport errors never retry. Every
+ * separate application auth/business retry needs a fresh wrapper call; public
+ * HMAC is not authentication or durable business idempotency.
  */
 export async function fetchWithAttestation(
   input: RequestInfo | URL,
@@ -448,10 +653,26 @@ export async function fetchWithAttestation(
   if (init !== undefined && (init === null || typeof init !== 'object' || Array.isArray(init))) {
     throw new AttestationProtocolError('fetchWithAttestation init must be an object');
   }
-  const initRecord = (init ?? {}) as RequestInit & { readonly body?: unknown };
-  if (initRecord.body !== undefined && initRecord.body !== null) {
-    assertSupportedBodyInit(initRecord.body);
-  }
+  // Preflight the effective mode before cloning/serializing a body. Native init
+  // precedence applies: an explicit supported mode can replace inherited no-cors.
+  const initMode = init?.mode;
+  assertAttestableMode(initMode === undefined && input instanceof Request ? input.mode : initMode);
+  // Preflight and native construction must see the same mode/body, even with
+  // accessors that mutate init. Forward other dictionary properties unchanged,
+  // including inherited/non-enumerable properties and their original receiver.
+  const initBody = init?.body;
+  const overridingBody = initBody !== undefined && initBody !== null;
+  if (overridingBody) assertSupportedBodyInit(initBody);
+  const stableInit =
+    init === undefined
+      ? undefined
+      : new Proxy(init, {
+          get(target, property) {
+            if (property === 'body') return initBody;
+            if (property === 'mode') return initMode;
+            return Reflect.get(target, property, target);
+          },
+        });
   if (typeof input === 'string') {
     if (input.length === 0) {
       throw new AttestationProtocolError('fetchWithAttestation input must be a non-empty URL or Request');
@@ -459,86 +680,33 @@ export async function fetchWithAttestation(
   } else if (!(input instanceof Request) && !(input instanceof URL)) {
     throw new AttestationProtocolError('fetchWithAttestation input must be a URL, string, or Request');
   }
-  if (input instanceof Request) {
-    if ((input as { readonly bodyUsed?: unknown }).bodyUsed === true) {
-      const overridingBody = initRecord.body !== undefined && initRecord.body !== null;
-      if (!overridingBody) {
-        throw new SignerClientError(
-          'SIGNER_PREPARATION_FAILED',
-          'Request body has already been used. Clone the Request before sending or pass a fresh body.',
-        );
-      }
+  if (input instanceof Request && !overridingBody) {
+    if (input.bodyUsed) {
+      throw new SignerClientError(
+        'SIGNER_PREPARATION_FAILED',
+        'Request body has already been used. Clone the Request before sending or pass a fresh body.',
+      );
     }
-    try {
-      const locked = (input as unknown as { readonly body?: { readonly locked?: boolean } }).body?.locked;
-      if (locked === true && (initRecord.body === undefined || initRecord.body === null)) {
-        throw new SignerClientError(
-          'SIGNER_PREPARATION_FAILED',
-          'Request body is locked. Clone the Request before sending or pass a fresh body.',
-        );
-      }
-    } catch (error) {
-      if (error instanceof SignerClientError) {
-        throw error;
-      }
-      // Non-Request shapes fall through to construction-time validation.
+    if (input.body?.locked) {
+      throw new SignerClientError(
+        'SIGNER_PREPARATION_FAILED',
+        'Request body is locked. Clone the Request before sending or pass a fresh body.',
+      );
     }
   }
 
-  let base: Request;
-  try {
-    base = new Request(input as RequestInfo, (init ?? {}) as RequestInit);
-  } catch (error) {
-    if (error instanceof SignerClientError || error instanceof AttestationProtocolError) {
-      throw error;
-    }
-    const message = error instanceof Error ? `: ${error.message}` : '';
-    throw new SignerClientError('SIGNER_PREPARATION_FAILED', `Request could not be prepared${message}.`);
-  }
+  const snapshot = await prepareSnapshot(input, stableInit, overridingBody, config);
+  // Lazy, per-invocation digest of the private immutable byte snapshot. Neither
+  // signer inputs nor native Request byte copies expose the snapshot for mutation.
+  let bodyHashHex: string | undefined;
 
-  // Origin pinning BEFORE any network or signature material. A rejected
-  // external URL never sends Authorization or a signature.
-  let requestOrigin: string;
-  try {
-    requestOrigin = new URL(base.url).origin;
-  } catch {
-    throw new SignerClientError('SIGNER_PREPARATION_FAILED', 'Request URL is invalid.');
-  }
-  if (requestOrigin !== config.apiOrigin) {
-    throw new SignerClientError(
-      'SIGNER_ORIGIN_MISMATCH',
-      'Request origin does not match the configured API origin. Signatures are only attached to the configured API origin.',
-    );
-  }
-
-  // Identity-only body profile enforced before allocation/signing.
-  assertAllowedContentEncoding(base.headers);
-
-  if (base.signal?.aborted === true) {
-    const reason = (base.signal as AbortSignal & { readonly reason?: unknown }).reason;
-    if (reason !== undefined) {
-      throw reason;
-    }
-    throw new SignerClientError('SIGNER_PREPARATION_FAILED', 'Request was aborted before signing.');
-  }
-
-  // Materialize the serialized body ONCE. Both attempts reuse these exact
-  // bytes plus the final content type, so a multipart boundary generated once
-  // stays unchanged on retry.
-  const bodyBytes = await materializeRequestBodyBytes(base, {
-    maxBodyBytes: config.maxBodyBytes,
-    signal: base.signal,
-    timeoutMs: config.bodyReadTimeoutMs,
-  });
-
-  const snapshot = buildPreparedSnapshot(base, bodyBytes);
-
-  async function signWithFreshProof(signerKeyIdCheck?: { readonly expectedOrigin: string }): Promise<{
+  async function signWithFreshProof(): Promise<{
     readonly transactionId: string;
     readonly observedKeyId: string;
   }> {
-    void signerKeyIdCheck;
+    throwIfAborted(snapshot.signal);
     const signer = await config.signerClient.getSigner();
+    throwIfAborted(snapshot.signal);
     if (
       signer.version !== 1 ||
       signer.publicOrigin !== config.apiOrigin ||
@@ -549,9 +717,10 @@ export async function fetchWithAttestation(
         'Loaded signer protection space does not match the configured API origin/namespace.',
       );
     }
+    bodyHashHex ??= await hashBodySha256Hex(snapshot.bodyBytes);
+    throwIfAborted(snapshot.signal);
     const timestampMs = checkedTimestampMs(config.now);
     const nonceHex = generateNonceHex();
-    const bodyHashHex = await hashBodySha256Hex(snapshot.bodyBytes);
     const transactionId = await signer.sign({
       method: snapshot.method,
       requestTarget: snapshot.requestTarget,
@@ -560,15 +729,30 @@ export async function fetchWithAttestation(
       timestampMs,
       nonceHex,
     });
+    throwIfAborted(snapshot.signal);
     return { transactionId, observedKeyId: signer.keyId };
   }
 
-  const first = await signWithFreshProof();
+  async function send(request: Request): Promise<Response> {
+    try {
+      throwIfAborted(snapshot.signal);
+      // Transport owns consumption once invoked. Native Fetch owns any locked
+      // reader; an unread request on abort/rejection can still be released here.
+      // Preserve caller-selected binding without supplying internal config as `this`.
+      const fetchImpl = config.fetchImpl;
+      return await fetchImpl(request);
+    } catch (reason) {
+      cancelOwnedBody(request);
+      throw reason;
+    }
+  }
+
+  const first = await withPreparationAbort(snapshot.signal, signWithFreshProof);
   const firstRequest = buildSignedRequest(snapshot, config.headerName, first.transactionId);
   // Network uncertainty and handler uncertainty never retry: each invocation
   // must regenerate its proof explicitly. Signed attempts use
   // `redirect: 'manual'`, so redirects are returned, not followed.
-  const firstResponse = await config.fetchImpl(firstRequest);
+  const firstResponse = await send(firstRequest);
 
   if (!isStaleKeyRetryCandidate(firstResponse)) {
     return firstResponse;
@@ -583,28 +767,30 @@ export async function fetchWithAttestation(
   } catch {
     // Invalidation is best-effort locality; a failed invalidate still reloads.
   }
-  // Discard the stale response body without unbounded reads so the retry does
-  // not leak the connection. The returned second response stays readable.
+  let secondRequest: Request;
   try {
-    await firstResponse.body?.cancel();
+    const second = await withPreparationAbort(snapshot.signal, signWithFreshProof);
+    throwIfAborted(snapshot.signal);
+    if (second.transactionId === first.transactionId) {
+      // A defective signer must not cause envelope reuse. The first response
+      // still belongs to the caller if there is no valid retry to send.
+      return firstResponse;
+    }
+    secondRequest = buildSignedRequest(snapshot, config.headerName, second.transactionId);
   } catch {
-    // Cancel is best-effort.
+    if (snapshot.signal?.aborted) {
+      cancelOwnedBody(firstResponse);
+      throwIfAborted(snapshot.signal);
+    }
+    // Reload, signing, or native retry construction can fail. No body reader or
+    // cancellation has touched this response; return the original readable error.
+    return firstResponse;
   }
 
-  let secondSignerTransaction: { readonly transactionId: string; readonly observedKeyId: string };
-  try {
-    secondSignerTransaction = await signWithFreshProof();
-  } catch {
-    // Reload failure stops: return the first stale response rather than
-    // manufacturing a second attempt without a fresh proof.
-    return firstResponse;
-  }
-  if (secondSignerTransaction.transactionId === first.transactionId) {
-    // Defensive: proofs must never be reused across attempts. A repeated
-    // envelope indicates a clock/nonce failure; return the first response.
-    return firstResponse;
-  }
-  const secondRequest = buildSignedRequest(snapshot, config.headerName, secondSignerTransaction.transactionId);
+  // Commit to the fully prepared retry. Cancellation cannot block it, even if
+  // a native tee's caller-owned sibling remains unread. send rechecks abort in
+  // case cancellation itself triggers it and disposes the unsent retry body.
+  cancelOwnedBody(firstResponse);
   // A second stale challenge stops: no further automatic retries.
-  return config.fetchImpl(secondRequest);
+  return send(secondRequest);
 }

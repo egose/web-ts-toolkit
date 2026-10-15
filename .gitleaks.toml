@@ -1,0 +1,49 @@
+title = "web-ts-toolkit gitleaks configuration"
+
+# Scan with the default rule set. False positives from committed fixtures
+# (fake credentials by design) are handled with path allowlists below —
+# no inline suppression comments needed in source files.
+[extend]
+useDefault = true
+
+# Test fixtures, example env files, READMEs, and planning docs ship committed
+# fake credentials (e.g. signer keyHex fixtures, sentinel API keys, CHANGE-ME
+# placeholders). Flagging them would only add noise, so they are excluded by
+# path. Mirrors the old detect-secrets per-hook `exclude` plus the global
+# lockfile excludes in .pre-commit-config.yaml.
+[[allowlists]]
+description = "Committed fixtures use fake credentials by design"
+paths = [
+  '''docs/tasks/''',
+  '''docs/release-tag-dispatch\.md$''',
+  '''\.env\.example$''',
+  '''README\.md$''',
+  '''llms\.txt$''',
+  '''packages/express-request-attestation/test/fixtures/''',
+  '''packages/express-request-attestation/test/fixtures/signer-bundle/''',
+]
+
+# Test and docs sources use sentinel/fake generic API keys by design
+# (e.g. sentinel-apikey-*, moo03-pw-*, SECRET-*, synthetic JWTs). These trip
+# the broad `generic-api-key` rule only; other rules still scan these paths,
+# so real token formats (AWS keys, private keys, etc.) are still caught.
+[[allowlists]]
+description = "Sentinel generic API keys in tests and docs are fake by design"
+rules = ["generic-api-key"]
+paths = [
+  '''packages/.*/test/.*''',
+  '''packages/.*/template/tests/.*''',
+  '''apps/.*/test/.*''',
+  '''docs/.*''',
+]
+
+# Generated artifacts mirror the global `exclude` in .pre-commit-config.yaml:
+# dependency lockfiles and the generated changelog are never secret sources.
+[[allowlists]]
+description = "Lockfiles and generated artifacts"
+paths = [
+  '''pnpm-lock\.yaml$''',
+  '''package-lock\.json$''',
+  '''yarn\.lock$''',
+  '''CHANGELOG\.md$''',
+]

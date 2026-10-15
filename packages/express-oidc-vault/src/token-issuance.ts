@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { decodeJwt, decodeProtectedHeader } from 'jose';
 
+import { isCompactSignedJwt, readJwtExpirationMs, snapshotJkt } from './access-token-confirmation';
 import { clearSessionCookie, usesCookieTransport } from './cookies';
 import {
   resolveVerifiedDeviceBinding,
@@ -28,17 +29,7 @@ export const createExchangeResponse = (
   tokenType: issuedToken.tokenType,
 });
 
-const isCompactSignedJwt = (token: string): boolean => {
-  const parts = token.split('.');
-  return (
-    parts.length === 3 &&
-    parts.every((part) =>
-      /^[A-Za-z0-9_-]+$/.test(part) ? Buffer.from(part, 'base64url').toString('base64url') === part : false,
-    )
-  );
-};
-
-const assertIssuedTokenConfirmation = (accessToken: string, jkt: string): void => {
+const assertIssuedBoundJwt = (accessToken: string, jkt: string): void => {
   // This is the trusted issuer's OUTPUT contract, never authentication by
   // unverified decoding. Request-aware APIs independently verify the JWT.
   if (!isCompactSignedJwt(accessToken)) {
@@ -55,9 +46,15 @@ const assertIssuedTokenConfirmation = (accessToken: string, jkt: string): void =
   if (typeof header.alg !== 'string' || header.alg.length === 0 || header.alg === 'none' || header.b64 === false) {
     throw new TypeError('tokenIssuer.issue accessToken must use a signed JWT algorithm for bound issuance.');
   }
-  const cnf: unknown = claims.cnf;
-  if (typeof cnf !== 'object' || cnf === null || Array.isArray(cnf) || (cnf as Record<string, unknown>).jkt !== jkt) {
+  const confirmation = snapshotJkt(
+    claims.cnf,
+    (diagnostic) => new TypeError(`tokenIssuer.issue accessToken cnf.jkt is invalid. ${diagnostic}`),
+  );
+  if (confirmation.jkt !== jkt) {
     throw new TypeError('tokenIssuer.issue accessToken cnf.jkt must match the verified device binding.');
+  }
+  if (readJwtExpirationMs(claims.exp) === undefined) {
+    throw new TypeError('tokenIssuer.issue accessToken exp must be a nonnegative safe integer with safe milliseconds.');
   }
 };
 
@@ -113,7 +110,10 @@ export const withIssuedToken = async (
       }
     } else {
       if (tokenType !== 'DPoP') throw new TypeError('tokenIssuer.issue tokenType must be DPoP for bound issuance.');
-      assertIssuedTokenConfirmation(accessToken, binding.jkt);
+      if (!Number.isSafeInteger(expiresIn * 1000)) {
+        throw new TypeError('tokenIssuer.issue expiresIn must have safe milliseconds for bound issuance.');
+      }
+      assertIssuedBoundJwt(accessToken, binding.jkt);
     }
 
     return { accessToken, expiresIn, ...(tokenType === undefined ? {} : { tokenType }) };

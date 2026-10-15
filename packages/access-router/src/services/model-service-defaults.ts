@@ -15,7 +15,10 @@ import type {
   UpsertArgs,
   UpsertOptions,
 } from '../interfaces';
-import type { Service } from './service';
+import type { Service as ModelService } from './service';
+
+// Presentation defaults do not depend on a service's model/virtual authorization methods.
+type Service<T> = Pick<ModelService<T>, 'defaults' | 'getPermissionsPosture'>;
 
 /**
  * Router-level permission postures win over client input and per-operation
@@ -42,7 +45,6 @@ export function resolveFindOneArgs<TModel>(service: Service<TModel>, args: FindO
     sort: args.sort ?? service.defaults.findOneArgs?.sort,
     populate: args.populate ?? service.defaults.findOneArgs?.populate,
     include: args.include ?? service.defaults.findOneArgs?.include,
-    overrides: args.overrides ?? {},
   };
 }
 
@@ -64,7 +66,6 @@ export function resolveFindByIdArgs<TModel>(service: Service<TModel>, args: Find
     select: args.select ?? service.defaults.findByIdArgs?.select,
     populate: args.populate ?? service.defaults.findByIdArgs?.populate,
     include: args.include ?? service.defaults.findByIdArgs?.include,
-    overrides: args.overrides ?? {},
   };
 }
 
@@ -93,7 +94,6 @@ export function resolveFindArgs<TModel>(service: Service<TModel>, args: FindArgs
     limit: args.limit ?? service.defaults.findArgs?.limit,
     page: args.page ?? service.defaults.findArgs?.page,
     pageSize: args.pageSize ?? service.defaults.findArgs?.pageSize,
-    overrides: args.overrides ?? {},
   };
 }
 
@@ -111,13 +111,10 @@ export function resolveFindOptions<TModel>(service: Service<TModel>, options: Fi
 }
 
 export function resolveCreateArgs<TModel>(service: Service<TModel>, args: CreateArgs = {}) {
-  const fromDefaults = service.defaults.createArgs as CreateArgs | undefined;
+  const fromDefaults = service.defaults.createArgs;
   return {
+    select: args.select ?? fromDefaults?.select,
     populate: args.populate ?? fromDefaults?.populate,
-    overrides: {
-      ...(fromDefaults?.overrides ?? {}),
-      ...(args.overrides ?? {}),
-    },
   };
 }
 
@@ -133,13 +130,10 @@ export function resolveCreateOptions<TModel>(service: Service<TModel>, options: 
 }
 
 export function resolveUpdateOneArgs<TModel>(service: Service<TModel>, args: UpdateOneArgs<TModel> = {}) {
-  const fromDefaults = service.defaults.updateOneArgs as UpdateOneArgs<TModel> | undefined;
+  const fromDefaults = service.defaults.updateOneArgs;
   return {
+    select: args.select ?? fromDefaults?.select,
     populate: args.populate ?? fromDefaults?.populate,
-    overrides: {
-      ...(fromDefaults?.overrides ?? {}),
-      ...(args.overrides ?? {}),
-    },
   };
 }
 
@@ -158,13 +152,10 @@ export function resolveUpdateOneOptions<TModel>(service: Service<TModel>, option
 }
 
 export function resolveUpdateByIdArgs<TModel>(service: Service<TModel>, args: UpdateByIdArgs<TModel> = {}) {
-  const fromDefaults = service.defaults.updateByIdArgs as UpdateByIdArgs<TModel> | undefined;
+  const fromDefaults = service.defaults.updateByIdArgs;
   return {
+    select: args.select ?? fromDefaults?.select,
     populate: args.populate ?? fromDefaults?.populate,
-    overrides: {
-      ...(fromDefaults?.overrides ?? {}),
-      ...(args.overrides ?? {}),
-    },
   };
 }
 
@@ -183,13 +174,10 @@ export function resolveUpdateByIdOptions<TModel>(service: Service<TModel>, optio
 }
 
 export function resolveUpsertArgs<TModel>(service: Service<TModel>, args: UpsertArgs<TModel> = {}) {
-  const fromDefaults = service.defaults.upsertArgs as UpsertArgs<TModel> | undefined;
+  const fromDefaults = service.defaults.upsertArgs;
   return {
+    select: args.select ?? fromDefaults?.select,
     populate: args.populate ?? fromDefaults?.populate,
-    overrides: {
-      ...(fromDefaults?.overrides ?? {}),
-      ...(args.overrides ?? {}),
-    },
   };
 }
 

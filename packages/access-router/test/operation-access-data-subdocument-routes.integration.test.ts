@@ -1,5 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import sift from 'sift';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -937,10 +938,14 @@ describe('OAV-04 subdocument list/read routes', () => {
     expect(parentRead).toHaveBeenCalledTimes(1);
     expect(pair.access === 'list' ? fieldList : fieldRead).toHaveBeenCalledTimes(1);
     expect(pair.access === 'list' ? fieldRead : fieldList).not.toHaveBeenCalled();
-    const accesses = fixture.policySpies.flatMap((spy) => spy.mock.calls.map((call) => call[1]));
-    expect(accesses).toContain(`subs.items.${pair.access}`);
-    expect(accesses).toContain(pair.access);
-    expect(accesses.some((access) => /basic|advanced/.test(String(access)))).toBe(false);
+    // F02 resolves captured rows through the private boundary. Observe actual
+    // configured hooks above and the database predicate, not Core.genFilter transport.
+    const predicate = fixture.persistenceSpies[1].mock.calls.at(-1)?.[0]; // Model.findOne
+    expect(predicate).toBeDefined();
+    const matches = sift(predicate);
+    expect(matches({ _id: fixture.seed._id, tenant: 'allowed' })).toBe(true);
+    expect(matches({ _id: fixture.seed._id, tenant: 'denied' })).toBe(false);
+    expect(matches({ _id: new mongoose.Types.ObjectId(), tenant: 'allowed' })).toBe(false);
     expect(wrongPolicy).not.toHaveBeenCalled();
   });
 

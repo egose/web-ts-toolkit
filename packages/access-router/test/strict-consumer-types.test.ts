@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -94,6 +94,148 @@ describe('ARF-14 strict packed-consumer types', () => {
 
   beforeAll(() => {
     consumerDir = stageConsumerDir();
+  });
+
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ])('ARL-08 checks installed numeric count API (%s / %s)', (resolution, extension, module) => {
+    const source = `grouped-count-${resolution}.${extension}`;
+    writeFileSync(
+      path.resolve(consumerDir, source),
+      readFileSync(path.resolve(packageRoot, 'test/grouped-count-consumer.types.fixture.ts'), 'utf8'),
+    );
+    const config = `tsconfig-grouped-count-${resolution}-${extension}.json`;
+    writeFileSync(
+      path.resolve(consumerDir, config),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module,
+          moduleResolution: resolution,
+          strict: true,
+          noUnusedLocals: true,
+          noUnusedParameters: true,
+          noEmit: true,
+          skipLibCheck: true,
+          esModuleInterop: true,
+          types: ['node'],
+        },
+        files: [source],
+      }),
+    );
+    const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+    expect(result.stdout + result.stderr).toBe('');
+    expect(result.status).toBe(0);
+  });
+
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ])('SVA-F03 checks finite named helper migrations (%s / %s)', (resolution, extension, module) => {
+    const source = `field-helper-${resolution}.${extension}`;
+    writeFileSync(
+      path.resolve(consumerDir, source),
+      readFileSync(path.resolve(packageRoot, 'test/field-helper-migration.types.fixture.ts'), 'utf8'),
+    );
+    const runtime = `field-helper-runtime-${resolution}.${extension}`;
+    writeFileSync(
+      path.resolve(consumerDir, runtime),
+      readFileSync(path.resolve(packageRoot, 'test/field-helper-consumer.runtime.fixture.ts'), 'utf8'),
+    );
+    const config = `tsconfig-helper-${resolution}-${extension}.json`;
+    writeFileSync(
+      path.resolve(consumerDir, config),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module,
+          moduleResolution: resolution,
+          strict: true,
+          noUnusedLocals: true,
+          noUnusedParameters: true,
+          noEmit: true,
+          skipLibCheck: true,
+          esModuleInterop: true,
+          types: ['node'],
+        },
+        files: [source, runtime],
+      }),
+    );
+    const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+    expect(result.stdout + result.stderr).toBe('');
+    expect(result.status).toBe(0);
+  });
+
+  it.each(['ts', 'mts', 'cts'])(
+    'SVA-10 checks installed authorization types and public boundaries (%s)',
+    (extension) => {
+      const sources = ['service-authorization-consumer.types.fixture', 'service-authorization-boundary.types.fixture'];
+      for (const source of sources) {
+        const snippet = readFileSync(path.resolve(packageRoot, `test/${source}.ts`), 'utf8')
+          .replaceAll("'../dist/index.js'", "'@web-ts-toolkit/access-router'")
+          .replaceAll("'../dist/advanced.js'", "'@web-ts-toolkit/access-router/advanced'");
+        writeFileSync(path.resolve(consumerDir, `${source}.${extension}`), snippet);
+      }
+      const configFile = `tsconfig-sva10-${extension}.json`;
+      writeFileSync(
+        path.resolve(consumerDir, configFile),
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: extension === 'ts' ? 'ESNext' : 'NodeNext',
+            moduleResolution: extension === 'ts' ? 'Bundler' : 'NodeNext',
+            strict: true,
+            noUnusedLocals: true,
+            noUnusedParameters: true,
+            noEmit: true,
+            skipLibCheck: true,
+            types: ['node'],
+            lib: ['ES2022', 'DOM'],
+          },
+          files: sources.map((source) => `${source}.${extension}`),
+        }),
+      );
+      const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', configFile], consumerDir);
+      expect(result.stdout + result.stderr).toBe('');
+      expect(result.status).toBe(0);
+    },
+  );
+
+  it.each(['ts', 'mts', 'cts'])('rejects the removed service overrides surface (%s)', (extension) => {
+    const sourceFile = `sva09-migration.${extension}`;
+    writeFileSync(
+      path.resolve(consumerDir, sourceFile),
+      readFileSync(path.resolve(packageRoot, 'test/service-authorization-migration.types.fixture.ts'), 'utf8'),
+    );
+    const configFile = `tsconfig-sva09-${extension}.json`;
+    writeFileSync(
+      path.resolve(consumerDir, configFile),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: extension === 'ts' ? 'ESNext' : 'NodeNext',
+          moduleResolution: extension === 'ts' ? 'Bundler' : 'NodeNext',
+          strict: true,
+          noUnusedLocals: true,
+          noUnusedParameters: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: ['node'],
+          lib: ['ES2022', 'DOM'],
+        },
+        files: [sourceFile],
+      }),
+    );
+    const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', configFile], consumerDir);
+    expect(result.stdout + result.stderr).toBe('');
+    expect(result.status).toBe(0);
   });
 
   it.each(['ts', 'mts', 'cts'])(

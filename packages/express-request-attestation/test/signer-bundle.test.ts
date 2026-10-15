@@ -16,9 +16,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import express from 'express';
 import { chromium } from 'playwright';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AttestationError,
   buildMacInputBytes,
   createMemoryAttestationStore,
   createRequestAttestationMiddleware,
@@ -27,6 +28,7 @@ import {
   createStaticKeyProvider,
   encodeTransactionId,
 } from '../src/index.js';
+import type { AttestationKeySnapshot } from '../src/index.js';
 import {
   SIGNER_KEY_MODULE_BYTE_CAP,
   SIGNER_RUNTIME_BYTE_CAP,
@@ -38,6 +40,14 @@ import {
 const PUBLIC_ORIGIN = 'https://attestation.example.com';
 const NAMESPACE = 'att-bundle-tests';
 const NOW = 1780000000000;
+const KEYS_UNAVAILABLE_PAYLOAD = {
+  code: 'ATTESTATION_KEYS_UNAVAILABLE',
+  message: 'Request signing keys are unavailable.',
+};
+const INTERNAL_ERROR_PAYLOAD = {
+  code: 'ATTESTATION_INTERNAL_ERROR',
+  message: 'Request signature verification failed.',
+};
 
 function keyBytes(fill: number): Uint8Array {
   const out = new Uint8Array(32);
@@ -47,6 +57,28 @@ function keyBytes(fill: number): Uint8Array {
 
 function nonceHex(): string {
   return randomBytes(16).toString('hex');
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+async function expectOperationalFailure(
+  response: Response,
+  status: number,
+  payload: { code: string; message: string },
+): Promise<void> {
+  expect(response.status).toBe(status);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('x-attestation-error')).toBeNull();
+  expect(response.headers.get('location')).toBeNull();
+  expect(await response.json()).toEqual(payload);
 }
 
 function signWithNode(input: {
@@ -289,33 +321,97 @@ describe('signer bundle router over HTTP', () => {
     }
   });
 
-  it('builds external URLs from trusted basePath and publicPathPrefix', async () => {
-    const provider = createStaticKeyProvider({
-      currentKeyId: 'url-01',
-      keys: [{ keyId: 'url-01', key: keyBytes(31), acceptFrom: NOW - 1000, acceptUntil: NOW + 60000 }],
-    });
-    const app = express();
-    app.use(
-      '/custom',
-      createSignerBundleRouter({
-        publicOrigin: PUBLIC_ORIGIN,
-        replayNamespace: NAMESPACE,
-        keyProvider: provider,
-        basePath: '/custom',
-        publicPathPrefix: '/prefix',
-        now: () => NOW,
-      }),
-    );
-    const { baseUrl, close } = await startApp(app);
-    try {
-      const metaRes = await fetch(`${baseUrl}/custom/signer-meta`);
-      expect(metaRes.status).toBe(200);
-      const meta = (await metaRes.json()) as { signerUrl: string };
-      expect(meta.signerUrl.startsWith(`${PUBLIC_ORIGIN}/prefix/custom/signer.`)).toBe(true);
-    } finally {
-      await close();
-    }
-  });
+  it.each([
+    { basePath: '/', publicPathPrefix: '', externalPath: '' },
+    { basePath: '/', publicPathPrefix: '/prefix', externalPath: '/prefix' },
+    { basePath: '/custom', publicPathPrefix: '', externalPath: '/custom' },
+    { basePath: '/custom', publicPathPrefix: '/prefix', externalPath: '/prefix/custom' },
+  ])(
+    'serves published signer and relative runtime URLs at basePath=$basePath, prefix=$publicPathPrefix',
+    async ({ basePath, publicPathPrefix, externalPath }) => {
+      const entry = { keyId: 'url-01', key: keyBytes(31), acceptFrom: NOW - 1000, acceptUntil: NOW + 60000 };
+      const provider = createStaticKeyProvider({ currentKeyId: entry.keyId, keys: [entry] });
+      const app = express();
+      app.use(
+        basePath,
+        createSignerBundleRouter({
+          publicOrigin: PUBLIC_ORIGIN,
+          replayNamespace: NAMESPACE,
+          keyProvider: provider,
+          basePath,
+          publicPathPrefix,
+          now: () => NOW,
+        }),
+      );
+      // Model an upstream stripping the external prefix before the application's
+      // own relative mount. Fetch the published external paths through it.
+      const upstream = express();
+      upstream.use(publicPathPrefix || '/', app);
+      const { baseUrl, close } = await startApp(upstream);
+      try {
+        const metaRes = await fetch(`${baseUrl}${externalPath}/signer-meta`, {
+          redirect: 'manual',
+          headers: {
+            host: 'untrusted.example',
+            forwarded: 'host=untrusted.example;proto=http',
+            'x-forwarded-host': 'untrusted.example',
+            'x-forwarded-proto': 'http',
+            'x-forwarded-prefix': '/untrusted',
+          },
+        });
+        expect(metaRes.status).toBe(200);
+        expect(metaRes.headers.get('cache-control')).toBe('no-store');
+        expect(metaRes.headers.get('location')).toBeNull();
+        const meta = (await metaRes.json()) as { signerUrl: string };
+        const runtime = getSignerRuntimeAsset();
+        const keyAsset = getSignerKeyModuleAsset({
+          entry,
+          publicOrigin: PUBLIC_ORIGIN,
+          replayNamespace: NAMESPACE,
+          runtimeFileName: runtime.fileName,
+        });
+        expect.soft(meta).toEqual({
+          version: 1,
+          keyId: entry.keyId,
+          signerUrl: `${PUBLIC_ORIGIN}${externalPath}/${keyAsset.fileName}`,
+          publicOrigin: PUBLIC_ORIGIN,
+          replayNamespace: NAMESPACE,
+        });
+        expect(Buffer.byteLength(JSON.stringify(meta))).toBeLessThanOrEqual(4096);
+
+        const keyRes = await fetch(`${baseUrl}${new URL(meta.signerUrl).pathname}`, { redirect: 'manual' });
+        expect(keyRes.status).toBe(200);
+        expect(keyRes.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+        expect(keyRes.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+        expect(keyRes.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(keyRes.headers.get('location')).toBeNull();
+        expect(keyRes.headers.get('access-control-allow-origin')).toBeNull();
+        const keyBody = Buffer.from(await keyRes.arrayBuffer());
+        expect(keyBody.equals(Buffer.from(keyAsset.bytes))).toBe(true);
+        const keyHash = createHash('sha256').update(keyBody).digest('hex');
+        expect(new URL(meta.signerUrl).pathname).toBe(`${externalPath}/signer.${keyHash}.mjs`);
+
+        // Resolve the actual served import, rather than assuming a runtime URL.
+        const specifier = /from "(\.\/runtime\.[0-9a-f]{64}\.mjs)"/.exec(keyBody.toString('utf8'))?.[1];
+        expect(specifier).toBe(`./${runtime.fileName}`);
+        const runtimeUrl = new URL(specifier as string, meta.signerUrl);
+        expect(runtimeUrl.href).toBe(`${PUBLIC_ORIGIN}${externalPath}/${runtime.fileName}`);
+        const runtimeRes = await fetch(`${baseUrl}${runtimeUrl.pathname}`, { redirect: 'manual' });
+        expect(runtimeRes.status).toBe(200);
+        expect(runtimeRes.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+        expect(runtimeRes.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+        expect(runtimeRes.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(runtimeRes.headers.get('location')).toBeNull();
+        expect(runtimeRes.headers.get('access-control-allow-origin')).toBeNull();
+        const runtimeBody = Buffer.from(await runtimeRes.arrayBuffer());
+        expect(runtimeBody.equals(Buffer.from(runtime.bytes))).toBe(true);
+        const runtimeHash = createHash('sha256').update(runtimeBody).digest('hex');
+        expect(runtimeUrl.pathname).toBe(`${externalPath}/runtime.${runtimeHash}.mjs`);
+      } finally {
+        await close();
+      }
+    },
+  );
 
   it('fails metadata with 503 when the current key is not active', async () => {
     const provider = createStaticKeyProvider({
@@ -342,6 +438,247 @@ describe('signer bundle router over HTTP', () => {
       await close();
     }
   });
+
+  it.each([
+    { boundary: 'at activation', start: NOW - 1, finish: NOW, status: 200 },
+    { boundary: 'before activation', start: NOW - 2, finish: NOW - 1, status: 503 },
+    { boundary: 'just before retirement', start: NOW, finish: NOW + 99, status: 200 },
+    { boundary: 'at retirement', start: NOW, finish: NOW + 100, status: 503 },
+    { boundary: 'after retirement', start: NOW, finish: NOW + 101, status: 503 },
+    { boundary: 'after a backward clock crosses activation', start: NOW + 1, finish: NOW - 1, status: 503 },
+  ])('checks current-key eligibility $boundary after a deferred provider', async ({ start, finish, status }) => {
+    const snapshot: AttestationKeySnapshot = {
+      currentKeyId: 'gated-01',
+      keys: [
+        { keyId: 'gated-01', key: keyBytes(42), acceptFrom: NOW, acceptUntil: NOW + 100 },
+        // An eligible retained key must not substitute for an inactive current.
+        { keyId: 'other-01', key: keyBytes(43), acceptFrom: NOW - 60000, acceptUntil: NOW + 60000 },
+      ],
+    };
+    const gate = deferred<AttestationKeySnapshot>();
+    const getSnapshot = vi.fn(() => gate.promise);
+    let nowMs = start;
+    const app = express();
+    app.use(
+      '/attestation',
+      createSignerBundleRouter({
+        publicOrigin: PUBLIC_ORIGIN,
+        replayNamespace: NAMESPACE,
+        keyProvider: { getSnapshot },
+        now: () => nowMs,
+      }),
+    );
+    const { baseUrl, close } = await startApp(app);
+    const pending = fetch(`${baseUrl}/attestation/signer-meta`, { redirect: 'manual' });
+    try {
+      await expect.poll(() => getSnapshot.mock.calls.length).toBe(1);
+      nowMs = finish;
+      gate.resolve(snapshot);
+      const response = await pending;
+      if (status === 200) {
+        expect(response.status).toBe(200);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        expect(await response.json()).toMatchObject({ keyId: 'gated-01' });
+      } else {
+        await expectOperationalFailure(response, 503, KEYS_UNAVAILABLE_PAYLOAD);
+      }
+      expect(getSnapshot).toHaveBeenCalledTimes(1);
+    } finally {
+      gate.resolve(snapshot);
+      try {
+        await pending;
+      } finally {
+        await close();
+      }
+    }
+  });
+
+  it.each([
+    { failure: 'NaN', read: () => Number.NaN },
+    { failure: 'infinity', read: () => Number.POSITIVE_INFINITY },
+    { failure: 'negative time', read: () => -1 },
+    { failure: 'fractional time', read: () => NOW + 0.5 },
+    { failure: 'unsafe integer', read: () => Number.MAX_SAFE_INTEGER + 1 },
+    {
+      failure: 'throwing clock',
+      read: () => {
+        throw new Error('private clock diagnostics');
+      },
+    },
+    {
+      failure: 'typed stale-key throw',
+      read: () => {
+        throw new AttestationError('ATTESTATION_STALE_KEY');
+      },
+    },
+  ])('returns a fixed internal error for post-provider $failure', async ({ read }) => {
+    const snapshot: AttestationKeySnapshot = {
+      currentKeyId: 'clock-01',
+      keys: [{ keyId: 'clock-01', key: keyBytes(44), acceptFrom: NOW - 60000, acceptUntil: NOW + 60000 }],
+    };
+    const gate = deferred<AttestationKeySnapshot>();
+    const getSnapshot = vi.fn(() => gate.promise);
+    let readClock: () => number = () => NOW;
+    const app = express();
+    app.use(
+      '/attestation',
+      createSignerBundleRouter({
+        publicOrigin: PUBLIC_ORIGIN,
+        replayNamespace: NAMESPACE,
+        keyProvider: { getSnapshot },
+        now: () => readClock(),
+      }),
+    );
+    const { baseUrl, close } = await startApp(app);
+    const pending = fetch(`${baseUrl}/attestation/signer-meta`, { redirect: 'manual' });
+    try {
+      await expect.poll(() => getSnapshot.mock.calls.length).toBe(1);
+      readClock = read;
+      gate.resolve(snapshot);
+      await expectOperationalFailure(await pending, 500, INTERNAL_ERROR_PAYLOAD);
+      expect(getSnapshot).toHaveBeenCalledTimes(1);
+    } finally {
+      gate.resolve(snapshot);
+      try {
+        await pending;
+      } finally {
+        await close();
+      }
+    }
+  });
+
+  it('rejects an invalid initial clock before calling the provider', async () => {
+    const getSnapshot = vi.fn((): AttestationKeySnapshot => {
+      throw new Error('provider must not run');
+    });
+    const app = express();
+    app.use(
+      '/attestation',
+      createSignerBundleRouter({
+        publicOrigin: PUBLIC_ORIGIN,
+        replayNamespace: NAMESPACE,
+        keyProvider: { getSnapshot },
+        now: () => Number.NaN,
+      }),
+    );
+    const { baseUrl, close } = await startApp(app);
+    try {
+      await expectOperationalFailure(await fetch(`${baseUrl}/attestation/signer-meta`), 500, INTERNAL_ERROR_PAYLOAD);
+      expect(getSnapshot).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it.each(['throw', 'reject', 'snapshot accessor', 'oversized snapshot'] as const)(
+    'keeps %s failures operational for discovery and key assets',
+    async (failure) => {
+      let entryReads = 0;
+      const oversizedKeys = Array.from({ length: 17 }, (_, index) => ({
+        keyId: `oversized-${index}`,
+        get key() {
+          entryReads += 1;
+          return keyBytes(index);
+        },
+        acceptFrom: NOW - 60000,
+        acceptUntil: NOW + 60000,
+      }));
+      const getSnapshot = vi.fn((): AttestationKeySnapshot | Promise<AttestationKeySnapshot> => {
+        const error = new AttestationError('ATTESTATION_STALE_KEY');
+        error.message = 'private provider diagnostics';
+        switch (failure) {
+          case 'throw':
+            throw error;
+          case 'reject':
+            return Promise.reject(error);
+          case 'snapshot accessor':
+            return {
+              get currentKeyId(): string {
+                throw error;
+              },
+              keys: [],
+            };
+          case 'oversized snapshot':
+            return { currentKeyId: 'oversized-0', keys: oversizedKeys };
+        }
+      });
+      const app = express();
+      app.use(
+        '/attestation',
+        createSignerBundleRouter({
+          publicOrigin: PUBLIC_ORIGIN,
+          replayNamespace: NAMESPACE,
+          keyProvider: { getSnapshot },
+          now: () => NOW,
+        }),
+      );
+      const { baseUrl, close } = await startApp(app);
+      try {
+        for (const assetPath of ['signer-meta', `signer.${'a'.repeat(64)}.mjs`]) {
+          const response = await fetch(`${baseUrl}/attestation/${assetPath}`, { redirect: 'manual' });
+          await expectOperationalFailure(response, 503, KEYS_UNAVAILABLE_PAYLOAD);
+        }
+        expect(getSnapshot).toHaveBeenCalledTimes(2);
+        expect(entryReads).toBe(0);
+      } finally {
+        await close();
+      }
+    },
+  );
+
+  it.each(['resolve', 'reject'] as const)(
+    'bounds provider waits and ignores late %s before recovery',
+    async (settlement) => {
+      const entry = { keyId: 'timeout-01', key: keyBytes(45), acceptFrom: NOW - 60000, acceptUntil: NOW + 60000 };
+      const snapshot: AttestationKeySnapshot = { currentKeyId: entry.keyId, keys: [entry] };
+      const gate = deferred<AttestationKeySnapshot>();
+      const getSnapshot = vi
+        .fn<() => AttestationKeySnapshot | Promise<AttestationKeySnapshot>>()
+        .mockReturnValueOnce(gate.promise)
+        .mockReturnValue(snapshot);
+      const now = vi.fn(() => NOW);
+      const app = express();
+      app.use(
+        '/attestation',
+        createSignerBundleRouter({
+          publicOrigin: PUBLIC_ORIGIN,
+          replayNamespace: NAMESPACE,
+          keyProvider: { getSnapshot },
+          now,
+          operationTimeoutMs: 20,
+        }),
+      );
+      const { baseUrl, close } = await startApp(app);
+      try {
+        const response = await fetch(`${baseUrl}/attestation/signer-meta`);
+        await expectOperationalFailure(response, 503, KEYS_UNAVAILABLE_PAYLOAD);
+        const clockReadsAtTimeout = now.mock.calls.length;
+        let lateSnapshotReads = 0;
+        if (settlement === 'resolve') {
+          gate.resolve({
+            get currentKeyId() {
+              lateSnapshotReads += 1;
+              return entry.keyId;
+            },
+            keys: [entry],
+          });
+        } else {
+          gate.reject(new Error('late provider diagnostics'));
+        }
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(lateSnapshotReads).toBe(0);
+        expect(now).toHaveBeenCalledTimes(clockReadsAtTimeout);
+
+        const recovered = await fetch(`${baseUrl}/attestation/signer-meta`);
+        expect(recovered.status).toBe(200);
+        expect(await recovered.json()).toMatchObject({ keyId: entry.keyId });
+        expect(getSnapshot).toHaveBeenCalledTimes(2);
+      } finally {
+        gate.resolve(snapshot);
+        await close();
+      }
+    },
+  );
 
   it('accepts signatures from HTTP-served modules via ATT-02 (nonbrowser caller)', async () => {
     const key = keyBytes(51);

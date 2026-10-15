@@ -92,14 +92,27 @@ const CONSUMER_TYPES = `/**
  * deep import is needed or used.
  */
 import {
+  createDeviceFingerprint,
+  createDpopProof,
   createOidcVaultDpopSession,
   DpopNonceCache,
   fetchWithDpop,
+  fingerprintJsSignalSource,
+  getOrCreateDpopKey,
+  OidcVaultDpopClientError,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 import type {
   DeviceFingerprint,
+  DeviceFingerprintOptions,
+  DeviceFingerprintSignalSource,
   DpopAccessToken,
+  DpopApi,
   DpopFetchContext,
+  DpopFetchOptions,
+  DpopKey,
+  DpopKeyScope,
+  DpopProofInput,
+  FingerprintJsAgent,
   OidcVaultDpopSession,
   OidcVaultDpopSessionOptions,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
@@ -108,9 +121,18 @@ const options: OidcVaultDpopSessionOptions = {
   backendOrigin: 'https://auth.example.com',
   basePath: '/auth/oidc/body',
   sessionTransport: 'body',
+  requestTimeoutMs: 15_000,
+  maxResponseBytes: 1_048_576,
 };
 const session = createOidcVaultDpopSession(options);
 session satisfies OidcVaultDpopSession;
+
+// Explicit recovery from a corrupt persisted key, through the installed root interface.
+async function recoverKey(): Promise<void> {
+  await session.resetKey();
+  await session.login('/callback?transport=body');
+}
+void recoverKey;
 
 const context: DpopFetchContext = {
   session,
@@ -120,11 +142,75 @@ const context: DpopFetchContext = {
 const response: Promise<Response> = fetchWithDpop(context, 'https://api.example.com/things');
 void response;
 
+// DPH-05: separate services under one public origin, using root-exported types.
+const gatewayOrigin = 'https://gateway.example.com';
+const gatewayApis = [
+  { origin: gatewayOrigin, pathPrefix: '/orders', replayNamespace: 'orders-api' },
+  { origin: gatewayOrigin, pathPrefix: '/billing', replayNamespace: 'billing-api', credentials: 'include' },
+] as const satisfies readonly DpopApi[];
+const gateway: DpopFetchContext = { session, apis: gatewayApis };
+const orders: Promise<Response> = fetchWithDpop(gateway, gatewayOrigin + '/orders?limit=20');
+const billing: Promise<Response> = fetchWithDpop(gateway, gatewayOrigin + '/billing/invoices');
+void orders;
+void billing;
+
 // CLIENT-08 root type exports resolve from the packed declarations.
 declare const fingerprint: DeviceFingerprint;
 declare const issued: DpopAccessToken | undefined;
 void fingerprint;
 void issued?.jkt;
+const profile: string | undefined = issued?.user?.sub;
+void profile;
+
+const keyScope: DpopKeyScope = {
+  frontendOrigin: 'https://app.example.com', backendOrigin: options.backendOrigin, basePath: '/auth/oidc/body',
+};
+const existingKey: Promise<DpopKey> = getOrCreateDpopKey(keyScope, { create: false });
+declare const agent: FingerprintJsAgent;
+const signalSource: DeviceFingerprintSignalSource = fingerprintJsSignalSource(async () => agent);
+const fingerprintOptions: DeviceFingerprintOptions = { headerName: 'X-Device-Fingerprint' };
+const recognized: DeviceFingerprint = createDeviceFingerprint(signalSource, fingerprintOptions);
+void existingKey;
+void recognized;
+
+// Cancellation uses DOM AbortSignal in both declaration conditions.
+declare const key: DpopKey;
+const controller = new AbortController();
+const proofInput: DpopProofInput = {
+  method: 'GET', url: 'https://api.example.com/things', signal: controller.signal,
+};
+const proof: Promise<string> = createDpopProof(key, proofInput);
+const fetchOptions: DpopFetchOptions = { signal: controller.signal, retry: 'never' };
+void proof;
+void fetchWithDpop(context, proofInput.url, fetchOptions);
+
+declare const error: unknown;
+if (error instanceof OidcVaultDpopClientError) {
+  error.code satisfies string;
+  error.requiresLogin satisfies boolean;
+  error.status satisfies number | undefined;
+}
+
+// @ts-expect-error — reset is scoped by the session, not an arbitrary database id.
+session.resetKey('other-scope');
+// @ts-expect-error — timeouts are milliseconds, not duration strings.
+createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, requestTimeoutMs: '15s' });
+// @ts-expect-error — byte limits are numbers.
+createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, maxResponseBytes: '1MiB' });
+// @ts-expect-error — proof cancellation takes a DOM signal, not a controller.
+createDpopProof(key, { method: 'GET', url: proofInput.url, signal: controller });
+// @ts-expect-error — callers cannot override the API credential policy.
+fetchWithDpop(context, proofInput.url, { credentials: 'include' });
+
+// Ambient tripwires: types:[] must not borrow Node via a transitive declaration.
+// @ts-expect-error — a DOM-only app has no Node process global.
+void process;
+// @ts-expect-error — a DOM-only app has no Buffer global.
+void Buffer;
+// @ts-expect-error — a DOM-only app has no NodeJS namespace.
+type NodeProcess = NodeJS.Process;
+// @ts-expect-error — browser declarations must not create an ambient Express module.
+import type { Request as ExpressRequest } from 'express-serve-static-core';
 
 // @ts-expect-error — only 'body' | 'cookie' are valid transports.
 createOidcVaultDpopSession({ backendOrigin: 'https://auth.example.com', sessionTransport: 'header' });
@@ -140,9 +226,9 @@ const TSCONFIG_NODENEXT = `{
     "skipLibCheck": false,
     "noEmit": true,
     "esModuleInterop": true,
-    "types": ["node"]
+    "types": []
   },
-  "include": ["consumer-types.ts"]
+  "include": ["consumer-types.ts", "consumer-types.cts"]
 }
 `;
 
@@ -156,7 +242,7 @@ const TSCONFIG_BUNDLER = `{
     "skipLibCheck": false,
     "noEmit": true,
     "esModuleInterop": true,
-    "types": ["node"]
+    "types": []
   },
   "include": ["consumer-types.ts"]
 }
@@ -166,6 +252,7 @@ function writeConsumerSources(consumerDir: string): void {
   writeFileSync(path.resolve(consumerDir, 'consumer.cjs'), CONSUMER_CJS);
   writeFileSync(path.resolve(consumerDir, 'consumer.mjs'), CONSUMER_MJS);
   writeFileSync(path.resolve(consumerDir, 'consumer-types.ts'), CONSUMER_TYPES);
+  writeFileSync(path.resolve(consumerDir, 'consumer-types.cts'), CONSUMER_TYPES);
   writeFileSync(path.resolve(consumerDir, 'tsconfig-nodenext.json'), TSCONFIG_NODENEXT);
   writeFileSync(path.resolve(consumerDir, 'tsconfig-bundler.json'), TSCONFIG_BUNDLER);
 }
@@ -207,6 +294,7 @@ describe('CLIENT-06 packed-package compatibility', () => {
     const packedManifest = JSON.parse(readFileSync(path.resolve(unpackRoot, 'package.json'), 'utf8')) as {
       exports: { '.': { types: { import: string; require: string }; import: string; require: string } };
       dependencies: Record<string, string>;
+      engines: { node: string };
     };
 
     // Every exports target resolves inside the packed tree; README ships.
@@ -242,28 +330,44 @@ describe('CLIENT-06 packed-package compatibility', () => {
     }
 
     // Runtime deps stay external requires/imports, not bundled server code.
-    expect(packedManifest.dependencies).toMatchObject({ jose: expect.any(String), idb: expect.any(String) });
+    expect(Object.keys(packedManifest.dependencies).sort()).toEqual(['idb', 'jose']);
+    expect(packedManifest.engines.node).toBe('>=22.12.0');
   });
 
-  it('installs the packed tarball and runs packed CJS/ESM runtime plus strict NodeNext/Bundler type consumers', () => {
+  it('packs browser-only declarations without backend auth types or Express augmentation', () => {
+    const unpackRoot = unpackTarballToDir(preparePackedTarball());
+    for (const declaration of ['dist/index.d.ts', 'dist/index.d.mts']) {
+      const text = readFileSync(path.resolve(unpackRoot, declaration), 'utf8');
+      const declarations = text.replace(/\/\*[\s\S]*?\*\//g, '');
+      expect(/express|node:|NodeJS|\bBuffer\b|OidcVaultAuthContext|declare module/.test(declarations)).toBe(false);
+      expect(/from ['"]\.\.?\//.test(declarations)).toBe(false);
+    }
+  });
+
+  it('installs the tarball and runs CJS/ESM runtimes plus DOM-only strict NodeNext/Bundler consumers', () => {
     const consumerDir = installPackedConsumer();
     writeConsumerSources(consumerDir);
 
-    // CJS require resolves from the fresh install via `exports.require`.
-    run('node', ['consumer.cjs'], consumerDir);
-
-    // ESM import resolves via `exports.import`. `node` picks
-    // `type: "module"` from the consumer package.json.
-    run('node', ['consumer.mjs'], consumerDir);
+    // Set DPOP_TEST_NODE to an additional runtime executable (e.g. the advertised
+    // minimum) while keeping pnpm/TypeScript on the repository toolchain.
+    for (const node of new Set(
+      [process.execPath, process.env.DPOP_TEST_NODE].filter((value): value is string => !!value),
+    )) {
+      run(node, ['consumer.cjs'], consumerDir);
+      run(node, ['consumer.mjs'], consumerDir);
+    }
 
     // Strict NodeNext typecheck against the installed declarations through
     // the export map's per-condition `types.import` (`./dist/index.d.mts`).
     // `skipLibCheck: false` so the package's own declaration surface is
     // fully checked.
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
-
-    // Strict Bundler typecheck — same consumer source, Bundler resolution.
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+    for (const config of ['tsconfig-nodenext.json', 'tsconfig-bundler.json']) {
+      const files = run('pnpm', ['exec', 'tsc', '-p', config, '--listFiles'], consumerDir);
+      // A transitive import must not rescue an accidental Node/Express leak.
+      expect(files).not.toMatch(/[/\\]@types[/\\]|express-oidc-vault|express-serve-static-core/);
+      expect(files).toContain('/dist/index.d.mts');
+      if (config === 'tsconfig-nodenext.json') expect(files).toContain('/dist/index.d.ts');
+    }
 
     // Sanity: the installed consumer holds a real packed package in its
     // node_modules (no workspace path mapping, no source symlink).

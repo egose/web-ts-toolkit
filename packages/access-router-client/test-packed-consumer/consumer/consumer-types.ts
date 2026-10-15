@@ -149,3 +149,38 @@ void owner;
 const correlatedErr = new CorrelatedIncludeError('bad include');
 const _correlatedIsError: Error = correlatedErr;
 void _correlatedIsError;
+
+// SVA-10: server capabilities must not become typed client request options.
+import type {
+  ListOptions,
+  ReadOptions,
+  CreateOptions,
+  UpdateOptions,
+  UpsertOptions,
+  Populate,
+} from '@web-ts-toolkit/access-router-client';
+type ClientOptions = ListOptions | ReadOptions | CreateOptions | UpdateOptions | UpsertOptions | Populate;
+type Keys<T> = T extends unknown ? keyof T : never;
+type AssertNever<T extends never> = T;
+export type NoServerAuthority = AssertNever<
+  Extract<Keys<ClientOptions>, 'authorization' | 'overrides' | 'documentAuthorization' | 'execution' | 'preparedQuery'>
+>;
+// @ts-expect-error list transport cannot carry server policy
+const backendList: ListOptions = { authorization: { rows: { mode: 'unrestricted' } } };
+// @ts-expect-error read transport cannot carry server policy
+const backendRead: ReadOptions = { authorization: { outputFields: { mode: 'grant', paths: ['name'] } } };
+// @ts-expect-error create transport cannot carry server policy
+const backendCreate: CreateOptions = { authorization: {} };
+// @ts-expect-error update transport cannot carry document-state handles
+const backendUpdate: UpdateOptions = { documentAuthorization: {} };
+// @ts-expect-error upsert transport cannot carry prepared execution
+const backendUpsert: UpsertOptions = { preparedQuery: {} };
+// @ts-expect-error populate descriptors cannot carry target authority
+const backendPopulate: Populate = { path: 'owner', authorization: {} };
+// @ts-expect-error client read methods do not acquire the backend service API
+petService.read('pet-1', {}, { authorization: {} });
+// @ts-expect-error removed service overrides are not client options
+petService.list({}, { overrides: {} });
+// @ts-expect-error backend policy types are not client exports
+export type NoClientPolicyExport = import('@web-ts-toolkit/access-router-client').ServiceAuthorization;
+void [backendList, backendRead, backendCreate, backendUpdate, backendUpsert, backendPopulate];

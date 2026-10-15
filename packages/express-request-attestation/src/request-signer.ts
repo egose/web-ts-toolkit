@@ -1,10 +1,8 @@
 /**
- * ATT-06 browser WebCrypto request signer (task sections 4.1/4.2/4.6).
+ * Browser WebCrypto request signer.
  *
- * Browser-safe ONLY: this module and everything it imports (`src/shared/*`,
- * `./client-errors.js`) must never import Express, Redis, `Buffer`, `NodeJS`,
- * or `node:*` values or types. Typechecked by
- * `tsconfig.signer-browser.json` with `types: []`.
+ * Import from `@web-ts-toolkit/express-request-attestation/signer`; no Node,
+ * Express, Redis, or MongoDB dependencies/types are required.
  *
  * `createRequestSigner({ keyId, key, publicOrigin, replayNamespace })`
  * copies and validates 32-byte material, then returns the typed
@@ -13,7 +11,7 @@
  * (`buildMacInputBytes`) and returns the transaction ID
  * (`encodeTransactionId`). With explicit timestamp/nonce/body hash the
  * operation is deterministic; automatic nonce/timestamp selection belongs to
- * ATT-07's request wrapper, never to this low-level API.
+ * `fetchWithAttestation`, never to this low-level API.
  *
  * Key handling:
  *
@@ -24,6 +22,8 @@
  *   { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])`. Non-extractable
  *   wrapping does NOT make publicly delivered material confidential: any
  *   caller that can fetch the module can sign fresh proofs.
+ *   Concurrent calls share the import; a rejected import is cleared so a
+ *   later explicit signing attempt can recover.
  * - Required capabilities (`TextEncoder`, `crypto.subtle`,
  *   `crypto.getRandomValues`, secure context) are feature-detected ON USE,
  *   never at import. Importing this module performs no network requests,
@@ -168,7 +168,13 @@ export function generateNonceHex(): string {
  * material and returns immutable protection-space binding plus
  * `sign(input)`. The HMAC key is imported lazily (non-extractable) on first
  * `sign`; the factory itself performs no crypto, network, timer, or storage
- * work.
+ * work. Concurrent calls share the import. Import failure rejects with
+ * `SignerClientError`; a later `sign` call can retry the import. Callers supply
+ * timestamp, nonce, final Content-Type, and exact body digest themselves;
+ * prefer `fetchWithAttestation` for automatic preparation and fresh proofs.
+ * Public HMAC material remains accessible to every caller and does not
+ * authenticate a user/session. Invalid options throw `AttestationProtocolError`;
+ * missing WebCrypto capability and crypto failure use SIGNER_PREPARATION_FAILED.
  */
 export function createRequestSigner(options: RequestSignerOptions): RequestSigner {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
@@ -211,12 +217,13 @@ export function createRequestSigner(options: RequestSignerOptions): RequestSigne
     })();
     cachedKey = pending;
     try {
-      await pending;
-    } catch {
-      cachedKey = null;
-      throw pending;
+      return await pending;
+    } catch (error) {
+      if (cachedKey === pending) {
+        cachedKey = null;
+      }
+      throw error;
     }
-    return pending;
   }
 
   async function sign(input: SignInput): Promise<string> {

@@ -282,11 +282,11 @@ Completion evidence:
 
 Resolution note (2026-09-26): `BND-07-FOLLOWUP` was authorized as contract (A),
 consistent assignment, and implemented in
-[CLC-05 completion evidence](./20260926-215404-access-router-client-business-contracts.md#task-clc-05-persist-direct-writes-to-absent-model-fields).
+[CLC-05 completion evidence](./20260920-215404-access-router-client-business-contracts.md#task-clc-05-persist-direct-writes-to-absent-model-fields).
 Its seven characterization tests now assert tracked absent-field assignment,
 save/reset and helper-after-direct behavior. Public docs/migration verification
 is recorded under
-[CLC-06](./20260926-215404-access-router-client-business-contracts.md#task-clc-06-document-the-corrected-business-and-migration-contracts).
+[CLC-06](./20260920-215404-access-router-client-business-contracts.md#task-clc-06-document-the-corrected-business-and-migration-contracts).
 The findings and deferral above record the original investigation, before that
 runtime resolution.
 
@@ -544,3 +544,10 @@ Verification: V2, V3, V4 and evidence review of all tasks.
 - Unbounded distinct in-flight misses, global invalidation granularity, timer-based expiry, and real-browser engine coverage are existing historical residuals, not newly duplicated tasks here. Revisit only with a concrete workload or support requirement.
 - Optional retries, cache tagging, extra collection helpers, and broad direct/grouped finalization refactors are not justified as missing required features by this review. Mutation retries in particular require an idempotency contract.
 - Completion requires task-specific observable evidence, passing required checks, updated public contracts, and independent BND-13 review. Investigation tasks may conclude without implementation, but unresolved risks must remain explicit and owned. This file being saved completes only the review/planning deliverable.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

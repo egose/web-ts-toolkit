@@ -6,7 +6,7 @@
  * from the backend consumer's runtime. Browser consumers import `./signer`
  * instead and never load this graph.
  *
- * Final public surface (ATT-08/MONGO-03 verified): the shared protocol (codec,
+ * Public surface: the shared protocol (codec,
  * canonical form, time policy), server option/type declarations, fixed HTTP
  * errors, Node hashing helpers, verify-before-reserve middleware with parser
  * body capture, bounded memory, Redis, and MongoDB replay stores, owned key
@@ -162,10 +162,10 @@ export function deriveAttestationReplayKey(input: {
 }
 
 // ---------------------------------------------------------------------------
-// ATT-02/03/04/05 implementations. Signatures follow task section 4.
+// Server integration and caller-owned replay/key services.
 // ---------------------------------------------------------------------------
 
-/** ATT-02: verify-before-reserve Express middleware. */
+/** Verify-before-reserve Express middleware. */
 export { createRequestAttestationMiddleware } from './middleware.js';
 export type {
   AttestationDiagnosticEvent,
@@ -173,11 +173,11 @@ export type {
   CreateRequestAttestationMiddlewareOptionsWithDiagnostic,
 } from './middleware.js';
 
-/** ATT-02: parser body-capture integration. */
+/** Exact-byte Express parser capture. */
 export { createAttestationBodyCapture, getAttestationBodyRecord } from './body-capture.js';
 export type { AttestationBodyCaptureWithRecord, AttestationBodyRecord } from './body-capture.js';
 
-/** ATT-02: pure verification helpers (no replay allocation). */
+/** Pure verification helpers (no replay allocation). */
 export {
   assertAllowedContentEncoding,
   checkProofTiming,
@@ -189,10 +189,10 @@ export {
 } from './verify.js';
 export type { AttestationVerifiedProof, AttestationVerifyInput } from './verify.js';
 
-// ATT-03: bounded atomic memory replay store and its capacity error.
+// Bounded atomic memory replay store and shared capacity error.
 export { AttestationCapacityError, createMemoryAttestationStore } from './stores/memory.js';
 
-// ATT-04: shared bounded Redis replay admission over one same-slot ledger.
+// Shared bounded Redis replay admission over one same-slot ledger.
 export {
   AttestationRedisStoreError,
   createRedisAttestationStore,
@@ -200,7 +200,7 @@ export {
   REDIS_ATTESTATION_STORE_DEFAULT_MAX_ENTRIES,
 } from './stores/redis.js';
 
-// MONGO-01: shared bounded MongoDB replay admission over two collections.
+// Shared bounded MongoDB replay admission over two collections.
 export {
   AttestationMongoStoreError,
   createMongoAttestationStore,
@@ -215,8 +215,8 @@ export type {
   MongoAttestationStoreSession,
 } from './stores/mongodb.js';
 
-// ATT-05: owned key rotation (static/rotating providers plus key generation).
+// Owned key rotation (static/rotating providers plus key generation).
 export { createRotatingKeyProvider, createStaticKeyProvider, generateAttestationKey } from './keys.js';
 
-// ATT-05: relative signer-asset router with immutable content-addressed modules.
+// Relative signer-asset router with immutable content-addressed modules.
 export { createSignerBundleRouter } from './signer-bundle.js';

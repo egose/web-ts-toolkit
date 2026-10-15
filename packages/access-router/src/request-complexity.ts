@@ -15,25 +15,35 @@ export interface RequestComplexityOptions {
    * Recursive orchestration holds no permit; internal map/run bounds are per call.
    * One operation may issue multiple driver commands via Mongoose middleware/populate;
    * direct DB/network calls from trusted application hooks are outside this ceiling.
+   * Captured together with maxHookConcurrency on first request/runtime work-state use;
+   * later configuration changes apply to new requests, not an existing pool.
    * Not a process-wide connection limit or protection against competing edits.
    */
   maxBulkConcurrency?: number;
   /**
-   * Defaults to 10. Per-request/per-runtime ceiling on concurrently awaited
-   * virtual-getter + row-finalization orchestration work (VIRT-00A D7), NOT a
-   * per-row multiplier and NOT leaf persistence admission. Top-level lists
-   * finalize rows through ONE bounded map with a shared hook gate held only
-   * for getter bodies (stable index-keyed order regardless of completion
-   * order), so peak active getter work stays at or below this limit — never
-   * `rows × getters`. Nested include/populate/embedded work uses bounded
-   * child maps with a finite bound derived from the same limit; recursion
-   * depth is additionally bounded by `maxCorrelatedDepth` and the correlated
-   * budgets. Recursive orchestration never holds leaf persistence permits
-   * (`RequestConcurrencyScheduler.work`, which admits only leaf
-   * adapter/document persistence ops) while awaiting descendants or hooks,
-   * so limit-1 configurations complete. Trusted direct DB/network I/O issued
-   * by virtual getters themselves runs outside the leaf persistence ceiling
-   * (no dataloader/batching in v1). Not a process-wide connection limit.
+   * Defaults to 10. Shared request/runtime ceiling on independently admitted
+   * hook chains across services, root entries, includes, populate and subdocuments.
+   * Covers model docPermissions (including pre-write/helper/owning-parent stages),
+   * virtual getters, model/data decorate/decorateAll, service output decorators,
+   * and data request-field selection/trimming stages. Other guards, row/ID filters,
+   * model field-rule callbacks and write lifecycle hooks are outside this pool.
+   *
+   * A hook may await nested services, even at 1: descendants reuse its chain,
+   * with ONE immediate child branch admitted per frame, FIFO through descendant
+   * settlement. Promise.all sibling hooks serialize within that chain. Waiting
+   * ancestors are additional callback frames, NOT additional permits; this is
+   * not a bound on all unsettled callbacks/orchestration promises. Reentrant
+   * admission is capped at 64 scopes per chain (including internal wrappers);
+   * overflow rejects through the existing hook failure policy. A settled scope
+   * closes to reentry and drains queued children before releasing; detached late
+   * continuations reacquire root admission. Await hook work; avoid cross-branch
+   * dependency cycles. Root and per-frame child queues each transfer permits FIFO.
+   *
+   * Captured with maxBulkConcurrency on first request/runtime work-state use.
+   * Per-call row/traversal maps preserve input/output association independently
+   * of completion order. Hooks/orchestration hold no persistence permits. Trusted
+   * direct DB/network fan-out and query totals are not bounded by these pools;
+   * neither is a process-wide connection limit or an N+1 batching mechanism.
    */
   maxHookConcurrency?: number;
   /** Cumulative correlated target executions per request/runtime (default 100); permit release does not refund this budget. */

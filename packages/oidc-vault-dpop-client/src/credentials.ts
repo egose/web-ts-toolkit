@@ -1,19 +1,17 @@
-/**
- * Browser-only DPoP client (CLIENT-02 port of apps/oidc-vault-dpop-example/src/auth/*).
- * No `node:*` or `express` imports. Browser globals (crypto.subtle, indexedDB,
- * sessionStorage, navigator.locks, BroadcastChannel) only behind
- * assertDpopBrowserFeatures / lazy factory calls, never at module top-level.
- */
-import { decodeJwt, decodeProtectedHeader } from 'jose';
+import { base64url, decodeJwt, decodeProtectedHeader } from 'jose';
 
 import { OidcVaultDpopClientError } from './errors';
 import type { OidcVaultSessionTransport, OidcVaultUserProfile } from './wire';
 
+/** Contract-checked browser credential. Decoding does not authenticate the JWT; the API must verify it. */
 export interface DpopAccessToken {
   readonly accessToken: string;
   readonly tokenType: 'DPoP';
+  /** Safe epoch milliseconds, capped by JWT exp and response/peer lifetime. May already be expired (e.g. expiresIn: 0); check before reuse. */
   readonly expiresAt: number;
+  /** Exact canonical RFC 7638 SHA-256 thumbprint from the one-field cnf object, matching the persistent browser key. */
   readonly jkt: string;
+  /** Opaque response generation for cookie-peer coordination, not a server session handle. */
   readonly generation: string;
   readonly user?: OidcVaultUserProfile;
 }
@@ -25,7 +23,74 @@ const invalidCredentials = (): OidcVaultDpopClientError =>
     true,
   );
 
-/** Trusted server response contract check, NOT JWT authentication (the API does that). */
+const isSafeNonnegativeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+/** Shared direct-response/peer profile check, NOT signature or claims authentication. */
+const decodeBoundJwtExpiration = (accessToken: string, jkt: string): number => {
+  try {
+    const parts = accessToken.split('.');
+    if (
+      parts.length !== 3 ||
+      !parts.every((part) => /^[A-Za-z0-9_-]+$/.test(part) && base64url.encode(base64url.decode(part)) === part)
+    )
+      throw invalidCredentials();
+    const header = decodeProtectedHeader(accessToken);
+    const claims = decodeJwt(accessToken);
+    const cnf = claims.cnf;
+    if (
+      typeof header.alg !== 'string' ||
+      header.alg.length === 0 ||
+      header.alg === 'none' ||
+      header.b64 === false ||
+      typeof jkt !== 'string' ||
+      jkt.length !== 43 ||
+      !/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(jkt) ||
+      typeof cnf !== 'object' ||
+      cnf === null ||
+      Array.isArray(cnf) ||
+      Reflect.ownKeys(cnf).length !== 1 ||
+      !Object.hasOwn(cnf, 'jkt') ||
+      !('jkt' in cnf) ||
+      cnf.jkt !== jkt ||
+      !isSafeNonnegativeInteger(claims.exp)
+    )
+      throw invalidCredentials();
+    const expiration = claims.exp * 1000;
+    if (!isSafeNonnegativeInteger(expiration)) throw invalidCredentials();
+    return expiration;
+  } catch {
+    throw invalidCredentials();
+  }
+};
+
+const createToken = (
+  accessToken: string,
+  expiresAt: number,
+  jkt: string,
+  generation: string,
+  user: unknown,
+): DpopAccessToken => {
+  if (
+    user !== undefined &&
+    (typeof user !== 'object' ||
+      user === null ||
+      Array.isArray(user) ||
+      !('sub' in user) ||
+      typeof user.sub !== 'string')
+  )
+    throw invalidCredentials();
+  return Object.freeze({
+    accessToken,
+    tokenType: 'DPoP',
+    expiresAt,
+    jkt,
+    generation,
+    ...(user === undefined ? {} : { user: structuredClone(user) as OidcVaultUserProfile }),
+  });
+};
+
+/** Trusted server response contract check. Retain zero-lifetime handles; JWT authentication belongs to the API. */
 export const parseDpopCredentials = (
   value: unknown,
   transport: OidcVaultSessionTransport,
@@ -36,56 +101,21 @@ export const parseDpopCredentials = (
   const { accessToken, tokenType, expiresIn, sessionId, user } = value as Record<string, unknown>;
   if (
     typeof accessToken !== 'string' ||
-    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(accessToken) ||
     tokenType !== 'DPoP' ||
-    typeof expiresIn !== 'number' ||
-    !Number.isSafeInteger(expiresIn) ||
-    expiresIn < 0 ||
+    !isSafeNonnegativeInteger(expiresIn) ||
+    !isSafeNonnegativeInteger(now) ||
     (transport === 'body' && (typeof sessionId !== 'string' || sessionId.length === 0)) ||
     (transport === 'cookie' && 'sessionId' in value)
   )
     throw invalidCredentials();
-  let expiration: number;
-  try {
-    const header = decodeProtectedHeader(accessToken);
-    const claims = decodeJwt(accessToken);
-    const cnf = claims.cnf;
-    if (
-      !header.alg ||
-      header.alg === 'none' ||
-      header.b64 === false ||
-      typeof cnf !== 'object' ||
-      cnf === null ||
-      Array.isArray(cnf) ||
-      !('jkt' in cnf) ||
-      cnf.jkt !== jkt ||
-      typeof claims.exp !== 'number' ||
-      !Number.isSafeInteger(claims.exp) ||
-      claims.exp < 0
-    )
-      throw invalidCredentials();
-    expiration = Math.min(now + expiresIn * 1000, claims.exp * 1000);
-    if (!Number.isSafeInteger(expiration)) throw invalidCredentials();
-  } catch {
-    throw invalidCredentials();
-  }
-  if (
-    user !== undefined &&
-    (typeof user !== 'object' ||
-      user === null ||
-      Array.isArray(user) ||
-      !('sub' in user) ||
-      typeof user.sub !== 'string')
-  )
-    throw invalidCredentials();
-  const token: DpopAccessToken = Object.freeze({
-    accessToken,
-    tokenType,
-    expiresAt: expiration,
-    jkt,
-    generation: crypto.randomUUID(),
-    ...(user === undefined ? {} : { user: structuredClone(user) as OidcVaultUserProfile }),
-  });
+  // Validate every operand/intermediate before a smaller deadline can mask an
+  // overflow, fractional clock, or invalid JWT exp through Math.min.
+  const lifetimeMs = expiresIn * 1000;
+  if (!isSafeNonnegativeInteger(lifetimeMs)) throw invalidCredentials();
+  const responseDeadline = now + lifetimeMs;
+  if (!isSafeNonnegativeInteger(responseDeadline)) throw invalidCredentials();
+  const expiration = Math.min(responseDeadline, decodeBoundJwtExpiration(accessToken, jkt));
+  const token = createToken(accessToken, expiration, jkt, crypto.randomUUID(), user);
   return { token, ...(transport === 'body' ? { sessionId: sessionId as string } : {}) };
 };
 
@@ -96,29 +126,37 @@ export const readPeerToken = (
   generation: string,
   now: number,
 ): DpopAccessToken | undefined => {
-  if (typeof value !== 'object' || value === null) return undefined;
-  const candidate = value as DpopAccessToken;
   if (
-    candidate.jkt !== jkt ||
-    candidate.generation !== generation ||
-    candidate.tokenType !== 'DPoP' ||
-    !Number.isSafeInteger(candidate.expiresAt) ||
-    candidate.expiresAt <= now
+    !isSafeNonnegativeInteger(now) ||
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    'sessionId' in value
   )
     return undefined;
   try {
-    const { token } = parseDpopCredentials(
-      {
-        accessToken: candidate.accessToken,
-        tokenType: candidate.tokenType,
-        expiresIn: Math.ceil((candidate.expiresAt - now) / 1000),
-        user: candidate.user,
-      },
-      'cookie',
-      jkt,
-      now,
-    );
-    return Object.freeze({ ...token, expiresAt: Math.min(token.expiresAt, candidate.expiresAt), generation });
+    const {
+      accessToken,
+      tokenType,
+      expiresAt,
+      jkt: peerJkt,
+      generation: peerGeneration,
+      user,
+    } = value as Record<string, unknown>;
+    if (
+      typeof accessToken !== 'string' ||
+      peerJkt !== jkt ||
+      peerGeneration !== generation ||
+      tokenType !== 'DPoP' ||
+      !isSafeNonnegativeInteger(expiresAt) ||
+      expiresAt <= now
+    )
+      return undefined;
+    // The peer already supplies milliseconds. Avoid inventing a rounded
+    // expiresIn, and reject expiry only after both safe deadlines are clamped.
+    const expiration = Math.min(expiresAt, decodeBoundJwtExpiration(accessToken, jkt));
+    if (expiration <= now) return undefined;
+    return createToken(accessToken, expiration, jkt, generation, user);
   } catch {
     return undefined;
   }

@@ -47,10 +47,14 @@ import {
   createRequestAttestationMiddleware,
   createRotatingKeyProvider,
   getAttestationBodyRecord,
+  validateHeaderName,
 } from '../src/index.js';
 import { createRequestSigner, createSignerClient, fetchWithAttestation, SignerClientError } from '../src/signer.js';
 import type { RequestSigner, SignerClient } from '../src/signer.js';
 import { decodeTransactionId } from '../src/signer.js';
+import { runFetchOwnershipTests } from './fetch-ownership.cases.js';
+import { runFetchTransportTests } from './fetch-transport.cases.js';
+import { runPreparedFetchReceiverTests } from './fetch-receiver.cases.js';
 
 // Real vault composition uses repository sources directly so no package.json
 // registration is required for this test lane.
@@ -62,6 +66,16 @@ const KEY_ID = 'fetch-key-01';
 const KEY_BYTES = Uint8Array.from(
   Buffer.from('d973c35da623a2329dd08a32153635042a7fe90b730035c90508ae7ec50c0d24', 'hex'), // pragma: allowlist secret
 );
+
+runFetchOwnershipTests({ createRequestSigner, decodeTransactionId, fetchWithAttestation });
+runFetchTransportTests({
+  createRequestSigner,
+  decodeTransactionId,
+  fetchWithAttestation,
+  SignerClientError,
+  validateHeaderName,
+});
+runPreparedFetchReceiverTests({ createRequestSigner, decodeTransactionId, fetchWithAttestation });
 
 function keyBytes(fill: number): Uint8Array {
   const out = new Uint8Array(32);
@@ -143,6 +157,47 @@ function makeClientForKey(input: {
 }
 
 describe('prepared body correctness over live Express', () => {
+  it('keeps general HTTP/server proof-field validation separate from Fetch restrictions', async () => {
+    const app = express();
+    const started = await startApp(app);
+    let handlerCalls = 0;
+    const fields = ['Sec-Proof', 'PrOxY-Proof', 'User-Agent'];
+    try {
+      for (const [index, headerName] of fields.entries()) {
+        validateHeaderName(headerName);
+        const target = `/api/field-${index}`;
+        const guard = createRequestAttestationMiddleware({
+          publicOrigin: started.baseUrl,
+          replayNamespace: NAMESPACE,
+          headerName,
+          keyProvider: staticProviderFor(started.baseUrl, Date.now),
+          store: createMemoryAttestationStore(),
+        });
+        app.get(target, guard as never, (_req, res) => {
+          handlerCalls += 1;
+          res.json({ ok: true });
+        });
+        const signer = makeRealSigner(started.baseUrl);
+        const proof = await signer.sign({
+          method: 'GET',
+          requestTarget: target,
+          contentType: '',
+          bodyHashHex: sha256Hex(new Uint8Array(0)),
+          timestampMs: Date.now(),
+          nonceHex: index.toString(16).padStart(32, '0'),
+        });
+        // Raw HTTP clients can supply these fields; the browser wrapper's tighter
+        // contract must not remove this supported server capability.
+        const response = await fetch(`${started.baseUrl}${target}`, { headers: { [headerName]: proof } });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ ok: true });
+      }
+      expect(handlerCalls).toBe(fields.length);
+    } finally {
+      await started.close();
+    }
+  });
+
   it('signs empty, text, JSON, urlencoded, blob, binary, and multipart bytes exactly', async () => {
     const maxBodyBytes = 1024 * 1024;
     // Canonical live setup: mount parsers first, learn the loopback origin,
@@ -511,7 +566,7 @@ describe('local failure discipline (no network, no signature forwarding)', () =>
         unknownOption: 1,
       } as never),
     ).rejects.toThrow();
-    expect(() =>
+    await expect(
       fetchWithAttestation(`${apiOrigin}/api/submit`, { method: 'GET' }, undefined as never),
     ).rejects.toThrow();
     await expect(
@@ -793,6 +848,8 @@ describe('bounded stale-key retry (mock transport)', () => {
     );
     expect(res.status).toBe(403);
     expect(apiCalls).toBe(1);
+    expect(res.bodyUsed).toBe(false);
+    expect(await res.json()).toEqual({ code: 'ATTESTATION_STALE_KEY' });
   });
 
   it('a late old-key challenge never evicts a newer signer', async () => {
@@ -867,7 +924,14 @@ describe('rotation over live Express (one stale retry, one handler execution)', 
       acceptUntil: Date.now() + 60000,
     };
     const provider = createRotatingKeyProvider({ currentKeyId: oldEntry.keyId, keys: [oldEntry] });
-    const store = createMemoryAttestationStore();
+    const memoryStore = createMemoryAttestationStore();
+    let reserveCalls = 0;
+    const store = {
+      reserve(input: Parameters<typeof memoryStore.reserve>[0]) {
+        reserveCalls += 1;
+        return memoryStore.reserve(input);
+      },
+    };
     const guard = createRequestAttestationMiddleware({
       publicOrigin: apiOrigin,
       replayNamespace: NAMESPACE,
@@ -876,7 +940,16 @@ describe('rotation over live Express (one stale retry, one handler execution)', 
     });
     let handlerCalls = 0;
     const seenNonces = new Set<string>();
+    const attempts: { proof: string; digest: string | undefined; contentType: string | undefined }[] = [];
     const inner = express();
+    inner.use('/api', (req, _res, next) => {
+      attempts.push({
+        proof: String(req.headers[DEFAULT_ATTESTATION_HEADER]),
+        digest: getAttestationBodyRecord(req)?.digestHex,
+        contentType: req.headers['content-type'],
+      });
+      next();
+    });
     inner.use('/api', guard as never);
     inner.post('/api/submit', (req, res) => {
       handlerCalls += 1;
@@ -947,6 +1020,8 @@ describe('rotation over live Express (one stale retry, one handler execution)', 
       await first.arrayBuffer();
       expect(handlerCalls).toBe(1);
       expect(metadataCalls).toBe(1);
+      expect(attempts).toHaveLength(1);
+      expect(reserveCalls).toBe(1);
 
       // Retire the old key on all verifiers (overlap ends): only the new key
       // remains accepted.
@@ -955,16 +1030,34 @@ describe('rotation over live Express (one stale retry, one handler execution)', 
       // Cached old signer sends a stale proof; the wrapper reloads once and
       // re-signs the same bytes with the new key for exactly one more handler call.
       const secondBody = JSON.stringify({ attempt: 2 });
-      const second = await fetchWithAttestation(
-        `${apiOrigin}/api/submit`,
-        { method: 'POST', headers: { 'content-type': 'application/json' }, body: secondBody },
-        options,
-      );
+      const original = new Request(`${apiOrigin}/api/submit`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: secondBody,
+      });
+      const second = await fetchWithAttestation(original, undefined, options);
       expect(second.status).toBe(200);
       await second.arrayBuffer();
       expect(handlerCalls).toBe(2);
       expect(metadataCalls).toBe(2);
       expect(seenNonces.size).toBe(2);
+      // Beyond the warm-up: exactly two API attempts, one reservation and one
+      // handler effect. The pre-handler stale rejection never reserves a nonce.
+      expect(attempts).toHaveLength(3);
+      expect(reserveCalls).toBe(2);
+      expect(attempts.slice(1).map((attempt) => attempt.digest)).toEqual([
+        sha256Hex(new TextEncoder().encode(secondBody)),
+        sha256Hex(new TextEncoder().encode(secondBody)),
+      ]);
+      expect(attempts.slice(1).map((attempt) => attempt.contentType)).toEqual(['application/json', 'application/json']);
+      expect(attempts.slice(1).map((attempt) => decodeTransactionId(attempt.proof).keyId)).toEqual([
+        'rot-old-01',
+        'rot-new-01',
+      ]);
+      expect(new Set(attempts.map((attempt) => decodeTransactionId(attempt.proof).nonceHex)).size).toBe(3);
+      expect(original.bodyUsed).toBe(false);
+      expect(original.body?.locked).toBe(false);
+      expect(await original.text()).toBe(secondBody);
       client.dispose();
     } finally {
       await started.close();

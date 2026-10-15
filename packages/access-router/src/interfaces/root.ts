@@ -56,10 +56,6 @@ export * from './request';
 export * from './access';
 export * from './router-hooks';
 
-interface DefaultFindOneArgs<TModel = unknown> extends Omit<FindOneArgs<TModel>, 'overrides'> {}
-interface DefaultFindByIdArgs<TModel = unknown> extends Omit<FindByIdArgs<TModel>, 'overrides'> {}
-interface DefaultFindArgs<TModel = unknown> extends Omit<FindArgs<TModel>, 'overrides'> {}
-
 type RequestSchema = RequestSchemaLike;
 type NestedRequestSchema = {
   default?: RequestSchema;
@@ -124,21 +120,32 @@ export interface DataRequestSchemas {
   advancedRead?: RequestSchema;
 }
 
+/**
+ * Per-method model query/presentation defaults under ModelRouterOptions.defaults.
+ * Each resolver uses supplied non-nullish properties → its named bucket → built-ins.
+ * Public wrappers resolve public*Args/public*Options before forwarding to internal
+ * methods; resolved values win over internal defaults. Public upsert uses its create/
+ * update branch's public bucket. No data/count/global default bucket or authorization
+ * policy belongs here. Each fresh model-service call captures the originating runtime's
+ * current defaults; nested stages retain that call's snapshot. Explicit service.defaults
+ * assignments override runtime defaults. Router setters shallowly replace supplied values.
+ * See README Configuration layers for delegation.
+ */
 export interface Defaults<TModel = unknown> {
-  findOneArgs?: DefaultFindOneArgs<TModel>;
-  findOneOptions?: FindOneOptions;
-  findByIdArgs?: DefaultFindByIdArgs<TModel>;
-  findByIdOptions?: FindByIdOptions;
-  findArgs?: DefaultFindArgs<TModel>;
-  findOptions?: FindOptions;
+  findOneArgs?: FindOneArgs<TModel>;
+  findOneOptions?: Omit<FindOneOptions, 'authorization'>;
+  findByIdArgs?: FindByIdArgs<TModel>;
+  findByIdOptions?: Omit<FindByIdOptions, 'authorization'>;
+  findArgs?: FindArgs<TModel>;
+  findOptions?: Omit<FindOptions, 'authorization'>;
   createArgs?: CreateArgs;
-  createOptions?: CreateOptions;
+  createOptions?: Omit<CreateOptions, 'authorization'>;
   updateOneArgs?: UpdateOneArgs<TModel>;
-  updateOneOptions?: UpdateOneOptions;
-  upsertOptions?: UpsertOptions;
+  updateOneOptions?: Omit<UpdateOneOptions, 'authorization'>;
+  upsertOptions?: Omit<UpsertOptions, 'authorization'>;
   updateByIdArgs?: UpdateByIdArgs<TModel>;
   upsertArgs?: UpsertArgs<TModel>;
-  updateByIdOptions?: UpdateByIdOptions;
+  updateByIdOptions?: Omit<UpdateByIdOptions, 'authorization'>;
   existsOptions?: ExistsOptions;
   publicListArgs?: PublicListArgs;
   publicListOptions?: PublicListOptions;
@@ -158,22 +165,50 @@ export interface AccessRouterLogger {
   isLevelEnabled?: (level: string) => boolean;
 }
 
+/**
+ * Runtime-wide request initialization and resource settings, configured with
+ * api.setGlobalOptions / api.setGlobalOption. These are not model options or wire
+ * options. Object assignment is shallow; nested requestComplexity replaces as a unit.
+ */
 export interface GlobalOptions {
+  /** Request grant-storage property (default `_permissions`), distinct from documentPermissionField. */
   requestPermissionField?: string;
+  /**
+   * Resolves runtime-owned request grants before middleware continues. A sync/async
+   * `null` or `undefined` result establishes an empty map, replacing prior runtime-owned
+   * grants. Missing/non-callable resolvers follow the same rule. Application-supplied
+   * unowned maps (including `{}`) are preserved; same-runtime middleware reuses its state.
+   * Derive grants from an authenticated server-side actor or other trusted application
+   * context. Generated routers do not authenticate client claims for this hook.
+   */
   globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
   /** Require populate target models to be registered in the active runtime. Defaults to `true`. */
   requireRegisteredPopulateModels?: boolean;
   logger?: AccessRouterLogger;
+  /** Request budgets and separate hook/persistence pools; concurrency limits are captured on first owner use. */
   requestComplexity?: RequestComplexityOptions;
 }
 
+/** Single-options createRouter overload: ordered model/data batches on one owning runtime. */
 export interface RootRouterOptions {
+  /** Mount path of the batch POST endpoint; mount the returned router.routes in Express. */
   basePath: string;
   /** Guard for the batch endpoint. Entries use target base operations, never basic/advanced variant names. */
   operationAccess?: Validation;
+  /** Maximum entries per batch (default 100). Invalid/non-positive/unsafe constructor values use the default. */
   maxBatchEntries?: number;
+  /**
+   * Dual bound (default 25): at most this many distinct order groups AND each order
+   * must be a non-negative safe integer <= this value. Omitted order is 0; at 25,
+   * a lone order 26 and a batch containing all 26 orders 0..25 both reject.
+   * Invalid/non-positive/unsafe constructor values use the default.
+   */
   maxOrderGroups?: number;
-  /** Whole root operations per order group; separate from requestComplexity.maxBulkConcurrency persistence admission. */
+  /**
+   * Whole root operations per order group (default 10); separate from requestComplexity
+   * hook-chain and persistence admission. Groups run in ascending order, results retain
+   * input order. Invalid constructor limits use the default. Batches are not transactions.
+   */
   maxConcurrentOperations?: number;
 }
 
@@ -257,9 +292,14 @@ export interface OperationAccess extends Omit<FieldOperationAccess, 'subs'> {
   subs?: Validation | SubRouteGuardOptions;
 }
 
-type PermissionRule = Validation | FieldOperationAccess;
+type PermissionRule = Validation | (FieldOperationAccess & { sub?: PermissionSchema });
 
-/** Field grants by base operation. Put basic/advanced route guards in operationAccess, not field-rule objects. */
+/**
+ * Field grants by base operation. Put basic/advanced route guards in operationAccess,
+ * not field-rule objects. A field's `sub` defines nested permission-schema rules;
+ * named scopePath uses response segments (['contacts']) to select contacts.sub.
+ * Data helpers keep whole-container picks at root; a scoped child pick applies sub rules.
+ */
 export type PermissionSchema<TField extends string = string> = Partial<Record<TField, PermissionRule>>;
 
 interface DocPermissions {
@@ -269,13 +309,19 @@ interface DocPermissions {
   update?: ModelDocPermissionsHook;
 }
 
+/** Model starting defaults; data/root routers do not inherit these. Nested values assign shallowly. */
 export interface DefaultModelRouterOptions<TModel = unknown> {
+  /** Maximum returned list rows (default 1000), independent of exact match/count totals. */
   listHardLimit?: number;
   /** Authorization metadata path (default `_permissions`); include output cannot equal, contain or descend from it. */
   documentPermissionField?: string;
+  /** Express route parameter name (default `id`); fixed at router construction. */
   idParam?: string;
+  /** Identifier lookup field (default `_id`); does not rename the Express route parameter. */
   idField?: string;
+  /** Custom identifier-to-filter hook; when callable, takes precedence over idField. False is terminal. */
   resolveIdFilter?: ModelIdentifierHook<TModel>;
+  /** External mount prefix for route metadata/logging (default `/`); mount that prefix in Express yourself. */
   parentPath?: string;
   queryRouteSegment?: string;
   mutationRouteSegment?: string;
@@ -363,6 +409,13 @@ export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends Def
   'operationAccess.subs'?: Validation | SubRouteGuardOptions;
 }
 
+/**
+ * Per-registered-model configuration for api.createRouter(model, options).
+ * operationAccess admits routes; permissionSchema admits fields; defaults supplies
+ * named method query/presentation defaults. Trusted service authorization is per-call.
+ * Router setters update live behavior shallowly; router.options retains its frozen
+ * construction-time snapshot. Route-shape options require constructing a new router.
+ */
 export interface ModelRouterOptions<
   TModel = unknown,
   TVirtuals extends object = Record<never, never>,
@@ -391,9 +444,9 @@ export interface ModelRouterOptions<
    *
    * Getters run after `toObject()`/lean normalization (both lean and
    * hydrated results compute), after internal document-permissions
-   * computation, and before `decorate`/`decorateAll`/tasks and final
-   * trimming. `dependsOn` fields are fetched internally even when the caller
-   * may not receive them, then stripped unless independently selected and
+   * computation. Virtual output and field trimming finish before
+   * `decorate`/`decorateAll`/tasks. `dependsOn` fields are fetched internally
+   * even when the caller may not receive them, then stripped unless independently selected and
    * authorized. Virtuals are output-only: registered names (including
    * embedded `sub` leaves) are excluded from persisted projections, client
    * write admission, and database sort/filter/distinct handling.
@@ -424,7 +477,13 @@ export interface ModelRouterOptions<
    * ```
    */
   virtuals?: ModelVirtuals<TModel, TVirtuals>;
-  alwaysSelectFields?: string[];
+  /**
+   * Private persisted fetch inputs for projected document hooks (for example ownerId).
+   * An array applies to every access; a per-access record uses its exact entry, then
+   * default. These fields do not grant output. Integrated output captures the inputs
+   * for both output and document-permission access, independently of metadata flags.
+   */
+  alwaysSelectFields?: string[] | Record<string, string[]>;
   docPermissions?: DocPermissions | ModelDocPermissionsHook;
   /**
    * Allowlist of `docPermissions`-hook keys exposed in API responses.
@@ -436,7 +495,9 @@ export interface ModelRouterOptions<
    * closed — allowlist any key a custom route guard evaluates.
    */
   exposedDocPermissionKeys?: string[];
+  /** Request row scope, ANDed after query transformation; trusted rows.scope/unrestricted replace only this scope. */
   baseFilter?: ModelBaseFilterHook | Record<string, ModelBaseFilterHook>;
+  /** Ordinary-query transform, run once even with trusted row policy. Mandatory IDs/joins and scope remain ANDed. */
   overrideFilter?: ModelOverrideFilterHook | Record<string, ModelOverrideFilterHook>;
   decorate?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
@@ -459,20 +520,41 @@ export interface ModelRouterOptions<
   onChange?: Record<string, ModelChangeHook>;
   beforeDelete?: ModelDeleteHook<TModel>;
   afterDelete?: ModelDeleteHook<TModel>;
+  /** Generated HTTP envelope parsers; separate from validate on admitted model-write data. */
   requestSchemas?: RequestSchemas;
+  /** Named method query/presentation defaults. Authorization and removed overrides are rejected, including dotted setters. */
   defaults?: Defaults<TModel>;
 }
 
+/**
+ * Request-only in-memory list/read configuration. No model-default, model virtual,
+ * docPermissions or trusted ServiceAuthorization layer. Set idParam/idField explicitly
+ * for data identifier routes; `.routes` includes data-core initialization middleware.
+ */
 export interface DataRouterOptions<TData = unknown> {
   /**
-   * In-memory records are owned by the router as an immutable configured snapshot.
-   * Mutating this array or its records after configuration does not change served data;
-   * use `setDataOption(name, 'data', nextRecords)` or `router.data(nextRecords)` to replace it.
+   * Owned acyclic data: plain objects/arrays and primitives, Date, Buffer, Map, Set,
+   * RegExp, fixed non-shared ArrayBuffer, DataView and standard numeric/bigint typed
+   * arrays. Map keys/values and Set entries are copied; binary views own their visible
+   * bytes. Own enumerable string properties/accessors become values at admission.
+   * Functions/symbols, cycles, proxies, class instances/native subclasses, custom
+   * native properties and shared/resizable/detached buffers reject with a path-bearing
+   * TypeError before publication. See README for the exact supported built-ins.
+   *
+   * Snapshot plain containers are frozen; native properties yield fresh detached
+   * copies on access (native identity is not stable). Selected service results and
+   * decorator inputs are independently mutable, without a whole-dataset copy per read.
+   * Replace via `runtime.setDataOption(name, 'data', next)` or `router.data(next)`;
+   * undefined clears data. Existing services keep their captured data version.
    */
   data?: TData[];
+  /** Maximum returned list rows (default 1000); filtering/sorting precede page-only shaping and copying. */
   listHardLimit?: number;
+  /** Express parameter name; set explicitly (for example `id`). Fixed at construction, no model-default inheritance. */
   idParam?: string;
+  /** Lookup field (for example `id`); without a callable resolver or string idField, lookup falls back to `_id`. */
   idField?: string;
+  /** Custom identifier-to-filter hook, taking precedence over idField; false denies the query. */
   resolveIdFilter?: DataIdentifierHook<TData>;
   parentPath?: string;
   queryRouteSegment?: string;
@@ -555,19 +637,20 @@ export interface ExtendedModelRouterOptions<TModel = unknown, TVirtuals extends 
   'requestSchemas.subCreate'?: RequestSchema;
   'requestSchemas.subUpdate'?: RequestSchema;
   'requestSchemas.subBulkUpdate'?: RequestSchema;
-  'defaults.findOneArgs'?: DefaultFindOneArgs<TModel>;
-  'defaults.findOneOptions'?: FindOneOptions;
-  'defaults.findByIdArgs'?: DefaultFindByIdArgs<TModel>;
-  'defaults.findByIdOptions'?: FindByIdOptions;
-  'defaults.findArgs'?: DefaultFindArgs<TModel>;
-  'defaults.findOptions'?: FindOptions;
-  'defaults.createArgs'?: CreateArgs;
-  'defaults.createOptions'?: CreateOptions;
-  'defaults.updateOneArgs'?: UpdateOneArgs<TModel>;
-  'defaults.updateOneOptions'?: UpdateOneOptions;
-  'defaults.updateByIdArgs'?: UpdateByIdArgs<TModel>;
-  'defaults.updateByIdOptions'?: UpdateByIdOptions;
-  'defaults.upsertArgs'?: UpsertArgs<TModel>;
+  'defaults.findOneArgs'?: Defaults<TModel>['findOneArgs'];
+  'defaults.findOneOptions'?: Defaults<TModel>['findOneOptions'];
+  'defaults.findByIdArgs'?: Defaults<TModel>['findByIdArgs'];
+  'defaults.findByIdOptions'?: Defaults<TModel>['findByIdOptions'];
+  'defaults.findArgs'?: Defaults<TModel>['findArgs'];
+  'defaults.findOptions'?: Defaults<TModel>['findOptions'];
+  'defaults.createArgs'?: Defaults<TModel>['createArgs'];
+  'defaults.createOptions'?: Defaults<TModel>['createOptions'];
+  'defaults.updateOneArgs'?: Defaults<TModel>['updateOneArgs'];
+  'defaults.updateOneOptions'?: Defaults<TModel>['updateOneOptions'];
+  'defaults.updateByIdArgs'?: Defaults<TModel>['updateByIdArgs'];
+  'defaults.updateByIdOptions'?: Defaults<TModel>['updateByIdOptions'];
+  'defaults.upsertArgs'?: Defaults<TModel>['upsertArgs'];
+  'defaults.upsertOptions'?: Defaults<TModel>['upsertOptions'];
   'defaults.existsOptions'?: ExistsOptions;
   'defaults.publicListArgs'?: PublicListArgs;
   'defaults.publicListOptions'?: PublicListOptions;

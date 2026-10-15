@@ -98,6 +98,12 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
     ) as RequestSchemaLike | undefined;
   }
 
+  /**
+   * Acquire the model-generic internal service after this runtime's middleware
+   * initializes req.macl. Supply trusted per-call authorization in service options;
+   * selection/query args stay separate. Successful results carry opaque document
+   * handles in context(s), never data. Use getPublicService for request-only wrappers.
+   */
   getService(req: ModelRequest): Service<TModel, TVirtuals> {
     return req.macl.getService<TModel, TVirtuals>(this.modelName);
   }

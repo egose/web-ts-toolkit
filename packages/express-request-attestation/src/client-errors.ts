@@ -1,13 +1,11 @@
 /**
- * ATT-06 typed browser client failures (task sections 4.1/4.6).
+ * Typed browser preparation and signer-loading failures.
  *
- * Browser-safe ONLY: no Node built-ins, Express/Redis types, `Buffer`,
- * `NodeJS`, or `node:*` imports. This module is part of the `./signer`
- * closure typechecked by `tsconfig.signer-browser.json` (`types: []`).
+ * Available from the browser-safe `/signer` entry without server dependencies.
  *
  * These are LOCAL preparation/loading errors. Server rejections arrive as
- * HTTP responses with section 4.5 codes; only a pre-handler stale-key marker
- * plus 403 triggers one reload/re-sign retry (ATT-07). Public HMAC material
+ * HTTP responses; only a pre-handler stale-key marker plus 403 triggers one
+ * reload/re-sign retry in `fetchWithAttestation`. Public HMAC material
  * delivered in JavaScript remains accessible to every caller despite
  * non-extractable `CryptoKey` wrapping; this error taxonomy does not imply
  * device or browser authenticity.

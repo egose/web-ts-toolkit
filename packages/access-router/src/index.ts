@@ -189,6 +189,57 @@ export type {
   OpenApiRouterOptions,
 };
 export type { CombinedRouteInput } from './routers';
+// Only policy inputs and opaque consumer results/handles belong to the package boundary.
+export type {
+  AllowedOutputFieldOptions,
+  AuthorizedListResult,
+  AuthorizedSingleResult,
+  CreateAuthorization,
+  DocumentAuthorization,
+  FieldAuthorization,
+  InputFieldAuthorization,
+  InputFieldPath,
+  MutationAuthorization,
+  OperationAuthorization,
+  OutputAuthorization,
+  OutputFieldOptions,
+  OutputFieldPath,
+  OutputPlanningOptions,
+  RelatedAuthorization,
+  RowAuthorization,
+  ServiceAuthorization,
+  ServiceOutputContext,
+  ServiceOutputDecorator,
+} from './interfaces/service-authorization';
+export type {
+  NewArgs,
+  NewOptions,
+  PopulatePlanningOptions,
+  SubdocumentName,
+  SubdocumentModel,
+  SubdocumentVirtuals,
+  SubdocumentListOptions,
+  SubdocumentReadOptions,
+  SubdocumentCreateOptions,
+  SubdocumentUpdateOptions,
+  SubdocumentDeleteOptions,
+  PublicSubdocumentListOptions,
+  PublicSubdocumentReadOptions,
+  PublicSubdocumentCreateOptions,
+  PublicSubdocumentMutationOptions,
+} from './interfaces/service';
+export type { DataFieldOptions } from './interfaces/data';
+export type {
+  SubdocumentGateAuthorization,
+  SubdocumentOutputAuthorization,
+  SubdocumentInputAuthorization,
+  SubdocumentReadAuthorization,
+  SubdocumentMutationAuthorization,
+  SubdocumentCreateAuthorization,
+  SubdocumentDeleteAuthorization,
+  SubdocumentVisibilityAuthorization,
+  SubdocumentCreateVisibilityAuthorization,
+} from './interfaces/subdocument-authorization';
 export type {
   DefaultModelRouterOptions,
   ExtendedDataRouterOptions,
@@ -236,32 +287,57 @@ export { redactFilter, redactPayload, safeStringify, isLevelEnabled } from './lo
 export type { OpLogContext } from './logger-helpers';
 
 type CreateRouter = {
+  /**
+   * Create a model CRUD router and register this exact Mongoose model/connection
+   * with the owning runtime. Configure operationAccess and permissionSchema, then
+   * mount the returned `.routes` in Express after express.json(). Route middleware
+   * initializes req.macl; field enforcement does not require permissionsPlugin.
+   */
   <TModel, TVirtuals extends object = Record<never, never>>(
     model: mongoose.Model<TModel>,
     options: ModelRouterOptions<TModel, TVirtuals>,
   ): ModelRouter<TModel, TVirtuals>;
+  /**
+   * Create a router for an already-registered model name. Isolated runtimes require
+   * registerModelInstance(name, model) first; default acl also adopts mongoose.model(name).
+   * Prefer the model-instance overload for explicit connection ownership.
+   */
   <TModel, TVirtuals extends object = Record<never, never>>(
     modelName: string,
     options: ModelRouterOptions<TModel, TVirtuals>,
   ): ModelRouter<TModel, TVirtuals>;
+  /** Create an ordered root batch endpoint for this runtime's targets; mount `.routes`. */
   (options: RootRouterOptions): RootRouter;
 };
 
 type CreateDataRouter = {
+  /**
+   * Create request-only list/read routes over an owned in-memory dataset. Set
+   * operationAccess, permissionSchema, idParam and idField explicitly. Mount `.routes`;
+   * middleware initializes req.dacl. No MongoDB connection or model defaults are used.
+   * Data replacement affects new services; existing services keep their captured version.
+   */
   <TData>(dataName: string, options: DataRouterOptions<TData>): DataRouter<TData>;
 };
 
+/** Runtime-bound OpenAPI factory; returns an Express router mounted directly with app.use(). */
 type CreateRuntimeOpenApiRouter = (options?: OpenApiRouterOptions) => ExpressRouter;
 
 type WttSet = {
+  /** Set one global option on this API's runtime, not a model option or method default. */
   <K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]): void;
+  /** Shallowly replace supplied global option values; equivalent to setGlobalOptions(options). */
   (options: { [K in keyof GlobalOptions]: GlobalOptions[K] }): void;
 };
 
 interface Wtt {
+  /** Owning options/model/OpenAPI registry; also exposes data and exact option getters/setters. */
   runtime: AccessRuntime;
+  /** Model instance/name + options creates CRUD routes; a single options object creates a root batch. */
   createRouter: CreateRouter;
+  /** Owned in-memory list/read router; no model-default or backend field-grant layer. */
   createDataRouter: CreateDataRouter;
+  /** This runtime's OpenAPI/Swagger UI router. Unlike the standalone export, takes only options. */
   createOpenApiRouter: CreateRuntimeOpenApiRouter;
   combineRoutes: typeof combineRoutes;
   set: WttSet;
@@ -287,6 +363,12 @@ interface Wtt {
   DataRouter: typeof DataRouter;
 }
 
+/**
+ * Callable runtime-bound facade returned by createAccessRuntime (also the type of acl).
+ * Calling api() creates model request middleware for custom routes; generated `.routes`
+ * already initialize their own model/data cores. api.runtime is the AccessRuntime owner.
+ * Configuration methods on this facade remain bound to that owner.
+ */
 export type AccessRuntimeApi = typeof middleware & Wtt;
 
 type MongooseModelLike = mongoose.Model<unknown>;
@@ -368,12 +450,48 @@ function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
   return wtt as AccessRuntimeApi;
 }
 
+/**
+ * Create an isolated Express/Mongoose router API with its own options, model registry,
+ * OpenAPI registry and request-owned work pools. Requires Node >=22, Express >=5 and
+ * Mongoose >=8. Pass a Mongoose model instance to createRouter, or register it before
+ * using a string name; isolated runtimes do not fall back to global mongoose.models.
+ *
+ * The returned callable facade exposes factories/setters; `.runtime` is its owner.
+ * Mount generated `.routes` after express.json(); connect MongoDB before listening.
+ * Model operations default to denied until operationAccess is configured, and field
+ * visibility requires permissionSchema. permissionsPlugin is only an optional alias.
+ *
+ * @example
+ * ```ts
+ * import express from 'express';
+ * import mongoose from 'mongoose';
+ * import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+ * const api = createAccessRuntime();
+ * const Product = mongoose.model('Product', new mongoose.Schema({ name: String }));
+ * const products = api.createRouter(Product, {
+ *   basePath: '/products',
+ *   operationAccess: { list: true, read: true },
+ *   permissionSchema: { name: true },
+ * });
+ * const app = express();
+ * app.use(express.json());
+ * app.use(products.routes);
+ * // Await mongoose.connect(uri) before app.listen(port).
+ * ```
+ * @returns A fresh AccessRuntimeApi. See the shipped README's Configuration layers.
+ */
 export function createAccessRuntime() {
   return createRuntimeApi(new AccessRuntime());
 }
 
 const wtt = createRuntimeApi(defaultRuntime);
 
+/**
+ * Shared default-runtime API. Canonical import: `import acl from '@web-ts-toolkit/access-router'`;
+ * named `{ acl }` is identical. CommonJS uses `require('@web-ts-toolkit/access-router').acl`.
+ * Use createAccessRuntime() for an isolated registry/configuration. Mount factory `.routes`;
+ * calling acl() alone supplies model middleware for custom handlers.
+ */
 export const acl = wtt;
 
 export default acl;

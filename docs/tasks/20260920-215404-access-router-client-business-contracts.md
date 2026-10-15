@@ -151,7 +151,7 @@ Completion evidence:
 - Additional checks (all exit 0):
   - `pnpm exec eslint packages/access-router-client/src/services/interceptors.ts packages/access-router-client/test/access-router-client.clc01-cache-keys.unit.test.ts`
   - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:source && pnpm --filter @web-ts-toolkit/access-router-client typecheck:test`
-  - `git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md`
+  - `git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md`
 - Execution: one fresh session, no nested agents; commands ran sequentially
   without builds. No public docs, CHANGELOG, sibling files, or other task
   implementations changed; no commit. Vite emitted its existing advisory about
@@ -215,7 +215,7 @@ Completion evidence:
 - Additional checks (all exit 0):
   - `pnpm exec eslint packages/access-router-client/src/services/interceptors.ts packages/access-router-client/test/access-router-client.clc02-error-transforms.unit.test.ts`
   - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:source && pnpm --filter @web-ts-toolkit/access-router-client typecheck:test`
-  - `git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md`
+  - `git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md`
 - Execution: fresh isolated session with CLC-01 completed; no spawned agents.
   Commands ran sequentially without builds. Existing CLC-01 and unrelated dirty
   work preserved; no public docs, root CHANGELOG, other task implementations, or
@@ -288,7 +288,7 @@ Completion evidence:
 - Additional checks (all exit 0):
   - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:source && pnpm --filter @web-ts-toolkit/access-router-client typecheck:test`
   - `pnpm exec eslint packages/access-router-client/src/services/cache-utils.ts packages/access-router-client/test/access-router-client.clc03-grouped-config.unit.test.ts`
-  - `git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md`
+  - `git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md`
 - Execution: fresh session, no nested agents; all build/test/check commands ran
   sequentially, with no builds needed for these scoped checks. CLC-01/02 and
   unrelated work preserved; no public docs, root CHANGELOG, other task
@@ -355,7 +355,7 @@ Completion evidence:
     - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:source`
     - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:test`
     - `pnpm exec eslint packages/access-router-client/src/services/request-config.ts packages/access-router-client/src/services/model-service.ts packages/access-router-client/src/services/data-service.ts packages/access-router-client/src/services/sub-ops.ts packages/access-router-client/test/access-router-client.clc03-f01-params.unit.test.ts`
-    - `git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md`
+    - `git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md`
   - Execution: fresh isolated session, no nested agents; commands ran sequentially.
     Vite's existing future-native-config advisory was non-failing. No commits.
     Follow-up findings: none independent. CLC-06 owns public documentation of
@@ -460,7 +460,7 @@ Completion evidence:
   containers and live requests are not frozen; repeated conversions are detached.
 - Additional final checks (exit 0):
   - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:source && pnpm --filter @web-ts-toolkit/access-router-client typecheck:test && pnpm exec eslint packages/access-router-client/src/correlated.ts packages/access-router-client/src/helpers.ts packages/access-router-client/src/query-traversal.ts packages/access-router-client/test/access-router-client.clc04-query-bounds.unit.test.ts`
-  - `git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`
+  - `git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`
 - **CLC-06 documentation handoff:** describe root depth 0 / maximum 64 edges,
   10,000 expanded visits including primitives and repeated DAG occurrences,
   structural checking beneath `$escape`, opaque live requests until metadata
@@ -555,7 +555,7 @@ Completion evidence:
     - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:source`
     - `pnpm --filter @web-ts-toolkit/access-router-client typecheck:test`
     - `pnpm exec eslint packages/access-router-client/src/bounded-traversal.ts packages/access-router-client/src/query-traversal.ts packages/access-router-client/src/services/shared.ts packages/access-router-client/test/access-router-client.clc04-f01-default-bounds.unit.test.ts packages/access-router-client/test/access-router-client.clc04-query-bounds.unit.test.ts`
-    - `git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`
+    - `git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`
   - Execution: fresh isolated session, no nested agents; commands ran sequentially.
     Vite's existing future-native-config advisory was non-failing. No public docs,
     root CHANGELOG, sibling work or commits changed. No independent findings.
@@ -714,7 +714,7 @@ Completion evidence:
   prototype-key collection and `no-wrapper-object-types` for `keyof Object`;
   corrected both, then reran the full required typecheck/tests and final lint.
 - Whitespace/CHANGELOG check:
-  `git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`
+  `git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`
   exited 0. All commands ran sequentially in this fresh isolated session, with
   no nested agents or commits. Existing task/sibling work was preserved; generated
   output was rebuilt only through package scripts. Vite's existing future-native-
@@ -813,7 +813,7 @@ Completion evidence:
 - Changed-file lint (exit 0, no warnings):
   `pnpm exec eslint packages/access-router-client/src/model.ts packages/access-router-client/src/services/interceptors.ts packages/access-router-client/src/adapter.ts packages/access-router-client/src/interface.ts packages/access-router-client/src/correlated-brand.ts packages/access-router-client/test-docs-consumer/examples/optional-fields-params.ts`.
 - Whitespace/CHANGELOG check (exit 0):
-  `git diff --check -- packages/access-router-client website/docs/packages/access-router-client docs/tasks/20260906-225058-access-router-client-boundary-review.md docs/tasks/20260926-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`.
+  `git diff --check -- packages/access-router-client website/docs/packages/access-router-client docs/tasks/20260906-225058-access-router-client-boundary-review.md docs/tasks/20260920-215404-access-router-client-business-contracts.md && git diff --exit-code -- CHANGELOG.md`.
 - Execution/result: fresh isolated session, no nested agents or commits. All
   commands ran serially. Runtime behavior and prior/sibling edits preserved;
   generated output rebuilt only by package scripts. Vite's existing future-native-
@@ -982,8 +982,8 @@ Completion evidence (first review, historical blocked result; resumed audit belo
   ```
 
 - Final scoped whitespace and root checks (all exit 0):
-  `git diff --check -- packages/access-router-client website/docs/packages/access-router-client docs/tasks/20260906-225058-access-router-client-boundary-review.md docs/tasks/20260926-215404-access-router-client-business-contracts.md`;
-  `git diff --no-index --check /dev/null docs/tasks/20260926-215404-access-router-client-business-contracts.md`
+  `git diff --check -- packages/access-router-client website/docs/packages/access-router-client docs/tasks/20260906-225058-access-router-client-boundary-review.md docs/tasks/20260920-215404-access-router-client-business-contracts.md`;
+  `git diff --no-index --check /dev/null docs/tasks/20260920-215404-access-router-client-business-contracts.md`
   (explicitly checks this untracked task file);
   `git diff --exit-code HEAD -- CHANGELOG.md`. Tool logs referenced above are
   under `<tool-output>/`.
@@ -1271,7 +1271,7 @@ CorrelatedIncludeError)`, removed the metadata cycle, and checked fresh wire
 - Scoped whitespace/root checks (all exit 0):
 
   ```sh
-  git diff --check -- packages/access-router-client docs/tasks/20260926-215404-access-router-client-business-contracts.md && git diff --no-index --check /dev/null packages/access-router-client/src/bounded-traversal.ts && git diff --no-index --check /dev/null packages/access-router-client/src/query-traversal.ts && git diff --no-index --check /dev/null packages/access-router-client/test/access-router-client.clc07-f01-query-opacity.unit.test.ts && git diff --no-index --check /dev/null docs/tasks/20260926-215404-access-router-client-business-contracts.md && git diff --exit-code HEAD -- CHANGELOG.md
+  git diff --check -- packages/access-router-client docs/tasks/20260920-215404-access-router-client-business-contracts.md && git diff --no-index --check /dev/null packages/access-router-client/src/bounded-traversal.ts && git diff --no-index --check /dev/null packages/access-router-client/src/query-traversal.ts && git diff --no-index --check /dev/null packages/access-router-client/test/access-router-client.clc07-f01-query-opacity.unit.test.ts && git diff --no-index --check /dev/null docs/tasks/20260920-215404-access-router-client-business-contracts.md && git diff --exit-code HEAD -- CHANGELOG.md
   ```
 
 - Execution/outcome: fresh isolated session, no nested agents or commits; all
@@ -1285,3 +1285,10 @@ CorrelatedIncludeError)`, removed the metadata cycle, and checked fresh wire
   Its earlier unrelated V4 workspace test/lint failures remain historical and
   are not represented as passing global checks. No new independent follow-up
   finding was discovered in this correction.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

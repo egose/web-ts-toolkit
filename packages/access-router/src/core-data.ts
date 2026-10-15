@@ -4,6 +4,7 @@ import {
   Projection,
   Filter,
   DataHookContext,
+  DataFieldOptions,
   Validation,
   AccessRouterBaseRequest,
   DataRequest,
@@ -16,7 +17,6 @@ import {
 } from './interfaces';
 import Permission from './permission';
 import { DataService } from './services';
-import { normalizeSelect } from './helpers';
 import { DATA_MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
 import {
@@ -35,11 +35,14 @@ import {
 } from './acl/select-resolution';
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
-import { runWithRuntime } from './runtime-context';
+import { getActiveRuntime, runWithRuntime } from './runtime-context';
+import { getRequestWorkState } from './helpers/request-work';
 import { resolveRouteOperationAccess } from './operation-access';
+import { assertFieldHelperCall, requestFieldScope } from './acl/field-helper-options';
 
 export class DataCore {
   private req: DataRequest;
+  private readonly requestRuntime = getActiveRuntime() ?? defaultRuntime;
   private caches: {
     baseFilter: Cache<string, Filter>;
   };
@@ -79,65 +82,82 @@ export class DataCore {
     });
   }
 
-  async genAllowedFields(dataName: string, _doc: unknown, access: SelectAccess, baseFields: string[] = []) {
-    const permissionSchema = getDataOption(dataName, 'permissionSchema');
+  /** Request-schema allowlist, independent of doc values. No model hooks or backend elevation. */
+  async genAllowedFields(dataName: string, _doc: unknown, access: SelectAccess, options: DataFieldOptions = {}) {
+    assertFieldHelperCall('genAllowedFields', arguments.length, 4, options, 'data');
+    const permissionSchema = this.fieldPermissionSchema(dataName, options);
 
     const permissions = this.getGlobalPermissions();
 
-    return collectAllowedFieldsForRequest({
-      req: this.req,
-      permissionSchema,
-      access,
-      baseFields,
-      hasPermission: (key) => permissions.has(key),
-      functionArgs: [permissions],
-    });
+    return getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+      collectAllowedFieldsForRequest({
+        req: this.req,
+        permissionSchema,
+        access,
+        hasPermission: (key) => permissions.has(key),
+        functionArgs: [permissions],
+      }),
+    );
   }
 
+  /** Request-only existing-value pick. No automatic identity/metadata retention; options default to {}. */
   async pickAllowedFields<TDoc>(
     dataName: string,
     doc: TDoc,
     access: SelectAccess,
-    baseFields: string[] = [],
+    options: DataFieldOptions = {},
   ): Promise<TDoc> {
-    const permissionSchema = getDataOption(dataName, 'permissionSchema') as Record<string, unknown> | null | undefined;
+    assertFieldHelperCall('pickAllowedFields', arguments.length, 4, options, 'data');
+    const permissionSchema = this.fieldPermissionSchema(dataName, options);
     const permissions = this.getGlobalPermissions();
 
-    return pickAllowedFieldsForRequest({
-      req: this.req,
-      doc,
-      permissionSchema,
-      access,
-      baseFields,
-      hasPermission: (key) => permissions.has(key),
-      functionArgs: [permissions],
-    });
+    return getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+      pickAllowedFieldsForRequest({
+        req: this.req,
+        doc,
+        permissionSchema,
+        access,
+        hasPermission: (key) => permissions.has(key),
+        functionArgs: [permissions],
+      }),
+    );
   }
 
+  /**
+   * Request-only requested-token intersection. Omitted/null/empty/exclusion-only select
+   * yields []; DataService then applies no extra projection after request trimming.
+   * Named options default to {}; legacy elevation and positional arguments are removed.
+   */
   async genSelect(
     dataName: string,
     access: SelectAccess,
     targetFields: Projection = null,
-    skipChecks = true,
-    subPaths: string[] = [],
+    options: DataFieldOptions = {},
   ) {
-    const permissionSchema = getDataOption(dataName, ['permissionSchema'].concat(subPaths).join('.')) as
-      | Record<string, unknown>
-      | null
-      | undefined;
+    assertFieldHelperCall('genSelect', arguments.length, 4, options, 'data');
+    const permissionSchema = this.fieldPermissionSchema(dataName, options);
 
     const permissions = this.getGlobalPermissions();
 
-    return resolveSelectForRequest({
-      req: this.req,
-      permissionSchema,
-      access,
-      targetFields,
-      skipChecks,
-      hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
-      functionArgs: [permissions],
-      mode: 'data',
-    });
+    return getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+      resolveSelectForRequest({
+        req: this.req,
+        permissionSchema,
+        access,
+        targetFields,
+        hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
+        functionArgs: [permissions],
+        mode: 'data',
+      }),
+    );
+  }
+
+  private fieldPermissionSchema(dataName: string, options: DataFieldOptions) {
+    const scopePath = requestFieldScope(options);
+    return getDataOption(dataName, ['permissionSchema', ...scopePath.flatMap((part) => [part, 'sub'])].join('.')) as
+      | Record<string, unknown>
+      | null
+      | undefined;
   }
 
   async decorate<TDoc>(dataName: string, doc: TDoc, access: DecorateAccess, context: DataHookContext = {}) {
@@ -146,6 +166,7 @@ export class DataCore {
     const permissions = this.getGlobalPermissions();
     return runDecorateHook({
       req: this.req,
+      runtime: this.requestRuntime,
       hook: decorate,
       doc,
       permissions,
@@ -168,6 +189,7 @@ export class DataCore {
 
     return runDecorateAllHook({
       req: this.req,
+      runtime: this.requestRuntime,
       hook: decorateAll,
       docs,
       permissions,

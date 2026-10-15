@@ -7,6 +7,8 @@ import { AccessRuntime } from '../src/runtime.ts';
 import { setGlobalOptions } from '../src/options/index.ts';
 import { Base } from '../src/services/base.ts';
 import { Service } from '../src/services/service.ts';
+import { registerServiceExecutors } from '../src/acl/service-execution';
+import Permission from '../src/permission';
 
 let modelCounter = 0;
 
@@ -52,6 +54,28 @@ const createFakeAdapter = (modelName: string, overrides: Partial<ModelAdapter> =
   ...overrides,
 });
 
+function registerTarget(target: any, req: ModelRequest) {
+  const runtime = {},
+    model = {};
+  registerServiceExecutors(target, {
+    binding: () => ({ request: req, runtime, model, modelName: 'Post' }),
+    configuration: () => ({ catalog: { paths: [] } }),
+    permissions: () => new Permission({}),
+    parse: async (filter) => filter,
+    validate: () => {},
+    strip: (_execution, filter) => filter,
+    authorize: async (_execution, filter) => ({ transformed: filter, scope: {}, filter }),
+    identifier: vi.fn(),
+    find: (_execution, _query, filter, args, options) => target.find(filter, args, options),
+    groupedCount: (filter, field, input) => target.groupedCount(filter, field, input),
+    findOne: vi.fn(),
+    updateOne: vi.fn(),
+    create: vi.fn(),
+    exists: vi.fn(),
+    count: vi.fn(),
+  });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   setGlobalOptions({ requestComplexity: {} });
@@ -74,7 +98,7 @@ describe('access-router internals', () => {
       service as never as { genFilter: (access: string, filter: unknown) => Promise<unknown> },
       'genFilter',
     ).mockResolvedValue(authorizedFilter);
-    const createSpy = vi.spyOn(service, 'create').mockResolvedValue({
+    const createSpy = vi.spyOn(service as any, 'createPrepared').mockResolvedValue({
       success: true,
       kind: 'list',
       code: 'created',
@@ -93,8 +117,8 @@ describe('access-router internals', () => {
   it('builds grouped counts with the requested access filter and canonical keys', async () => {
     const modelName = `AclServiceInternal${++modelCounter}`;
     const aggregateSpy = vi.fn().mockResolvedValue([
-      { _id: 'u1', documentIds: ['p1', 'p2'] },
-      { _id: 'u2', documentIds: ['p2'] },
+      { _id: 0, count: 2 },
+      { _id: 1, count: 1 },
     ]);
 
     const service = createAdapterService(
@@ -115,8 +139,8 @@ describe('access-router internals', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.get('u1')).toEqual(new Set(['p1', 'p2']));
-      expect(result.data.get('u2')).toEqual(new Set(['p2']));
+      expect(result.data.get('u1')).toBe(2);
+      expect(result.data.get('u2')).toBe(1);
     }
   });
 
@@ -171,11 +195,12 @@ describe('access-router internals', () => {
     const adapter = new Model(modelName, runtime);
     const cast = vi.spyOn(adapter, 'castFilter');
     const aggregate = vi.spyOn(adapter, 'aggregate').mockResolvedValue([
-      { _id: 1, documentIds: ['p1', 'p2'] },
-      { _id: 2, documentIds: ['p2'] },
+      { _id: 0, count: 2 },
+      { _id: 1, count: 2 },
+      { _id: 2, count: 1 },
     ] as never);
     const service = createAdapterService({ macl: {} } as ModelRequest, modelName, adapter);
-    // A trusted ACL override can replace the original foreign constraint entirely.
+    // Query rewriting cannot remove the separately retained foreign constraint.
     const authorizedFilter = { tenant: 'abcdef'.repeat(4) };
     vi.spyOn(service, 'genFilter').mockResolvedValue(authorizedFilter as never);
     const values = ['001', '1', '002'];
@@ -183,16 +208,21 @@ describe('access-router internals', () => {
     expect(cast).toHaveBeenCalledTimes(2);
     expect(aggregate).toHaveBeenCalledOnce();
     expect(aggregate.mock.calls[0][0][0]).toEqual({
-      $match: { tenant: new mongoose.Types.ObjectId(authorizedFilter.tenant) },
+      $match: { tenant: new mongoose.Types.ObjectId(authorizedFilter.tenant), ownerId: { $in: [1, 1, 2] } },
     });
-    expect(aggregate.mock.calls[0][0][3]).toEqual({ $match: { foreignValues: { $in: [1, 1, 2] } } });
+    const facets = aggregate.mock.calls[0][0][2].$facet;
+    expect(Object.values(facets).map((branch: any) => branch[0])).toEqual([
+      { $match: { ownerId: { $in: [1] } } },
+      { $match: { ownerId: { $in: [1] } } },
+      { $match: { ownerId: { $in: [2] } } },
+    ]);
     expect(values).toEqual(['001', '1', '002']);
     expect(authorizedFilter.tenant).toBe('abcdef'.repeat(4));
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.get('001')).toEqual(new Set(['p1', 'p2']));
-      expect(result.data.get('1')).toEqual(new Set(['p1', 'p2']));
-      expect(result.data.get('002')).toEqual(new Set(['p2']));
+      expect(result.data.get('001')).toBe(2);
+      expect(result.data.get('1')).toBe(2);
+      expect(result.data.get('002')).toBe(1);
     }
     // Persistence errors must not be mislabeled as schema-cast BadRequest.
     const databaseError = new Error('aggregate failed');
@@ -204,15 +234,11 @@ describe('access-router internals', () => {
   });
 
   it('batches include count lookups into a single query', async () => {
-    const counts = new Map([
-      ['u1', new Set(['p1', 'p2'])],
-      ['u2', new Set(['p3'])],
-    ]);
     const publicService = {
-      countByFieldValues: vi.fn().mockResolvedValue({
+      groupedCount: vi.fn().mockResolvedValue({
         success: true,
         kind: 'single',
-        data: counts,
+        data: [2, 1],
       }),
     };
     const req = {
@@ -221,6 +247,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = [{ ownerId: 'u1' }, { ownerId: 'u2' }];
@@ -233,8 +260,12 @@ describe('access-router internals', () => {
       args: { limit: 1 },
     })) as Array<Record<string, unknown>>;
 
-    expect(publicService.countByFieldValues).toHaveBeenCalledOnce();
-    expect(publicService.countByFieldValues).toHaveBeenCalledWith('ownerId', ['u1', 'u2'], {}, 'count');
+    expect(publicService.groupedCount).toHaveBeenCalledOnce();
+    expect(publicService.groupedCount).toHaveBeenCalledWith({ ownerId: { $in: ['u1', 'u2'] } }, 'ownerId', {
+      values: ['u1', 'u2'],
+      aliases: ['u1', 'u2'],
+      groups: [[0], [1]],
+    });
     expect(result).toEqual([
       { ownerId: 'u1', postCount: 2 },
       { ownerId: 'u2', postCount: 1 },
@@ -242,15 +273,11 @@ describe('access-router internals', () => {
   });
 
   it('counts each target row once for source and target arrays', async () => {
-    const counts = new Map([
-      ['u1', new Set(['p1', 'p2'])],
-      ['u2', new Set(['p2', 'p3'])],
-    ]);
     const publicService = {
-      countByFieldValues: vi.fn().mockResolvedValue({
+      groupedCount: vi.fn().mockResolvedValue({
         success: true,
         kind: 'single',
-        data: counts,
+        data: [3, 2],
       }),
     };
     const req = {
@@ -259,6 +286,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = [{ ownerIds: ['u1', 'u2'] }, { ownerIds: ['u2'] }];
@@ -274,6 +302,11 @@ describe('access-router internals', () => {
       { ownerIds: ['u1', 'u2'], postCount: 3 },
       { ownerIds: ['u2'], postCount: 2 },
     ]);
+    expect(publicService.groupedCount).toHaveBeenCalledWith({ ownerIds: { $in: ['u1', 'u2'] } }, 'ownerIds', {
+      values: ['u1', 'u2'],
+      aliases: ['u1', 'u2'],
+      groups: [[0, 1], [1]],
+    });
   });
 
   it('indexes include list matches instead of rescanning target rows per source row', async () => {
@@ -299,6 +332,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = Array.from({ length: 12 }, (_, i) => ({ ownerId: `u${i % 4}` }));
@@ -330,6 +364,7 @@ describe('access-router internals', () => {
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
+    registerTarget(publicService, req);
     const base = new TestBase(req, 'User');
 
     const docs = [{ ownerIds: ['u1', 'u2'] }, { ownerIds: ['u3'] }];

@@ -10,9 +10,11 @@
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AttestationError,
+  AttestationProtocolError,
   base64urlDecode,
   base64urlEncode,
   buildMacInputBytes,
@@ -25,9 +27,13 @@ import {
   hashBodySha256Hex,
   normalizeContentType,
   normalizeMethod,
+  resolveTimePolicy,
   validateHeaderName,
   validatePublicOrigin,
+  verifyAttestationProof,
 } from '../src/index.js';
+import type { AttestationVerifyInput } from '../src/index.js';
+import { decodeTransactionId as decodeSignerTransactionId } from '../src/signer.js';
 import {
   EMPTY_BODY_SHA256_HEX,
   MAX_CONTENT_TYPE_BYTES,
@@ -65,6 +71,32 @@ const doc = JSON.parse(readFileSync(resolve(__dirname, 'fixtures', 'protocol-v1.
 
 function directMac(keyHex: string, macInput: string): string {
   return createHmac('sha256', Buffer.from(keyHex, 'hex')).update(macInput, 'utf8').digest('base64url');
+}
+
+function verificationInput(fixture: FixtureCase, contentType: string, headerValue: string): AttestationVerifyInput {
+  return {
+    headerValue,
+    method: fixture.method,
+    originalUrl: fixture.requestTarget,
+    contentTypeHeader: contentType,
+    contentEncodingHeader: undefined,
+    bodyDigestHex: fixture.bodyHashHex,
+    snapshot: {
+      currentKeyId: fixture.keyId,
+      keys: [
+        {
+          keyId: fixture.keyId,
+          key: new Uint8Array(Buffer.from(fixture.keyHex, 'hex')),
+          acceptFrom: fixture.timestampMs - 60000,
+          acceptUntil: fixture.timestampMs + 60000,
+        },
+      ],
+    },
+    nowMs: fixture.timestampMs,
+    policy: resolveTimePolicy(),
+    replayNamespace: fixture.replayNamespace,
+    publicOrigin: fixture.publicOrigin,
+  };
 }
 
 describe('protocol-v1 fixtures (independent node:crypto expectations)', () => {
@@ -124,6 +156,18 @@ describe('protocol-v1 fixtures (independent node:crypto expectations)', () => {
             timestampMs: fixture.timestampMs,
             nonceHex: fixture.nonceHex,
             mac: variant.mac,
+          });
+          expect(decodeSignerTransactionId(variant.transactionId)).toEqual(decodeTransactionId(variant.transactionId));
+          expect(
+            verifyAttestationProof(verificationInput(fixture, variant.contentType, variant.transactionId as string)),
+          ).toMatchObject({
+            keyId: fixture.keyId,
+            timestampMs: fixture.timestampMs,
+            nonceHex: fixture.nonceHex,
+            method: fixture.method,
+            requestTarget: fixture.requestTarget,
+            contentType: variant.contentType,
+            bodyHashHex: fixture.bodyHashHex,
           });
           // Replay-key derivation matches direct SHA-256 of the preimage.
           const preimage = buildReplayKeyPreimageBytes({
@@ -222,10 +266,29 @@ describe('strict envelope rejection', () => {
     expect(() => decodeTransactionId(42)).toThrow();
   });
 
-  it('enforces the 1024-byte bound before decoding', () => {
-    expect(() => decodeTransactionId('A'.repeat(MAX_ENCODED_TRANSACTION_ID_BYTES + 1))).toThrow();
-    expect(() => decodeTransactionId('A'.repeat(MAX_ENCODED_TRANSACTION_ID_BYTES))).toThrow();
-  });
+  for (const [entry, decode] of [
+    ['server', decodeTransactionId],
+    ['signer', decodeSignerTransactionId],
+  ] as const) {
+    it(`rejects oversized envelopes before UTF-8 allocation (${entry})`, () => {
+      const oversized = 'A'.repeat(MAX_ENCODED_TRANSACTION_ID_BYTES + 1);
+      const encodeSpy = vi.spyOn(TextEncoder.prototype, 'encode');
+      try {
+        expect(() => decode(oversized)).toThrow(AttestationProtocolError);
+        expect(encodeSpy).not.toHaveBeenCalled();
+      } finally {
+        encodeSpy.mockRestore();
+      }
+      expect(() => decode('A'.repeat(MAX_ENCODED_TRANSACTION_ID_BYTES))).toThrow(AttestationProtocolError);
+    });
+
+    it(`rejects a UTF-8 BOM prepended to an independent canonical envelope (${entry})`, () => {
+      const bytes = Buffer.from(valid, 'base64url');
+      const wrapped = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes]).toString('base64url');
+      expect(decode(valid).keyId).toBe(doc.cases[0].keyId);
+      expect(() => decode(wrapped)).toThrow(AttestationProtocolError);
+    });
+  }
 
   it('rejects non-canonical JSON: whitespace and alternate numeric spellings', () => {
     const raw = Buffer.from(base64urlDecode(valid)).toString('utf8');
@@ -276,6 +339,67 @@ describe('strict envelope rejection', () => {
     expect(() => decodeTransactionId(encode([version, keyId, ts, nonce, `${mac}=`]))).toThrow();
     expect(() => decodeTransactionId(encode([version, keyId, ts, nonce, 'A'.repeat(42)]))).toThrow();
   });
+});
+
+describe('public pure verifier preflight', () => {
+  const fixture = doc.cases[0];
+  const valid = fixture.transactionId as string;
+  const raw = Buffer.from(valid, 'base64url');
+  const cases: {
+    name: string;
+    headerValue: AttestationVerifyInput['headerValue'];
+    code: 'ATTESTATION_MISSING' | 'ATTESTATION_MALFORMED';
+  }[] = [
+    { name: 'missing', headerValue: undefined, code: 'ATTESTATION_MISSING' },
+    { name: 'empty', headerValue: '', code: 'ATTESTATION_MISSING' },
+    { name: 'duplicate', headerValue: [valid, valid], code: 'ATTESTATION_MALFORMED' },
+    { name: 'comma-joined', headerValue: `${valid},${valid}`, code: 'ATTESTATION_MALFORMED' },
+    { name: 'oversized', headerValue: 'A'.repeat(1025), code: 'ATTESTATION_MALFORMED' },
+    { name: 'padded', headerValue: `${valid}=`, code: 'ATTESTATION_MALFORMED' },
+    {
+      name: 'noncanonical JSON',
+      headerValue: Buffer.from(raw.toString('utf8').replaceAll(',', ', ')).toString('base64url'),
+      code: 'ATTESTATION_MALFORMED',
+    },
+    {
+      name: 'BOM-wrapped',
+      headerValue: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), raw]).toString('base64url'),
+      code: 'ATTESTATION_MALFORMED',
+    },
+  ];
+
+  it.each(cases)('rejects $name raw input before snapshot access', ({ headerValue, code }) => {
+    const snapshotRead = vi.fn(() => {
+      throw new Error('snapshot must not be read for invalid headers');
+    });
+    const input = {
+      ...verificationInput(fixture, fixture.contentType, valid),
+      headerValue,
+      // A decoded envelope supplied by a caller must never bypass raw validation.
+      envelope: decodeTransactionId(valid),
+      get snapshot() {
+        return snapshotRead();
+      },
+    };
+    expect(() => verifyAttestationProof(input)).toThrowError(new AttestationError(code));
+    expect(snapshotRead).not.toHaveBeenCalled();
+  });
+
+  it.each(['ATTESTATION_STALE_KEY', 'ATTESTATION_EXPIRED'] as const)(
+    'normalizes snapshot accessor %s failures to KEYS_UNAVAILABLE',
+    (code) => {
+      const input = {
+        ...verificationInput(fixture, fixture.contentType, valid),
+        snapshot: {
+          get currentKeyId(): string {
+            throw new AttestationError(code);
+          },
+          keys: [],
+        },
+      };
+      expect(() => verifyAttestationProof(input)).toThrowError(new AttestationError('ATTESTATION_KEYS_UNAVAILABLE'));
+    },
+  );
 });
 
 describe('request target rules (section 4.3)', () => {

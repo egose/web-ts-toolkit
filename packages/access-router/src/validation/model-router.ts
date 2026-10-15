@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { publicBoundarySchema } from './public-admission-schema';
 /**
  * VIRT-08 (VIRT-00A D8): model-route query/body/subdocument/populate
  * selections preserve the arbitrary-string grammar from `./common`
@@ -26,217 +27,247 @@ import {
   tasksSchema,
 } from './common';
 
-export const listQuerySchema = z
-  .object({
-    skip: nonNegativeIntegerString.optional(),
-    limit: positiveIntegerString.optional(),
-    page: nonNegativeIntegerString.optional(),
-    page_size: positiveIntegerString.optional(),
-    skim: queryBooleanString.optional(),
-    include_permissions: queryBooleanString.optional(),
-    include_field_permissions: queryBooleanString.optional(),
-    include_count: queryBooleanString.optional(),
-    include_extra_headers: queryBooleanString.optional(),
-    select: stringOrStringArray.optional(),
-    sort: z.string().optional().describe('Space-separated sort fields; prefix a field with - for descending order.'),
-  })
-  .passthrough();
+export const listQuerySchema = publicBoundarySchema(
+  z
+    .object({
+      skip: nonNegativeIntegerString.optional(),
+      limit: positiveIntegerString.optional(),
+      page: nonNegativeIntegerString.optional(),
+      page_size: positiveIntegerString.optional(),
+      skim: queryBooleanString.optional(),
+      include_permissions: queryBooleanString.optional(),
+      include_field_permissions: queryBooleanString.optional(),
+      include_count: queryBooleanString.optional(),
+      include_extra_headers: queryBooleanString.optional(),
+      select: stringOrStringArray.optional(),
+      sort: z.string().optional().describe('Space-separated sort fields; prefix a field with - for descending order.'),
+    })
+    .passthrough(),
+);
 
-export const createQuerySchema = z
-  .object({
-    include_permissions: queryBooleanString.optional(),
-    include_field_permissions: queryBooleanString.optional(),
-  })
-  .passthrough();
+export const createQuerySchema = publicBoundarySchema(
+  z
+    .object({
+      include_permissions: queryBooleanString.optional(),
+      include_field_permissions: queryBooleanString.optional(),
+    })
+    .passthrough(),
+);
 
-export const readQuerySchema = z
-  .object({
-    include_permissions: queryBooleanString.optional(),
-    include_field_permissions: queryBooleanString.optional(),
-    try_list: queryBooleanString.optional(),
-    select: stringOrStringArray.optional(),
-  })
-  .passthrough();
+export const readQuerySchema = publicBoundarySchema(
+  z
+    .object({
+      include_permissions: queryBooleanString.optional(),
+      include_field_permissions: queryBooleanString.optional(),
+      try_list: queryBooleanString.optional(),
+      select: stringOrStringArray.optional(),
+    })
+    .passthrough(),
+);
 
-export const updateQuerySchema = z
-  .object({
-    returning_all: queryBooleanString.optional(),
-    include_permissions: queryBooleanString.optional(),
-    include_field_permissions: queryBooleanString.optional(),
-    select: stringOrStringArray.optional(),
-  })
-  .passthrough();
+export const updateQuerySchema = publicBoundarySchema(
+  z
+    .object({
+      returning_all: queryBooleanString.optional(),
+      include_permissions: queryBooleanString.optional(),
+      include_field_permissions: queryBooleanString.optional(),
+      select: stringOrStringArray.optional(),
+    })
+    .passthrough(),
+);
 
-export const upsertQuerySchema = z
-  .object({
-    returning_all: queryBooleanString.optional(),
-    include_permissions: queryBooleanString.optional(),
-    include_field_permissions: queryBooleanString.optional(),
-  })
-  .passthrough();
+export const upsertQuerySchema = publicBoundarySchema(
+  z
+    .object({
+      returning_all: queryBooleanString.optional(),
+      include_permissions: queryBooleanString.optional(),
+      include_field_permissions: queryBooleanString.optional(),
+    })
+    .passthrough(),
+);
 
-export const listBodySchema = z
-  .object({
-    filter: objectOrArraySchema.optional(),
-    select: projectionSchema.optional(),
-    sort: sortSchema.optional(),
-    populate: populateSchema.optional(),
-    include: includeSchema.optional(),
-    tasks: tasksSchema.optional(),
-    skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
-    limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
-    page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
-    pageSize: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
-    options: z
-      .object({
-        skim: z.boolean().optional(),
-        includePermissions: z.boolean().optional(),
-        includeFieldPermissions: z.boolean().optional(),
-        includeCount: z.boolean().optional(),
-        includeExtraHeaders: z.boolean().optional(),
-        populateAccess: populateAccessSchema.optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough()
-  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query']));
+export const listBodySchema = publicBoundarySchema(
+  z
+    .object({
+      filter: objectOrArraySchema.optional(),
+      select: projectionSchema.optional(),
+      sort: sortSchema.optional(),
+      populate: populateSchema.optional(),
+      include: includeSchema.optional(),
+      tasks: tasksSchema.optional(),
+      skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+      limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
+      page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+      pageSize: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
+      options: z
+        .object({
+          skim: z.boolean().optional(),
+          includePermissions: z.boolean().optional(),
+          includeFieldPermissions: z.boolean().optional(),
+          includeCount: z.boolean().optional(),
+          includeExtraHeaders: z.boolean().optional(),
+          populateAccess: populateAccessSchema.optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough()
+    .superRefine((body, ctx) => rejectKeys(body, ctx, ['query'])),
+);
 
-export const countBodySchema = z
-  .object({
-    filter: objectOrArraySchema.optional(),
-  })
-  .passthrough()
-  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query', 'access', 'options', 'include']));
+export const countBodySchema = publicBoundarySchema(
+  z
+    .object({
+      filter: objectOrArraySchema.optional(),
+    })
+    .passthrough()
+    .superRefine((body, ctx) => rejectKeys(body, ctx, ['query', 'access', 'options', 'include'])),
+);
 
-export const readFilterBodySchema = z
-  .object({
-    filter: objectOrArraySchema.optional(),
-    select: projectionSchema.optional(),
-    sort: sortSchema.optional(),
-    populate: populateSchema.optional(),
-    include: includeSchema.optional(),
-    tasks: tasksSchema.optional(),
-    options: z
-      .object({
-        skim: z.boolean().optional(),
-        includePermissions: z.boolean().optional(),
-        includeFieldPermissions: z.boolean().optional(),
-        tryList: z.boolean().optional(),
-        populateAccess: populateAccessSchema.optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
+export const readFilterBodySchema = publicBoundarySchema(
+  z
+    .object({
+      filter: objectOrArraySchema.optional(),
+      select: projectionSchema.optional(),
+      sort: sortSchema.optional(),
+      populate: populateSchema.optional(),
+      include: includeSchema.optional(),
+      tasks: tasksSchema.optional(),
+      options: z
+        .object({
+          skim: z.boolean().optional(),
+          includePermissions: z.boolean().optional(),
+          includeFieldPermissions: z.boolean().optional(),
+          tryList: z.boolean().optional(),
+          populateAccess: populateAccessSchema.optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough(),
+);
 
-export const readByIdBodySchema = z
-  .object({
-    select: projectionSchema.optional(),
-    populate: populateSchema.optional(),
-    include: includeSchema.optional(),
-    tasks: tasksSchema.optional(),
-    options: z
-      .object({
-        skim: z.boolean().optional(),
-        includePermissions: z.boolean().optional(),
-        includeFieldPermissions: z.boolean().optional(),
-        tryList: z.boolean().optional(),
-        populateAccess: populateAccessSchema.optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
+export const readByIdBodySchema = publicBoundarySchema(
+  z
+    .object({
+      select: projectionSchema.optional(),
+      populate: populateSchema.optional(),
+      include: includeSchema.optional(),
+      tasks: tasksSchema.optional(),
+      options: z
+        .object({
+          skim: z.boolean().optional(),
+          includePermissions: z.boolean().optional(),
+          includeFieldPermissions: z.boolean().optional(),
+          tryList: z.boolean().optional(),
+          populateAccess: populateAccessSchema.optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough(),
+);
 
-export const advancedCreateBodySchema = z
-  .object({
-    data: z.unknown(),
-    select: projectionSchema.optional(),
-    populate: populateSchema.optional(),
-    tasks: tasksSchema.optional(),
-    options: z
-      .object({
-        includePermissions: z.boolean().optional(),
-        includeFieldPermissions: z.boolean().optional(),
-        populateAccess: populateAccessSchema.optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
+export const advancedCreateBodySchema = publicBoundarySchema(
+  z
+    .object({
+      data: z.unknown(),
+      select: projectionSchema.optional(),
+      populate: populateSchema.optional(),
+      tasks: tasksSchema.optional(),
+      options: z
+        .object({
+          includePermissions: z.boolean().optional(),
+          includeFieldPermissions: z.boolean().optional(),
+          populateAccess: populateAccessSchema.optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough(),
+);
 
-export const createBodySchema = z.union([
-  z.record(z.string(), z.unknown()),
-  z.array(z.record(z.string(), z.unknown())),
-]);
-export const updateBodySchema = z.record(z.string(), z.unknown());
+export const createBodySchema = publicBoundarySchema(
+  z.union([z.record(z.string(), z.unknown()), z.array(z.record(z.string(), z.unknown()))]),
+  'data',
+);
+export const updateBodySchema = publicBoundarySchema(z.record(z.string(), z.unknown()), 'data');
 
-export const advancedUpdateBodySchema = z
-  .object({
-    data: z.unknown(),
-    select: projectionSchema.optional(),
-    populate: populateSchema.optional(),
-    tasks: tasksSchema.optional(),
-    options: z
-      .object({
-        returningAll: z.boolean().optional(),
-        includePermissions: z.boolean().optional(),
-        includeFieldPermissions: z.boolean().optional(),
-        populateAccess: populateAccessSchema.optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
+export const advancedUpdateBodySchema = publicBoundarySchema(
+  z
+    .object({
+      data: z.unknown(),
+      select: projectionSchema.optional(),
+      populate: populateSchema.optional(),
+      tasks: tasksSchema.optional(),
+      options: z
+        .object({
+          returningAll: z.boolean().optional(),
+          includePermissions: z.boolean().optional(),
+          includeFieldPermissions: z.boolean().optional(),
+          populateAccess: populateAccessSchema.optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough(),
+);
 
-export const upsertBodySchema = z.record(z.string(), z.unknown());
+export const upsertBodySchema = publicBoundarySchema(z.record(z.string(), z.unknown()), 'data');
 
-export const advancedUpsertBodySchema = z
-  .object({
-    data: z.record(z.string(), z.unknown()),
-    select: projectionSchema.optional(),
-    populate: populateSchema.optional(),
-    tasks: tasksSchema.optional(),
-    options: z
-      .object({
-        returningAll: z.boolean().optional(),
-        includePermissions: z.boolean().optional(),
-        includeFieldPermissions: z.boolean().optional(),
-        populateAccess: populateAccessSchema.optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
+export const advancedUpsertBodySchema = publicBoundarySchema(
+  z
+    .object({
+      data: z.record(z.string(), z.unknown()),
+      select: projectionSchema.optional(),
+      populate: populateSchema.optional(),
+      tasks: tasksSchema.optional(),
+      options: z
+        .object({
+          returningAll: z.boolean().optional(),
+          includePermissions: z.boolean().optional(),
+          includeFieldPermissions: z.boolean().optional(),
+          populateAccess: populateAccessSchema.optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough(),
+);
 
-export const distinctBodySchema = z
-  .object({
-    filter: objectOrArraySchema.optional(),
-  })
-  .passthrough()
-  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query']));
+export const distinctBodySchema = publicBoundarySchema(
+  z
+    .object({
+      filter: objectOrArraySchema.optional(),
+    })
+    .passthrough()
+    .superRefine((body, ctx) => rejectKeys(body, ctx, ['query'])),
+);
 
-export const subListBodySchema = z
-  .object({
-    filter: z.record(z.string(), z.unknown()).optional(),
-    select: fieldsSchema.optional(),
-  })
-  .passthrough()
-  .superRefine((body, ctx) => rejectKeys(body, ctx, ['fields']));
+export const subListBodySchema = publicBoundarySchema(
+  z
+    .object({
+      filter: z.record(z.string(), z.unknown()).optional(),
+      select: fieldsSchema.optional(),
+    })
+    .passthrough()
+    .superRefine((body, ctx) => rejectKeys(body, ctx, ['fields'])),
+);
 
-export const subMutationBodySchema = z.union([
-  z.record(z.string(), z.unknown()),
-  z.array(z.record(z.string(), z.unknown())),
-]);
+export const subMutationBodySchema = publicBoundarySchema(
+  z.union([z.record(z.string(), z.unknown()), z.array(z.record(z.string(), z.unknown()))]),
+  'data',
+);
 
-export const subReadBodySchema = z
-  .object({
-    select: fieldsSchema.optional(),
-    populate: subPopulateSchema.optional(),
-  })
-  .passthrough()
-  .superRefine((body, ctx) => rejectKeys(body, ctx, ['fields']));
+export const subReadBodySchema = publicBoundarySchema(
+  z
+    .object({
+      select: fieldsSchema.optional(),
+      populate: subPopulateSchema.optional(),
+    })
+    .passthrough()
+    .superRefine((body, ctx) => rejectKeys(body, ctx, ['fields'])),
+);
 
 export const requestSchemas = {
   listQuery: listQuerySchema,

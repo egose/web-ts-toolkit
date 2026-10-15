@@ -35,6 +35,23 @@ const baseSnapshot = (over: Partial<VirtualProjectionSnapshot> = {}): VirtualPro
 });
 
 describe('VIRT-02 virtual projection planner', () => {
+  it('compacts private parent/child projections and strips nested/inactive virtual paths', () => {
+    const plan = planVirtualProjection({
+      receivingModelName: 'U',
+      virtualAccess: READ,
+      outputAccess: READ,
+      docPermissionsAccess: READ,
+      snapshot: baseSnapshot({
+        permissionSchema: { name: true },
+        virtuals: { contacts: { sub: { badge: { update: () => 'inactive' } } } },
+        alwaysSelectFields: ['contacts.badge', 'contacts.badge.part'],
+      }),
+      requestedSelect: ['name'],
+      internalFetch: { joinFields: ['profile.name', 'profile'], extraPersistedFields: ['contacts.badge'] },
+    });
+    expect(plan.persistedFetchSelection).toEqual(['name', '_id', 'profile']);
+  });
+
   it('omitted select considers applicable virtuals; fetch has deps, output hides unrequested deps', () => {
     const get = vi.fn(async () => 'addr:x');
     const snap = baseSnapshot({
@@ -372,7 +389,7 @@ describe('VIRT-02 virtual projection planner', () => {
     expect(denyGet).not.toHaveBeenCalled();
   });
 
-  it('strips virtuals from alwaysSelectFields and trusted overrides without granting', () => {
+  it('strips virtuals from alwaysSelectFields and private fetch inputs without granting', () => {
     const get = vi.fn(async () => 'v');
     const snap = baseSnapshot({
       permissionSchema: { name: { read: true }, fullAddress: { read: false } },
@@ -386,7 +403,7 @@ describe('VIRT-02 virtual projection planner', () => {
       outputAccess: READ,
       docPermissionsAccess: READ,
       requestedSelect: ['name'],
-      internalFetch: { trustedOverrideSelect: ['fullAddress', 'name'] as never },
+      internalFetch: { extraPersistedFields: ['fullAddress', 'name'] },
       globalPermissions: nonePerms,
     });
     // Denied virtual never becomes a candidate even though forced/overridden.

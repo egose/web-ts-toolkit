@@ -60,7 +60,7 @@ Completion evidence:
 - Changed `packages/access-router-deco/src/factory.ts` (exact-slot `getExactNestedValue`, validate `getValidateExactConflict`, `assertArrayRootShorthandFree`, scoped `registerMethodHookOnAcl` with model/default scope; preflight+registration use exact lookups, malformed maps still throw via `normalizeHookChain`, registration throws inside bootstrap try for atomic rollback).
 - Changed `packages/access-router-deco/test/hook-adapter.contract.test.ts` (38 tests: root false/array/callback preservation, sibling/default combos both orders table-driven for all array-hook families, malformed rejection) and `test/bootstrap-transaction.test.ts` (root-false rollback), plus README root-shorthand contract paragraph.
 - Verification: `pnpm --filter @web-ts-toolkit/access-router-deco... build` success; `vitest run test/hook-adapter.contract.test.ts` 38 passed; `test/bootstrap-transaction.test.ts` 10 passed; `test/factory.test.ts` 53 passed; typecheck clean. Before-fix: stashed src fix, rebuilt → 20 failed/18 passed; restored → 38 passed.
-- Owner: sub-agent ses_f82abb6e9ffe8GoVQwGI8A9jsb, 2026-09-07.
+- Owner: BDECO-01 implementation session (independent sub-agent, sequential execution 1), 2026-09-07.
 
 Kind: defect
 
@@ -104,7 +104,7 @@ Completion evidence:
 - Changed `packages/access-router-deco/src/factory.ts` bootstrap provider loop to apply default providers before model providers regardless of caller order (index list defaults-first, preserving relative order and plan pairing; BDECO-01 exact-slot preserved).
 - Changed `packages/access-router-deco/test/bootstrap-routes.integration.test.ts` (+2 tests: both permutations deny + identical route params/paths with stale initial defaults and router override; duplicate-provider uniqueness retained).
 - Verification: `pnpm --filter @web-ts-toolkit/access-router-deco... build` success; `vitest run test/bootstrap-routes.integration.test.ts` 9/9 passed; `test/factory.test.ts` 53/53 sanity. Before-fix: stashed fix → 1 failed/8 passed (model-first yielded stale path + permitted).
-- Owner: sub-agent ses_f829c4ae5ffepQ16jvnon4e1Xq, 2026-09-07.
+- Owner: BDECO-02 implementation session (independent sub-agent, sequential execution 2), 2026-09-07.
 
 Kind: defect
 
@@ -141,7 +141,7 @@ Completion evidence:
 - Changed `packages/access-router-deco/src/factory.ts` to compose `runtimeMiddleware` + routes + error handlers on unmounted `express.Router()`, then single `app.use(basePath, router)`; removed global `app.use(runtimeMiddleware)`; JSDoc scope/ownership note; preserved BDECO-01/02.
 - Changed `test/bootstrap-routes.integration.test.ts` (+6 scoped-init tests), `test/bootstrap-transaction.test.ts` (single-mount ownership assertions `+1`/`handle===router`/inner `setCoreMiddleware`), README scope paragraph (`app.use(factory.runtime())` for outside needs).
 - Verification: build success (DTS 32.59kB); `bootstrap-routes` 15 passed; `bootstrap-transaction` 10 passed; `cross-path` 16 passed; `factory` 53 passed. Before-fix: `GET /outside` invoked resolver (calls=1); stashed fix → new test `expected 1 to be 0`.
-- Owner: sub-agent ses_f8293a7d5ffe5lXjcKAAzVsdRM, 2026-09-07.
+- Owner: BDECO-03 implementation session (independent sub-agent, sequential execution 3), 2026-09-07.
 
 Kind: defect
 
@@ -180,7 +180,7 @@ Completion evidence:
 - Changed `packages/access-router-deco/src/factory.ts` bootstrap lifecycle: `bootstrapInProgress` WeakMap reservation before user constructors, `try` covers metadata→user ctor→snapshot→preflights→mount, `catch` restores package snapshot+app stack, `finally` clears in-progress; successful duplicate protection retained; JSDoc non-conflation note.
 - Changed `test/bootstrap-transaction.test.ts` (+2: lazy-conflict snapshot unchanged, reentrant ctor rejected/retryable) and `test/factory.test.ts` (+1 reentrancy lifecycle).
 - Verification: build success (DTS 33.29kB); `bootstrap-transaction` 12 passed; `factory` 54 passed; `hook-adapter` 38 passed; `bootstrap-routes` 15 passed. Before-fix: transaction 2 failed/10 passed (snapshot mutated, nested null + outer OpenAPI collision); factory reentrant `expected [Function] to throw`.
-- Owner: sub-agent ses_f828703c2ffe4tYf6K5XJJ2QNZ, 2026-09-07.
+- Owner: BDECO-04 implementation session (independent sub-agent, sequential execution 4), 2026-09-07.
 
 Kind: defect
 
@@ -218,7 +218,7 @@ Completion evidence:
 - Changed `src/decorators/method.decorators.ts` (`assertInstanceMethodTarget` + `assertValidOperation` via HOOK_DEFINITIONS, eager validation in all 10 op-bearing factories), `parameter.decorators.ts` (reject ctor/static before writes), `property.decorators.ts` (reject static, per-decorator names); instance-only contract JSDoc; no factory.ts edits.
 - New `test/decorator-boundary.test.ts` (53 tests: static rejections, Function-metadata non-contamination, missing/undefined/empty/wrong-type/unsupported with no residue, legacy `@` syntax via transpile+eval, valid/inherited/symbol/operationless bootstrap).
 - Verification: build success (DTS 33.29kB); `decorator-boundary+decorators+route-guard` 120 passed; full package vitest 316 passed; src typecheck clean; eslint clean. Before-fix probe: static guard silent, static params shared Function metadata, ctor silent, `BaseFilter()` unsuffixed write.
-- Owner: sub-agent ses_f827b9ac6ffeRfKAumm23FXQee, 2026-09-07.
+- Owner: BDECO-05 implementation session (independent sub-agent, sequential execution 5), 2026-09-07.
 
 Kind: defect
 
@@ -257,7 +257,7 @@ Completion evidence:
 - Changed `packages/access-router-deco/src/factory.ts` `wrapMethod` to assign injected values at declared `meta.index` into sparse array (`apply(target, sparse)`), preserving undefined holes/defaults and instance `this`; replaced sorted `.map()` compaction.
 - Changed `test/factory.test.ts` (+6 sparse-position tests) and `test/hook-adapter.contract.test.ts` (+6 real-runtime sparse tests: leading/interior/default/nonzero-Request/inherited/symbol + return propagation).
 - Verification: build success (DTS 33.29kB); `hook-adapter` 44/44; `factory` 60/60; full package 328/328; typecheck clean. Before-fix: both new suites 6 failed each (value at arg 0).
-- Owner: sub-agent ses_f826c5142ffe0qtuw2UgiVWdmo, 2026-09-07.
+- Owner: BDECO-06 implementation session (independent sub-agent, sequential execution 6), 2026-09-07.
 
 Kind: defect
 
@@ -295,7 +295,7 @@ Completion evidence:
 - Changed `test/cross-path.integration.test.ts` (+ effective-auth block: 6 BaseFilter values via `resolveAccessFilter`, DocPermissions `{}` via real resolver with/without global grant) and new `test/documentation-examples.test.ts` (6 declaration/doc contract tests).
 - Verification: build success (DTS 33.71kB, corrected guidance in `dist/index.d.ts:327-348,446-450`); `cross-path` 18/18; `documentation-examples` 6/6; full V2 332/332; eslint clean.
 - Follow-up noted: `IdentifierDecoratorHook` `this: AccessRouterRequest` alias vs instance binding left for BDECO-08 scope.
-- Owner: sub-agent ses_f8266458fffeOfn2gOyoSag15c, 2026-09-07.
+- Owner: BDECO-07 implementation session (independent sub-agent, sequential execution 7), 2026-09-07.
 
 Kind: defect
 
@@ -334,7 +334,7 @@ Completion evidence:
 - Changed `src/interfaces.ts` to generic `RouterModel<TModel=any> = string | mongoose.Model<TModel>` and `src/decorators/class.decorators.ts` (+ union overloads `RouterModel<TModel>` preserving `ModelRouterOptions<TModel>` inference, runtime untouched).
 - Changed `test/strict-consumer-types.test.ts` (cast removed; bare/generic/union positives without casts, typed permissionSchema positive + bogus-field negative), `test/packed-consumer-compatibility.test.ts` (NodeNext/Bundler typed-model + union fixtures, skipLibCheck:false), README + website composition docs.
 - Verification: build success (DTS 35.44kB emits generic alias + overloads); before-fix stashed → new strict fixture 1 failed/1 passed; typecheck clean; V2 332/332; V3 compat 335/335 (mongoose 8.0/8.10/9.x, TS 5.5/5.9/6.0, ESM+CJS, NodeNext+Bundler); eslint clean.
-- Owner: sub-agent ses_f825a5aafffeNS8cepUyZMXiBh, 2026-09-07.
+- Owner: BDECO-08 implementation session (independent sub-agent, sequential execution 8), 2026-09-07.
 
 Kind: defect
 
@@ -371,7 +371,7 @@ Completion evidence:
 - Investigation only, no src semantics changed. Evidence: `test/inheritance-symbol.test.ts` +10 (E1-E10: wrong-role Global/Model/DefaultModel misplacement, inferred-key typo verbatim, string listHardLimit passthrough proving no value validation, same-property/different-key dup bug E6, same-key/different-property child-wins E7, symbols/3-level E8, same-prototype E9, no scope discriminator E10) + `test/strict-consumer-types.test.ts` bypass fixtures (inferred keys, value types, role placement compile under strict+skipLibCheck:false).
 - Report: `docs/tasks/20260907-134500-bdeco-09-property-scope-evidence.md` with decision record and follow-up BDECO-09-F01 (scope validation, legacy typo/value policy, propertyKey-aware dedupe, docs/migration/release; blocked on named maintainer approval for BDECO-12 to assign).
 - Verification: build success (DTS 35.44kB); `inheritance-symbol` 24/24; `strict-consumer` 2/2; V2 342/342.
-- Owner: sub-agent ses_f823591dbffe36lAbAyXJ1AMmz, 2026-09-07.
+- Owner: BDECO-09 implementation session (independent sub-agent, sequential execution 9), 2026-09-07.
 
 Kind: investigation
 
@@ -410,7 +410,7 @@ Completion evidence:
 - Investigation only, no live route matching changed. Evidence table (fresh build + supertest/OpenAPI probes): reachable=`moduleBase+basePath`, OpenAPI=`parentPath+basePath` (model) or basename (root); agreement iff both `/`; P1-P7 mismatch rows incl. two-module identical specs and proxy missing servers[].
 - Changed `test/cross-path.integration.test.ts` (+7 P1-P7 current-behavior evidence tests) and new `docs/tasks/20260907-145022-bdeco-10-path-composition-evidence.md` (report + BDECO-10-F01: OpenAPI-side mount-prefix fix, parentPath/servers proxy docs, double-prefix migration, P1-P7 acceptance; blocked on maintainer approval for BDECO-12).
 - Verification: build success (DTS 35.44kB); `cross-path` 25/25; V2 349/349.
-- Owner: sub-agent ses_f822c12c5ffeNax6fdjBwaDpBp, 2026-09-07.
+- Owner: BDECO-10 implementation session (independent sub-agent, sequential execution 10), 2026-09-07.
 
 Kind: investigation
 
@@ -447,7 +447,7 @@ Completion evidence:
 
 - Changed `test/cross-path.integration.test.ts` shared-runtime assertion (no swallowed `.catch`, runtime-derived basePath, 401 deny + 404 separation), `test/registration-plan.instrumentation.test.ts` (narrowed to measured O(methods×depth), independent depth dimension, deterministic counters, no wall-clock thresholds, chain-length preservation), `test/inheritance-symbol.test.ts` (removed dead scaffolding → pointer to BDECO-09 E1-E10), `src/metadata.ts` comment (validate scalar policy).
 - Verification: build success (DTS 35.44kB); instrumentation 2 passed; inheritance 24 passed; cross-path 25 passed; typecheck clean. Negative: broke expectation to `.expect(200)` → 1 failed, restored → 25 passed.
-- Owner: sub-agent ses_f82236fdaffeGYha0iU3tsCWPg, 2026-09-07.
+- Owner: BDECO-11 implementation session (independent sub-agent, sequential execution 11), 2026-09-07.
 
 Kind: improvement
 
@@ -483,10 +483,10 @@ Status: completed
 
 Completion evidence:
 
-- Independent review by sub-agent ses_f821c6e7affevq15675mqY9QqA (did not implement BDECO-01..11): per-task verdicts BDECO-01..08 PASS, BDECO-09/10 investigation COMPLETE with blocked follow-ups BDECO-09-F01/BDECO-10-F01 (residual risks explicitly unresolved), BDECO-11 PASS; full evidence block below under "Completion evidence (BDECO-12 independent review...)".
+- Independent review by BDECO-12 review session (independent sub-agent; did not implement BDECO-01..11): per-task verdicts BDECO-01..08 PASS, BDECO-09/10 investigation COMPLETE with blocked follow-ups BDECO-09-F01/BDECO-10-F01 (residual risks explicitly unresolved), BDECO-11 PASS; full evidence block below under "Completion evidence (BDECO-12 independent review...)".
 - Coordinator follow-through 2026-09-07: fixed returned `prefer-const` regression at `src/factory.ts:362,368` (`let` → `const`, removed pre-assignment declarations); re-verified serially: `pnpm --filter @web-ts-toolkit/access-router-deco... build` success (DTS 35.44kB); V2 `test` 14 files/350 passed; V3 `test:compat` 14 files/353 passed; V4 `pnpm build` PASS, `pnpm lint` 0 errors (3 pre-existing warnings in access-router-client benchmark test only). Full-repo `pnpm test` remains unrun on uncapped runner (prior V4 attempt SIGTERM-killed at 600s tool timeout inside access-router-runtime, no failing assertion); package-level V2/V3 cover the changed package.
 - Decision owners still TBD for BDECO-09-F01/BDECO-10-F01 (coordinator to name maintainer); historical Deferred Decisions preserved; BDECO-05 migration note closed by review (README + website).
-- Owner: sub-agent ses_f821c6e7affevq15675mqY9QqA + coordinator lint fix, 2026-09-07.
+- Owner: BDECO-12 review session (independent sub-agent) + coordinator lint fix, 2026-09-07.
 
 Kind: improvement
 
@@ -549,3 +549,10 @@ Completion evidence (BDECO-12 independent review, 2026-09-07, reviewer did not i
 ## Definition Of Done
 
 This document is a living execution record. The review deliverable is complete when the plan is saved and checked; all implementation tasks remain pending until executed. The remediation phase is complete only when required acceptance/verification evidence is recorded, approved follow-ups are tracked, public contract changes are documented, and BDECO-12 independently reports unresolved risks. Preserve historical plans and unrelated worktree changes.
+
+Review: 2026-10-14
+
+- Disposition: amended (full operational session IDs replaced with task-local aliases; execution-order and reviewer-independence claims preserved)
+- Evidence: this task record; aliases reuse the file's own task IDs
+- Verification: tracked-file content search confirms no full operational session identifiers remain in `docs/tasks/`; no product-code or status change
+- Remaining work: none from this correction

@@ -439,8 +439,8 @@ describe('cross-resource authorization (AR-06)', () => {
     expect(targetCalls.find).toBe(0);
   });
 
-  it('ignores client include overrides that would bypass target read policy', async () => {
-    const { app, targetModelName } = await createIncludeSemanticsApp();
+  it('rejects client include overrides before target dispatch (SVA-01A)', async () => {
+    const { app, targetModelName, targetCalls } = await createIncludeSemanticsApp();
 
     const response = await request(app)
       .post('/include-sources/__query')
@@ -462,15 +462,12 @@ describe('cross-resource authorization (AR-06)', () => {
           },
         },
       })
-      .expect(200)
+      .expect(400)
       .expect('Content-Type', /json/);
 
-    expect(response.body.data[0].target).toMatchObject({
-      label: 'read-target',
-      targetKey: 'read-key',
-      tenant: 'read',
-    });
-    expect(response.body.data[0].target.secret).toBeUndefined();
+    expect(response.body).not.toHaveProperty('data');
+    expect(targetCalls.findOne).toBe(0);
+    expect(targetCalls.find).toBe(0);
   });
 
   it('executes list includes with target list guard, row filter, field policy, and array cardinality', async () => {

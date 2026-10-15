@@ -1,4 +1,5 @@
-import { Document } from 'mongoose';
+import { Document, mongo } from 'mongoose';
+import { assertPublicAdmission } from '../validation/public-admission';
 import { get, isPlainObject, pick, set } from '@web-ts-toolkit/utils';
 import { getModelOption } from '../options';
 import { SubPopulate } from '../interfaces';
@@ -72,8 +73,18 @@ export const cloneIsolatedLeaf = (value: unknown): unknown => {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
   if (value instanceof Date) return new Date(value.getTime());
+  if (value instanceof RegExp) {
+    const copy = new RegExp(value.source, value.flags);
+    copy.lastIndex = value.lastIndex;
+    return copy;
+  }
   if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value as Buffer)) {
     return Buffer.from(value as Buffer);
+  }
+  // Native BSON values such as Binary/Decimal128 do not all implement clone().
+  // Round-trip through BSON (not JSON) to preserve type and independent storage.
+  if (value instanceof mongo.BSON.BSONValue) {
+    return mongo.BSON.deserialize(mongo.BSON.serialize({ value }), { promoteValues: false, bsonRegExp: true }).value;
   }
   const record = value as Record<string, unknown> & {
     _bsontype?: unknown;
@@ -132,10 +143,18 @@ export const cloneIsolatedLeaf = (value: unknown): unknown => {
  * Cycles are preserved via a `WeakMap` so shared references stay shared within
  * the isolated copy but never alias the input.
  */
-export const deepIsolateValue = <T>(value: T, seen: WeakMap<object, unknown> = new WeakMap()): T => {
+export const deepIsolateValue = <T>(
+  value: T,
+  seen: WeakMap<object, unknown> = new WeakMap(),
+  flattenMaps = false,
+): T => {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
-  if (value instanceof Date || (typeof Buffer !== 'undefined' && Buffer.isBuffer(value as unknown as Buffer))) {
+  if (
+    value instanceof Date ||
+    value instanceof RegExp ||
+    (typeof Buffer !== 'undefined' && Buffer.isBuffer(value as unknown as Buffer))
+  ) {
     return cloneIsolatedLeaf(value) as T;
   }
   const record = value as Record<string, unknown> & { _bsontype?: unknown };
@@ -150,7 +169,26 @@ export const deepIsolateValue = <T>(value: T, seen: WeakMap<object, unknown> = n
     if (seen.has(value as unknown as object)) return seen.get(value as unknown as object) as T;
     const out: unknown[] = [];
     seen.set(value as unknown as object, out);
-    for (const entry of value as unknown[]) out.push(deepIsolateValue(entry, seen));
+    for (const entry of value as unknown[]) out.push(deepIsolateValue(entry, seen, flattenMaps));
+    return out as T;
+  }
+  if (value instanceof Map) {
+    if (seen.has(value)) return seen.get(value) as T;
+    if (flattenMaps) {
+      const out: Record<string, unknown> = {};
+      seen.set(value, out);
+      for (const [key, entry] of value)
+        Object.defineProperty(out, key, {
+          value: deepIsolateValue(entry, seen, true),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
+      return out as T;
+    }
+    const out = new Map();
+    seen.set(value, out);
+    for (const [key, entry] of value) out.set(deepIsolateValue(key, seen), deepIsolateValue(entry, seen));
     return out as T;
   }
   if (isPlainObject(value)) {
@@ -158,7 +196,12 @@ export const deepIsolateValue = <T>(value: T, seen: WeakMap<object, unknown> = n
     const out: Record<string, unknown> = {};
     seen.set(value as unknown as object, out);
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = deepIsolateValue(entry, seen);
+      Object.defineProperty(out, key, {
+        value: deepIsolateValue(entry, seen, flattenMaps),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return out as T;
   }
@@ -177,13 +220,16 @@ export const isolateDocForOutput = (doc: unknown): Record<string, unknown> => {
   if (isDocument(doc)) {
     let raw: unknown;
     try {
-      raw = (doc as DocumentLike & { toObject: (opts?: unknown) => unknown }).toObject({ virtuals: false });
+      raw = (doc as DocumentLike & { toObject: (opts?: unknown) => unknown }).toObject({
+        virtuals: false,
+        flattenMaps: true,
+      });
     } catch {
       raw = (doc as DocumentLike)._doc;
     }
-    return deepIsolateValue(raw as Record<string, unknown>);
+    return deepIsolateValue(raw as Record<string, unknown>, new WeakMap(), true);
   }
-  return deepIsolateValue((doc ?? {}) as Record<string, unknown>);
+  return deepIsolateValue((doc ?? {}) as Record<string, unknown>, new WeakMap(), true);
 };
 
 /** Delete a top-level virtual key from an isolated plain output (no fallback). */
@@ -244,6 +290,7 @@ export const normalizeSubPopulate = (
       : (populate ?? []);
 
 export const genSubPopulate = (sub: string, popul?: SubPopulate | SubPopulate[] | string | string[]): SubPopulate[] => {
+  assertPublicAdmission(popul, 'populate');
   if (!popul) return [];
 
   let populate: (SubPopulate | string)[] = isArray(popul) ? popul : [popul];

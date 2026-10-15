@@ -1,12 +1,11 @@
 /**
- * ATT-03 bounded atomic memory replay store (task section 4.4).
+ * Bounded atomic memory replay store.
  *
- * Admission contract (shared with the future ATT-04 Redis adapter):
+ * Admission contract shared by the memory, Redis, and MongoDB stores:
  *
  * - `reserve({ replayKey, retainUntilMs })` returns `'reserved' | 'duplicate' | 'expired'`.
- * - The canonical deadline field is `retainUntilMs` (see `AttestationStoreReserveInput`).
- *   A `retainUntil` alias is accepted at runtime for callers written against the
- *   task-text shorthand; when both are present the canonical field wins.
+ * - `retainUntilMs` is the absolute epoch-ms deadline from verified proof timing,
+ *   including the cluster clock guard, never a relative TTL.
  * - Validation order per admission: input shape, store clock, opaque key bounds
  *   (1-256 printable ASCII), deadline shape (nonnegative safe integer), input
  *   expiry (`retainUntilMs <= now` returns `'expired'` with no allocation and no
@@ -52,8 +51,7 @@ const STORE_OPTION_KEYS: ReadonlySet<string> = new Set(['maxEntries', 'now']);
 /**
  * Shared capacity exhaustion: no live reservation is evicted and no proof is
  * admitted without replay state. Handle like any replay-store failure: fail
- * closed. Also thrown by the future Redis adapter so callers handle one error
- * type across backends.
+ * closed. All three built-in backends use this same error type.
  */
 export class AttestationCapacityError extends Error {
   override readonly name = 'AttestationCapacityError';
@@ -231,7 +229,11 @@ class MemoryAttestationStore implements AttestationStore {
  * store when replay state must survive restarts or be shared by multiple
  * application instances. Replay is shared only by callers reusing this same
  * object; the store does not verify request signatures. Capacity defaults to
- * 50000 entries and never evicts live entries.
+ * 50000 entries and never evicts live entries. Admission uses absolute
+ * `retainUntilMs`, rejects retention over 240000 ms rather than truncating it,
+ * and never extends a duplicate's deadline. Capacity throws
+ * `AttestationCapacityError`; malformed inputs/clock values throw
+ * `AttestationProtocolError`. Keep its clock synchronized with the verifier.
  */
 export function createMemoryAttestationStore(options: CreateMemoryAttestationStoreOptions = {}): AttestationStore {
   return new MemoryAttestationStore(options);

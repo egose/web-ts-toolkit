@@ -1,6 +1,11 @@
 import { jwtVerify } from 'jose';
 
-import { snapshotVerifiedJwtConfirmation } from './access-token-confirmation';
+import {
+  invalidAccessToken,
+  isCompactSignedJwt,
+  readJwtExpirationMs,
+  snapshotVerifiedJwtConfirmation,
+} from './access-token-confirmation';
 import { OidcVaultHttpError, getRequiredFiniteNonNegativeInteger, getRequiredString } from './errors';
 import type { OidcProviderMetadata, ProviderRequestOptions } from './provider-client';
 import { resolveJwks } from './provider-client';
@@ -251,6 +256,10 @@ export async function verifyBackchannelLogoutToken(
  * the sender constraint. The request-aware result always has confirmation
  * (null only for genuinely unbound JWTs). Legacy unbound results omit it;
  * bound results report it so binding-disabled vault middleware refuses downgrade.
+ * Bound JWTs additionally require canonical compact encoding and a nonnegative
+ * safe-integer exp with safe milliseconds, checked before mapClaims in both
+ * methods. JOSE verifies signature/expiry and configured issuer/audience first. Unbound
+ * JWTs retain JOSE's generic optional-exp contract.
  * Proof/target/ath/nonce/replay enforcement belongs to the API middleware.
  * Construction captures options and copies secret/JWK/allowlist containers.
  */
@@ -276,6 +285,14 @@ export function createOidcVaultJwtAccessTokenValidator(
     const result = await jwtVerify(token, key, { issuer, audience, algorithms });
     const claims = result.payload as Record<string, unknown>;
     const confirmation = snapshotVerifiedJwtConfirmation(claims);
+    if (confirmation !== null) {
+      if (!isCompactSignedJwt(token)) {
+        throw invalidAccessToken('Bound JWT must use canonical compact signed encoding.');
+      }
+      if (readJwtExpirationMs(claims.exp) === undefined) {
+        throw invalidAccessToken('Bound JWT exp must be a nonnegative safe integer with safe milliseconds.');
+      }
+    }
     const mapped = mapClaims ? mapClaims(claims) : defaultJwtClaimsMapper(claims);
     // Copy only mapping-owned fields. Never evaluate mapper confirmation or
     // token/deviceBinding getters and never retain the mutable mapped container.

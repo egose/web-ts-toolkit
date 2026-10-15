@@ -1,25 +1,26 @@
 /**
- * ATT-01 server-side interfaces and fixed HTTP errors (task section 4.5).
- *
- * Server-specific ONLY: this module may reference Express/Redis types but is
- * imported exclusively by the `.` entry. The `./signer` entry never imports
- * it, so browser declarations stay free of server types.
+ * Server-side key, replay-store, and Express integration contracts, exported
+ * from `@web-ts-toolkit/express-request-attestation`. Browser consumers use
+ * the separate `/signer` entry, which needs no server dependencies or types.
  */
 
 /** One accepted key: exactly 32 bytes with an explicit acceptance window. */
 export interface AttestationKeyEntry {
+  /** Unique provisioning ID matching `[A-Za-z0-9_-]{1,64}`; never remap a live ID. */
   readonly keyId: string;
   /** Exactly 32 bytes; snapshots are owned/copy-isolated. */
   readonly key: Uint8Array;
-  /** Nonnegative safe-integer epoch ms; `acceptFrom < acceptUntil`. */
+  /** Inclusive activation, nonnegative safe-integer epoch ms; less than `acceptUntil`. */
   readonly acceptFrom: number;
+  /** Exclusive retirement in epoch ms. Identical for this ID on every verifier in the protection space. */
   readonly acceptUntil: number;
 }
 
 /** Keyring snapshot returned by `AttestationKeyProvider.getSnapshot()`. */
 export interface AttestationKeySnapshot {
-  /** Must name a present active entry. At most 16 retained keys. */
+  /** Names a present entry; discovery additionally requires it active at its post-provider clock. */
   readonly currentKeyId: string;
+  /** 1–16 retained entries, with identical material/windows across the protection space. */
   readonly keys: readonly AttestationKeyEntry[];
 }
 
@@ -36,16 +37,18 @@ export interface AttestationKeySnapshotInput {
 
 /**
  * Typed key provider. Returns an owned, copy-isolated snapshot (or a promise
- * of one). Provider/read failure is operational `503`, never a stale-key
- * client error. External cron/KMS/config code owns provisioning and refresh;
- * there is no default polling timer.
+ * of one). Provider throws, rejected reads, malformed snapshots, and timeouts
+ * become fixed `503 ATTESTATION_KEYS_UNAVAILABLE`, without a stale-key marker.
+ * External cron/KMS/config code owns provisioning, refresh, and dependency
+ * deadlines; there is no polling timer or cancellation of underlying work.
  */
 export interface AttestationKeyProvider {
   getSnapshot(): AttestationKeySnapshot | Promise<AttestationKeySnapshot>;
 }
 
-/** Rotating provider with explicit atomic replacement (ATT-05). */
+/** Rotating provider with explicit atomic replacement and copy-isolated reads. */
 export interface AttestationRotatingKeyProvider extends AttestationKeyProvider {
+  /** Rejects invalid/remapped retained IDs atomically; does not cancel requests using an earlier snapshot. */
   replace(snapshot: AttestationKeySnapshotInput): void;
 }
 
@@ -53,51 +56,75 @@ export interface AttestationRotatingKeyProvider extends AttestationKeyProvider {
 export interface AttestationStoreReserveInput {
   /** Opaque key: `att:v1:` + SHA-256 hex of `[namespace, origin, nonceHex]`. */
   readonly replayKey: string;
-  /** Absolute retention deadline (safe-integer epoch ms, section 4.4). */
+  /**
+   * Absolute safe-integer epoch-ms deadline:
+   * `min(timestampMs + maxAgeMs + clockSkewMs, key.acceptUntil) + clusterClockGuardMs`.
+   * Retain until this deadline; never clamp it or extend it on a duplicate.
+   */
   readonly retainUntilMs: number;
 }
 
+/** One atomic admission: inserted, already live (no extension), or deadline already elapsed. */
 export type AttestationStoreReserveResult = 'reserved' | 'duplicate' | 'expired';
 
 /**
  * Bounded replay store. `reserve` returns `duplicate` for an admitted nonce,
  * `expired` when the retention deadline has elapsed, and throws typed errors
- * on capacity exhaustion or unavailability. The adapter never interprets
- * caller-supplied nonce strings as already authenticated.
+ * on capacity exhaustion or unavailability. Verify proofs before reserving;
+ * the store does not verify signatures. Successful or possibly committed
+ * reservations are never released on handler failure, timeout, or lost response.
+ * Shared verifiers must use identical time policies and key acceptance windows.
+ * Direct calls have no package-level wait timeout; callers own driver deadlines.
  */
 export interface AttestationStore {
   reserve(input: AttestationStoreReserveInput): Promise<AttestationStoreReserveResult>;
 }
 
 /**
- * Narrow structural Redis client contract (ATT-04). The library never creates,
- * connects, or closes clients and never imports a Redis driver; callers
- * inject any compatible client (e.g. `node-redis`). Redis stays a dev
- * dependency for integration tests, not a runtime dependency.
+ * Narrow structural Redis client contract. Inject an already-connected compatible
+ * client (for example `node-redis`). The caller owns connection, error listeners,
+ * command/queue deadlines, and shutdown; this package never imports a driver.
  */
 export interface AttestationRedisClient {
   sendCommand(args: string[]): Promise<unknown>;
 }
 
-/** Options for `createRequestAttestationMiddleware` (implemented in ATT-02). */
+/**
+ * Express guard configuration. All guards in one `(publicOrigin, replayNamespace)`
+ * share replay state, identical time policies, and identical per-key acceptance
+ * windows. Migrate live policy changes to a new namespace rather than mixing
+ * policies or extending old key deadlines over already-admitted proofs.
+ */
 export interface CreateRequestAttestationMiddlewareOptions {
-  /** Static canonical HTTPS origin (loopback http allowed in development). */
+  /** Static canonical HTTPS origin (loopback HTTP allowed); never derive from request headers. */
   readonly publicOrigin: string;
+  /** Protection-space identifier matching `[A-Za-z0-9_-]{1,128}`; must match signers. */
   readonly replayNamespace: string;
-  /** Upstream-stripped prefix to re-prepend after `req.originalUrl`. */
+  /** Upstream-stripped prefix to prepend to `req.originalUrl`; default empty, no trailing slash. */
   readonly publicPathPrefix?: string;
+  /** Caller-owned live provider; each request validates and copies its bounded snapshot. */
   readonly keyProvider: AttestationKeyProvider;
+  /** Atomic shared nonce admission after successful verification; no fallback on store failure. */
   readonly store: AttestationStore;
+  /** Maximum proof age, default 30000 ms; safe integer in 1000–120000. */
   readonly maxAgeMs?: number;
+  /** Client clock allowance, default 5000 ms; safe integer in 0–30000. */
   readonly clockSkewMs?: number;
+  /** Maximum pairwise verifier/store clock difference, default 5000 ms (0–30000); retention only. */
   readonly clusterClockGuardMs?: number;
+  /** Single proof header; default `x-client-transaction-id`. Must pass shared HTTP name validation. */
   readonly headerName?: string;
+  /** Default `Date.now`; every call must return nonnegative safe-integer epoch ms or the guard fails with 500. */
   readonly now?: () => number;
-  /** Bounds async provider/store waits; default 5000 ms. */
+  /**
+   * Each async provider/store wait, default 5000 ms; integer range 1–60000.
+   * Does not cancel underlying work. Configure driver deadlines separately;
+   * a timed-out reservation may commit but can never resume the handler.
+   */
   readonly operationTimeoutMs?: number;
 }
 
-/** Options for `createAttestationBodyCapture` (implemented in ATT-02). */
+/** Exact-byte capture for Express parsers; use the same limit and `inflate: false` on the parser. */
 export interface CreateAttestationBodyCaptureOptions {
   /** Parser/body budget, default 1 MiB, hard cap 16 MiB. */
   readonly maxBodyBytes?: number;
@@ -106,39 +133,55 @@ export interface CreateAttestationBodyCaptureOptions {
 /**
  * Package-owned body-capture integration: an Express parser `verify`
  * callback storing digest/count in per-request state plus a narrow error
- * handler mapping parser size/encoding failures to section 4.5 errors.
+ * handler mapping parser size/encoding failures to fixed 413/415 errors.
+ * These callbacks assign directly to Express parser/error-handler types.
  */
 export interface AttestationBodyCapture {
+  /** Attach as the parser's `verify` callback; observes bytes without changing `req.body`. */
   readonly verify: (req: unknown, res: unknown, body: unknown, encoding: string) => void;
+  /** Mount after parsers and before the guard; other parser errors pass to `next(err)`. */
   readonly errorHandler: (err: unknown, req: unknown, res: unknown, next: (err?: unknown) => void) => void;
 }
 
-/** Options for `createSignerBundleRouter` (implemented in ATT-05). */
+/** Trusted asset-distribution configuration; the caller owns mounting, CORS, and CSP. */
 export interface CreateSignerBundleRouterOptions {
+  /** Static canonical HTTPS origin (loopback HTTP allowed); never derived from Host/Forwarded headers. */
   readonly publicOrigin: string;
+  /** Protection-space namespace matching the verifier and browser client. */
   readonly replayNamespace: string;
+  /** Caller-owned provider; discovery publishes only the current key active after the provider read. */
   readonly keyProvider: AttestationKeyProvider;
-  /** Relative mount base path used only to publish external URLs. */
+  /**
+   * Default `/attestation`. Mount the relative router at this path yourself.
+   * `/` publishes `/signer-meta`, `/signer.<hash>.mjs`, and `/runtime.<hash>.mjs`.
+   */
   readonly basePath?: string;
+  /** Prefix stripped by the upstream proxy, default empty; prepend once to published URLs, not the app mount. */
   readonly publicPathPrefix?: string;
+  /** Default `Date.now`; nonnegative safe-integer epoch ms, checked before and after discovery's provider read. */
   readonly now?: () => number;
+  /** Per-provider wait bound, default 5000 ms (1–60000); does not cancel provider work. Timeout returns fixed 503. */
   readonly operationTimeoutMs?: number;
 }
 
-/** Options for `createMemoryAttestationStore` (implemented in ATT-03). */
+/** Process-local replay storage, shared only by callers reusing the same store object. */
 export interface CreateMemoryAttestationStoreOptions {
+  /** Positive safe-integer capacity; default 50000. Live entries are never evicted. */
   readonly maxEntries?: number;
+  /** Default `Date.now`; nonnegative safe-integer epoch ms, synchronized with verifier clocks. */
   readonly now?: () => number;
 }
 
-/** Options for `createRedisAttestationStore` (implemented in ATT-04). */
+/** Shared Redis replay ledger; the caller owns the connected client and dependency deadlines. */
 export interface CreateRedisAttestationStoreOptions {
   readonly client: AttestationRedisClient;
+  /** Default `wtt-attestation`; 1–256 characters. All instances in a protection space share this ledger prefix. */
   readonly keyPrefix?: string;
+  /** Positive safe-integer capacity; default 50000, identical for every client sharing the prefix. */
   readonly maxEntries?: number;
 }
 
-/** Fixed section 4.5 error codes with their HTTP status and message. */
+/** Fixed verifier error codes; `AttestationError` supplies the stable HTTP status and message. */
 export type AttestationErrorCode =
   | 'ATTESTATION_MISSING'
   | 'ATTESTATION_MALFORMED'

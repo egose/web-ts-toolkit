@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { publicBoundarySchema } from './public-admission-schema';
 /**
  * VIRT-08 (VIRT-00A D8): root/batch args mirror the model-route preserved
  * grammar (`select`/`populate`/`sub` selections accept virtual names).
@@ -357,4 +358,6 @@ const rootDataQueryEntrySchema = z.union([
     .passthrough(),
 ]);
 
-export const rootQuerySchema = z.array(z.union([rootModelQueryEntrySchema, rootDataQueryEntrySchema]));
+export const rootQuerySchema = publicBoundarySchema(
+  z.array(z.union([rootModelQueryEntrySchema, rootDataQueryEntrySchema])),
+);

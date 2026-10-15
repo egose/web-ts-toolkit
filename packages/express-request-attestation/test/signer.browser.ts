@@ -30,8 +30,10 @@ import {
   DEFAULT_SIGNER_LOAD_TIMEOUT_MS,
   SIGNER_METADATA_BYTE_CAP,
   SignerClientError,
+  base64urlEncode,
   createRequestSigner,
   createSignerClient,
+  decodeTransactionId,
   fetchSignerBundle,
   generateNonceHex,
   hashBodySha256Hex,
@@ -209,6 +211,15 @@ describe('built signer entry contract (real Chromium, dist/signer.mjs)', () => {
 });
 
 describe('real-browser WebCrypto determinism (committed fixtures)', () => {
+  it('rejects a UTF-8 BOM around an otherwise canonical fixture envelope', () => {
+    const vector = VECTORS[0];
+    // atob is independent of the package codec; the fixture has ASCII JSON bytes.
+    const raw = atob(vector.transactionId.replaceAll('-', '+').replaceAll('_', '/'));
+    const wrapped = base64urlEncode(utf8Bytes(`\ufeff${raw}`));
+    expect(decodeTransactionId(vector.transactionId).nonceHex).toBe(vector.nonceHex);
+    expect(() => decodeTransactionId(wrapped)).toThrow(AttestationProtocolError);
+  });
+
   for (const vector of VECTORS) {
     it(`signs the ${vector.name} envelope deterministically`, async () => {
       const signer = createRequestSigner({

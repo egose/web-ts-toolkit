@@ -2,7 +2,7 @@
 
 Created: 2026-09-08 23:19:51 (local time)
 
-Subsequent review: `docs/tasks/20260926-185018-mongoose-rxdb-business-integrity-review.md` tracks newly identified partial-save, predicate-parity, document-ingress, in-flight-save, nested-rule, bulk-performance, and consumer-contract gaps. Historical findings and evidence below are retained.
+Subsequent review: `docs/tasks/20260919-185018-mongoose-rxdb-business-integrity-review.md` tracks newly identified partial-save, predicate-parity, document-ingress, in-flight-save, nested-rule, bulk-performance, and consumer-contract gaps. Historical findings and evidence below are retained.
 
 ## Objective And Scope
 
@@ -916,3 +916,10 @@ Additional package-directory inspection: `npm pack --dry-run --json` from `packa
 - A saved plan or implemented patch is not task completion. Defects require observable correction and verification; investigations require a documented, approved disposition. Deferrals need maintainer approval, residual risk, and release impact; do not label them completed fixes.
 - New independent findings must be deduplicated against this file and the prior phase, then receive a new BMRX ID, ownership, dependencies, classification, priority, acceptance criteria, and verification. Necessary acceptance work belongs in its existing task rather than a hidden scope expansion.
 - BMRX-26 must independently verify all accepted P0/P1 remedies, public contract coherence, real resource cleanup, input bounds, and serial package/root/artifact evidence before the phase is complete.
+
+Review: 2026-10-14
+
+- Disposition: amended (broken cross-document filename references corrected; history and statuses preserved)
+- Evidence: wrong-date-prefixed filename references corrected to the tracked mid-September filenames in `docs/tasks/`; referenced targets verified present via tracked-file list
+- Verification: markdown link/file-existence check run; no product-code or status change
+- Remaining work: none from this correction

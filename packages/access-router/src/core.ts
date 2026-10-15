@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import mongoose, { Model } from 'mongoose';
+import { assertPublicAdmission } from './validation/public-admission';
 import {
   assign,
   castArray,
@@ -22,6 +23,7 @@ import { getGlobalOption, getModelOption, getExactModelOption } from './options'
 import { getModelRef } from './meta';
 import {
   Populate,
+  PopulatePlanningOptions,
   Projection,
   Filter,
   ModelHookContext,
@@ -43,7 +45,7 @@ import {
 } from './interfaces';
 import Permission, { Permissions } from './permission';
 import { Service, PublicService, Base } from './services';
-import { normalizeSelect, getDocPermissions, setDocValue, toObject, pickDocFields, genPagination } from './helpers';
+import { normalizeSelect, getDocPermissions, setDocValue, genPagination } from './helpers';
 import { copyAndDepopulate, copyPaths, countPaths, maskPaths, movePaths, sliceArrays } from './processors';
 import { isDocument } from './lib';
 import { MIDDLEWARE } from './symbols';
@@ -56,13 +58,14 @@ import {
   initializeAclRequest,
   setResolvedRequestPermissions,
 } from './acl/request-context';
-import { resolveAccessFilterForRequest, resolveIdentifierFilterForRequest } from './acl/filter-resolution';
-import { runDecorateAllHook, runDecorateHook } from './acl/hook-runner';
 import {
-  collectAllowedFieldsForRequest,
-  pickAllowedFieldsForRequest,
-  resolveSelectForRequest,
-} from './acl/select-resolution';
+  registerRequestRowCache,
+  resolveAccessFilterForRequest,
+  resolveIdentifierFilterForRequest,
+} from './acl/filter-resolution';
+import { runDecorateAllHook, runDecorateHook } from './acl/hook-runner';
+import { collectModelRequestFields, resolveSelectForRequest, stripVirtuals } from './acl/select-resolution';
+import { assertFieldHelperCall, requestFieldScope } from './acl/field-helper-options';
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
@@ -71,6 +74,15 @@ import { resolveRouteOperationAccess } from './operation-access';
 import { planVirtualProjection } from './acl/virtual-projection';
 import { setPopulateTargetMeta, type PopulateTargetAccess } from './acl/populate-target';
 import { assertPopulateAccess } from './acl/populate-access';
+import type {
+  AllowedOutputFieldOptions,
+  OutputFieldOptions,
+  OutputPlanningOptions,
+} from './interfaces/service-authorization';
+import { planModelOutputForHelper } from './acl/model-output-planning';
+import { filterModelOutputForHelper } from './acl/output-field-filter';
+import { getRequestWorkState } from './helpers/request-work';
+import { constructOwnedModelService, registerModelCoreOwner } from './acl/model-service-owner';
 
 type InternalModelHookContext = ModelHookContext & {
   fieldPermissionAccess?: {
@@ -88,89 +100,16 @@ type InternalModelHookContext = ModelHookContext & {
  */
 const emptyPermissionLeaf = () => ({ $: '_' });
 
-/** Strip `modelPermissionPrefix` for document-grant lookup (mirrors `genAllowedFields`). */
-export const stripModelPermissionPrefix = (permissionKey: string, prefix: string): string => {
-  if (!prefix) return permissionKey;
-  if (permissionKey.startsWith(prefix)) return permissionKey.substring(prefix.length);
-  return permissionKey;
-};
-
-/**
- * VIRT-03 scoped rule evaluation (VIRT-00A D1/D5).
- * Evaluates a single `permissionSchema` field rule for `outputAccess` against
- * actual global + document grants (global `has` OR prefixed doc-grant truthiness
- * for string/array rules; direct invocation for function rules with
- * `this` = request and `(permissions, docPermissions)` args; booleans as-is).
- * Bare `{ sub }` containers or unknown shapes deny. Never throws: function-rule
- * throws deny fail-closed.
- */
-export const evaluateScopedAccessRule = async ({
-  req,
-  rule,
-  globalPermissions,
-  docPermissions,
-  modelPermissionPrefix,
-}: {
-  req: unknown;
-  rule: unknown;
-  globalPermissions: { has: (key: string) => boolean } | null | undefined;
-  docPermissions: Record<string, unknown> | null | undefined;
-  modelPermissionPrefix: string;
-}): Promise<boolean> => {
-  if (rule === undefined) return false;
-  if (isBoolean(rule)) return rule === true;
-  const hasPermission = (key: string): boolean => {
-    try {
-      if (globalPermissions?.has(key)) return true;
-    } catch {
-      // fall through to doc grants
-    }
-    try {
-      const stripped = stripModelPermissionPrefix(key, modelPermissionPrefix);
-      return Boolean((docPermissions ?? {})[stripped]);
-    } catch {
-      return false;
-    }
-  };
-  const { createValidator } = await import('./helpers');
-  const { stringHandler, arrayHandler } = createValidator(hasPermission);
-  if (isString(rule)) return stringHandler(rule);
-  if (isArray(rule)) return arrayHandler(rule as string[] | string[][]);
-  if (isFunction(rule)) {
-    try {
-      return Boolean(await (rule as Function).call(req, globalPermissions, docPermissions));
-    } catch {
-      return false;
-    }
-  }
-  return false;
-};
-
-/**
- * Extract the `outputAccess` rule for a scoped `permissionSchema` field
- * (VIRT-03 trim + virtual auth). Mirrors planner/VIRT-02 semantics:
- * `{ read: <rule>, ... }` uses the requested access; bare rules pass through;
- * bare `{ sub }` containers (no grant) deny. Returns `undefined` for absent.
- */
-export const extractScopedOutputRule = (
-  scopedSchema: Record<string, unknown> | null | undefined,
-  fieldName: string,
-  outputAccess: string,
-): unknown => {
-  if (!scopedSchema || !(fieldName in scopedSchema)) return undefined;
-  const raw = (scopedSchema as Record<string, unknown>)[fieldName];
-  if (raw !== null && typeof raw === 'object' && !Array.isArray(raw) && typeof raw !== 'function') {
-    const rec = raw as Record<string, unknown>;
-    if (outputAccess in rec) return rec[outputAccess];
-    // No rule for this access: check for a bare grant shape vs container.
-    // A bare `{ sub }` container or unrelated object is not a grant → deny.
-    return rec;
-  }
-  return raw;
-};
+// Compatibility source exports; planner and finalizer share the same implementation.
+export {
+  evaluateScopedAccessRule,
+  extractScopedOutputRule,
+  stripModelPermissionPrefix,
+} from './acl/field-authorization';
 
 export class Core {
   private req: ModelRequest;
+  private readonly requestRuntime = getActiveRuntime() ?? defaultRuntime;
   private caches: {
     baseFilter: Cache<string, unknown>;
   };
@@ -181,6 +120,8 @@ export class Core {
     this.caches = {
       baseFilter: new Cache<string, unknown>(),
     };
+    registerRequestRowCache(this, this.caches.baseFilter);
+    registerModelCoreOwner(this, this.req, this.requestRuntime);
   }
 
   getIdentifier(modelName: string) {
@@ -225,62 +166,114 @@ export class Core {
     });
   }
 
-  private removePrefix(str: string, prefix: string) {
-    if (!prefix) return str;
-
-    if (str.startsWith(prefix)) {
-      return str.substring(prefix.length);
-    }
-    return str;
+  /**
+   * Existing output paths authorized by a fresh output-only policy or an authenticated
+   * same-stage result. Supplied options require purpose: 'output'; omission/undefined
+   * defaults to { purpose: 'output' }. Never a request-schema allowlist or write admission.
+   * Only a document handle reuses decisions after projected hook inputs are trimmed.
+   */
+  async genAllowedFields<TModel = unknown, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    doc: unknown,
+    access: SelectAccess,
+    options: AllowedOutputFieldOptions<TModel, TVirtuals> = { purpose: 'output' },
+  ): Promise<string[]> {
+    assertFieldHelperCall('genAllowedFields', arguments.length, 4, options);
+    return (
+      await filterModelOutputForHelper({
+        request: this.req,
+        runtime: this.requestRuntime,
+        modelName,
+        access,
+        doc,
+        options,
+        permissions: this.getGlobalPermissions(),
+        purpose: 'output',
+      })
+    ).fields;
   }
 
-  async genAllowedFields(modelName: string, doc: unknown, access: SelectAccess, baseFields: string[] = []) {
-    const permissionSchema = getModelOption(modelName, 'permissionSchema');
+  /**
+   * Filter existing values only: no selection, getters, restoration, row checks or writes.
+   * Raw policy is fresh evaluation; a document handle reuses original decisions after
+   * private hook inputs/metadata are trimmed. These inputs are mutually exclusive.
+   * Omitted/undefined options equal {} (fresh request-mode output). Helpers isolate
+   * output; only original/package-associated unchanged copies
+   * accept the handle. The return generic does not guarantee every field is present.
+   */
+  async pickAllowedFields<T, TModel = unknown, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    doc: T,
+    access: SelectAccess,
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
+  ): Promise<T> {
+    assertFieldHelperCall('pickAllowedFields', arguments.length, 4, options);
+    return (
+      await filterModelOutputForHelper({
+        request: this.req,
+        runtime: this.requestRuntime,
+        modelName,
+        access,
+        doc,
+        options,
+        permissions: this.getGlobalPermissions(),
+      })
+    ).output as T;
+  }
 
-    const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
+  /** Alias of pickAllowedFields; performs no selection, getter invocation, row checks or write admission. */
+  async trimOutputFields<T, TModel = unknown, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    doc: T,
+    access: SelectAccess,
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
+  ): Promise<T> {
+    assertFieldHelperCall('trimOutputFields', arguments.length, 4, options);
+    return this.pickAllowedFields<T, TModel, TVirtuals>(modelName, doc, access, options);
+  }
 
-    const permissions = this.getGlobalPermissions();
-    const docPermissions = getDocPermissions(modelName, doc);
-
-    return collectAllowedFieldsForRequest({
-      req: this.req,
-      permissionSchema,
+  /**
+   * Output-only planning: grants are additive; returns persisted fetch inputs,
+   * including private dependencies. Omitted/undefined options equal {} (request).
+   * No permission functions/getters run. Positional skipChecks/subPaths are removed.
+   */
+  async genSelect<TModel = unknown, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    access: SelectAccess,
+    targetFields?: Projection,
+    options: OutputPlanningOptions<TModel, TVirtuals> = {},
+  ): Promise<string[]> {
+    assertFieldHelperCall('genSelect', arguments.length, 4, options);
+    return planModelOutputForHelper({
+      request: this.req,
+      runtime: this.requestRuntime,
+      modelName,
       access,
-      baseFields,
-      hasPermission: (key) =>
-        permissions.has(key) || Boolean(docPermissions[this.removePrefix(key, modelPermissionPrefix)]),
-      functionArgs: [permissions, docPermissions],
-    });
+      select: targetFields,
+      permissions: this.getGlobalPermissions(),
+      options,
+    }).persistedFetchSelection;
   }
 
-  async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields: string[] = []) {
-    const permissionSchema = getModelOption(modelName, 'permissionSchema') as
-      | Record<string, unknown>
-      | null
-      | undefined;
-    const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
-    const permissions = this.getGlobalPermissions();
-    const docPermissions = getDocPermissions(modelName, doc);
-
-    return pickAllowedFieldsForRequest({
-      req: this.req,
-      doc,
-      permissionSchema,
-      access,
-      baseFields,
-      hasPermission: (key) =>
-        permissions.has(key) || Boolean(docPermissions[this.removePrefix(key, modelPermissionPrefix)]),
-      functionArgs: [permissions, docPermissions],
-    });
+  /** Alias of named genSelect: fresh output planning, returning fetch inputs rather than output grants. */
+  async genQuerySelect<TModel = unknown, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    access: SelectAccess,
+    targetFields?: Projection,
+    options: OutputPlanningOptions<TModel, TVirtuals> = {},
+  ): Promise<string[]> {
+    assertFieldHelperCall('genQuerySelect', arguments.length, 4, options);
+    return this.genSelect<TModel, TVirtuals>(modelName, access, targetFields, options);
   }
 
-  async genSelect(
+  /** Persisted request-only populate admission; fetch planning is not field authority. */
+  private async requestPopulateSelect(
     modelName: string,
     access: SelectAccess,
     targetFields: Projection = null,
-    skipChecks = true,
-    subPaths: string[] = [],
+    scopePath: readonly string[] = [],
   ) {
+    const subPaths = scopePath.flatMap((part) => [part, 'sub']);
     const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.')) as
       | Record<string, unknown>
       | null
@@ -288,12 +281,9 @@ export class Core {
 
     const permissions = this.getGlobalPermissions();
 
-    const alwaysSelectFields =
-      subPaths.length > 0 ? [] : (getModelOption(modelName, `alwaysSelectFields.${access}`, []) as string[]);
-    // VIRT-02: registered virtuals stay virtual (never persisted). Strip them
-    // from every projection input (target + alwaysSelect + trusted overrides
-    // via resolveSelectForRequest) and from the persisted schema copy, without
-    // granting auth. Inapplicable names stay stripped via the full registry.
+    // Registered virtuals never become persisted request fields. Private target
+    // hook inputs are added separately after source admission in genPopulate.
+    // Inapplicable names stay stripped via the full registry.
     let virtualNames: string[];
     try {
       const runtime = getActiveRuntime() ?? defaultRuntime;
@@ -306,21 +296,23 @@ export class Core {
       permissionSchema,
       access,
       targetFields,
-      skipChecks,
       hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
       functionArgs: [permissions],
       mode: 'model',
-      alwaysSelectFields,
       virtualNames,
     });
   }
 
+  /** Request-only population. Use named response scopePath; positional subPaths are removed. */
   async genPopulate(
     modelName: string,
     access: SelectAccess | BaseFilterAccess = 'read',
     _populate: Populate | Populate[] | string | null = null,
-    subPaths: string[] = [],
+    options: PopulatePlanningOptions = {},
   ) {
+    assertFieldHelperCall('genPopulate', arguments.length, 4, options, 'populate');
+    const scopePath = requestFieldScope(options);
+    assertPublicAdmission(_populate, 'populate');
     assertPopulateAccess(access);
     if (!_populate) return [];
 
@@ -343,19 +335,17 @@ export class Core {
                 select: normalizeSelect(p.select),
               };
 
+          const scopePrefix = scopePath.join('.');
           const pathForSourcePermission =
-            subPaths.length > 0 && ret.path.startsWith(`${subPaths[0]}.`)
-              ? ret.path.slice(subPaths[0].length + 1)
-              : ret.path;
+            scopePrefix && ret.path.startsWith(`${scopePrefix}.`) ? ret.path.slice(scopePrefix.length + 1) : ret.path;
           const parentPath = pathForSourcePermission.includes('.')
             ? pathForSourcePermission.split('.')[0]
             : pathForSourcePermission;
-          const allowedParentPaths = await this.genSelect(
+          const allowedParentPaths = await this.requestPopulateSelect(
             modelName,
             populateAccess as SelectAccess,
             [parentPath],
-            false,
-            subPaths,
+            scopePath,
           );
           if (!allowedParentPaths.includes(parentPath)) return null;
 
@@ -371,12 +361,15 @@ export class Core {
             return requireRegisteredPopulateModels ? null : ret;
           }
 
-          const allowedTargetOperation = await this.req.macl.isAllowed(refModelName, populateAccess);
+          const allowedTargetOperation = await this.isAllowed(refModelName, populateAccess);
           if (!allowedTargetOperation) {
             return null;
           }
 
-          ret.select = await this.genSelect(refModelName, populateAccess as SelectAccess, ret.select, false);
+          ret.select = await this.requestPopulateSelect(refModelName, populateAccess as SelectAccess, ret.select);
+          // Fetch-only target hook inputs have no role in source-field admission.
+          const hookInputs = getModelOption(refModelName, `alwaysSelectFields.${populateAccess}`, []) as string[];
+          ret.select = uniq([...ret.select, ...stripVirtuals(hookInputs, runtime.getVirtualNames(refModelName))]);
           const filter = await this.genFilter(refModelName, populateAccess as BaseFilterAccess, null);
           if (filter === false) return null;
 
@@ -444,7 +437,7 @@ export class Core {
             // Merge virtual dependency fetch requirements into the Mongoose
             // query projection (fetch-only, never an output grant). Only
             // `virtualOnlyDeps` (+ `_id`) are added to the authorized
-            // `genSelect` result: denied output fields stay query-restricted
+            // request-only selection: denied output fields stay query-restricted
             // (no leak on paths without target finalization, e.g. legacy
             // subdocument populate owned by VIRT-06), while virtual deps are
             // fetched internally and stripped by the target finalizer. Strip
@@ -545,7 +538,9 @@ export class Core {
     if (isFunction(docPermissionsFn)) {
       const permissions = this.getGlobalPermissions();
       try {
-        docPermissions = await docPermissionsFn.call(this.req, doc, permissions, context);
+        docPermissions = await getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+          docPermissionsFn.call(this.req, doc, permissions, context),
+        );
       } catch (error) {
         // docPermissions failures are fail-closed: keep request handling alive,
         // attach an empty permissions object, and emit a structured warning.
@@ -634,7 +629,7 @@ export class Core {
       if (context.fieldPermissionAccess?.readIds) {
         readExists = context.fieldPermissionAccess.readIds.has(docId);
       } else {
-        const existsResult = await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'read' });
+        const existsResult = await this.getService(modelName).exists({ _id: doc._id }, { access: 'read' });
         readExists = existsResult.success ? !!existsResult.data : false;
       }
     }
@@ -643,14 +638,25 @@ export class Core {
       if (context.fieldPermissionAccess?.updateIds) {
         updateExists = context.fieldPermissionAccess.updateIds.has(docId);
       } else {
-        const existsResult = await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'update' });
+        const existsResult = await this.getService(modelName).exists({ _id: doc._id }, { access: 'update' });
         updateExists = existsResult.success ? !!existsResult.data : false;
       }
     }
 
+    // Metadata describes this request actor. Existing serialized document grants
+    // remain metadata inputs here; never invoke output helpers or a fresh doc hook.
+    const requestFields = (fieldAccess: SelectAccess) =>
+      collectModelRequestFields({
+        req: this.req,
+        permissionSchema: getModelOption(modelName, 'permissionSchema'),
+        access: fieldAccess,
+        permissions: this.getGlobalPermissions(),
+        grants: getDocPermissions(modelName, doc),
+        modelPermissionPrefix: getModelOption(modelName, 'modelPermissionPrefix', ''),
+      });
     const [views, edits] = await Promise.all([
-      readExists ? this.genAllowedFields(modelName, doc, 'read') : [],
-      updateExists ? this.genAllowedFields(modelName, doc, 'update') : [],
+      readExists ? requestFields('read') : [],
+      updateExists ? requestFields('update') : [],
     ]);
 
     const viewObj = reduce(
@@ -687,7 +693,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
 
-    return runDecorateHook({ req: this.req, hook: decorate, doc, permissions, context });
+    return runDecorateHook({ req: this.req, runtime: this.requestRuntime, hook: decorate, doc, permissions, context });
   }
 
   async decorateAll<T>(
@@ -699,7 +705,14 @@ export class Core {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
-    return runDecorateAllHook({ req: this.req, hook: decorateAll, docs, permissions, context });
+    return runDecorateAllHook({
+      req: this.req,
+      runtime: this.requestRuntime,
+      hook: decorateAll,
+      docs,
+      permissions,
+      context,
+    });
   }
 
   runTasks<T extends object>(modelName: string, docObject: T, task: Task | Task[]): T {
@@ -814,12 +827,13 @@ export class Core {
     });
   }
 
+  /** Acquire a model service for trusted server calls; authorization belongs to each call's options, never defaults. */
   getService<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
-    return new Service<TModel, TVirtuals>(this.req, modelName);
+    return constructOwnedModelService(this, () => new Service<TModel, TVirtuals>(this.req, modelName));
   }
 
   getPublicService<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
-    return new PublicService<TModel, TVirtuals>(this.req, modelName);
+    return constructOwnedModelService(this, () => new PublicService<TModel, TVirtuals>(this.req, modelName));
   }
 
   service<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {

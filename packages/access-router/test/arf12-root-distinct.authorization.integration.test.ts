@@ -15,8 +15,8 @@ let modelCounter = 0;
 // the direct `/distinct/<field>` route and could miss a regression that
 // bypasses the same field-policy authorization when a caller invokes
 // distinct through a root batch. We additionally demonstrate that dynamic
-// document-level field-permission resolution (permissionSchema as a
-// function of the caller's permissions) behaves deterministically: a caller
+// request-level field-permission resolution (a declarative permission key
+// supplied by the caller's globalPermissions resolver) behaves deterministically: a caller
 // without the gating permission is denied, a caller with the gating
 // permission is permitted. Each test uses its own isolated AccessRuntime so
 // the OpenAPI route registry and global options are scoped to the test
@@ -59,14 +59,10 @@ const buildDistinctRuntimeApp = (globalPermissionsFactory: (req: express.Request
       name: true,
       role: true,
       public: true,
-      // `secret` is gated by the caller's 'canViewSecret' permission. The
-      // function form is the dynamic document-level field-permission path:
-      // the field is only included in allowedFields when the caller holds
-      // the gating permission. Authorization of distinct('secret') consults
-      // genAllowedFields(null,'read'), so docPermissions are empty and the
-      // decision depends solely on the request's global permissions.
-      secret: (_permissions: Set<string>, _docPermissions: Record<string, unknown>) =>
-        _permissions.has('canViewSecret'),
+      // ARL-04: a declarative key proves request authority without executing a
+      // potentially document-dependent callback against fabricated empty grants.
+      // The globalPermissions resolver still makes this request-specific.
+      secret: 'canViewSecret',
     },
   });
 

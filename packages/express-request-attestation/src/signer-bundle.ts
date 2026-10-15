@@ -1,5 +1,5 @@
 /**
- * ATT-05 relative signer-asset router (task sections 4.1/4.6).
+ * Relative signer-asset router with content-addressed public modules.
  *
  * Server-only: may import Express and Node built-ins. Never imported by the
  * `./signer` browser entry.
@@ -10,13 +10,12 @@
  *   `basePath`; the application mounts it (for example
  *   `app.use('/attestation', router)`). `basePath` plus the trusted
  *   `publicPathPrefix` are used solely to publish correct external URLs
- *   (`publicOrigin + publicPathPrefix + basePath + /signer.<hash>.mjs`).
+ *   (a root `basePath: '/'` adds no extra slash before the asset name).
  *   Request headers (`Host`, `Forwarded`, `X-Forwarded-*`) are never used
  *   for URL construction.
  * - Routes: `GET /signer-meta`, `GET /signer.<contenthash>.mjs`,
  *   `GET /runtime.<contenthash>.mjs`. The runtime is the actual built browser
- *   ESM entry from this installed package (see `signer-assets.ts` for CJS/ESM
- *   + release-flattening lookup); the 64-hex content hash identifies exact
+ *   ESM entry from this installed package; the 64-hex content hash identifies exact
  *   immutable bytes. Never serve different content from the same URL.
  * - Key-specific modules import the runtime via relative
  *   `./runtime.<hash>.mjs` and export `signer: RequestSigner` from
@@ -26,11 +25,12 @@
  * - Metadata is bounded JSON
  *   `{ version: 1, keyId, signerUrl, publicOrigin, replayNamespace }` with
  *   `Cache-Control: no-store`, serving the current active key only. The
- *   current entry must be present and active at `nowMs`; otherwise metadata
- *   fails with `503 ATTESTATION_KEYS_UNAVAILABLE`.
+ *   current entry must be present and active at the checked clock after the
+ *   provider read; otherwise metadata fails with `503 ATTESTATION_KEYS_UNAVAILABLE`.
+ *   Invalid or throwing clocks fail with `500 ATTESTATION_INTERNAL_ERROR`.
  * - Immutable assets use `Content-Type: text/javascript; charset=utf-8`,
  *   `X-Content-Type-Options: nosniff`, and
- *   `Cache-Control: public, max-age=31536000, immutable`. Unknown hashes
+ *   `Cache-Control: public, max-age=31536000, immutable`. Malformed asset paths/hashes
  *   return controlled `404`; syntactically valid but not currently retained
  *   hashes return `410`; neither redirects to latest. CORS/CSP policy is
  *   application-configured: this router sets no `Access-Control-*` headers
@@ -38,14 +38,14 @@
  *   serve metadata/modules over the pinned `publicOrigin`, allow
  *   `script-src` for the module URLs, and configure CORS only as the
  *   application requires (same-origin by default; cross-origin deployments
- *   must explicitly allow `GET` metadata/module fetches which use
- *   `cache: no-store`, `credentials: omit`, `redirect: error`).
+ *   must explicitly allow `GET` metadata/module fetches. Discovery uses
+ *   no-store/omit/error; dynamic imports follow native module-fetch rules).
  * - Asset generation is bounded by the retained snapshot (max 16 keys) plus
  *   fixed runtime (512 KiB) / module (8 KiB) / metadata (4096 byte) caps.
  *   Key modules are derived deterministically per request from the current
  *   snapshot; no unbounded retired-asset cache is kept. Dropping a retired
- *   key's asset is safe because the client performs at most one bounded
- *   discovery refetch on a module-phase retirement race.
+ *   key's asset must account for the client's one bounded discovery refetch
+ *   on a module-phase retirement race; repeated retirement failures end the load.
  *
  * Runbook: prepare new material on **all** verifiers, publish current
  * metadata/module, retain old material to its explicit deadline, retire only
@@ -278,7 +278,18 @@ function sendAssetNotFound(res: Response, gone: boolean): void {
  * `basePath` (for example `app.use('/attestation', router)`); this factory
  * never mounts itself. All external URLs are built from trusted
  * configuration (`publicOrigin` + `publicPathPrefix` + `basePath`), never
- * from request headers.
+ * from request headers. With `basePath: '/'`, assets are directly under the
+ * origin or configured stripped prefix; their runtime imports remain relative.
+ * The default base path is `/attestation`; root URLs are `/signer-meta`,
+ * `/signer.<hash>.mjs`, and `/runtime.<hash>.mjs`. With prefix `/prefix`, those
+ * external URLs begin `/prefix/` while the app still mounts at `/`.
+ * The caller owns actual upstream stripping and CORS/CSP configuration.
+ * Discovery checks the clock before provider work and current-key eligibility
+ * after it. Inactive keys/provider failures return fixed 503 errors; invalid or
+ * throwing clocks return a fixed 500 error. Both use `Cache-Control: no-store`.
+ * `operationTimeoutMs` bounds provider waiting (default 5000 ms, range 1–60000),
+ * without cancelling underlying provider work. Assets have immutable URLs and
+ * no redirect-to-latest behavior; only discovery chooses the current active key.
  */
 export function createSignerBundleRouter(options: CreateSignerBundleRouterOptions): ExpressRouter {
   const config = resolveConfig(options);
@@ -287,16 +298,9 @@ export function createSignerBundleRouter(options: CreateSignerBundleRouterOption
   router.get('/signer-meta', (req: Request, res: Response) => {
     void Promise.resolve()
       .then(async () => {
-        let nowMs: number;
-        try {
-          nowMs = checkedNow(config.now);
-        } catch (error) {
-          if (error instanceof AttestationError) {
-            sendInternalError(res);
-            return;
-          }
-          throw error;
-        }
+        // Fail before provider work when the clock is already unusable. The
+        // outer request boundary maps clock failures to the fixed internal error.
+        checkedNow(config.now);
 
         let snapshotRaw: unknown;
         try {
@@ -315,6 +319,9 @@ export function createSignerBundleRouter(options: CreateSignerBundleRouterOption
           return;
         }
 
+        // Provider latency (including reading its snapshot) can cross either
+        // acceptance boundary. Never publish using the pre-provider clock.
+        const nowMs = checkedNow(config.now);
         const current = snapshot.keys.find((entry) => entry.keyId === snapshot.currentKeyId);
         if (current === undefined) {
           sendKeysUnavailable(res);
@@ -347,7 +354,10 @@ export function createSignerBundleRouter(options: CreateSignerBundleRouterOption
           return;
         }
 
-        const signerUrl = `${config.publicOrigin}${config.publicPathPrefix}${config.basePath}/signer.${keyAsset.contentHash}.mjs`;
+        // Only the root mount is empty at this join boundary; do not normalize
+        // path spelling or change the content-addressed module/runtime bytes.
+        const assetBasePath = config.basePath === '/' ? '' : config.basePath;
+        const signerUrl = `${config.publicOrigin}${config.publicPathPrefix}${assetBasePath}/${keyAsset.fileName}`;
         const document = {
           version: PROTOCOL_VERSION,
           keyId: current.keyId,

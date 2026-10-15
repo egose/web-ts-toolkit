@@ -274,6 +274,7 @@ export type ListQueryInput = {
   limit?: string;
   page?: string;
   page_size?: string;
+  /** @deprecated Compatibility no-op; neither value skips authorization or output hooks. */
   skim?: 'true' | 'false';
   include_permissions?: 'true' | 'false';
   include_field_permissions?: 'true' | 'false';
@@ -316,6 +317,7 @@ export type AdvancedListBody = {
   page?: string | number;
   pageSize?: string | number;
   options?: {
+    /** @deprecated Compatibility no-op; neither value skips authorization or output hooks. */
     skim?: boolean;
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
@@ -337,6 +339,7 @@ export type AdvancedReadFilterBody = {
   include?: Include | Include[];
   tasks?: Task | Task[];
   options?: {
+    /** @deprecated Compatibility no-op; neither value skips authorization or output hooks. */
     skim?: boolean;
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
@@ -351,6 +354,7 @@ export type AdvancedReadBody = {
   include?: Include | Include[];
   tasks?: Task | Task[];
   options?: {
+    /** @deprecated Compatibility no-op; neither value skips authorization or output hooks. */
     skim?: boolean;
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;

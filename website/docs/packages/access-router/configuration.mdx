@@ -5,22 +5,44 @@ sidebar_position: 3
 
 # Configuration
 
+Configuration has separate layers: runtime `GlobalOptions`, shared model starting
+defaults, per-model/data/root options, model per-method `defaults`, request `args`/
+`options`, and trusted service `authorization`. Data/root routers do not inherit model
+defaults; authorization is never a default or wire option. `createAccessRuntime()`
+returns a bound API whose `.runtime` owns the options and registries.
+
 ## Global Options
 
-Set once per runtime with `acl.setGlobalOptions(...)`.
+Configure a runtime with `acl.setGlobalOptions(...)` or the corresponding isolated
+API method. Assignment is shallow. Request initialization and hook/persistence
+captures are not restarted by later setters.
 
 - `requestPermissionField` defaults to `_permissions`
 - `globalPermissions(req)` returns the permission set for the current request
 - `logger` receives `debug`, `info`, `warn`, and `error` calls
 
+<!-- doc-example: partial -->
+
 ```ts
+import acl from '@web-ts-toolkit/access-router';
+
+declare module '@web-ts-toolkit/access-router' {
+  interface AccessRouterRequestExtensions {
+    actor?: { permissions: string[] }; // set by application authentication middleware
+  }
+}
+
 acl.setGlobalOptions({
   requestPermissionField: '_permissions',
   globalPermissions(req) {
-    return req.headers.user === 'admin' ? ['isAdmin'] : [];
+    return req.actor?.permissions ?? [];
   },
 });
 ```
+
+Null/undefined resolver results establish empty grants, replacing prior runtime-owned
+values. Application-supplied unowned maps are preserved; same-runtime middleware
+reuses its initialized state. Populate targets require runtime registration by default.
 
 ## Default Model Options
 
@@ -75,6 +97,40 @@ Live property helpers include:
 
 `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and
 `mutationRouteSegment` determine route shape and are fixed after construction.
+
+### Authority, hook inputs and metadata
+
+Router `defaults`, including dotted setters, contain query/presentation settings only.
+Per-call service authorization, document handles, prepared/execution state and removed
+service overrides are not defaults or HTTP/OpenAPI/client options. Supply trusted
+server-only policy to the service acquired from `router.getService(req)` instead.
+Missing policy dimensions use request authority and never inherit a prior call's elevation.
+
+`alwaysSelectFields` declares persisted inputs needed by document-permission hooks beyond
+selected output, such as `ownerId`. Hooks see the untrimmed projected document; fetch-only
+inputs do not grant output. The immutable call captures configuration, while each document/
+scope/access stage has separate hook grants and decisions. Opaque result-context handles
+preserve them after those inputs and metadata trim. See [Services](./services#call-policy-and-document-result-reuse).
+
+Internal document grants resolve independently of `includePermissions`,
+`includeFieldPermissions`, `stripPermissionsField`, `disableFieldPermissions` and exposed-key
+limits. These switches govern request-user metadata serialization; temporary backend grants
+never forge `_view`/`_edit`. `overrideFilter` remains the query-transform hook and runs once
+even in unrestricted row mode; scope/unrestricted replace only `baseFilter` authority.
+
+`skim` is a deprecated compatibility no-op in canonical model operations. True, false
+and omission all retain authorization, document grants, virtuals and decoration.
+`lean` separately chooses Mongoose hydration; it does not skip field enforcement.
+
+At each method resolver, non-nullish supplied values win over its `defaults` bucket,
+then built-ins. Public wrappers resolve `public*Args`/`public*Options` before internal
+methods; already-resolved flags take precedence over internal defaults. Public upsert
+uses its create/update branch's public bucket. A model service captures current presentation
+defaults from its originating runtime per call; per-call model authority captures current
+policy before awaiting hooks. Retained services keep their original core, actor, model
+connection and related registry across a same-request runtime handoff. Base-filter cache
+entries are reused only for the same model/access and policy function.
+Request base-filter caches remain owned by their request/runtime/access.
 
 ## Operation Access
 
@@ -216,6 +272,10 @@ filters and small per-parent limits to bound relationship work.
 
 ### Persistence admission
 
+Both concurrency limits are normalized and captured together on first use of a
+request/runtime's private work state. Existing owners retain that capture after
+configuration changes; new requests capture the new limits.
+
 `maxBulkConcurrency` bounds awaited adapter/document persistence operations across
 model-service calls, root entries, subqueries, legacy includes and nested correlated
 levels sharing one request/runtime. Each request and runtime has an independent pool;
@@ -237,6 +297,32 @@ inside the awaited operation. Direct DB/network calls in trusted hooks are outsi
 admission. This is not a process-wide connection limit, transaction/optimistic-edit
 guard or throughput guarantee. Controlled nested-query tests measured peak collection
 calls falling from 9 to 3 at limit 3; that does not bound arbitrary middleware fan-out.
+
+### Hook admission and nested service calls
+
+`maxHookConcurrency` (default `10`) counts independent **hook chains** across one
+request/runtime's services, root entries, includes, populate and subdocuments. The
+pool covers model document-grant hooks (including pre-write/helper/owning-parent
+stages), virtual getters, model/data `decorate`/`decorateAll`, service output
+decorators and data request-field selection/trimming stages. Other guards, row/ID
+filters, model field-rule callbacks and write lifecycle hooks are outside this pool.
+
+A hook can await a nested service at limit `1`. Private async context lets its
+descendant hooks reuse the chain, while each callback scope admits **one immediate
+child branch at a time**, FIFO through descendant settlement. `Promise.all` sibling
+hook stages therefore serialize rather than bypassing admission. Waiting ancestors
+are additional frames, not additional permits: the limit bounds independent leaf
+branches, not all unsettled callbacks. Reentrant depth is capped at 64 admission
+scopes per chain, including internal wrappers; overflow uses the existing hook
+failure policy. Settled scopes close to new reentry and drain queued children even
+on failure; detached late continuations reacquire root admission. Await hook work
+and avoid cross-branch dependency cycles. Root and child queues each transfer FIFO.
+
+Row/traversal maps retain per-call worker limits and stable output/context order.
+Hook and persistence pools are separate; no persistence permit is held over hooks
+or orchestration. Trusted direct DB/network fan-out, total queued work and query
+counts are outside these limits. They do not provide process-wide connection limits
+or automatic N+1 batching.
 
 ## OpenAPI Router Options
 
@@ -275,6 +361,17 @@ Router-specific options:
 - `queryRouteSegment`
 - `operationAccess`
 - `dataName`
+
+Set both `idParam` (Express parameter name) and `idField` (lookup field) explicitly
+for data identifier routes; data has no model-default layer. Callable `resolveIdFilter`
+takes precedence over `idField` for both model and data lookups. `parentPath` describes
+an external mount prefix in metadata/logging; mount that prefix in Express yourself.
+
+Data owns configured nested/native values and rejects unsupported values at assignment.
+Services capture one dataset version and detach only selected/page-returned values.
+Frozen snapshot native properties return detached mutable copies on access; native
+identity is not stable. Replace through `router.data(next)` or runtime data setters.
+See the installed README's “In-memory data ownership” for the exact supported values.
 
 ## Option APIs
 
@@ -326,7 +423,7 @@ Use typed `set`/`setOption` with undefined to clear; property-helper key updates
 are for defined values.
 
 `router.options` is a frozen construction-time snapshot. Getter results are frozen
-snapshots too; fetch again for current stored values. Generic
+snapshots too (with data's native-copy behavior above); fetch again for current stored values. Generic
 `getModelOption`/`getDataOption` use nested-option fallback, not route-specific
 variant-to-base resolution. Exact getters expose the variant path (with exact model
 default fallback); request guards resolve live runtime options.

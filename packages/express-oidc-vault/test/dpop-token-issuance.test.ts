@@ -7,11 +7,12 @@ import { createMemoryOidcVaultStore } from '../../express-oidc-vault-memory-stor
 import { setSessionCookie, usesCookieTransport } from '../src/cookies';
 import { resolveDeviceBindingOptions, type ResolvedOidcVaultOptions } from '../src/device-binding-policy';
 import { toErrorPayload } from '../src/errors';
-import type {
-  IssueTokenInput,
-  OidcVaultTokenIssueResult,
-  OidcVaultTokenIssuer,
-  OidcVaultVerifiedDpopBinding,
+import {
+  createOidcVaultJwtAccessTokenValidator,
+  type IssueTokenInput,
+  type OidcVaultTokenIssueResult,
+  type OidcVaultTokenIssuer,
+  type OidcVaultVerifiedDpopBinding,
 } from '../src/index';
 import { createExchangeResponse, withIssuedToken } from '../src/token-issuance';
 
@@ -44,12 +45,11 @@ beforeAll(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 const signLocalToken = (payload: Record<string, unknown>): Promise<string> =>
-  new SignJWT({ sub: USER.sub, ...payload })
+  new SignJWT({ sub: USER.sub, exp: Math.floor(Date.now() / 1000) + 900, ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer(ORIGIN)
     .setAudience(AUDIENCE)
     .setIssuedAt()
-    .setExpirationTime('15m')
     .sign(LOCAL_KEY);
 
 /**
@@ -206,6 +206,22 @@ describe('DBJWT-03 verified DPoP local issuance contract and rollback', () => {
         sub: USER.sub,
       });
       expect(verified.protectedHeader.alg).toBe('HS256');
+      const validator = createOidcVaultJwtAccessTokenValidator({
+        key: LOCAL_KEY,
+        issuer: ORIGIN,
+        audience: AUDIENCE,
+        algorithms: ['HS256'],
+      });
+      for (const validated of [
+        await validator.validate(response.body.accessToken),
+        await validator.validateWithRequest({
+          token: response.body.accessToken,
+          scheme: 'DPoP',
+          req: {} as express.Request,
+        }),
+      ]) {
+        expect(validated).toMatchObject({ subject: USER.sub, confirmation: { jkt: verifiedKey.jkt } });
+      }
       expect(await f.store.getSession(f.session.sessionId)).toEqual(f.session);
       expect(f.revoke).not.toHaveBeenCalled();
       expect(f.onError).not.toHaveBeenCalled();
@@ -269,6 +285,35 @@ describe('DBJWT-03 verified DPoP local issuance contract and rollback', () => {
       diagnostic: 'cnf.jkt',
     })),
     ...[
+      { name: 'extra confirmation field', extra: { extra: 'unsupported' } },
+      { name: 'additional confirmation method', extra: { jwk: { kty: 'EC' } } },
+    ].map(({ name, extra }) => ({
+      name,
+      result: async () => ({
+        accessToken: await signLocalToken({ cnf: { jkt: verifiedKey.jkt, ...extra } }),
+        expiresIn: 900,
+        tokenType: 'DPoP',
+      }),
+      diagnostic: 'cnf.jkt',
+    })),
+    ...[
+      { name: 'missing exp', exp: undefined },
+      { name: 'null exp', exp: null },
+      { name: 'string exp', exp: '9999999999' },
+      { name: 'negative exp', exp: -1 },
+      { name: 'fractional exp', exp: Math.floor(Date.now() / 1000) + 900.5 },
+      { name: 'unsafe exp seconds', exp: Number.MAX_SAFE_INTEGER + 1 },
+      { name: 'unsafe exp milliseconds', exp: Math.floor(Number.MAX_SAFE_INTEGER / 1000) + 1 },
+    ].map(({ name, exp }) => ({
+      name,
+      result: async () => ({
+        accessToken: await signLocalToken({ cnf: { jkt: verifiedKey.jkt }, exp }),
+        expiresIn: 900,
+        tokenType: 'DPoP',
+      }),
+      diagnostic: 'exp',
+    })),
+    ...[
       { name: 'opaque non-JWT token', accessToken: 'private-opaque-token' },
       { name: 'missing signature', accessToken: 'e30.e30.' },
       { name: 'JWE instead of compact JWS', accessToken: 'e30.e30.e30.e30.e30' },
@@ -287,6 +332,15 @@ describe('DBJWT-03 verified DPoP local issuance contract and rollback', () => {
       result: async () => ({
         accessToken: await signLocalToken({ cnf: { jkt: verifiedKey.jkt } }),
         expiresIn: NaN,
+        tokenType: 'DPoP',
+      }),
+      diagnostic: 'expiresIn',
+    },
+    {
+      name: 'unsafe bound lifetime milliseconds despite a safe JWT exp',
+      result: async () => ({
+        accessToken: await signLocalToken({ cnf: { jkt: verifiedKey.jkt } }),
+        expiresIn: Math.floor(Number.MAX_SAFE_INTEGER / 1000) + 1,
         tokenType: 'DPoP',
       }),
       diagnostic: 'expiresIn',
@@ -341,6 +395,39 @@ describe('DBJWT-03 verified DPoP local issuance contract and rollback', () => {
     });
     await f.assertRollback(await f.post());
     expect(f.session.deviceBinding).toEqual({ type: 'dpop', jkt: verifiedKey.jkt });
+  });
+
+  it.each(PATHS)(
+    'keeps missing-exp rollback on the original lineage after issuer mutation ($phase/$transport)',
+    async ({ transport, phase }) => {
+      const f = await fixture(transport, phase, {
+        async issue(input) {
+          input.session.logicalSessionId = 'lineage_unrelated';
+          input.session.sessionId = 'sess_unrelated';
+          return {
+            accessToken: await signLocalToken({ cnf: { jkt: verifiedKey.jkt }, exp: undefined }),
+            expiresIn: 900,
+            tokenType: 'DPoP',
+          };
+        },
+      });
+      await f.assertRollback(await f.post());
+      expect(f.onError.mock.calls[0][0]).toBeInstanceOf(TypeError);
+    },
+  );
+
+  it.each(PATHS)('preserves zero-lifetime output and its handle ($phase/$transport)', async ({ transport, phase }) => {
+    // exp=0 satisfies the output shape but is expired; only APIs authenticate
+    // expiry. The response may still carry a useful rotated vault handle.
+    const accessToken = await signLocalToken({ cnf: { jkt: verifiedKey.jkt }, exp: 0 });
+    const f = await fixture(transport, phase, {
+      async issue() {
+        return { accessToken, expiresIn: 0, tokenType: 'DPoP' };
+      },
+    });
+    f.assertSuccess(await f.post(), { accessToken, expiresIn: 0, tokenType: 'DPoP' });
+    expect(await f.store.getSession(f.session.sessionId)).toEqual(f.session);
+    expect(f.revoke).not.toHaveBeenCalled();
   });
 
   it('preserves an issuer/getter exception as the private original diagnostic after input mutation', async () => {

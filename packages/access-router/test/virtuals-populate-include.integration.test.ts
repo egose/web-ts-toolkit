@@ -99,6 +99,28 @@ const makePopulateApp2 = async (opts: Parameters<typeof makePopulateApp>[0]) => 
 };
 
 describe('VIRT-05 populate + include finalization', () => {
+  it('ordinary populate match narrows the ref set before target getters run', async () => {
+    const getter = vi.fn((doc: { address?: string }) => `addr:${doc.address}`);
+    const { app, tag } = await makePopulateApp2({
+      targetVirtuals: { fullAddress: { dependsOn: ['address'], read: getter } },
+      targetPermissionSchema: { name: true, fullAddress: true },
+      seedTargets: [
+        { name: 'keep', address: 'a' },
+        { name: 'omit', address: 'b' },
+      ],
+      seedParents: (ids) => [{ name: 'p', targetRefs: [ids.t0, ids.t1] }],
+    });
+    const result = await request(app)
+      .post(`/v5p-${tag}/__query`)
+      .send({
+        populate: [{ path: 'targetRefs', select: ['name', 'fullAddress'], match: { name: 'keep' } }],
+      })
+      .expect(200);
+    expect(result.body.data[0].targetRefs).toEqual([expect.objectContaining({ name: 'keep', fullAddress: 'addr:a' })]);
+    expect(result.body.data[0].targetRefs[0]).not.toHaveProperty('address');
+    expect(getter).toHaveBeenCalledTimes(1);
+  });
+
   it('closes forced-field asymmetry for lean (list) and hydrated (single read), including no-virtual targets', async () => {
     const fullGet = vi.fn(async (doc: { address?: string }) => `addr:${doc.address}`);
     const { app, tag } = await makePopulateApp2({

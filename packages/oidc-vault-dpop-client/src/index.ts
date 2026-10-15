@@ -1,8 +1,6 @@
 /**
- * Browser-only DPoP client (CLIENT-02 port of apps/oidc-vault-dpop-example/src/auth/*).
- * No `node:*` or `express` imports. Browser globals (crypto.subtle, indexedDB,
- * sessionStorage, navigator.locks, BroadcastChannel) only behind
- * assertDpopBrowserFeatures / lazy factory calls, never at module top-level.
+ * Browser DPoP sessions and scoped API requests. Browser capabilities are
+ * checked when used; importing the package does not initialize a session.
  *
  * Canonical consumer import (named root imports only, no default export):
  * `import { createOidcVaultDpopSession, fetchWithDpop } from
@@ -15,7 +13,6 @@
  * Non-public coordination helpers (`withDpopDatabase`, `resolveDpopScope`,
  * cookie-version bookkeeping) stay internal on purpose; see README.
  */
-// Private, copyable example APIs. No backend package/browser subpath is published.
 export { getOrCreateDpopKey, type DpopKey, type DpopKeyScope } from './dpop-key-store';
 export { createDpopProof, type DpopProofInput } from './dpop-proof';
 export {

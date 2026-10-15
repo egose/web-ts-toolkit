@@ -1,9 +1,7 @@
 /**
- * ATT-07 bounded request-body materialization (task sections 4.3/4.6).
+ * Bounded request-body materialization.
  *
- * Browser-safe ONLY: no Node built-ins, Express/Redis types, `Buffer`,
- * `NodeJS`, or `node:*` imports. Part of the `./signer` closure typechecked
- * by `tsconfig.signer-browser.json` (`types: []`).
+ * Browser-safe, using standard same-realm Request and readable byte-stream APIs.
  *
  * A `Request` body is internally a stream. This module reads supported finite
  * requests with a byte-counting reader, cancellation, and a bounded deadline
@@ -14,7 +12,8 @@
  * - `materializeRequestBodyBytes(request, { maxBodyBytes, signal, timeoutMs })`
  *   returns the exact serialized bytes for hashing and for both signed
  *   attempts. Empty (`body === null`) yields zero bytes. The reader is
- *   cancelled on limit/deadline/abort/error so no stream is left flowing.
+ *   signaled to cancel on limit/deadline/abort/error without waiting for the
+ *   producer's cancellation promise.
  * - `assertSupportedBodyInit(body)` rejects caller JSON objects (docs use
  *   `JSON.stringify`) and other non-`BodyInit` values before a `Request` is
  *   built. Supported finite values (`string`, `URLSearchParams`, `Blob`,
@@ -23,18 +22,18 @@
  *   it through a `Request` first and this module reads that request's bytes,
  *   preserving the generated multipart boundary.
  * - `FormData` boundary preservation is owned by the caller in
- *   `attested-fetch.ts`: the bytes captured here are reused verbatim for the
+ *   `fetchWithAttestation`: the bytes captured here are reused verbatim for the
  *   original attempt and the single stale-key retry, never reconstructed.
  *
  * No storage API, DOM mutation, global network patch, import-time I/O, or
- * polling timers. One-shot read deadlines use a single `setTimeout` per
- * materialization with cleanup (`sideEffects: false` still holds: timers
- * exist only while a read is in flight).
+ * polling timers. The internal reader owns a one-shot deadline and at most
+ * one cooperative-yield timer, both cleaned up when the read settles.
  */
 
 import { AttestationProtocolError } from './shared/types.js';
 import { DEFAULT_MAX_BODY_BYTES, MAX_BODY_BYTES_HARD_CAP } from './shared/types.js';
 import { SignerClientError } from './client-errors.js';
+import { readBoundedByteStream } from './bounded-byte-stream.js';
 
 /** Default body budget for prepared fetch: 1 MiB (matches server default). */
 export const DEFAULT_ATTESTED_FETCH_MAX_BODY_BYTES = DEFAULT_MAX_BODY_BYTES as number;
@@ -48,9 +47,13 @@ export const DEFAULT_ATTESTED_FETCH_BODY_READ_TIMEOUT_MS = 5000 as const;
 const MIN_BODY_READ_TIMEOUT_MS = 1 as const;
 const MAX_BODY_READ_TIMEOUT_MS = 60000 as const;
 
+/** Bounds for consuming one Request body; this helper does not clone its input. */
 export interface MaterializeRequestBodyOptions {
+  /** Positive safe-integer byte cap; default 1 MiB, hard cap 16 MiB. Covers reader-owned bytes, not native tee queues. */
   readonly maxBodyBytes?: number;
+  /** Explicit caller signal for this read; abort preserves its exact reason. Supply `request.signal` if desired. */
   readonly signal?: AbortSignal | null | undefined;
+  /** Body-read waiting bound only; default 5000 ms, integer range 1–60000. Expiry uses SIGNER_PREPARATION_FAILED. */
   readonly timeoutMs?: number;
 }
 
@@ -160,17 +163,26 @@ function toAbortError(signal: AbortSignal | null | undefined): unknown {
 /**
  * Materialize the exact serialized bytes of a `Request` with a byte-counting
  * reader, caller-abort propagation, and a bounded deadline.
+ * Defaults: 1 MiB (16 MiB hard cap), 5000 ms read deadline (1–60000), and no
+ * implicit signal; pass `signal: request.signal` to follow that Request's abort.
  *
  * - `request.body === null` yields zero bytes (actually empty request).
- * - A used (`bodyUsed`) or locked body fails locally; the original `Request`
- *   should be cloned before reading when reuse is required (see
- *   `attested-fetch.ts`, which clones for reading so the caller's `Request`
- *   stays reusable when feasible).
+ * - Consumes the supplied Request; it does not clone. A used (`bodyUsed`) or
+ *   locked body fails locally. Clone before calling when reuse is required.
+ *   `fetchWithAttestation` owns that clone for inherited bodies, leaving the
+ *   caller's finite Request readable for concurrent/repeated calls. Cancelling
+ *   the clone cannot cancel a producer still owned by the original tee branch;
+ *   native tee queues are outside the reader-owned storage bound.
  * - Exceeding `maxBodyBytes` cancels the reader and throws
  *   `SIGNER_PREPARATION_FAILED` (client-side 413 analogue: never sent).
  * - Deadline expiry cancels the reader and throws
- *   `SIGNER_PREPARATION_FAILED` (stalled read). Caller abort cancels and
+ *   `SIGNER_PREPARATION_FAILED`. Caller abort cancels and
  *   throws the abort reason.
+ * - Empty chunks retain no storage; tiny chunks share a geometrically grown
+ *   buffer capped at `maxBodyBytes`. Reads check elapsed time and yield
+ *   periodically so productive streams allow deadline/abort tasks to run.
+ * - Cancellation is best-effort and never awaited; its rejection is observed.
+ *   The reader lock, abort listener, and timers are released on settlement.
  */
 export async function materializeRequestBodyBytes(
   request: Request,
@@ -199,177 +211,36 @@ export async function materializeRequestBodyBytes(
   if (body === null || body === undefined) {
     return new Uint8Array(0);
   }
-  let reader: ReadableStreamDefaultReader<Uint8Array>;
-  try {
-    reader = body.getReader();
-  } catch {
-    throw new SignerClientError(
-      'SIGNER_PREPARATION_FAILED',
-      'Request body is locked. Clone the Request before sending or pass a fresh body.',
-    );
-  }
-
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let onAbort: (() => void) | undefined;
-  let settled = false;
-
-  function cleanup(): void {
-    settled = true;
-    if (timer !== undefined) {
-      clearTimeout(timer);
-      timer = undefined;
-    }
-    if (onAbort !== undefined && signal !== null && signal !== undefined) {
-      try {
-        signal.removeEventListener('abort', onAbort);
-      } catch {
-        // Listener removal is best-effort.
+  return readBoundedByteStream(body, {
+    maxBytes: maxBodyBytes,
+    timeoutMs,
+    signal,
+    error(failure, cause) {
+      switch (failure) {
+        case 'abort':
+          return toAbortError(signal);
+        case 'locked':
+          return new SignerClientError(
+            'SIGNER_PREPARATION_FAILED',
+            'Request body is locked. Clone the Request before sending or pass a fresh body.',
+          );
+        case 'chunk':
+          return new SignerClientError('SIGNER_PREPARATION_FAILED', 'Request body chunk is not bytes.');
+        case 'limit':
+          return new SignerClientError(
+            'SIGNER_PREPARATION_FAILED',
+            `Request body exceeds the configured ${maxBodyBytes}-byte limit.`,
+          );
+        case 'timeout':
+          return new SignerClientError(
+            'SIGNER_PREPARATION_FAILED',
+            `Request body read timed out after ${timeoutMs} ms.`,
+          );
+        case 'read':
+          return cause instanceof SignerClientError
+            ? cause
+            : new SignerClientError('SIGNER_PREPARATION_FAILED', 'Request body read failed.');
       }
-      onAbort = undefined;
-    }
-  }
-
-  const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      if (settled) {
-        return;
-      }
-      try {
-        void reader.cancel();
-      } catch {
-        // Cancel is best-effort; the rejection below still stops the read.
-      }
-      reject(new SignerClientError('SIGNER_PREPARATION_FAILED', `Request body read timed out after ${timeoutMs} ms.`));
-    }, timeoutMs);
-    const handle = timer as unknown as { readonly unref?: unknown };
-    if (typeof handle.unref === 'function') {
-      (handle.unref as () => void)();
-    }
+    },
   });
-  // Prevent an unhandled rejection when the read finishes before the deadline.
-  deadline.then(
-    () => undefined,
-    () => undefined,
-  );
-
-  if (signal !== null && signal !== undefined) {
-    const abortPromise = new Promise<never>((_resolve, reject) => {
-      onAbort = () => {
-        try {
-          void reader.cancel();
-        } catch {
-          // Best-effort cancel; rejection below still stops the read.
-        }
-        reject(toAbortError(signal));
-      };
-      try {
-        signal.addEventListener('abort', onAbort, { once: true });
-      } catch {
-        // If listeners are unsupported, the aborted check below still applies.
-      }
-    });
-    abortPromise.then(
-      () => undefined,
-      () => undefined,
-    );
-    // Race the read against both deadline and caller abort.
-    try {
-      const result = await Promise.race([readLoop(), deadline, abortPromise]);
-      cleanup();
-      try {
-        reader.releaseLock();
-      } catch {
-        // Release is best-effort after a successful read.
-      }
-      return result;
-    } catch (error) {
-      cleanup();
-      try {
-        reader.releaseLock();
-      } catch {
-        // Release is best-effort after failure.
-      }
-      throw error;
-    }
-  }
-
-  async function readLoop(): Promise<Uint8Array> {
-    for (;;) {
-      if (signal?.aborted === true) {
-        try {
-          await reader.cancel();
-        } catch {
-          // Best-effort.
-        }
-        throw toAbortError(signal);
-      }
-      let chunk: ReadableStreamReadResult<Uint8Array>;
-      try {
-        chunk = await reader.read();
-      } catch (error) {
-        try {
-          await reader.cancel();
-        } catch {
-          // Best-effort.
-        }
-        if (error instanceof SignerClientError) {
-          throw error;
-        }
-        throw new SignerClientError('SIGNER_PREPARATION_FAILED', 'Request body read failed.');
-      }
-      if (chunk.done === true) {
-        break;
-      }
-      const value = chunk.value;
-      if (!(value instanceof Uint8Array)) {
-        try {
-          await reader.cancel();
-        } catch {
-          // Best-effort.
-        }
-        throw new SignerClientError('SIGNER_PREPARATION_FAILED', 'Request body chunk is not bytes.');
-      }
-      total += value.byteLength;
-      if (total > maxBodyBytes) {
-        try {
-          await reader.cancel();
-        } catch {
-          // Best-effort.
-        }
-        throw new SignerClientError(
-          'SIGNER_PREPARATION_FAILED',
-          `Request body exceeds the configured ${maxBodyBytes}-byte limit.`,
-        );
-      }
-      chunks.push(value.slice());
-    }
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const part of chunks) {
-      out.set(part, offset);
-      offset += part.byteLength;
-    }
-    return out;
-  }
-
-  try {
-    const result = await Promise.race([readLoop(), deadline]);
-    cleanup();
-    try {
-      reader.releaseLock();
-    } catch {
-      // Best-effort.
-    }
-    return result;
-  } catch (error) {
-    cleanup();
-    try {
-      reader.releaseLock();
-    } catch {
-      // Best-effort.
-    }
-    throw error;
-  }
 }

@@ -119,6 +119,44 @@ describe('VIRT-03 finalizeModelOutput', () => {
     expect(get).toHaveBeenCalled();
   });
 
+  it('isolates native BSON Binary without clone() from getter mutation and returned output', async () => {
+    const binary = new mongoose.mongo.Binary(Buffer.from('abc'));
+    const getter = vi.fn((view: { binary: mongoose.mongo.Binary }) => {
+      view.binary.buffer[0] = 0;
+      return 'computed';
+    });
+    const snapshot = snap({
+      permissionSchema: { binary: true, v: true },
+      virtuals: { v: { get: getter, dependsOn: ['binary'] } },
+    });
+    const plan = planVirtualProjection({
+      receivingModelName: 'U',
+      snapshot,
+      virtualAccess: READ,
+      outputAccess: READ,
+      docPermissionsAccess: READ,
+      requestedSelect: ['binary', 'v'],
+      globalPermissions: nonePerms,
+    });
+    const output = await finalizeModelOutput({
+      receivingModelName: 'U',
+      input: { binary },
+      snapshot,
+      plan,
+      virtualAccess: READ,
+      outputAccess: READ,
+      docPermissionsAccess: READ,
+      request: mockRequest(),
+      docPermissions: {},
+    });
+    expect(output.v).toBe('computed');
+    expect((output.binary as mongoose.mongo.Binary).buffer[0]).toBe(97);
+    expect(binary.buffer[0]).toBe(97);
+    expect(output.binary).not.toBe(binary);
+    (output.binary as mongoose.mongo.Binary).buffer[0] = 1;
+    expect(binary.buffer[0]).toBe(97);
+  });
+
   it('undefined omits; throw omits with structural log only', async () => {
     const warnSpy = vi.spyOn(loggerHelpers, 'warn').mockImplementation(() => {});
     const undefGet = vi.fn(async () => undefined);

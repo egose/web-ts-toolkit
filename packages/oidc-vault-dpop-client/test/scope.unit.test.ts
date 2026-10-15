@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { OidcVaultDpopClientError } from '../src/errors';
-import { normalizeDpopTarget, normalizeStaticOrigin, resolveDpopScope } from '../src/scope';
+import { normalizeDpopPathPrefix, normalizeDpopTarget, normalizeStaticOrigin, resolveDpopScope } from '../src/scope';
 
 const codeOf = (fn: () => unknown): string => {
   try {
@@ -74,4 +74,61 @@ describe('CLIENT-05 resolveDpopScope', () => {
       ),
     ).toBe('INSECURE_DPOP_ORIGIN');
   });
+});
+
+describe('DPH-05 path scope normalization', () => {
+  const origin = 'https://gateway.example.com';
+
+  it.each([
+    [undefined, '/'],
+    ['/', '/'],
+    ['/orders/', '/orders'],
+    ['/orders///', '/orders'],
+    ['/ord%65rs', '/orders'],
+    ['/orders/%2e', '/orders'],
+    ['/orders/%2e%2e', '/'],
+    ['/parent/../orders', '/orders'],
+    ['/orders%2farchive/', '/orders%2Farchive'],
+    ['/orders/%252e%252e', '/orders/%252e%252e'],
+    ['/orders%3f%23%5c', '/orders%3F%23%5C'],
+  ])('normalizes prefix %j to %s', (prefix, expected) => {
+    expect(normalizeDpopPathPrefix(origin, prefix)).toBe(expected);
+  });
+
+  it.each([
+    '',
+    'orders',
+    'https://attacker.test/orders',
+    '//attacker.test/orders',
+    '/.//orders',
+    '/orders?x',
+    '/orders#x',
+    '/orders\\item',
+    '/bad%/../orders',
+    '/bad%2/../orders',
+    '/orders/\titem',
+  ])('rejects malformed prefix %j before URL parsing can hide it', (prefix) => {
+    expect(codeOf(() => normalizeDpopPathPrefix(origin, prefix))).toBe('INVALID_DPOP_TARGET');
+  });
+
+  it.each([
+    ['/ord%65rs/%7eactive', '/orders/~active'],
+    ['/orders/%2e%2e/billing', '/billing'],
+    ['/orders/%2e%2e%2fbilling', '/orders/..%2Fbilling'],
+    ['/%2f%2fattacker.test/orders', '/%2F%2Fattacker.test/orders'],
+    ['/orders/%252e%252e/billing', '/orders/%252e%252e/billing'],
+  ])('keeps proof normalization stable for raw/native URL inputs and repeated signing: %s', (path, expected) => {
+    const input = `${origin}${path}?q=%2f+%20#fragment`;
+    const target = `${origin}${expected}`;
+    expect(normalizeDpopTarget(input)).toBe(target);
+    expect(normalizeDpopTarget(new URL(input))).toBe(target);
+    expect(normalizeDpopTarget(target)).toBe(target);
+  });
+
+  it.each(['/orders/..', '/%2e', '/?', '/#'])(
+    'rejects non-origin configuration syntax %s even when URL parsing erases it',
+    (suffix) => {
+      expect(codeOf(() => normalizeStaticOrigin(`${origin}${suffix}`))).toBe('INVALID_DPOP_TARGET');
+    },
+  );
 });

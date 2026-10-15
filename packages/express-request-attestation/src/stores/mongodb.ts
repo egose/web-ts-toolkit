@@ -1,14 +1,12 @@
 /**
- * MONGO-01 MongoDB replay adapter (task sections 4.1/4.4).
+ * Bounded transactional MongoDB replay adapter.
  *
- * Admission contract (shared with memory/Redis; see `test/store-conformance.ts`):
+ * Admission contract shared with memory and Redis:
  *
  * - `reserve({ replayKey, retainUntilMs })` returns
  *   `'reserved' | 'duplicate' | 'expired'`.
- * - The canonical deadline field is `retainUntilMs`
- *   (see `AttestationStoreReserveInput`). A `retainUntil` alias is accepted at
- *   runtime for callers written against the task-text shorthand; when both are
- *   present the canonical field wins.
+ * - `retainUntilMs` is the absolute epoch-ms deadline from verified proof timing,
+ *   including the cluster clock guard, never a relative TTL.
  * - Validation order per admission: input shape, store clock, opaque key
  *   bounds (1-256 printable ASCII), deadline shape (nonnegative safe
  *   integer), input expiry (`retainUntilMs <= now` returns `'expired'` with
@@ -26,8 +24,7 @@
  *   valid; the old proof still fails the verifier's age rules (the store never
  *   sees signatures, only opaque already-derived replay keys).
  *
- * Storage design (follows the vault MongoDB store's DPoP replay
- * reservations module):
+ * Storage design:
  *
  * - One proof collection with unique `_id`s (`{ _id: replayKey,
  *   retainUntilMs }`) plus a separate non-TTL capacity/accounting collection
@@ -55,16 +52,14 @@
  *   handles are retained live without cloning, connecting, or closing; the
  *   caller owns the underlying `MongoClient` lifecycle (connect/close).
  *   Production deployments require a replica set (transactions).
- * - The `mongodb` driver is a dev dependency for tests only. The library
- *   uses narrow structural `Db`/collection/session types and never imports a
+ * - The library uses narrow structural `Db`/collection/session types and never imports a
  *   driver at runtime, so browser-only `/signer` consumers never need it.
  * - Capacity throws the shared `AttestationCapacityError` (same class as
  *   memory/Redis). Wrong collection types, transaction failures, and
  *   malformed persisted rows throw the narrow `AttestationMongoStoreError`.
  *   Malformed inputs throw `AttestationProtocolError` without touching the
- *   database. The middleware already maps unknown store failures to fixed
- *   `ATTESTATION_REPLAY_UNAVAILABLE` without calling `next`; do not change
- *   middleware for this adapter.
+ *   database. The middleware maps store failures to fixed
+ *   `ATTESTATION_REPLAY_UNAVAILABLE` without calling `next`.
  *
  * Sharing boundary: replay state is shared by all clients using the same
  * database/collections with identical `maxEntries`. Independent databases or
@@ -152,17 +147,21 @@ export interface MongoAttestationStoreDb {
   };
 }
 
-/** Options for `createMongoAttestationStore` (MONGO-01). */
+/** Caller-owned MongoDB replica-set connection, collection pair, capacity, and clock. */
 export interface CreateMongoAttestationStoreOptions {
   /** Database handle from an already-connected caller-owned client. */
   readonly db: MongoAttestationStoreDb;
   /** Proof collection name; default `attestation_proofs`. */
   readonly proofsCollectionName?: string;
-  /** Capacity/accounting collection name; default `attestation_replay_capacity`. */
+  /**
+   * Default `attestation_replay_capacity`, distinct from the proof collection.
+   * Provision a non-TTL `{ kind: 1, retainUntilMs: 1 }` index before traffic.
+   * Never TTL-delete accounting rows; the adapter maintains them transactionally.
+   */
   readonly capacityCollectionName?: string;
-  /** Positive safe-integer shared capacity; default 50000. */
+  /** Positive safe-integer shared capacity; default 50000, identical for every client of this collection pair. */
   readonly maxEntries?: number;
-  /** App clock; default `Date.now`. Must stay synchronized across instances. */
+  /** Default `Date.now`; nonnegative safe-integer epoch ms, synchronized within the verifier's cluster clock guard. */
   readonly now?: () => number;
 }
 
@@ -504,12 +503,24 @@ class MongoAttestationStore implements AttestationStore {
  * Create a shared bounded attestation replay store over two MongoDB
  * collections.
  *
- * Pass a `Db` from an already-connected caller-owned `MongoClient`; the
- * store never connects, disconnects, or attaches listeners. All clients
- * sharing one database/collections must configure identical `maxEntries`
- * and synchronized clocks. Production deployments require a replica set
- * (transactions). Create a non-TTL index on `retainUntilMs` for the bounded
- * expiry queries; never add a TTL index to the accounting collection.
+ * Pass a `Db` from an already-connected caller-owned `MongoClient`; replica-set
+ * transactions are required. Defaults: `attestation_proofs`,
+ * `attestation_replay_capacity`, `maxEntries: 50000`, and `Date.now`.
+ * All clients of the collection pair need identical capacity and synchronized
+ * clocks; verifiers in the protection space need identical time policy/key windows.
+ *
+ * Before traffic, use the driver's `createIndex({ kind: 1, retainUntilMs: 1 })`
+ * on the capacity collection with no `expireAfterSeconds`. The factory performs
+ * no database I/O/index creation. Never add TTL cleanup to the accounting ledger.
+ * Each admission checks duplicates, reclaims at most 64 expired rows plus the
+ * requested expired key, then inserts without live eviction or duplicate extension.
+ *
+ * The caller owns connection, server-selection/command/transaction deadlines,
+ * and shutdown. Per-admission sessions belong to the adapter, but driver retries
+ * and cleanup are not bounded by the middleware's waiting timeout. Capacity
+ * throws `AttestationCapacityError`; malformed inputs use `AttestationProtocolError`;
+ * dependency/row failures use `AttestationMongoStoreError`. State loss can erase
+ * replay history; this is not durable business idempotency or a failover guarantee.
  */
 export function createMongoAttestationStore(options: CreateMongoAttestationStoreOptions): AttestationStore {
   return new MongoAttestationStore(options);

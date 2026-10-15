@@ -10,10 +10,12 @@ import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_ATTESTATION_HEADER,
   buildMacInputBytes,
   createAttestationBodyCapture,
   createMemoryAttestationStore,
   createRequestAttestationMiddleware,
+  decodeTransactionId,
   encodeTransactionId,
 } from '../src/index.js';
 import type { AttestationKeySnapshot } from '../src/index.js';
@@ -72,6 +74,7 @@ interface OrderHarness {
   close: () => Promise<void>;
   handlerCalls: () => number;
   reserveSpy: ReturnType<typeof vi.fn>;
+  providerSpy: ReturnType<typeof vi.fn>;
 }
 
 async function setupOrderHarness(options?: {
@@ -88,17 +91,15 @@ async function setupOrderHarness(options?: {
   const nowValue = NOW;
   const now = options?.now ?? (() => nowValue);
   const providerSnapshot = snapshotFor(NOW);
-  const provider = {
-    getSnapshot: async () => {
-      if (options?.providerHang === true) {
-        await new Promise(() => {});
-      }
-      if (options?.providerDelayMs !== undefined) {
-        await new Promise((resolve) => setTimeout(resolve, options.providerDelayMs));
-      }
-      return providerSnapshot;
-    },
-  };
+  const providerSpy = vi.fn(async () => {
+    if (options?.providerHang === true) {
+      await new Promise(() => {});
+    }
+    if (options?.providerDelayMs !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, options.providerDelayMs));
+    }
+    return providerSnapshot;
+  });
   const inner = createMemoryAttestationStore({ now: () => NOW });
   const reserveSpy = vi.fn(async (input: { replayKey: string; retainUntilMs: number }) => {
     if (options?.storeHang === true) {
@@ -114,7 +115,7 @@ async function setupOrderHarness(options?: {
   const guard = createRequestAttestationMiddleware({
     publicOrigin: PUBLIC_ORIGIN,
     replayNamespace: NAMESPACE,
-    keyProvider: provider,
+    keyProvider: { getSnapshot: providerSpy },
     store: store as never,
     now,
     ...(options?.operationTimeoutMs === undefined ? {} : { operationTimeoutMs: options.operationTimeoutMs }),
@@ -138,8 +139,125 @@ async function setupOrderHarness(options?: {
     res.status(500).json({ code: 'APP_HANDLER_FAILED' });
   });
   const { baseUrl, close } = await startApp(app);
-  return { baseUrl, close, handlerCalls: () => handlerCalls, reserveSpy };
+  return { baseUrl, close, handlerCalls: () => handlerCalls, reserveSpy, providerSpy };
 }
+
+describe('bounded proof preflight before provider work', () => {
+  const raw = JSON.stringify({ a: 1 });
+  const valid = signProof({
+    timestampMs: NOW - 5000,
+    nonceHex: '0123456789abcdef0123456789abcdef', // pragma: allowlist secret
+    method: 'POST',
+    requestTarget: '/api/work',
+    contentType: 'application/json',
+    bodyBytes: Buffer.from(raw),
+  });
+  const envelope = Buffer.from(valid, 'base64url');
+  const cases = [
+    { name: 'missing', header: undefined, code: 'ATTESTATION_MISSING' },
+    { name: 'empty', header: '', code: 'ATTESTATION_MISSING' },
+    { name: 'comma-joined', header: `${valid},${valid}`, code: 'ATTESTATION_MALFORMED' },
+    { name: 'oversized', header: 'A'.repeat(1025), code: 'ATTESTATION_MALFORMED' },
+    { name: 'invalid alphabet', header: 'not-base64url!!!', code: 'ATTESTATION_MALFORMED' },
+    { name: 'padded', header: `${valid}=`, code: 'ATTESTATION_MALFORMED' },
+    {
+      name: 'noncanonical JSON',
+      header: Buffer.from(envelope.toString('utf8').replaceAll(',', ', ')).toString('base64url'),
+      code: 'ATTESTATION_MALFORMED',
+    },
+    {
+      name: 'BOM-wrapped',
+      header: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), envelope]).toString('base64url'),
+      code: 'ATTESTATION_MALFORMED',
+    },
+  ];
+
+  for (const providerHang of [false, true]) {
+    describe(providerHang ? 'hanging provider' : 'counting provider', () => {
+      it.each(cases)('rejects $name without any dependency calls', async ({ header, code }) => {
+        const harness = await setupOrderHarness({ providerHang, operationTimeoutMs: 30 });
+        try {
+          const response = await fetch(`${harness.baseUrl}/api/work`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              ...(header === undefined ? {} : { [DEFAULT_ATTESTATION_HEADER]: header }),
+            },
+            body: raw,
+          });
+          expect(response.status).toBe(403);
+          expect(await response.json()).toEqual({
+            code,
+            message:
+              code === 'ATTESTATION_MISSING' ? 'Request signature is required.' : 'Request signature is invalid.',
+          });
+          expect(response.headers.get('cache-control')).toBe('no-store');
+          expect(response.headers.get('x-attestation-error')).toBeNull();
+          expect(harness.providerSpy).not.toHaveBeenCalled();
+          expect(harness.reserveSpy).not.toHaveBeenCalled();
+          expect(harness.handlerCalls()).toBe(0);
+        } finally {
+          await harness.close();
+        }
+      });
+    });
+  }
+
+  it('decodes one envelope before reading keys and retains it through the provider wait', async () => {
+    const header = signProof({
+      timestampMs: NOW - 5000,
+      nonceHex: randomBytes(16).toString('hex'),
+      method: 'GET',
+      requestTarget: '/api/work',
+      contentType: '',
+      bodyBytes: Buffer.alloc(0),
+    });
+    const req = {
+      method: 'GET',
+      originalUrl: '/api/work',
+      headers: { [DEFAULT_ATTESTATION_HEADER]: header },
+    };
+    const provider = vi.fn(async () => {
+      await Promise.resolve();
+      req.headers[DEFAULT_ATTESTATION_HEADER] = 'changed-during-provider-wait';
+      return snapshotFor(NOW);
+    });
+    const reserve = vi.fn(async () => 'reserved' as const);
+    const next = vi.fn();
+    const guard = createRequestAttestationMiddleware({
+      publicOrigin: PUBLIC_ORIGIN,
+      replayNamespace: NAMESPACE,
+      keyProvider: { getSnapshot: provider },
+      store: { reserve },
+      now: () => NOW,
+    });
+    // Direct invocation isolates envelope JSON parsing from HTTP/body parsing.
+    const parse = vi.spyOn(JSON, 'parse');
+    try {
+      const outcome = await new Promise<unknown>((resolve) => {
+        guard(
+          req,
+          {
+            setHeader: () => {},
+            status: () => ({ json: resolve }),
+          },
+          () => {
+            next();
+            resolve('next');
+          },
+        );
+      });
+      expect(outcome).toBe('next');
+      expect(parse).toHaveBeenCalledTimes(1);
+      expect(provider).toHaveBeenCalledTimes(1);
+      expect(parse.mock.invocationCallOrder[0]).toBeLessThan(provider.mock.invocationCallOrder[0]);
+      expect(reserve).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledTimes(1);
+    } finally {
+      parse.mockRestore();
+    }
+  });
+});
 
 describe('verify-before-reserve order (spy + handler counter)', () => {
   it('never calls reserve for invalid signatures and never runs the handler', async () => {
@@ -154,13 +272,19 @@ describe('verify-before-reserve order (spy + handler counter)', () => {
         contentType: 'application/json',
         bodyBytes: Buffer.from(raw),
       });
-      const bad = `${good.slice(0, -1)}${good.slice(-1) === 'A' ? 'B' : 'A'}`;
+      const envelope = decodeTransactionId(good);
+      const bad = encodeTransactionId({
+        ...envelope,
+        mac: `${envelope.mac[0] === 'A' ? 'B' : 'A'}${envelope.mac.slice(1)}`,
+      });
       const response = await fetch(`${harness.baseUrl}/api/work`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-client-transaction-id': bad },
         body: raw,
       });
       expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ code: 'ATTESTATION_INVALID_SIGNATURE' });
+      expect(harness.providerSpy).toHaveBeenCalledTimes(1);
       expect(harness.reserveSpy).not.toHaveBeenCalled();
       expect(harness.handlerCalls()).toBe(0);
     } finally {

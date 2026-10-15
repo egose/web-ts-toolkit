@@ -79,12 +79,18 @@ interface RootQueryEntryBase<TTarget extends RootTarget, TOp extends string> {
   target: TTarget;
   name: string;
   op: TOp;
+  /** Execution group (default 0); non-negative safe integer also bounded by RootRouterOptions.maxOrderGroups. */
   order?: number;
 }
 
 export interface RootModelNewQueryEntry extends RootQueryEntryBase<'model', 'new'> {
   args?: { select?: string[] };
-  options?: { skim?: boolean; includePermissions?: boolean; includeFieldPermissions?: boolean };
+  options?: {
+    /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
+    skim?: boolean;
+    includePermissions?: boolean;
+    includeFieldPermissions?: boolean;
+  };
 }
 
 export interface RootModelListQueryEntry extends RootQueryEntryBase<'model', 'list'> {
@@ -187,7 +193,6 @@ export interface RootDataListQueryEntry extends RootQueryEntryBase<'data', 'list
   args?: DataFindArgs;
   options?: {
     includeCount?: boolean;
-    [key: string]: unknown;
   };
 }
 
@@ -237,8 +242,8 @@ export interface SubQueryEntry {
   op: 'list' | 'read' | string;
   id?: string;
   filter?: Filter;
-  args?: Record<string, unknown>;
-  options?: Record<string, unknown>;
+  args?: PublicListArgs;
+  options?: PublicListOptions & PublicReadOptions;
   sqOptions?: {
     path?: string;
     compact?: boolean;
@@ -307,7 +312,7 @@ export interface ListResult<T = unknown, TInput = unknown, TQuery = unknown> {
   totalCount?: number | null;
   input?: TInput;
   query?: TQuery;
-  contexts?: ModelHookContext[];
+  contexts?: readonly ModelHookContext[];
 }
 
 export type ServiceResult<T = unknown, TError = unknown, TInput = unknown, TQuery = unknown> =

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { assertPublicDefaults } from './validation/public-admission';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
 import {
   addLeadingSlash,
@@ -28,6 +29,8 @@ import type {
 } from './interfaces';
 import { defaultLogger } from './logger-default';
 import { OptionsManager, getNestedOption } from './options/manager';
+import { DataOptionsManager } from './options/data-manager';
+import { emptyDataSnapshot } from './options/data-values';
 import { defaultRequestComplexity } from './request-complexity';
 
 type ModelReferenceMap = {
@@ -514,6 +517,13 @@ const toVirtualDescriptor = (
   return { get: record.get as (...args: never[]) => unknown, dependsOn };
 };
 
+/**
+ * Owner of global/model/data options, registered Mongoose models and OpenAPI routes.
+ * Prefer createAccessRuntime() for a callable API with factories and bound setters;
+ * its `.runtime` exposes this owner. A bare instance has no createRouter method.
+ * Registries/configuration are isolated; the Mongoose jsonSchema extension is initialized
+ * idempotently. The defaultRuntime additionally adopts process-global named models.
+ */
 export class AccessRuntime {
   private readonly allowGlobalModelLookup: boolean;
 
@@ -745,6 +755,7 @@ export class AccessRuntime {
     this.openApiRegistry.restore(snapshot.openApi);
   }
 
+  /** Shallowly replace supplied global values; nested objects such as requestComplexity are not deep-merged. */
   setGlobalOptions(options: GlobalOptions) {
     this.globalOptions.assign(options);
   }
@@ -761,6 +772,7 @@ export class AccessRuntime {
     return this.globalOptions.get(key, defaultValue);
   }
 
+  /** Update model starting defaults shallowly; already-stored model values are not broadcast-replaced. */
   setDefaultModelOptions(options: DefaultModelRouterOptions) {
     this.defaultModelOptions.assign(options);
   }
@@ -831,10 +843,18 @@ export class AccessRuntime {
     >;
   }
 
+  /**
+   * Assign `{ ...modelDefaults, ...storedOptions, ...options }` shallowly. A supplied
+   * operationAccess/defaults object replaces that whole value. Defaults accept only
+   * query/presentation settings; virtual configuration is validated before assignment.
+   * Existing router.options remains its construction-time snapshot. Fresh model-service
+   * calls capture the owner's current options/defaults; in-flight calls retain their snapshot.
+   */
   setModelOptions<TModel = unknown, TVirtuals extends object = Record<never, never>>(
     modelName: string,
     options: ModelRouterOptions<TModel, TVirtuals>,
   ) {
+    assertPublicDefaults(options.defaults);
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     const defaultOptions = this.getDefaultModelOptions() as ModelRouterOptions<TModel, TVirtuals>;
     const currentModelOptions = manager.fetch();
@@ -859,6 +879,13 @@ export class AccessRuntime {
   >(modelName: string, key: K, value: ExtendedModelRouterOptions<TModel, TVirtuals>[K]) {
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     const keyStr = String(key);
+
+    if (keyStr === 'defaults') assertPublicDefaults(value);
+    else if (keyStr.startsWith('defaults.')) {
+      const proposed = {};
+      set(proposed, keyStr.slice('defaults.'.length), value);
+      assertPublicDefaults(proposed);
+    }
 
     if (keyStr === 'virtuals' || keyStr.startsWith('virtuals.') || keyStr === 'documentPermissionField') {
       const model = this.getModelInstance(modelName) as mongoose.Model<unknown> | null;
@@ -902,11 +929,18 @@ export class AccessRuntime {
     manager.set(key, value);
   }
 
+  /** Frozen stored snapshot, not fully resolved per-path defaults. Read again for current configuration. */
   getModelOptions<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     return manager.fetch() as ModelRouterOptions<TModel, TVirtuals>;
   }
 
+  /**
+   * Generic stored exact → parent.default → parent lookup; only undefined falls through.
+   * The exact runtime-model-default path is the final fallback if the stored parent is
+   * absent. This is not the route-specific variant-to-base resolver; use
+   * getExactModelOption to inspect a variant including its exact model-default fallback.
+   */
   getModelOption<
     K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
     TModel = unknown,
@@ -924,6 +958,7 @@ export class AccessRuntime {
     >[K];
   }
 
+  /** Exact stored path, then the same runtime-model-default path; no parent/default or variant-to-base lookup. */
   getExactModelOption<
     K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
     TModel = unknown,
@@ -1022,7 +1057,7 @@ export class AccessRuntime {
   }
 
   private createDataOptions<TData = unknown>(dataName: string) {
-    const manager = new OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>({
+    const manager = new DataOptionsManager({
       ...defaultDataOptions,
       dataName,
     });
@@ -1051,10 +1086,8 @@ export class AccessRuntime {
 
   setDataOptions<TData = unknown>(dataName: string, options: DataRouterOptions<TData>) {
     const manager = this.getOrCreateDataOptions<TData>(dataName);
-    // ARH-11: assign directly instead of fetch-merge-assign. OptionsManager.assign
-    // shallow-merges, so the extra fetch previously recopied every stored record
-    // on each unrelated option update. Assignment clones once and freezes; reads
-    // reuse the frozen snapshot.
+    // Data admission owns records once. Shallow assignment avoids traversing the
+    // dataset on unrelated option updates; getters reuse its safe frozen view.
     manager.assign(options);
   }
 
@@ -1070,19 +1103,20 @@ export class AccessRuntime {
 
   getDataOptions<TData = unknown>(dataName: string) {
     const manager = this.getOrCreateDataOptions<TData>(dataName);
-    // ARH-11: fetch reuses the frozen internal data snapshot created on
-    // assignment (see OptionsManager), so per-request reads do not recopy payloads.
+    // Reuse the frozen public data view. Native-valued properties copy on access;
+    // fetching options itself does not traverse or recopy the dataset.
     return manager.fetch() as DataRouterOptions<TData>;
   }
 
+  /**
+   * Reusable configured data view: plain containers are frozen; native properties
+   * return detached mutable copies on access. Native identity is not stable.
+   * Replacement leaves previously captured views on their original data version.
+   */
   getDataSnapshot<TData = unknown>(dataName: string): readonly TData[] {
-    // ARH-11: return the shared immutable snapshot created on
-    // assignment/replacement without cloning records or caching query results.
-    // Replacement swaps the stored reference, so previously returned snapshots
-    // stay coherent for in-flight readers. Callers must not mutate the result.
     const manager = this.getOrCreateDataOptions<TData>(dataName);
     const snapshot = manager.get('data') as TData[] | undefined;
-    return (snapshot ?? []) as readonly TData[];
+    return snapshot ?? emptyDataSnapshot;
   }
 
   getDataOption<K extends keyof ExtendedDataRouterOptions<TData>, TData = unknown>(

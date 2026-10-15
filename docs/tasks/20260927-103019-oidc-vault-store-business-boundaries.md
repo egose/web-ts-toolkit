@@ -10,7 +10,7 @@ Scope includes shared store conformance and narrowly necessary contract document
 
 ## Analysis, prior work, and limitations
 
-- Read all three entrypoints, memory implementation, MongoDB store/mappers, Redis orchestration/keys/validators, shared provider contract, manifests, relevant tests and prior remediation. Two read-only analysis sessions ran sequentially: memory `ses_f1c194b4effeilCUnVGOiE2yTV`; persistent stores `ses_f1c181216ffe2aD38Y45laJn3g`.
+- Read all three entrypoints, memory implementation, MongoDB store/mappers, Redis orchestration/keys/validators, shared provider contract, manifests, relevant tests and prior remediation. Two read-only analysis sessions ran sequentially: memory-store analysis session; persistent-store analysis session (independent).
 - Worktree already contains extensive unrelated changes, including core OIDC source/README and MongoDB/Redis tests. Preserve these; inspect diffs before edits. The three adapter runtime implementations were unmodified at review start.
 - Source-import experiments confirmed memory alias resurrection, MongoDB surviving-session alias deletion and input aliasing, Redis stale membership loss/wrong-identity mutation targeting, and arbitrary error-text disclosure. These used in-memory adapters: they establish orchestration behavior, not live-service isolation.
 - Baseline full suites/builds/packed consumers were not run during analysis; implementation tasks require fresh verification. No production performance or comprehensive corruption-audit claim is made.
@@ -327,3 +327,10 @@ Completion evidence:
 - No CHANGELOG diff (`git diff --name-only | grep -i changelog` empty); scoped `git diff --check` on the four OIDC packages passed.
 - Deferred decisions retain rationale/risk (unchanged): FU-SVH-05b cross-provider non-expiring retention + MongoDB create-ID-reuse divergence; FU-SVH-07a large `$in` batching; FU-SVH-07c 10k-alias Lua bounds; full-lineage materialization and unbounded non-expiring memory/Redis alias growth; no production latency/scale or global linearizability claims. No new defects found; no follow-up tasks created.
 - Residual risk: live Redis/MongoDB evidence covers specified interleavings on `redis:6.2-alpine`/`7.2-alpine` and the repo MongoDB harness, not production load, rolling-writer version mixing, or external-corruption audit beyond the stated barriers.
+
+Review: 2026-10-14
+
+- Disposition: amended (full operational session IDs replaced with task-local aliases; execution-order and reviewer-independence claims preserved)
+- Evidence: this task record; aliases reuse the file's own task IDs
+- Verification: tracked-file content search confirms no full operational session identifiers remain in `docs/tasks/`; no product-code or status change
+- Remaining work: none from this correction

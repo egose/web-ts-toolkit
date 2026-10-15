@@ -17,6 +17,7 @@ import {
   createOidcVaultDpopSession,
   fetchWithDpop,
   getOrCreateDpopKey,
+  OidcVaultDpopClientError,
   type DpopFetchOptions,
   type OidcVaultDpopSession,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
@@ -146,6 +147,43 @@ export const replaceKey = async (scope: Scope) => {
   return jkt;
 };
 
+// DPH-06: keep the public JWK/thumbprint but replace the signing key, producing
+// a genuinely persisted, non-extractable pair that validation must reject.
+export const corruptKey = async (scope: Scope) => {
+  const id = testScopeId(location.origin, scope.backendOrigin, scope.basePath);
+  const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
+  return withTestDatabase(async (db) => {
+    const previous = await db.get('keys', id);
+    if (!previous) throw new Error('Missing key to corrupt.');
+    await db.put('keys', { ...previous, privateKey: pair.privateKey }, id);
+    return previous.jkt;
+  });
+};
+
+export const inspectScopeRecords = async (scope: Scope) =>
+  withTestDatabase(async (db) => {
+    const id = testScopeId(location.origin, scope.backendOrigin, scope.basePath);
+    const transaction = db.transaction(['keys', 'cookieSessions'], 'readonly');
+    const [keyId, key, cookieVersion] = await Promise.all([
+      transaction.objectStore('keys').getKey(id),
+      transaction.objectStore('keys').get(id),
+      transaction.objectStore('cookieSessions').get(id),
+    ]);
+    await transaction.done;
+    return {
+      keyPresent: keyId !== undefined,
+      keyJkt: key?.jkt,
+      cookieVersion,
+      version: db.version,
+      stores: [...db.objectStoreNames],
+    };
+  });
+
+export const seedCookieVersion = async (input: Scope & { version: TestCookieVersion }) =>
+  withTestDatabase(async (db) => {
+    await db.put('cookieSessions', input.version, testScopeId(location.origin, input.backendOrigin, input.basePath));
+  });
+
 export const dropDatabase = async (_input: object) => {
   void _input;
   await new Promise<void>((resolve, reject) => {
@@ -173,7 +211,9 @@ export const featureDetection = async (input: { cookie: boolean }) => {
   return true;
 };
 
-export const createSession = async (input: Scope & { name: string; transport: 'body' | 'cookie'; signal?: string }) => {
+export const createSession = async (
+  input: Scope & { name: string; transport: 'body' | 'cookie'; signal?: string; captureNavigation?: boolean },
+) => {
   sessions.get(input.name)?.dispose();
   signals.set(input.name, input.signal);
   const fingerprint = createDeviceFingerprint(async () => signals.get(input.name));
@@ -182,6 +222,18 @@ export const createSession = async (input: Scope & { name: string; transport: 'b
     basePath: input.basePath,
     sessionTransport: input.transport,
     fingerprint,
+    fetch: async (...args) => {
+      const response = await fetch(...args);
+      const held = heldResponses.get(input.name);
+      if (response.ok && held && String(args[0]).endsWith(`/${held.route}`)) {
+        heldResponses.delete(input.name);
+        await waitAtGate(held.gate);
+      }
+      return response;
+    },
+    ...(input.captureNavigation
+      ? { navigate: () => navigations.set(input.name, (navigations.get(input.name) ?? 0) + 1) }
+      : {}),
   });
   sessions.set(input.name, session);
   return { scopeId: session.scopeId };
@@ -221,4 +273,216 @@ export const apiFetch = async (input: {
 export const disposeSession = async (input: { name: string }) => {
   sessions.get(input.name)?.dispose();
   sessions.delete(input.name);
+};
+
+// DPH-02 barriers retain the real browser's key/IDB/HTTP implementations. Only
+// delivery to a session is paused, or invalidation is injected after a native
+// IDB put has started, so the tests can choose interleavings without sleeps.
+interface Gate {
+  ready: boolean;
+  promise: Promise<void>;
+  release(): void;
+}
+const gates = new Map<string, Gate>();
+const heldResponses = new Map<string, { route: 'login' | 'refresh'; gate: string }>();
+const navigations = new Map<string, number>();
+const operations = new Map<string, Promise<{ ok: boolean; code?: string }>>();
+const createGate = (id: string): void => {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  gates.set(id, { ready: false, promise, release });
+};
+const waitAtGate = async (id: string): Promise<void> => {
+  const gate = gates.get(id)!;
+  gate.ready = true;
+  await gate.promise;
+};
+const trackOperation = (id: string, run: () => unknown): void => {
+  operations.set(
+    id,
+    (async () => {
+      try {
+        await run();
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, code: error instanceof OidcVaultDpopClientError ? error.code : 'UNEXPECTED_FAILURE' };
+      }
+    })(),
+  );
+};
+
+export const beginSessionOperation = async (input: {
+  name: string;
+  id: string;
+  operation: 'login' | 'refresh' | 'logout' | 'clear' | 'resetKey' | 'getKey';
+}) => {
+  trackOperation(input.id, () => sessions.get(input.name)![input.operation]());
+};
+export const finishSessionOperation = async (input: { id: string }) => operations.get(input.id)!;
+export const gateReady = async (input: { id: string }) => gates.get(input.id)?.ready === true;
+export const releaseGate = async (input: { id: string }) => {
+  gates.get(input.id)!.release();
+};
+export const navigationCount = async (input: { name: string }) => navigations.get(input.name) ?? 0;
+
+export const holdSessionResponse = async (input: { name: string; route: 'login' | 'refresh'; gate: string }) => {
+  createGate(input.gate);
+  heldResponses.set(input.name, input);
+};
+
+export const holdKeyLookup = async (input: { gate: string }) => {
+  createGate(input.gate);
+  const verify = crypto.subtle.verify.bind(crypto.subtle);
+  Object.defineProperty(crypto.subtle, 'verify', {
+    configurable: true,
+    value: async (...args: Parameters<SubtleCrypto['verify']>) => {
+      const result = await verify(...args);
+      Object.defineProperty(crypto.subtle, 'verify', { configurable: true, value: verify });
+      await waitAtGate(input.gate);
+      return result;
+    },
+  });
+};
+
+interface CookieWriteEvidence {
+  started: boolean;
+  clearedImmediately: boolean;
+  requestSucceeded: boolean;
+  requestError?: string;
+}
+const cookieWrites = new Map<string, CookieWriteEvidence>();
+export const invalidateDuringCookieWrite = async (input: {
+  name: string;
+  id: string;
+  action: 'clear' | 'resetKey' | 'dispose';
+}) => {
+  const session = sessions.get(input.name)!;
+  const evidence: CookieWriteEvidence = { started: false, clearedImmediately: false, requestSucceeded: false };
+  cookieWrites.set(input.id, evidence);
+  const put = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+    const request = put.call(this, value, key);
+    if (this.name === 'cookieSessions' && key === session.scopeId && (value as TestCookieVersion).active) {
+      IDBObjectStore.prototype.put = put;
+      evidence.started = true;
+      request.addEventListener('success', () => {
+        evidence.requestSucceeded = true;
+      });
+      request.addEventListener('error', () => {
+        evidence.requestError = request.error?.name;
+      });
+      trackOperation(input.id, () => session[input.action]());
+      evidence.clearedImmediately = session.getAccessToken() === undefined;
+    }
+    return request;
+  };
+};
+export const cookieWriteEvidence = async (input: { id: string }) => cookieWrites.get(input.id)!;
+
+export const disposeDuringKeyDelete = async (input: { name: string; id: string }) => {
+  const session = sessions.get(input.name)!;
+  const evidence: CookieWriteEvidence = { started: false, clearedImmediately: false, requestSucceeded: false };
+  cookieWrites.set(input.id, evidence);
+  const remove = IDBObjectStore.prototype.delete;
+  IDBObjectStore.prototype.delete = function (key: IDBValidKey | IDBKeyRange) {
+    const request = remove.call(this, key);
+    if (this.name === 'keys' && key === session.scopeId) {
+      IDBObjectStore.prototype.delete = remove;
+      evidence.started = true;
+      request.addEventListener('success', () => {
+        evidence.requestSucceeded = true;
+      });
+      request.addEventListener('error', () => {
+        evidence.requestError = request.error?.name;
+      });
+      session.dispose();
+      evidence.clearedImmediately = session.getAccessToken() === undefined;
+    }
+    return request;
+  };
+};
+export const readCookieVersion = async (input: Scope) =>
+  withTestDatabase((db) => db.get('cookieSessions', testScopeId(location.origin, input.backendOrigin, input.basePath)));
+
+export const holdCookieLock = async (input: { scopeId: string; gate: string }) => {
+  createGate(input.gate);
+  trackOperation(input.gate, () =>
+    navigator.locks.request(`oidc-vault-dpop:cookie:${input.scopeId}`, () => waitAtGate(input.gate)),
+  );
+};
+export const cookieLockQueue = async (input: { scopeId: string }) => {
+  const state = await navigator.locks.query();
+  const name = `oidc-vault-dpop:cookie:${input.scopeId}`;
+  return {
+    held: state.held?.filter((lock) => lock.name === name).length,
+    pending: state.pending?.filter((lock) => lock.name === name).length,
+  };
+};
+
+// DPH-10: replay an actual emitted envelope over the native channel. The
+// observer closes after its first match; it does not invoke session callbacks.
+interface TestPeerMessage {
+  type: 'clear' | 'token';
+  sender: string;
+  jkt: string;
+  generation: string;
+  recognition?: string;
+  token?: unknown;
+}
+const peerMessages = new Map<string, TestPeerMessage>();
+export const capturePeerMessage = async (input: { scopeId: string; id: string; type: TestPeerMessage['type'] }) => {
+  const channel = new BroadcastChannel(`oidc-vault-dpop:cookie:${input.scopeId}`);
+  channel.onmessage = (event: MessageEvent<TestPeerMessage>) => {
+    if (event.data.type !== input.type) return;
+    peerMessages.set(input.id, event.data);
+    channel.close();
+  };
+};
+export const capturedPeerMessage = async (input: { id: string }) => peerMessages.get(input.id);
+export const broadcastCookieMessage = async (input: { scopeId: string; message: TestPeerMessage }) => {
+  const channel = new BroadcastChannel(`oidc-vault-dpop:cookie:${input.scopeId}`);
+  channel.postMessage(input.message);
+  channel.close();
+};
+
+// Abort the native readonly transaction after its cookie lookup has started.
+// Only this scope's next get is affected; key reads and subsequent explicit
+// operations keep the actual IndexedDB implementation.
+const cookieReads = new Map<string, { started: boolean; error?: string }>();
+export const failNextCookieLookup = async (input: { scopeId: string; id: string }) => {
+  const evidence: { started: boolean; error?: string } = { started: false };
+  cookieReads.set(input.id, evidence);
+  const get = IDBObjectStore.prototype.get;
+  IDBObjectStore.prototype.get = function (query: IDBValidKey | IDBKeyRange) {
+    const request = get.call(this, query);
+    if (this.name === 'cookieSessions' && query === input.scopeId) {
+      IDBObjectStore.prototype.get = get;
+      evidence.started = true;
+      request.addEventListener('error', () => {
+        evidence.error = request.error?.name;
+      });
+      this.transaction.abort();
+    }
+    return request;
+  };
+};
+export const cookieLookupEvidence = async (input: { id: string }) => cookieReads.get(input.id);
+
+let databaseOpens = 0;
+export const watchDatabaseOpens = async (_input: object) => {
+  void _input;
+  const open = indexedDB.open.bind(indexedDB);
+  Object.defineProperty(indexedDB, 'open', {
+    configurable: true,
+    value: (...args: Parameters<IDBFactory['open']>) => {
+      databaseOpens++;
+      return open(...args);
+    },
+  });
+};
+export const databaseOpenCount = async (_input: object) => {
+  void _input;
+  return databaseOpens;
 };

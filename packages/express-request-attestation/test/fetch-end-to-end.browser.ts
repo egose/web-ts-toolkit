@@ -27,8 +27,30 @@
 import { describe, expect, it } from 'vitest';
 
 // Built output under test: the exact ESM an installed browser consumer loads.
-import { createRequestSigner, createSignerClient, decodeTransactionId, fetchWithAttestation } from '../dist/signer.mjs';
+import {
+  createRequestSigner,
+  createSignerClient,
+  decodeTransactionId,
+  fetchSignerBundle,
+  fetchWithAttestation,
+  SignerClientError,
+  validateHeaderName,
+} from '../dist/signer.mjs';
 import type { RequestSigner, SignerClient } from '../dist/signer.mjs';
+import { runFetchOwnershipTests } from './fetch-ownership.cases.js';
+import { BROWSER_FORBIDDEN_PROOF_FIELDS, runFetchTransportTests } from './fetch-transport.cases.js';
+import { runDiscoveryFetchReceiverTests, runPreparedFetchReceiverTests } from './fetch-receiver.cases.js';
+
+runFetchOwnershipTests({ createRequestSigner, decodeTransactionId, fetchWithAttestation });
+runFetchTransportTests({
+  createRequestSigner,
+  decodeTransactionId,
+  fetchWithAttestation,
+  SignerClientError,
+  validateHeaderName,
+});
+runDiscoveryFetchReceiverTests({ createSignerClient, fetchSignerBundle });
+runPreparedFetchReceiverTests({ createRequestSigner, decodeTransactionId, fetchWithAttestation });
 
 const API_ORIGIN = 'https://attestation.example.com';
 const NAMESPACE = 'att-fixture';
@@ -76,6 +98,46 @@ function staleResponse(): Response {
 }
 
 describe('browser prepared fetch (built bundle, real Chromium)', () => {
+  it('demonstrates native Request guards dropping fields retained by unrestricted Headers', () => {
+    for (const headerName of BROWSER_FORBIDDEN_PROOF_FIELDS) {
+      const headers = new Headers({ [headerName]: 'proof-value' });
+      const request = new Request(`${API_ORIGIN}/api/items`, { headers });
+      expect(headers.get(headerName), headerName).toBe('proof-value');
+      expect(request.headers.get(headerName), headerName).toBeNull();
+    }
+    const headers = new Headers({ 'x-custom-proof': 'proof-value' });
+    const noCors = new Request(`${API_ORIGIN}/api/items`, { mode: 'no-cors', headers });
+    expect(headers.get('x-custom-proof')).toBe('proof-value');
+    expect(noCors.headers.get('x-custom-proof')).toBeNull();
+  });
+
+  it.each(['X-HTTP-Method', 'X-HTTP-Method-Override', 'X-Method-Override'])(
+    'checks the final native Request when Chromium conditionally strips %s',
+    async (headerName) => {
+      // These names accept real envelopes (shared positive cases above). A faulty
+      // signer returning a forbidden method value reaches a real value-dependent
+      // Request guard, proving that unrestricted temporary Headers are insufficient.
+      const headers = new Headers({ [headerName]: 'TRACE' });
+      expect(headers.get(headerName)).toBe('TRACE');
+      expect(new Request(`${API_ORIGIN}/api/items`, { headers }).headers.get(headerName)).toBeNull();
+      const client = stubClient({ ...makeRealSigner(), sign: async () => 'TRACE' });
+      let apiCalls = 0;
+      await expect(
+        fetchWithAttestation(`${API_ORIGIN}/api/items`, undefined, {
+          signerClient: client,
+          apiOrigin: API_ORIGIN,
+          replayNamespace: NAMESPACE,
+          headerName,
+          fetch: async () => {
+            apiCalls += 1;
+            return new Response('must not send');
+          },
+        }),
+      ).rejects.toMatchObject({ name: 'SignerClientError', code: 'SIGNER_PREPARATION_FAILED' });
+      expect(apiCalls).toBe(0);
+    },
+  );
+
   it('exposes the ATT-07 wrapper from the built signer entry', async () => {
     const pkg = (await import('../dist/signer.mjs')) as Record<string, unknown>;
     expect(typeof pkg['fetchWithAttestation']).toBe('function');

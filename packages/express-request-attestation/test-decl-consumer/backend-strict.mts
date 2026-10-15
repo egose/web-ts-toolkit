@@ -1,4 +1,4 @@
-import type express from 'express';
+import express from 'express';
 import {
   createAttestationBodyCapture,
   createMemoryAttestationStore,
@@ -13,6 +13,11 @@ import {
   type CreateMongoAttestationStoreOptions,
   type MongoAttestationStoreDb,
 } from '@web-ts-toolkit/express-request-attestation';
+import {
+  createSignerClient,
+  fetchWithAttestation,
+  type SignerClient,
+} from '@web-ts-toolkit/express-request-attestation/signer';
 
 const publicOrigin = 'https://api.example.com';
 const replayNamespace = 'decl-backend-strict';
@@ -28,8 +33,19 @@ const keyProvider: AttestationKeyProvider = createStaticKeyProvider({
 });
 const store: AttestationStore = createMemoryAttestationStore();
 const capture = createAttestationBodyCapture({ maxBodyBytes });
-const guard = createRequestAttestationMiddleware({ publicOrigin, replayNamespace, keyProvider, store });
-const router = createSignerBundleRouter({ publicOrigin, replayNamespace, keyProvider });
+const guard: express.RequestHandler = createRequestAttestationMiddleware({
+  publicOrigin,
+  replayNamespace,
+  keyProvider,
+  store,
+});
+const router: express.Router = createSignerBundleRouter({ publicOrigin, replayNamespace, keyProvider });
+const parser: express.RequestHandler = express.json({
+  limit: maxBodyBytes,
+  verify: capture.verify,
+  inflate: false,
+});
+const captureErrorHandler: express.ErrorRequestHandler = capture.errorHandler;
 
 function requireBearerAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
   if (req.headers.authorization !== 'Bearer good-token') {
@@ -40,14 +56,29 @@ function requireBearerAuth(req: express.Request, res: express.Response, next: ex
 }
 
 const entryKeyId: string = entry.keyId;
-const guardKind: string = typeof guard;
-const routerKind: string = typeof router;
 const captureLimit: number = capture.maxBodyBytes;
 
-void [keyProvider, store, capture, guard, router, requireBearerAuth, entryKeyId, guardKind, routerKind, captureLimit];
+const app = express();
+app.use('/attestation', router);
+app.use(parser);
+app.use(captureErrorHandler);
+app.post('/api/submit', requireBearerAuth, guard, (_req, res) => {
+  res.json({ ok: true });
+});
+void [app, entryKeyId, captureLimit];
 
-// MONGO-03: root named import of the MongoDB replay store typechecks without
-// installing the `mongodb` driver (structural `Db` injection only).
+// NodeNext import conditions must resolve both public declaration entries.
+const signerClient: SignerClient = createSignerClient({
+  metadataUrl: `${publicOrigin}/attestation/signer-meta`,
+  apiOrigin: publicOrigin,
+  replayNamespace,
+});
+function preparedRequest(request: Request): Promise<Response> {
+  return fetchWithAttestation(request, undefined, { signerClient, apiOrigin: publicOrigin, replayNamespace });
+}
+void preparedRequest;
+
+// The public Mongo store accepts structural injection without importing driver types.
 declare const mongoDb: MongoAttestationStoreDb;
 const mongoOptions: CreateMongoAttestationStoreOptions = { db: mongoDb, maxEntries: 50000 };
 const mongoStore: AttestationStore = createMongoAttestationStore(mongoOptions);

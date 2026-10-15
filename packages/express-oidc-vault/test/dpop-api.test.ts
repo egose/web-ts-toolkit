@@ -54,6 +54,7 @@ const tokenFor = (confirmation: unknown = { jkt: keyA.jkt }, extra: Record<strin
     sub: 'api-user',
     sid: 'local-session',
     scope: 'read:profile',
+    exp: Math.floor(Date.now() / 1000) + 900,
     ...(confirmation === null ? {} : { cnf: confirmation }),
     ...extra,
   })
@@ -61,7 +62,6 @@ const tokenFor = (confirmation: unknown = { jkt: keyA.jkt }, extra: Record<strin
     .setIssuer(ORIGIN)
     .setAudience('local-api')
     .setIssuedAt()
-    .setExpirationTime('15m')
     .sign(SECRET);
 
 // Raw signing permits negative protected-header/claim fixtures that a JWT
@@ -487,6 +487,45 @@ describe('DBJWT-06 challenge table and bounded signed claims', () => {
       expect(response.body).toEqual(INVALID_TOKEN);
       expect(response.headers['www-authenticate']).toBe('DPoP error="invalid_token", algs="ES256"');
       expect(response.headers['dpop-nonce']).toBeUndefined();
+      expect(context.reserve).not.toHaveBeenCalled();
+      expect(context.onAuthContext).not.toHaveBeenCalled();
+      expect(context.downstream).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['missing exp', 'fractional exp', 'unsafe exp milliseconds', 'extra cnf field'])(
+    'rejects a signed bound JWT with %s before mapper/nonce/replay/hooks',
+    async (scenario) => {
+      const mapClaims = vi.fn(() => ({ subject: 'unused' }));
+      const context = fixture({
+        deviceBinding: { nonce: { secret: SECRET } },
+        validator: createOidcVaultJwtAccessTokenValidator({
+          key: SECRET,
+          issuer: ORIGIN,
+          audience: 'local-api',
+          mapClaims,
+        }),
+      });
+      const token = await tokenFor(
+        { jkt: keyA.jkt, ...(scenario === 'extra cnf field' ? { extra: 'unsupported' } : {}) },
+        scenario === 'missing exp'
+          ? { exp: undefined }
+          : scenario === 'fractional exp'
+            ? { exp: Math.floor(Date.now() / 1000) + 900.5 }
+            : scenario === 'unsafe exp milliseconds'
+              ? { exp: Math.floor(Number.MAX_SAFE_INTEGER / 1000) + 1 }
+              : {},
+      );
+      const response = await request(context.app)
+        .get(PATH)
+        .set('Authorization', `DPoP ${token}`)
+        .set('DPoP', proofFor(token));
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual(INVALID_TOKEN);
+      expect(response.headers['www-authenticate']).toBe('DPoP error="invalid_token", algs="ES256"');
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(response.headers['dpop-nonce']).toBeUndefined();
+      expect(mapClaims).not.toHaveBeenCalled();
       expect(context.reserve).not.toHaveBeenCalled();
       expect(context.onAuthContext).not.toHaveBeenCalled();
       expect(context.downstream).not.toHaveBeenCalled();

@@ -2,6 +2,27 @@
 
 ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 
+**Start here:** [Quick Start](#quick-start) · [Imports](#import-styles) ·
+[Configuration layers](#configuration-layers) · [Public exports](#main-exports)
+
+**Guide:** [Operation guards](#basic-and-advanced-operation-access) ·
+[Data routers](#data-routers) · [Root batches](#root-batch-bounds) ·
+[Runtime isolation](#default-runtime-vs-isolated-runtime) ·
+[Validation and OpenAPI](#request-validation-and-openapi)
+
+**Business contracts:** [Service authorization](#trusted-service-authorization) ·
+[Mutation input](#independent-mutation-input-authority) ·
+[Subdocuments](#dedicated-subdocument-authorization) ·
+[Includes and counts](#include-cardinality) · [Correlated includes](#correlated-includes) ·
+[Virtuals](#virtuals-computed-fields) · [Hook admission](#hook-admission-and-reentrant-service-calls) ·
+[Persistence limits](#persistence-concurrency-and-resource-limits)
+
+**Migration:** [Removed overrides](#breaking-release-service-overrides-migration) ·
+[Named helpers](#breaking-release-named-helpers-and-default-behavior) ·
+[Distinct values](#distinct-whole-value-request-authorization) ·
+[Numeric grouped counts](#numeric-grouped-count-service-api-breaking-migration) ·
+[`skim`](#skim-compatibility-no-op)
+
 ## Installation
 
 ```sh
@@ -13,97 +34,1344 @@ Peer dependencies:
 - `express >= 5`
 - `mongoose >= 8`
 
-## Highlights
+Use Node.js 22 or newer. The package ships bundled CommonJS/ESM entrypoints and
+matching declarations; prefer default `acl` for the shared runtime or named
+`createAccessRuntime` for isolation.
 
-- generated model CRUD routers
-- generated in-memory data routers
-- access control, field permissions, and request-time hooks
-- root batch router for grouped operations
-- request validation adapters
-- generated OpenAPI JSON and Swagger UI routes
+TypeScript applications also need `typescript`, `@types/node`, and `@types/express`
+as development dependencies. MongoDB must be reachable for model operations;
+in-memory data routers need no database connection. Install an external validator
+such as AJV only when using its adapter.
 
 ## Quick Start
+
+A public-read catalog needs a model, route guards, and field rules. Save this as
+`server.mts` and compile with TypeScript/NodeNext, or run it directly with Node 22.18+.
 
 <!-- doc-example: partial -->
 
 ```ts
 import express from 'express';
 import mongoose from 'mongoose';
-import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 
-// 1. Configure how request permissions are resolved globally.
-acl.setGlobalOptions({
-  requestPermissionField: '_permissions',
-  // Set to false only when legacy clients populate models without createRouter().
-  requireRegisteredPopulateModels: true,
-  globalPermissions(req) {
-    return req.headers.user === 'admin' ? ['isAdmin'] : [];
+const api = createAccessRuntime();
+const Product = mongoose.model('Product', new mongoose.Schema({ name: String, internalCost: Number }));
+const products = api.createRouter(Product, {
+  basePath: '/products',
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+});
+
+const app = express();
+app.use(express.json());
+app.use(products.routes); // includes this runtime's request middleware
+
+try {
+  await mongoose.connect(process.env.MONGODB_URL ?? 'mongodb://127.0.0.1:27017/example');
+} catch (error) {
+  console.error(error);
+  process.exit(1);
+}
+app.listen(3000);
+```
+
+`GET /products?select=name&limit=20` returns `{ data, meta }`; `GET /products/:id`
+returns one readable product. `_id` is retained by default, and `internalCost`
+requires its own field permission. Unconfigured write operations are denied.
+Passing the model instance registers it in this runtime and preserves its Mongoose
+connection. [String-name factories](#createrouter-overloads) need a registered model.
+
+For actor-specific rules, resolve grants from your application's authenticated
+server-side actor in `globalPermissions`, then use those permission names in the
+rules. The public-read example needs neither authentication nor a schema plugin.
+
+## Import styles
+
+<!-- doc-example: partial -->
+
+```ts
+import acl from '@web-ts-toolkit/access-router'; // preferred shared-runtime API
+import { createAccessRuntime, fromZod } from '@web-ts-toolkit/access-router'; // isolated API / helpers
+import { parseBody, Codes, MIDDLEWARE } from '@web-ts-toolkit/access-router/advanced';
+import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
+```
+
+`import { acl }` is the same value as the default export. In CommonJS use
+`const { acl, createAccessRuntime } = require('@web-ts-toolkit/access-router')`;
+`require(...)` itself is the export object, not the callable `acl` value.
+
+| Entrypoint                                 | Use it for                                                                                                                                                                                           |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@web-ts-toolkit/access-router`            | Runtime/router factories, guards, validation adapters, public configuration and authorization types.                                                                                                 |
+| `@web-ts-toolkit/access-router/advanced`   | Additional request/service/wire types (`ModelRequest`, `RootQueryEntry`, `FindOptions`, `Defaults`, `Include`), enums, symbols and parsers. No runtime factory or standalone `Service` class export. |
+| `@web-ts-toolkit/access-router/processors` | Named document processors and their option/output types; [typed example](#subpath-import-example).                                                                                                   |
+
+Use package-name imports, not `src/*` or `dist/*` paths. The three entrypoints have
+ESM/CJS JavaScript and matching `.d.mts`/`.d.ts` declarations selected by `exports`.
+See [Main Exports](#main-exports) for the inventory. Acquire services from
+`router.getService(req)` or `req.macl.getService(name)` after the owning middleware
+initializes the request.
+
+## Configuration layers
+
+`const api = createAccessRuntime()` returns a callable **runtime-bound API**;
+`api.runtime` is its owning `AccessRuntime`. Default `acl` has the same API over
+`defaultRuntime`. Prefer methods on that API or `router.runtime` when configuring
+a particular runtime. Standalone named option helpers use the active runtime in
+package-managed execution, falling back to `defaultRuntime` outside it.
+
+| Layer / public type                                                             | Where to put it                                                                                         | Scope and examples                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime/global — `GlobalOptions`                                                | `api.setGlobalOptions({...})`, `api.setGlobalOption(key, value)`; `api.set` is an alias for these forms | That runtime's request grants (`globalPermissions`, `requestPermissionField`), logger, registered-populate policy and `requestComplexity`.                                                                  |
+| Model defaults — `DefaultModelRouterOptions`                                    | `api.setDefaultModelOptions({...})`, `api.setDefaultModelOption(path, value)`                           | Shared model starting values such as `listHardLimit`, IDs, route segments, `operationAccess` and metadata posture. Data/root routers do not inherit them.                                                   |
+| Model router — `ModelRouterOptions<Model, Virtuals>`                            | `api.createRouter(Model, {...})`, then `router.setOptions`, `router.setOption` / `router.set`           | One registered model's guards, `permissionSchema`, hooks, virtuals, request schemas and method defaults. Routers for the same model/runtime share its stored options.                                       |
+| Data router — `DataRouterOptions<Data>`                                         | `api.createDataRouter(name, {...})`, its setters, or `api.runtime.setDataOptions` / `setDataOption`     | Owned in-memory `data`, list/read guards, request-only fields/filters and decorators. No model `defaults` or model authorization policy. Set `idParam` and `idField` explicitly for data identifier routes. |
+| Root router — `RootRouterOptions`                                               | Single-argument `api.createRouter({ basePath, operationAccess, ... })`                                  | The batch endpoint's scalar guard and batch/order/whole-operation limits; each target keeps its own policy.                                                                                                 |
+| Per-method defaults — `Defaults<Model>` from `/advanced`                        | `ModelRouterOptions.defaults`, e.g. `defaults.publicListArgs` or `defaults.findOptions`                 | Query/presentation defaults for the **named method**, not global settings or trusted authority. Public wrappers and internal methods have separate buckets.                                                 |
+| Wire query / `args` / `options`                                                 | GET query, advanced body, or root entry                                                                 | Request-controlled selection, sorting, pagination and allowed presentation options; placement and spelling depend on transport (below).                                                                     |
+| Trusted per-call policy — `ServiceAuthorization`, `MutationAuthorization`, etc. | The internal service's final `options.authorization`                                                    | Server-owned, method-specific row/input/output/related authority. Absent dimensions use request authority. Never a router default, HTTP option or reusable permission mutation.                             |
+
+### Assignment, precedence and capture
+
+1. **Assignment is shallow.** Object setters replace each supplied top-level value
+   and keep other top-level keys. `setOptions({ operationAccess: { read: true } })`
+   replaces the whole stored guard object; it does not merge its old siblings.
+   Model option assignment is `{ ...runtimeModelDefaults, ...storedModelOptions,
+...suppliedOptions }`. Changing runtime defaults does not broadcast over values
+   already stored on a model. Data assignment has no model-default layer.
+2. **Dotted setters update one path copy-on-write.** Use
+   `router.setOption('operationAccess.basicRead', false)` to keep sibling rules,
+   or pass `undefined` to restore lookup fallback. Property helpers such as
+   `router.operationAccess('basicRead', false)` are for defined values; use
+   `set`/`setOption` for undefined. Updating a path beneath a scalar starts an
+   object; use a `default` entry to retain a broad fallback. Dotted keys belong in
+   setter arguments, not flat constructor-object properties.
+3. **Lookup is not a deep merge.** Generic nested option/hook lookup uses the
+   stored exact path → its parent's `.default` → the parent value (bare hook or
+   shorthand). Only `undefined` falls through, not false/null. The generic model
+   getter uses the exact runtime-model-default path as its final fallback if the
+   stored parent is also absent. `getExactModelOption` instead checks just the
+   exact stored path, then the same runtime-default path; `getExactDataOption`
+   checks only the stored path. `getDefaultModelOption` is exact. **Route guards
+   have their own resolver:** exact variant (including exact model-default
+   fallback) → base exact/`.default`/shorthand. A default variant can therefore
+   outrank a model's base rule. See the [full precedence](#variant-and-base-fallback),
+   including closed [subdocument rules](#subdocument-field-precedence).
+4. **Method values resolve with `??`.** At each service resolver a non-nullish
+   supplied property wins over that method's `defaults` bucket, then its built-in
+   fallback. False, zero, `''` and `[]` are supplied values; their normal validation
+   and selection meanings still apply. Public `_list`/`_read`/`_create`/`_update`
+   resolve `public*Args`/`public*Options` first, then forward resolved values to
+   internal methods. A still-undefined query setting can reach the internal bucket;
+   an already resolved built-in (such as public list `lean: true`) takes precedence
+   over that internal default. By-ID delegations similarly forward resolved values.
+   Public `_upsert` uses the public create or update bucket for its branch; trusted
+   `upsert` has `upsertArgs`/`upsertOptions`. There is no `publicUpsertOptions` bucket.
+5. **Metadata posture is absolute.** Model `stripPermissionsField: true` removes
+   the entire output metadata field; `disableFieldPermissions: true` suppresses
+   `_view`/`_edit` computation. They win over per-call flags and method defaults.
+   Internal authorization and full document grants still run.
+
+The supported `Defaults` buckets are `findArgs`/`findOptions`,
+`findOneArgs`/`findOneOptions`, `findByIdArgs`/`findByIdOptions`,
+`createArgs`/`createOptions`, `updateOneArgs`/`updateOneOptions`,
+`updateByIdArgs`/`updateByIdOptions`, `upsertArgs`/`upsertOptions`, `existsOptions`,
+and the four `publicList`, `publicRead`, `publicCreate`, `publicUpdate` Args/Options
+pairs. There is no general `defaults.options`, count, or data-method bucket.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+const options = {
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+  defaults: {
+    publicListArgs: { select: ['name'], limit: 20 },
+    publicListOptions: { includePermissions: false },
+    findOptions: { includeCount: true }, // internal find; public list resolves its own flag
   },
+} satisfies ModelRouterOptions;
+```
+
+`router.options` is a frozen **construction-time snapshot**. Runtime option getters
+return frozen stored snapshots; read them again for current values. Ordinary plain
+option containers are copied/frozen; hook functions, Mongoose models and other
+non-plain handles keep their identities, and the logger is retained by reference.
+Data has the stronger
+[data-specific ownership contract](#in-memory-data-ownership), including detached
+native-valued getter copies.
+
+Route guards and request-schema lookups read live policy. A retained model service
+reads its originating runtime's current presentation options/defaults on each call;
+model authorization calls capture
+their current policy/configuration before awaiting hooks and keep it coherent for
+that call. Each document/scope/access stage has separate grants. A data service
+captures its data version at construction. Acquire a new service for replacement
+data. Request permission initialization is reused within its owning request/runtime.
+Base-filter results are reused for the same model/access and policy function;
+replacing that function starts a fresh cache entry. Hook/persistence
+limits are captured together on first work-state use and retained by that owner.
+
+Model services and public services retain their originating core, actor, row cache,
+model connection and registry even if another runtime later initializes the same
+Express request. This includes scalar counts/distinct, ID lookups, mutations, includes,
+populate, subdocuments and field helpers. Services acquired later from a retained core
+also belong to that core. The request's current `macl` slot still belongs to the new
+runtime; acquiring a service there uses the new runtime's independent authority.
+Output handles remain bound to their original request/runtime/model/scope and cannot
+be reused by the replacement runtime.
+
+Route-shape keys (`modelName`/`dataName`, `basePath`, `parentPath`, `idParam`,
+`queryRouteSegment`, and model `mutationRouteSegment`) are fixed at construction;
+router setters reject them. Runtime storage edits do not rebuild already-mounted
+Express routes. `parentPath` supplies the external prefix for route metadata/logging;
+mount that prefix in Express yourself. Live `idField`/`resolveIdFilter` change lookup
+behavior rather than route shape.
+
+### Wire placement and option names
+
+| Intent                   | Basic GET query                                    | Advanced body                                                   | Root entry                          |
+| ------------------------ | -------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------- |
+| Selection / sort         | `select=name`, `sort=name%20-createdAt`            | `select`, `sort` at body top level                              | `args.select`, `args.sort`          |
+| Pagination               | `skip`, `limit`, `page`, `page_size`               | `skip`, `limit`, `page`, `pageSize`                             | Same camelCase keys under `args`    |
+| List totals              | `include_count=true`                               | `options.includeCount: true`                                    | `options.includeCount: true`        |
+| Extra pagination headers | `include_extra_headers=true`                       | `options.includeExtraHeaders: true`                             | No per-entry HTTP-header option     |
+| Model metadata           | `include_permissions`, `include_field_permissions` | `options.includePermissions`, `options.includeFieldPermissions` | Same camelCase keys under `options` |
+| Read-miss fallback       | `try_list` on model identifier GET                 | `options.tryList` on model read                                 | `options.tryList` on model read     |
+
+GET flag values are strings `true`/`false`; body/root flags are booleans. The table
+describes list/read fields on routes that support them, not arbitrary forwarding.
+GET lists start with `{}` as their client filter; use an advanced body for `filter`,
+`populate` or `include`. Model GET-by-ID also accepts `select`; basic data GET-by-ID
+does not project query selection (use its advanced read). `lean` is a model service/
+root read-list option, not a generated direct HTTP body option. Mutation bodies use
+top-level `data`/`select`/`populate`/`tasks` and their own allowed `options`; see
+[advanced mutation validation](#advanced-mutation-validation).
+
+List responses are `{ data, meta }`. Request `includeCount` explicitly on the wire
+to expose `meta.totalCount`; a service default alone is not an HTTP metadata switch.
+Internal list `count` is returned-row count; `totalCount` is the authorized match
+total when computed. Direct service `find(query, args, options)` keeps the predicate
+separate from both objects. Root entries keep `target`, `name`, base `op`, `filter`/
+`id`/`data` at entry top level; `args` and `options` are separate siblings.
+
+### Names with different jobs
+
+| Names                                                                   | Deliberate distinction                                                                                                                                                                 |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `operationAccess` / `permissionSchema` / `authorization`                | Route entry / request field rules / explicit server-only per-call authority. An entry grant does not grant fields or related targets.                                                  |
+| `select` / `alwaysSelectFields` / virtual `dependsOn`                   | Desired output / private persisted hook inputs / scoped getter dependencies. Fetching a value grants no output authority.                                                              |
+| `baseFilter` / `overrideFilter`                                         | Request row scope / ordinary-query transform. Trusted rows replace only the former; the transform still runs once and false stays terminal.                                            |
+| `idParam` / `idField` / `resolveIdFilter`                               | Express parameter name / lookup field / custom identifier-to-filter hook. A callable resolver takes precedence over `idField`; otherwise lookup uses that field (model default `_id`). |
+| `requestPermissionField` / `documentPermissionField` / `docPermissions` | Request grant storage / serialized document metadata path / hook producing full internal document grants. Metadata flags affect exposure, not authority.                               |
+| `requestSchemas` / `validate` / `prepare` / `transform`                 | HTTP parsing / admitted model-input validation / trusted data preparation / live-document mutation before save.                                                                        |
+| `populate` / `include` / `related`                                      | Declared Mongoose references / output-only related query attachments / independent trusted target policy for an exact requested path.                                                  |
+| `access` / `populateAccess`                                             | Method-specific effective row/field access / target populate access (`list` or `read` on the wire). Neither chooses a basic/advanced route variant.                                    |
+| `lean` / `skim` / metadata flags                                        | Mongoose hydration choice / deprecated no-op / serialization and field-map choices. All preserve authorization.                                                                        |
+| `maxConcurrentOperations` / `maxHookConcurrency` / `maxBulkConcurrency` | Whole root operations per order group / request-runtime hook chains / request-runtime leaf persistence operations. Separate counted units and pools.                                   |
+| `count` / `includeCount` / `countByFieldValues`                         | One exact numeric query result / list match-total option / bounded numeric counts per original key alias. Returned-row counts and overlapping per-key counts are not union totals.     |
+
+### `skim`: compatibility no-op
+
+`skim` remains accepted in existing service/default and supported wire option slots
+for compatibility, but is **deprecated and has no behavioral effect** in canonical
+model operations. True, false and omission all keep field/row authorization, document
+grants, virtuals and decoration. Remove it from new code. Use `lean` to choose fetch
+hydration, `includePermissions`/`includeFieldPermissions` to choose metadata, or the
+router's absolute metadata postures; none skips authorization. Existing examples
+that retain `skim` below demonstrate this compatibility contract.
+
+### Root batch bounds
+
+Create the batch endpoint with the **single-options** overload,
+`api.createRouter({ basePath: '/batch', operationAccess: true })`, and mount its
+`.routes`. Use the same runtime that registered its model/data targets. POST an array:
+
+```json
+[
+  {
+    "target": "model",
+    "name": "Product",
+    "op": "list",
+    "order": 0,
+    "args": { "select": ["name"], "limit": 20 },
+    "options": { "includeCount": true }
+  }
+]
+```
+
+`maxBatchEntries` defaults to **100**. `maxOrderGroups` defaults to **25** and applies
+**two** bounds: at most 25 distinct order groups, and every `order` is an integer
+in **0..25 inclusive** (omission is 0). Thus a lone `order: 26` rejects, and using
+all 26 values from 0 through 25 also rejects. `maxConcurrentOperations` defaults
+to **10** whole operations within each group. Constructor limit values must be
+positive safe integers; invalid values fall back to these defaults. Excess batch/
+order input returns BadRequest before entry dispatch.
+
+Groups run in ascending order; within a group operations may run concurrently.
+Results retain input indices/order, with each entry's `statusCode` and public
+`result` inside the HTTP 200 batch response. Root entries use base operation guards,
+not basic/advanced variant names. Batches are non-transactional: an unexpected
+rejection can leave already-committed writes. Hook and persistence work also obey
+their separate [request/runtime limits](#persistence-concurrency-and-resource-limits).
+
+Runtime `requestComplexity` additionally defaults to `maxDepth: 8`, `maxNodes: 500`,
+`maxLogicalClauses: 50`, `maxInValues: 100`, `maxBulkItems: 100`,
+`maxIncludeCount: 10`, `maxSubQueryCount: 10`, `maxCorrelatedQueries: 100`, and
+`maxCorrelatedDepth: 5`. Both concurrency defaults are 10. These configurable budgets
+normalize invalid/non-positive/unsafe integers to their built-in defaults; zero does
+not disable enforcement. The fixed grouped-count input bounds and 64-scope hook
+reentry bound are separate contracts, documented in their sections.
+
+## Trusted service authorization
+
+Use these contracts for tenant-scoped business services, protected input/output,
+related targets and same-execution document decisions. For a complete executable
+example, see [Runnable authorization and handle reuse](#runnable-authorization-and-handle-reuse).
+
+### Public request admission and backend options
+
+All authorization input described below is **trusted server-only**. Acquire a
+service through `router.getService(req)` or `req.macl.getService(modelName)` after
+the owning runtime's middleware initializes the request. Keep policy in server
+code; never copy it from a request body/query, OpenAPI option, client or React call.
+
+Generated routes, root batches, public service wrappers (`_list`, `_read`,
+`_readFilter`, mutations and `_new`), include/subquery options and populate
+descriptors are request-only. Supplying `authorization`, `overrides`,
+`documentAuthorization`, or private prepared/execution controls in their control
+slots returns BadRequest, including after a custom request validator transforms an
+envelope. Legacy include overrides that were silently ignored now fail admission.
+Unknown options are not forwarded to internal target services.
+
+Router `defaults` (including dotted setters) support query/presentation settings,
+not per-call authorization or legacy overrides. Move backend authority out of
+defaults and public/nested request options into explicit internal service calls.
+Direct service row/output/related policies, named output helpers and internal result
+contexts are available. The complete service `overrides` container is removed in
+this breaking release; see the migration table below.
+
+These restrictions apply to control slots, not business fields: payloads and
+filters may still contain persisted fields named `authorization` or `overrides`,
+and selections may request those names under ordinary field permissions. The
+configured model `overrideFilter` hook/setter remains supported.
+
+For populate and legacy/correlated includes, `authorization.related` is keyed by
+the exact requested relationship/attachment path. Each entry must name the exact
+registered target `model`; unused, ambiguous and mismatched entries reject before
+target persistence. Child `operation`, `rows` and `outputFields` policies are
+independent and default to request authority. A parent relationship-field grant
+permits the source field but does not authorize target fields or operations.
+Nested policies belong under the immediate target's `related` entry. Count targets
+accept only `model`, `operation` and `rows`.
+
+Target output grants remain selection-limited, including schema-hidden fields and
+virtuals. Populate match, include filter, ref IDs and join/correlation constraints
+remain ANDed with the target scope after query transformation in every row mode.
+Populate policies also apply after create/update/upsert. Neither parent nor related
+grants flow into request-controlled `$$sq` queries. For a same-execution target pick,
+use `result.context.getDocumentAuthorization(child)` (or the corresponding list-row
+context) with **that target model's** helper. Private dependencies and join keys do
+not become output grants; related copies retain their own document results.
+
+The existing `requireRegisteredPopulateModels: false` configuration remains an
+explicit compatibility opt-out for requested unregistered populate targets. Those
+values retain the descriptor's projection, have no target authorization handle,
+and cannot receive `related` policies. It does not make an unassociated object
+passed to a raw-policy helper into authorized target output.
+
+### Selection, grants and document results
+
+For business fields, output is **selected AND (request-authorized OR explicitly
+granted)**. `outputFields.mode` is `request` (the default), additive `grant`, or
+`unrestricted` over selected eligible catalog fields. An empty grant adds nothing.
+With omitted select, normal defined request fields plus explicit grant paths are
+candidates; unrestricted uses the captured persisted/registered-virtual catalog.
+Explicit selections/exclusions and `requireExplicitSelect` still apply. Grants
+cannot fabricate missing values or guarantee a required result field exists.
+
+Backend model `genSelect(access, select, options)` and its `genQuerySelect` alias
+accept only named output-planning options, for example
+`{ authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } }`.
+They return a persisted **fetch projection**, including private identity and
+dependency inputs; this is not an output allowlist. Grants are additive to
+request rules, never add to an explicit selection, and never override an
+exclusion. A container grant covers its selected eligible subtree; a descendant
+grant admits only the minimal ancestor structure, not sibling fields. Optional
+`scopePath: ['contacts']` uses response segments; grant paths remain relative to
+the owning model. The catalog includes declared `select: false` fields, embedded
+schemas and registered virtuals; safe explicitly named Mixed/Map branches are
+supported. Virtual names themselves never enter the database projection.
+
+An opaque Mixed/Map root grant covers its existing safe subtree, subject to
+descendant exclusions such as `-payload.secret`. A descendant-only selection or
+grant does not authorize a scalar ancestor value: that value is omitted (or a
+`null` placeholder in an array). A grant to the root itself can authorize its
+scalar value when that root is selected.
+
+Planning defers document-dependent rules and never runs permission functions or
+virtual getters. Document hooks receive projected input: configure additional
+persisted hook dependencies with `alwaysSelectFields`. Internal dependency fetches
+do not grant output, even when the same path is also a private include join key.
+Captured row/document hooks retain exact-access → `.default` → bare-hook resolution;
+only an undefined entry falls through. Omitted/undefined helper options now use the
+same canonical request-mode output planner as `{}`; positional helpers are removed.
+Backend model output helpers also accept named options:
+`pickAllowedFields(doc, access, { authorization })`, its `trimOutputFields` alias,
+and `genAllowedFields(doc, access, { authorization, purpose: 'output' })`. Core
+provides the same signatures with `modelName` first. They filter existing values,
+including nested/array paths; they do not apply a selection, compute virtuals,
+restore absent fields, check rows, or authorize writes. Omitted/undefined options
+start fresh request-mode output evaluation. `genAllowedFields` defaults to
+`{ purpose: 'output' }`; an explicitly supplied options object still requires that
+purpose. It reports **existing output paths**, not a schema/input allowlist. Null or
+undefined documents yield `[]` (pick/trim preserve the nullish value) without hooks.
+
+The shared finalizer now consumes retained authorization plans and privately
+memoizes full document grants and field decisions. For a subsequent same-execution
+pick, use `{ documentAuthorization }` with the package-issued output context's
+handle, rather than resupplying the raw policy. Handles validate the unchanged
+output identity, request/runtime/model, scope, access and document stage; caller
+spreads, matching IDs and `_permissions` are not provenance. Raw policy on a known
+trimmed output retains unconditional request fields and explicit grants, but does
+not rerun the document hook or recover document-dependent decisions. Metadata
+stripping/exposure switches are independent of internal grants. Target models
+require their own authorization; parent grants cover the relationship only.
+
+Internal `findOne`/`findById`/`find`, `create`, `updateOne`/`updateById`, `upsert`
+and `new` now consume the captured call policy throughout output finalization.
+Single results expose `context.documentAuthorization`; list/create results expose
+one `contexts[index]` per row. These opaque handles are non-enumerable context
+properties, never attached to `data`. `context.getDocumentAuthorization(value)`
+looks up an unchanged registered output in that result's graph.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+declare const req: ModelRequest;
+const service = req.macl.getService<{ status?: string; internalNote?: string }>('Order');
+declare const orderId: string;
+const result = await service.findOne(
+  { _id: orderId },
+  { select: ['status', 'internalNote'] },
+  { authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } },
+);
+if (result.success) {
+  const picked = await service.pickAllowedFields(result.data, 'read', {
+    documentAuthorization: result.context.documentAuthorization,
+  });
+  console.log(picked);
+}
+```
+
+The selected stored note survives false/missing request rules; `status` still
+requires normal request authorization. Ordinary document grants now apply even
+under `skim` and metadata-disabled/stripped postures. Declare private hook inputs
+with `alwaysSelectFields`; later handle picks reuse the original results after
+those inputs are removed. Metadata describes request permissions, not backend grants.
+
+Mutations use ordinary `args.select`. Output grants never admit protected writes;
+validation, prepare/transform/afterPersist/change hooks and save semantics remain.
+Update admission and post-write output have separate document stages. Upsert keeps
+its initiating operation with create/update branch accesses. `new()` continues to
+ignore `select`, including empty/exclusion projections. Trusted presentation hooks
+run after finalization and may intentionally remove/construct output. There is no
+automatic second authorization pass; arbitrary mutations/replacements do not acquire
+provenance. For an unchanged output, use its handle at the **output access**: `read`
+for ordinary reads/create/update/upsert output, `list` for lists or reads using list
+access, and `create` for `new()`.
+
+The immutable **call policy** captures authority once for planning and execution.
+Each document/scope/access stage separately owns its hook grants and field decisions;
+two list rows never share those results. Reusing the same raw policy is fresh
+evaluation, not a substitute for a document handle. A fresh unassociated input must
+contain the projected hook dependencies; a recognized trimmed output cannot rerun
+the hook to reconstruct lost decisions. Use either `authorization` or
+`documentAuthorization` in a named helper, never both. When extracting policy from a
+full call, construct `{ outputFields: policy.outputFields }` for output-only helpers;
+`create` accepts input/output/related, and `new` accepts output only.
+
+### Independent mutation input authority
+
+Trusted server code can use **`authorization.inputFields`** on model `create`,
+`updateOne`, `updateById`, and both `upsert` branches. `MutationAuthorization<TModel,
+TVirtuals>` adds this dimension to the read policy; `CreateAuthorization` also
+accepts it but rejects `rows`. `ServiceAuthorization` remains the read policy.
+Reads (even with a mutation access name), `new`, output helpers, related read/count
+targets and public options reject input authority, including reusable typed policies.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { MutationAuthorization } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+type Order = { status: string; internalNote?: string; contacts: { email: string; ssn: string }[] };
+declare const req: ModelRequest;
+declare const orderId: string;
+const service = req.macl.getService<Order>('Order');
+const authorization = {
+  inputFields: { mode: 'grant', paths: ['internalNote', 'contacts.email'] },
+} as const satisfies MutationAuthorization<Order>;
+const result = await service.updateById(
+  orderId,
+  {
+    status: 'reviewed', // ordinary request permission still applies
+    internalNote: 'server-owned decision', // explicit input grant
+    contacts: [{ email: 'corrected@example.test' }], // patches existing element 0
+  },
+  { select: ['status', 'internalNote'] },
+  { authorization },
+);
+// The note is persisted, but still omitted from output if the actor cannot read it.
+// Add a separate outputFields grant if this call also needs to return the note.
+```
+
+Input modes are `request` (also omitted/undefined), additive `grant` with readonly
+`paths`, and `unrestricted`. An empty grant adds nothing; ordinary request-authorized
+fields still write. `unrestricted` admits eligible persisted roots, not arbitrary
+keys on a `strict: false` document. It grants no rows, output, query/sort fields,
+route guards, related operations or `$$sq` targets, and never stamps an upsert scope
+into inserted data. `args.select` affects output only.
+
+`InputFieldPath<TModel>` and `InputFieldAuthorization<TModel>` use bounded persisted
+model paths without the virtual generic. Runtime validation also checks JS/dynamic
+policies against the actual schema, embedded schemas and virtual registry. Use
+`contacts.email`, not indices, brackets, `sub`, signed tokens or wildcards. Safe
+Mixed/Map descendants are supported; reference interiors belong to another model.
+Unknown paths, virtuals (including Mongoose aliases), `_id`, version keys,
+permission metadata (including configured dotted paths), prototype/Mongoose keys
+and execution/prepared-policy metadata cannot be elevated. Business fields named
+`authorization` and `overrides` remain payload data.
+
+Request-input compatibility also excludes a scope's registered virtual names through
+Mixed/plain nesting: a root `receipt` virtual excludes submitted `bag.receipt`, while
+entering a registered child scope uses that child's virtual names. This applies to
+request/granted/unrestricted input and prepared JS/Map containers. Explicit grants
+to these aliases reject; descendant patches leave unrelated existing siblings intact.
+
+| Input boundary                                          | Persistence behavior                                                                                                                                                                                                                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Leaf (`profile.email`)                                  | Replaces only the supplied leaf, including null/undefined. Omission does nothing; denied siblings survive. Necessary object ancestors may be initialized, but an existing scalar ancestor is not replaced.                                                    |
+| Object container (`profile`)                            | Replaces its eligible subtree; omitted descendants are removed. Empty/null replacement is allowed.                                                                                                                                                            |
+| Array container (`contacts`, or an authorized ancestor) | Replaces the array, including order, length, null/empty values and omitted child fields. Elevated replacements omit supplied embedded IDs; Mongoose generates IDs unless ordinary request authority already admits them.                                      |
+| Array descendant (`contacts.email`)                     | Patches existing object elements **by index**, never by supplied ID. Short inputs preserve trailing elements; excess elements, holes, null/scalar slots and scalar/invalid ancestors make no structural change. The same rule applies to nested/Mixed arrays. |
+
+A descendant grant cannot create an absent array, **including on create or the
+upsert-create branch**. Grant the array/ancestor container, or use existing request
+container permission, to create/resize it. A narrower grant never narrows ordinary
+request authority: an already request-authorized container retains replacement
+semantics. Nested client JSON is required; literal dotted update keys are not updates.
+
+Validation sees admitted data; prepare, transform, Mongoose casting/validation/save,
+afterPersist and change hooks remain active. Trusted prepare additions and explicit
+transform setters keep their business-write contract. Input/prepare values are
+isolated; virtuals and control metadata are excluded even in permissive whole
+containers and prepared JS values. Trusted prepare additions are business writes,
+not a second input-policy grant.
+JS class/hydrated containers are normalized to their data before admission; native
+Date/Buffer/BSON leaves retain their types. Functions/symbols are not persisted input.
+Mutation payloads, including class/Map contents and sparse arrays, obey
+`requestComplexity` before parsing and input hooks; cycles return BadRequest. Input
+admission and prepared-container sanitization also have hard structural ceilings of
+100 levels and 20,000 nodes. Grants do not bypass these limits. Unmodified persisted
+virtual values outside the write boundary are preserved; they remain excluded from
+ordinary output.
+Pre-write update grants resolve once from the full hydrated persisted document, with input
+structure (including schema-hidden roots and embedded fields) fetched privately. They are passed through
+`context.docPermissions`, not stored on the document or reconstructed from input
+`_permissions`. Create keeps request-only pre-document rules and resolves its document
+hook after persistence. Post-write output gets fresh document grants; input authority
+does not become an output handle or forge `_view`/`_edit` permissions.
+
+**Migration:** a write formerly requiring trusted preparation can instead grant the
+specific input path explicitly. An output grant alone still cannot write. Keep read
+policies typed as `ServiceAuthorization`; use `MutationAuthorization` for updates/
+upserts and `CreateAuthorization` for creates. Derive `{ outputFields }` for output
+helpers rather than forwarding a mutation policy. Dedicated subdocument authorization
+uses the scoped API below; model-root input policies are not forwarded into it.
+
+### Dedicated subdocument authorization
+
+Internal `listSub`, `readSub`, `createSub`, `updateSub`, `bulkUpdateSub` and `deleteSub`
+accept a final options object with **`authorization: { parent, child, visibility }`**.
+Use `router.getService(req)` / `req.macl.getService<Model>(name)`. The public service,
+root batches, generated basic/advanced routes, nested descriptors, custom-validator
+envelopes and defaults reject these capabilities. Business payload properties named
+`authorization` or `overrides` keep their ordinary meaning.
+
+The named subdocument must be a **top-level embedded document array**, validated
+against Mongoose (not a reference array, object, dotted path or virtual). Known-model
+literal names infer the child and virtual shapes; unknown models keep runtime checks.
+`SubdocumentModel<Parent, 'contacts'>` extracts the child type. Child field/row paths
+are **relative to that child** (`email`, `preferences.theme`), while parent row paths
+use the owning model (`tenantId`). Policies have no recursive `subdocuments` tree.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { SubdocumentMutationAuthorization } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+type Order = { tenantId: string; contacts: { email: string; ssn: string }[] };
+declare const req: ModelRequest;
+declare const orderId: string;
+declare const contactId: string;
+declare const tenantId: string; // trusted server value
+const parent = {
+  operation: { mode: 'grant' },
+  rows: { mode: 'scope', filter: { tenantId } },
+} as const;
+const authorization = {
+  parent, // only the owning parent's update gate/rows
+  child: {
+    operation: { mode: 'grant' }, // only contacts.update
+    inputFields: { mode: 'grant', paths: ['email'] },
+    // child update rows still use the actor's request policy
+  },
+  visibility: {
+    parent, // explicitly authorize the separate parent READ stage
+    child: {
+      operation: { mode: 'grant' }, // separate contacts.read gate
+      outputFields: { mode: 'grant', paths: ['email'] },
+    },
+  },
+} as const satisfies SubdocumentMutationAuthorization<Order, Order['contacts'][number]>;
+const result = await req.macl
+  .getService<Order>('Order')
+  .updateSub(orderId, 'contacts', contactId, { email: 'corrected@example.test' }, { authorization });
+// Omit visibility to retain request-only post-write read gates/rows/fields.
+// A successful hidden write returns data: null; do not retry merely for null output.
+```
+
+| Internal method                                                   | Parent gate/rows | Child gate/rows and fields               | Response                                                      |
+| ----------------------------------------------------------------- | ---------------- | ---------------------------------------- | ------------------------------------------------------------- |
+| `listSub(id, sub, { filter?, select?, authorization? })`          | read             | list; `outputFields`                     | Filtered list, visible count                                  |
+| `readSub(id, sub, subId, { select?, populate?, authorization? })` | read             | read; `outputFields`                     | One selected child                                            |
+| `createSub(id, sub, data, { addFirst?, authorization? })`         | update           | create; `inputFields`; **no child rows** | Visible full stored array, including existing rows            |
+| `updateSub(id, sub, subId, data, { authorization? })`             | update           | update; `inputFields`                    | Visible updated child or successful `null`                    |
+| `bulkUpdateSub(id, sub, data, { authorization? })`                | update           | update; `inputFields`                    | Visible targeted children in stored order, or successful `[]` |
+| `deleteSub(id, sub, subId, { authorization? })`                   | update           | delete; no fields                        | Removed ID; no visibility policy                              |
+
+Supplying `authorization` (even `{}`) opts a trusted internal call into the two
+listed **base-operation** gates. An omitted dimension uses request authority;
+`operation: { mode: 'grant' }` permits exactly its gate. Calls with no supplied
+policy retain their historical route-owned initiating guards. The generated
+basic/advanced guards continue to choose their own request-only route entry.
+Parent and child operation grants imply neither each other nor row/input/output
+grants. Parent fields are inapplicable; they reject even in request mode.
+
+Each rows dimension supports request/scope/unrestricted. `overrideFilter` still
+runs once at its access stage; the resolved parent identifier, selected child
+ID(s), owner scope and owning-array membership cannot be erased by rewriting,
+including in-place mutation. False query/identifier/scope/transform is terminal.
+Scope predicates are inert (no `$$sq`/`$$date` expansion), validate against their
+own schema, and obey request complexity depth/node/logical-clause/`$in` budgets.
+Grant arrays obey those budgets too. Invalid paths, unsupported dimensions and
+malformed visibility policies reject **before any write**.
+
+Mutation visibility is separate: `visibility.parent` supplies parent **read**
+operation/rows; `visibility.child` supplies child **read** operation/rows and
+`outputFields`. **Create also requires child list** operation/rows, independently
+configured with `visibility.list`. Update/bulk do not require list and reject that
+dimension. Visibility inherits no mutation authority; absent dimensions use request
+policy. Successful hidden create/bulk responses are `data: [], count: 0`, and
+successful hidden single updates are `data: null`. Counts measure returned rows.
+
+Child input uses the input rules above: descendant grants preserve denied siblings
+and patch existing nested array objects by index; explicit nested-container grants
+replace their eligible subtree. Only create/delete change the **outer** array's
+membership. Virtuals/control metadata/identity cannot be elevated. Dedicated input
+also retains the virtual-name scrub within Mixed/plain nesting; grants matching
+those aliases reject before effects. Update document grants resolve once from the
+original hydrated **owning parent**, including hidden
+persisted inputs; create retains request-only pre-document admission. Output
+resolves a fresh raw-parent read-stage result, independently of serialized metadata.
+Virtual access is list/read/create/update respectively; output fields use list for
+list and read otherwise, with document grants using read. Shared finalization
+remains active. Dedicated operations retain Mongoose casting/validation/save hooks;
+they do not invoke model-root validate/prepare/transform/afterPersist chains on a child.
+
+`readSub` populate targets always use their **own request authority**. Child output
+grants admit the relationship only; they never elevate target fields, rows or gates.
+Dedicated parent/child/visibility policies reject `related`. For embedded output
+inside a model-root read, use its existing `related` target policy contract.
+
+**Types/migration:** root and `/advanced` export `SubdocumentReadAuthorization`,
+`SubdocumentMutationAuthorization`, `SubdocumentCreateAuthorization`,
+`SubdocumentDeleteAuthorization`, `SubdocumentVisibilityAuthorization` and
+`SubdocumentCreateVisibilityAuthorization`. Their generics are `<Parent, Child,
+ChildVirtuals>` (delete has no virtual generic). `Subdocument*Options` are now
+internal; use `PublicSubdocumentListOptions`, `PublicSubdocumentReadOptions`,
+`PublicSubdocumentCreateOptions` and the empty `PublicSubdocumentMutationOptions`
+for public adapters. Keep policies as server constants, not spreads of request
+options. Positional helper overloads are removed; see the named-helper migration
+and request-only data compatibility contract below.
+
+### Runnable authorization and handle reuse
+
+This complete example uses an installed package, Express and MongoDB. Save it as
+`authorization-example.mts` and run `node authorization-example.mts` on Node 22.18+
+(or compile it with TypeScript/NodeNext first). `MONGODB_URL` defaults to local
+MongoDB. It creates and removes its own uniquely named example database, serves one
+loopback test request, and exits after its assertions pass. The route's policy and
+example actor (`alice`) are server-owned constants, never HTTP inputs.
+
+<!-- doc-example: complete-runtime -->
+
+```ts
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import type { Server } from 'node:http';
+import express from 'express';
+import mongoose from 'mongoose';
+import {
+  createAccessRuntime,
+  type OutputAuthorization,
+  type ServiceAuthorization,
+  type MutationAuthorization,
+  type SubdocumentMutationAuthorization,
+} from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+
+type Order = {
+  status?: string;
+  internalNote?: string;
+  ownerId?: string;
+  tenantId: string;
+  contacts?: { email?: string; ssn?: string }[];
+  customer?: mongoose.Types.ObjectId;
+};
+type Virtuals = { summary: string };
+
+async function runServiceAuthorizationExample() {
+  const connection = await mongoose
+    .createConnection(process.env.MONGODB_URL ?? 'mongodb://127.0.0.1:27017', {
+      dbName: `authorization_example_${randomUUID().replaceAll('-', '')}`,
+    })
+    .asPromise();
+  let server: Server | undefined;
+  try {
+    const api = createAccessRuntime();
+    api.setGlobalOptions({ globalPermissions: () => [] }); // no user grant for the note
+    const Customer = connection.model(
+      'ExampleCustomer',
+      new mongoose.Schema({
+        name: String,
+        billingEmail: String,
+        tenantId: String,
+      }),
+    );
+    const OrderModel = connection.model<Order>(
+      'ExampleOrder',
+      new mongoose.Schema<Order>({
+        status: String,
+        internalNote: { type: String, select: false },
+        ownerId: String,
+        tenantId: String,
+        contacts: [{ email: String, ssn: String }],
+        customer: { type: mongoose.Schema.Types.ObjectId, ref: Customer.modelName },
+      }),
+    );
+    const customerRouter = api.createRouter(Customer, {
+      operationAccess: { read: false },
+      baseFilter: { read: () => false },
+      permissionSchema: { name: true, billingEmail: false },
+      stripPermissionsField: true,
+    });
+    let documentHookCalls = 0;
+    let queryTransforms = 0;
+    const router = api.createRouter<Order, Virtuals>(OrderModel, {
+      basePath: '/orders',
+      operationAccess: { read: true },
+      stripPermissionsField: true,
+      baseFilter: { read: () => ({ tenantId: 'request-tenant' }) },
+      overrideFilter: {
+        read: (filter) => {
+          queryTransforms++;
+          return filter;
+        },
+      },
+      alwaysSelectFields: { read: ['ownerId'] }, // private projected document-hook input
+      docPermissions: {
+        read: (doc) => {
+          documentHookCalls++;
+          return { owner: doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'alice' };
+        },
+      },
+      permissionSchema: { status: { read: 'owner' }, internalNote: false, summary: false },
+      virtuals: {
+        summary: {
+          dependsOn: ['status'],
+          read: (doc) => (doc.status === undefined ? undefined : `Status: ${doc.status}`),
+        },
+      },
+    });
+    const customer = await Customer.create({ name: 'Ada', billingEmail: 'billing@example.test', tenantId: 'backend' });
+    const rows = await OrderModel.insertMany([
+      {
+        status: 'ready',
+        internalNote: 'server note',
+        ownerId: 'alice',
+        tenantId: 'backend',
+        customer: customer._id,
+        contacts: [{ email: 'alice@example.test', ssn: 'hidden' }],
+      },
+      { status: 'closed', internalNote: 'other note', ownerId: 'bob', tenantId: 'backend' },
+      { status: 'draft', ownerId: 'alice', tenantId: 'backend' }, // note is absent
+    ]);
+    const output = {
+      outputFields: { mode: 'grant', paths: ['internalNote'] },
+    } as const satisfies OutputAuthorization<Order>;
+    const authorization = {
+      ...output,
+      rows: { mode: 'scope', filter: { tenantId: 'backend' } },
+    } as const satisfies ServiceAuthorization<Order, Virtuals>;
+    const quiet = { skim: true, lean: true, includePermissions: false, includeFieldPermissions: false };
+    const selected = { select: ['status', 'internalNote', '-_id'] };
+
+    async function verifyServiceAuthorization(req: ModelRequest) {
+      const service = router.getService(req); // alternatively req.macl.getService<Order, Virtuals>(OrderModel.modelName)
+      const result = await service.findOne({ _id: rows[0]._id }, selected, { ...quiet, authorization });
+      assert.ok(result.success);
+      assert.deepEqual(result.data, { status: 'ready', internalNote: 'server note' });
+      // ownerId and _permissions are absent, yet this handle retains both decisions.
+      const reuse = { documentAuthorization: result.context.documentAuthorization };
+      const picked = await service.pickAllowedFields(result.data, 'read', reuse);
+      assert.deepEqual(await service.trimOutputFields(picked, 'read', reuse), result.data);
+      assert.equal(documentHookCalls, 1);
+      const fresh = await service.pickAllowedFields(result.data, 'read', { authorization: output });
+      assert.deepEqual(fresh, { internalNote: 'server note' }); // no original owner decision
+      assert.equal(documentHookCalls, 1); // never rerun the hook against this trimmed DTO
+
+      const deniedStatus = await service.findOne({ _id: rows[1]._id }, selected, { ...quiet, authorization });
+      assert.ok(deniedStatus.success);
+      assert.deepEqual(deniedStatus.data, { internalNote: 'other note' });
+      const unselected = await service.findOne(
+        { _id: rows[0]._id },
+        { select: ['status', '-_id'] },
+        { ...quiet, authorization },
+      );
+      assert.ok(unselected.success);
+      assert.deepEqual(unselected.data, { status: 'ready' }); // grant does not select the note
+      const absent = await service.findOne({ _id: rows[2]._id }, selected, { ...quiet, authorization });
+      assert.ok(absent.success);
+      assert.deepEqual(absent.data, { status: 'draft' }); // grant does not create a value
+      const requestRows = await service.findOne({ _id: rows[0]._id }, selected, { ...quiet, authorization: output });
+      assert.equal(requestRows.success, false); // output grant cannot replace request row scope
+      if (!requestRows.success) assert.equal(requestRows.code, 'not_found');
+
+      router.setOption('permissionSchema', { status: { read: 'owner' } }); // note rule now missing
+      const missingRule = await service.findOne({ _id: rows[0]._id }, selected, { ...quiet, authorization });
+      assert.ok(missingRule.success);
+      assert.equal(missingRule.data.internalNote, 'server note');
+      const before = queryTransforms;
+      await service.findOne({ _id: rows[0]._id }, selected, {
+        ...quiet,
+        authorization: { ...output, rows: { mode: 'unrestricted' } },
+      });
+      assert.equal(queryTransforms, before + 1); // unrestricted still runs overrideFilter
+
+      const related = await service.findOne(
+        { _id: rows[0]._id },
+        {
+          select: ['summary', 'contacts.email', 'customer', '-_id'],
+          populate: [{ path: 'customer', select: ['name', 'billingEmail'] }],
+        },
+        {
+          ...quiet,
+          authorization: {
+            rows: authorization.rows,
+            outputFields: { mode: 'grant', paths: ['internalNote', 'summary', 'contacts.email', 'customer'] },
+            related: {
+              customer: {
+                model: Customer.modelName,
+                operation: { mode: 'grant' },
+                rows: { mode: 'scope', filter: { tenantId: 'backend' } },
+                outputFields: { mode: 'grant', paths: ['billingEmail'] },
+              },
+            },
+          },
+        },
+      );
+      assert.ok(related.success);
+      assert.equal(Reflect.get(related.data, 'summary'), 'Status: ready');
+      assert.equal(related.data.internalNote, undefined); // granted, still unselected
+      assert.equal(related.data.contacts?.[0].email, 'alice@example.test');
+      assert.equal(related.data.contacts?.[0].ssn, undefined);
+      const child: unknown = Reflect.get(related.data, 'customer');
+      assert.ok(child && typeof child === 'object');
+      const childHandle = related.context.getDocumentAuthorization(child);
+      assert.ok(childHandle);
+      const childPick = await customerRouter
+        .getService(req)
+        .pickAllowedFields(child, 'read', { documentAuthorization: childHandle });
+      assert.equal(Reflect.get(childPick, 'billingEmail'), 'billing@example.test');
+      assert.equal(Reflect.get(childPick, 'tenantId'), undefined);
+
+      // Input authority is independent: patch the existing first contact, preserve ssn,
+      // persist the denied note, and grant neither field in the mutation response.
+      const input = {
+        inputFields: { mode: 'grant', paths: ['internalNote', 'contacts.email'] },
+      } as const satisfies MutationAuthorization<Order, Virtuals>;
+      const updated = await service.updateOne(
+        { _id: rows[0]._id },
+        {
+          internalNote: 'backend write',
+          contacts: [{ email: 'corrected@example.test' }],
+        },
+        { select: ['internalNote', 'contacts.email', '-_id'] },
+        { ...quiet, authorization: input },
+      );
+      assert.ok(updated.success);
+      assert.equal(updated.data.internalNote, undefined);
+      const persisted = await OrderModel.collection.findOne({ _id: rows[0]._id });
+      assert.equal(persisted?.internalNote, 'backend write');
+      assert.equal(persisted?.contacts?.[0].email, 'corrected@example.test');
+      assert.equal(persisted?.contacts?.[0].ssn, 'hidden');
+
+      // A dedicated child write has independent parent/child gates and read visibility.
+      const persistedContact = persisted?.contacts?.[0];
+      assert.ok(persistedContact);
+      const contactId = String(Reflect.get(persistedContact, '_id'));
+      const childPolicy = {
+        parent: { operation: { mode: 'grant' } }, // parent update gate only
+        child: { operation: { mode: 'grant' }, inputFields: { mode: 'grant', paths: ['email'] } },
+      } as const satisfies SubdocumentMutationAuthorization<Order, NonNullable<Order['contacts']>[number]>;
+      const hiddenChild = await service.updateSub(
+        String(rows[0]._id),
+        'contacts',
+        contactId,
+        { email: 'dedicated@example.test' },
+        { authorization: childPolicy },
+      );
+      assert.ok(hiddenChild.success);
+      assert.equal(hiddenChild.data, null); // ordinary parent read rows still deny this tenant
+      const visibleChild = await service.readSub(String(rows[0]._id), 'contacts', contactId, {
+        select: ['email'],
+        authorization: {
+          parent: { rows: { mode: 'scope', filter: { tenantId: 'backend' } } },
+          child: { operation: { mode: 'grant' }, outputFields: { mode: 'grant', paths: ['email'] } },
+        },
+      });
+      assert.ok(visibleChild.success);
+      assert.ok(visibleChild.data && typeof visibleChild.data === 'object');
+      assert.equal(Reflect.get(visibleChild.data, 'email'), 'dedicated@example.test');
+      const childStored = await OrderModel.collection.findOne({ _id: rows[0]._id });
+      assert.equal(childStored?.contacts?.[0].email, 'dedicated@example.test');
+      assert.equal(childStored?.contacts?.[0].ssn, 'hidden');
+    }
+
+    router.router.post('/verify', async (req, res) => {
+      await verifyServiceAuthorization(req as ModelRequest); // router middleware has initialized req.macl
+      res.json({ ok: true });
+    });
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+    server = app.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const response = await fetch(`http://127.0.0.1:${address.port}/orders/verify`, { method: 'POST' });
+    assert.equal(response.status, 200, await response.text());
+  } finally {
+    if (server) await new Promise<void>((resolve, reject) => server!.close((err) => (err ? reject(err) : resolve())));
+    await connection.dropDatabase(); // only the unique example database created above
+    await connection.close();
+  }
+}
+
+void runServiceAuthorizationExample().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
 });
+```
 
-// 2. Register a Mongoose model and schema. The schema opts in to the
-//    permissions plugin so generated routers can enforce field access.
-const userSchema = new mongoose.Schema({ name: String, role: String, public: Boolean });
-userSchema.plugin(permissionsPlugin, { modelName: 'User' });
-const UserModel = mongoose.model('User', userSchema);
+The target policy explicitly supplies **operation, row and output** authority. A
+parent `customer` grant only admits that relationship; ref IDs and requested match/
+join predicates still constrain target rows. A virtual grant permits selected getter
+evaluation with its private dependencies, not database filtering/sorting or writes.
+Getter failure/undefined and missing dependencies can still omit its output.
 
-// 3. Create routers. Pass either the model name or the mongoose.Model
-//    instance. Passing the instance preserves an explicit connection
-//    (useful for multi-connection setups) and registers it with the
-//    active runtime.
-const userRouter = acl.createRouter('User', {
-  basePath: '/users',
-  operationAccess: { list: true, create: true, read: true, update: true, delete: true },
-  permissionSchema: { name: true, role: 'isAdmin', public: true },
-});
+### Backend row authorization and filter migration
 
-const fruitRouter = acl.createDataRouter('fruit', {
+Internal `find`, `findOne`, `findById`, `updateOne`, `updateById` and `upsert`
+accept a per-call `options.authorization.rows` policy:
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+declare const req: ModelRequest;
+const service = req.macl.getService<{ status: string; tenantId: string }>('Order');
+declare const tenantId: string;
+const result = await service.find(
+  { status: 'open' },
+  { select: ['status'], limit: 20 },
+  {
+    includeCount: true,
+    authorization: { rows: { mode: 'scope', filter: { tenantId } } },
+  },
+);
+```
+
+| Row mode            | Effective predicate                                                     |
+| ------------------- | ----------------------------------------------------------------------- |
+| `request` (default) | Configured query transform AND request `baseFilter`                     |
+| `scope`             | Same query transform AND supplied trusted scope, replacing `baseFilter` |
+| `unrestricted`      | Same query transform, without request `baseFilter`                      |
+
+`overrideFilter.<access>` always transforms the ordinary predicate **once**. It
+can intentionally rewrite query input, and its restrictions/false denial remain
+effective in every row mode. Mandatory reference/join constraints and trusted
+scope are ANDed afterward. A trusted scope is an inert database predicate:
+`$$sq`/`$$date` values in it are never expanded. `{}` explicitly allows all rows
+within the transformed query; null/undefined/malformed scope filters reject.
+
+False query, identifier, or trusted scope is terminal before parser/identifier
+work as applicable. Transform/base-filter false is terminal before primary
+persistence or subsequent populate/include dispatch, but a read/list transform
+receives the parsed query: necessary template subqueries may already have run.
+Mutation lookup predicates retain their existing inert, non-client-parsing
+behavior; mutation **data** still follows normal parsing and write admission.
+An allowed upsert miss may create; lookup scope does not stamp values into input.
+
+Private prepared execution reuses the authorized predicate for upsert's update
+branch, include reads/lists/counts and `find.totalCount`. Correlated read/list
+templates parse before parent substitution; substituted marker-shaped parent data
+stays inert. Correlated count templates retain their non-parsing behavior. These
+tokens are identity-bound internal objects, never arguments, JSON options or DTO
+properties. Standalone `exists`, `count`, `delete` and `distinct` retain their
+request-policy signatures; sort/distinct permission checks remain independent
+of output grants. Original request/user permissions remain intact across calls.
+
+**Breaking-release migration:** old object `overrides.filter` bypassed both
+filter hooks. Replace it with an ordinary predicate plus explicit row policy.
+Move replaceable user row restrictions from `overrideFilter` into `baseFilter`;
+there is no query-transform bypass option. Use `findOne`/`updateOne` for custom
+lookup predicates instead of `overrides.idFilter`. Release guidance is maintained
+here and in the task record.
+
+### Distinct: whole-value request authorization
+
+`GET /distinct/:field`, `POST /distinct/:field`, root `op: 'distinct'`, and trusted
+`service.distinct(field, { filter })` share the same pre-query field admission.
+Distinct returns Mongo's **raw complete values**; it does not trim nested fields or
+re-deduplicate modified objects. This preserves distinct equivalence and the returned
+`count`. An unsafe field returns `forbidden` (HTTP/root-entry **403**) before any
+distinct database call, even when the supplied filter would currently match no rows.
+
+- The requested persisted path needs an explicit request `read` rule, either a flat
+  dotted key or a nested `.sub` entry. A child grant does not authorize its parent.
+  Nested entries use ordinary ancestor gates and exact dotted-rule precedence.
+  Scalar `_id` retains its implicit identity access.
+- Declared scalar values (including native BSON scalar types), scalar reference IDs,
+  and scalar arrays are eligible. Closed nested objects, single-nested documents and
+  embedded document arrays require request-proven access to **every** declared returned
+  descendant. Missing or denied child rules reject the entire distinct operation.
+- Mixed values/descendants, arrays containing Mixed, whole Maps, unknown types,
+  recursive object schemas, discriminator-dependent composites and non-strict composites
+  cannot prove a complete safe value and reject, including when nested inside an otherwise
+  allowed container. A shared discriminator scalar path must have a scalar type in every
+  registered variant. An explicitly granted named Map key may qualify when its schema value
+  is a scalar or a fully allowed closed object. Admission never infers a type from the
+  current stored values.
+- Named nested policy restrictions are checked even when that path is absent from the
+  current Mongoose schema: stale/unknown policy branches do not authorize raw stored keys.
+- Permission metadata paths and their containers, protected stored descendants, and
+  registered virtual paths and their containers reject. Distinct never runs getters.
+- Boolean grants and permission expressions already satisfied by the original request
+  can authorize disclosure. Document-dependent grants and **all field-rule callbacks**
+  reject: executing a callback with fabricated empty document grants cannot prove that
+  the returned values are readable. Neither `docPermissions`, backend `outputFields`
+  grants nor a prior document handle supplies distinct authority. Evaluation failures
+  also deny; they do not retry through a more permissive field allowlist.
+
+For example, this `permissionSchema` permits `distinct('profile.public')` but rejects
+`distinct('profile')` and `distinct('profile.secret')`:
+
+```json
+{ "profile": { "read": true, "sub": { "public": true, "secret": false } } }
+```
+
+**Breaking-release migration:** request-only field callbacks previously ran with empty
+document grants. Move those decisions into `globalPermissions` and use a declarative
+permission key in `permissionSchema`. Query a permitted scalar child when a composite
+contains private fields. The generated operation guards, request `read` row filters,
+filter validation/casting and virtual-predicate exclusion still apply; distinct accepts
+no backend authorization option.
+
+### Breaking release: service overrides migration
+
+Explicit authorization and complete service-container removal ship together.
+`overrides` is absent from internal service argument/default types and is rejected
+at service entry with an actionable `bad_request` ErrorResult **before parsing,
+identifier generation, child dispatch or persistence**. This includes `{}`, `null`,
+`undefined`, inherited/non-enumerable JS slots, and mixtures with valid new
+authorization. Delete the old property entirely; setting it to `undefined` is not
+a migration. Moving it from args to options also rejects. There is no deprecated
+adapter or alternate legacy authority path.
+
+| Removed usage (before)                                                                               | Replacement (after)                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `overrides.select: ['internalNote']`                                                                 | `findOne(query, { select: ['status', 'internalNote'] }, { authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } })`. Selection describes output; the grant supplies additive authority.                                                             |
+| `overrides.filter: trustedPredicate` for row authority                                               | Pass the desired ordinary query, then `authorization: { rows: { mode: 'scope', filter: trustedScope } }` or `rows: { mode: 'unrestricted' }`. The configured query transform still runs once.                                                                             |
+| `overrides.filter: preparedPredicate` for package query reuse                                        | Package-owned upsert/includes/counts now use authenticated private prepared-query execution. Backend consumers pass ordinary predicates to service methods; no prepared/skip flag is exposed.                                                                             |
+| `overrides.populate: [{ path: 'customer', select: ['name', 'internalNote'] }]`                       | Ordinary `populate` plus a parent `outputFields` grant for `customer` when needed and `related.customer: { model: 'Customer', operation: { mode: 'grant' }, outputFields: { mode: 'grant', paths: ['internalNote'] } }` for the independently needed target capabilities. |
+| `overrides.idFilter: { slug }`                                                                       | `findOne({ slug }, args, options)` / `updateOne({ slug }, data, args, options)` with explicit row policy when needed. By-ID calls always use normal identifier resolution.                                                                                                |
+| `overrides.effectiveSelect: ['status']`                                                              | `create(data, { select: ['status'] }, options)` / `updateOne(query, data, { select: ['status'] }, options)` / `upsert(query, data, { select: ['status'] }, options)`. Public `returningAll: false` computes this ordinary selection once.                                 |
+| `overrides.operation: 'upsert'`                                                                      | Call `upsert(query, data, args, options)`. Private execution retains initiating `upsert` while create/update branch accesses govern getters, output and document grants.                                                                                                  |
+| `pickAllowedFields(doc, 'read', ['internalNote'])` using helper `baseFields` as visibility authority | `pickAllowedFields(doc, 'read', { authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } })`, or reuse the original `documentAuthorization` handle for same-execution document decisions.                                                            |
+| `genSelect('read', select, true)` using helper `skipChecks` for provisional fetching                 | `genSelect('read', select, { authorization: { outputFields: { mode: 'request' } } })` / `genQuerySelect(...)`. Named planning defers document-dependent rules; use an explicit output grant when backend visibility is required.                                          |
+
+The helper overloads in the last two rows are also **removed in this next breaking
+release**, with the named replacements available now. JavaScript booleans, arrays,
+retired named bypass keys, and extra positional arguments reject with actionable
+BadRequest errors, including `undefined` followed by an extra argument. TypeScript
+rejects the removed signatures. There is no adapter or deprecation interval.
+
+Old nullish filter/ID overrides meant normal generation: omit the container and
+omit `authorization.rows` (or use `{ mode: 'request' }`). Old terminal
+`overrides.filter: false` becomes an ordinary `false` query or
+`authorization.rows: { mode: 'scope', filter: false }`; the latter also prevents
+by-ID resolution and persistence-bearing client subqueries. A normal identifier
+hook returning false remains terminal in every row mode. `{ mode: 'scope', filter: {} }`
+is an explicit all-row scope within the transformed query; a supplied null/undefined
+scope filter is BadRequest, not request fallback. Output grants never revive row denial.
+
+For example, migrate population through explicit source and target policies:
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+declare const req: ModelRequest;
+declare const orderId: string;
+const service = req.macl.getService<{ status: string; customer: string }>('Order');
+const result = await service.findOne(
+  { _id: orderId },
+  { select: ['status', 'customer'], populate: [{ path: 'customer', select: ['name', 'internalNote'] }] },
+  {
+    authorization: {
+      outputFields: { mode: 'grant', paths: ['customer'] },
+      related: {
+        customer: {
+          model: 'Customer',
+          operation: { mode: 'grant' },
+          outputFields: { mode: 'grant', paths: ['internalNote'] },
+        },
+      },
+    },
+  },
+);
+```
+
+Target rows still use request scope here; explicitly scope them if needed. Parent
+authority never grants target fields/operations implicitly. Ordinary populate now
+uses the same target-policy contract for reads and post-create/update/upsert output;
+the old create behavior that ignored `overrides.populate` has been removed.
+
+**Ordinary document-grant behavior also changes in this release:** previously a
+skim read with metadata disabled and no virtual candidates could skip the document
+hook, losing otherwise allowed persisted fields. Full internal document grants
+are now resolved once per projected document/access stage regardless of `skim`,
+`includePermissions`, `includeFieldPermissions`, stripping or exposed-key limits.
+Only serialized metadata changes with those settings. Configure required private
+hook inputs with `alwaysSelectFields`; same-execution handle picks retain the
+original decisions after those inputs and `_permissions` are removed. Temporary
+backend grants do not forge request-user `_view`/`_edit` or document-hook metadata.
+
+Output grants cannot write protected fields. Explicit model mutation `inputFields`
+and dedicated parent/child/visibility policies are independent opt-in capabilities;
+validation and persistence hooks remain active. `new()` retains its ignored-select
+template behavior; standalone row-only methods retain request-policy signatures.
+Business payload/filter properties called `overrides` or `authorization` remain
+valid under ordinary rules.
+
+### Breaking release: named helpers and default behavior
+
+Model `Base`/`Service`/`PublicService` expose these finite signatures; Core prepends
+`modelName`. The option types are exported from both the root and `/advanced`:
+
+| Helper                                                              | Supported final argument / default                                                                                        |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `genSelect(access, select?, options?)`, `genQuerySelect(...)`       | `OutputPlanningOptions<TModel, TVirtuals>`, defaults to `{}`                                                              |
+| `pickAllowedFields(doc, access, options?)`, `trimOutputFields(...)` | `OutputFieldOptions<TModel, TVirtuals>`, defaults to `{}`                                                                 |
+| `genAllowedFields(doc, access, options?)`                           | `AllowedOutputFieldOptions<TModel, TVirtuals>`, defaults to `{ purpose: 'output' }`; supplied objects require the purpose |
+| `genPopulate(access?, populate?, options?)`                         | Request-only `PopulatePlanningOptions`, defaults to `{}`; only `scopePath` is supported                                   |
+
+**Default model calls changed.** There is no hidden no-option legacy path:
+
+- Planning defers document-dependent rules without running permission functions,
+  excludes definitely denied fields, strips virtual names from DB projections and
+  retains canonical private identity/dependency inputs. Omitted select uses ordinary
+  request candidates, or only identity output when `requireExplicitSelect` is true.
+  For compatibility, explicit null/empty select considers all candidates even with
+  that setting, still subject to request rules or explicit policy. It is no grant.
+  A fetch projection never proves response or population permission.
+- Pick/trim isolate hydrated or plain inputs rather than mutating persistence
+  documents. Fresh raw input runs the document-permissions hook; serialized
+  `_permissions` cannot grant fields. Nested/array output rules, private `_id`
+  retention and configured metadata posture match named output behavior. On known
+  trimmed output, use its handle to retain document-dependent decisions. Unsupported
+  scalar/array documents reject. `genAllowedFields` only reports existing paths.
+- Request/input and query-field checks remain separate. Migrate writes to service
+  mutations with independent `authorization.inputFields`; output picks never admit
+  writes. Distinct/sort and request-user `_view`/`_edit` do not inherit output grants.
+
+Scope migration uses **ordinary response segments**: replace
+`genSelect('read', select, false, ['contacts', 'sub'])` with
+`genSelect('read', select, { scopePath: ['contacts'] })` **for output planning**.
+Model output grants remain relative to the owning model (`contacts.email`).
+Replace `genPopulate('read', descriptors, ['contacts', 'sub'])` with
+`genPopulate('read', descriptors, { scopePath: ['contacts'] })`. This helper keeps
+source/target request checks; a privately fetched denied source still cannot populate.
+Use normal service `populate` plus scoped `authorization.related` for explicit
+backend target authority. The obsolete raw `buildVirtualPlan`/`buildSubVirtualPlan`
+service builders are removed; use named fetch helpers. Retained plans, private
+identity/metadata/join retention and document-result issuance belong to package execution.
+
+#### Request-only data helpers
+
+`DataCore` keeps `genSelect`, `genAllowedFields`, and `pickAllowedFields` with a
+leading `dataName`; `DataService` also provides the `genQuerySelect` and
+`trimOutputFields` aliases. Each accepts optional **`DataFieldOptions`** as its last
+argument, defaulting to `{}`. Its only supported setting is readonly
+`scopePath: ['contacts']`, selecting the `contacts.sub` permission-schema branch.
+Selection, input document and resulting field paths are relative to that scope.
+`DataFieldOptions` is exported from root and `/advanced`.
+
+These helpers retain the **request-only data evaluator**: no Mongoose registration
+or catalog, model document hooks, virtual computation, or DataService authorization.
+Permission functions receive the original request as `this` and only its permissions
+argument. Allowed-fields returns a schema allowlist even with a null/empty document;
+pick/trim select existing values from it. An allowed container remains a whole value;
+use a scoped helper to filter a child. `_id` and metadata require ordinary data-field
+rules, with no automatic retention.
+
+Data `genSelect` returns the intersection of normalized requested tokens and
+request-authorized schema fields. **Compatibility:** omitted/null/empty,
+exclusion-only, unknown-only and denied-only selections can produce `[]`.
+Data `find`/`findOne` interpret an empty intersection as **no additional projection
+after request trimming**, returning all request-authorized fields. A non-empty
+intersection restricts output to those admitted requested fields. Row filtering,
+sort checks, counts, page-only shaping and hook concurrency retain their existing rules.
+
+Data positional `skipChecks` never elevated data fields; remove that argument.
+Old arbitrary `baseFields` elevation is **removed and unsupported**, with no new
+bypass switch or data-grant capability. Model output policies/handles, positional
+arrays/booleans, unknown options and extra arguments reject on data helpers too.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { DataFieldOptions } from '@web-ts-toolkit/access-router';
+import type { DataRequest } from '@web-ts-toolkit/access-router/advanced';
+declare const req: DataRequest;
+const service = req.dacl.getService('Directory');
+const options = { scopePath: ['contacts'] } as const satisfies DataFieldOptions;
+const select = await service.genQuerySelect('read', ['email'], options);
+const fields = await service.genAllowedFields(null, 'read', options);
+const contact = await service.pickAllowedFields({ email: 'a@example.test', private: 'hidden' }, 'read', options);
+// Results follow Directory.permissionSchema.contacts.sub request rules.
+console.log(select, fields, contact);
+```
+
+## Data routers
+
+For small reference datasets, create an in-memory list/read router. Its field
+policy is request-only; the [runnable data-router split](#runnable-data-router-split)
+also exercises basic/advanced guards and live setters without MongoDB.
+
+<!-- doc-example: partial -->
+
+```ts
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const api = createAccessRuntime();
+const fruitRouter = api.createDataRouter('fruit', {
   basePath: '/fruit',
   idParam: 'id',
   idField: 'id',
   operationAccess: { list: true, read: true },
   data: [{ id: 'apple', name: 'Apple', public: true }],
-  permissionSchema: { id: true, name: 'isAdmin', public: true },
+  permissionSchema: { id: true, name: true, public: true },
 });
-
-const docsRouter = acl.createOpenApiRouter({
-  title: 'Example API',
-  version: '1.0.0',
-});
-
-// 4. Mount routers under an Express app.
-const app = express();
-app.use(express.json());
-app.use(userRouter.routes);
-app.use(fruitRouter.routes);
-app.use(docsRouter);
-
-// 5. Connect to MongoDB before accepting traffic. A failed connection throws
-//    and exits before the server calls `app.listen`, so the service never
-//    publishes routes it cannot serve.
-const port = Number(process.env.PORT ?? 3000);
-const mongoUrl = process.env.MONGODB_URL ?? 'mongodb://localhost:27017/example';
-try {
-  await mongoose.connect(mongoUrl);
-} catch (err) {
-  console.error(`Failed to connect to MongoDB at ${mongoUrl}:`, err);
-  process.exit(1);
-}
-
-app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
-});
+// Mount fruitRouter.routes on an Express app after express.json().
 ```
 
 In-memory data routers default `listHardLimit` to `1000`, matching model routers. A list request without
 `limit`/`pageSize`, or with a malformed limit passed through a trusted service call, is capped at that finite
 default unless the router sets `listHardLimit` explicitly. `meta.totalCount` still reflects the full authorized
-match set when counts are requested; only returned rows are trimmed and decorated. Per-row data trim/decorate
-hooks run with bounded concurrency controlled by `requestComplexity.maxHookConcurrency` (default `10`).
-Runtime options and data-router records are copied when configured, and option getter results are frozen
-snapshots. Mutating the original options object, a fetched options snapshot, or the original `data` array does
-not change live runtime policy or served in-memory records. Replace configured data through `router.data(next)`
-or `setDataOption(name, 'data', next)`.
+match set when counts are requested; only returned rows are trimmed and decorated. Data request-field
+selection/trimming and `decorate`/`decorateAll` share request/runtime hook admission with model output
+work, controlled by `requestComplexity.maxHookConcurrency` (default `10`). See
+[Hook admission and reentrant service calls](#hook-admission-and-reentrant-service-calls) for the counted
+chain and nested-call contract. Data has no model document-grant or virtual hook family.
+
+**Basic data-list queries.** `GET /fruit?select=id&sort=-id&limit=10&include_count=true` returns the same
+selected rows and pagination metadata as `POST /fruit/__query` with this body:
+
+```json
+{ "select": ["id"], "sort": "-id", "limit": 10, "options": { "includeCount": true } }
+```
+
+GET `select` accepts comma/whitespace-separated fields or repeated parameters. GET `sort` is one
+space-separated field string, with `-` for descending order. Sorting uses list field permissions,
+including permitted fields omitted from `select`; malformed or denied sort fields return HTTP 400.
+Filtering and sorting precede pagination, and `totalCount` counts the entire filtered set. Without
+selection or sorting, lists retain their list-allowed fields and configuration order. Data's existing
+empty-selection/intersection behavior still applies: no additional projection after request field trimming.
+
+### In-memory data ownership
+
+Configuration owns a copy of `data`, including nested values in pre-frozen
+caller containers. Later changes to the original records cannot change served data. Replace data through
+`router.data(next)` or `runtime.setDataOption(name, 'data', next)`; `undefined` clears it. Nested setters such as
+`router.data('0.profile', nextProfile)` replace data copy-on-write and retain other rows. A service captures one
+data version at construction: replacing data leaves existing services/snapshots on their original version,
+while newly constructed services use the replacement.
+
+Supported data is an **acyclic ordinary array** containing these values:
+
+- Plain objects (including null-prototype objects), ordinary/sparse arrays, strings, booleans, numbers,
+  bigint, null and undefined. Own enumerable string-keyed properties are copied; accessors are evaluated
+  once during admission and stored as values. Non-enumerable plain properties are ignored.
+- Exact built-in `Date`, `Buffer`, `Map`, `Set`, `RegExp`, fixed non-shared `ArrayBuffer`, `DataView`, and
+  typed arrays: `Int8Array`/`Int16Array`/`Int32Array`, `Uint8Array`/`Uint16Array`/`Uint32Array`,
+  `Uint8ClampedArray`, `Float32Array`/`Float64Array`, `BigInt64Array`/`BigUint64Array`.
+  Map keys/values and Set entries are recursively owned; Date timestamps and RegExp source/flags/numeric
+  `lastIndex` survive. Binary views and Buffers copy their visible bytes into independent, exact-sized
+  backing storage with offset zero. Sharing between distinct views/backing buffers is not retained.
+
+Functions, symbol values/keys, cycles, proxies, arbitrary classes (including Mongoose documents/ObjectIds),
+native subclasses/custom native properties, foreign object/native prototypes, WeakMap/WeakSet/Promise and
+other unlisted instances are rejected inside `data`. Shared, resizable and detached binary storage also rejects.
+Admission throws a path-bearing `TypeError` before publishing any keys of that data-options update;
+an accessor that throws propagates its error and likewise leaves the update unapplied. Convert unsupported
+application objects into supported data first. This data-specific contract preserves the identities of
+hook functions, Mongoose models, validators and runtime handles in ordinary options.
+
+Option getter results and `router.options` remain frozen snapshots. **Data snapshot plain containers are
+frozen; native-valued properties return fresh, detached mutable copies on each access.** This includes
+`runtime.getDataOptions(name).data`, `getDataSnapshot`, `getDataOption`/`getExactDataOption`, and bootstrap
+snapshots. Mutating a native copy or its Map/Set contents cannot alter that snapshot or later readers;
+native identity across property reads is not stable. Repeated ordinary option/snapshot reads reuse the
+safe frozen data view without traversing the whole dataset.
+
+`DataService.find`, `findOne` and `findById` return independently mutable selected data, including nested
+objects/arrays and supported natives. Detachment happens **after field trimming, selection and pagination**,
+so only returned values are copied; different returned rows also remain independent when their configured
+inputs shared references. Direct/root response `decorate` and `decorateAll` hooks may mutate those nested
+outputs in place. DataService's request-only field rules and empty-selection semantics still apply.
+Native preservation is an in-process contract; HTTP uses normal Express JSON serialization. Use trusted
+decoration to choose wire representations for values such as Map, Set or bigint.
+
+## Denial and request validation
 
 ACL filter hooks may return `false` to deny a query. That denial is terminal through identifier, override, and
 base-filter composition. `overrideFilter` is a trusted hook that may replace an ordinary client or identifier
@@ -112,12 +1380,11 @@ that denial. Returning `false` from `overrideFilter` also denies the query. Empt
 normal unrestricted meaning unless a base filter restricts them.
 
 **Model service denial contract:** internal `findOne`/`find`/`updateOne`/`upsert`
-`args.overrides.filter` and `findById`/`updateById` `args.overrides.idFilter` distinguish
-`false` from omitted/`undefined`/`null`. False returns a `forbidden` ErrorResult without
-fallback filter/identifier generation or persistence (including client subqueries).
-Nullish overrides use normal generation. Trusted object filter overrides replace the
-generated filter; object **idFilter** overrides replace identifier resolution but still
-receive row policy. These service arguments are trusted application inputs.
+ordinary false queries, false identifier results and explicit false row scopes are
+terminal. Early known false returns a `forbidden` ErrorResult without fallback
+generation or persistence-bearing parsing. Omitted row authority uses request policy;
+scope/unrestricted replace only its base scope. The removed service `overrides`
+control instead returns `bad_request`, including when its old filter value is false.
 
 `Service.exists(filter, { access: 'read', includeId: false })` returns a successful
 boolean for allowed queries; `includeId: true` returns an `{ _id }` record or `null`.
@@ -133,6 +1400,8 @@ Public `_upsert` with an `_id` propagates denied update-policy existence as Forb
 Generated direct routes map Forbidden to HTTP 403; root batches use per-entry 403 within
 HTTP 200. **Custom Express routes own HTTP serialization:** returning an ErrorResult or
 calling `res.json(result)` does not automatically set HTTP 403; map its code explicitly.
+
+### Advanced mutation validation
 
 Advanced mutation validators drive dispatch: nested `data` validators run first, then the whole-body (`default`)
 validator sees that transformed envelope, and the service persists only the final parsed `data`, `select`,
@@ -248,9 +1517,15 @@ handling rather than permission fallback.
 ```ts
 import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';
 
+declare module '@web-ts-toolkit/access-router' {
+  interface AccessRouterRequestExtensions {
+    actor?: { permissions: string[] }; // populated by application authentication middleware
+  }
+}
+
 acl.setGlobalOptions({
   globalPermissions(req) {
-    return req.headers.user === 'admin' ? ['isAdmin', 'canReadDetails'] : [];
+    return req.actor?.permissions ?? [];
   },
 });
 const permissionBased = {
@@ -376,7 +1651,8 @@ Use `set`/`setOption` with undefined to clear a variant; the two-argument proper
 helper is intended for defined values.
 
 `router.options` is the frozen **construction-time** snapshot. Options getter
-results are also frozen snapshots; fetch again for current stored values. Ordinary
+results are also frozen snapshots; data native-valued properties return detached copies
+on access as described above. Fetch again for current stored values. Ordinary
 `getModelOption`/`getDataOption` use generic nested-option fallback, not the
 route-specific variant-to-base resolver. Exact getters inspect the variant path
 (including exact model-default fallback). Request guards read live runtime values.
@@ -491,15 +1767,45 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 - `guard(...)` and `GuardModelCondition`, `GuardModelConditionID` types
 - `combineRoutes(...)` and `createOpenApiRouter(runtime, options)` (note: prefer `acl.createOpenApiRouter(options)` for the default runtime)
 - validation adapters: `defineRequestSchema(...)`, `fromZod(...)`, `fromYup(...)`, `fromJoi(...)`, `fromAjv(...)`, `fromStandardSchema(...)`, `fromValibot(...)`, `fromArkType(...)`, `fromIoTs(...)`, `fromSuperstruct(...)`, `fromVine(...)`
-- `permissionsPlugin` (src/plugins.ts) — Mongoose schema plugin used as `schema.plugin(permissionsPlugin, { modelName })`
+- `permissionsPlugin` — optional Mongoose metadata alias; [role and usage](#optional-permissions-plugin)
 - logger helpers: `redactFilter`, `redactPayload`, `safeStringify`, `isLevelEnabled` + `OpLogContext` type
 - option helpers: `setGlobalOptions`, `setGlobalOption`, `getGlobalOptions`, `getGlobalOption`, `setModelOptions`, `setModelOption`, `getModelOptions`, `getModelOption`, `getModelNames`, `getModelJsonSchema`, `setDefaultModelOptions`, `setDefaultModelOption`, `getDefaultModelOptions`, `getDefaultModelOption`
 - route-policy types: `OperationAccess`, `SubOperationAccess`, `Validation`, `GuardHook`, `RouteVariantAccess`, `ModelRouterOptions`, `DefaultModelRouterOptions`, `DataRouterOptions`, `ExtendedModelRouterOptions`, `ExtendedDefaultModelRouterOptions`, and `ExtendedDataRouterOptions` for typed setters; `PermissionSchema` / `FieldOperationAccess` are separate base-operation field grants. These types are also available from `/advanced`.
+- trusted service policy types (also `/advanced`): `ServiceAuthorization` (reads), `MutationAuthorization` (update/upsert), `CreateAuthorization`, `InputFieldAuthorization`, `InputFieldPath`, `OutputAuthorization`, `FieldAuthorization`, `RowAuthorization`, `OperationAuthorization`, `RelatedAuthorization`, `OutputFieldPath`. Input paths use persisted types only; output paths also include virtuals. Unknown models have an explicit runtime-validated string fallback; grant arrays may be readonly.
+- named helper/result types (also `/advanced`): `OutputPlanningOptions`, `OutputFieldOptions`, `AllowedOutputFieldOptions`, opaque `DocumentAuthorization`, `ServiceOutputContext`, `ServiceOutputDecorator`, `AuthorizedSingleResult`, `AuthorizedListResult`, `NewArgs`, `NewOptions`. Acquire the service from a router/request; there is no standalone `Service` export or public issuer/execution/prepared API.
 
 Subpath entrypoints:
 
 - `@web-ts-toolkit/access-router/advanced` — request/service/option interfaces and include wire types, symbols (`MIDDLEWARE`, `DATA_MIDDLEWARE`, `PERMISSIONS`, ...), enums (`Codes`, `StatusCodes`), and validation helpers (`parseBody`, `parseQuery`, `parseBodyWithSchema`, request schemas). Runtime-context functions are internal; use root exports such as `createAccessRuntime`, `AccessRuntime`, and `defaultRuntime` for runtime ownership. `/advanced` does not export runtime instances or router-creation helpers.
 - `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate`, `copyPaths`, `movePaths`, `sliceArrays`, `countPaths`, `maskPaths` and processor option types (`ProcessCopy`, `CopyAndDepopulateOptions`, `CopyAndDepopulateOutput`, `ProcessorOptions`, `SliceProcessorOptions`, `ProcessSlice`, `ProcessCount`, `ProcessMask`, `ProcessorOutput`) for transforming populated documents.
+
+## Request validation and OpenAPI
+
+Generated routes already validate their supported envelopes. Supply `requestSchemas`
+for application parsing; `validate` is a separate admitted-write hook. The root
+exports adapters for Zod, Yup, Joi, AJV, Standard Schema, Valibot, ArkType, io-ts,
+Superstruct and Vine. For example, with Zod installed:
+
+<!-- doc-example: complete-runtime -->
+
+```ts
+import { z } from 'zod';
+import { fromZod, defineRequestSchema } from '@web-ts-toolkit/access-router';
+const validator = fromZod(z.object({ name: z.string() }));
+const schema = defineRequestSchema(validator);
+```
+
+Pass such a schema to the relevant `requestSchemas` key (for example `create` or
+`advancedCreateData`). [Advanced mutation parsing](#advanced-mutation-validation)
+describes the nested-data/whole-envelope order and allowed options.
+
+After registering routers, mount `api.createOpenApiRouter({ title: 'Example API',
+version: '1.0.0' })` directly with `app.use(...)` — it returns an Express router,
+not an object with `.routes`. Defaults expose `/openapi.json` and `/docs`;
+`jsonPath`/`docsPath` customize them and `docsPath: false` disables Swagger UI.
+The standalone named function is `createOpenApiRouter(api.runtime, options)`;
+the runtime-bound method takes only `options`. Route guards and server-only
+authorization policies are not client input fields in the generated schema.
 
 ## AJV validation contract
 
@@ -587,9 +1893,12 @@ adopts that exact global model instance into its registry on first lookup.
 Cross-runtime composition on a shared request keeps independent runtime-owned state. When one request passes through
 middleware from runtime A and then runtime B, B initializes its own core, resolves its own `globalPermissions`, and
 uses its own base-filter cache; it never reuses A's permissions or cached filters, even when both runtimes use the
-same `requestPermissionField` name. Repeating the same runtime's middleware on one request reuses that runtime's state
-without rerunning its resolver. Values already present in `requestPermissionField` before any runtime middleware runs
-are treated as application-supplied and preserved. Migration: if you relied on B silently inheriting A's resolved
+same `requestPermissionField` name. A sync/async `globalPermissions` result of `null` or `undefined` establishes an empty
+permission map, replacing any prior runtime-owned grants. Missing or non-callable resolvers follow the same empty-grants
+rule. Middleware awaits asynchronous resolution before publishing the new core and continuing. Repeating the same
+runtime's middleware on one request reuses that runtime's state without rerunning its resolver. Permission maps (including
+`{}`) supplied in `requestPermissionField` before any runtime middleware runs are treated as application-owned and
+preserved. Migration: if you relied on B silently inheriting A's resolved
 permissions on a shared request, set those permissions explicitly before the chain or configure B's `globalPermissions`
 to resolve them.
 
@@ -603,17 +1912,48 @@ to resolve them.
 
 ```ts
 import mongoose from 'mongoose';
-import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 
 // `uri` is the MongoDB connection string for the non-default connection.
 const uri = process.env.MONGODB_URL_TENANT ?? 'mongodb://localhost:27017/tenant';
 const conn = await mongoose.createConnection(uri).asPromise();
 const schema = new mongoose.Schema({ name: String });
-schema.plugin(permissionsPlugin, { modelName: 'TenantUser' });
 const TenantUser = conn.model('TenantUser', schema);
 
-const tenantRouter = acl.createRouter(TenantUser, { basePath: '/tenant-users' });
+const api = createAccessRuntime();
+const tenantRouter = api.createRouter(TenantUser, {
+  basePath: '/tenant-users',
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+});
 ```
+
+`createRouter(options)` — the single-options overload creates a root batch router;
+see [Root batch bounds](#root-batch-bounds). Model/data/root factories return an
+object whose `.routes` is mounted in Express.
+
+### Optional permissions plugin
+
+`permissionsPlugin` only adds a Mongoose getter alias (default `permissions`) for
+the model's configured document metadata slot (default `_permissions`). It reads
+the existing `_doc[documentPermissionField]` value using active-runtime option
+lookup, falling back to the default runtime outside package-managed execution.
+It does not compute grants, authenticate an actor, or enable field enforcement;
+generated routers and services already enforce their configured policies.
+
+<!-- doc-example: partial -->
+
+```ts
+import mongoose from 'mongoose';
+import { permissionsPlugin } from '@web-ts-toolkit/access-router';
+
+const schema = new mongoose.Schema({ name: String });
+schema.plugin(permissionsPlugin, { modelName: 'User', virtualPermissionField: 'permissions' });
+```
+
+Use it only when application code needs that hydrated-document alias. Package output
+finalization uses the configured metadata path directly and supports lean results.
+`virtualPermissionField` is an alias name, not the package's computed `virtuals` API.
 
 ## Include Cardinality
 
@@ -624,10 +1964,26 @@ Advanced read/list requests can attach related model data with `include` entries
 Legacy count joins use one grouped aggregate for all parents per include execution.
 They count distinct target documents in the authorized count scope: duplicate local
 keys, repeated foreign array entries, or one document matching multiple local keys
-do not inflate a parent's count. No matches produce `0`.
+do not inflate a parent's count. The same target may count once for each of several
+parents. No matches produce `0`. Mongo computes the numbers per requested parent-key
+group and returns only bounded group ordinals and counts; target IDs are never
+accumulated or returned. Result size depends on the requested groups, even when the
+matching targets' IDs would exceed Mongo's BSON document limit.
+
+Group membership uses Mongo's native query `$in` semantics after schema casting:
+scalar membership, whole-array and literal-object equality, null/missing fields,
+and dotted traversal through embedded arrays. Repeated nested matches still count
+one target once per parent. For example, `countByFieldValues('direct', [['a', 'b']],
+{}, 'count')` counts a stored `direct: ['a', 'b']` under alias `'a,b'`; a count include
+joining scalar `'a'` to `contacts.keys` matches `contacts: [{ keys: ['a', 'b'] },
+{ keys: ['a'] }]` once. Legacy include local arrays retain their one-level flattening
+into group keys; the public helper treats each input value as a single operand.
+One authorized candidate stream feeds at most 1,000 native match/count facets.
+Predicate work scales with candidate documents × requested groups; each facet emits
+at most one numeric row and never collects target documents or IDs.
 
 The target Mongoose schema casts both the complete authorized filter (including
-tenant filters) and foreign-key operands, including after array unwind. ObjectId/String
+tenant filters) and foreign-key operands used in every group. ObjectId/String
 joins and query setters retain association to the original parent keys. Invalid
 schema operands/filters produce controlled `BadRequest` (direct HTTP 400; root entry
 `statusCode: 400`, `code: 'bad_request'`) rather than misleading zero counts. Count
@@ -639,6 +1995,70 @@ plugins: casting is synchronous and performs no query. Aggregate middleware stil
 belongs to the aggregate operation. Express router count authorization through
 `operationAccess` and row-filter hooks. Arbitrary pipelines passed to
 `router.model.aggregate(...)` are not automatically cast.
+
+### Numeric grouped-count service API (breaking migration)
+
+`service.countByFieldValues(foreignField, values, filter = {}, access = 'list')`
+now returns `Promise<SingleResult<Map<string, number>> | ErrorResult>`. Its `values` parameter
+accepts readonly arrays. Each distinct original `String(value)` alias has a numeric
+count, including `0` for misses, in first-occurrence order. Equal original aliases
+use their first operand; different aliases normalized to the same schema value (for
+example `'001'` and `'1'` on a Number field) receive equal counts. A target with a
+repeated foreign array value counts once for that alias. Inputs are snapshotted
+before awaited row hooks.
+
+**Migration:** replace `result.data.get(key)?.size` with `result.data.get(key) ?? 0`
+and change `Map<string, Set<string>>` consumers to `Map<string, number>`. There is no
+ID-set compatibility path. Per-key counts can overlap and must not be summed to
+obtain a multi-key union: a legacy `op: 'count'` include on an array-valued local field
+counts that entire parent's union in Mongo. Its grouped executor and prepared-query
+capabilities remain package-private. For a standalone single union, the existing
+`service.count({ foreignField: { $in: keys } }, 'count')` expresses one numeric count
+(use the real field name in the filter).
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+
+export async function countInvoiceLines(req: ModelRequest) {
+  const service = req.macl.getService<{ invoiceIds: string[] }>('InvoiceLine');
+  const result = await service.countByFieldValues('invoiceIds', ['invoice-a', 'invoice-b'], {}, 'count');
+  if (!result.success) return result;
+  const invoiceACount: number = result.data.get('invoice-a') ?? 0;
+  return { invoiceACount, counts: Object.fromEntries(result.data) };
+}
+```
+
+This service helper resolves the requested **row access**, defaulting to `list`;
+pass `count` to use the count row policy. Custom entrypoints still establish their
+operation guard. The helper accepts no authorization-options or prepared-token
+argument. Legacy includes retain the target count operation guard, independent
+related authority, mandatory join/descriptor predicates and terminal-false behavior.
+
+`service.count(filter, access = 'list')` likewise returns one numeric `SingleResult`
+under the requested row policy. In contrast, legacy `countTrusted(authorizedFilter)`
+expects a complete, already-authorized server predicate: it does not run client
+parsing or `baseFilter`/`overrideFilter`. It accepts no policy/options argument and
+still treats false as terminal. It is not the executor used by package includes;
+those use private, authenticated prepared queries.
+
+Both entry paths enforce fixed per-execution limits before aggregation: **1,000
+groups** (parents, or input values for the public helper), **10,000 key occurrences
+before deduplication**, **64 KiB per BSON-encoded key or original alias**, **1 MiB
+cumulative BSON-key plus alias bytes**, **depth 8 / 20,000 visited key nodes**, and
+**1,024 UTF-8 bytes for `foreignField`**. Both original inputs and schema-cast operands
+expanded into parent groups must fit. Scalar/native BSON equality keys and bounded
+literal values retain owning-schema casting; regex/executable values are not equality
+join operands. A plain object operand whose first field begins with `$` also rejects
+before persistence, as Mongo's query `$in` does not accept expression documents; an
+object containing both `$ref` and `$id` retains Mongo's literal DBRef exception. Dollar
+fields inside nested literal objects/arrays, or after an ordinary first field, remain
+data. These checks apply to raw and schema-cast operands. Exceeding a bound returns
+controlled `BadRequest`/HTTP 400 without target persistence: counts are never truncated
+or split into per-parent queries.
+These limits are independent of list pagination; a parent query above 1,000 rows
+must be narrowed before requesting a legacy count include.
 
 ### Safe include output paths
 
@@ -656,6 +2076,16 @@ nested level using that receiving target's configuration. Overlaps return BadReq
 envelope), even if the relationship would be empty. Malformed reads do not retry
 through list access. Ordinary output-field replacement remains supported; generated
 include data cannot grant source-field permission.
+
+Include output is tracked separately from the original projected source. Document
+permission hooks and virtual dependencies see the source values even when a successful
+attachment replaces the same business field (for example, `restricted`). Only results
+actually produced by include execution are attached after source selection and field
+filtering, with the target's own authorization and document handle. A legacy read miss
+or omitted result never turns an existing source value into an attachment: that field
+still requires source selection and permission. Correlated empty results remain explicit
+`null`/`[]`/`0` attachments. This separation also applies to nested targets and each list
+row; include output does not mutate fetched persistence documents.
 
 ## Correlated Includes
 
@@ -737,8 +2167,8 @@ Semantics:
 
 The TypeScript wire types (`ParentRef`, `CorrelatedInclude`, `Include`) are
 reachable without deep imports via `@web-ts-toolkit/access-router/advanced`
-(which re-exports `./interfaces`). See the website `services`,
-`configuration`, `validation`, and `openapi` pages for the full contract.
+(which re-exports the public interfaces). The shipped guide above defines the
+contract; the website has additional service/configuration/validation examples.
 
 ## Nested updates and trusted hooks
 
@@ -946,6 +2376,15 @@ service boundary. `delete` (identity only), `exists`, `distinct`, `count`, and
 `countTrusted` never run getters. No submitted or computed virtual value is
 persisted.
 
+Filter cleanup distinguishes field predicates from literal data. Empty-object
+equality (`{ reconciliation: {} }`), literal arrays, and `$eq`/`$in` operands
+retain their meaning, including data keys with the same spelling as virtuals.
+Root/dotted virtual predicates and embedded `$elemMatch` query fields are still
+excluded. The nested-field shorthand under a registered embedded container also
+excludes its virtual fields; use `$eq` for literal whole-container equality there.
+Only clauses emptied by an actual virtual removal are pruned. An originally empty
+object or logical branch is retained; a wholly virtual ordinary filter becomes `{}`.
+
 Trusted `decorate`/`decorateAll`/tasks boundary: virtuals evaluate before
 `decorate`/`decorateAll`/tasks; internal-only dependency fields are stripped
 before those hooks see the object. Trusted hooks may deliberately construct new
@@ -958,16 +2397,57 @@ data over per-row database calls. On a 24-row list with 2 getters at
 25 driver reads (1 list + 24 per-row) with peak active getter work 4; the same
 label via `populate: [{ path: 'addrId', select: ['label'] }]` and a getter
 reading the finalized `doc.addrId` object issued 2 driver reads (batched `$in`)
-with identical output and the same peak bound. `maxHookConcurrency` (default
-`10`) is a per-request/per-runtime ceiling on concurrently awaited getter +
-row-finalization orchestration only — not a per-row multiplier, not leaf
-persistence admission, not a process-wide connection limit; trusted getter
-DB/network I/O runs outside the leaf persistence ceiling. Bounds limit
-simultaneous work, not query counts: they do not collapse N+1 into 1.
-Nested/related/embedded work shares the same bounded scheduling (limit-1
-completes without deadlock; input order is preserved). Parent getters see only
-finalized related/embedded outputs and must not rely on a related model's
-stripped private fields.
+with identical output and the same peak bound. Bounds do not collapse N+1
+into 1. Parent getters see only finalized related/embedded outputs and must
+not rely on a related model's stripped private fields.
+
+### Hook admission and reentrant service calls
+
+`requestComplexity.maxHookConcurrency` (default `10`) limits **independently
+admitted hook chains per request/runtime**. Independent services, root-batch
+entries, legacy/correlated includes, populate and embedded/subdocument outputs
+share one private pool. It covers:
+
+- Model `docPermissions`, including pre-write, output-helper and owning-parent stages;
+- Virtual getters;
+- Model/data `decorate` and `decorateAll` chains and service output decorator callbacks;
+- Data request-field selection/trimming stages (their field rules run sequentially).
+
+Other guards, row/identifier filters, model field-rule callbacks and write
+lifecycle hooks are outside this hook pool. Row/traversal maps have finite
+**per-call** worker bounds, with stable output/context indices; their waiting
+orchestration frames are not globally counted as hook permits.
+
+**Awaiting another service from a hook is supported, including at limit `1`.**
+Its descendant hooks reuse the admitted chain through private async context.
+Every live callback scope admits **one immediate child branch at a time**, FIFO,
+including that child's descendant drain. Thus `Promise.all` of nested service
+calls cannot bypass the limit: sibling hook stages serialize in that chain.
+At most `maxHookConcurrency` independent leaf branches are admitted; recursively
+waiting ancestor callbacks still exist and do **not** consume extra permits.
+The setting does not promise that all unsettled callback frames fit within it.
+
+Reentrant depth is capped at **64 admission scopes per chain**, including internal
+hook-stage wrappers, independently of client template/structure depth limits.
+Overflow rejects through the existing hook failure policy (getters omit their
+field, document-grant hooks fail closed, decorator errors propagate). Settlement
+closes a scope to new reentry and drains already-queued child hooks before releasing
+its branch, even on error. Detached continuations of closed scopes reacquire normal
+root admission. Await work started by hooks and avoid cross-branch dependency cycles;
+sibling hooks must not wait for each other to start. Root and per-frame child queues
+each transfer permits FIFO; descendants progress within their existing chain before
+unrelated queued roots.
+
+Hook and persistence limits are normalized and captured together when the private
+request/runtime work state is first used. Configuration changes affect new requests;
+existing owners retain their captured limits regardless of ambient runtime changes.
+Separate requests and runtimes have independent pools. Service hook delegates retain
+their originating core when another runtime reinitializes the same request's core slots.
+`maxBulkConcurrency` remains the separate leaf adapter/document persistence ceiling:
+no persistence permit is held
+over hooks or recursive orchestration. Trusted hooks' own direct DB/network fan-out,
+total queued work and query counts are not bounded by these settings. Neither is a
+process-wide connection limit or an automatic batching mechanism.
 
 ### Virtuals compatibility notes
 
@@ -995,13 +2475,9 @@ not silent backward compatibility:
   `_create` picks by explicit `select` after decorate/tasks and `_update`
   picks by explicit `select` (else the implicit `returningAll: false` pick);
   `new()` continues to ignore `args.select` (all applicable `create` virtuals
-  are considered, subject to explicit exclusion). Any future honoring of
+  are considered, subject to field authorization, not `args.select` exclusions). Any future honoring of
   `new.args.select` is an explicit contract change, not applied here.
-- Release notes for this feature are generated from conventional commits via
-  `pnpm changelog` (`repo-toolkit-changelog`) into the workspace
-  `CHANGELOG.md`; that generated file is intentionally not hand-edited in this
-  task (per repository constraint). The compatibility notes above live in this
-  README section as the shipped consumer record.
+- This README is the shipped compatibility and migration record for these contracts.
 
 ## Persistence concurrency and resource limits
 
@@ -1049,26 +2525,12 @@ Persistence admission is shared across nested work within each request/runtime, 
 timing may change. It does not provide transactions, idempotency or optimistic
 concurrency protection for competing edits.
 
-## Import styles
-
-The package ships both a default export and named exports:
-
-<!-- doc-example: partial -->
-
-```ts
-// default export (preferred for the runtime API)
-import acl from '@web-ts-toolkit/access-router';
-
-// named exports (useful when you only need specific helpers)
-import { createAccessRuntime, fromZod } from '@web-ts-toolkit/access-router';
-```
-
-### Subpath import example
+## Subpath import example
 
 <!-- doc-example: complete-runtime -->
 
 ```ts
-import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
+import { copyAndDepopulate, type CopyAndDepopulateOutput } from '@web-ts-toolkit/access-router/processors';
 
 type DepopulatedItems = {
   items: string[];
@@ -1081,6 +2543,9 @@ const { items, itemsSnapshot } = copyAndDepopulate<DepopulatedItems>(
   { mutable: false },
 );
 // `items` is now `['a1']`; `itemsSnapshot` holds the original objects.
+const conservative: CopyAndDepopulateOutput = copyAndDepopulate({ items: [{ _id: 'a1' }] }, [
+  { src: 'items', dest: 'itemsSnapshot' },
+]);
 ```
 
 Without an explicit output type, `copyAndDepopulate(...)` returns the conservative `CopyAndDepopulateOutput`
