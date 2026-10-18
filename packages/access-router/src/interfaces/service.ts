@@ -116,7 +116,7 @@ export interface SubdocumentParentArgs {
   populate?: SubPopulate | SubPopulate[];
 }
 
+/** Request-only raw-parent lookup access. The returned parent is always hydrated. */
 export interface SubdocumentParentOptions {
   access?: BaseFilterAccess;
-  lean?: boolean;
 }

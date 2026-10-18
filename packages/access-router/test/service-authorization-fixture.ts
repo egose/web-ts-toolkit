@@ -5,7 +5,7 @@ import { createAccessRuntime, permissionsPlugin } from '../dist/index.mjs';
 import type { ModelRequest } from '../src/interfaces';
 
 let sequence = 0;
-export const quiet = { skim: true, lean: true, includePermissions: false, includeFieldPermissions: false };
+export const quiet = { skim: true, includePermissions: false, includeFieldPermissions: false };
 export const noteGrant = { outputFields: { mode: 'grant' as const, paths: ['internalNote'] } };
 
 /** Assertions run outside Express's error handler so failures retain their real cause. */
@@ -34,6 +34,7 @@ export async function authorizationFixture(options: Record<string, unknown> = {}
   const Model = mongoose.model(modelName, schema);
   api.setGlobalOptions({ requestPermissionField: '_permissions', globalPermissions: () => [] });
   const router = api.createRouter(Model, {
+    hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean' },
     basePath: `/sva05-${sequence}`,
     operationAccess: { read: true, list: true, create: true, update: true, new: true },
     permissionSchema: { status: true, internalNote: false, slug: true, tenant: true },

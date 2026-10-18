@@ -12,7 +12,7 @@ import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
 
-const quiet = { skim: true, lean: true, includePermissions: false, includeFieldPermissions: false };
+const quiet = { skim: true, includePermissions: false, includeFieldPermissions: false };
 const noteGrant = { outputFields: { mode: 'grant' as const, paths: ['internalNote'] } };
 const badRequest = { success: false, kind: 'error', code: 'bad_request' };
 const forbidden = { success: false, kind: 'error', code: 'forbidden', query: { filter: false } };
@@ -66,6 +66,7 @@ async function fixture(options: Record<string, unknown> = {}) {
     stripPermissionsField: true,
   } as never);
   const router = api.createRouter(Order, {
+    hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean' },
     basePath: `/sva09-${tag}`,
     operationAccess: { read: true, list: true, create: true, update: true, new: true },
     permissionSchema: {

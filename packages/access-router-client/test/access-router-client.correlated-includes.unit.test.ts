@@ -560,13 +560,73 @@ describe('ACI-04 option forwarding (explicit vs inherited)', () => {
     });
     expect(() =>
       svc.listAdvanced({ authorId: parentField('_id') }, undefined, { skim: false }).$include('posts'),
-    ).toThrow(CorrelatedIncludeError);
+    ).toThrow('the server controls hydration, access and fallback semantics');
     expect(() =>
       svc.listAdvanced({ authorId: parentField('_id') }, undefined, { tryList: false }).$include('posts'),
     ).toThrow(CorrelatedIncludeError);
     expect(() =>
       svc.listAdvanced({ authorId: parentField('_id') }, undefined, { sq: { path: 'x' } }).$include('posts'),
     ).toThrow(CorrelatedIncludeError);
+  });
+
+  it.each([
+    ['skim', false],
+    ['includePermissions', false],
+    ['includeCount', false],
+    ['tryList', false],
+    ['populateAccess', 'read'],
+    ['ignoreCache', false],
+    ['includeExtraHeaders', false],
+    ['sq', { path: 'name' }],
+  ])('HYD-04 retains explicit %s rejection at correlated conversion', (key, value) => {
+    const { postService, invocations } = createStub();
+    expect(() =>
+      postService
+        .listAdvanced({ authorId: parentField('_id') }, undefined, { [key as string]: value })
+        .$include('posts'),
+    ).toThrow(CorrelatedIncludeError);
+    expect(invocations()).toBe(0);
+  });
+
+  it('HYD-04 never synthesizes hydration from stale options/defaults during include conversion', () => {
+    const { adapter, invocations } = createStub();
+    interface Business extends Document {
+      lean: string;
+      hydration: string;
+    }
+    for (const lean of [true, false, undefined]) {
+      const stale = { lean, hydration: { publicList: 'hydrated', publicRead: 'lean' } };
+      const service = adapter.createModelService<Business>(
+        { modelName: 'Business', basePath: 'business' },
+        {
+          listOptions: { ...stale, skim: false },
+          listAdvancedOptions: { ...stale, skim: false },
+          readOptions: { ...stale, includePermissions: true },
+          readAdvancedOptions: { ...stale, includePermissions: true },
+        },
+      );
+      const filter = { lean: parentField('lean'), hydration: parentField('hydration') };
+      const args = { select: ['lean', 'hydration'] };
+      // Unsupported JS keys are inert; supported explicit execution options
+      // still reject above, while inherited execution defaults remain ignored.
+      const wire = [
+        service.list(args, stale as never).$include('basicList', { filter }),
+        service.listAdvanced(filter, args, stale as never).$include('list'),
+        service.read(parentField('_id'), args, stale as never).$include('read'),
+        service.readAdvanced(parentField('_id'), args, stale as never).$include('advancedRead'),
+        service.readAdvancedFilter(filter, args, stale as never).$include('filterRead'),
+      ];
+      wire.forEach((entry) => {
+        expect(entry).not.toHaveProperty('options');
+        expect(entry).not.toHaveProperty('lean');
+        expect(entry).not.toHaveProperty('hydration');
+        expect(entry.args?.select).toEqual(['lean', 'hydration']);
+      });
+      expect(wire[0].filter).toEqual(filter);
+      expect(wire[1].filter).toEqual(filter);
+      expect(wire[4].filter).toEqual(filter);
+    }
+    expect(invocations()).toBe(0);
   });
 
   it('basic and advanced filter sources cannot conflict', () => {

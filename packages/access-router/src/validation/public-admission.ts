@@ -88,8 +88,43 @@ export function assertPublicAdmission(input: unknown, kind: PublicAdmissionKind 
   }
 }
 
+/** Legacy hydration configuration fails synchronously, including service.defaults assignment. */
+export function assertHydrationDefaults(defaults: unknown): void {
+  if (defaults && typeof defaults === 'object') {
+    const record = defaults as Record<string, unknown>;
+    if ('hydration' in record)
+      throw new TypeError('defaults.hydration is unsupported; use model hydration configuration');
+    for (const bucket of [
+      'publicListOptions',
+      'publicReadOptions',
+      'findOptions',
+      'findOneOptions',
+      'findByIdOptions',
+      'createOptions',
+      'updateOneOptions',
+      'updateByIdOptions',
+      'upsertOptions',
+      'existsOptions',
+      'publicCreateOptions',
+      'publicUpdateOptions',
+    ]) {
+      const options = record[bucket];
+      if (!options || (typeof options !== 'object' && typeof options !== 'function')) continue;
+      for (const key of ['lean', 'hydration']) {
+        if (!(key in options)) continue;
+        const method = bucket.slice(0, -'Options'.length);
+        const migration = ['publicList', 'publicRead', 'find', 'findOne', 'findById'].includes(method)
+          ? `use model hydration.${method} ('lean' or 'hydrated')`
+          : 'this method has a fixed fetch mode';
+        throw new TypeError(`defaults.${bucket}.${key} is unsupported; ${migration}`);
+      }
+    }
+  }
+}
+
 /** Defaults never carry per-call authority, including through dotted setters. */
 export function assertPublicDefaults(defaults: unknown): void {
+  assertHydrationDefaults(defaults);
   assertPublicAdmission(defaults);
   if (defaults && typeof defaults === 'object') {
     for (const value of Object.values(defaults)) assertPublicAdmission(value);
@@ -104,16 +139,8 @@ const listOptions = [
   'includeFieldPermissions',
   'includeCount',
   'populateAccess',
-  'lean',
 ] as const;
-const readOptions = [
-  'skim',
-  'includePermissions',
-  'includeFieldPermissions',
-  'tryList',
-  'populateAccess',
-  'lean',
-] as const;
+const readOptions = ['skim', 'includePermissions', 'includeFieldPermissions', 'tryList', 'populateAccess'] as const;
 
 /** Positive forwarding; unknown keys and symbols never reach a receiving service. */
 export function pickPublicKeys<T>(input: unknown, keys: readonly string[]): T {

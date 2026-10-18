@@ -1,5 +1,6 @@
 import { pick } from '@web-ts-toolkit/utils';
 import { normalizeSelect, toObject } from '../helpers';
+import { copyPermissionsAlias } from '../output/permissions-alias';
 import { Service } from './service';
 import {
   Filter,
@@ -36,11 +37,12 @@ import {
   SubdocumentBulkUpdateInput,
 } from '../interfaces';
 import { Codes } from '../enums';
-import { createServiceExecution, deriveServiceExecution } from '../acl/service-execution';
+import { createServiceExecution, deriveServiceExecution, withExecutionHydration } from '../acl/service-execution';
 import { assertModelInputComplexity } from '../acl/model-input-admission';
 import {
   executeCreate,
   executePreparedExists,
+  executePreparedFind,
   executePreparedFindOne,
   executePreparedUpdateOne,
   prepareModelQuery,
@@ -132,41 +134,66 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     const admission = this.admitPublicCall({ args, options, filter });
     if (admission) return admission;
     const { select, populate, include, sort, skip, limit, page, pageSize, tasks } = this.resolvePublicListArgs(args);
-    const { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess, lean } =
+    const { skim, includePermissions, includeFieldPermissions, includeCount, populateAccess } =
       this.resolvePublicListOptions(options);
 
-    const result = await this.find(
-      filter,
-      { select, populate, include, sort, skip, limit, page, pageSize },
-      requestOnlyServiceOptions({
-        skim,
-        includePermissions,
-        includeFieldPermissions,
-        includeCount,
-        populateAccess,
-        lean,
-      }),
-      async (doc, context: ModelHookContext) => {
-        doc = toObject(doc);
-        return this.decorate(doc, 'list', context);
-      },
-    );
+    try {
+      const execution = withExecutionHydration(
+        this,
+        createServiceExecution(
+          this,
+          {
+            operation: 'list',
+            rowAccess: 'list',
+            virtualAccess: 'list',
+            outputAccess: 'list',
+            docPermissionsAccess: 'list',
+          },
+          requestOnlyServiceOptions({}).authorization,
+          'service',
+          this.captureRelated({ populate, include }, this.defaults.findArgs),
+        ),
+        'publicList',
+      );
+      const query = await prepareModelQuery(this, execution, { kind: 'client-read', filter });
+      const result = await executePreparedFind(
+        this,
+        execution,
+        query,
+        { select, populate, include, sort, skip, limit, page, pageSize },
+        requestOnlyServiceOptions({
+          skim,
+          includePermissions,
+          includeFieldPermissions,
+          includeCount,
+          populateAccess,
+        }),
+        async (doc, context: ModelHookContext) => {
+          doc = toObject(doc);
+          return this.decorate(doc, 'list', context);
+        },
+      );
 
-    if (!result.success) {
-      return result as ErrorResult;
+      if (!result.success) {
+        return result as ErrorResult;
+      }
+
+      const docs = await this.decorateAll(result.data, 'list', {
+        mongooseModel: this.model.mongooseModel,
+        modelName: this.modelName,
+        operation: 'list',
+        resolvedQuery: result.query,
+      });
+      const transformedDocs = docs.map((row) =>
+        this.runTasks(row as Record<string, unknown>, tasks),
+      ) as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>[];
+
+      return { ...result, data: transformedDocs };
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
     }
-
-    const docs = await this.decorateAll(result.data, 'list', {
-      mongooseModel: this.model.mongooseModel,
-      modelName: this.modelName,
-      operation: 'list',
-      resolvedQuery: result.query,
-    });
-    const transformedDocs = docs.map((row) =>
-      this.runTasks(row as Record<string, unknown>, tasks),
-    ) as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>[];
-
-    return { ...result, data: transformedDocs };
   }
 
   async _create<
@@ -196,7 +223,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
         d = this.runTasks(d, tasks);
 
-        if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
+        if (select) d = copyPermissionsAlias(d, pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]));
         return d;
       },
     );
@@ -236,23 +263,27 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     const admission = this.admitPublicCall({ args, options });
     if (admission) return admission;
     const { select, populate, include, tasks } = this.resolvePublicReadArgs(args);
-    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
+    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess } =
       this.resolvePublicReadOptions(options);
 
     try {
       let access: FindAccess = 'read';
-      let execution = createServiceExecution(
+      let execution = withExecutionHydration(
         this,
-        {
-          operation: 'read',
-          rowAccess: access,
-          virtualAccess: access,
-          outputAccess: access,
-          docPermissionsAccess: access,
-        },
-        requestOnlyServiceOptions({}).authorization,
-        'service',
-        this.captureRelated({ populate, include }, this.defaults.findOneArgs),
+        createServiceExecution(
+          this,
+          {
+            operation: 'read',
+            rowAccess: access,
+            virtualAccess: access,
+            outputAccess: access,
+            docPermissionsAccess: access,
+          },
+          requestOnlyServiceOptions({}).authorization,
+          'service',
+          this.captureRelated({ populate, include }, this.defaults.findOneArgs),
+        ),
+        'publicRead',
       );
       const identifier = await resolveModelIdentifier(this, execution, id);
       const query = await prepareModelQuery(this, execution, {
@@ -264,7 +295,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         execution,
         query,
         { select, populate, include },
-        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess, lean }),
+        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess }),
       );
 
       // Invalid descriptors and terminal policy denial cannot be repaired by list access.
@@ -301,7 +332,6 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
             includeFieldPermissions,
             access,
             populateAccess,
-            lean,
           }),
         );
       }
@@ -333,55 +363,91 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     const admission = this.admitPublicCall({ args, options, filter });
     if (admission) return admission;
     const { select, sort, populate, include, tasks } = this.resolvePublicReadFilterArgs(args);
-    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess, lean } =
+    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess } =
       this.resolvePublicReadOptions(options);
 
     let access: FindAccess = 'read';
 
-    let result = await this.findOne(
-      filter,
-      {
-        select,
-        sort,
-        populate,
-        include,
-      },
-      requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess, lean }),
-    );
-
-    // Invalid descriptors and terminal policy denial cannot be repaired by list access.
-    if (!result.success && (result.code === Codes.BadRequest || result.code === Codes.Forbidden)) return result;
-
-    // if not found, try to get the doc with 'list' access
-    if (tryList && (!result.success || !result.data)) {
-      const listAllowed = await this.requestCore.isAllowed(this.modelName, 'list');
-      if (!listAllowed) {
-        return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
-      }
-
-      access = 'list';
-
-      result = await this.findOne(
-        filter,
+    try {
+      let execution = withExecutionHydration(
+        this,
+        createServiceExecution(
+          this,
+          {
+            operation: 'read',
+            rowAccess: access,
+            virtualAccess: access,
+            outputAccess: access,
+            docPermissionsAccess: access,
+          },
+          requestOnlyServiceOptions({}).authorization,
+          'service',
+          this.captureRelated({ populate, include }, this.defaults.findOneArgs),
+        ),
+        'publicRead',
+      );
+      const query = await prepareModelQuery(this, execution, { kind: 'client-read', filter });
+      let result = await executePreparedFindOne(
+        this,
+        execution,
+        query,
         {
           select,
           sort,
           populate,
           include,
         },
-        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess, lean }),
+        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess }),
       );
+
+      // Invalid descriptors and terminal policy denial cannot be repaired by list access.
+      if (!result.success && (result.code === Codes.BadRequest || result.code === Codes.Forbidden)) return result;
+
+      // if not found, try to get the doc with 'list' access
+      if (tryList && (!result.success || !result.data)) {
+        const listAllowed = await this.requestCore.isAllowed(this.modelName, 'list');
+        if (!listAllowed) {
+          return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
+        }
+
+        access = 'list';
+
+        execution = deriveServiceExecution(this, execution, {
+          operation: 'read',
+          rowAccess: access,
+          virtualAccess: access,
+          outputAccess: access,
+          docPermissionsAccess: access,
+        });
+        const fallback = await prepareModelQuery(this, execution, { kind: 'client-read', filter });
+        result = await executePreparedFindOne(
+          this,
+          execution,
+          fallback,
+          {
+            select,
+            sort,
+            populate,
+            include,
+          },
+          requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess }),
+        );
+      }
+
+      if (!result.success) {
+        return result as ErrorResult;
+      }
+
+      let doc = toObject(result.data);
+      doc = await this.decorate(doc, access, result.context);
+      doc = this.runTasks(doc as Record<string, unknown>, tasks);
+
+      return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals> };
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
     }
-
-    if (!result.success) {
-      return result as ErrorResult;
-    }
-
-    let doc = toObject(result.data);
-    doc = await this.decorate(doc, access, result.context);
-    doc = this.runTasks(doc as Record<string, unknown>, tasks);
-
-    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals> };
   }
 
   async _update<
@@ -418,8 +484,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
         d = this.runTasks(d, tasks);
 
-        if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
-        else if (!returningAll) d = pick(d, [...Object.keys(data), '_id']);
+        if (select) d = copyPermissionsAlias(d, pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]));
+        else if (!returningAll) d = copyPermissionsAlias(d, pick(d, [...Object.keys(data), '_id']));
 
         return d;
       },
@@ -515,8 +581,8 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
             let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
             d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
             d = this.runTasks(d, tasks);
-            if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
-            else if (!returningAll) d = pick(d, [...Object.keys(otherData), '_id']);
+            if (select) d = copyPermissionsAlias(d, pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]));
+            else if (!returningAll) d = copyPermissionsAlias(d, pick(d, [...Object.keys(otherData), '_id']));
             return d;
           },
         );
@@ -548,7 +614,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
           let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
           d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
           d = this.runTasks(d, tasks);
-          if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
+          if (select) d = copyPermissionsAlias(d, pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]));
           return d;
         },
       );
@@ -622,7 +688,6 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         includePermissions,
       includeCount: options.includeCount ?? this.defaults.publicListOptions?.includeCount ?? false,
       populateAccess: options.populateAccess ?? this.defaults.publicListOptions?.populateAccess ?? 'read',
-      lean: options.lean ?? this.defaults.publicListOptions?.lean ?? true,
     };
   }
 
@@ -678,7 +743,6 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         includePermissions,
       tryList: options.tryList ?? this.defaults.publicReadOptions?.tryList ?? true,
       populateAccess: options.populateAccess ?? this.defaults.publicReadOptions?.populateAccess,
-      lean: options.lean ?? this.defaults.publicReadOptions?.lean ?? false,
     };
   }
 

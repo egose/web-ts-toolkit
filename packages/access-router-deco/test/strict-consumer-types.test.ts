@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { cleanupConsumerDirs, runTsc, stageCleanConsumerDir, stageConsumerDir } from './consumer-stage';
+import { cleanupConsumerDirs, packageRoot, runTsc, stageCleanConsumerDir, stageConsumerDir } from './consumer-stage';
 
 afterAll(() => {
   cleanupConsumerDirs();
@@ -14,6 +14,42 @@ describe('access-router-deco strict consumer types', () => {
   beforeAll(() => {
     consumerDir = stageConsumerDir();
   });
+
+  it.each(['NodeNext', 'Bundler'] as const)(
+    'compiles configuration and retired-option assertions in strict %s consumers',
+    (resolution) => {
+      cpSync(
+        path.join(packageRoot, 'test/hydration-consumer.types.fixture.ts'),
+        path.join(consumerDir, 'hydration.ts'),
+      );
+      const tsconfigPath = path.join(consumerDir, `tsconfig.hydration-${resolution}.json`);
+      writeFileSync(
+        tsconfigPath,
+        JSON.stringify(
+          {
+            compilerOptions: {
+              target: 'ES2022',
+              module: resolution === 'NodeNext' ? 'NodeNext' : 'ESNext',
+              moduleResolution: resolution,
+              strict: true,
+              noEmit: true,
+              skipLibCheck: false,
+              experimentalDecorators: true,
+              types: ['node', 'reflect-metadata'],
+              lib: ['ES2022', 'DOM'],
+            },
+            include: ['hydration.ts'],
+          },
+          null,
+          2,
+        ),
+      );
+      const result = runTsc(consumerDir, tsconfigPath);
+      if (result.status !== 0)
+        throw new Error(`hydration strict consumer compile failed:\n${result.stdout}${result.stderr}`);
+      expect(result.status).toBe(0);
+    },
+  );
 
   it('compiles public Router and RouterOptions model-instance overloads', () => {
     const sourceFile = path.resolve(consumerDir, 'strict-consumer.ts');

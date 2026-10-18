@@ -43,6 +43,7 @@ import {
 import { ServiceAuthorizationError } from '../acl/service-authorization';
 import { intersectFilters } from '../core-shared';
 import { isExecutionRowDenied } from '../acl/prepared-query';
+import { getServiceExecutors } from '../acl/service-execution';
 
 type Persist = <T>(operation: () => T | PromiseLike<T>) => Promise<T>;
 const denied = (code: ErrorResult['code'] = Codes.Forbidden): ErrorResult => ({ success: false, kind: 'error', code });
@@ -91,7 +92,6 @@ async function mutationParent<T, V extends object>(
     filter,
     select: parentSelection(service, call),
     populate: [],
-    lean: false,
   });
   return parent ? { parent } : { error: denied(Codes.NotFound) };
 }
@@ -154,11 +154,10 @@ async function visibleMutationRows<T, V extends object>(
     const identity = { _id: parentId } as Filter;
     const filter = await subdocumentRows(service, visibility.parent, identity, identity);
     if (filter === false) return [];
-    const parent = await service.findRawParentDoc({
+    const parent = await getServiceExecutors(service).subdocumentVisibility({
       filter: filter as Filter<T>,
       select: parentSelection(service, call),
       populate: [],
-      lean: true,
     });
     if (!parent) return [];
     const selected = call.method === 'create' ? {} : { _id: { $in: rows.map((row) => row._id) } };
@@ -194,7 +193,6 @@ export async function listSub<T, V extends object>(
       filter,
       select: parentSelection(service, call),
       populate: [],
-      lean: false,
     });
     if (!parent) return denied(Codes.NotFound);
     const rows = filterCollection(get(parent, sub) as Record<string, unknown>[], childFilter);
@@ -224,7 +222,6 @@ export async function readSub<T, V extends object>(
       filter,
       select: parentSelection(service, call),
       populate: entries,
-      lean: false,
     });
     if (!parent) return denied(Codes.NotFound);
     const row = findElement(get(copySubdocumentParent(parent), sub) as Record<string, unknown>[], childFilter);
@@ -375,7 +372,7 @@ export async function getParentDoc<T, V extends object>(
   options?: SubdocumentParentOptions,
 ) {
   assertPublicAdmission({ args, options });
-  const { access = 'read', lean = false } = options ?? {};
+  const { access = 'read' } = options ?? {};
   const identity = deepIsolateValue(await service.genIDFilter(id));
   const filter = intersectFilters(identity, await service.genFilter(access, deepIsolateValue(identity)));
   if (filter === false) return null;
@@ -384,6 +381,5 @@ export async function getParentDoc<T, V extends object>(
     filter: filter as Filter<T>,
     select: access === 'read' ? '' : sub,
     populate,
-    lean,
   });
 }

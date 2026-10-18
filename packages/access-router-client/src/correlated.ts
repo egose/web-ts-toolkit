@@ -472,7 +472,7 @@ export const convertCorrelatedSource = (
       throw new CorrelatedIncludeError(
         `${source.method}.$include(path): per-call option '${key}' is execution-only and is not ` +
           `forwarded into correlated includes — remove it from this call ` +
-          `(inherited defaults are ignored; the server forces lean/access/tryList semantics)`,
+          `(inherited defaults are ignored; the server controls hydration, access and fallback semantics)`,
       );
     }
   }

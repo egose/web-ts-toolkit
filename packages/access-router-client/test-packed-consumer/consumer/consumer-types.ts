@@ -184,3 +184,83 @@ petService.list({}, { overrides: {} });
 // @ts-expect-error backend policy types are not client exports
 export type NoClientPolicyExport = import('@web-ts-toolkit/access-router-client').ServiceAuthorization;
 void [backendList, backendRead, backendCreate, backendUpdate, backendUpsert, backendPopulate];
+
+// HYD-04: installed declarations expose no client hydration control, including
+// advanced calls, adapter/service defaults and reference-bearing descriptors.
+import type {
+  AdapterOptions,
+  ModelServiceOptions,
+  ListAdvancedOptions,
+  ReadAdvancedOptions,
+  Defaults,
+  DataDefaults,
+  SubQueryOptions,
+} from '@web-ts-toolkit/access-router-client';
+
+type HydrationControl = 'lean' | 'hydration';
+type OperationDefaults = NonNullable<Defaults[keyof Defaults]>;
+export type NoClientHydration = AssertNever<
+  Extract<HydrationControl, Keys<ClientOptions | ListAdvancedOptions | ReadAdvancedOptions | SubQueryOptions>>
+>;
+export type NoDefaultHydration = AssertNever<
+  Extract<HydrationControl, Keys<Defaults | DataDefaults | OperationDefaults | AdapterOptions | ModelServiceOptions>>
+>;
+
+// @ts-expect-error basic list options never select Mongoose hydration
+petService.list({}, { lean: false });
+// @ts-expect-error shorthand list options have no replacement knob
+petService.list({ hydration: 'hydrated' });
+// @ts-expect-error advanced list options never select Mongoose hydration
+petService.listAdvanced({}, undefined, { lean: true });
+// @ts-expect-error advanced list options have no replacement knob
+petService.listAdvanced({}, undefined, { hydration: { publicList: 'lean' } });
+// @ts-expect-error basic read options never select Mongoose hydration
+petService.read('pet-1', { lean: true });
+// @ts-expect-error full-form read options have no replacement knob
+petService.read('pet-1', {}, { hydration: 'lean' });
+// @ts-expect-error advanced identifier read options never select hydration
+petService.readAdvanced('pet-1', undefined, { lean: false });
+// @ts-expect-error advanced identifier read options have no replacement knob
+petService.readAdvanced('pet-1', undefined, { hydration: 'hydrated' });
+// @ts-expect-error advanced filter read options never select hydration
+petService.readAdvancedFilter({}, undefined, { lean: false });
+// @ts-expect-error advanced filter read options have no replacement knob
+petService.readAdvancedFilter({}, undefined, { hydration: 'lean' });
+// @ts-expect-error descriptors do not acquire hydration settings
+petService.read(parentField('_id'), undefined, { lean: false });
+// @ts-expect-error correlated list descriptors have no replacement knob
+petService.listAdvanced({ name: parentField('name') }, undefined, { hydration: 'lean' });
+
+const noHydrationDefaults: Defaults = {
+  // @ts-expect-error basic list defaults do not select hydration
+  listOptions: { lean: false },
+  // @ts-expect-error advanced list defaults have no replacement knob
+  listAdvancedOptions: { hydration: 'hydrated' },
+  // @ts-expect-error basic read defaults do not select hydration
+  readOptions: { lean: true },
+  // @ts-expect-error advanced read defaults have no replacement knob
+  readAdvancedOptions: { hydration: { publicRead: 'lean' } },
+};
+void noHydrationDefaults;
+// @ts-expect-error adapter model defaults cannot configure server hydration
+createAdapter({}, { modelDefaults: { listOptions: { lean: false } } });
+// @ts-expect-error service defaults cannot configure server hydration
+adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' }, { readOptions: { hydration: 'lean' } });
+// @ts-expect-error server hydration configuration types are not client exports
+export type NoClientHydrationExport = import('@web-ts-toolkit/access-router-client').ModelHydrationOptions;
+
+// The same names remain valid business fields, not recursively stripped keys.
+interface BusinessDocument extends Pet {
+  lean: string;
+  hydration: string;
+}
+const businessService = adapter.createModelService<BusinessDocument>({ modelName: 'Business', basePath: 'business' });
+businessService.listAdvanced({ lean: 'value', hydration: 'value' }, { select: ['lean', 'hydration'] });
+businessService.create({ lean: 'value', hydration: 'value' });
+businessService.update('id', { lean: 'changed', hydration: 'changed' });
+businessService.listAdvanced(
+  {},
+  {
+    tasks: { type: 'MASK', args: [{ src: 'payload', replacement: { lean: 'data', hydration: 'data' } }], options: {} },
+  },
+);

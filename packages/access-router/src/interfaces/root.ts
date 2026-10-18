@@ -129,6 +129,8 @@ export interface DataRequestSchemas {
  * policy belongs here. Each fresh model-service call captures the originating runtime's
  * current defaults; nested stages retain that call's snapshot. Explicit service.defaults
  * assignments override runtime defaults. Router setters shallowly replace supplied values.
+ * Fetch mode belongs to ModelRouterOptions.hydration; legacy lean/hydration keys
+ * in method option buckets fail with migration diagnostics.
  * See README Configuration layers for delegation.
  */
 export interface Defaults<TModel = unknown> {
@@ -309,11 +311,54 @@ interface DocPermissions {
   update?: ModelDocPermissionsHook;
 }
 
+/**
+ * Mongoose fetch mode, not an output type. Both modes finalize plain objects;
+ * schema defaults, getters, transforms and init hooks can still change values.
+ */
+export type HydrationMode = 'lean' | 'hydrated';
+
+/**
+ * Server-only model configuration, captured by the owning runtime per call.
+ * Set through ModelRouterOptions/DefaultModelRouterOptions and their whole-record
+ * or exact hydration.<method> setters (including existing model/default decorators).
+ * A supplied record replaces the previous record shallowly; omitted/undefined
+ * members use built-ins, not an older/default record. Whole-record undefined clears
+ * it. Invalid records/keys/modes throw before publication. Fresh calls observe owner
+ * updates; in-flight calls retain their captured configuration.
+ * Includes stay fixed lean; raw parents/lifecycle stages stay hydrated; subdocument
+ * post-save visibility stays lean. Populate inherits its parent query; $$sq uses
+ * target public settings. No per-call, wire, global, data/root or service.defaults
+ * setting exists. Migrate defaults.*Options.lean explicitly (true -> 'lean', false
+ * -> 'hydrated'); a former service-instance choice becomes model-wide in its runtime.
+ * Legacy method-default lean/hydration controls throw migration diagnostics; stale
+ * permissive per-call/wire controls are inert, not a supported configuration path.
+ */
+export interface ModelHydrationOptions {
+  /** Public lists default to lean. */
+  publicList?: HydrationMode;
+  /** Identifier/filter reads and their list fallback default to hydrated. */
+  publicRead?: HydrationMode;
+  /** Internal find defaults to hydrated, independently of publicList. */
+  find?: HydrationMode;
+  /** Internal findOne defaults to hydrated, independently of publicRead/findById. */
+  findOne?: HydrationMode;
+  /** Internal findById defaults to hydrated; does not inherit findOne's setting. */
+  findById?: HydrationMode;
+}
+
 /** Model starting defaults; data/root routers do not inherit these. Nested values assign shallowly. */
 export interface DefaultModelRouterOptions<TModel = unknown> {
+  /** Server-owned fetch choices, captured per call. Not a per-call or method-default option. */
+  hydration?: ModelHydrationOptions;
   /** Maximum returned list rows (default 1000), independent of exact match/count totals. */
   listHardLimit?: number;
-  /** Authorization metadata path (default `_permissions`); include output cannot equal, contain or descend from it. */
+  /**
+   * Serialized metadata path (default `_permissions`, dotted paths supported).
+   * Finalized rows carrying it also get a non-enumerable `permissions` value alias,
+   * independent of hydration/plugin, unless that output property already exists.
+   * The alias is not authority or a live binding; JSON/spread omit it. Include output
+   * cannot equal, contain or descend from the canonical metadata path.
+   */
   documentPermissionField?: string;
   /** Express route parameter name (default `id`); fixed at router construction. */
   idParam?: string;
@@ -363,12 +408,13 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
   /**
    * When `true`, the document permissions field (`documentPermissionField`,
    * default `_permissions`) is removed from all outputs — including its empty
-   * placeholder — and client `includePermissions`/`includeFieldPermissions`
+   * placeholder — and its generated `permissions` alias. Client `includePermissions`/`includeFieldPermissions`
    * input (query params, body/root-batch options and service-direct options)
    * as well as per-operation `defaults` are ignored (both resolve to `false`).
    * Output matches `includePermissions: false` with the permissions field
    * removed entirely. Enforcement still runs; only output metadata is
-   * affected. Defaults to `false`.
+   * affected; existing business output named `permissions` is not a generated alias.
+   * Defaults to `false`.
    */
   stripPermissionsField?: boolean;
   /**
@@ -382,6 +428,11 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
+  'hydration.publicList'?: HydrationMode;
+  'hydration.publicRead'?: HydrationMode;
+  'hydration.find'?: HydrationMode;
+  'hydration.findOne'?: HydrationMode;
+  'hydration.findById'?: HydrationMode;
   'operationAccess.default'?: Validation;
   'operationAccess.new'?: Validation;
   'operationAccess.list'?: Validation;

@@ -176,7 +176,11 @@ describe('ARF-14 strict packed-consumer types', () => {
   it.each(['ts', 'mts', 'cts'])(
     'SVA-10 checks installed authorization types and public boundaries (%s)',
     (extension) => {
-      const sources = ['service-authorization-consumer.types.fixture', 'service-authorization-boundary.types.fixture'];
+      const sources = [
+        'service-authorization-consumer.types.fixture',
+        'service-authorization-boundary.types.fixture',
+        'hydration-consumer.types.fixture',
+      ];
       for (const source of sources) {
         const snippet = readFileSync(path.resolve(packageRoot, `test/${source}.ts`), 'utf8')
           .replaceAll("'../dist/index.js'", "'@web-ts-toolkit/access-router'")

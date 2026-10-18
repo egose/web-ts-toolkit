@@ -442,7 +442,7 @@ import { getRequestWorkState } from '../helpers/request-work';
 import { GroupedCountInputError, prepareCountGroups } from './grouped-count';
 import { ServiceAuthorizationError, type ResolvedServiceAuthorization } from '../acl/service-authorization';
 import { createRelatedExecution, relatedPolicy } from '../acl/related-execution';
-import { createServiceExecution } from '../acl/service-execution';
+import { createServiceExecution, withExecutionHydration } from '../acl/service-execution';
 import { isExecutionRowDenied } from '../acl/prepared-query';
 import {
   prepareModelQuery,
@@ -772,19 +772,27 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
   ): import('../acl/service-execution').ServiceExecutionContext {
     const op = include.op;
     if (!parentAuthorization)
-      return createServiceExecution(svc, {
-        operation: op,
-        rowAccess: op,
-        virtualAccess: op,
-        outputAccess: op,
-        docPermissionsAccess: op,
-      });
-    return createRelatedExecution(
+      return withExecutionHydration(
+        svc,
+        createServiceExecution(svc, {
+          operation: op,
+          rowAccess: op,
+          virtualAccess: op,
+          outputAccess: op,
+          docPermissionsAccess: op,
+        }),
+        'lean',
+      );
+    return withExecutionHydration(
       svc,
-      { operation: op, rowAccess: op, virtualAccess: op, outputAccess: op, docPermissionsAccess: op },
-      parentAuthorization,
-      this.relatedBinding(),
-      include.path,
+      createRelatedExecution(
+        svc,
+        { operation: op, rowAccess: op, virtualAccess: op, outputAccess: op, docPermissionsAccess: op },
+        parentAuthorization,
+        this.relatedBinding(),
+        include.path,
+      ),
+      'lean',
     );
   }
 
@@ -1098,7 +1106,6 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         skim,
         populateAccess,
         access: 'read' as const,
-        lean: true,
         includePermissions: false,
         includeFieldPermissions: false,
       });
@@ -1152,7 +1159,6 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       ...requestOnlyServiceOptions({
         skim,
         populateAccess,
-        lean: true,
         includePermissions: false,
         includeFieldPermissions: false,
         includeCount: false,
@@ -1388,7 +1394,6 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
             },
             requestOnlyServiceOptions({
               access: 'read',
-              lean: true,
               includePermissions: false,
               includeFieldPermissions: false,
             }) as never,
@@ -1464,7 +1469,6 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
           },
           requestOnlyServiceOptions({
             access: 'read',
-            lean: true,
             includePermissions: false,
             includeFieldPermissions: false,
           }) as never,
@@ -1557,7 +1561,6 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
           },
           requestOnlyServiceOptions({
             includeCount: false,
-            lean: true,
             includePermissions: false,
             includeFieldPermissions: false,
           }) as never,

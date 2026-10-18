@@ -15,7 +15,7 @@ const entries: Entry[] = ['GET', 'POST', 'root', 'trusted'];
 const filteredEntries: Entry[] = ['POST', 'root', 'trusted'];
 const containers = ['profile', 'single', 'contacts', 'envelope'] as const;
 const scalarChildren = ['profile.public', 'single.public', 'contacts.public', 'envelope.members.public'];
-const quiet = { lean: true, includePermissions: false, includeFieldPermissions: false };
+const quiet = { includePermissions: false, includeFieldPermissions: false };
 let sequence = 0;
 const runtimes: ReturnType<typeof createAccessRuntime>[] = [];
 
@@ -73,6 +73,7 @@ async function fixture() {
   const basePath = `/arl04-${sequence}`;
   const rootPath = `/arl04-root-${sequence}`;
   const router = api.createRouter(Model, {
+    hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean' },
     basePath,
     operationAccess: { list: true, read: true, distinct: true },
     permissionSchema: {

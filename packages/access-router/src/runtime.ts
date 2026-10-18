@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { assertPublicDefaults } from './validation/public-admission';
+import { normalizeHydration, normalizeHydrationUpdate } from './options/hydration';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
 import {
   addLeadingSlash,
@@ -774,6 +775,8 @@ export class AccessRuntime {
 
   /** Update model starting defaults shallowly; already-stored model values are not broadcast-replaced. */
   setDefaultModelOptions(options: DefaultModelRouterOptions) {
+    assertPublicDefaults((options as ModelRouterOptions).defaults);
+    if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
     this.defaultModelOptions.assign(options);
   }
 
@@ -781,6 +784,20 @@ export class AccessRuntime {
     key: K,
     value: ExtendedDefaultModelRouterOptions[K],
   ) {
+    const keyStr = String(key);
+    if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
+      this.defaultModelOptions.set(
+        'hydration',
+        normalizeHydrationUpdate(this.getDefaultModelOptions().hydration, keyStr, value),
+      );
+      return;
+    }
+    if (keyStr === 'defaults') assertPublicDefaults(value);
+    else if (keyStr.startsWith('defaults.')) {
+      const proposed = {};
+      set(proposed, keyStr.slice('defaults.'.length), value);
+      assertPublicDefaults(proposed);
+    }
     this.defaultModelOptions.set(key, value);
   }
 
@@ -855,6 +872,7 @@ export class AccessRuntime {
     options: ModelRouterOptions<TModel, TVirtuals>,
   ) {
     assertPublicDefaults(options.defaults);
+    if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     const defaultOptions = this.getDefaultModelOptions() as ModelRouterOptions<TModel, TVirtuals>;
     const currentModelOptions = manager.fetch();
@@ -877,8 +895,13 @@ export class AccessRuntime {
     TModel = unknown,
     TVirtuals extends object = Record<never, never>,
   >(modelName: string, key: K, value: ExtendedModelRouterOptions<TModel, TVirtuals>[K]) {
-    const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     const keyStr = String(key);
+
+    if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
+      const hydration = normalizeHydrationUpdate(this.modelOptions[modelName]?.get('hydration'), keyStr, value);
+      this.getOrCreateModelOptions<TModel, TVirtuals>(modelName).set('hydration', hydration);
+      return;
+    }
 
     if (keyStr === 'defaults') assertPublicDefaults(value);
     else if (keyStr.startsWith('defaults.')) {
@@ -886,6 +909,8 @@ export class AccessRuntime {
       set(proposed, keyStr.slice('defaults.'.length), value);
       assertPublicDefaults(proposed);
     }
+
+    const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
 
     if (keyStr === 'virtuals' || keyStr.startsWith('virtuals.') || keyStr === 'documentPermissionField') {
       const model = this.getModelInstance(modelName) as mongoose.Model<unknown> | null;

@@ -7,11 +7,14 @@ export interface PublicReadArgs {
   tasks?: Task | Task[];
 }
 
+/**
+ * Request presentation options. Server model hydration.publicRead (built-in hydrated)
+ * governs both identifier/filter reads and both attempts of their list fallback.
+ */
 export interface PublicReadOptions {
   /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
   populateAccess?: PopulateAccess;
-  lean?: boolean;
   includePermissions?: boolean;
   /**
    * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`

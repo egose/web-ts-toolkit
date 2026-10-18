@@ -1,5 +1,5 @@
 import type { AccessRuntime } from '../runtime';
-import type { ModelRequest, Projection } from '../interfaces';
+import type { ModelRequest, ModelRouterOptions, Projection } from '../interfaces';
 import type { AccessRouterPermissions } from '../permission';
 import { get } from '@web-ts-toolkit/utils';
 import { resolveNestedOption } from '../options/manager';
@@ -15,13 +15,13 @@ export function getCapturedAuthorizationOption(configuration: AuthorizationConfi
 }
 
 /** Capture at operation entry, before awaiting hooks. Also used by SVA-05's call resolver. */
-export function captureModelAuthorizationConfiguration(
+export function captureModelAuthorizationConfiguration<T = unknown, V extends object = Record<never, never>>(
   runtime: AccessRuntime,
   modelName: string,
+  options: ModelRouterOptions<T, V> = runtime.getModelOptions<T, V>(modelName),
 ): AuthorizationConfiguration {
   const model = runtime.getModelInstance(modelName);
   if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
-  const options = runtime.getModelOptions(modelName);
   const virtuals = options.virtuals as Record<string, unknown> | undefined;
   return {
     catalog: captureAuthorizationFieldCatalog(model.schema, virtuals, options.documentPermissionField),
@@ -40,6 +40,7 @@ export function captureModelAuthorizationConfiguration(
     idField: options.idField,
     resolveIdFilter: options.resolveIdFilter,
     operationAccess: options.operationAccess,
+    hydration: options.hydration,
   };
 }
 

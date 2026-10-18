@@ -136,9 +136,12 @@ async function fixture(lean: boolean, metadata = false) {
     docPermissions: hook,
     virtuals: { restrictionState: { dependsOn: ['restricted'], read: getter, list: getter } },
     stripPermissionsField: true,
+    hydration: Object.fromEntries(
+      ['publicRead', 'publicList', 'find', 'findOne', 'findById'].map((key) => [key, lean ? 'lean' : 'hydrated']),
+    ),
     defaults: {
-      publicReadOptions: { ...quiet, lean, tryList: false },
-      publicListOptions: { ...quiet, lean },
+      publicReadOptions: { ...quiet, tryList: false },
+      publicListOptions: { ...quiet },
     },
   });
   const router = api.createRouter(Source, {
@@ -216,7 +219,7 @@ async function fixture(lean: boolean, metadata = false) {
     if (entry.startsWith('service')) {
       return execute(async (req) => {
         const service = req.macl.getService(sourceName);
-        const options = { ...quiet, lean };
+        const options = { ...quiet };
         const result =
           entry === 'service-list'
             ? await service.find(filter, args, options)
@@ -408,7 +411,6 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
           { select: selection, sort: { name: 1 }, include: f.include('read', 'restricted', correlated) } as never,
           {
             ...quiet,
-            lean,
             authorization: {
               related: { restricted: { model: f.targetName, outputFields: { mode: 'grant', paths: ['note'] } } },
             },
@@ -492,7 +494,6 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
           .getService(f.sourceName)
           .findOne({ _id: f.sources[0]._id }, { select: selection, include: f.include('read', path) } as never, {
             ...quiet,
-            lean,
             ...(elevated
               ? {
                   authorization: {
@@ -550,7 +551,6 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
         } as never,
         {
           ...quiet,
-          lean,
           authorization: {
             related: {
               restricted: {
@@ -626,7 +626,7 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
             f.include('count', 'profile.name'),
           ],
         } as never,
-        { ...quiet, lean },
+        quiet,
       );
       expect(result).toMatchObject({ success: true });
       if (!result.success) throw new Error(result.code);
@@ -663,7 +663,7 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
           populate: [{ path: 'ref', select: ['name', 'restrictionState'] }],
           include: f.include('count', 'relatedCount'),
         } as never,
-        { ...quiet, lean },
+        quiet,
       );
       expect(result).toMatchObject({ success: true });
       if (!result.success) throw new Error(result.code);
@@ -688,11 +688,11 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
       const args = { select: selection, include: f.include('read', 'secret', correlated) };
       const error = new Error('ARL-03 target persistence failure');
       f.targetTrace.fail(error);
-      await expect(service.findOne({}, args as never, { ...quiet, lean })).rejects.toBe(error);
+      await expect(service.findOne({}, args as never, quiet)).rejects.toBe(error);
       f.targetTrace.fail();
       f.targetTrace.calls.length = 0;
       f.denyTargetOperation();
-      expect(await service.findOne({}, args as never, { ...quiet, lean })).toMatchObject({
+      expect(await service.findOne({}, args as never, quiet)).toMatchObject({
         success: false,
         code: 'unauthorized',
       });
@@ -702,22 +702,20 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
     });
   });
 
-  it('keeps hydrated permission aliases and metadata separate from include provenance', async () => {
+  it('keeps permission aliases and metadata separate from include provenance in both modes', async () => {
     const f = await fixture(lean, true);
     await f.execute(async (req) => {
       const result = await req.macl
         .getService(f.sourceName)
         .findOne({ _id: f.sources[0]._id }, { select: selection, include: f.include('read', 'restricted') } as never, {
           ...quiet,
-          lean,
           includePermissions: true,
         });
       expect(result).toMatchObject({ success: true });
       if (!result.success) throw new Error(result.code);
       const row = result.data as Row;
       expect(row._permissions).toEqual({ canRead: false, owns: true });
-      if (lean) expect(row).not.toHaveProperty('permissions');
-      else expect(row.permissions).toBe(row._permissions);
+      expect(row.permissions).toBe(row._permissions);
       expect(Object.getOwnPropertySymbols(row)).toEqual([]);
       expect(Object.keys(row)).not.toContain('permissions');
       expect(row).not.toHaveProperty('conditional');

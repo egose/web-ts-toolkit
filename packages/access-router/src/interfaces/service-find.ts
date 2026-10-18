@@ -14,6 +14,7 @@ export interface FindArgs<T = unknown> {
   pageSize?: string | number;
 }
 
+/** Internal list options. Fetch mode is model hydration.find, never a per-call/default lean option. */
 export interface FindOptions<TModel = unknown, TVirtuals extends object = Record<never, never>> {
   /** Trusted server-only per-call policy. Omitted dimensions use request authority; never a wire/default option. */
   readonly authorization?: ServiceAuthorization<TModel, TVirtuals>;
@@ -31,8 +32,6 @@ export interface FindOptions<TModel = unknown, TVirtuals extends object = Record
   /** Compute exact authorized totalCount independently of pagination (default false). count is returned-row count. */
   includeCount?: boolean;
   populateAccess?: PopulateAccess;
-  /** Fetch without Mongoose hydration (internal default false). Finalized output still enforces fields and computes virtuals. */
-  lean?: boolean;
 }
 
 export interface FindOneArgs<T = unknown> {
@@ -42,6 +41,7 @@ export interface FindOneArgs<T = unknown> {
   include?: Include | Include[];
 }
 
+/** Internal read options. Fetch mode is model hydration.findOne, not an option in this bag. */
 export interface FindOneOptions<TModel = unknown, TVirtuals extends object = Record<never, never>> {
   /** Trusted server-only rows/output/related policy; ordinary selection remains in args.select. */
   readonly authorization?: ServiceAuthorization<TModel, TVirtuals>;
@@ -49,8 +49,6 @@ export interface FindOneOptions<TModel = unknown, TVirtuals extends object = Rec
   populateAccess?: PopulateAccess;
   /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
-  /** Fetch without Mongoose hydration (default false), retaining the same output authorization and virtuals. */
-  lean?: boolean;
   includePermissions?: boolean;
   /**
    * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`
@@ -68,6 +66,7 @@ export interface FindByIdArgs<T = unknown> {
   include?: Include | Include[];
 }
 
+/** By-ID options inherit presentation/policy fields, not hydration.findOne; use model hydration.findById. */
 export interface FindByIdOptions<
   TModel = unknown,
   TVirtuals extends object = Record<never, never>,

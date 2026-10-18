@@ -10,7 +10,7 @@ useMongoTestDatabase();
 
 let sequence = 0;
 const runtimes: Array<ReturnType<typeof createAccessRuntime>> = [];
-const quiet = { lean: true, includePermissions: false, includeFieldPermissions: false };
+const quiet = { includePermissions: false, includeFieldPermissions: false };
 const decoy = { name: 'decoy', state: 'untouched', reconciliation: { settled: true } };
 const empty = { name: 'empty', state: 'untouched', reconciliation: {} };
 const equality = [
@@ -81,6 +81,7 @@ async function fixture({
   api.setGlobalOptions({ globalPermissions: () => [], requestComplexity: { maxDepth: 16 } });
   const basePath = `/arl02-${sequence}`;
   const router = api.createRouter(Model, {
+    hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean' },
     basePath,
     operationAccess: { list: true, read: true, create: true, update: true, upsert: true, count: true },
     permissionSchema: {

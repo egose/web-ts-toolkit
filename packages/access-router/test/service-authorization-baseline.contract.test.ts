@@ -17,7 +17,7 @@ useMongoTestDatabase();
 
 let sequence = 0;
 const runtimes: Array<ReturnType<typeof createAccessRuntime>> = [];
-const quiet = { skim: true, lean: true, includePermissions: false, includeFieldPermissions: false };
+const quiet = { skim: true, includePermissions: false, includeFieldPermissions: false };
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -68,6 +68,7 @@ const fixture = async (options: Record<string, unknown> = {}) => {
     overrideFilter: { read: targetTransform, list: targetTransform },
   } as never);
   const router = api.createRouter(Order, {
+    hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean' },
     basePath: `/sva00-orders-${tag}`,
     operationAccess: { read: true, list: true, create: true, update: true, new: true },
     permissionSchema: { status: true, internalNote: false, customer: true, slug: true, tenant: true },

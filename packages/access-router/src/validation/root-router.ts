@@ -51,7 +51,6 @@ const rootModelListOptionsSchema = z
     includeFieldPermissions: z.boolean().optional(),
     includeCount: z.boolean().optional(),
     populateAccess: populateAccessSchema.optional(),
-    lean: z.boolean().optional(),
   })
   .passthrough();
 
@@ -75,7 +74,6 @@ const rootModelReadOptionsSchema = z
     includeFieldPermissions: z.boolean().optional(),
     tryList: z.boolean().optional(),
     populateAccess: populateAccessSchema.optional(),
-    lean: z.boolean().optional(),
   })
   .passthrough();
 

@@ -1,4 +1,12 @@
 import { cloneDeep, forEach, get, hasOwn, isArray, isPlainObject, map, set } from '@web-ts-toolkit/utils';
+import { copyPermissionsAliasGraph } from './output/permissions-alias';
+
+/** Preserve generated aliases only for already-finalized metadata in package-owned copies. */
+function cloneProcessorValue<T>(value: T): T {
+  const copy = cloneDeep(value);
+  copyPermissionsAliasGraph(value, copy);
+  return copy;
+}
 
 /**
  * A depopulate copy operation consumed by {@link copyAndDepopulate}.
@@ -267,7 +275,7 @@ export const copyAndDepopulate = <Output extends object = CopyAndDepopulateOutpu
 ): Output => {
   const mutable = options.mutable !== false;
   const idField = options.idField ?? '_id';
-  const obj = (mutable ? docObject : cloneDeep(docObject)) as Record<string, unknown>;
+  const obj = (mutable ? docObject : cloneProcessorValue(docObject)) as Record<string, unknown>;
 
   forEach(Array.isArray(operations) ? operations : [], (op: ProcessCopy) => {
     if (!op || typeof op.src !== 'string' || typeof op.dest !== 'string') return;
@@ -359,7 +367,7 @@ export const copyPaths = <Output extends object = ProcessorOutput>(
   options: ProcessorOptions = { mutable: true },
 ): Output => {
   const mutable = options.mutable !== false;
-  const obj = (mutable ? docObject : cloneDeep(docObject)) as Record<string, unknown>;
+  const obj = (mutable ? docObject : cloneProcessorValue(docObject)) as Record<string, unknown>;
 
   forEach(Array.isArray(operations) ? operations : [], (op: ProcessCopy) => {
     if (!op || typeof op.src !== 'string' || typeof op.dest !== 'string') return;
@@ -372,7 +380,7 @@ export const copyPaths = <Output extends object = ProcessorOutput>(
 
     forEach(resolveLeafParents(obj, src), ({ parent, leaf }) => {
       if (!hasOwn(parent, leaf)) return;
-      set(parent, dest, cloneDeep(parent[leaf]));
+      set(parent, dest, cloneProcessorValue(parent[leaf]));
     });
   });
 
@@ -395,7 +403,7 @@ export const movePaths = <Output extends object = ProcessorOutput>(
   options: ProcessorOptions = { mutable: true },
 ): Output => {
   const mutable = options.mutable !== false;
-  const obj = (mutable ? docObject : cloneDeep(docObject)) as Record<string, unknown>;
+  const obj = (mutable ? docObject : cloneProcessorValue(docObject)) as Record<string, unknown>;
 
   forEach(Array.isArray(operations) ? operations : [], (op: ProcessCopy) => {
     if (!op || typeof op.src !== 'string' || typeof op.dest !== 'string') return;
@@ -408,7 +416,7 @@ export const movePaths = <Output extends object = ProcessorOutput>(
 
     forEach(resolveLeafParents(obj, src), ({ parent, leaf }) => {
       if (!hasOwn(parent, leaf)) return;
-      const value = cloneDeep(parent[leaf]);
+      const value = cloneProcessorValue(parent[leaf]);
       set(parent, dest, value);
       // The destination is resolved relative to the leaf parent, so compare
       // against the leaf key (not the full src) to detect self-nesting.
@@ -439,7 +447,7 @@ export const sliceArrays = <Output extends object = ProcessorOutput>(
   const mutable = options.mutable !== false;
   const maxSlice = options.maxSlice ?? DEFAULT_MAX_SLICE;
   assertNonNegativeSafeInteger(maxSlice, 'maxSlice', 'sliceArrays');
-  const obj = (mutable ? docObject : cloneDeep(docObject)) as Record<string, unknown>;
+  const obj = (mutable ? docObject : cloneProcessorValue(docObject)) as Record<string, unknown>;
 
   forEach(Array.isArray(operations) ? operations : [], (op: ProcessSlice) => {
     if (!op || typeof op.src !== 'string') return;
@@ -491,7 +499,7 @@ export const countPaths = <Output extends object = ProcessorOutput>(
   options: ProcessorOptions = { mutable: true },
 ): Output => {
   const mutable = options.mutable !== false;
-  const obj = (mutable ? docObject : cloneDeep(docObject)) as Record<string, unknown>;
+  const obj = (mutable ? docObject : cloneProcessorValue(docObject)) as Record<string, unknown>;
 
   forEach(Array.isArray(operations) ? operations : [], (op: ProcessCount) => {
     if (!op || typeof op.src !== 'string' || typeof op.dest !== 'string') return;
@@ -536,7 +544,7 @@ export const maskPaths = <Output extends object = ProcessorOutput>(
   options: ProcessorOptions = { mutable: true },
 ): Output => {
   const mutable = options.mutable !== false;
-  const obj = (mutable ? docObject : cloneDeep(docObject)) as Record<string, unknown>;
+  const obj = (mutable ? docObject : cloneProcessorValue(docObject)) as Record<string, unknown>;
 
   forEach(Array.isArray(operations) ? operations : [], (op: ProcessMask) => {
     if (!op || typeof op.src !== 'string') return;
