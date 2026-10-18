@@ -26,7 +26,6 @@ import {
   mapWithConcurrencyLimit,
   normalizeSelect,
   populateDoc,
-  stripUnexposedDocPermissions,
   toObject,
 } from '../helpers';
 import { isValidFieldPath, sanitizeSortFields, validateSortFields } from '../helpers/sort-policy';
@@ -46,7 +45,7 @@ import {
 import { requestOutputFieldPaths, resolveOutputDocumentAuthorization } from '../acl/output-field-filter';
 import { classifyEffectiveFieldAuthorization, extractOutputFieldRules } from '../acl/field-authorization';
 import { authorizationError } from '../acl/authorization-snapshot';
-import { assertPublicDefaults } from '../validation/public-admission';
+import { assertHydrationDefaults, assertPublicDefaults } from '../validation/public-admission';
 import {
   createServiceExecution,
   deriveServiceExecution,
@@ -72,6 +71,7 @@ import Permission from '../permission';
 import { intersectFilters } from '../core-shared';
 import { validateExpandedCorrelatedOperands } from '../correlated-includes';
 import { finalizeModelOutput, type FinalizeSnapshot } from '../output/finalize-model-output';
+import { attachPermissionsAlias, removeGeneratedPermissionsAlias } from '../output/permissions-alias';
 import { getIncludeOriginal, getIncludeSource, restoreIncludeOutput } from '../output/include-output';
 import {
   VIRT_ASSOCIATION_FIELD,
@@ -259,10 +259,18 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     return modelServiceOptions(this, () => this.getModelRouterOptions(this.modelName));
   }
   private defaultsOverride?: Defaults<TModel>;
+  /**
+   * Presentation/query defaults for this service instance; an explicit assignment
+   * replaces the runtime defaults bag, not a per-bucket merge. Fetch mode belongs
+   * to the owning model's hydration configuration and affects all its services.
+   * Legacy method-option lean/hydration keys throw on assignment and before calls
+   * if an assigned JavaScript bag is later mutated.
+   */
   public get defaults(): Defaults<TModel> {
     return this.defaultsOverride ?? this.options.defaults ?? {};
   }
   public set defaults(value: Defaults<TModel>) {
+    assertHydrationDefaults(value);
     this.defaultsOverride = value;
   }
   protected baseFields: string[];
@@ -273,11 +281,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   private readonly persist = <T>(operation: () => T | PromiseLike<T>): Promise<T> =>
     this.getCorrelatedExecState().scheduler.work(operation);
 
-  public findRawParentDoc(args: { filter: Filter<TModel>; select: string; populate: unknown; lean: boolean }): any {
+  /** Raw hydrated parent/null. Fetch mode is fixed, independent of model read settings. */
+  public findRawParentDoc(args: { filter: Filter<TModel>; select: string; populate: unknown }): any {
     return this.model.findOne({
-      ...args,
       filter: args.filter as unknown as Filter,
+      select: args.select,
       populate: args.populate as string | Populate[],
+      lean: false,
     });
   }
 
@@ -369,7 +379,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     context: ModelHookContext;
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
-    lean?: boolean;
     sharedGate?: SharedHookGate;
     privateAssociationField?: string;
   }): Promise<{ data: Record<string, unknown>; context: ServiceOutputContext }> {
@@ -416,6 +425,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // Finish metadata and include attachment on a fresh copy. Never mutate an
     // already-associated output or infer authority from serialized permissions.
     const output = deepIsolateValue(finalized);
+    removeGeneratedPermissionsAlias(output);
     const includeOrigins = restoreIncludeOutput(args.doc, output);
     const field = (configuration.documentPermissionField as string) ?? '_permissions';
     unsetDocPath(output, field);
@@ -432,10 +442,21 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           paths.length ? Object.fromEntries(paths.map((path) => [path, true])) : { $: '_' };
         set(output, `${field}._view`, map(views));
         set(output, `${field}._edit`, map(edits));
-      } else if (!args.includePermissions) this.addEmptyPermissions(output);
-      stripUnexposedDocPermissions(this.modelName, output);
+      } else if (!args.includePermissions) set(output, field, { _view: { $: '_' }, _edit: { $: '_' } });
+      // Use the captured posture, including for suspended calls and related work.
+      const exposed = configuration.exposedDocPermissionKeys as string[] | undefined;
+      if (exposed) {
+        const metadata = get(output, field) as Record<string, unknown>;
+        set(
+          output,
+          field,
+          Object.fromEntries(
+            Object.entries(metadata).filter(([key]) => key === '_view' || key === '_edit' || exposed.includes(key)),
+          ),
+        );
+      }
+      attachPermissionsAlias(output, field);
     }
-    this.preservePermissionsVirtual(getIncludeOriginal(args.doc), output, args.lean);
     transferDocumentAuthorizationGraph(finalized, output, includeOrigins);
     return {
       data: output,
@@ -699,47 +720,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
   private stripVirtualsFromFilterForSnapshot<T>(filter: T, snapshot: FinalizeSnapshot): T {
     return stripVirtualKeysFromFilter(filter, snapshot as unknown as { virtuals?: Record<string, unknown> | null });
-  }
-
-  /**
-   * Preserve the `permissions` Mongoose virtual (from `permissionsPlugin`) for
-   * hydrated outputs. `isolateDocForOutput` uses `toObject({ virtuals: false })`
-   * so Mongoose getter virtuals never leak into package-virtual planning;
-   * `lean: true` therefore drops them (explicit parity rule). For `lean: false`
-   * (hydrated Mongoose documents) the historical contract exposes
-   * `doc.permissions` as an alias of the document-permission field. The shared
-   * finalizer keeps only the document-permission field, so restore the alias
-   * here for backward compatibility when the input was hydrated and the
-   * virtual existed. Lean outputs stay without the virtual. Models without
-   * the plugin never had the virtual and stay unchanged.
-   */
-  private preservePermissionsVirtual(
-    originalDoc: unknown,
-    finalized: Record<string, unknown>,
-    lean: boolean | undefined,
-  ): void {
-    try {
-      if (lean) return;
-      if (!isDocument(originalDoc)) return;
-      const schema = (originalDoc as Document).schema;
-      if (!schema?.virtualpath('permissions')) return;
-      const docField =
-        (this.options as { documentPermissionField?: string } | undefined)?.documentPermissionField ?? '_permissions';
-      if (docField in finalized && !('permissions' in finalized)) {
-        // Non-enumerable alias: service-direct `result.data.permissions`
-        // keeps working (Mongoose virtual parity for hydrated outputs) while
-        // `Object.keys`/JSON DTOs omit it, preserving the historical
-        // `toObject({ virtuals: false })` output shape (only `_permissions`).
-        Object.defineProperty(finalized, 'permissions', {
-          value: (finalized as Record<string, unknown>)[docField],
-          enumerable: false,
-          writable: true,
-          configurable: true,
-        });
-      }
-    } catch {
-      // never break output on metadata aliasing
-    }
   }
 
   /**
@@ -1167,7 +1147,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }),
       configuration: () =>
         this.requestRuntime.getModelInstance(this.modelName)
-          ? captureModelAuthorizationConfiguration(this.requestRuntime, this.modelName)
+          ? captureModelAuthorizationConfiguration(this.requestRuntime, this.modelName, this.options)
           : { catalog: { paths: [] }, ...this.options },
       permissions: () => this.requestCore.getPermissions?.() ?? new Permission({}),
       parse: (filter) => this.parseClientData(filter, this.getCorrelatedExecState().scheduler),
@@ -1214,6 +1194,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         query: { filter },
       }),
       groupedCount: (filter, field, input) => this.countPreparedByFieldValueGroups(field, input, filter),
+      subdocumentVisibility: ({ filter, select, populate }) =>
+        this.model.findOne({ filter, select, populate, lean: true }),
     });
   }
 
@@ -1256,8 +1238,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
 
     const { select: requestedSelect, sort, populate, include } = this.resolveFindOneArgs(args);
-    const { includePermissions, includeFieldPermissions, access, populateAccess, lean } =
-      this.resolveFindOneOptions(options);
+    const { includePermissions, includeFieldPermissions, access, populateAccess } = this.resolveFindOneOptions(options);
     const state = readServiceExecution(this, execution);
     const virtualSnapshot = readServiceAuthorization(state.authorization, state.binding)
       .configuration as FinalizeSnapshot;
@@ -1339,7 +1320,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }
     }
 
-    let doc = await this.model.findOne({ ...query, select: dbSelect, lean });
+    let doc = await this.model.findOne({ ...query, select: dbSelect, lean: state.hydration === 'lean' });
     if (!doc) {
       this.completeOp('findOne', startedAt, Codes.NotFound, _filter);
       return { success: false, kind: 'error', code: Codes.NotFound, query };
@@ -1414,7 +1395,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         context,
         includePermissions,
         includeFieldPermissions,
-        lean,
         sharedGate: findOneGate,
       });
     } catch (error) {
@@ -1444,7 +1424,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     try {
       this.admitServiceCall(args, options);
       const { select, populate, include } = this.resolveFindByIdArgs(args);
-      const { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean } =
+      const { skim, includePermissions, includeFieldPermissions, access, populateAccess } =
         this.resolveFindByIdOptions(options);
       const execution = createServiceExecution(
         this,
@@ -1458,6 +1438,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         options?.authorization,
         'service',
         this.captureRelated(args, this.defaults.findByIdArgs),
+        undefined,
+        undefined,
+        undefined,
+        'findById',
       );
       const filter = readModelIdentifier(this, execution, await resolveModelIdentifier(this, execution, id));
       const query = await prepareModelQuery(this, execution, { kind: 'client-read', filter });
@@ -1470,7 +1454,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           populate,
           include,
         },
-        { skim, includePermissions, includeFieldPermissions, access, populateAccess, lean },
+        { skim, includePermissions, includeFieldPermissions, access, populateAccess },
       );
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
@@ -1532,7 +1516,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       page,
       pageSize,
     } = this.resolveFindArgs(args);
-    const { includePermissions, includeFieldPermissions, includeCount, populateAccess, lean } =
+    const { includePermissions, includeFieldPermissions, includeCount, populateAccess } =
       this.resolveFindOptions(options);
 
     let processedInclude: ReturnType<typeof this.processInclude>;
@@ -1632,7 +1616,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       ...query,
       select: dbSelect,
       hardLimit: this.options.listHardLimit,
-      lean,
+      lean: state.hydration === 'lean',
     })) as any[];
     // VIRT-05 association capture (before trim/nested): immutable values
     // aligned to rows for the caller's join index.
@@ -1736,7 +1720,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         context: contexts[i],
         includePermissions,
         includeFieldPermissions,
-        lean,
         sharedGate,
         privateAssociationField,
       });
@@ -1970,7 +1953,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         context: contexts[index],
         includePermissions,
         includeFieldPermissions,
-        lean: false,
         sharedGate: createGate,
       });
       outputContexts[index] = output.context;
@@ -2057,7 +2039,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         plan: newPlan,
         context: newContext,
         includePermissions,
-        lean: false,
       });
 
       return {
@@ -2267,7 +2248,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       context,
       includePermissions,
       includeFieldPermissions,
-      lean: false,
     });
     const outputDoc = decorate ? await this.hookGate.run(() => decorate(output.data, output.context)) : output.data;
 
@@ -3027,6 +3007,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     return deleteSubImpl(this, this.persist, id, sub, subId, options);
   }
 
+  /** Raw hydrated parent/null, with row policy and populate; no finalized permission metadata. */
   public async getParentDoc(
     id: SubdocumentId,
     sub: SubdocumentName,

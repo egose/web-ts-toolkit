@@ -440,6 +440,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'service-authorization-migration.types.fixture',
     'field-helper-migration.types.fixture',
     'grouped-count-consumer.types.fixture',
+    'hydration-consumer.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -455,6 +456,16 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/README.md'),
     'utf8',
   );
+  // Compile the exact shipped hydration migration example in all supported module
+  // forms/resolvers, not a source alias or a separately maintained approximation.
+  const hydrationExample = [...readme.matchAll(/<!--\s*doc-example:\s*partial\s*-->\s*```ts\n([\s\S]*?)```/g)]
+    .map((match) => match[1])
+    .find((snippet) => snippet.includes('// Server-owned hydration migration:'));
+  if (!hydrationExample) throw new Error('Installed README is missing its server-owned hydration migration');
+  authorizationFixtures.push('hydration.readme');
+  for (const extension of ['ts', 'mts', 'cts']) {
+    writeFileSync(path.resolve(consumerDir, `hydration.readme.${extension}`), hydrationExample);
+  }
   const authorizationExample = [
     ...readme.matchAll(/<!--\s*doc-example:\s*complete-runtime\s*-->\s*```ts\n([\s\S]*?)```/g),
   ]
@@ -500,8 +511,9 @@ const assert = require('node:assert/strict');
     await import('@web-ts-toolkit/access-router'), await import('@web-ts-toolkit/access-router/advanced')];
   for (const entry of modules) {
     for (const name of ['Service', 'DocumentAuthorization', 'ServiceAuthorization', 'resolveServiceAuthorization',
-      'createServiceExecution', 'createDocumentAuthorizationStage', 'createServiceOutputContext',
-      'prepareModelQuery', 'executePreparedFind', 'executeCreate', 'registerServiceExecutors']) {
+       'createServiceExecution', 'createDocumentAuthorizationStage', 'createServiceOutputContext',
+       'prepareModelQuery', 'executePreparedFind', 'executeCreate', 'registerServiceExecutors',
+       'withExecutionHydration', 'normalizeHydration', 'normalizeHydrationUpdate', 'attachPermissionsAlias']) {
       assert.equal(Object.hasOwn(entry, name), false, name + ' must not be a runtime escape hatch');
     }
   }

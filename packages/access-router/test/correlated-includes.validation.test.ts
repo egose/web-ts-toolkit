@@ -207,9 +207,34 @@ describe('correlated include protocol validation (ACI-02)', () => {
     expectAgreement(readById({ args: { limit: 1 } } as never), false);
     expectAgreement(filterInclude('list', 'posts', { a: parentRef('b') }, { args: { populate: 'x' } } as never), false);
     expectAgreement(filterInclude('list', 'posts', { a: parentRef('b') }, { args: { tasks: [] } } as never), false);
-    // non-empty wire options are rejected
-    expectAgreement(readById({ options: { lean: true } }), false);
+    // Empty wire options remain accepted; nonempty controls are covered below.
     expectAgreement(readById({ options: {} }), true);
+  });
+
+  it('keeps hydration controls invalid in strict correlated slots, while preserving business names', () => {
+    for (const include of [readById(), ...['read', 'list', 'count'].map((op) => filterInclude(op, 'joined', {}))]) {
+      for (const controls of [
+        { lean: true },
+        { lean: false },
+        { hydration: 'lean' },
+        { hydration: { publicRead: 'hydrated' } },
+      ]) {
+        expectAgreement({ ...include, options: controls }, false);
+        expectAgreement({ ...include, args: controls }, false);
+        expectAgreement({ ...include, ...controls }, false);
+      }
+    }
+    expectAgreement(
+      filterInclude(
+        'list',
+        'joined',
+        { lean: { $parent: 'hydration' }, hydration: 'business' },
+        {
+          args: { select: ['lean', 'hydration'] },
+        },
+      ),
+      true,
+    );
   });
 
   it('validates output paths and rejects duplicates', () => {

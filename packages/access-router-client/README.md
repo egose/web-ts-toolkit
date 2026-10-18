@@ -44,6 +44,16 @@ contracts. When upgrading from the previous client contract:
 Grouped entry `headers` are now `{}` because the root protocol has no
 per-operation headers. Structured grouped failure fields remain in `raw`.
 
+Mongoose hydration is server-owned: client options and adapter/service defaults
+have no `lean` or `hydration` setting. Ordinary builders omit stale JavaScript
+option keys; the updated server also ignores them in permissive wire slots,
+including modified grouped/subquery metadata. Nonempty correlated-include
+execution options remain invalid. Configure the server model's `hydration`
+record instead, never a request-local replacement. Hydration can affect schema
+defaults, getters and hooks; it does not change the client's independent,
+save-capable `Model` wrapping. Business fields named `lean` or `hydration` remain
+valid filter, selection and mutation/task data.
+
 Additional business-contract corrections in this release:
 
 - **Optional/projected fields:** direct assignment to an absent nonreserved

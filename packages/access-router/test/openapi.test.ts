@@ -86,6 +86,31 @@ describe('openapi router', () => {
     expect(schema.properties.nickname).toEqual({ type: 'string' });
   });
 
+  it('omits hydration controls from generated direct and root request schemas', async () => {
+    const { acl, app } = createApp({ hydration: { publicList: 'hydrated', publicRead: 'lean' } });
+    acl.createRouter({ basePath: '/root', operationAccess: true });
+    const response = await request(app).get('/openapi.json').expect(200);
+    const paths = response.body.paths;
+    for (const route of ['/users', '/users/{id}']) {
+      const names = paths[route].get.parameters.map((parameter: { name: string }) => parameter.name);
+      expect(names).toContain('select');
+      expect(names).not.toContain('lean');
+      expect(names).not.toContain('hydration');
+    }
+    const propertyNames = (value: any): string[] => {
+      if (!value || typeof value !== 'object') return [];
+      return [...Object.keys(value.properties ?? {}), ...Object.values(value).flatMap(propertyNames)];
+    };
+    for (const route of ['/root', '/users/__query', '/users/__query/{id}', '/users/__query/__filter']) {
+      const schema = paths[route].post.requestBody.content['application/json'].schema;
+      const names = propertyNames(schema);
+      expect(names).toContain('options');
+      expect(names).toContain('includePermissions');
+      expect(names).not.toContain('lean');
+      expect(names).not.toContain('hydration');
+    }
+  });
+
   it('combines advanced mutation wrapper schemas with nested user data schemas', async () => {
     const { app } = createApp({
       requestSchemas: {

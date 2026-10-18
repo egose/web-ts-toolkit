@@ -90,7 +90,7 @@ const createIntegrationApp = async () => {
 
   router.router.get('/custom/permissions', guard('isAdmin'), async (req) => {
     const svc = req.macl.getService(modelName);
-    const result = await svc.findOne({ name: 'user1' }, {}, { lean: false });
+    const result = await svc.findOne({ name: 'user1' });
     return result.data.permissions;
   });
 

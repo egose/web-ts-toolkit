@@ -266,6 +266,106 @@ describe `/api/ext/users`. Live Express URLs are unchanged by this migration.
 
 Use `DefaultModelOption(...)` for default model options, `ModelOption(...)` for model-specific route options, and `GlobalOption(...)` for module-level global options. Avoid setting build-time route options after bootstrap; options such as `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and `mutationRouteSegment` must be available before routes are created.
 
+### Server-owned hydration and migration
+
+Configure Mongoose fetch hydration through the existing model/default decorators,
+not request options. The server exports `HydrationMode = 'lean' | 'hydrated'` and
+`ModelHydrationOptions` from `@web-ts-toolkit/access-router` (also `/advanced`).
+The optional `hydration` record has exactly five entries:
+
+| Entry        | Built-in mode | Applies to                                                      |
+| ------------ | ------------- | --------------------------------------------------------------- |
+| `publicList` | `'lean'`      | Public list, direct/root list routes                            |
+| `publicRead` | `'hydrated'`  | Public identifier/filter reads, including read-to-list fallback |
+| `find`       | `'hydrated'`  | Internal service `find`                                         |
+| `findOne`    | `'hydrated'`  | Internal service `findOne`                                      |
+| `findById`   | `'hydrated'`  | Internal service `findById`, independently of `findOne`         |
+
+```ts
+import 'reflect-metadata';
+import type { Connection } from 'mongoose';
+import { Schema } from 'mongoose';
+import type { HydrationMode } from '@web-ts-toolkit/access-router';
+import { DefaultModelOption, ModelOption, Module, Router, RouterOptions } from '@web-ts-toolkit/access-router-deco';
+
+export function createThingModule(connection: Connection) {
+  const Thing = connection.model('Thing', new Schema({ name: String }));
+
+  @RouterOptions({ hydration: { publicList: 'hydrated', publicRead: 'lean' } })
+  class StartingDefaults {
+    @DefaultModelOption('hydration.find')
+    find: HydrationMode = 'lean';
+  }
+
+  @RouterOptions(Thing, { hydration: { publicRead: 'hydrated' } })
+  class ThingOptions {}
+
+  @Router(Thing, {
+    basePath: '/things',
+    operationAccess: { list: true, read: true },
+    permissionSchema: { name: { list: true, read: true } },
+    // Before: defaults.publicListOptions = { lean: false, includeCount: true }.
+    hydration: { publicList: 'hydrated' },
+    defaults: { publicListOptions: { includeCount: true } },
+  })
+  class ThingRouter {
+    @ModelOption('hydration.publicRead')
+    read: HydrationMode = 'lean';
+  }
+
+  @Module({ routers: [ThingRouter], routerOptions: [ThingOptions, StartingDefaults] })
+  class ThingModule {}
+  return ThingModule; // Pass to an isolated factory's bootstrap(module, app).
+}
+```
+
+Default providers run before model providers regardless of their array order.
+Within each class, option properties follow its class options. Records replace
+**shallowly**, rather than inheriting individual entries: the example's final
+model record is `{ publicList: 'hydrated', publicRead: 'lean' }`; `find` uses its
+built-in hydrated mode, not the starting default. `@ModelOption('hydration')` and
+`@DefaultModelOption('hydration')` accept whole records; their five
+`hydration.<entry>` keys update just one stored member. Whole-record `undefined`
+clears the setting, and a member `undefined` clears that override. Later starting
+default changes do not broadcast into existing model records. Fresh service calls
+capture the owning runtime's current configuration; in-flight calls retain theirs.
+
+The factory uses the server's canonical validation: only plain records, these
+five keys, and mode strings (or `undefined`) are valid. Invalid records/dotted
+values fail before the setter publishes an update, and failed bootstrap restores
+package-controlled runtime state without mounting routes. There is no dedicated
+hydration decorator or second decorator-specific resolver. Property decorators
+type-check keys, not property values; annotate values with `HydrationMode` or
+`ModelHydrationOptions` for compile-time value checking as well.
+
+**Migration:** move `defaults.publicListOptions.lean` to `hydration.publicList`,
+`publicReadOptions.lean` to `publicRead`, `findOptions.lean` to `find`,
+`findOneOptions.lean` to `findOne`, and `findByIdOptions.lean` to `findById`.
+Convert `true` to `'lean'` and `false` to `'hydrated'`. Retain presentation defaults
+such as `includeCount` in `defaults`. Legacy `lean` keys (even `undefined`) or
+`hydration` inside defaults' method-option buckets throw with migration guidance;
+they are not translated. Move an old `service.defaults` hydration override to the
+owning model configuration deliberately: it now affects the model, not one service.
+
+No per-call, client, module-global, or root-router hydration setting is supported.
+Stale `lean`/`hydration` controls in permissive wire/service option slots are inert;
+strict correlated-include execution options remain rejected. Business fields with
+those names are unaffected. Finalized results are plain objects in either mode,
+but schema defaults, getters, transforms and init hooks can change their values.
+When finalized permission metadata is present, its non-enumerable `permissions`
+compatibility alias is independent of mode and plugin installation (also for dotted
+metadata paths); stripping metadata suppresses it, and existing business output
+properties named `permissions` win. The optional raw-document plugin getter is a
+separate feature.
+
+`@Document()` injection keeps its existing hook-specific meaning: output
+`@DocPermissions`, `@Decorate` and `@DecorateAll` receive plain views (an array for
+`DecorateAll`); `@Validate`/`@Prepare` receive allowed input payloads. Lifecycle
+`@Transform`, `@AfterPersist`, `@BeforeDelete` and `@AfterDelete` retain live
+Mongoose documents needed for setters/save/deletion, irrespective of read hydration.
+`@Context()` can still contain the lifecycle `currentDocument`; request, permissions,
+context, explicit parameter positions and class-instance `this` binding are unchanged.
+
 ## TypeScript Decorator Configuration
 
 This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata: true` is supported but not required — the package root transitively pulls `reflect-metadata` via decorators, but an explicit `import 'reflect-metadata'` in the app entry remains the safe canonical pattern. Consumers own installing the peer (`^0.1.13 || ^0.2.0`).

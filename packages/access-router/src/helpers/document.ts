@@ -1,4 +1,5 @@
 import { Document, mongo } from 'mongoose';
+import { copyPermissionsAlias } from '../output/permissions-alias';
 import { assertPublicAdmission } from '../validation/public-admission';
 import { get, isPlainObject, pick, set } from '@web-ts-toolkit/utils';
 import { getModelOption } from '../options';
@@ -203,6 +204,7 @@ export const deepIsolateValue = <T>(
         configurable: true,
       });
     }
+    copyPermissionsAlias(value, out);
     return out as T;
   }
   return value;

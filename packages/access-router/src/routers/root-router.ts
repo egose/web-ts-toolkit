@@ -254,8 +254,8 @@ export class RootRouter {
     const presentation = ['skim', 'includePermissions', 'includeFieldPermissions'];
     const optionKeys: Partial<Record<RootModelOperation, string[]>> = {
       new: presentation,
-      list: [...presentation, 'includeCount', 'populateAccess', 'lean'],
-      read: [...presentation, 'populateAccess', 'lean', 'tryList'],
+      list: [...presentation, 'includeCount', 'populateAccess'],
+      read: [...presentation, 'populateAccess', 'tryList'],
       create: [...presentation, 'populateAccess'],
       update: [...presentation, 'populateAccess', 'returningAll'],
       upsert: [...presentation, 'populateAccess', 'returningAll'],

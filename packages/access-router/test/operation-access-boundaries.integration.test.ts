@@ -941,6 +941,7 @@ describe('OAV-05 populate input boundaries', () => {
             args: { populate },
             options: {
               ...hiddenMetadata,
+              // Intentional stale wire input; hydration is now model-owned.
               lean: path === 'list',
               tryList: false,
               populateAccess: path === 'descriptor' ? 'read' : 'inspection',
@@ -1324,6 +1325,7 @@ describe('OAV-05 secondary target authorization', () => {
           id: String(f.sourceRead._id),
           filter: readSource,
           args: { include: legacy(f, 'read', { args: { select: ['name', 'readOnly', 'privateNote'] } }) },
+          // Intentional stale wire input, retained for compatibility admission.
           options: { ...hiddenMetadata, lean: false, tryList: false },
         })
         .expect(200);

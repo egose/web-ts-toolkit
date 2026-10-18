@@ -13,6 +13,7 @@ export interface PublicListArgs {
   tasks?: Task | Task[];
 }
 
+/** Request presentation options. Fetch mode is server model hydration.publicList (built-in lean). */
 export interface PublicListOptions {
   /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
@@ -28,6 +29,4 @@ export interface PublicListOptions {
   /** Exact authorized match total, independent of pagination (default false). Wire requests also control HTTP metadata exposure. */
   includeCount?: boolean;
   populateAccess?: PopulateAccess;
-  /** Mongoose hydration choice (public list default true); authorization and virtuals still run. Supported by service/root options. */
-  lean?: boolean;
 }

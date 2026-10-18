@@ -34,6 +34,8 @@ import type {
   AuthorizedListResult,
   ServiceOutputDecorator,
   ErrorResult,
+  HydrationMode,
+  ModelHydrationOptions,
 } from '../interfaces';
 
 declare const preparedQueryBrand: unique symbol;
@@ -57,6 +59,7 @@ export interface ServiceExecutionContext {
 
 /** Intended private owner record, not structurally accepted authority. */
 export interface ServiceExecutionState {
+  readonly hydration: HydrationMode;
   readonly authorization: ResolvedServiceAuthorization;
   readonly access: AuthorizationAccess;
   readonly preparedQuery?: PreparedModelQuery;
@@ -113,6 +116,8 @@ export interface ServiceExecutors<T, V extends object> {
     foreignField: string,
     input: GroupedCountInput,
   ): Promise<SingleResult<number[]> | ErrorResult>;
+  /** Fixed lean visibility re-fetch after subdocument persistence. Never a service option. */
+  subdocumentVisibility(args: { filter: Filter<T>; select: string; populate: unknown }): Promise<unknown>;
 }
 // Generic association is checked at registration/read; never accepted structurally at dispatch.
 const executors = new WeakMap<object, ServiceExecutors<any, any>>();
@@ -146,6 +151,7 @@ export function createServiceExecution<T, V extends object>(
   parent?: ResolvedServiceAuthorization,
   configuration?: AuthorizationConfiguration,
   requestPermissions?: AccessRouterPermissions,
+  hydration: keyof ModelHydrationOptions | HydrationMode = access.operation === 'list' ? 'find' : 'findOne',
 ): ServiceExecutionContext {
   const registered = getServiceExecutors(receiver);
   const receiving = registered.binding();
@@ -169,8 +175,33 @@ export function createServiceExecution<T, V extends object>(
       authorization: call,
       access: readServiceAuthorization(call, binding).access,
       family: execution,
+      hydration: resolveHydration(readServiceAuthorization(call, binding).configuration, hydration),
     }),
   );
+  return execution;
+}
+
+function resolveHydration(
+  configuration: AuthorizationConfiguration,
+  source: keyof ModelHydrationOptions | HydrationMode,
+): HydrationMode {
+  if (source === 'lean' || source === 'hydrated') return source;
+  return (
+    (configuration.hydration as ModelHydrationOptions | undefined)?.[source] ??
+    (source === 'publicList' ? 'lean' : 'hydrated')
+  );
+}
+
+/** Package-selected method/fixed mode, carried only by an authenticated execution. */
+export function withExecutionHydration<T, V extends object>(
+  receiver: Service<T, V>,
+  parent: ServiceExecutionContext,
+  source: keyof ModelHydrationOptions | HydrationMode,
+): ServiceExecutionContext {
+  const record = readServiceExecution(receiver, parent);
+  const { configuration } = readServiceAuthorization(record.authorization, record.binding);
+  const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  executions.set(execution, Object.freeze({ ...record, hydration: resolveHydration(configuration, source) }));
   return execution;
 }
 

@@ -130,6 +130,34 @@ describe('access-router-client built-declaration consumer (ARC-15)', () => {
     expectTypeAssignableTo<null>(failureData);
   });
 
+  it('HYD-04 keeps hydration out of basic/advanced options and inherited defaults', () => {
+    type Client = typeof import('@web-ts-toolkit/access-router-client');
+    type Defaults = import('@web-ts-toolkit/access-router-client').Defaults;
+    type AllOptions = NonNullable<Defaults[keyof Defaults]>;
+    type Keys<T> = T extends unknown ? keyof T : never;
+    type NoHydration = Extract<'lean' | 'hydration', Keys<AllOptions | Defaults>>;
+    expectTypeAssignableTo<never>(undefined as unknown as NoHydration);
+    const adapter: ReturnType<Client['createAdapter']> = createAdapter();
+    const service = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });
+    const invalid = () => {
+      // @ts-expect-error no basic list hydration option
+      service.list({}, { lean: false });
+      // @ts-expect-error no replacement advanced-list hydration option
+      service.listAdvanced({}, undefined, { hydration: 'lean' });
+      // @ts-expect-error no basic read hydration option
+      service.read('id', { lean: true });
+      // @ts-expect-error no advanced identifier read hydration option
+      service.readAdvanced('id', undefined, { lean: true });
+      // @ts-expect-error no advanced filter read hydration option
+      service.readAdvancedFilter({}, undefined, { hydration: 'hydrated' });
+      // @ts-expect-error no hydration through adapter defaults
+      createAdapter({}, { modelDefaults: { readOptions: { lean: true } } });
+      // @ts-expect-error no hydration through service defaults
+      adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' }, { listOptions: { hydration: 'lean' } });
+    };
+    void invalid;
+  });
+
   it('CLC-05 exposes absent ordinary fields while reserving wrapper and thenable members', () => {
     interface FormDocument {
       _id?: string;

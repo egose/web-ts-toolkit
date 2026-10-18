@@ -14,7 +14,10 @@ interface Options {
  * Option lookup uses the active runtime, or the default runtime outside managed execution.
  * This plugin neither computes grants nor enables field enforcement: routers/services
  * already enforce operationAccess and permissionSchema without it. It is separate from
- * the package's computed `virtuals` output API and is unnecessary for lean output.
+ * the package's computed `virtuals` output API. Finalized rows already get their
+ * own non-enumerable `permissions` alias from exposed metadata in both modes without
+ * this plugin. virtualPermissionField only names this raw getter; its literal _doc
+ * lookup does not traverse dotted metadata paths.
  */
 export function permissionsPlugin(schema: Schema, options: Options): void {
   if (!options?.modelName) return;

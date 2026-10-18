@@ -9,7 +9,7 @@ import type { ModelRequest } from '../src/interfaces';
 let mongo: MongoMemoryServer;
 let serial = 0;
 const connections: mongoose.Connection[] = [];
-const quiet = { lean: true, includePermissions: false, includeFieldPermissions: false };
+const quiet = { includePermissions: false, includeFieldPermissions: false };
 const select = ['name', 'secret', 'children', 'ref'];
 const actors = [
   { label: 'denied A / admin B', a: [], b: ['admin'], granted: false },
@@ -37,23 +37,34 @@ async function fixture(actor: (typeof actors)[number] = actors[0]) {
       const connection = await mongoose.createConnection(mongo.getUri(), { dbName: `${name}-${owner}` }).asPromise();
       connections.push(connection);
       const runtime = createAccessRuntime();
+      const queries: Array<{ model: string; lean: boolean }> = [];
+      const track = (schema: mongoose.Schema, model: string) => {
+        for (const op of ['find', 'findOne'] as const)
+          schema.pre(op, function () {
+            queries.push({ model, lean: this.mongooseOptions().lean === true });
+          });
+        return schema;
+      };
       runtime.setGlobalOptions({ globalPermissions: () => (index ? actor.b : actor.a) });
       const target = connection.model(
         targetName,
-        new mongoose.Schema({ name: String, secret: String, key: String, tenant: String }),
+        track(new mongoose.Schema({ name: String, secret: String, key: String, tenant: String }), targetName),
       );
       const model = connection.model(
         name,
-        new mongoose.Schema({
-          _id: { type: String, default: 'created' },
-          name: String,
-          secret: String,
-          tenant: String,
-          slug: String,
-          alias: String,
-          ref: { type: mongoose.Schema.Types.ObjectId, ref: targetName },
-          children: [{ _id: String, name: String, secret: String }],
-        }),
+        track(
+          new mongoose.Schema({
+            _id: { type: String, default: 'created' },
+            name: String,
+            secret: String,
+            tenant: String,
+            slug: String,
+            alias: String,
+            ref: { type: mongoose.Schema.Types.ObjectId, ref: targetName },
+            children: [{ _id: String, name: String, secret: String }],
+          }),
+          name,
+        ),
       );
       await model.create(
         ['a', 'b'].map((tenant) => ({
@@ -83,6 +94,7 @@ async function fixture(actor: (typeof actors)[number] = actors[0]) {
         stripPermissionsField: true,
       });
       runtime.createRouter(model, {
+        hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean', publicList: 'lean' },
         operationAccess: true,
         permissionSchema: {
           name: true,
@@ -98,7 +110,7 @@ async function fixture(actor: (typeof actors)[number] = actors[0]) {
           return {};
         },
       });
-      return { runtime, model, target };
+      return { runtime, model, target, queries };
     }),
   );
   const [a, b] = owners;
@@ -147,6 +159,51 @@ function data(result: any): any {
 }
 
 describe('ARL-11 retained model/public service owner', () => {
+  it.each(['find', 'findOne', 'findById', '_list', '_read', '_readFilter'] as const)(
+    '%s captures owner hydration before suspension and observes fresh settings on the next call',
+    async (entry) => {
+      const f = await fixture();
+      const key = entry === '_list' ? 'publicList' : entry.startsWith('_') ? 'publicRead' : entry;
+      f.a.runtime.setModelOption(f.name, 'hydration', { [key]: 'hydrated' });
+      f.b.runtime.setModelOption(f.name, 'hydration', { [key]: 'lean' });
+      let entered!: () => void;
+      let release!: () => void;
+      const suspended = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const resume = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let first = true;
+      f.a.runtime.setModelOption(f.name, 'baseFilter', async () => {
+        if (first) {
+          first = false;
+          entered();
+          await resume;
+        }
+        return {};
+      });
+      await f.run(async ({ service, publicService }) => {
+        const call = () =>
+          entry === 'findById'
+            ? service.findById('lookup', {}, quiet)
+            : entry === '_read'
+              ? publicService._read('lookup', {}, quiet)
+              : entry.startsWith('_')
+                ? publicService[entry]({}, {}, quiet)
+                : service[entry]({}, {}, quiet);
+        const pending = call();
+        await suspended;
+        f.a.runtime.setModelOption(f.name, 'hydration', { [key]: 'lean' });
+        release();
+        data(await pending);
+        expect(f.a.queries.filter((query) => query.model === f.name).map((query) => query.lean)).toEqual([false]);
+        data(await call());
+        expect(f.a.queries.filter((query) => query.model === f.name).map((query) => query.lean)).toEqual([false, true]);
+        expect(f.b.queries).toEqual([]);
+      });
+    },
+  );
   for (const actor of actors)
     describe(actor.label, () => {
       for (const entry of ['findOne', 'find', '_readFilter', '_list'] as const)

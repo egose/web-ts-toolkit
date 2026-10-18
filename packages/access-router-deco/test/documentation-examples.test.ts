@@ -102,6 +102,43 @@ describe('access-router-deco documentation examples', () => {
     expect(website.source).toBe(readme.source);
   });
 
+  it.each(['NodeNext', 'Bundler'] as const)(
+    'strictly compiles the shipped hydration migration example (%s)',
+    (resolution) => {
+      const readme = readFileSync(path.join(packageRoot, 'README.md'), 'utf8');
+      const section = readme.split('### Server-owned hydration and migration')[1];
+      const source = section?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
+      if (!source) throw new Error('Missing shipped hydration migration example');
+      writeFileSync(path.join(consumerDir, 'hydration-migration.ts'), source);
+      const config = path.join(consumerDir, `hydration-migration-${resolution}.json`);
+      writeFileSync(
+        config,
+        JSON.stringify(
+          {
+            compilerOptions: {
+              target: 'ES2022',
+              module: resolution === 'NodeNext' ? 'NodeNext' : 'ESNext',
+              moduleResolution: resolution,
+              strict: true,
+              noEmit: true,
+              skipLibCheck: false,
+              experimentalDecorators: true,
+              types: ['node', 'reflect-metadata'],
+              lib: ['ES2022', 'DOM'],
+            },
+            include: ['hydration-migration.ts'],
+          },
+          null,
+          2,
+        ),
+      );
+      const result = runTsc(consumerDir, config);
+      if (result.status !== 0)
+        throw new Error(`hydration migration example compile failed:\n${result.stdout}${result.stderr}`);
+      expect(result.status).toBe(0);
+    },
+  );
+
   it('rejects returning document from typed validator at type-check time', () => {
     const sourceFile = path.resolve(consumerDir, 'validate-return-doc-fail.ts');
     const tsconfigPath = path.resolve(consumerDir, 'validate-return-doc-fail.tsconfig.json');

@@ -18,7 +18,7 @@ import * as schemas from '../src/validation/model-router';
 import { rootQuerySchema } from '../src/validation/root-router';
 import { populateSchema, subPopulateSchema } from '../src/validation/common';
 import Permission from '../src/permission';
-import { registerServiceExecutors } from '../src/acl/service-execution';
+import { registerServiceExecutors, readServiceExecution } from '../src/acl/service-execution';
 
 const controls = [
   'authorization',
@@ -57,6 +57,7 @@ const correlated = {
 
 // Actual wrapper/Base methods, instrumented immediately receiving service seams.
 // No new authority is evaluated here; SVA-08 owns integrated grant controls.
+// Remaining lean inputs are intentional obsolete-JavaScript forwarding fixtures.
 function fixture() {
   const req = { macl: { isAllowed: vi.fn().mockResolvedValue(true) } };
   const service = Object.assign(Object.create(PublicService.prototype), {
@@ -82,6 +83,7 @@ function fixture() {
     decorateAll: vi.fn((docs) => docs),
     runTasks: vi.fn((doc) => doc),
     getRequestComplexity: () => resolveRequestComplexity(),
+    captureRelated: () => [],
   });
   const target = {
     find: vi.fn().mockResolvedValue({ ...list, data: [{ key: 1, authorization: 'ordinary' }], count: 1 }),
@@ -102,11 +104,12 @@ function fixture() {
     strip: (_execution, filter) => filter,
     identifier: (id) => service.genIDFilter(id),
     authorize: async (_execution, filter) => ({ transformed: filter, scope: {}, filter }),
-    findOne: (_execution, filter, args, options) => service.findById(filter, args, options),
+    findOne: (_execution, filter, args, options) =>
+      ('_id' in filter ? service.findById : service.findOne)(filter, args, options),
     create: (_execution, data, args, options) => service.create(data, args, options),
     updateOne: (_execution, filter, data, args, options) => service.updateById(filter, data, args, options),
     exists: () => service.exists(),
-    find: vi.fn(),
+    find: (_execution, _query, filter, args, options) => service.find(filter, args, options),
     count: vi.fn(),
     groupedCount: vi.fn(),
   });
@@ -270,7 +273,7 @@ describe('SVA-01A public wrapper admission', () => {
     };
     await service._list(business, args, options);
     const [filter, forwarded, passed] = service.find.mock.calls[0];
-    expect(filter).toBe(business);
+    expect(filter).toEqual(business);
     expect(forwarded).toEqual({
       select: args.select,
       populate: args.populate,
@@ -283,7 +286,6 @@ describe('SVA-01A public wrapper admission', () => {
     });
     expect(passed).toEqual({
       skim: false,
-      lean: false,
       includePermissions: true,
       includeFieldPermissions: true,
       includeCount: true,
@@ -306,17 +308,18 @@ describe('SVA-01A public wrapper admission', () => {
     const { service } = fixture();
     for (const key of controls) {
       for (const name of ['publicReadOptions', 'findOneOptions', 'createArgs', 'publicListArgs']) {
-        service.defaults = { [name]: { [key]: {} } };
+        service.defaults = {};
+        service.defaults[name] = { [key]: {} };
         expect(await service._readFilter({})).toMatchObject(denied);
       }
     }
     expectNoDispatch(service);
-    service.defaults = { publicReadArgs: { select: ['authorization'] }, publicReadOptions: { lean: true, skim: true } };
+    service.defaults = { publicReadArgs: { select: ['authorization'] }, publicReadOptions: { skim: true } };
     await service._readFilter(business);
     await service._readFilter(business, { select: ['overrides'] }, { lean: false });
     expect(service.findOne.mock.calls.map(([, a, o]) => [a.select, o.lean, o.authorization])).toEqual([
-      [['authorization'], true, { outputFields: { mode: 'request' } }],
-      [['overrides'], false, { outputFields: { mode: 'request' } }],
+      [['authorization'], undefined, { outputFields: { mode: 'request' } }],
+      [['overrides'], undefined, { outputFields: { mode: 'request' } }],
     ]);
   });
 });
@@ -387,8 +390,14 @@ describe('SVA-01A actual nested dispatch seams', () => {
           const transformed = await target.genFilter(op, filter);
           return { transformed, scope: {}, filter: transformed };
         },
-        find: (_execution, _query, filter, args, options) => target.find(filter, args, options) as never,
-        findOne: (_execution, filter, args, options) => target.findOne(filter, args, options) as never,
+        find: (execution, _query, filter, args, options) => {
+          expect(readServiceExecution(target as never, execution).hydration).toBe('lean');
+          return target.find(filter, args, options) as never;
+        },
+        findOne: (execution, filter, args, options) => {
+          expect(readServiceExecution(target as never, execution).hydration).toBe('lean');
+          return target.findOne(filter, args, options) as never;
+        },
         updateOne: vi.fn(),
         create: vi.fn(),
         exists: vi.fn(),
@@ -430,12 +439,12 @@ describe('SVA-01A actual nested dispatch seams', () => {
       expect(options).toMatchObject({
         skim: true,
         populateAccess: 'list',
-        lean: true,
         includePermissions: false,
         includeFieldPermissions: false,
         authorization: { outputFields: { mode: 'request' } },
       });
       expect(options).not.toHaveProperty('unknownOption');
+      expect(options).not.toHaveProperty('lean');
       expect(options).not.toHaveProperty('preparedQuery');
       expect(args).not.toHaveProperty('overrides');
       expect(target.genFilter).toHaveBeenCalledOnce();
@@ -477,9 +486,7 @@ describe('SVA-01A actual nested dispatch seams', () => {
       sort: { overrides: 1 },
       tasks: { type: 'COPY', args: business },
     });
-    expect(options).toEqual(
-      op === 'list' ? { skim: true, lean: true, includeCount: true } : { skim: true, lean: true, tryList: false },
-    );
+    expect(options).toEqual(op === 'list' ? { skim: true, includeCount: true } : { skim: true, tryList: false });
   });
 
   it('guards populate and sub-populate before Core target admission or parent persistence', async () => {
@@ -644,16 +651,61 @@ describe('SVA-01A schemas, transformed envelopes, root dispatch and defaults', (
           op: 'list',
           filter: business,
           args: { select: ['authorization'], limit: 2, unknownArg: true },
-          options: { lean: true, unknownOption: true },
+          options: { lean: true, hydration: { publicList: 'lean' }, unknownOption: true },
         },
       ])
       .expect(200);
-    expect(seam.mock.calls[0]).toEqual([business, { select: ['authorization'], limit: 2 }, { lean: true }]);
+    expect(seam.mock.calls[0]).toEqual([business, { select: ['authorization'], limit: 2 }, {}]);
+  });
+
+  it.each(['list', 'read', 'readFilter'])('independent root %s dispatch omits hydration controls', async (op) => {
+    const { root, modelName } = httpFixture();
+    const method = op === 'list' ? '_list' : op === 'read' ? '_read' : '_readFilter';
+    const target = { [method]: vi.fn().mockResolvedValue(op === 'list' ? list : single) };
+    const req = { macl: { isAllowed: async () => true, getPublicService: () => target } };
+    const direct = root as unknown as { processOp(req: unknown, item: unknown, index: number): Promise<any> };
+    const data = { lean: 'business', hydration: 'business' };
+    const args = { select: ['lean', 'hydration'], tasks: { type: 'MASK', args: data } };
+    for (const options of [
+      { skim: true, lean: true, hydration: 'hydrated' },
+      { skim: true, lean: false, hydration: { publicRead: 'lean' } },
+      Object.assign(Object.create({ lean: true, hydration: 'lean' }), { skim: true }),
+      Object.defineProperties(
+        { skim: true },
+        Object.fromEntries(
+          ['lean', 'hydration'].map((key) => [
+            key,
+            {
+              get: () => {
+                throw new Error(`read retired ${key}`);
+              },
+            },
+          ]),
+        ),
+      ),
+    ]) {
+      const result = await direct.processOp(
+        req,
+        {
+          target: 'model',
+          name: modelName,
+          op: op === 'list' ? 'list' : 'read',
+          ...(op === 'read' ? { id: 'id' } : { filter: data }),
+          args: { ...args, lean: true, hydration: 'lean' },
+          options,
+          lean: true,
+          hydration: 'lean',
+        },
+        0,
+      );
+      expect(result.statusCode).toBe(200);
+      expect(target[method]).toHaveBeenLastCalledWith(op === 'read' ? 'id' : data, args, { skim: true });
+    }
   });
 
   it('rejects nested/dotted authority defaults atomically and keeps configured overrideFilter', async () => {
     const { api, modelName } = httpFixture();
-    api.setModelOption(modelName, 'defaults.publicListOptions', { lean: true });
+    api.setModelOption(modelName, 'defaults.publicListOptions', { includeCount: true });
     for (const key of controls) {
       expect(() => api.setModelOptions(modelName, { defaults: { findOptions: { [key]: {} } } } as never)).toThrow(
         PublicAdmissionError,
@@ -665,7 +717,7 @@ describe('SVA-01A schemas, transformed envelopes, root dispatch and defaults', (
         PublicAdmissionError,
       );
     }
-    expect(api.getModelOption(modelName, 'defaults.publicListOptions')).toEqual({ lean: true });
+    expect(api.getModelOption(modelName, 'defaults.publicListOptions')).toEqual({ includeCount: true });
     const hook = vi.fn((filter) => filter);
     api.setModelOption(modelName, 'overrideFilter.read', hook);
     expect(api.getModelOption(modelName, 'overrideFilter.read')).toBe(hook);

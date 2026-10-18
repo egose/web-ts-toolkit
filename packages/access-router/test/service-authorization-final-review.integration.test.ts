@@ -12,7 +12,7 @@ import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
 let sequence = 0;
-const quiet = { skim: true, lean: true, includePermissions: false, includeFieldPermissions: false };
+const quiet = { skim: true, includePermissions: false, includeFieldPermissions: false };
 const noteGrant = { outputFields: { mode: 'grant' as const, paths: ['internalNote'] } };
 const modes = ['request', 'scope', 'unrestricted'] as const;
 const rows = (mode: (typeof modes)[number]): RowAuthorization =>
@@ -45,6 +45,7 @@ async function fixture(
   runtime.registerModelInstance(name, model);
   if (registerTarget) runtime.registerModelInstance(targetName, target);
   const defaults = {
+    hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean' },
     permissionSchema: { status: true, tenant: true, slug: true, ref: true },
     operationAccess: { list: true, read: true, count: true },
     stripPermissionsField: true,

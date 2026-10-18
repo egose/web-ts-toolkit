@@ -57,7 +57,6 @@ export function resolveFindOneOptions<TModel>(service: Service<TModel>, options:
       options.includeFieldPermissions ?? service.defaults.findOneOptions?.includeFieldPermissions ?? includePermissions,
     access: options.access ?? service.defaults.findOneOptions?.access ?? 'read',
     populateAccess: options.populateAccess ?? service.defaults.findOneOptions?.populateAccess,
-    lean: options.lean ?? service.defaults.findOneOptions?.lean ?? false,
   });
 }
 
@@ -80,7 +79,6 @@ export function resolveFindByIdOptions<TModel>(service: Service<TModel>, options
       includePermissions,
     access: options.access ?? service.defaults.findByIdOptions?.access ?? 'read',
     populateAccess: options.populateAccess ?? service.defaults.findByIdOptions?.populateAccess,
-    lean: options.lean ?? service.defaults.findByIdOptions?.lean ?? false,
   });
 }
 
@@ -106,7 +104,6 @@ export function resolveFindOptions<TModel>(service: Service<TModel>, options: Fi
       options.includeFieldPermissions ?? service.defaults.findOptions?.includeFieldPermissions ?? includePermissions,
     includeCount: options.includeCount ?? service.defaults.findOptions?.includeCount ?? false,
     populateAccess: options.populateAccess ?? service.defaults.findOptions?.populateAccess ?? 'read',
-    lean: options.lean ?? service.defaults.findOptions?.lean ?? false,
   });
 }
 

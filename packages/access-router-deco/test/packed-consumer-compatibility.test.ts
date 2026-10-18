@@ -317,6 +317,12 @@ function unpackTarballToDir(tarballPath: string): string {
 }
 
 function writeConsumerFiles(consumerDir: string): void {
+  cpSync(path.join(packageRoot, 'test/hydration-consumer.types.fixture.ts'), path.join(consumerDir, 'hydration.ts'));
+  const migration = readFileSync(path.join(packageRoot, 'README.md'), 'utf8')
+    .split('### Server-owned hydration and migration')[1]
+    ?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!migration) throw new Error('Missing shipped hydration migration example');
+  writeFileSync(path.join(consumerDir, 'hydration-migration.ts'), migration);
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
     `import {
@@ -572,7 +578,7 @@ void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, reg
           types: ['node'],
           lib: ['ES2022', 'DOM'],
         },
-        include: ['consumer.nodenext.mts', 'consumer.nodenext.cts'],
+        include: ['consumer.nodenext.mts', 'consumer.nodenext.cts', 'hydration.ts', 'hydration-migration.ts'],
       },
       null,
       2,
@@ -595,7 +601,7 @@ void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, reg
           types: ['node'],
           lib: ['ES2022', 'DOM'],
         },
-        include: ['consumer.bundler.ts'],
+        include: ['consumer.bundler.ts', 'hydration.ts', 'hydration-migration.ts'],
       },
       null,
       2,

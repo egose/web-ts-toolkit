@@ -18,6 +18,7 @@ ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 [Persistence limits](#persistence-concurrency-and-resource-limits)
 
 **Migration:** [Removed overrides](#breaking-release-service-overrides-migration) ·
+[Server-owned hydration](#breaking-release-server-owned-hydration) ·
 [Named helpers](#breaking-release-named-helpers-and-default-behavior) ·
 [Distinct values](#distinct-whole-value-request-authorization) ·
 [Numeric grouped counts](#numeric-grouped-count-service-api-breaking-migration) ·
@@ -124,11 +125,11 @@ package-managed execution, falling back to `defaultRuntime` outside it.
 | Layer / public type                                                             | Where to put it                                                                                         | Scope and examples                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runtime/global — `GlobalOptions`                                                | `api.setGlobalOptions({...})`, `api.setGlobalOption(key, value)`; `api.set` is an alias for these forms | That runtime's request grants (`globalPermissions`, `requestPermissionField`), logger, registered-populate policy and `requestComplexity`.                                                                  |
-| Model defaults — `DefaultModelRouterOptions`                                    | `api.setDefaultModelOptions({...})`, `api.setDefaultModelOption(path, value)`                           | Shared model starting values such as `listHardLimit`, IDs, route segments, `operationAccess` and metadata posture. Data/root routers do not inherit them.                                                   |
-| Model router — `ModelRouterOptions<Model, Virtuals>`                            | `api.createRouter(Model, {...})`, then `router.setOptions`, `router.setOption` / `router.set`           | One registered model's guards, `permissionSchema`, hooks, virtuals, request schemas and method defaults. Routers for the same model/runtime share its stored options.                                       |
+| Model defaults — `DefaultModelRouterOptions`                                    | `api.setDefaultModelOptions({...})`, `api.setDefaultModelOption(path, value)`                           | Shared model starting values such as `listHardLimit`, IDs, route segments, `operationAccess`, `hydration` and metadata posture. Data/root routers do not inherit them.                                      |
+| Model router — `ModelRouterOptions<Model, Virtuals>`                            | `api.createRouter(Model, {...})`, then `router.setOptions`, `router.setOption` / `router.set`           | One registered model's guards, `permissionSchema`, hooks, virtuals, request schemas, `hydration` and method defaults. Routers for the same model/runtime share its stored options.                          |
 | Data router — `DataRouterOptions<Data>`                                         | `api.createDataRouter(name, {...})`, its setters, or `api.runtime.setDataOptions` / `setDataOption`     | Owned in-memory `data`, list/read guards, request-only fields/filters and decorators. No model `defaults` or model authorization policy. Set `idParam` and `idField` explicitly for data identifier routes. |
 | Root router — `RootRouterOptions`                                               | Single-argument `api.createRouter({ basePath, operationAccess, ... })`                                  | The batch endpoint's scalar guard and batch/order/whole-operation limits; each target keeps its own policy.                                                                                                 |
-| Per-method defaults — `Defaults<Model>` from `/advanced`                        | `ModelRouterOptions.defaults`, e.g. `defaults.publicListArgs` or `defaults.findOptions`                 | Query/presentation defaults for the **named method**, not global settings or trusted authority. Public wrappers and internal methods have separate buckets.                                                 |
+| Per-method defaults — `Defaults<Model>` from `/advanced`                        | `ModelRouterOptions.defaults`, e.g. `defaults.publicListArgs` or `defaults.findOptions`                 | Query/presentation defaults for the **named method**, not hydration, global settings or trusted authority. Public wrappers and internal methods have separate buckets.                                      |
 | Wire query / `args` / `options`                                                 | GET query, advanced body, or root entry                                                                 | Request-controlled selection, sorting, pagination and allowed presentation options; placement and spelling depend on transport (below).                                                                     |
 | Trusted per-call policy — `ServiceAuthorization`, `MutationAuthorization`, etc. | The internal service's final `options.authorization`                                                    | Server-owned, method-specific row/input/output/related authority. Absent dimensions use request authority. Never a router default, HTTP option or reusable permission mutation.                             |
 
@@ -164,8 +165,9 @@ package-managed execution, falling back to `defaultRuntime` outside it.
    and selection meanings still apply. Public `_list`/`_read`/`_create`/`_update`
    resolve `public*Args`/`public*Options` first, then forward resolved values to
    internal methods. A still-undefined query setting can reach the internal bucket;
-   an already resolved built-in (such as public list `lean: true`) takes precedence
-   over that internal default. By-ID delegations similarly forward resolved values.
+   an already resolved built-in (such as public list `includeCount: false`) takes
+   precedence over that internal default. By-ID delegations similarly forward
+   resolved values. Hydration is separate model configuration, not a method value.
    Public `_upsert` uses the public create or update bucket for its branch; trusted
    `upsert` has `upsertArgs`/`upsertOptions`. There is no `publicUpsertOptions` bucket.
 5. **Metadata posture is absolute.** Model `stripPermissionsField: true` removes
@@ -179,6 +181,8 @@ The supported `Defaults` buckets are `findArgs`/`findOptions`,
 `updateByIdArgs`/`updateByIdOptions`, `upsertArgs`/`upsertOptions`, `existsOptions`,
 and the four `publicList`, `publicRead`, `publicCreate`, `publicUpdate` Args/Options
 pairs. There is no general `defaults.options`, count, or data-method bucket.
+An explicit `service.defaults` assignment replaces the entire runtime defaults bag
+for that service; it does not merge buckets. Neither form selects hydration.
 
 <!-- doc-example: partial -->
 
@@ -246,8 +250,9 @@ GET flag values are strings `true`/`false`; body/root flags are booleans. The ta
 describes list/read fields on routes that support them, not arbitrary forwarding.
 GET lists start with `{}` as their client filter; use an advanced body for `filter`,
 `populate` or `include`. Model GET-by-ID also accepts `select`; basic data GET-by-ID
-does not project query selection (use its advanced read). `lean` is a model service/
-root read-list option, not a generated direct HTTP body option. Mutation bodies use
+does not project query selection (use its advanced read). Neither `lean` nor
+`hydration` is a supported service/wire option; use server model configuration.
+Mutation bodies use
 top-level `data`/`select`/`populate`/`tasks` and their own allowed `options`; see
 [advanced mutation validation](#advanced-mutation-validation).
 
@@ -270,7 +275,7 @@ separate from both objects. Root entries keep `target`, `name`, base `op`, `filt
 | `requestSchemas` / `validate` / `prepare` / `transform`                 | HTTP parsing / admitted model-input validation / trusted data preparation / live-document mutation before save.                                                                        |
 | `populate` / `include` / `related`                                      | Declared Mongoose references / output-only related query attachments / independent trusted target policy for an exact requested path.                                                  |
 | `access` / `populateAccess`                                             | Method-specific effective row/field access / target populate access (`list` or `read` on the wire). Neither chooses a basic/advanced route variant.                                    |
-| `lean` / `skim` / metadata flags                                        | Mongoose hydration choice / deprecated no-op / serialization and field-map choices. All preserve authorization.                                                                        |
+| Model `hydration` / `skim` / metadata flags                             | Server-owned Mongoose fetch choice / deprecated per-call no-op / serialization and field-map choices. All preserve authorization.                                                      |
 | `maxConcurrentOperations` / `maxHookConcurrency` / `maxBulkConcurrency` | Whole root operations per order group / request-runtime hook chains / request-runtime leaf persistence operations. Separate counted units and pools.                                   |
 | `count` / `includeCount` / `countByFieldValues`                         | One exact numeric query result / list match-total option / bounded numeric counts per original key alias. Returned-row counts and overlapping per-key counts are not union totals.     |
 
@@ -279,10 +284,159 @@ separate from both objects. Root entries keep `target`, `name`, base `op`, `filt
 `skim` remains accepted in existing service/default and supported wire option slots
 for compatibility, but is **deprecated and has no behavioral effect** in canonical
 model operations. True, false and omission all keep field/row authorization, document
-grants, virtuals and decoration. Remove it from new code. Use `lean` to choose fetch
-hydration, `includePermissions`/`includeFieldPermissions` to choose metadata, or the
+grants, virtuals and decoration. Remove it from new code. Use model `hydration`
+configuration for fetch mode, `includePermissions`/`includeFieldPermissions` for metadata, or the
 router's absolute metadata postures; none skips authorization. Existing examples
 that retain `skim` below demonstrate this compatibility contract.
+
+### Breaking release: server-owned hydration
+
+**Removed:** per-call `lean` from `PublicListOptions`, `PublicReadOptions`,
+`FindOptions`, `FindOneOptions`, inherited `FindByIdOptions`, and
+`SubdocumentParentOptions`. There is no renamed per-call, client, GET/body/root,
+include or populate hydration switch. Raw Mongoose `.lean()` remains supported.
+
+Configure the optional **model-level** `hydration: ModelHydrationOptions` record.
+Both it and `HydrationMode = 'lean' | 'hydrated'` are exported from the package root
+and `/advanced`. Exactly these five independent entries are supported:
+
+| Entry        | Built-in mode | Applies to                                                                                        |
+| ------------ | ------------- | ------------------------------------------------------------------------------------------------- |
+| `publicList` | `'lean'`      | Public `_list`, direct/root model lists                                                           |
+| `publicRead` | `'hydrated'`  | Public `_read`/`_readFilter`, identifier/filter routes and both attempts of read-to-list fallback |
+| `find`       | `'hydrated'`  | Internal service `find`                                                                           |
+| `findOne`    | `'hydrated'`  | Internal service `findOne`                                                                        |
+| `findById`   | `'hydrated'`  | Internal service `findById`, independently of `findOne`                                           |
+
+<!-- doc-example: partial -->
+
+```ts
+import mongoose from 'mongoose';
+import { createAccessRuntime, type ModelRouterOptions } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+
+const api = createAccessRuntime();
+const Thing = mongoose.model('Thing', new mongoose.Schema({ name: String }));
+// Server-owned hydration migration: configure once, not around each request.
+const options = {
+  operationAccess: { list: true, read: true },
+  permissionSchema: { name: true },
+  // Before: defaults.publicListOptions.lean = false; findOneOptions.lean = true.
+  hydration: { publicList: 'hydrated', findOne: 'lean', find: 'lean' },
+  defaults: { publicListOptions: { includeCount: true } },
+} satisfies ModelRouterOptions;
+const router = api.createRouter(Thing, options);
+router.setOption('hydration.publicRead', 'lean'); // Keeps the other stored entries.
+
+export async function findThings(req: ModelRequest) {
+  // req must be initialized by this runtime's middleware (for example router.routes).
+  const service = router.getService(req);
+  // Before: service.defaults = { findOptions: { lean: true, includeCount: true } }.
+  // Fetch mode is now model-wide hydration.find above, not service-instance state.
+  service.defaults = { findOptions: { includeCount: true } };
+  return service.find({}); // No fetch-mode option.
+}
+```
+
+Supported writers are model construction/router setters,
+`api.runtime.setModelOptions` / `setModelOption`, and starting defaults through
+`api.setDefaultModelOptions` / `setDefaultModelOption` (also on `api.runtime`).
+`GlobalOptions`, data/root router options, method `defaults`, `service.defaults`
+and client defaults are not hydration scopes. Decorator applications use the same
+record through `@Router`, per-model/default `@RouterOptions`, `@ModelOption` and
+`@DefaultModelOption`; see `@web-ts-toolkit/access-router-deco`'s installed README
+for its compiling configuration example.
+No dedicated hydration decorator is needed.
+
+Assignment follows `{ ...runtimeStartingDefaults, ...storedModelOptions,
+...incomingModelOptions }`: a supplied hydration record **replaces** the previous
+record, not individual members. Omitted/undefined entries use the matrix's
+built-ins, never an older record's members or generic nested `.default` lookup.
+For example, replacing `{ publicList: 'hydrated' }` with `{ find: 'lean' }`
+restores public lists to their built-in lean mode. The five exact
+`hydration.<entry>` setters change one stored member; member `undefined` clears
+that override and whole-record `undefined` clears the setting. Starting-default
+changes do not broadcast over an existing stored record. Default providers obey
+the same shallow semantics and existing decorator precedence.
+
+Only plain records with those five keys and mode strings (or `undefined`) are
+valid; scalars, null, arrays, unknown keys and invalid modes throw a path-bearing
+`TypeError` **before publication**. Failed updates preserve the prior snapshot;
+failed decorator bootstrap rolls back package-controlled state. Fresh service
+calls capture their owning runtime/model's current configuration; suspended calls,
+read fallback and already-captured related work retain their capture, even if
+another runtime later replaces `req.macl`.
+
+**Defaults migration:** move each old `defaults.<bucket>.lean` entry as follows;
+convert `true` to `'lean'` and `false` to `'hydrated'`:
+
+| Old bucket          | New model setting      |
+| ------------------- | ---------------------- |
+| `publicListOptions` | `hydration.publicList` |
+| `publicReadOptions` | `hydration.publicRead` |
+| `findOptions`       | `hydration.find`       |
+| `findOneOptions`    | `hydration.findOne`    |
+| `findByIdOptions`   | `hydration.findById`   |
+
+Keep unrelated presentation defaults in their existing buckets. Old `lean` keys,
+even `undefined`, and `hydration` keys in method-option buckets throw migration
+diagnostics instead of being translated or silently ignored. This covers model
+setters, synchronous `service.defaults` assignment, and later mutation of an
+assigned defaults bag detected before querying. Other methods explain their fixed
+mode rather than offer a replacement knob. Moving a former `service.defaults`
+override changes **all services for that model in its runtime**, not just one
+service instance; make that choice deliberately, never emulate request-local mode
+by changing shared configuration around a call.
+
+**Old JavaScript/wire inputs:** stale `lean` or `hydration` controls in permissive
+service/direct/root/`$$sq`/legacy-include/populate slots are inert and never select
+fetch mode. Strict correlated includes still reject nonempty execution options,
+including these keys. Ordinary business fields named `lean` or `hydration` remain
+valid in filters, selections, mutations and task data. Private execution choices
+are not added to public query/context metadata or response DTOs.
+
+| Fixed/related stage                                                                           | Fetch contract (not a new setting)                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Legacy/correlated include list/read targets                                                   | Fixed lean; read fallback disabled for correlated reads                                                                                                                                         |
+| `$$sq` list/read target                                                                       | Target's captured `publicList`/`publicRead`; no read fallback                                                                                                                                   |
+| Mongoose populate, including nested targets                                                   | Inherits the originating parent query's mode, not target hydration configuration                                                                                                                |
+| `getParentDoc(id, sub, args?, { access? })`, `findRawParentDoc({ filter, select, populate })` | Raw hydrated parent/null; not finalized DTOs or permission metadata. `getParentDoc` keeps its row/projection/populate checks; the low-level raw adapter helper is not an authorization boundary |
+| Dedicated subdocument read/mutation parent; `readSub` populate                                | Fixed hydrated parent/live document; post-save visibility re-fetch alone stays fixed lean                                                                                                       |
+| Create/new, update/upsert mutation lookup/save, delete hooks                                  | Live hydrated documents for setters, validation, saves and deletion, regardless of read configuration                                                                                           |
+| Exists/public-upsert existence, field-membership queries                                      | Fixed lean `_id` lookups; count/distinct/aggregates do not hydrate document results                                                                                                             |
+
+**Value caveat:** finalized model results and output-stage hook views are
+plain objects in both modes; this is not a promise of identical values. Hydration
+can apply missing schema defaults, init hooks and schema getters/`toObject`
+transforms that bare lean skips. Package virtuals, authorization, selection,
+decoration and metadata rules still run in both modes. Test your application's
+schema/plugins before switching; no universal JSON parity or measured speedup is
+claimed. Client save-capable `Model` wrappers are a separate client feature.
+
+### Finalized permissions alias
+
+**Compatibility expansion:** when a package-finalized model row already carries
+serialized permission metadata, `row.permissions` aliases that finalized value at
+`documentPermissionField` (default `_permissions`, also dotted paths such as
+`meta.grants`), independently of hydration and plugin installation. It is a
+non-enumerable, writable, configurable own data property: JSON, `Object.keys` and
+object spread omit the generated alias. It is a convenience value, **not authority
+or a live binding** after application reassignment.
+
+Exposure pruning, metadata flags, field-map disabling and empty/placeholder
+metadata apply before aliasing; private/unfiltered grants are never copied from
+raw documents. `stripPermissionsField: true` suppresses both canonical metadata
+and its generated alias. Existing `permissions` output wins, including selected
+business fields, package virtuals and include attachments/descriptors. A canonical
+path of `permissions` or `permissions.grants` keeps its existing enumerable
+property; no separate alias is created.
+
+Package-owned copies/related attachments preserve the alias **where metadata is
+already present**; ordinary populated/dedicated subdocument outputs do not gain
+metadata just to create one. Arbitrary application copies/transform replacements
+and client `Model` wrappers need not retain non-enumerable properties. The optional
+[Mongoose plugin](#optional-permissions-plugin) is a separate raw-document getter,
+not a prerequisite for this finalized alias.
 
 ### Root batch bounds
 
@@ -787,6 +941,7 @@ async function runServiceAuthorizationExample() {
     const router = api.createRouter<Order, Virtuals>(OrderModel, {
       basePath: '/orders',
       operationAccess: { read: true },
+      hydration: { findOne: 'lean' },
       stripPermissionsField: true,
       baseFilter: { read: () => ({ tenantId: 'request-tenant' }) },
       overrideFilter: {
@@ -830,7 +985,7 @@ async function runServiceAuthorizationExample() {
       ...output,
       rows: { mode: 'scope', filter: { tenantId: 'backend' } },
     } as const satisfies ServiceAuthorization<Order, Virtuals>;
-    const quiet = { skim: true, lean: true, includePermissions: false, includeFieldPermissions: false };
+    const quiet = { skim: true, includePermissions: false, includeFieldPermissions: false };
     const selected = { select: ['status', 'internalNote', '-_id'] };
 
     async function verifyServiceAuthorization(req: ModelRequest) {
@@ -1771,6 +1926,7 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 - logger helpers: `redactFilter`, `redactPayload`, `safeStringify`, `isLevelEnabled` + `OpLogContext` type
 - option helpers: `setGlobalOptions`, `setGlobalOption`, `getGlobalOptions`, `getGlobalOption`, `setModelOptions`, `setModelOption`, `getModelOptions`, `getModelOption`, `getModelNames`, `getModelJsonSchema`, `setDefaultModelOptions`, `setDefaultModelOption`, `getDefaultModelOptions`, `getDefaultModelOption`
 - route-policy types: `OperationAccess`, `SubOperationAccess`, `Validation`, `GuardHook`, `RouteVariantAccess`, `ModelRouterOptions`, `DefaultModelRouterOptions`, `DataRouterOptions`, `ExtendedModelRouterOptions`, `ExtendedDefaultModelRouterOptions`, and `ExtendedDataRouterOptions` for typed setters; `PermissionSchema` / `FieldOperationAccess` are separate base-operation field grants. These types are also available from `/advanced`.
+- fetch configuration types (also `/advanced`): `HydrationMode`, `ModelHydrationOptions` — server-owned model/default configuration, never per-call/wire options.
 - trusted service policy types (also `/advanced`): `ServiceAuthorization` (reads), `MutationAuthorization` (update/upsert), `CreateAuthorization`, `InputFieldAuthorization`, `InputFieldPath`, `OutputAuthorization`, `FieldAuthorization`, `RowAuthorization`, `OperationAuthorization`, `RelatedAuthorization`, `OutputFieldPath`. Input paths use persisted types only; output paths also include virtuals. Unknown models have an explicit runtime-validated string fallback; grant arrays may be readonly.
 - named helper/result types (also `/advanced`): `OutputPlanningOptions`, `OutputFieldOptions`, `AllowedOutputFieldOptions`, opaque `DocumentAuthorization`, `ServiceOutputContext`, `ServiceOutputDecorator`, `AuthorizedSingleResult`, `AuthorizedListResult`, `NewArgs`, `NewOptions`. Acquire the service from a router/request; there is no standalone `Service` export or public issuer/execution/prepared API.
 
@@ -1952,8 +2108,11 @@ schema.plugin(permissionsPlugin, { modelName: 'User', virtualPermissionField: 'p
 ```
 
 Use it only when application code needs that hydrated-document alias. Package output
-finalization uses the configured metadata path directly and supports lean results.
-`virtualPermissionField` is an alias name, not the package's computed `virtuals` API.
+finalization supplies its own [non-enumerable alias](#finalized-permissions-alias)
+from exposed metadata in both modes, without the plugin. The raw getter retains
+literal `_doc[documentPermissionField]` lookup (not dotted-path traversal).
+`virtualPermissionField` names only that raw getter, not the finalized alias or the
+package's computed `virtuals` API.
 
 ## Include Cardinality
 
@@ -2315,10 +2474,12 @@ getter fields are type errors (and configuration rejections at runtime).
 Virtual names are never added to persisted `Filter`, sort/distinct inputs, or
 client write types.
 
-Lean/hydrated parity: getters always receive an isolated, stable plain-object
+Lean/hydrated normalization: getters always receive an isolated, stable plain-object
 view (`toObject({ virtuals: false })` for documents, recursively isolated
 copies for lean results, with `Date`/`Buffer`/`ObjectId` cloned by their own
 constructors), so package virtuals compute for both lean and hydrated results.
+Schema defaults/getters/transforms/init hooks can still change their input values;
+see the [hydration value caveat](#breaking-release-server-owned-hydration).
 Only returned field values are committed via document-aware helpers;
 `undefined` omits the field; a throw omits it fail-closed with a structural
 log (no raw values or secret-bearing text). Sibling virtual values are never

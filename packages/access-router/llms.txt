@@ -16,7 +16,7 @@
 - [Installation](README.md#installation) · [Shortest public-read router](README.md#quick-start)
 - [Configuration-layer map](README.md#configuration-layers) · [Assignment, precedence and capture](README.md#assignment-precedence-and-capture) · [Wire placement](README.md#wire-placement-and-option-names)
 - [Names with different jobs](README.md#names-with-different-jobs) · [skim: deprecated compatibility no-op](README.md#skim-compatibility-no-op)
-- [Runtime isolation and nullish grants](README.md#default-runtime-vs-isolated-runtime) · [Factory overloads](README.md#createrouter-overloads) · [Optional metadata-alias plugin](README.md#optional-permissions-plugin)
+- [Runtime isolation and nullish grants](README.md#default-runtime-vs-isolated-runtime) · [Factory overloads](README.md#createrouter-overloads) · [Optional raw-document metadata getter](README.md#optional-permissions-plugin)
 - [Operation matrix and fallback](README.md#basic-and-advanced-operation-access) · [Live setters](README.md#live-updates-and-option-snapshots)
 - [Data list/read](README.md#data-routers) · [Data ownership/native values](README.md#in-memory-data-ownership) · [Runnable data example](README.md#runnable-data-router-split)
 - [Root batches: maxOrderGroups bounds both group count and numeric order](README.md#root-batch-bounds)
@@ -24,6 +24,9 @@
 
 ## Business and migration contracts
 
+- [Server-owned hydration and migration](README.md#breaking-release-server-owned-hydration): root/advanced types `HydrationMode` and `ModelHydrationOptions`; model/starting-default `hydration` has exactly publicList (built-in lean), publicRead/find/findOne/findById (built-in hydrated). Records replace shallowly; exact dotted setters update one member. Fresh calls capture their owning runtime; in-flight calls keep theirs. Move defaults.*Options.lean/service.defaults deliberately to model-wide configuration (true → 'lean', false → 'hydrated'); legacy method-default controls throw. No per-call/client/wire replacement; stale permissive keys are inert, strict correlated options still reject, and business fields keep their meaning.
+- [Fixed/related modes and value caveat](README.md#breaking-release-server-owned-hydration): includes/post-save subdocument visibility stay lean; raw parents/lifecycle documents stay hydrated; $$sq uses target public configuration; populate inherits its parent query. Plain finalized results do not imply identical schema defaults/getters/transforms/init-hook values or a measured speedup.
+- [Finalized permissions alias](README.md#finalized-permissions-alias): non-enumerable value alias to already-exposed canonical metadata, including dotted paths, independent of hydration/plugin. Stripping suppresses it; business/virtual/include collisions win. Package copies preserve it where metadata exists; no metadata synthesis or arbitrary-copy/client-wrapper promise. The optional Mongoose raw getter is separate.
 - [Trusted service authorization](README.md#trusted-service-authorization) · [Request admission](README.md#public-request-admission-and-backend-options): policy is server-only; wire/default control slots reject it.
 - [Selection, grants and document handles](README.md#selection-grants-and-document-results) · [Runnable Mongo authorization example](README.md#runnable-authorization-and-handle-reuse)
 - [Independent mutation input](README.md#independent-mutation-input-authority) · [Scoped subdocuments](README.md#dedicated-subdocument-authorization) · [Successful hidden-write responses](README.md#subdocument-writes-with-hidden-responses)

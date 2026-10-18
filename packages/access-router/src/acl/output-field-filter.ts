@@ -1,5 +1,6 @@
 /** Shared authenticated output decisions and existing-value filtering. No row or write admission. */
 import { isPlainObject } from '@web-ts-toolkit/utils';
+import { attachPermissionsAlias } from '../output/permissions-alias';
 import type { ModelHookContext, ModelRequest } from '../interfaces';
 import type { DocumentAuthorization } from '../interfaces/service-authorization';
 import type { AccessRuntime } from '../runtime';
@@ -290,6 +291,7 @@ export function retainOutputMetadata(
   target[parts[parts.length - 1]] = deepIsolateValue(metadata);
   transferDocumentAuthorizationGraph(output[parts[0]], copy[parts[0]]);
   output[parts[0]] = copy[parts[0]];
+  attachPermissionsAlias(output, parts.join('.'));
 }
 
 function helperPlan(authorization: ResolvedServiceAuthorization, binding: AuthorizationBinding): VirtualProjectionPlan {

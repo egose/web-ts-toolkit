@@ -18,7 +18,7 @@ import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
 let sequence = 0;
-const quiet = { skim: true, lean: true, includePermissions: false, includeFieldPermissions: false };
+const quiet = { skim: true, includePermissions: false, includeFieldPermissions: false };
 const modes = ['request', 'scope', 'unrestricted'] as const;
 const rows = (mode: (typeof modes)[number]): RowAuthorization =>
   mode === 'scope' ? { mode, filter: { tenant: 'backend' } } : { mode };
@@ -44,6 +44,7 @@ async function fixture(options: Record<string, unknown> = {}, targetOptions: Rec
   runtime.registerModelInstance(name, model);
   runtime.registerModelInstance(targetName, target);
   const defaults = {
+    hydration: { find: 'lean', findOne: 'lean', findById: 'lean', publicRead: 'lean' },
     permissionSchema: { status: true, tenant: true, join: true, transformPass: true, title: true, marker: true },
     operationAccess: { list: true, read: true, count: true },
     stripPermissionsField: true,

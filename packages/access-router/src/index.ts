@@ -242,6 +242,8 @@ export type {
 } from './interfaces/subdocument-authorization';
 export type {
   DefaultModelRouterOptions,
+  HydrationMode,
+  ModelHydrationOptions,
   ExtendedDataRouterOptions,
   ExtendedModelRouterOptions,
   FieldOperationAccess,
@@ -459,7 +461,7 @@ function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
  * The returned callable facade exposes factories/setters; `.runtime` is its owner.
  * Mount generated `.routes` after express.json(); connect MongoDB before listening.
  * Model operations default to denied until operationAccess is configured, and field
- * visibility requires permissionSchema. permissionsPlugin is only an optional alias.
+ * visibility requires permissionSchema. permissionsPlugin is only an optional raw-document alias.
  *
  * @example
  * ```ts
