@@ -166,10 +166,7 @@ export function MessagesPage({ session }: MessagesPageProps) {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       setSelectedMessage(null);
       setPendingAction(null);
-      const message =
-        data && typeof data === 'object' && 'message' in data
-          ? String((data as Record<string, unknown>).message)
-          : 'Action completed';
+      const message = data && typeof data === 'object' && 'message' in data ? String(data.message) : 'Action completed';
       showToast('success', message);
     },
     onError: (error) => {

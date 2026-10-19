@@ -12,7 +12,6 @@ const formGridClass = 'grid gap-4';
 const formRowClass = 'grid gap-4 lg:grid-cols-2';
 const formActionsClass = 'flex flex-wrap items-center gap-3';
 const labelClass = 'app-text-soft text-sm';
-const sectionHeaderClass = 'mb-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between';
 const snapshotGridClass = 'grid gap-4 lg:grid-cols-3';
 const summaryCardClass = 'app-surface-soft grid gap-1.5 rounded-xl p-4';
 

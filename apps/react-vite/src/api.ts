@@ -1,4 +1,5 @@
 import { createAdapter } from '@web-ts-toolkit/access-router-client';
+import { z } from 'zod';
 import type {
   Organization,
   OrganizationMember,
@@ -62,6 +63,23 @@ export async function logout() {
   await logoutRequest();
 }
 
+// Advanced client results are conservatively partial, and HTTP bodies are not
+// runtime-validated by the generic service. The workspace needs complete persisted
+// members (including IDs); reject the whole response rather than inventing defaults.
+const workspaceMembersSchema = z.array(
+  z.object({
+    _id: z.string().min(1),
+    organizationId: z.string().min(1),
+    userId: z.string().min(1),
+    email: z.string().min(1),
+    fullName: z.string().min(1),
+    title: z.string().min(1),
+    department: z.string().optional(),
+    managerMembershipId: z.string().min(1).nullable().optional(),
+    invitedByUserId: z.string().min(1),
+  }),
+);
+
 export async function loadWorkspace(organizationId: string): Promise<WorkspaceData> {
   const [organizationResponse, membershipResponse, roleTemplateResponse] = await adapter.group(
     organizationService.read(organizationId),
@@ -81,9 +99,14 @@ export async function loadWorkspace(organizationId: string): Promise<WorkspaceDa
     throw new Error(roleTemplateResponse.message || 'Unable to load role templates.');
   }
 
+  const members = workspaceMembersSchema.safeParse(membershipResponse.raw);
+  if (!members.success) {
+    throw new Error('Organization members response is incomplete or invalid.');
+  }
+
   return {
     organization: organizationResponse.raw,
-    members: membershipResponse.raw,
+    members: members.data,
     roleTemplates: roleTemplateResponse.raw,
   };
 }
@@ -109,31 +132,28 @@ export async function getMessageActions(
   messageId: string,
   usertype: 'sender' | 'receiver',
 ): Promise<MessageActionsResponse> {
-  const response = await adapter.axios.get<{ success: boolean; data: MessageActionsResponse }>(
-    `/messages/${messageId}/actions/${usertype}`,
-  );
-  return response.data.data;
+  const response = await adapter.axios.get<MessageActionsResponse>(`/messages/${messageId}/actions/${usertype}`);
+  return response.data;
 }
 
 export async function createMessageFromTemplate(
   templateCd: string,
   payload: Record<string, unknown>,
 ): Promise<Message[]> {
-  const response = await adapter.axios.post<{ success: boolean; data: Message[] }>(
-    `/messages/new/${templateCd}`,
-    payload,
-  );
-  return response.data.data;
+  const response = await adapter.axios.post<Message[]>(`/messages/new/${templateCd}`, payload);
+  return response.data;
 }
 
+/**
+ * Returns the bare handler result (which need not be an object). A committed
+ * action with pending sender notification resolves with HTTP 202's public
+ * { message, actionAttemptId } body; it is not a failed/retryable action.
+ */
 export async function executeMessageAction(
   messageId: string,
   actionCd: string,
   body: Record<string, unknown> = {},
-): Promise<Record<string, unknown>> {
-  const response = await adapter.axios.post<{ success: boolean; data: Record<string, unknown> }>(
-    `/messages/${messageId}/action/${actionCd}`,
-    body,
-  );
-  return response.data.data;
+): Promise<unknown> {
+  const response = await adapter.axios.post<unknown>(`/messages/${messageId}/action/${actionCd}`, body);
+  return response.data;
 }
