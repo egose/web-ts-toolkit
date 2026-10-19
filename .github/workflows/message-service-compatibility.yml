@@ -1,0 +1,46 @@
+name: Message Service Compatibility
+
+on:
+  pull_request:
+    paths-ignore:
+    - '**.md'
+  push:
+    paths-ignore:
+    - '**.md'
+
+jobs:
+  message-service-minimum-node:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+    - name: Setup build tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM packages
+      uses: ./.github/actions/setup-npm
+
+    - name: Install message-service runtime floor
+      run: asdf install nodejs 22.0.0
+
+    - name: Build installed consumer artifacts
+      run: pnpm --filter @web-ts-toolkit/message-service... build
+
+    - name: Verify minimum and installed-current peers on Node 22.0.0
+      env:
+        MESSAGE_SERVICE_EXPECT_NODE: 22.0.0
+        MESSAGE_SERVICE_REPORT_DIR: ${{ runner.temp }}/message-service-consumer-reports
+      run: |
+        mkdir -p _tmp-msga
+        git check-ignore _tmp-msga
+        export TMPDIR="$PWD/_tmp-msga"
+        export MESSAGE_SERVICE_CONSUMER_NODE="$(asdf where nodejs 22.0.0)/bin/node"
+        "$MESSAGE_SERVICE_CONSUMER_NODE" --version
+        pnpm --filter @web-ts-toolkit/message-service exec vitest run --config ../../vitest.config.ts --fileParallelism=false test/message-service.packed-consumer.test.ts -t MSGA-11
+
+    - name: Save resolved compatibility evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: message-service-minimum-node
+        path: ${{ runner.temp }}/message-service-consumer-reports

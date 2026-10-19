@@ -78,6 +78,26 @@ export class ActionNotAllowedError extends Error {
   }
 }
 
+/**
+ * Invalid submitted command rejected by a pure `MessageAction.parseInput` hook.
+ * Root-exported with mixed ESM/CommonJS `instanceof` support. HTTP returns only
+ * the fixed `invalid action input` message (400), never this diagnostic/cause or
+ * an attempt ID. Fresh pre-handler claims are released; retry attempts are kept.
+ * Throwing this inside a handler retains the ordinary `ActionRetryableError`
+ * contract because business effects may already have occurred.
+ */
+export class ActionInputValidationError extends Error {
+  static [Symbol.hasInstance](value: unknown): boolean {
+    return isRuntimeError(value, 'ActionInputValidationError');
+  }
+
+  constructor(message = 'invalid action input') {
+    super(message);
+    this.name = 'ActionInputValidationError';
+    markRuntimeError(this, this.name);
+  }
+}
+
 export class InvalidMessageUserError extends Error {
   static [Symbol.hasInstance](value: unknown): boolean {
     return isRuntimeError(value, 'InvalidMessageUserError');
@@ -278,6 +298,28 @@ export class MessageModelResolutionError extends Error {
     if (cause) {
       (this as Error & { cause?: unknown }).cause = cause;
     }
+  }
+}
+
+/**
+ * Fresh template creation requires a payment provider for every nonempty
+ * effective `paymentCd`, regardless of recipients. Absent/null providers throw
+ * this server-configuration error before the item's write. Code-free items and
+ * completed replays (including legacy sessionless records) need no provider.
+ *
+ * Root-exported with mixed ESM/CommonJS `instanceof` support. Routes use the
+ * sanitized HTTP 500 path; no template, code, payer, or session details are carried.
+ * Configured-provider rejections and null-return errors retain their own contracts.
+ */
+export class PaymentProviderRequiredError extends Error {
+  static [Symbol.hasInstance](value: unknown): boolean {
+    return isRuntimeError(value, 'PaymentProviderRequiredError');
+  }
+
+  constructor() {
+    super('paymentProvider is required for messages with a non-empty paymentCd');
+    this.name = 'PaymentProviderRequiredError';
+    markRuntimeError(this, this.name);
   }
 }
 

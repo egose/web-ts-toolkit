@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import mongoose from 'mongoose';
+import { describe, it, expect, vi } from 'vitest';
 import { buildMessageSchema } from '../src/schemas/message';
 import { buildMessageArchiveSchema } from '../src/schemas/message-archive';
 import { buildMessageRequestSchema } from '../src/schemas/message-request';
@@ -54,6 +55,39 @@ describe('buildMessageSchema (factory)', () => {
     expect(() => buildMessageSchema({ emailNotifier: () => {}, userModelName: 'DefinitelyNotRegistered' })).toThrow(
       /DefinitelyNotRegistered/,
     );
+  });
+
+  it('MSGA-05 requires default email lookup registration on the selected connection', async () => {
+    const selected = mongoose.createConnection();
+    const other = mongoose.createConnection();
+    try {
+      other.model('User', new mongoose.Schema({ email: String }));
+      expect(() => buildMessageSchema({ connection: selected, emailNotifier: vi.fn() })).toThrow(/user model "User"/);
+      selected.model('User', new mongoose.Schema({ email: String }));
+      expect(() => buildMessageSchema({ connection: selected, emailNotifier: vi.fn() })).not.toThrow();
+    } finally {
+      await selected.destroy();
+      await other.destroy();
+    }
+  });
+
+  it('MSGA-05 accepts a custom email resolver without model registration or eager callback execution', () => {
+    const resolver = vi.fn(() => 'external@app.test');
+    expect(() =>
+      buildMessageSchema({
+        emailNotifier: vi.fn(),
+        emailRecipientResolver: resolver,
+        userModelName: 'DefinitelyNotRegistered',
+      }),
+    ).not.toThrow();
+    expect(resolver).not.toHaveBeenCalled();
+  });
+
+  it('MSGA-05 registers no email hooks with a resolver but disabled notifier', () => {
+    const schema = buildMessageSchema({ emailRecipientResolver: () => 'external@app.test', emailNotifier: null });
+    const hooks = (schema as any).s.hooks;
+    expect(hooks._pres.get('save')?.some((hook: any) => hook.fn.name === 'captureEmailState')).not.toBe(true);
+    expect(hooks._posts.get('save')?.some((hook: any) => hook.fn.name === 'sendNotificationEmail')).not.toBe(true);
   });
 
   it('should support clientRequestId in the field set', () => {

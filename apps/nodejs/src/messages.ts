@@ -14,6 +14,7 @@ import {
   defaultRegistry,
 } from '@web-ts-toolkit/message-service';
 import { UserModel, type AppRequest as AppReq } from './models';
+import { AppError } from './errors';
 
 const invitePayloadSchema = z.object({
   inviteeEmail: z.string().trim().toLowerCase().email(),
@@ -62,6 +63,12 @@ export function parseTemplatePayload(templateCd: string, payload: unknown) {
   return schema.safeParse(payload);
 }
 
+function requireTemplatePayload<T>(schema: z.ZodType<T>, payload: unknown): T {
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) throw new AppError('Invalid message payload.');
+  return parsed.data;
+}
+
 type TemplateUser = MessageUser;
 export type { TemplateUser };
 
@@ -108,13 +115,12 @@ const teamInvitationTemplate: MessageTemplate = {
   },
   uiTemplate: 'card',
   async prepareMessage(ctx) {
-    const { payload } = ctx;
+    const payload = requireTemplatePayload(invitePayloadSchema, ctx.payload);
+    const { inviteeEmail, organizationName } = payload;
     const user = ctx.user as MessageUser;
-    const inviteeEmail = String(payload.inviteeEmail || '');
-    const organizationName = String(payload.organizationName || 'Workspace');
 
     const invitee = await UserModel.findOne({ email: inviteeEmail });
-    if (!invitee) return null;
+    if (!invitee) throw new AppError('Message recipient not found.', 404);
 
     return {
       templateData: {
@@ -124,6 +130,7 @@ const teamInvitationTemplate: MessageTemplate = {
       },
       fromUser: user._id,
       toUser: invitee._id,
+      payload,
     };
   },
   actions: [
@@ -172,15 +179,16 @@ const taskAssignmentTemplate: MessageTemplate = {
   },
   uiTemplate: 'card',
   async prepareMessage(ctx) {
-    const { payload } = ctx;
+    const {
+      toUserEmail,
+      taskTitle,
+      taskDescription = '',
+      dueDate = '',
+    } = requireTemplatePayload(taskPayloadSchema, ctx.payload);
     const user = ctx.user as MessageUser;
-    const toUserEmail = String(payload.toUserEmail || '');
-    const taskTitle = String(payload.taskTitle || 'Untitled Task');
-    const taskDescription = String(payload.taskDescription || '');
-    const dueDate = String(payload.dueDate || '');
 
     const assignee = await UserModel.findOne({ email: toUserEmail });
-    if (!assignee) return null;
+    if (!assignee) throw new AppError('Message recipient not found.', 404);
 
     return {
       templateData: {
@@ -237,15 +245,14 @@ const approvalRequestTemplate: MessageTemplate = {
   },
   uiTemplate: 'card',
   async prepareMessage(ctx) {
-    const { payload } = ctx;
+    const { toUserEmail, requestTitle, requestDetails, amount } = requireTemplatePayload(
+      approvalPayloadSchema,
+      ctx.payload,
+    );
     const user = ctx.user as MessageUser;
-    const toUserEmail = String(payload.toUserEmail || '');
-    const requestTitle = String(payload.requestTitle || 'Untitled Request');
-    const requestDetails = String(payload.requestDetails || '');
-    const amount = payload.amount != null ? Number(payload.amount) : undefined;
 
     const approver = await UserModel.findOne({ email: toUserEmail });
-    if (!approver) return null;
+    if (!approver) throw new AppError('Message recipient not found.', 404);
 
     return {
       templateData: {
@@ -308,14 +315,11 @@ const directMessageTemplate: MessageTemplate = {
   },
   uiTemplate: 'card',
   async prepareMessage(ctx) {
-    const { payload } = ctx;
+    const { toUserEmail, subject, body } = requireTemplatePayload(directMessagePayloadSchema, ctx.payload);
     const user = ctx.user as MessageUser;
-    const toUserEmail = String(payload.toUserEmail || '');
-    const subject = String(payload.subject || 'No subject');
-    const body = String(payload.body || '');
 
     const recipient = await UserModel.findOne({ email: toUserEmail });
-    if (!recipient) return null;
+    if (!recipient) throw new AppError('Message recipient not found.', 404);
 
     return {
       templateData: {
@@ -363,15 +367,13 @@ const systemAnnouncementTemplate: MessageTemplate = {
   },
   uiTemplate: 'banner',
   async prepareMessage(ctx) {
-    const { payload } = ctx;
+    const { title, body, priority = 'normal' } = requireTemplatePayload(announcementPayloadSchema, ctx.payload);
     const user = ctx.user as MessageUser;
-    const title = String(payload.title || 'Announcement');
-    const body = String(payload.body || '');
-    const priority = String(payload.priority || 'normal');
 
     const senderObjectId = toObjectId(String(user._id));
     const allUsers = await UserModel.find({}).limit(SYSTEM_ANNOUNCEMENT_MAX_RECIPIENTS);
     const otherUsers = senderObjectId ? allUsers.filter((u) => String(u._id) !== String(senderObjectId)) : allUsers;
+    if (otherUsers.length === 0) throw new AppError('Message recipient not found.', 404);
 
     return otherUsers.map((targetUser) => ({
       templateData: {

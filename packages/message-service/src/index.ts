@@ -53,6 +53,8 @@ export type {
   EmailDeliveryFailureEvent,
   EmailDeliveryFailureStage,
   EmailNotifier,
+  EmailRecipientResolver,
+  EmailRecipientResolverContext,
   MessageSchemaConfig,
 } from './schemas/message';
 export { MessageArchiveSchema, buildMessageArchiveSchema } from './schemas/message-archive';
@@ -99,6 +101,7 @@ export {
   GENERIC_NOTIFICATION_TEMPLATE_CD,
   ActionTemplateMismatchError,
   ActionConflictError,
+  ActionInputValidationError,
   ActionNotificationPendingError,
   InvalidMessageUserError,
   InvalidMessageServiceOptionError,
@@ -115,6 +118,7 @@ export {
   ClientRequestInconsistentStateError,
   MessageTransactionRequiredError,
   MessageModelResolutionError,
+  PaymentProviderRequiredError,
   PaymentSessionCompensationError,
   PaymentSessionCompensationAggregateError,
 } from './message-service';

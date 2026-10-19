@@ -1,11 +1,14 @@
 import mongoose from 'mongoose';
+import type { IMessageContent } from '../types/message';
 
 /** Model name constants — use these when calling mongoose.model() or getModel() */
 export const MESSAGE_MODEL_NAME = 'Message';
 export const MESSAGE_ARCHIVE_MODEL_NAME = 'MessageArchive';
 export const MESSAGE_REQUEST_MODEL_NAME = 'MessageRequest';
 
-export const MessageContentSchema = new mongoose.Schema(
+// Keep the shipped type in the common Mongoose 8/9 generic surface rather than
+// expanding build-time Mongoose 9 inference into version-specific declarations.
+export const MessageContentSchema: mongoose.Schema<IMessageContent> = new mongoose.Schema<IMessageContent>(
   {
     title: { type: String, default: '' },
     long: { type: String, default: '' },

@@ -49,6 +49,7 @@ export async function createMongoMessageServiceFixture(
     schemaOptions?: MessageSchemaConfig;
     serviceOptions?: Pick<
       ConstructorParameters<typeof MessageService>[0],
+      | 'actionLeaseMs'
       | 'clientRequestLeaseMs'
       | 'clientRequestWaitMs'
       | 'clientRequestPollMs'
