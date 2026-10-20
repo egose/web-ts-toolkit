@@ -4,6 +4,7 @@ import type { IBaseMessage, IMessageMethods, UserId } from '../types/message';
 import type { TemplateRegistry } from '../template-registry';
 import { includesAction } from '../template-registry';
 import { isSender, isReceiver } from './methods';
+import { normalizeUserIdForStorage } from '../user-id';
 import { isDuplicateKeyError, runMessageTransaction } from '../persistence';
 import type { MessageTransactionCleanupFailureObserver } from '../types/transaction';
 import {
@@ -21,7 +22,42 @@ import {
 // Email notification hook
 // ---------------------------------------------------------------------------
 
+/**
+ * Best-effort delivery callback: receives the resolved address unchanged, the
+ * trimmed receiver title, and the longer receiver body (short wins ties).
+ * Throws/rejections report stage `notifier` without rejecting the saved message.
+ * Bind provider methods when they depend on `this`.
+ */
 export type EmailNotifier = (email: string, title: string, message: string) => Promise<void> | void;
+
+/** Host context for address/preference lookup after a new, session-free message save. */
+export interface EmailRecipientResolverContext {
+  /** Direct recipient ID after schema casting: ObjectId by default, or an opaque string with String party paths. */
+  readonly recipientId: UserId;
+  /** The hydrated document's owning connection, not the schema's eager-check connection or global Mongoose. */
+  readonly connection: mongoose.Connection;
+  /**
+   * Saved message fields, including templateCd, payload and display. A shallow
+   * read-only view of the hydrated document, not a cloned/frozen snapshot; do not
+   * mutate it or its nested values. No document methods are exposed by this type.
+   */
+  readonly message: Readonly<IBaseMessage> & { readonly _id: mongoose.Types.ObjectId };
+}
+
+/**
+ * Resolve one recipient address, synchronously or asynchronously. Return null,
+ * undefined or an empty string to skip delivery without a failure event; no
+ * default lookup is attempted. Addresses are forwarded unchanged to the notifier;
+ * the host owns address validation, normalization and notification preferences.
+ * Throws/rejections report stage `recipientLookup` without rejecting the saved
+ * message. Awaited as part of the save hook; keep external lookups bounded.
+ * Not called for updates, session-bound saves, disabled email, missing direct
+ * recipients, or blank/excluded rendered titles. It does not enable role fan-out.
+ * Bind methods to their host instance when they depend on `this`.
+ */
+export type EmailRecipientResolver = (
+  context: EmailRecipientResolverContext,
+) => string | null | undefined | Promise<string | null | undefined>;
 
 export type EmailDeliveryFailureStage = 'recipientLookup' | 'notifier';
 
@@ -39,13 +75,25 @@ export interface MessageSchemaConfig {
    * send a best-effort email notification to the recipient. Pass `null` (the
    * default) to disable.
    *
-   * When `null`, no save hooks are registered at all. When set, the schema
+   * When `null`, no email save hooks are registered. When set, the schema
    * registers a pre-save state capture plus a connection-local post-save
-   * hook: the post-save hook resolves user/archive models on the hydrated
-   * document's owning connection and skips session-bound writes (Mongoose
-   * save hooks run before the surrounding transaction commits).
+   * hook: recipient lookup uses the hydrated document's owning connection and
+   * skips session-bound writes (Mongoose save hooks run before the surrounding
+   * transaction commits). Bind provider methods to their instance when needed.
    */
   emailNotifier?: EmailNotifier | null;
+
+  /**
+   * Optional address/preference lookup for nested fields or external directories.
+   * Replaces the default connection-local `User.findById(toUser).select('email').lean()`
+   * adapter; no local user model or eager user-model check is needed when set.
+   * Called only with email enabled, for new session-free saves with a direct
+   * recipient and nonempty, nonexcluded rendered receiver title. Updates never
+   * resend. Return null/undefined/'' to skip without default fallback; failures use
+   * `onEmailDeliveryFailure`. Addresses are passed through unchanged. Bind host
+   * methods that depend on `this`; keep awaited external lookup work bounded.
+   */
+  emailRecipientResolver?: EmailRecipientResolver;
 
   /**
    * Called when recipient lookup or notifier delivery fails. The message save
@@ -63,16 +111,16 @@ export interface MessageSchemaConfig {
   emailNotificationExclusions?: string[];
 
   /**
-   * Name of the Mongoose model that holds the recipient user records.
+   * Name of the Mongoose model used by the default recipient-address adapter.
    * Defaults to `'User'`. The post-save email hook resolves it on the
    * message document's owning connection
    * (`document.constructor.db.model(name)`) to look up the recipient's email
    * address, so connection-local apps must register the user model on the
    * same connection as the message models.
    *
-   * The model MUST be registered before the first save when `emailNotifier`
-   * is set — `buildMessageSchema` checks this eagerly to fail fast (pass
-   * `connection` when configuring connection-local schemas).
+   * The model MUST be registered before `buildMessageSchema()` when `emailNotifier`
+   * is set without `emailRecipientResolver` — checked eagerly to fail fast (pass
+   * `connection` for connection-local schemas). Ignored by custom resolvers.
    */
   userModelName?: string;
 
@@ -233,7 +281,7 @@ function createArchiveMethod(ctx: ArchiveContext) {
       const archiveDoc: Record<string, unknown> = {
         ...source,
         actionCd,
-        archivedBy,
+        archivedBy: normalizeUserIdForStorage(archivedBy),
         archivedAt: new Date(),
         actionNotificationState: 'none',
         actionNotificationError: null,
@@ -289,6 +337,7 @@ function createArchiveMethod(ctx: ArchiveContext) {
 
 interface EmailHookContext {
   emailNotifier: EmailNotifier;
+  emailRecipientResolver?: EmailRecipientResolver;
   onEmailDeliveryFailure?: (event: EmailDeliveryFailureEvent) => void | Promise<void>;
   emailNotificationExclusions: string[];
   userModelName: string;
@@ -325,16 +374,25 @@ function createPostSaveEmailHook(ctx: EmailHookContext) {
       return;
     }
 
-    let user: { email?: string } | null;
+    let email: string | null | undefined;
     try {
-      const User = resolveDocumentModel(this, ctx.userModelName, 'user');
-      user = (await User.findById(this.toUser).select('email').lean()) as { email?: string } | null;
+      if (ctx.emailRecipientResolver) {
+        email = await ctx.emailRecipientResolver({
+          recipientId: this.toUser,
+          connection: (this.constructor as MessageModel).db,
+          message: this,
+        });
+      } else {
+        const User = resolveDocumentModel(this, ctx.userModelName, 'user');
+        const user = (await User.findById(this.toUser).select('email').lean()) as { email?: string } | null;
+        email = user?.email;
+      }
     } catch (error) {
       await reportEmailFailure(ctx, 'recipientLookup', error, this, title);
       return;
     }
 
-    if (!user?.email) {
+    if (!email) {
       return;
     }
 
@@ -343,7 +401,7 @@ function createPostSaveEmailHook(ctx: EmailHookContext) {
     const body = long.length > short.length ? long : short;
 
     try {
-      await ctx.emailNotifier(user.email, title, body);
+      await ctx.emailNotifier(email, title, body);
     } catch (error) {
       await reportEmailFailure(ctx, 'notifier', error, this, title);
     }
@@ -392,6 +450,7 @@ function assertModelRegistered(connection: mongoose.Connection | typeof mongoose
 interface ResolvedConfig {
   onTransactionCleanupFailure?: MessageTransactionCleanupFailureObserver;
   emailNotifier: EmailNotifier | null;
+  emailRecipientResolver?: EmailRecipientResolver;
   onEmailDeliveryFailure?: (event: EmailDeliveryFailureEvent) => void | Promise<void>;
   emailNotificationExclusions: string[];
   userModelName: string;
@@ -403,6 +462,7 @@ function resolveConfig(config?: MessageSchemaConfig): ResolvedConfig {
   return {
     onTransactionCleanupFailure: config?.onTransactionCleanupFailure,
     emailNotifier: config?.emailNotifier ?? null,
+    emailRecipientResolver: config?.emailRecipientResolver,
     onEmailDeliveryFailure: config?.onEmailDeliveryFailure,
     emailNotificationExclusions: (config?.emailNotificationExclusions ?? []).map(normalizeEmailTitle),
     userModelName: config?.userModelName ?? 'User',
@@ -414,18 +474,22 @@ function resolveConfig(config?: MessageSchemaConfig): ResolvedConfig {
 /**
  * Build a fresh Message schema with the given configuration.
  * Prefer this over the default `MessageSchema` export when you need
- * an email notifier, exclusions, cleanup diagnostics, or custom model names.
+ * an email notifier/recipient resolver, exclusions, cleanup diagnostics, or custom model names.
+ * For opaque string user IDs, use `schema.add()` before compiling the model to
+ * replace `fromUser`/`toUser` with trimmed String paths on both active and archive
+ * schemas; also replace archive `archivedBy`. Message `_id` stays ObjectId.
+ * The README contains the complete root-import recipe and migration policy.
  *
- * Note: when `emailNotifier` is set, the configured `userModelName` MUST
- * be registered with Mongoose before calling this function. The schema
- * factory checks this eagerly to fail fast.
+ * With `emailNotifier` and no `emailRecipientResolver`, the configured `userModelName`
+ * MUST be registered on `connection` (global Mongoose by default) before calling
+ * this function. Custom resolvers replace that adapter and need no User model.
  */
 export function buildMessageSchema(
   config?: MessageSchemaConfig,
 ): mongoose.Schema<IBaseMessage, MessageModel, IMessageMethods> {
   const resolved = resolveConfig(config);
 
-  if (resolved.emailNotifier) {
+  if (resolved.emailNotifier && !resolved.emailRecipientResolver) {
     assertModelRegistered(resolved.connection, resolved.userModelName, 'user');
   }
 
@@ -480,6 +544,7 @@ export function buildMessageSchema(
       'save',
       createPostSaveEmailHook({
         emailNotifier: resolved.emailNotifier,
+        emailRecipientResolver: resolved.emailRecipientResolver,
         onEmailDeliveryFailure: resolved.onEmailDeliveryFailure,
         emailNotificationExclusions: resolved.emailNotificationExclusions,
         userModelName: resolved.userModelName,
@@ -495,4 +560,4 @@ export function buildMessageSchema(
  * Provided for backwards compatibility and simple use cases.
  * Use `buildMessageSchema(config)` when you need custom behavior.
  */
-export const MessageSchema = buildMessageSchema();
+export const MessageSchema: ReturnType<typeof buildMessageSchema> = buildMessageSchema();

@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { MessageUser } from './types/message';
 import {
   ActionConflictError,
+  ActionInputValidationError,
   ActionNotificationPendingError,
   ActionNotAllowedError,
   ActionNotFoundError,
@@ -118,6 +119,9 @@ function isMongooseCastError(error: unknown): boolean {
 }
 
 function mapServiceError(error: unknown): never {
+  if (error instanceof ActionInputValidationError) {
+    throw new JsonRouter.clientErrors.BadRequestError('invalid action input');
+  }
   if (error instanceof MessageNotFoundError) {
     throw new JsonRouter.clientErrors.NotFoundError('message not found');
   }
@@ -192,6 +196,9 @@ export interface MessageRoutesBehaviorOptions {
    * require this extractor to return a user with a valid `_id` (non-empty
    * string or ObjectId; numbers, arrays, and plain objects are rejected)
    * before any service, template, payment, model, or action side effect runs.
+   * Optional `roles` must be undefined or an array containing only strings;
+   * malformed roles also produce 401 before service/model lookup.
+   * The original request and extracted user are passed through unchanged.
    * Shares the service's principal-validation contract.
    */
   getUser?: (req: Request) => MessageUser | undefined;
@@ -222,7 +229,7 @@ export interface MessageRoutesBehaviorOptions {
  * Convenience-construction path: routes build and own a `MessageService`
  * from the full service option set. `service` must be absent; every other
  * service knob (`getModel`, `connection`, `modelNames`, payment, `registry`,
- * list limits, and `clientRequest*` timing/test hooks) is forwarded verbatim
+ * list limits, `actionLeaseMs`, and `clientRequest*` timing/test hooks) is forwarded verbatim
  * to `new MessageService(...)` so the route service never drifts behind the
  * direct-service configuration surface.
  */
@@ -258,6 +265,7 @@ export interface MessageRoutesInjectionOptions extends MessageRoutesBehaviorOpti
   registry?: never;
   defaultListLimit?: never;
   maxListLimit?: never;
+  actionLeaseMs?: never;
   clientRequestLeaseMs?: never;
   clientRequestWaitMs?: never;
   clientRequestPollMs?: never;
@@ -290,6 +298,7 @@ const SERVICE_CONSTRUCTION_KEYS = [
   'registry',
   'defaultListLimit',
   'maxListLimit',
+  'actionLeaseMs',
   'clientRequestLeaseMs',
   'clientRequestWaitMs',
   'clientRequestPollMs',
@@ -365,6 +374,7 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
       registry: construction.registry,
       defaultListLimit: construction.defaultListLimit,
       maxListLimit: construction.maxListLimit,
+      actionLeaseMs: construction.actionLeaseMs,
       clientRequestLeaseMs: construction.clientRequestLeaseMs,
       clientRequestWaitMs: construction.clientRequestWaitMs,
       clientRequestPollMs: construction.clientRequestPollMs,
@@ -444,7 +454,13 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
 
     const permissions = getPermissions(req);
     try {
-      return await service.handleAction(message.templateCd, actionCd, { message, user, permissions, req });
+      return await service.handleAction(message.templateCd, actionCd, {
+        message,
+        user,
+        permissions,
+        input: req.body,
+        req,
+      });
     } catch (error) {
       if (error instanceof ActionNotificationPendingError) {
         return new JsonRouter.success.Accepted({ message: error.message, actionAttemptId: error.actionAttemptId });

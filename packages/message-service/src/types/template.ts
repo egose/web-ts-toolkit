@@ -25,8 +25,20 @@ export interface PrepareResult {
   fromUser?: UserId;
   toUser?: UserId;
   toRoles?: string[];
+  /**
+   * Per-item attachment ObjectIds; `[]` intentionally clears attachments.
+   * Omitted/undefined uses the original `PrepareContext.payload.documents`
+   * (or `[]` when absent), not this result's `payload.documents`.
+   * The selected array is copied per item without mutating either input.
+   */
+  documents?: mongoose.Types.ObjectId[];
   payload?: Record<string, unknown>;
   display?: Record<string, unknown>;
+  /**
+   * Nonempty code overrides the template and requires a payment session even
+   * without recipients. `''`/omission inherits `MessageTemplate.paymentCd`;
+   * codes are not trimmed. Absent/null providers throw `PaymentProviderRequiredError`.
+   */
   paymentCd?: string;
   priceArgs?: Record<string, unknown>;
 }
@@ -37,6 +49,11 @@ export interface PrepareResult {
 
 export interface ActionContext {
   message: IMessage | IMessageArchive;
+  /**
+   * Validated snapshot of `_id`, `id`, `roles`, and `displayName`, including
+   * getter-backed values. `_id` is the normalized string identity; roles are
+   * copied. Extra authentication-document fields are excluded; `req` is original.
+   */
   user: MessageUser;
   /**
    * Stable, persisted idempotency key for this action attempt. Handlers that
@@ -45,6 +62,14 @@ export interface ActionContext {
    * exactly-once.
    */
   actionAttemptId?: string;
+  /**
+   * Submitted command, or the current action's synchronous `parseInput` output.
+   * HTTP supplies `req.body`; direct calls supply `data.input` explicitly (never
+   * inferred from `req`). Separate from action metadata and `message.payload`.
+   * Unvalidated/pass-through when no parser is configured. Hosts own durable
+   * command/result binding and deduplication by `actionAttemptId`.
+   */
+  input?: unknown;
   getModel: (name: string) => mongoose.Model<unknown>;
   expireSession?: (sessionId: string) => Promise<void>;
   refundPayment?: (sessionId: string) => Promise<void>;
@@ -88,7 +113,22 @@ export interface MessageAction {
   permission?: string;
   condition?: (message: IMessage) => boolean;
   confirmation?: ActionConfirmation;
+  /** Presentation metadata, not submitted input or an enforced command schema. */
   payload?: Record<string, unknown>;
+  /**
+   * Optional synchronous, deterministic, effect-free command parser. Runs once
+   * per acquisition after authoritative claimed authorization, before the handler.
+   * Treat raw input as read-only; return a normalized allowlisted command for
+   * `ActionContext.input`, or throw `ActionInputValidationError` (HTTP 400).
+   * Async parsers/thenables are unsupported server errors (HTTP 500); unexpected
+   * failures retain their cause and are sanitized over HTTP. No parser runs for
+   * unauthorized callers, listings, or archived outcomes.
+   *
+   * Pre-handler failure releases a fresh claim to active; retries/takeovers retain
+   * their stable attempt/action as retryable. Release is owner-fenced. This hook
+   * must not reserve commands or perform business effects; do that in the handler.
+   */
+  parseInput?: (input: unknown) => unknown;
   senderNotification?: string | ((ctx: ActionContext) => Promise<string | SenderNotificationContent>);
   runHandler: (ctx: ActionContext) => Promise<unknown>;
 }
@@ -106,6 +146,12 @@ export interface MessageTemplate {
   senderContent: { title: string; long: string; short: string };
   receiverContent: { title: string; long: string; short: string };
   uiTemplate: UiTemplate;
+  /**
+   * Default code for fresh prepared items: `item.paymentCd || template.paymentCd || ''`.
+   * A nonempty effective code requires a payment session regardless of recipients;
+   * absent/null providers throw `PaymentProviderRequiredError`. Empty item codes
+   * cannot clear this default. Completed replays never re-evaluate payment.
+   */
   paymentCd?: string;
   prepareMessage: (ctx: PrepareContext) => Promise<PrepareResult | PrepareResult[] | null>;
   actions: MessageAction[];
@@ -124,7 +170,7 @@ export type RegisteredUiTemplate = string | Readonly<{ sender?: string; receiver
 /**
  * Readonly action view matching the registry freeze depth: the action object,
  * its `confirmation`, and its `payload` are each shallow-frozen. Function
- * fields (`condition`, `runHandler`, `senderNotification`) keep their original
+ * fields (`condition`, `parseInput`, `runHandler`, `senderNotification`) keep their original
  * identity and remain callable.
  */
 export type RegisteredMessageAction = Readonly<Omit<MessageAction, 'confirmation' | 'payload'>> & {

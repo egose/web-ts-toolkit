@@ -23,6 +23,15 @@ export interface IMessageContent {
  */
 export type MessageType = 'notification' | 'request' | 'reminder' | 'approval' | (string & {});
 
+/**
+ * Native ObjectId or case-sensitive opaque string. User-facing IDs are trimmed;
+ * template party storage and archive ownership trim strings without stringifying
+ * native ObjectIds. Bundled party/archivedBy paths default to ObjectId: arbitrary
+ * strings require the README's active AND archive String-schema overrides.
+ * Stored ObjectIds match 24-hex principals in either case; stored strings compare
+ * exactly after trimming (even hex-looking strings). Request scopes always retain
+ * the existing trimmed, case-sensitive string keys; ObjectIds use lowercase hex.
+ */
 export type UserId = mongoose.Types.ObjectId | string;
 
 export type ActionLifecycleState = 'active' | 'processing' | 'retryable';
@@ -31,20 +40,26 @@ export type ActionNotificationState = 'none' | 'pending' | 'sent' | 'failed';
 
 /**
  * Minimal user shape accepted by MessageService methods.
+ * Plain objects, prototype getters, and hydrated Mongoose documents are
+ * supported. User-facing operations reject malformed `roles` with
+ * `InvalidMessageUserError`; omitted/undefined roles and `[]` are valid.
+ * Action handlers receive only these fields (with a copied roles array),
+ * not arbitrary authentication-document properties. The caller is not mutated.
  * `displayName` is optional but templates that interpolate `{{displayName}}`
  * will fall back to an empty string if it is absent.
  */
 export interface MessageUser {
   _id: UserId;
   id?: string;
+  /** Exact, case-sensitive string roles; no coercion or substring matching. */
   roles?: string[];
   displayName?: string;
 }
 
 export interface IMessageRelationshipMethods {
-  /** Match a string/ObjectId or populated party's `_id`; missing references never match. */
+  /** Stored ObjectIds accept either hex case; String parties match exact trimmed IDs, including populated `_id`s. Invalid roles/references never match. */
   isSender(user: MessageUser): boolean;
-  /** Match the recipient identity (including populated `_id`) or an explicit recipient role. */
+  /** Same stored-type ID policy as isSender, or an exact role; malformed user roles fail closed. */
   isReceiver(user: MessageUser): boolean;
 }
 
@@ -62,6 +77,8 @@ export interface IMessageMethods extends IMessageRelationshipMethods {
    * `MessageArchivedError` (archive copy exists) or `MessageNotFoundError`.
    * Deployments without transaction support throw
    * `MessageTransactionRequiredError` before writing anything.
+   * String `archivedBy` is trimmed; native ObjectIds are preserved for schema
+   * casting. Opaque IDs require a String archive `archivedBy` path (see README).
    * Confirmed commit resolves even if session cleanup rejects; configure
    * `buildMessageSchema({ onTransactionCleanupFailure })` for diagnostics.
    * Observer failures cannot change the outcome. An attached `$session()` is
@@ -110,7 +127,7 @@ type MongooseQueryHelpers = Record<string, unknown>;
 
 export type IMessage = mongoose.Document<unknown, MongooseQueryHelpers, IMessageMethods> &
   IBaseMessage &
-  IMessageMethods & { __v?: number };
+  IMessageMethods & { _id: mongoose.Types.ObjectId; __v?: number };
 
 // ---------------------------------------------------------------------------
 // Message Archive Document
@@ -118,6 +135,7 @@ export type IMessage = mongoose.Document<unknown, MongooseQueryHelpers, IMessage
 
 export type IMessageArchive = mongoose.Document<unknown, MongooseQueryHelpers, IMessageRelationshipMethods> &
   IBaseMessage & {
+    _id: mongoose.Types.ObjectId;
     actionCd: string;
     archivedBy: UserId;
     archivedAt: Date;

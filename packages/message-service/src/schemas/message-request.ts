@@ -41,4 +41,4 @@ export function buildMessageRequestSchema(): mongoose.Schema<MessageRequestSchem
   return schema;
 }
 
-export const MessageRequestSchema = buildMessageRequestSchema();
+export const MessageRequestSchema: ReturnType<typeof buildMessageRequestSchema> = buildMessageRequestSchema();

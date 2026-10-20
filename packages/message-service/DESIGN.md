@@ -68,7 +68,70 @@ Handlebars interpolation uses `noEscape: true` because rendered message fields a
 
 Content rendering is separated from action evaluation: creation renders only content from `PrepareResult.templateData` (`interpolateMessageContent`) and never runs `condition` predicates, so message-field conditions cannot fail creation. Eligible active `getActions`/`handleAction` evaluate predicates against the persisted message; admin/archived listings resolve only `uiTemplate` (`resolveUiTemplate`) with an empty list and skip conditions. Action labels/confirmations compile from persisted `message.payload`, distinct from content `templateData` (missing values render empty; no unified interpolation-data feature). The combined `interpolateTemplate` helper is preserved with the same escaping/trusted-template semantics.
 
+### Recipient roles default only for unaddressed template messages
+
+`createMessage` applies `adminRoles` only when a prepared item has no `toUser`
+and its `toRoles` is omitted or empty. Omission and `[]` intentionally have the
+same meaning: an otherwise unaddressed message retains the documented fallback.
+A direct recipient with omitted/empty roles gets no implicit role recipients;
+explicit nonempty roles remain independent receiver grants alongside or without
+a direct user, subject to action permission/condition checks. Generic
+`createNotification` retains its explicitly supplied recipients.
+
+MSGA-01 migration: the correction affects new template creation, including
+idempotent batches. Existing active/archive recipients and completed replays
+retain stored roles. Hosts should review both collections for unintended legacy
+fallback grants; those roles also control archived-outcome access. An intentional
+direct-user-plus-role grant is indistinguishable from the old implicit fallback,
+so remediation requires application knowledge. The README gives the defaulting
+matrix and the explicit-role migration recipe.
+
+### User identity follows storage type; request namespaces remain textual
+
+MSGA-03 uses existing schema customization, not a new storage adapter: build fresh
+active/archive schemas and override `fromUser`/`toUser` on both plus archive
+`archivedBy` with trimmed, case-sensitive String paths before model compilation.
+Keep message `_id` ObjectId and the request schema unchanged. The README ships a
+complete package-root recipe; the default schemas retain native ObjectId storage.
+
+Template persistence trims prepared/default sender and prepared recipient strings
+without mutating preparation's original principal or stringifying ObjectIds.
+Service actors already use trimmed string snapshots; direct archive ownership now
+also trims strings while preserving ObjectId values for schema casting. Trusted
+notification input remains raw and host-owned (the String recipe's schema setters
+normalize host Mongoose writes). Direct archive remains host-authorized.
+
+Relationship comparison follows the stored reference, including populated `_id`:
+native ObjectIds accept 24-hex principals in either case to agree with ObjectId
+query casting; String references use exact trimmed case even for hex-looking IDs.
+An ObjectId input in String storage maps only to its lowercase hex identity.
+Opaque integrations require consistent BSON String fields and binary collation,
+not mixed-type collections, case-folding setters, or significant outer whitespace.
+DTOs present stored string case and ObjectId hex without repairing legacy data.
+
+Idempotency owner normalization deliberately stays unchanged: trimmed exact strings
+or ObjectId lowercase hex. Uppercase and lowercase hex requester scopes can already
+contain different batches, so relationship equivalence never aliases or merges
+them. Host adapters should keep one representation throughout a retry window.
+Existing padding/type conversion and any future requester canonicalization need
+an explicit, drained host migration, collision/business-effect reconciliation, and
+coordinated reservation/active/archive scope changes. The README describes these
+limits, including retaining an exact-scope legacy retry adapter when histories
+cannot be safely reconciled. Completed replays return stored records unchanged.
+
 ### Actions are the primary interaction model
+
+MSGA-15 adds explicit submitted `input`, distinct from persisted/message action
+payloads, and optional synchronous pure `parseInput` after claimed authorization.
+Pure pre-handler failures use owner-fenced fresh release or conservative retry
+retention; handler-entered failures retain existing retryable semantics. Async
+parsers are unsupported. The original request remains available for legacy code.
+Host-owned immutable commands/results bind at the first durable host reservation
+keyed by `actionAttemptId`, not the package claim. The README's executable captured
+business-service example uses a unique MongoDB key and local business/result
+transaction, with equivalent replay and changed-command conflicts. Domain grants,
+input bounds, legacy reconciliation, retention and remote deduplication remain
+host responsibilities; business writes and package archival are separate commits.
 
 Users don't "update messages." They **approve**, **reject**, **revoke**, or perform other domain-specific actions. Each action:
 
@@ -115,7 +178,21 @@ not HTTP responses or automatic compensation/retry decisions.
 
 The document-level `archive()` method is retained as a trusted host-only primitive with the same transactional discipline on the document's owning connection (fresh in-transaction read, live-claim refusal with `ActionConflictError`, conditional active delete so a concurrent service commit cannot double-apply). It runs no user authorization and stores terminal notification state `none`; invalid action/user input and repeats fail closed with typed errors rather than silent success, and transaction-less deployments fail with `MessageTransactionRequiredError` before any write. There is deliberately no second lifecycle: direct archives preserve the stored attempt/owner identity and reuse the archive collection/indexes, while the service path remains the only user-authorized action-commit route.
 
-Each lease acquisition mints a distinct `actionOwnerToken` alongside the stable `actionAttemptId`. Every completion/failure write — the retryable mark, the archive commit (ownership pre-check plus a conditional active delete), and the post-commit notification-state update — is conditioned on the current owner token, so a worker that lost its lease receives `ActionConflictError` and cannot mutate the replacement's claim, archive, or notification state. Long-running handlers must therefore finish within the 30-second action lease; there is no renewal mechanism, and fencing does not stop an already-running external call, so handlers must still deduplicate external effects by `actionAttemptId`.
+Each lease acquisition mints a distinct `actionOwnerToken` alongside the stable `actionAttemptId`. Every completion/failure write — the retryable mark, the archive commit (ownership pre-check plus a conditional active delete), and the post-commit notification-state update — is conditioned on the current owner token, so a worker whose claim was taken over receives `ActionConflictError` and cannot mutate the replacement's claim, archive, or notification state. Expiry alone is not loss of ownership: it permits takeover without cancelling the handler or automatically rejecting its completion/failure. With no replacement, an expired owner may still archive or mark its normal handler failure retryable. Fencing does not stop an already-running external call, so handlers must still deduplicate external effects by `actionAttemptId`.
+
+MSGA-08 exposes `MessageServiceOptions.actionLeaseMs`, default `30000` ms, using
+the shared duration validator: finite positive safe integer in
+`[1, MAX_MESSAGE_SERVICE_TIMEOUT_MS]` (`2147483647`); invalid configuration throws
+`InvalidMessageServiceOptionError` at construction. Route construction forwards it;
+injected-service routes reject it as a conflicting construction option (types and
+runtime). Each fresh/retry/takeover acquisition uses its service's configured
+duration to persist `actionClaimedAt + actionLeaseMs`; the exact expiry boundary
+permits only same-action takeover, retaining the attempt ID and rotating ownership.
+There is no heartbeat/renewal or expiry-triggered state transition. The option
+does not rewrite existing deadlines and needs no schema/index/backfill. Omission
+preserves the prior policy; coordinating instances should use consistent settings
+and aligned wall clocks. Tune with handler/archival headroom: longer durations
+delay crash recovery, and overlapping handlers still require effect deduplication.
 
 Authorization and handler selection are bound to the persisted claim, not the caller-supplied document: after the atomic `findOneAndUpdate`, the service re-validates `templateCd`, the template/action lookup, and the sender/receiver, permission, and condition checks against the claimed record before running `runHandler`. The claim acquisition branch records whether this is a fresh attempt or a retry/takeover; a stale caller document cannot determine that classification.
 
@@ -129,9 +206,70 @@ Records written before fencing carry no `actionOwnerToken`. A same-action takeov
 
 ### Providers are interfaces, not implementations
 
-The package defines `EmailProvider` and `PaymentProvider` interfaces. You implement them for your stack (SendGrid, Stripe, etc.) or use the no-op defaults. This keeps the core free of third-party dependencies.
+The package defines `EmailProvider` and `PaymentProvider` interfaces. Hosts implement
+them for their stack (SendGrid, Stripe, etc.), keeping vendor SDKs outside the core.
+No payment provider is installed by default; `NoopPaymentProvider` returns null and
+cannot satisfy a paid code.
+
+MSGA-14: every fresh prepared item's nonempty effective code
+(`item.paymentCd || template.paymentCd || ''`) requires a session independently of
+recipients/fallback roles. An empty item override still inherits; exact codes,
+including whitespace-only values, are preserved. The payer remains
+`(payerUser || user)._id`, not the prepared sender/recipient, with only item
+`priceArgs` forwarded. Absent/null providers throw the root-exported, ESM/CJS-branded
+`PaymentProviderRequiredError` before that item's write; routes use the sanitized
+500 path. Configured-provider null/empty returns retain
+`Error('payment session creation failed')`, and original provider rejections are
+not wrapped (existing route mappings still apply). Code-free items and zero-item
+preparations need no provider. Session creation remains outside retryable
+transaction callbacks; it is not proof of payment. Completion, capture, webhooks,
+and payment-based business authorization remain host/provider responsibilities.
+
+MSGA-14 migration: fresh sessionless paid creation with absent/null providers now
+fails, and configured providers run for unaddressed paid items too. Configure a real
+provider or move metadata-only codes into payload/display. Mixed free/paid batches
+need per-item codes without a paid template default (`''` cannot clear it). Preserve
+direct per-item committed prefixes and atomic idempotent batches, including known
+uncommitted-session compensation. Repairing configuration does not reset failed
+keys; reconcile effects/retained items before a new operation. Completed active,
+mixed, or all-archive replay (including legacy nonempty-code/null-session records)
+precedes template/provider work, even after template removal or provider/payload/
+payer changes; principal validation still applies. Audit legacy records with host
+knowledge, without automatic backfilling/charging/code rewrites or invalidating
+completed reservations. No schema/index/scope migration is required; nullable
+sessions remain valid. See the shipped README payment matrix and migration recipe.
 
 Message email notifications configured through `buildMessageSchema({ emailNotifier })` are best-effort post-save delivery for newly created non-transactional messages only. The hook skips session-bound writes because Mongoose hooks run before transaction commit, and the package does not claim a durable email outbox or reliable retry worker. Recipient lookup and notifier failures are surfaced through `onEmailDeliveryFailure` for host logging or metrics without rolling back the committed message. Existing message updates do not resend email.
+
+MSGA-05 separates address resolution from delivery. The optional root-exported
+`EmailRecipientResolver` receives the schema-cast direct `recipientId`, the hydrated
+document's owning `connection`, and a shallow read-only saved `message` view
+(`EmailRecipientResolverContext`). This is trusted host code: the view is not a
+clone or deep freeze, and must not be mutated. Nested contact/preference adapters
+query the supplied connection; external-directory adapters need no local User.
+The README ships both examples and a factory that binds directory/provider methods.
+
+Omitting `emailRecipientResolver` retains the connection-local
+`User.findById(toUser).select('email').lean()` adapter (`userModelName` overrides
+the name). Only that default path requires eager user registration on the configured
+schema-check connection; runtime lookup still uses the document's own connection.
+A custom resolver fully replaces lookup and bypasses this check, with no fallback
+on a skipped address or failure. Both synchronous and asynchronous resolvers are
+supported; null/undefined/empty addresses skip without an event, and nonempty
+addresses pass unchanged to the notifier. Host validation/normalization/preferences
+remain explicit. Throws/rejections report `recipientLookup`; delivery failures
+report `notifier`, preserving the error and message/recipient/title diagnostics.
+Observer throws/rejections are swallowed to keep successful persistence successful.
+
+The existing gate applies before either lookup path: email must be enabled, the
+successful save must be new and session-free, and a direct recipient and nonblank,
+nonexcluded rendered receiver title must exist. No role fan-out, update resend,
+session-bound delivery (including committed transactions), or replay delivery is
+added. Titles retain trim/case-normalized exclusions; bodies retain longer-value
+selection (short wins ties). All callbacks remain awaited and host-bounded. The
+optional resolver requires no stored-data/index migration; hosts can replace dummy
+User registration with their adapter before model compilation. It does not alter
+recipient grants, population, or the separate host-outbox requirement.
 
 ### Idempotency belongs to the requester and template
 

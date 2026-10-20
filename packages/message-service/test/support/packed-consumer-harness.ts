@@ -36,6 +36,7 @@ export type PackageJson = {
   devDependencies?: Record<string, string>;
   scripts?: Record<string, string>;
   files?: string[];
+  engines?: Record<string, string>;
 };
 
 export const packageRoot = path.resolve(__dirname, '..', '..');
@@ -130,7 +131,7 @@ export function preparePackedWorkspace() {
   return packedWorkspaceCache;
 }
 
-export function installPackedConsumer(): string {
+export function installPackedConsumer(peers?: { express: string; mongoose: string; nodeTypes: string }): string {
   const packed = preparePackedWorkspace();
   const consumerDir = mkdtempSync(path.join(os.tmpdir(), 'message-service-msg01-consumer-'));
   tempRoots.push(consumerDir);
@@ -144,13 +145,13 @@ export function installPackedConsumer(): string {
         type: 'module',
         dependencies: {
           ...Object.fromEntries(workspacePackages.map((pkg) => [pkg.name, `file:${packed.tarballs[pkg.name]}`])),
-          express: '^5.2.1',
-          mongoose: '^9.8.0',
+          express: peers?.express ?? '^5.2.1',
+          mongoose: peers?.mongoose ?? '^9.8.0',
           'mongodb-memory-server': rootPackageJson.devDependencies['mongodb-memory-server'],
         },
         devDependencies: {
           '@types/express': '^5.0.6',
-          '@types/node': rootPackageJson.devDependencies['@types/node'],
+          '@types/node': peers?.nodeTypes ?? rootPackageJson.devDependencies['@types/node'],
           typescript: rootPackageJson.devDependencies.typescript,
         },
       },

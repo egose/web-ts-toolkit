@@ -19,6 +19,9 @@ type MessageArchiveModel = mongoose.Model<MessageArchiveSchemaFields, object, IM
  * Build a fresh MessageArchive schema.
  * Mirrors the default Message schema but adds archive-specific fields
  * (actionCd, archivedBy, archivedAt) and no pre-save email hook.
+ * Opaque string user IDs require String overrides for `fromUser`, `toUser`, AND
+ * `archivedBy` before model compilation (and matching active-party overrides).
+ * See the README recipe; message `_id` remains ObjectId.
  */
 export function buildMessageArchiveSchema(): mongoose.Schema<
   MessageArchiveSchemaFields,
@@ -79,4 +82,4 @@ export function buildMessageArchiveSchema(): mongoose.Schema<
  * Default MessageArchive schema. Provided for backwards compatibility.
  * Use `buildMessageArchiveSchema()` if you need a fresh instance.
  */
-export const MessageArchiveSchema = buildMessageArchiveSchema();
+export const MessageArchiveSchema: ReturnType<typeof buildMessageArchiveSchema> = buildMessageArchiveSchema();

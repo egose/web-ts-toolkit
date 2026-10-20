@@ -18,8 +18,11 @@ import type { PaymentProvider } from './providers/payment';
 import { interpolateMessageContent, interpolateTemplate, isActionAllowed, resolveUiTemplate } from './template-engine';
 import { TemplateRegistry, defaultRegistry } from './template-registry';
 import { MESSAGE_MODEL_NAME, MESSAGE_ARCHIVE_MODEL_NAME, MESSAGE_REQUEST_MODEL_NAME } from './schemas/base';
+import { isValidMessageUserRoles } from './schemas/methods';
+import { normalizeUserIdForStorage } from './user-id';
 import {
   ActionConflictError,
+  ActionInputValidationError,
   ActionNotAllowedError,
   ActionNotFoundError,
   ActionNotificationPendingError,
@@ -35,6 +38,7 @@ import {
   MessageArchivedError,
   MessageModelResolutionError,
   MessageNotFoundError,
+  PaymentProviderRequiredError,
   PaymentSessionCompensationAggregateError,
   PaymentSessionCompensationError,
   TemplateNotFoundError,
@@ -48,6 +52,7 @@ import type { TransactionCapableActiveModel } from './persistence';
 // schema code keep importing every error from `./message-service` unchanged.
 export {
   ActionConflictError,
+  ActionInputValidationError,
   ActionNotAllowedError,
   ActionNotFoundError,
   ActionNotificationPendingError,
@@ -64,6 +69,7 @@ export {
   MessageModelResolutionError,
   MessageNotFoundError,
   MessageTransactionRequiredError,
+  PaymentProviderRequiredError,
   PaymentSessionCompensationAggregateError,
   PaymentSessionCompensationError,
   TemplateNotFoundError,
@@ -78,6 +84,11 @@ export interface MessageServiceOptions {
   getModel?: (name: string) => mongoose.Model<unknown>;
   connection?: mongoose.Connection;
   modelNames?: Partial<MessageServiceModelNames>;
+  /**
+   * Required for fresh items with a nonempty effective `paymentCd`, even without
+   * recipients; absent/null throws `PaymentProviderRequiredError`. Optional for
+   * code-free items and completed replays, including legacy sessionless records.
+   */
   paymentProvider?: PaymentProvider | null;
   /**
    * Called when the service cannot expire an external payment session that was
@@ -91,6 +102,11 @@ export interface MessageServiceOptions {
    * Configure `buildMessageSchema` separately for direct document `archive()`.
    */
   onTransactionCleanupFailure?: MessageTransactionCleanupFailureObserver;
+  /**
+   * Fallback roles for `createMessage` when prepared `toUser` is absent and
+   * `toRoles` is omitted or empty (`[]` does not suppress fallback).
+   * Explicit roles are preserved even alongside `toUser`. Defaults to `[]`.
+   */
   adminRoles?: string[];
   registry?: TemplateRegistry;
   /**
@@ -102,6 +118,22 @@ export interface MessageServiceOptions {
    * Hard upper bound for `listMessages` limit to prevent abuse. Defaults to 100.
    */
   maxListLimit?: number;
+  /**
+   * Processing lease for each action acquisition. Defaults to 30000 ms.
+   * Only omission or `undefined` selects the default; `null` is invalid.
+   * Must be a finite safe integer in `[1, MAX_MESSAGE_SERVICE_TIMEOUT_MS]` ms
+   * (`2147483647` maximum); invalid values throw `InvalidMessageServiceOptionError`
+   * at construction. Route construction forwards this option; injected routes
+   * require configuring it on the supplied service instead.
+   *
+   * Expiry permits same-action takeover; it does not cancel the handler or
+   * automatically reject the still-current owner's completion/failure. Takeover
+   * retains `actionAttemptId` and rotates the owner token to fence stale writes.
+   * No heartbeat or renewal is performed. Applies to new acquisitions only;
+   * existing persisted deadlines are unchanged. Deduplicate external effects by
+   * `actionAttemptId`, including when handlers overlap after expiry.
+   */
+  actionLeaseMs?: number;
   /**
    * How long a pending idempotent create reservation lease remains live before
    * another caller may atomically take it over. Defaults to 30000 ms.
@@ -218,7 +250,7 @@ interface ActionClaim {
   message: IMessage;
   actionAttemptId: string;
   actionOwnerToken: string;
-  /** Only a newly created attempt can be discarded on pre-handler denial. */
+  /** Only a newly created attempt can be discarded on pre-handler failure. */
   fresh: boolean;
 }
 
@@ -240,6 +272,9 @@ export const GENERIC_NOTIFICATION_TEMPLATE_CD = '__generic-notification__';
  * ObjectId by callers and normalized to their hex string only where a string
  * scope/query key is required.
  *
+ * This predicate checks only the id. `requireMessageUserId` also validates
+ * optional principal roles: omitted/undefined or an array of strings.
+ *
  * `findMessage`/`findMessageOrThrow` and `createNotification` are trusted
  * host-level operations and intentionally do not take a principal; they are
  * not part of this contract.
@@ -257,8 +292,15 @@ export function isValidMessageUserId(id: unknown): id is string | mongoose.Types
 /**
  * Assert a user-facing principal and return its normalized string identity.
  * Throws `InvalidMessageUserError` for missing/null/empty/numeric/array/
- * plain-object ids. String ids are trimmed; ObjectId ids become their hex
- * string. The caller's original `MessageUser` object (and its `_id` type) is
+ * plain-object ids, or malformed `roles` (anything except undefined or an
+ * array containing only strings). Role strings retain their exact values;
+ * no coercion, trimming, or substring matching is applied. String ids are
+ * trimmed; ObjectId ids become their hex string.
+ * Case is preserved even for hex-looking strings: request scopes are textual,
+ * so uppercase hex and lowercase hex remain separate legacy-compatible scopes.
+ * Relationship matching against a stored native ObjectId accepts either case;
+ * stored String parties use exact trimmed equality. See the README user-ID recipe.
+ * The caller's original `MessageUser` object (and its `_id` type) is
  * left untouched so ObjectId-backed schemas keep their native type.
  */
 export function requireMessageUserId(user: unknown): string {
@@ -268,6 +310,9 @@ export function requireMessageUserId(user: unknown): string {
   const id = (user as MessageUser)._id;
   if (!isValidMessageUserId(id)) {
     throw new InvalidMessageUserError();
+  }
+  if (!isValidMessageUserRoles((user as MessageUser).roles)) {
+    throw new InvalidMessageUserError('user.roles must be an array of strings when provided');
   }
   return typeof id === 'string' ? id.trim() : String(id);
 }
@@ -351,7 +396,11 @@ export class MessageService {
     );
     this.clientRequestDelay = options.clientRequestDelay ?? this.delay;
     this.clientRequestNow = options.clientRequestNow ?? (() => Date.now());
-    this.actionLeaseMs = ACTION_LEASE_MS;
+    this.actionLeaseMs = this.validateDurationOption(
+      'actionLeaseMs',
+      options.actionLeaseMs === undefined ? ACTION_LEASE_MS : options.actionLeaseMs,
+      1,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -413,9 +462,24 @@ export class MessageService {
    *
    * User-facing entry point: `user` (and `payerUser` when provided) must
    * carry a valid principal id (non-empty string or ObjectId; numbers,
-   * arrays, and plain objects are rejected with `InvalidMessageUserError`)
+   * arrays, and plain objects are rejected with `InvalidMessageUserError`),
+   * and optional `roles` must be undefined or an array of strings,
    * before any template, provider, or model effect runs. Both the
    * idempotent (`clientRequestId`) and direct branches enforce this.
+   *
+   * Each `PrepareResult.documents` selects that item's attachments; `[]` clears
+   * them. Omission/undefined retains the original caller `payload.documents`
+   * fallback, independently of the prepared business payload. Selected arrays
+   * are copied per item without mutating caller/preparation arrays.
+   *
+   * Each fresh item's `item.paymentCd || template.paymentCd || ''` requests a
+   * session when nonempty, independently of recipients. An empty item override
+   * inherits the template code. Absent/null providers throw
+   * `PaymentProviderRequiredError`; configured-provider rejections propagate and
+   * null/empty session returns throw `Error('payment session creation failed')`.
+   * The payer remains `(payerUser || user)._id`, not the prepared sender/recipient.
+   * Direct batches retain committed prefixes; idempotent batches commit atomically
+   * and compensate all known uncommitted sessions on failure.
    *
    * Idempotent replay contract (MSGF-06): a completed same-scope replay
    * returns the current active/archive records merged from both collections
@@ -457,7 +521,8 @@ export class MessageService {
 
     // Principal validation before any template/provider/model effect in both
     // branches. Valid string ids (trimmed) and ObjectId instances pass;
-    // the original `_id` type is preserved downstream for storage.
+    // storage trims strings without changing native ObjectId types. Preparation
+    // still receives the original user object.
     this.requireUserId(user);
     if (payerUser !== undefined) {
       this.requireUserId(payerUser);
@@ -659,7 +724,8 @@ export class MessageService {
    * or matches one of the recipient's roles.
    *
    * User-facing operation: validates `user` via the shared principal
-   * contract. Returns `IMessage[]` ordered by `{ createdAt: -1, _id: -1 }`.
+   * contract before model resolution. Returns `IMessage[]` ordered by
+   * `{ createdAt: -1, _id: -1 }`.
    */
   async listMessages(params: {
     user: MessageUser;
@@ -671,9 +737,10 @@ export class MessageService {
     const limit = this.normalizeListLimit(rawLimit);
     const skip = this.normalizeListSkip(rawSkip);
 
+    const filter = this.buildVisibilityFilter(user);
     const Message = this.resolveModel('active');
     const query = this.applyPopulate(
-      Message.find(this.buildVisibilityFilter(user)).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit),
+      Message.find(filter).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit),
       populate,
     );
 
@@ -684,11 +751,13 @@ export class MessageService {
    * Count active (non-archived) messages visible to a user.
    * Useful for badge indicators ("3 new messages").
    *
-   * User-facing operation: validates `user` via the shared principal contract.
+   * User-facing operation: validates `user` via the shared principal contract
+   * before model resolution.
    */
   async countMessages(user: MessageUser): Promise<number> {
+    const filter = this.buildVisibilityFilter(user);
     const Message = this.resolveModel('active');
-    return Message.countDocuments(this.buildVisibilityFilter(user));
+    return Message.countDocuments(filter);
   }
 
   // -------------------------------------------------------------------------
@@ -730,8 +799,7 @@ export class MessageService {
       populate?: string | string[] | mongoose.PopulateOptions | mongoose.PopulateOptions[];
     },
   ): Promise<{ uiTemplate: UiTemplate; actions: InterpolatedAction[] } | null> {
-    const user = requireMessageUserId((options as { user?: unknown } | undefined)?.user);
-    const authorizedUser = { ...(options as { user?: MessageUser }).user!, _id: user };
+    const authorizedUser = this.buildAuthorizedUser((options as { user?: MessageUser } | undefined)?.user);
     const message = await this.findMessage(messageId);
     if (!message) return null;
 
@@ -784,12 +852,28 @@ export class MessageService {
    * Execute an action with a durable claim, stable handler attempt key,
    * transactional archive, and post-commit sender notification status.
    *
+   * `actionLeaseMs` controls when a same-action retry may take over. Expiry alone
+   * does not cancel the handler or reject a still-current owner; takeover fences
+   * stale completion/failure writes with `ActionConflictError`. There is no
+   * heartbeat or renewal; external effects must deduplicate by `actionAttemptId`.
+   *
    * User-facing operation: `data.user` is validated before any template or
-   * model effect. Authorization and handler selection bind to the persisted
+   * model effect. Handler users contain only the documented `MessageUser`
+   * fields, read explicitly (including getters), with a copied roles array;
+   * the caller's user and original `req` are not modified.
+   * Authorization and handler selection bind to the persisted
    * claim, not the caller-supplied `data.message` copy. Archived messages
    * are re-read by id on their owning connection and apply a stored
    * sender/receiver relationship gate before disclosing current attempt IDs
    * or notification state. A missing archive throws `MessageNotFoundError`.
+   * `data.input` is explicit submitted data, never inferred from `req`. The
+   * current claimed action's optional synchronous pure `parseInput` supplies
+   * `ctx.input` after authorization. Invalid input throws
+   * `ActionInputValidationError`; unexpected parser failures preserve their
+   * cause as server errors. Both use fenced pre-handler release: fresh claims
+   * return to active, retries retain their stable attempt/action as retryable.
+   * Hosts own input bounds, runtime validation, and durable command/result
+   * binding at first host reservation (not at package claim).
    * Returns the handler's value (`unknown`; templates
    * document their own shape).
    */
@@ -800,11 +884,12 @@ export class MessageService {
       message: IMessage | IMessageArchive;
       user: MessageUser;
       permissions?: Record<string, boolean>;
+      /** Submitted command; HTTP supplies its body. Separate from stored/action payloads. */
+      input?: unknown;
       req?: unknown;
     },
   ): Promise<unknown> {
-    const userId = this.requireUserId(data.user);
-    const authorizedUser = { ...data.user, _id: userId };
+    const authorizedUser = this.buildAuthorizedUser(data.user);
     if (this.isArchivedMessage(data.message)) {
       const archived = (await this.resolveModel('archive', data.message).findById(
         data.message._id,
@@ -834,30 +919,34 @@ export class MessageService {
     // Authoritative authorization + handler/template selection bound to the
     // persisted document returned by the atomic claim. Covers changed
     // templateCd, recipient (toUser/fromUser), roles (toRoles), and
-    // condition-relevant payload data. A fresh denied claim restores action
-    // choice; retries/takeovers retain their possibly-effectful attempt.
+    // condition-relevant payload data. Pure input parsing shares this fenced
+    // pre-handler boundary: fresh failures restore action choice; retries and
+    // takeovers retain their possibly-effectful attempt.
     let authorizedAction: MessageAction;
+    let input: unknown;
     try {
       authorizedAction = this.authorizeClaimedAction(templateCd, actionCd, claim.message, authorizedUser, {
         permissions: data.permissions,
       });
-    } catch (authError) {
+      input = this.parseActionInput(authorizedAction, data.input);
+    } catch (preHandlerError) {
       try {
-        await this.releaseDeniedActionClaim(claim, authError);
+        await this.releaseDeniedActionClaim(claim, preHandlerError);
       } catch (releaseError) {
         if (!(releaseError instanceof ActionConflictError)) {
           throw releaseError;
         }
         // Ownership lost between claim and release: another worker owns the
-        // message now. Still report the denial for this caller.
+        // message now. Still report this caller's pre-handler failure.
       }
-      throw authError;
+      throw preHandlerError;
     }
     const ctx = this.buildActionContext({
       ...data,
       user: authorizedUser,
       message: claim.message,
       actionAttemptId: claim.actionAttemptId,
+      input,
     });
     let result: unknown;
     try {
@@ -1011,14 +1100,15 @@ export class MessageService {
     clientRequestScope: ClientRequestScope | undefined,
     clientRequestItemIndex: number | null,
   ): Promise<MessageDocumentData> {
-    const toUser = m.toUser ?? null;
-    const toRoles = (m.toRoles && m.toRoles.length > 0 ? m.toRoles : this.adminRoles).slice();
+    const toUser = m.toUser == null ? null : normalizeUserIdForStorage(m.toUser);
+    const toRoles = (m.toRoles && m.toRoles.length > 0 ? m.toRoles : toUser === null ? this.adminRoles : []).slice();
     const type = m.type || template.type || 'notification';
     const paymentCd = m.paymentCd || template.paymentCd || '';
 
     let paymentSession: string | null = null;
     try {
-      if (paymentCd && this.paymentProvider && (toUser || toRoles.length > 0)) {
+      if (paymentCd) {
+        if (!this.paymentProvider) throw new PaymentProviderRequiredError();
         paymentSession = await this.paymentProvider.createSession(
           (ctx.payerUser || ctx.user)._id,
           paymentCd,
@@ -1036,12 +1126,15 @@ export class MessageService {
       return {
         type,
         templateCd: template.templateCd,
-        fromUser: m.fromUser || ctx.user._id,
+        fromUser: normalizeUserIdForStorage(m.fromUser || ctx.user._id),
         toUser,
         toRoles,
         senderContent: interpolated.senderContent,
         receiverContent: interpolated.receiverContent,
-        documents: (ctx.payload.documents as mongoose.Types.ObjectId[]) || [],
+        documents: (m.documents !== undefined
+          ? m.documents
+          : (ctx.payload.documents as mongoose.Types.ObjectId[]) || []
+        ).slice(),
         paymentSession,
         paymentCd,
         payload: m.payload || ctx.payload,
@@ -1191,17 +1284,48 @@ export class MessageService {
     message: IMessage | IMessageArchive;
     user: MessageUser;
     actionAttemptId?: string;
+    input?: unknown;
     req?: unknown;
   }): ActionContext {
     return {
       message: data.message,
       user: data.user,
       actionAttemptId: data.actionAttemptId,
+      input: data.input,
       getModel: this.getTemplateModelResolver(data.message),
       expireSession: this.expirePaymentSession,
       refundPayment: this.refundPaymentSession,
       req: data.req,
     };
+  }
+
+  private parseActionInput(action: MessageAction, input: unknown): unknown {
+    if (!action.parseInput) return input;
+    try {
+      const parsed = action.parseInput(input);
+      if (parsed !== null && (typeof parsed === 'object' || typeof parsed === 'function')) {
+        const then = (parsed as { then?: unknown }).then;
+        if (typeof then === 'function') {
+          // Reject async hooks without leaking rejections. Read `then` once,
+          // consume callback rejections, and also observe the return value of
+          // accidental async then() implementations. Never invoke the handler.
+          void Promise.resolve()
+            .then(() => {
+              const discarded = Reflect.apply(then, parsed, [() => {}, () => {}]);
+              return discarded === parsed ? undefined : discarded;
+            })
+            .catch(() => {});
+          throw new Error('action.parseInput must be synchronous');
+        }
+      }
+      return parsed;
+    } catch (error) {
+      if (error instanceof ActionInputValidationError) throw error;
+      // Do not let accidental service/CastError/HTTP error shapes turn a parser
+      // programming failure into a client status. Preserve the diagnostic cause
+      // for direct callers while routes use the sanitized generic 500 path.
+      throw new Error('action.parseInput failed', { cause: error });
+    }
   }
 
   private async claimAction(message: IMessage, actionCd: string, user: MessageUser): Promise<ActionClaim> {
@@ -1562,7 +1686,7 @@ export class MessageService {
   }
 
   private validateDurationOption(
-    name: 'clientRequestLeaseMs' | 'clientRequestWaitMs' | 'clientRequestPollMs',
+    name: 'actionLeaseMs' | 'clientRequestLeaseMs' | 'clientRequestWaitMs' | 'clientRequestPollMs',
     value: number,
     min: number,
   ): number {
@@ -1606,6 +1730,8 @@ export class MessageService {
   }
 
   private buildClientRequestScope(clientRequestId: string, user: MessageUser, templateCd: string): ClientRequestScope {
+    // Persisted textual namespace: do not infer ObjectId equivalence here or
+    // merge existing upper/lowercase scopes, even with ObjectId party schemas.
     return {
       clientRequestId,
       clientRequestOwnerId: this.requireUserId(user),
@@ -1615,6 +1741,14 @@ export class MessageService {
 
   private requireUserId(user: MessageUser | undefined): string {
     return requireMessageUserId(user);
+  }
+
+  private buildAuthorizedUser(user: MessageUser | undefined): MessageUser {
+    const _id = this.requireUserId(user);
+    // Mongoose paths/virtuals and host getters need explicit reads. Never
+    // enumerate or serialize an arbitrary authentication document.
+    const { id, roles, displayName } = user!;
+    return { _id, id, roles: roles?.slice(), displayName };
   }
 
   private async findByClientRequestScope(scope: ClientRequestScope): Promise<IMessage[]> {

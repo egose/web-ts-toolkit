@@ -55,10 +55,11 @@ export interface MessageContent {
 
 export interface MessageUserRef {
   _id: string;
-  email: string;
-  displayName: string;
+  email?: string;
+  displayName?: string;
 }
 
+/** Public HTTP DTO shared by creation/replay and the host's enveloped list. */
 export interface Message {
   _id: string;
   templateCd: string;
@@ -73,8 +74,15 @@ export interface Message {
   paymentCd: string;
   payload: Record<string, unknown>;
   display: Record<string, unknown>;
+  actionState: 'active' | 'processing' | 'retryable';
+  actionCd: string | null;
+  /** Public business deduplication ID. */
+  actionAttemptId: string | null;
   createdAt: string;
   updatedAt: string;
+  archivedBy?: string | null;
+  archivedAt?: string;
+  actionNotificationState?: 'none' | 'pending' | 'sent' | 'failed';
 }
 
 export interface MessageAction {
@@ -87,6 +95,7 @@ export interface MessageAction {
     message: string;
     notesLabel?: string;
     requireNotes?: boolean;
+    documents?: boolean;
   };
   payload?: Record<string, unknown>;
 }

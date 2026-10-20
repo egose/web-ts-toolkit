@@ -6,6 +6,14 @@ import type { UserId } from '../types/message';
  * Host apps implement this to handle payment sessions for messages
  * that require payment (e.g. Stripe, Adyen, Paddle).
  *
+ * Every fresh item's nonempty `item.paymentCd || template.paymentCd || ''`
+ * requires a session, even with no recipients. Empty item codes inherit the
+ * template code; codes are passed through without trimming. Absent/null
+ * providers raise `PaymentProviderRequiredError`; code-free creation and
+ * completed replay (including legacy sessionless records) need no provider.
+ * Session creation is not proof of payment: completion, capture, webhooks, and
+ * payment-based business authorization remain host/provider responsibilities.
+ *
  * Message creation may create external sessions before MongoDB commit. If any
  * prepared item, model/session setup step, or idempotent batch transaction
  * fails before commit, `MessageService` calls `expireSession()` for every
@@ -37,9 +45,12 @@ import type { UserId } from '../types/message';
  */
 export interface PaymentProvider {
   /**
-   * Create a checkout/session for the given user and pricing code.
-   * Return the session id, or `null` to indicate the session could not
-   * be created (the message creation flow will throw in that case).
+   * Create one checkout/session per payment-bearing prepared item, independently
+   * of recipients, outside retryable transaction callbacks. `user` is
+   * `(payerUser || user)._id`, not the prepared sender or recipient; only the
+   * item's `priceArgs` is forwarded. Return a nonempty session id. A null/empty
+   * result throws `Error('payment session creation failed')`; provider rejections
+   * propagate unchanged (unless known-session compensation itself fails).
    */
   createSession(user: UserId, code: string, priceArgs?: Record<string, unknown>): Promise<string | null>;
 
@@ -57,9 +68,11 @@ export interface PaymentProvider {
 }
 
 /**
- * No-op payment provider that returns null for session creation
- * and does nothing for expire/refund. Useful for apps that don't use payments
- * or for tests.
+ * No-op payment provider that returns null for session creation and does nothing
+ * for expire/refund. It cannot satisfy a nonempty payment code: fresh paid items
+ * fail with `Error('payment session creation failed')`, even without recipients.
+ * Code-free applications may omit the provider entirely; tests may use this
+ * implementation to exercise the configured-provider null-return contract.
  */
 export class NoopPaymentProvider implements PaymentProvider {
   async createSession(_user: UserId, _code: string, _priceArgs?: Record<string, unknown>): Promise<string | null> {

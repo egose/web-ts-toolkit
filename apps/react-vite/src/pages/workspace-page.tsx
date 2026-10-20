@@ -6,7 +6,7 @@ import { createModelHooks } from '@web-ts-toolkit/access-router-react';
 import { useNavigate, useParams } from 'react-router';
 import { loadWorkspace, logout, membershipService, organizationService } from '../api';
 import { buildHierarchy, filterMembersBySearch } from '../hierarchy';
-import type { OrganizationMember, SessionData } from '../types';
+import type { SessionData } from '../types';
 import { CreateOrganizationCard } from './workspace/create-organization-card';
 import { MembersSection } from './workspace/members-section';
 import { OrganizationPanels } from './workspace/organization-panels';
@@ -20,13 +20,26 @@ const loadingCardClass = emptyCardClass;
 const errorBannerClass = 'rounded-2xl border border-red-400/35 bg-red-950/25 px-4 py-3 text-red-200';
 const statCardClass = 'app-surface rounded-2xl p-5 shadow-none';
 
-const { useCreateModel: useCreateOrg, useUpdateModel: useUpdateOrg } = createModelHooks({
+const { useCreate: useCreateOrg, useUpdate: useUpdateOrg } = createModelHooks({
   modelService: organizationService,
 });
 
-const { useCreateModel: useCreateMember, useDeleteModel: useDeleteMember } = createModelHooks({
+const {
+  useCreate: useCreateMember,
+  useUpdate: useUpdateMember,
+  useDelete: useDeleteMember,
+} = createModelHooks({
   modelService: membershipService,
 });
+
+async function runWorkspaceMutation(mutation: Promise<unknown>): Promise<void> {
+  try {
+    await mutation;
+  } catch {
+    // Mutation hooks expose the failure in the workspace alert. Event handlers
+    // must also consume the rejected promise, including fire-and-forget submits.
+  }
+}
 
 interface WorkspacePageProps {
   onRefreshSession(): Promise<void>;
@@ -98,6 +111,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
 
   const createOrg = useCreateOrg({
     onSuccess: async (result) => {
+      if (!result.success) return;
       setNewOrganizationName('');
       await onRefreshSession();
       await queryClient.invalidateQueries({ queryKey: ['workspace'] });
@@ -125,6 +139,12 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
     },
   });
 
+  const saveMember = useUpdateMember({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
+    },
+  });
+
   const deleteMember = useDeleteMember({
     onSuccess: async () => {
       await onRefreshSession();
@@ -141,32 +161,19 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
     },
   });
 
-  // ── active record: update member via Model.save() ──
-
-  const [isSavingMember, setIsSavingMember] = useState(false);
-  const [saveMemberError, setSaveMemberError] = useState<Error | null>(null);
-
   const handleSaveMember = async (memberId: string, draft: MemberDraft) => {
     const member = workspaceQuery.data?.members.find((m) => m._id === memberId);
     if (!member) return;
 
-    setIsSavingMember(true);
-    setSaveMemberError(null);
-    try {
-      member.fullName = draft.fullName;
-      member.title = draft.title;
-      member.department = draft.department;
-      member.managerMembershipId = draft.managerMembershipId || undefined;
-      const res = await member.save();
-      if (!res.success) {
-        throw new Error(res.message || 'Unable to save member changes.');
-      }
-      await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
-    } catch (err) {
-      setSaveMemberError(err as Error);
-    } finally {
-      setIsSavingMember(false);
-    }
+    await runWorkspaceMutation(
+      saveMember.mutate(memberId, {
+        fullName: draft.fullName,
+        title: draft.title,
+        department: draft.department,
+        // Explicit null clears a stored manager; undefined disappears from JSON.
+        managerMembershipId: draft.managerMembershipId || null,
+      }),
+    );
   };
 
   // ── derived state ──
@@ -186,7 +193,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
     renameOrg.error ??
     inviteMember.error ??
     deleteMember.error ??
-    saveMemberError;
+    saveMember.error;
 
   return (
     <WorkspaceShell
@@ -212,7 +219,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
             isCreating={createOrg.isPending}
             newOrganizationName={newOrganizationName}
             onCreate={() => {
-              void createOrg.createModel({ name: newOrganizationName });
+              void runWorkspaceMutation(createOrg.mutate({ name: newOrganizationName }));
             }}
             onNewOrganizationNameChange={setNewOrganizationName}
           />
@@ -291,20 +298,22 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
                 onInviteFullNameChange={setInviteFullName}
                 onInviteManagerMembershipIdChange={setInviteManagerMembershipId}
                 onInviteMember={() => {
-                  void inviteMember.createModel({
-                    department: inviteDepartment,
-                    email: inviteEmail,
-                    fullName: inviteFullName,
-                    managerMembershipId: inviteManagerMembershipId || undefined,
-                    organizationId: selectedOrganizationId!,
-                    title: inviteTitle,
-                  });
+                  void runWorkspaceMutation(
+                    inviteMember.mutate({
+                      department: inviteDepartment,
+                      email: inviteEmail,
+                      fullName: inviteFullName,
+                      managerMembershipId: inviteManagerMembershipId || undefined,
+                      organizationId: selectedOrganizationId,
+                      title: inviteTitle,
+                    }),
+                  );
                 }}
                 onInviteTitleChange={setInviteTitle}
                 onOrganizationNameChange={setOrganizationName}
                 onRenameOrganization={() => {
                   if (!selectedOrganizationId) return;
-                  void renameOrg.updateModel(selectedOrganizationId, { name: organizationName });
+                  void runWorkspaceMutation(renameOrg.mutate(selectedOrganizationId, { name: organizationName }));
                 }}
                 organizationName={organizationName}
                 organizationSlug={workspaceQuery.data.organization.slug}
@@ -317,12 +326,12 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
                 filteredHierarchy={filteredHierarchy}
                 filteredMembers={filteredMembers}
                 isDeletingMember={deleteMember.isPending}
-                isSavingMember={isSavingMember}
+                isSavingMember={saveMember.isPending}
                 members={members}
                 onDeleteMember={async (targetMember) => {
                   const memberId = targetMember._id;
                   if (!memberId) throw new Error('Missing member id.');
-                  await deleteMember.deleteModel(memberId);
+                  await runWorkspaceMutation(deleteMember.mutate(memberId));
                 }}
                 onMemberSearchChange={setSearch}
                 onSaveMember={handleSaveMember}

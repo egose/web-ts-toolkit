@@ -21,6 +21,18 @@ const INVALID_IDS: Array<{ label: string; id: unknown }> = [
   { label: 'plain-object', id: { toString: () => 'u1' } as unknown },
 ];
 
+const INVALID_ROLES: Array<{ label: string; roles: unknown }> = [
+  { label: 'null', roles: null },
+  { label: 'substring string', roles: 'super-reviewer' },
+  { label: 'numeric', roles: 1 },
+  { label: 'array-like', roles: { 0: 'reviewer', length: 1, includes: () => true } },
+  { label: 'mixed array', roles: ['reviewer', 1] },
+  { label: 'undefined element', roles: ['reviewer', undefined] },
+  { label: 'object element', roles: ['reviewer', { toString: () => 'reviewer' }] },
+  { label: 'nested array', roles: ['reviewer', ['reviewer']] },
+  { label: 'sparse array', roles: Object.assign(new Array(2), { 0: 'reviewer' }) },
+];
+
 function buildServiceMocks() {
   const prepareMessage = vi.fn(async ({ user, payload }: any) => ({
     fromUser: user._id,
@@ -221,6 +233,64 @@ describe('MSGF-03 principal validation', () => {
   });
 });
 
+describe('MSGA-02 principal adapter hardening', () => {
+  it.each([
+    ...INVALID_IDS.map(({ label, id }) => ({ label: `${label} id`, user: { _id: id } })),
+    { label: 'missing user', user: undefined },
+    { label: 'null user', user: null },
+    { label: 'array user', user: Object.assign([], { _id: 'u1' }) },
+  ])('rejects $label before list/count model resolution', async ({ user }) => {
+    const getModel = vi.fn(() => {
+      throw new Error('model resolution must not run');
+    });
+    const service = new MessageService({ getModel });
+    await expect(service.listMessages({ user: user as never })).rejects.toBeInstanceOf(InvalidMessageUserError);
+    await expect(service.countMessages(user as never)).rejects.toBeInstanceOf(InvalidMessageUserError);
+    expect(getModel).not.toHaveBeenCalled();
+  });
+
+  it.each(INVALID_ROLES)('rejects $label roles consistently before service effects', async ({ roles }) => {
+    const getModel = vi.fn(() => {
+      throw new Error('model resolution must not run');
+    });
+    const service = new MessageService({ getModel });
+    const user = { _id: 'u1', roles } as never;
+    expect(() => requireMessageUserId(user)).toThrow(InvalidMessageUserError);
+    expect(() => service.buildVisibilityFilter(user)).toThrow(InvalidMessageUserError);
+    await expect(service.listMessages({ user })).rejects.toBeInstanceOf(InvalidMessageUserError);
+    await expect(service.countMessages(user)).rejects.toBeInstanceOf(InvalidMessageUserError);
+    await expect(service.getActions('message', 'receiver', { user, isAdmin: true })).rejects.toBeInstanceOf(
+      InvalidMessageUserError,
+    );
+    // A malformed principal must fail before even inspecting a supplied message/template.
+    await expect(
+      service.handleAction('unregistered', 'approve', { user, message: undefined as never }),
+    ).rejects.toBeInstanceOf(InvalidMessageUserError);
+    for (const clientRequestId of [undefined, 'principal-roles']) {
+      await expect(service.createMessage({ templateCd: 'unregistered', user, clientRequestId })).rejects.toBeInstanceOf(
+        InvalidMessageUserError,
+      );
+    }
+    await expect(
+      service.createMessage({ templateCd: 'unregistered', user: { _id: 'u1' }, payerUser: user }),
+    ).rejects.toBeInstanceOf(InvalidMessageUserError);
+    expect(getModel).not.toHaveBeenCalled();
+  });
+
+  it('allows omitted/undefined/empty roles and preserves exact string role matching', () => {
+    const service = new MessageService({});
+    for (const user of [{ _id: 'u1' }, { _id: 'u1', roles: undefined }, { _id: 'u1', roles: [] }]) {
+      expect(requireMessageUserId(user)).toBe('u1');
+      expect(service.buildVisibilityFilter(user)).toEqual({
+        $or: [{ fromUser: 'u1' }, { toUser: 'u1' }, { toRoles: { $in: [] } }],
+      });
+    }
+    expect(service.buildVisibilityFilter({ _id: 'u1', roles: ['Reviewer', ' reviewer '] })).toEqual({
+      $or: [{ fromUser: 'u1' }, { toUser: 'u1' }, { toRoles: { $in: ['Reviewer', ' reviewer '] } }],
+    });
+  });
+});
+
 describe('MSGF-03 route principal validation', () => {
   const servers: Array<{ close: (cb?: (e?: Error) => void) => void }> = [];
   afterEach(async () => {
@@ -286,6 +356,22 @@ describe('MSGF-03 route principal validation', () => {
     const response = await client.request('/507f1f77bcf86cd799439011/actions/receiver');
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ message: 'authentication required' });
+    expect(client.service.getActions).not.toHaveBeenCalled();
+    expect(client.getModel).not.toHaveBeenCalled();
+  });
+
+  it.each(INVALID_ROLES)('MSGA-02 rejects $label roles on every route before service lookup', async ({ roles }) => {
+    const client = await createClient(() => ({ _id: 'u1', roles }));
+    for (const [path, method] of [
+      ['/new/svc-test', 'POST'],
+      ['/507f1f77bcf86cd799439011/actions/receiver', 'GET'],
+      ['/507f1f77bcf86cd799439011/action/approve', 'POST'],
+    ]) {
+      const response = await client.request(path, { method });
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({ message: 'authentication required' });
+    }
+    expect(client.service.createMessage).not.toHaveBeenCalled();
     expect(client.service.getActions).not.toHaveBeenCalled();
     expect(client.getModel).not.toHaveBeenCalled();
   });

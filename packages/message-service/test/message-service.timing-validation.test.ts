@@ -6,7 +6,8 @@ import {
   MAX_MESSAGE_SERVICE_TIMEOUT_MS,
   MessageService,
 } from '../src/message-service';
-import { defaultRegistry } from '../src/template-registry';
+import { defaultRegistry, TemplateRegistry } from '../src/template-registry';
+import { createMessageRoutes } from '../src/route-factory';
 import type { MessageTemplate } from '../src/types/template';
 import { createMongoMessageServiceFixture } from './support/mongodb-fixture';
 
@@ -296,4 +297,78 @@ describe('MSGF-10 timing validation', () => {
       await fixture.close();
     }
   }, 30_000);
+});
+
+describe('MSGA-08 action lease duration validation', () => {
+  it.each([
+    ['NaN', Number.NaN],
+    ['positive infinity', Number.POSITIVE_INFINITY],
+    ['negative infinity', Number.NEGATIVE_INFINITY],
+    ['fractional', 1.5],
+    ['negative', -1],
+    ['zero', 0],
+    ['timer overflow', MAX_MESSAGE_SERVICE_TIMEOUT_MS + 1],
+    ['unsafe integer', Number.MAX_SAFE_INTEGER + 1],
+    ['string', '30000'],
+    ['object', {}],
+    ['boolean', true],
+  ])('rejects %s in direct and route construction before model lookup', (_label, value) => {
+    const getModel = vi.fn(() => {
+      throw new Error('must not resolve models during construction validation');
+    });
+    const options = { getModel, actionLeaseMs: value as number };
+    for (const construct of [() => new MessageService(options), () => createMessageRoutes(options)]) {
+      expect(construct).toThrow(InvalidMessageServiceOptionError);
+      expect(construct).toThrow(
+        `actionLeaseMs must be a finite safe integer in [1, ${MAX_MESSAGE_SERVICE_TIMEOUT_MS}] ms`,
+      );
+    }
+    expect(getModel).not.toHaveBeenCalled();
+  });
+});
+
+describe.each(['direct', 'convenience route'] as const)('MSGA-16 %s action lease defaulting', (kind) => {
+  function construction() {
+    const getModel = vi.fn(() => {
+      throw new Error('must not resolve models during construction validation');
+    });
+    const prepareMessage = vi.fn(testTemplate.prepareMessage);
+    const runHandler = vi.fn(async () => 'approved');
+    const registry = new TemplateRegistry();
+    registry.register({
+      ...testTemplate,
+      paymentCd: 'paid',
+      prepareMessage,
+      actions: [{ actionCd: 'approve', name: 'Approve', variant: 'success', receiver: true, runHandler }],
+    });
+    const findTemplate = vi.spyOn(registry, 'find');
+    const paymentProvider = {
+      createSession: vi.fn(async () => 'session'),
+      expireSession: vi.fn(async () => undefined),
+      refundPayment: vi.fn(async () => undefined),
+    };
+    return {
+      construct: (lease: { actionLeaseMs?: number }) => {
+        const options = { getModel, registry, paymentProvider, ...lease };
+        return kind === 'direct' ? new MessageService(options) : createMessageRoutes(options);
+      },
+      effects: [getModel, findTemplate, prepareMessage, runHandler, ...Object.values(paymentProvider)],
+    };
+  }
+
+  it('rejects explicit null before resolver, template or provider effects', () => {
+    const { construct, effects } = construction();
+    expect(() => construct({ actionLeaseMs: null as unknown as number })).toThrow(InvalidMessageServiceOptionError);
+    for (const effect of effects) expect(effect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['omitted', {}],
+    ['undefined', { actionLeaseMs: undefined }],
+    ['explicit default', { actionLeaseMs: 30_000 }],
+  ] as const)('accepts %s without resolver, template or provider effects', (_label, lease) => {
+    const { construct, effects } = construction();
+    expect(() => construct(lease)).not.toThrow();
+    for (const effect of effects) expect(effect).not.toHaveBeenCalled();
+  });
 });

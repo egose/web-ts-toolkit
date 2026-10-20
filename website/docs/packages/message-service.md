@@ -26,6 +26,42 @@ Peer dependencies:
 - `mongoose >= 8`
 - `express >= 5`
 
+Runtime: Node `>=22`; use package-root named imports. The shipped
+[README](https://github.com/egose/web-ts-toolkit/blob/main/packages/message-service/README.md)
+is the installed integration contract, including migration guidance and the
+two-app recipe verified from installed tarballs on Node 22.0.0 with minimum
+Express 5.0.0/Mongoose 8.0.0 and installed-current Express 5/Mongoose 9 peers.
+
+### Multi-app adaptation and migration notes
+
+- Separate apps use distinct connections/databases or disjoint collections,
+  matching schema/service model names, explicit per-app `TemplateRegistry`
+  instances and provider adapters. Model names alone do not isolate collections.
+  Explicit registries/models do not fall back globally; direct `archive()` requires
+  the app's registry. Shared-collection tenancy is not provided.
+- Default parties and archive `archivedBy` use native ObjectIds. Arbitrary string
+  users need String overrides for **both** active/archive `fromUser`/`toUser` and
+  archive `archivedBy`; message IDs remain ObjectIds. Strings trim without
+  case-folding; textual request scopes retain case. Follow the README's complete
+  recipe and legacy data/scope migration instructions before changing ID storage.
+- `adminRoles` applies only without a direct recipient or nonempty explicit roles;
+  omitted/empty roles alongside a direct recipient do not add fallback recipients.
+  Principal roles must be omitted/undefined or an array of strings. Action handlers
+  receive the documented principal snapshot, including getter-backed fields.
+- `PrepareResult.documents` selects attachments per item (`[]` clears; omitted
+  uses the original payload's documents). `actionLeaseMs` configures acquisition
+  leases; expiry permits takeover, not cancellation. Successful actions are terminal.
+- `MessageAction.parseInput` synchronously validates/normalizes `unknown` submitted
+  input before the handler; direct callers supply `handleAction(..., { input })`
+  and HTTP supplies `req.body`. Invalid input returns a fixed 400; asynchronous
+  parsers are unsupported server errors. Host handlers own durable command/result
+  binding and deduplication by `actionAttemptId` (see the README recipe).
+- Every nonempty effective `paymentCd` requires a provider/session for fresh items,
+  even without recipients; missing providers throw `PaymentProviderRequiredError`.
+  Completed replay never repeats preparation/payment. Email remains best effort;
+  `emailRecipientResolver` optionally replaces the connection-local user lookup
+  without fallback. Transactional creates skip schema email hooks.
+
 ## What It Exposes
 
 Schema exports:
@@ -62,6 +98,7 @@ Typed errors (full set; see README status table for route mappings):
 - `TemplateNotFoundError` (404)
 - `ActionNotFoundError` (404)
 - `ActionNotAllowedError` (403)
+- `ActionInputValidationError` (400 before handler; fixed public message)
 - `MessageArchivedError` (410)
 - `InvalidMessageUserError` (401)
 - `InvalidClientRequestIdError` (400)
@@ -75,6 +112,7 @@ Typed errors (full set; see README status table for route mappings):
 - `InvalidPaginationValueError` / `InvalidMessageServiceOptionError` (server error unless handled by host)
 - `ActionTemplateMismatchError` / `MessageModelResolutionError` (server error unless handled by host)
 - `PaymentSessionCompensationError` / `PaymentSessionCompensationAggregateError` (server error)
+- `PaymentProviderRequiredError` (server configuration error; sanitized 500)
 - `TemplateRegistryValidationError` (registration time; not thrown by route handlers)
 
 ## Quick Start
@@ -275,8 +313,8 @@ const service = new MessageService({
 
 ```ts
 await service.createNotification({
-  fromUser: 'system',
-  toUser: 'user_123',
+  fromUser: null,
+  toUser: new mongoose.Types.ObjectId(), // use the real recipient's ObjectId
   receiverContent: {
     title: 'Deployment finished',
     long: 'Your deployment completed successfully.',
@@ -288,11 +326,11 @@ await service.createNotification({
 ### Direct template-action example
 
 ```ts
-const message = await service.findMessageOrThrow('message_123');
+const message = await service.findMessageOrThrow('507f1f77bcf86cd799439011');
 
 await service.handleAction('welcome.request', 'approve', {
   message,
-  user: { _id: 'user_123', roles: ['reviewer'] },
+  user: { _id: new mongoose.Types.ObjectId(), roles: ['reviewer'] },
   permissions: { 'message.ack': true },
 });
 ```
@@ -317,7 +355,7 @@ readonly `RegisteredMessageTemplate` views matching the frozen snapshot depth.
 
 `defaultRegistry` is a shared global instance for simpler applications.
 
-Prefer a dedicated `TemplateRegistry` instance when different apps, tenants, or tests should not share template definitions through process-global state.
+Prefer a dedicated `TemplateRegistry` instance when different apps or tests should not share template definitions through process-global state. This does not enforce shared-collection tenant isolation.
 
 ## Schema Factories
 
@@ -429,6 +467,7 @@ import {
   TemplateNotFoundError,
   ActionNotFoundError,
   ActionNotAllowedError,
+  ActionInputValidationError,
   MessageArchivedError,
   InvalidMessageUserError,
   InvalidClientRequestIdError,
@@ -445,6 +484,7 @@ import {
   MessageModelResolutionError,
   PaymentSessionCompensationError,
   PaymentSessionCompensationAggregateError,
+  PaymentProviderRequiredError,
   TemplateRegistryValidationError,
 } from '@web-ts-toolkit/message-service';
 ```

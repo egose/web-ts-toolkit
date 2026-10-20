@@ -10,14 +10,16 @@ import {
 } from './support/mongodb-fixture';
 import {
   ActionConflictError,
+  ActionNotAllowedError,
   ActionNotificationPendingError,
   ClientRequestFailedError,
   ClientRequestInconsistentStateError,
   MessageModelResolutionError,
   ClientRequestPendingError,
+  MessageArchivedError,
   MessageService,
 } from '../src/message-service';
-import type { MessageTemplate } from '../src/types/template';
+import type { MessageTemplate, PrepareResult } from '../src/types/template';
 import type { IMessage } from '../src/types/message';
 import { buildMessageArchiveSchema } from '../src/schemas/message-archive';
 import { buildMessageRequestSchema } from '../src/schemas/message-request';
@@ -160,6 +162,142 @@ describe('MessageService MongoDB integration harness', () => {
     expect(hydrated?.isReceiver({ _id: receiverId })).toBe(true);
     expect(hydrated?.isReceiver({ _id: new mongoose.Types.ObjectId(), roles: ['approver'] })).toBe(true);
     expect(hydrated?.isReceiver({ _id: new mongoose.Types.ObjectId(), roles: ['auditor'] })).toBe(false);
+  });
+
+  describe.each(['direct', 'idempotent'] as const)('recipient fallback (%s creation)', (creationMode) => {
+    it.each<{
+      name: string;
+      recipients: Pick<PrepareResult, 'toUser' | 'toRoles'>;
+      expectedRoles: string[];
+      receivers: Array<'direct' | 'role' | 'fallback'>;
+    }>([
+      {
+        name: 'direct recipient with omitted roles excludes fallback users',
+        recipients: { toUser: receiverId },
+        expectedRoles: [],
+        receivers: ['direct'],
+      },
+      {
+        name: 'direct recipient with empty roles excludes fallback users',
+        recipients: { toUser: receiverId, toRoles: [] },
+        expectedRoles: [],
+        receivers: ['direct'],
+      },
+      {
+        name: 'unaddressed message with omitted roles uses fallback',
+        recipients: {},
+        expectedRoles: ['fallback-admin'],
+        receivers: ['fallback'],
+      },
+      {
+        name: 'unaddressed message with empty roles uses fallback',
+        recipients: { toRoles: [] },
+        expectedRoles: ['fallback-admin'],
+        receivers: ['fallback'],
+      },
+      {
+        name: 'explicit roles without a direct recipient replace fallback',
+        recipients: { toRoles: ['reviewer'] },
+        expectedRoles: ['reviewer'],
+        receivers: ['role'],
+      },
+      {
+        name: 'explicit direct and role recipients both remain eligible',
+        recipients: { toUser: receiverId, toRoles: ['reviewer'] },
+        expectedRoles: ['reviewer'],
+        receivers: ['direct', 'role'],
+      },
+      {
+        name: 'explicit fallback role alongside a direct recipient remains eligible',
+        recipients: { toUser: receiverId, toRoles: ['fallback-admin'] },
+        expectedRoles: ['fallback-admin'],
+        receivers: ['direct', 'fallback'],
+      },
+    ])('$name', async ({ recipients, expectedRoles, receivers }) => {
+      const handler = vi.fn(async () => 'approved');
+      const template: MessageTemplate = {
+        ...roleTemplate,
+        templateCd: 'mongo-recipient-fallback-test',
+        // Preserve actual omission instead of normalizing toRoles to [] in the fixture.
+        prepareMessage: async ({ user }) => ({ fromUser: user._id, ...recipients }),
+        actions: [
+          {
+            actionCd: 'approve',
+            name: 'Approve',
+            variant: 'success',
+            sender: false,
+            receiver: true,
+            runHandler: handler,
+          },
+        ],
+      };
+      const { connection, registry, models } = await fixture({ templates: [template] });
+      const service = new MessageService({ connection, registry, adminRoles: ['fallback-admin'] });
+      const [message] = await service.createMessage({
+        templateCd: template.templateCd,
+        user: { _id: senderId },
+        ...(creationMode === 'idempotent' ? { clientRequestId: 'recipient-fallback' } : {}),
+      });
+      const messageId = String(message._id);
+      const users = {
+        direct: { _id: receiverId },
+        role: { _id: new mongoose.Types.ObjectId(), roles: ['reviewer'] },
+        fallback: { _id: new mongoose.Types.ObjectId(), roles: ['fallback-admin'] },
+        unrelated: { _id: new mongoose.Types.ObjectId(), roles: ['auditor'] },
+      };
+
+      for (const [name, user] of Object.entries(users)) {
+        const eligible = receivers.some((receiver) => receiver === name);
+        const listed = await service.listMessages({ user });
+        expect(listed.map((doc) => String(doc._id))).toEqual(eligible ? [messageId] : []);
+        await expect(service.countMessages(user)).resolves.toBe(eligible ? 1 : 0);
+        await expect(service.getActions(messageId, 'receiver', { user })).resolves.toEqual(
+          eligible
+            ? { uiTemplate: 'default-message', actions: [expect.objectContaining({ actionCd: 'approve' })] }
+            : null,
+        );
+        if (!eligible) {
+          const error = await service
+            .handleAction(template.templateCd, 'approve', { message, user })
+            .catch((error: unknown) => error);
+          expect(error).toBeInstanceOf(ActionNotAllowedError);
+          expect(error).not.toHaveProperty('actionAttemptId');
+        }
+      }
+
+      expect(message.toRoles).toEqual(expectedRoles);
+      expect(await models.Message.findById(message._id).lean()).toMatchObject({
+        toRoles: expectedRoles,
+        actionState: 'active',
+        actionAttemptId: null,
+      });
+      expect(handler).not.toHaveBeenCalled();
+
+      // In combined-recipient cases, prove that the role alone can execute.
+      const executor = users[receivers[receivers.length - 1]];
+      await expect(service.handleAction(template.templateCd, 'approve', { message, user: executor })).resolves.toBe(
+        'approved',
+      );
+      const archived = await service.findMessageOrThrow(messageId);
+      expect(archived).toMatchObject({ toRoles: expectedRoles, archivedAt: expect.any(Date) });
+      expect(await models.Message.countDocuments({ _id: message._id })).toBe(0);
+      expect(await models.MessageArchive.countDocuments({ _id: message._id })).toBe(1);
+
+      for (const [name, user] of Object.entries(users)) {
+        const eligible = receivers.some((receiver) => receiver === name);
+        await expect(service.listMessages({ user })).resolves.toEqual([]);
+        await expect(service.countMessages(user)).resolves.toBe(0);
+        await expect(service.getActions(messageId, 'receiver', { user })).resolves.toEqual(
+          eligible ? { uiTemplate: 'default-message', actions: [] } : null,
+        );
+        const error = await service
+          .handleAction(template.templateCd, 'approve', { message: archived, user })
+          .catch((error: unknown) => error);
+        expect(error).toBeInstanceOf(eligible ? MessageArchivedError : ActionNotAllowedError);
+        if (!eligible) expect(error).not.toHaveProperty('actionAttemptId');
+      }
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('lists and counts visible messages against MongoDB without duplicate or hidden results', async () => {

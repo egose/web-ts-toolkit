@@ -10,6 +10,7 @@ import { buildMessageRequestSchema } from '../src/schemas/message-request';
 import { buildMessageSchema } from '../src/schemas/message';
 import { TemplateRegistry } from '../src/template-registry';
 import type { MessageTemplate } from '../src/types/template';
+import { createDeferredBarrier } from './support/deferred';
 
 const CUSTOM_NAMES = {
   active: 'Msgf11CustomMessage',
@@ -60,6 +61,7 @@ const servers: Array<{ close: (cb?: (e?: Error) => void) => void }> = [];
 const connections: mongoose.Connection[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(
     servers.splice(0).map(
       (s) =>
@@ -353,6 +355,7 @@ describe('MSGF-11 route service reuse', () => {
       { registry: new TemplateRegistry() as never },
       { defaultListLimit: 10 as never },
       { maxListLimit: 10 as never },
+      { actionLeaseMs: 90_000 as never },
       { clientRequestLeaseMs: 1000 as never },
       { clientRequestWaitMs: 0 as never },
       { clientRequestPollMs: 50 as never },
@@ -375,6 +378,67 @@ describe('MSGF-11 route service reuse', () => {
         authMiddleware: [],
       }),
     ).not.toThrow();
+  });
+
+  it.each([
+    ['construction', 'configured', { actionLeaseMs: 90_000 }, 90_000],
+    ['injection', 'configured', { actionLeaseMs: 90_000 }, 90_000],
+    ['construction', 'MSGA-16 omitted', {}, 30_000],
+    ['construction', 'MSGA-16 undefined', { actionLeaseMs: undefined }, 30_000],
+  ] as const)('MSGA-08 HTTP %s %s lease', async (kind, _label, lease, duration) => {
+    const sender = new mongoose.Types.ObjectId();
+    const receiver = new mongoose.Types.ObjectId();
+    const { models } = await createCustomConnection();
+    const registry = new TemplateRegistry();
+    const gate = createDeferredBarrier('HTTP action lease');
+    const handler = vi.fn(async () => {
+      await gate.arrive();
+      return 'approved';
+    });
+    const template = baseTemplate('msga08-route-lease', receiver, {
+      actions: [{ actionCd: 'approve', name: 'Approve', variant: 'success', receiver: true, runHandler: handler }],
+    });
+    registry.register(template);
+    const options = {
+      getModel: modelGetterFor(models),
+      modelNames: { ...CUSTOM_NAMES },
+      registry,
+      ...lease,
+    };
+    const supplied = kind === 'injection' ? new MessageService(options) : undefined;
+    const { router, service } = supplied ? createMessageRoutes({ service: supplied }) : createMessageRoutes(options);
+    if (supplied) expect(service).toBe(supplied);
+    const client = await liveClient(router, { _id: sender });
+    const created = await client.post(`/new/${template.templateCd}`);
+    expect(created.status).toBe(200);
+    const messageId = (created.body as Array<{ _id: string }>)[0]._id;
+    client.setUser({ _id: receiver });
+    const startedAt = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(startedAt);
+    const pending = client.post(`/${messageId}/action/approve`);
+    try {
+      await gate.reached;
+      const claimed = await models.Message.findById(messageId).lean();
+      expect(claimed).toMatchObject({
+        actionState: 'processing',
+        actionClaimedAt: new Date(startedAt),
+        actionLeaseExpiresAt: new Date(startedAt + duration),
+      });
+      // The configured case stays protected past the old fixed 30s deadline.
+      vi.setSystemTime(startedAt + duration - 1);
+      expect((await client.post(`/${messageId}/action/approve`)).status).toBe(409);
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(await models.Message.findById(messageId).lean()).toEqual(claimed);
+      vi.setSystemTime(startedAt + duration);
+      gate.release();
+      expect((await pending).status).toBe(200);
+      expect(await models.Message.countDocuments({ _id: messageId })).toBe(0);
+      expect(await models.MessageArchive.countDocuments({ _id: messageId })).toBe(1);
+    } finally {
+      gate.release();
+      await pending;
+    }
   });
 
   it('applies auth-denial + input validation identically on both composition paths', async () => {
