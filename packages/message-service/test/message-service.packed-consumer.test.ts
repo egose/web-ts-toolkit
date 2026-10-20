@@ -1249,7 +1249,11 @@ describe('MessageService packed-package consumer harness', () => {
       run(runtime, ['public-message.cjs'], consumerDir);
       run(runtime, ['dual-package-state.cjs'], consumerDir);
       const lifecycles = ['esm', 'cjs'].map((format) => {
-        const result = JSON.parse(run(runtime, ['two-apps-consumer.mjs', format], consumerDir)) as {
+        // mongodb-memory-server prints `Downloading MongoDB "x.y.z": ...` progress lines to
+        // stdout while fetching the mongod binary on a cold cache, so only the consumer's
+        // final stdout line is guaranteed to be the JSON report.
+        const report = run(runtime, ['two-apps-consumer.mjs', format], consumerDir).trimEnd().split('\n').at(-1);
+        const result = JSON.parse(report) as {
           format: string;
           consumerNode: string;
           mongodb: string;
