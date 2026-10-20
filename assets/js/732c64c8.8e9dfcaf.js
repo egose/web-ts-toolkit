@@ -49,6 +49,10 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
+  "value": "Multi-app adaptation and migration notes",
+  "id": "multi-app-adaptation-and-migration-notes",
+  "level": 3
+}, {
   "value": "What It Exposes",
   "id": "what-it-exposes",
   "level": 2
@@ -115,6 +119,7 @@ const toc = [{
 }];
 function _createMdxContent(props) {
   const _components = {
+    a: "a",
     code: "code",
     h1: "h1",
     h2: "h2",
@@ -123,6 +128,7 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -205,6 +211,68 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "express >= 5"
         })
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Runtime: Node ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ">=22"
+      }), "; use package-root named imports. The shipped\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/message-service/README.md",
+        children: "README"
+      }), "\nis the installed integration contract, including migration guidance and the\ntwo-app recipe verified from installed tarballs on Node 22.0.0 with minimum\nExpress 5.0.0/Mongoose 8.0.0 and installed-current Express 5/Mongoose 9 peers."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "multi-app-adaptation-and-migration-notes",
+      children: "Multi-app adaptation and migration notes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Separate apps use distinct connections/databases or disjoint collections,\nmatching schema/service model names, explicit per-app ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "TemplateRegistry"
+        }), "\ninstances and provider adapters. Model names alone do not isolate collections.\nExplicit registries/models do not fall back globally; direct ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "archive()"
+        }), " requires\nthe app's registry. Shared-collection tenancy is not provided."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Default parties and archive ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "archivedBy"
+        }), " use native ObjectIds. Arbitrary string\nusers need String overrides for ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "both"
+        }), " active/archive ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromUser"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "toUser"
+        }), " and\narchive ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "archivedBy"
+        }), "; message IDs remain ObjectIds. Strings trim without\ncase-folding; textual request scopes retain case. Follow the README's complete\nrecipe and legacy data/scope migration instructions before changing ID storage."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "adminRoles"
+        }), " applies only without a direct recipient or nonempty explicit roles;\nomitted/empty roles alongside a direct recipient do not add fallback recipients.\nPrincipal roles must be omitted/undefined or an array of strings. Action handlers\nreceive the documented principal snapshot, including getter-backed fields."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "PrepareResult.documents"
+        }), " selects attachments per item (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "[]"
+        }), " clears; omitted\nuses the original payload's documents). ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "actionLeaseMs"
+        }), " configures acquisition\nleases; expiry permits takeover, not cancellation. Successful actions are terminal."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageAction.parseInput"
+        }), " synchronously validates/normalizes ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "unknown"
+        }), " submitted\ninput before the handler; direct callers supply ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "handleAction(..., { input })"
+        }), "\nand HTTP supplies ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "req.body"
+        }), ". Invalid input returns a fixed 400; asynchronous\nparsers are unsupported server errors. Host handlers own durable command/result\nbinding and deduplication by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "actionAttemptId"
+        }), " (see the README recipe)."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Every nonempty effective ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "paymentCd"
+        }), " requires a provider/session for fresh items,\neven without recipients; missing providers throw ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "PaymentProviderRequiredError"
+        }), ".\nCompleted replay never repeats preparation/payment. Email remains best effort;\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "emailRecipientResolver"
+        }), " optionally replaces the connection-local user lookup\nwithout fallback. Transactional creates skip schema email hooks."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
@@ -318,6 +386,10 @@ function _createMdxContent(props) {
         }), " (403)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionInputValidationError"
+        }), " (400 before handler; fixed public message)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "MessageArchivedError"
         }), " (410)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
@@ -374,6 +446,10 @@ function _createMdxContent(props) {
         }), " / ", (0,jsx_runtime.jsx)(_components.code, {
           children: "PaymentSessionCompensationAggregateError"
         }), " (server error)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "PaymentProviderRequiredError"
+        }), " (server configuration error; sanitized 500)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "TemplateRegistryValidationError"
@@ -572,7 +648,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "await service.createNotification({\n  fromUser: 'system',\n  toUser: 'user_123',\n  receiverContent: {\n    title: 'Deployment finished',\n    long: 'Your deployment completed successfully.',\n    short: 'Deployment done',\n  },\n});\n"
+        children: "await service.createNotification({\n  fromUser: null,\n  toUser: new mongoose.Types.ObjectId(), // use the real recipient's ObjectId\n  receiverContent: {\n    title: 'Deployment finished',\n    long: 'Your deployment completed successfully.',\n    short: 'Deployment done',\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "direct-template-action-example",
@@ -580,7 +656,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const message = await service.findMessageOrThrow('message_123');\n\nawait service.handleAction('welcome.request', 'approve', {\n  message,\n  user: { _id: 'user_123', roles: ['reviewer'] },\n  permissions: { 'message.ack': true },\n});\n"
+        children: "const message = await service.findMessageOrThrow('507f1f77bcf86cd799439011');\n\nawait service.handleAction('welcome.request', 'approve', {\n  message,\n  user: { _id: new mongoose.Types.ObjectId(), roles: ['reviewer'] },\n  permissions: { 'message.ack': true },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "template-registry",
@@ -611,7 +687,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Prefer a dedicated ", (0,jsx_runtime.jsx)(_components.code, {
         children: "TemplateRegistry"
-      }), " instance when different apps, tenants, or tests should not share template definitions through process-global state."]
+      }), " instance when different apps or tests should not share template definitions through process-global state. This does not enforce shared-collection tenant isolation."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "schema-factories",
       children: "Schema Factories"
@@ -703,7 +779,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import {\n  MessageNotFoundError,\n  TemplateNotFoundError,\n  ActionNotFoundError,\n  ActionNotAllowedError,\n  MessageArchivedError,\n  InvalidMessageUserError,\n  InvalidClientRequestIdError,\n  ActionConflictError,\n  ActionRetryableError,\n  ActionNotificationPendingError,\n  ClientRequestPendingError,\n  ClientRequestFailedError,\n  ClientRequestInconsistentStateError,\n  MessageTransactionRequiredError,\n  InvalidPaginationValueError,\n  InvalidMessageServiceOptionError,\n  ActionTemplateMismatchError,\n  MessageModelResolutionError,\n  PaymentSessionCompensationError,\n  PaymentSessionCompensationAggregateError,\n  TemplateRegistryValidationError,\n} from '@web-ts-toolkit/message-service';\n"
+        children: "import {\n  MessageNotFoundError,\n  TemplateNotFoundError,\n  ActionNotFoundError,\n  ActionNotAllowedError,\n  ActionInputValidationError,\n  MessageArchivedError,\n  InvalidMessageUserError,\n  InvalidClientRequestIdError,\n  ActionConflictError,\n  ActionRetryableError,\n  ActionNotificationPendingError,\n  ClientRequestPendingError,\n  ClientRequestFailedError,\n  ClientRequestInconsistentStateError,\n  MessageTransactionRequiredError,\n  InvalidPaginationValueError,\n  InvalidMessageServiceOptionError,\n  ActionTemplateMismatchError,\n  MessageModelResolutionError,\n  PaymentSessionCompensationError,\n  PaymentSessionCompensationAggregateError,\n  PaymentProviderRequiredError,\n  TemplateRegistryValidationError,\n} from '@web-ts-toolkit/message-service';\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["These are useful both in route handlers and in direct service usage with ", (0,jsx_runtime.jsx)(_components.code, {
