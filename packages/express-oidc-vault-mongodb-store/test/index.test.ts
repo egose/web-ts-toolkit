@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { OidcVaultStoreConflictError } from '@web-ts-toolkit/express-oidc-vault';
-import { MongoClient, type Collection, type Db } from 'mongodb';
+import { MongoClient, type Collection, type CollectionOptions, type Db } from 'mongodb';
 import {
   defineOidcVaultDeviceBindingStoreConformanceSuite,
   defineOidcVaultStoreProviderConformanceSuite,
@@ -67,8 +67,11 @@ const createDbWithDeleteOneSpy = (
           return Reflect.get(target, property, receiver);
         }
 
-        return <TSchema extends { _id?: unknown } = { _id?: unknown }>(name: string) => {
-          const collection = target.collection<TSchema>(name);
+        return <TSchema extends { _id?: unknown } = { _id?: unknown }>(
+          name: string,
+          collectionOptions?: CollectionOptions,
+        ) => {
+          const collection = target.collection<TSchema>(name, collectionOptions);
 
           if (name !== options.collectionName) {
             return collection;
@@ -869,8 +872,8 @@ describe('createMongoOidcVaultStore', () => {
             return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
           }
 
-          return (name: string) => {
-            const collection = (target as Db).collection(name);
+          return (name: string, options?: CollectionOptions) => {
+            const collection = (target as Db).collection(name, options);
 
             if (name !== 'oidc_vault_sessions') {
               return collection;
@@ -1173,8 +1176,8 @@ describe('createMongoOidcVaultStore', () => {
           return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
         }
 
-        return (name: string) => {
-          const collection = (target as Db).collection(name);
+        return (name: string, options?: CollectionOptions) => {
+          const collection = (target as Db).collection(name, options);
 
           if (name !== 'oidc_vault_sessions') {
             return collection;

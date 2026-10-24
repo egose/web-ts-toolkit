@@ -3,6 +3,8 @@ import type {
   OidcVaultLoginInitiationInput as BackendLoginInput,
   OidcVaultLoginInitiationResult as BackendLoginResult,
   OidcVaultLogoutResult as BackendLogout,
+  OidcVaultLogoutNavigationInput as BackendNavigationInput,
+  OidcVaultLogoutNavigationResult as BackendNavigationResult,
   OidcVaultSessionTransport as BackendTransport,
   OidcVaultTokenIssueResult as BackendToken,
   OidcVaultUserProfile as BackendProfile,
@@ -14,6 +16,8 @@ import type {
   OidcVaultLoginInitiationInput,
   OidcVaultLoginInitiationResult,
   OidcVaultLogoutResult,
+  OidcVaultLogoutNavigationInput,
+  OidcVaultLogoutNavigationResult,
   OidcVaultSessionTransport,
   OidcVaultTokenIssueResult,
   OidcVaultUserProfile,
@@ -29,6 +33,8 @@ describe('CLIENT-03 single-sourced browser DTOs vs backend root declarations', (
     expectTypeOf<OidcVaultLoginInitiationInput>().toEqualTypeOf<BackendLoginInput>();
     expectTypeOf<OidcVaultLoginInitiationResult>().toEqualTypeOf<BackendLoginResult>();
     expectTypeOf<OidcVaultLogoutResult>().toEqualTypeOf<BackendLogout>();
+    expectTypeOf<OidcVaultLogoutNavigationInput>().toEqualTypeOf<BackendNavigationInput>();
+    expectTypeOf<OidcVaultLogoutNavigationResult>().toEqualTypeOf<BackendNavigationResult>();
     expectTypeOf<OidcVaultSessionTransport>().toEqualTypeOf<BackendTransport>();
   });
 });

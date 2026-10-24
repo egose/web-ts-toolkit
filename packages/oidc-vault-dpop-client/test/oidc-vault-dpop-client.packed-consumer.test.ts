@@ -7,6 +7,7 @@ import {
   installPackedConsumer,
   packageRoot,
   preparePackedTarball,
+  prepareReleaseTarball,
   run,
   unpackTarballToDir,
 } from './packed-consumer-harness';
@@ -43,6 +44,26 @@ const EXPECTED_RUNTIME_EXPORTS = [
   'getOrCreateDpopKey',
 ] as const;
 
+const NAVIGATION_RUNTIME = `
+async function navigationConsumer(pkg) {
+  globalThis.location = { origin: 'https://app.example.com' };
+  globalThis.isSecureContext = true;
+  globalThis.indexedDB = {}; // Queued work is disposed before any storage operation.
+  const values = new Map();
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  } });
+  const session = pkg.createOidcVaultDpopSession({ backendOrigin: 'https://api.example.com', navigate: () => assert.fail('stale navigation') });
+  assert.strictEqual(typeof session.logoutAndNavigate, 'function');
+  const first = session.logoutAndNavigate();
+  assert.strictEqual(session.logoutAndNavigate(), first);
+  session.dispose();
+  await assert.rejects(first, { code: 'DPOP_SESSION_DISPOSED' });
+}
+`;
+
 const CONSUMER_CJS = `/* Consumer CJS entry: require() resolves the packed tarball via exports.require (no workspace mapping). */
 const assert = require('node:assert');
 
@@ -56,6 +77,8 @@ assert.strictEqual(typeof pkg.createDpopProof, 'function');
 assert.strictEqual(typeof pkg.getOrCreateDpopKey, 'function');
 assert.ok(pkg.OidcVaultDpopClientError.prototype instanceof Error);
 assert.strictEqual(new pkg.OidcVaultDpopClientError('DPOP_KEY_LOST', 'x', true).name, 'OidcVaultDpopClientError');
+${NAVIGATION_RUNTIME}
+navigationConsumer(pkg).catch((error) => { console.error(error); process.exitCode = 1; });
 `;
 
 const CONSUMER_MJS = `/* Consumer ESM entry: import resolves the packed tarball via exports.import (no workspace mapping). */
@@ -82,6 +105,8 @@ assert.strictEqual(typeof getOrCreateDpopKey, 'function');
 assert.strictEqual(typeof createDeviceFingerprint, 'function');
 assert.strictEqual(typeof fingerprintJsSignalSource, 'function');
 assert.ok(OidcVaultDpopClientError.prototype instanceof Error);
+${NAVIGATION_RUNTIME}
+await navigationConsumer({ createOidcVaultDpopSession });
 `;
 
 const CONSUMER_TYPES = `/**
@@ -115,6 +140,8 @@ import type {
   FingerprintJsAgent,
   OidcVaultDpopSession,
   OidcVaultDpopSessionOptions,
+  OidcVaultLogoutNavigationInput,
+  OidcVaultLogoutNavigationResult,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 const options: OidcVaultDpopSessionOptions = {
@@ -126,6 +153,18 @@ const options: OidcVaultDpopSessionOptions = {
 };
 const session = createOidcVaultDpopSession(options);
 session satisfies OidcVaultDpopSession;
+const navigation: Promise<void> = session.logoutAndNavigate();
+const navigationInput: OidcVaultLogoutNavigationInput = { sessionId: 'opaque' };
+const navigationResult: OidcVaultLogoutNavigationResult = {
+  loggedOut: true, navigationUrl: 'https://auth.example.com/auth/oidc/body/logout/navigation',
+};
+void navigation;
+void navigationInput;
+void navigationResult;
+// @ts-expect-error — no caller-selected redirect authority.
+session.logoutAndNavigate('/return');
+// @ts-expect-error — only sessionId is a supported wire input.
+const invalidNavigationInput: OidcVaultLogoutNavigationInput = { returnTo: '/return' };
 
 // Explicit recovery from a corrupt persisted key, through the installed root interface.
 async function recoverKey(): Promise<void> {
@@ -262,6 +301,22 @@ afterAll(() => {
 });
 
 describe('CLIENT-06 packed-package compatibility', () => {
+  it('runs navigation API and strict DOM-only consumers through release-transformed ESM/CJS exports', () => {
+    const unpacked = unpackTarballToDir(prepareReleaseTarball());
+    const manifest = JSON.parse(readFileSync(path.resolve(unpacked, 'package.json'), 'utf8'));
+    expect(manifest.module).toBe('./index.mjs');
+    expect(JSON.stringify(manifest)).not.toMatch(/PLACEHOLDER|workspace:/);
+    const consumer = installPackedConsumer(true);
+    writeConsumerSources(consumer);
+    run(process.execPath, ['consumer.cjs'], consumer);
+    run(process.execPath, ['consumer.mjs'], consumer);
+    for (const config of ['tsconfig-nodenext.json', 'tsconfig-bundler.json']) {
+      const files = run('pnpm', ['exec', 'tsc', '-p', config, '--listFiles'], consumer);
+      expect(files).not.toMatch(/[/\\]@types[/\\]|express-oidc-vault|express-serve-static-core/);
+      expect(files).toContain('/oidc-vault-dpop-client/index.d.mts');
+    }
+  }, 240_000);
+
   it('`npm pack --dry-run --json` lists only README.md + llms.txt + dist/* + package.json', () => {
     const stdout = run('npm', ['pack', '--dry-run', '--json'], packageRoot);
     const report = JSON.parse(stdout) as Array<{

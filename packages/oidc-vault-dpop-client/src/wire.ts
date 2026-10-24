@@ -7,6 +7,8 @@ export type {
   OidcVaultExchangeResult,
   OidcVaultLoginInitiationInput,
   OidcVaultLoginInitiationResult,
+  OidcVaultLogoutNavigationInput,
+  OidcVaultLogoutNavigationResult,
   OidcVaultLogoutResult,
   OidcVaultSessionTransport,
   OidcVaultTokenIssueResult,

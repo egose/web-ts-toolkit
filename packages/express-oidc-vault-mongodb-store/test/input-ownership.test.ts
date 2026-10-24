@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Binary, Decimal128, Long, ObjectId, type Db } from 'mongodb';
+import { Binary, Decimal128, Long, ObjectId, type CollectionOptions, type Db } from 'mongodb';
 import { createMongoOidcVaultStore } from '../src/index';
 import { createReplicaSetHarness, MONGO_TIMEOUT, withFailCommand, type MongoMemoryHarness } from './mongo-memory';
 
@@ -26,8 +26,8 @@ const intercept = (db: Db, collectionName: string, method: string, hook: () => P
   new Proxy(db, {
     get(target, property) {
       if (property === 'collection')
-        return (name: string) => {
-          const collection = target.collection(name);
+        return (name: string, options?: CollectionOptions) => {
+          const collection = target.collection(name, options);
           if (name !== collectionName) return collection;
           return new Proxy(collection, {
             get(target, property) {

@@ -19,6 +19,8 @@ import type {
   DpopProofInput,
   OidcVaultDpopSession,
   OidcVaultDpopSessionOptions,
+  OidcVaultLogoutNavigationInput,
+  OidcVaultLogoutNavigationResult,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 import * as rootNamespace from '@web-ts-toolkit/oidc-vault-dpop-client';
 
@@ -91,6 +93,14 @@ describe('oidc-vault-dpop-client built-declaration consumer (CLIENT-06)', () => 
       expectTypeAssignableTo<string>(session.scopeId);
       expectTypeAssignableTo<'body' | 'cookie'>(session.sessionTransport);
       expectTypeAssignableTo<Promise<void>>(session.resetKey());
+      expectTypeAssignableTo<Promise<void>>(session.logoutAndNavigate());
+      expectTypeAssignableTo<OidcVaultLogoutNavigationInput>({ sessionId: 'opaque' });
+      expectTypeAssignableTo<OidcVaultLogoutNavigationResult>({
+        loggedOut: true,
+        navigationUrl: 'https://auth.example.com/auth/oidc/body/logout/navigation',
+      });
+      // @ts-expect-error — return destinations are server configuration, not input.
+      session.logoutAndNavigate('https://evil.example');
       // @ts-expect-error — reset is scoped by the session, never an arbitrary key id.
       session.resetKey('another-scope');
     };

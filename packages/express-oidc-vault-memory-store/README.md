@@ -94,6 +94,7 @@ The store keeps these record kinds in separate in-process maps:
 - rotated-session aliases, used only so an old public session ID can revoke the current logical session
 - backchannel logout token JTIs, consumed once until their expiry time
 - DPoP proof reservations with their own bounded expiry heap/capacity
+- dedicated logout continuation tickets with independent capacity and removable expiry nodes
 
 `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; creating the same key again replaces the old value. A `createSession` replacement takes over the session ID with its own subject/logical/provider-session scope, and clears any stale rotation alias held under that ID so the reused ID cannot invoke an old logical-session meaning. Portable callers must still create sessions with a fresh unused ID and handle `OidcVaultStoreConflictError`: reusing a live ID replaces on memory/MongoDB but rejects on Redis. MongoDB also retains an alias row under a reused ID until expiry or lineage cleanup; only fresh-ID creation is portable.
 
@@ -127,6 +128,16 @@ All shared types (`OidcVaultDeviceBindingStoreProvider`, `OidcVaultRecordBinding
 `match` requires both `{ deviceBinding, browserBindingHash }`; each is an exact value or **null meaning stored absence/undefined**. Null never ignores a field. Records are legacy (neither field), cookie-only (browser hash), or bound (hash + `{ type: 'dpop', jkt }`). Both hashes are canonical 43-character SHA-256 base64url. Null/malformed/extra binding fields and a key without a browser hash are invalid; writes reject, and corrupted stored data cannot yield credentials. Mismatch returns `null` without spending a live record; the honest caller may retry. Original legacy consumes refuse all guarded records, including cookie-only records, without consumption.
 
 Session rotation inherits omitted/undefined binding and accepts the same original key; it rejects null/malformed binding, a changed key, or adding a binding to an unbound source before mutation. Session IDs still follow the upsert/alias contracts above. A revocation alias never supplies historical or missing binding as proof of unboundness: all live lineage members must agree on binding/provider identity (malformed/inconsistent authority throws a fixed private diagnostic). Revocation context scans that lineage's candidates in the session map; it does not authenticate aliases through `getSession`.
+
+## Dedicated Logout Continuation Tickets
+
+The inferred factory result satisfies both core `OidcVaultDeviceBindingStoreProvider` and `OidcVaultLogoutNavigationStoreProvider`. The latter requires `createLogoutNavigationTicket` / `consumeLogoutNavigationTicket`; they remain optional on the base custom-store contract. Import ticket/create/consume types and `OidcVaultLogoutNavigationCapacityError` from the **core root**. This storage extension does not enable HTTP routes.
+
+`logoutNavigationMaxEntries` is a positive safe integer, default **10000**, shared across effective ticket namespaces in this object, independent of replay capacity. Live collisions throw `OidcVaultStoreConflictError` before capacity rejection, preserving destination/expiry. New admissions at capacity throw `OidcVaultLogoutNavigationCapacityError`, never evicting live grants. Exactly five scalar fields are captured before yielding and returned detached: `namespace`, `ticketHash`, `upstreamLogoutUrl`, `createdAt`, `expiresAt`. Invalid creates throw TypeError; invalid/unknown/spent/expired/malformed selected consumes return null and retire selected unusable data. Clock failures throw. Core's README defines canonical scope/hash formats, 256-bit generation, Date-range integer clocks/epochs, 1000..120000-ms original and maximum remaining lifetime, strict expiry, and 16384-byte HTTP(S) URL syntax.
+
+A dedicated map and **removable indexed min-heap** retain one node per ticket. Check/remove has no asynchronous gap; arbitrary consumes remove their heap node immediately, without tombstones. Each ticket operation removes its selected entry plus at most **64 unrelated expiries**, with O(log N) heap work and no session/alias/replay sweeps. Unknown consumes allocate no entries. Expired payloads can remain idle until later ticket traffic or disposal, but are unusable and occupy the fixed cap. No timers. Only this same memory object shares consumption; separate objects/processes do not.
+
+The already-built URL can retain an ID-token hint; hashing does not encrypt it. No raw ticket/session/profile/separate tokens are stored. Exclude records/URLs from diagnostics. Session/lineage/backchannel deletion does not cascade to authorized tickets; discarding the store loses them. Existing identity, alias, rotation and replay contracts remain intact.
 
 ## Per-Request DPoP Replay And Capacity
 

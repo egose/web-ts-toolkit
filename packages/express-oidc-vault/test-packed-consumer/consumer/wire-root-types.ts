@@ -11,6 +11,8 @@ export type PreservedRootContracts = [
   Assert<Equal<Root.OidcVaultLoginInitiationInput, Wire.OidcVaultLoginInitiationInput>>,
   Assert<Equal<Root.OidcVaultLoginInitiationResult, Wire.OidcVaultLoginInitiationResult>>,
   Assert<Equal<Root.OidcVaultLogoutResult, Wire.OidcVaultLogoutResult>>,
+  Assert<Equal<Root.OidcVaultLogoutNavigationInput, Wire.OidcVaultLogoutNavigationInput>>,
+  Assert<Equal<Root.OidcVaultLogoutNavigationResult, Wire.OidcVaultLogoutNavigationResult>>,
   Assert<Equal<Root.OidcVaultSessionTransport, Wire.OidcVaultSessionTransport>>,
   Assert<Equal<Root.OidcVaultTokenIssueResult, Wire.OidcVaultTokenIssueResult>>,
   Assert<Equal<Root.OidcVaultUserProfile, Wire.OidcVaultUserProfile>>,

@@ -9,6 +9,10 @@ import type {
   AuthorizationTransactionInput,
   ConsumeAuthorizationTransactionIfMatchesInput,
   ConsumeExchangeCodeIfMatchesInput,
+  ConsumeLogoutNavigationTicketInput,
+  CreateLogoutNavigationTicketInput,
+  OidcVaultLogoutNavigationTicket,
+  OidcVaultLogoutNavigationStoreProvider,
   ExchangeCodeRecord,
   ExchangeCodeRecordInput,
   OidcVaultSession,
@@ -33,9 +37,13 @@ import {
   sessionRevocationContext,
 } from './binding';
 import { DpopReplayReservations } from './dpop-replay';
+import { LogoutNavigationTickets } from './logout-tickets';
+import { captureTicket, captureTicketIdentity, ticketLimit, validTicketIdentity } from './logout-ticket-validation';
 
 /** Construction options for the named package-root memory-store factory. */
 export interface MemoryOidcVaultStoreOptions {
+  /** Independent physical-store ticket cap, shared across namespaces; default 10000. No live eviction. */
+  logoutNavigationMaxEntries?: number;
   /** Positive safe integer shared by this store object; default 100000. No live replay reservations are evicted. */
   dpopReplayMaxEntries?: number;
   /**
@@ -135,7 +143,7 @@ const toLogicalSessionDeleteInput = (
   input: string | DeleteSessionsByLogicalSessionIdInput,
 ): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : input);
 
-class MemoryOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
+class MemoryOidcVaultStore implements OidcVaultDeviceBindingStoreProvider, OidcVaultLogoutNavigationStoreProvider {
   private readonly authorizationTransactions = new Map<string, AuthorizationTransaction>();
   private readonly exchangeCodes = new Map<string, ExchangeCodeRecord>();
   private readonly sessions = new Map<string, OidcVaultSession>();
@@ -149,6 +157,7 @@ class MemoryOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
   private readonly backchannelLogoutTokenJtiSweep = createMapSweepState();
   private readonly sweepWork = createMemoryStoreSweepWork();
   private readonly dpopProofs: DpopReplayReservations;
+  private readonly logoutTickets: LogoutNavigationTickets;
 
   constructor(options: MemoryOidcVaultStoreOptions = {}) {
     const maxEntries = options.dpopReplayMaxEntries === undefined ? 100_000 : options.dpopReplayMaxEntries;
@@ -156,6 +165,7 @@ class MemoryOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
       throw new TypeError('OIDC vault DPoP replay maximum entries must be a positive safe integer.');
     }
     this.dpopProofs = new DpopReplayReservations(maxEntries);
+    this.logoutTickets = new LogoutNavigationTickets(ticketLimit(options.logoutNavigationMaxEntries));
     this.now = options.now ?? (() => Date.now());
   }
 
@@ -355,6 +365,19 @@ class MemoryOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
   async reserveDpopProof(input: ReserveDpopProofInput): Promise<boolean> {
     input = { replayKey: input.replayKey, expiresAt: input.expiresAt };
     return this.dpopProofs.reserve(input, this.now());
+  }
+
+  async createLogoutNavigationTicket(input: CreateLogoutNavigationTicketInput): Promise<void> {
+    const record = captureTicket(input);
+    this.logoutTickets.create(record, this.now());
+  }
+
+  async consumeLogoutNavigationTicket(
+    input: ConsumeLogoutNavigationTicketInput,
+  ): Promise<OidcVaultLogoutNavigationTicket | null> {
+    const identity = captureTicketIdentity(input);
+    if (!validTicketIdentity(identity)) return null;
+    return this.logoutTickets.consume(identity, this.now());
   }
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
@@ -698,12 +721,13 @@ class MemoryOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
  * during store operations, and lost when the Node.js process exits. Do not use
  * this provider when sessions must survive restarts or be shared by multiple
  * application instances. The returned stronger provider includes guarded
- * exact/null consumes, token-free revocation context, and bounded DPoP replay.
+ * exact/null consumes, token-free revocation context, bounded DPoP replay and
+ * independent, atomic logout continuation tickets (default cap 10000).
  * Replay is shared only by callers reusing this same object; the store does not
  * verify HTTP proofs. Capacity defaults to 100000 and never evicts live entries.
  */
 export function createMemoryOidcVaultStore(
   options: MemoryOidcVaultStoreOptions = {},
-): OidcVaultDeviceBindingStoreProvider {
+): OidcVaultDeviceBindingStoreProvider & OidcVaultLogoutNavigationStoreProvider {
   return new MemoryOidcVaultStore(options);
 }

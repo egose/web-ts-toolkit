@@ -74,7 +74,7 @@ process.once('SIGTERM', async () => {
 
 ## Collection Names
 
-The provider uses seven separate MongoDB collections by default:
+The provider uses nine separate MongoDB collections by default:
 
 - `oidc_vault_authorization_transactions`: authorization transaction state, nonce, PKCE verifier, and metadata
 - `oidc_vault_exchange_codes`: short-lived frontend exchange codes
@@ -83,6 +83,8 @@ The provider uses seven separate MongoDB collections by default:
 - `oidc_vault_rotated_session_aliases`: stale rotated session IDs mapped to active logical sessions
 - `oidc_vault_dpop_proofs`: unique DPoP proof IDs with a TTL expiry index
 - `oidc_vault_dpop_replay_capacity`: shared capacity/serialization row and indexed, non-TTL expiry-accounting rows
+- `oidc_vault_logout_navigation_tickets`: dedicated continuation URL payloads with TTL expiry and a fixed pairing row
+- `oidc_vault_logout_navigation_capacity`: separate serialized ticket capacity and non-TTL expiry ledger
 
 Override collection names when your deployment needs explicit naming:
 
@@ -96,13 +98,15 @@ const storeProvider = createMongoOidcVaultStore({
   rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',
   dpopProofsCollectionName: 'auth_dpop_proofs',
   dpopReplayCapacityCollectionName: 'auth_dpop_capacity',
+  logoutNavigationTicketsCollectionName: 'auth_logout_tickets',
+  logoutNavigationCapacityCollectionName: 'auth_logout_capacity',
 });
 ```
 
 ## Startup And Client Ownership
 
 - use MongoDB when your team already standardizes on Mongo and you want the auth vault data in the same operational platform
-- the provider uses seven separate collections: transactions, exchange codes, sessions, backchannel JTIs, aliases, DPoP proofs and replay capacity/accounting
+- the provider uses nine separate collections: transactions, exchange codes, sessions, backchannel JTIs, aliases, DPoP proofs, replay capacity/accounting, logout tickets and ticket capacity/accounting
 - TTL indexes are created on expiring records; sessions, authorization transactions, exchange codes, backchannel logout token JTIs, and rotated-session aliases are also checked for expiration during relevant reads or consumes (`expiresAt <= now()` is expired), so behavior does not depend only on Mongo's background TTL monitor timing
 - session rotation, coherent revocation-context reads, replay-capacity admission and inactive-lineage alias cleanup require MongoDB transactions; use a replica set or sharded deployment because standalone servers fail readiness instead of using non-atomic fallbacks
 - startup readiness creates required indexes and verifies transaction-capable topology; connect the MongoDB client, create the store, await `storeProvider.ready()`, then accept traffic
@@ -110,6 +114,34 @@ const storeProvider = createMongoOidcVaultStore({
 - the application owns MongoDB client shutdown; this package does not close the client
 
 Drain HTTP requests and any other in-flight store operations before closing the caller-owned `MongoClient`. The store has no shutdown method or background cleanup timer. Its explicit transaction sessions are ended in `finally` on success and failure; MongoDB's TTL monitor belongs to the server. Shared state and durability depend on your deployment, replication and backup configuration.
+
+## Primary Reads And Migration
+
+The store selects **primary** for its own collection reads, including authorization/exchange/session preflight, alias/liveness queries, and readiness index/configuration reads. Rotation, revocation-context, inactive-alias cleanup, and replay transactions also explicitly use primary. This overrides `secondaryPreferred`, `secondary`, or other read preferences inherited from a URI, `MongoClient`, or `Db` for vault work only; there is no secondary-read exception for authentication state.
+
+Reuse an application connection even when ordinary application reads prefer secondaries:
+
+```ts
+import { MongoClient } from 'mongodb';
+import { createMongoOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';
+
+const client = new MongoClient(process.env.MONGODB_URI!, { readPreference: 'secondaryPreferred' });
+await client.connect();
+const db = client.db('app-auth');
+const storeProvider = createMongoOidcVaultStore({ db });
+await storeProvider.ready();
+
+// Vault reads/transactions use primary; unrelated handles keep caller defaults.
+const applicationRecords = db.collection('application_records');
+await applicationRecords.findOne({});
+
+// After draining requests and other in-flight store work:
+await client.close();
+```
+
+Migration: applications with a separate primary-only vault client can instead pass their existing connected `Db`, preserving the same database and configured collection names. No second client, replacement `Db`, or per-operation application override is needed. The store leaves caller/client/Db defaults, read-preference tags/staleness settings, unrelated collection routing, BSON serialization options, and existing read/write concerns intact. The caller still owns connection, shutdown, and pool/selection/timeout configuration.
+
+Compatibility: vault reads that previously inherited secondary routing now require a primary. If none is available, readiness or the affected operation rejects with the backend/driver error under the caller's selection/timeout policy; the store never falls back to a secondary or memory. Deletion errors can still follow committed session deletion, as described below. Primary selection is a routing policy: it does **not** add linearizable read concern, causal sessions across separate store calls, stronger write concern, or failover durability. Existing snapshot transaction concerns and rotation's inherited concerns are unchanged. Configure durability for your deployment; replica-set coverage does not certify sharded topology or distributed-failure behavior.
 
 ## Rotation Aliases And Lifetime
 
@@ -192,6 +224,24 @@ Migration detail: the pre-binding Mongo mapper wrote BSON null for omitted **pro
 
 `getSessionRevocationContext(sessionId)` resolves a live handle or unexpired alias to a currently live lineage using one snapshot transaction. It projects only logical ID/subject/provider/binding/expiry (no refresh/ID/access tokens fetched) and returns only `logicalSessionId`, allowlisted `provider.issuer/clientId`, and optional original `deviceBinding`. No profile/metadata/arbitrary provider fields are returned. Aliases remain token/binding-free; they resolve surviving session authority rather than treating missing alias binding as unbound. Malformed/inconsistent lineage binding/provider authority throws a fixed private diagnostic. Expired aliases/empty lineages return `null`; `getSession(alias)` remains `null`. Lineage queries materialize their surviving candidates; this is not bounded replay-admission work.
 
+## Dedicated Logout Continuation Tickets
+
+`OidcVaultMongoStoreProvider` also satisfies core `OidcVaultLogoutNavigationStoreProvider`, with required `createLogoutNavigationTicket` / `consumeLogoutNavigationTicket` and retained `ready()`. Ticket/create/consume types and `OidcVaultLogoutNavigationCapacityError` are core-root exports; both methods remain optional on the base custom-store contract. This storage extension does not register HTTP routes.
+
+| Mongo ticket option                      | Default                                 | Contract                                                                                    |
+| ---------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `logoutNavigationMaxEntries`             | `10000`                                 | Positive safe integer, identical on shared clients; independent of replay                   |
+| `logoutNavigationTicketsCollectionName`  | `oidc_vault_logout_navigation_tickets`  | Composite namespace/hash `_id`, five-field payload with Date expiry, `expiresAt_ttl`        |
+| `logoutNavigationCapacityCollectionName` | `oidc_vault_logout_navigation_capacity` | Non-TTL capacity/revision and hash/expiry ledger; `logout_navigation_expiry_accounting_idx` |
+
+All **nine** collection roles must be distinct. Readiness rejects TTL indexes on the ticket ledger and validates limits/pairing in **both directions**: a fixed configuration row in the payload collection and a fixed capacity row in the ledger. Both new handles/readiness reads use primary on the supplied Db; **every ticket transaction explicitly uses primary and snapshot read concern**. Caller defaults, concerns and client lifecycle are retained. No secondary/memory fallback.
+
+Create/consume serialize on an actual capacity-row revision write. Transactions validate count/ledger consistency, retire the selected entry plus at most **64 unrelated indexed expiries**, and commit payload/ledger/count changes together. The consistency count is proportional to retained accounting, bounded by configured capacity; the single row can contend. Cleanup/retries add work; no throughput SLA. Successful consume frees its count once. A live ledger protects an identity from collision reuse after early payload disappearance; consume retires it and returns null. Physical TTL deletion never loses accounting. Expired payloads awaiting TTL are unusable; non-TTL accounting may occupy capacity while idle until later traffic. Normal retention is at most the cap in payloads/ledger entries plus two fixed configuration rows. Changing a collection or limit without a matching migration fails closed.
+
+Exactly five scalar fields are captured before the first await and returned detached: `namespace`, `ticketHash`, `upstreamLogoutUrl`, `createdAt`, `expiresAt`. Core's README defines canonical scope/hash formats, 256-bit ticket generation, Date-range integer epochs/clocks, original TTL 1000..120000 ms, remaining TTL >0 and <=120000 ms, and 16384-byte HTTP(S) URL syntax. Invalid creates throw TypeError; live collisions throw `OidcVaultStoreConflictError` before capacity rejection without replacement/extension. Capacity throws `OidcVaultLogoutNavigationCapacityError`, never evicting live grants. Invalid/unknown/spent/expired/malformed selected consumes return null; selected unusable payloads are retired. Backend, clock, pairing and accounting failures throw; transaction failures roll back. Ambiguous acknowledgements are not retry authority.
+
+The final URL can retain an ID-token hint; hashing does not encrypt it. No raw ticket, full session/profile, handle/subject or separate tokens are stored. Exclude records/credential URLs and arbitrary errors from logs. Session/lineage/backchannel deletion does not cascade to authorized tickets. Provisioning is additive; existing identity, rotation, alias and replay semantics remain intact.
+
 ## Per-Request DPoP Replay, Capacity And TTL Accounting
 
 | Mongo replay option                | Default                           | Contract                                                                        |
@@ -210,7 +260,7 @@ const storeProvider = createMongoOidcVaultStore({
 await storeProvider.ready();
 ```
 
-`dpopReplayMaxEntries` is a positive safe integer, default **100000**, shared across independent clients using the paired replay collections. All seven collection names must be distinct and valid. Every shared client must use the same capacity and proof/accounting collection pairing; readiness fails if the persisted capacity configuration disagrees. Changing names starts an independent namespace, not a migration. No instance-local admission counter or replay fallback is used.
+`dpopReplayMaxEntries` is a positive safe integer, default **100000**, shared across independent clients using the paired replay collections. All nine collection names must be distinct and valid. Every shared client must use the same capacity and proof/accounting collection pairing; readiness fails if the persisted capacity configuration disagrees. Changing names starts an independent namespace, not a migration. No instance-local admission counter or replay fallback is used.
 
 `reserveDpopProof({ replayKey, expiresAt })` reserves an opaque key verbatim after proof verification. Expiry must be a safe-integer future millisecond epoch with remaining TTL **<=360000 ms**. Nonfinite/unsafe/fractional/expired (`<= now()`) or overlong windows return `false` without allocation. A duplicate returns `false` without extending expiry, before capacity checks. Valid expired IDs may be admitted again.
 

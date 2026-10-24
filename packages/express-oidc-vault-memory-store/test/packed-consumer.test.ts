@@ -259,6 +259,14 @@ function copyConsumerSources(consumerDir: string): void {
     path.resolve(consumerDir, 'store-contract.mjs'),
   );
   const readme = readFileSync(path.resolve(consumerDir, 'node_modules', memoryStorePackageName, 'README.md'), 'utf8');
+  const website = readFileSync(
+    path.resolve(workspaceRoot, 'website/docs/packages/express-oidc-vault-memory-store.md'),
+    'utf8',
+  );
+  const ticketSection = (text: string) =>
+    text.split('## Dedicated Logout Continuation Tickets\n')[1]?.split('\n## ')[0];
+  expect(ticketSection(readme)).toBeTruthy();
+  expect(ticketSection(website)).toBe(ticketSection(readme));
   const quickStart = readme.slice(readme.indexOf('## Quick Start')).match(/```ts\n([\s\S]*?)\n```/)?.[1];
   if (!quickStart) throw new Error('Installed memory-store README quickstart is missing.');
   writeFileSync(path.resolve(consumerDir, 'readme-quick-start.ts'), quickStart);

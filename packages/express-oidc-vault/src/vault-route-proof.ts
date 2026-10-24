@@ -18,17 +18,20 @@ import {
 } from './dpop-replay';
 import { createDpopRequestTargetResolver } from './dpop-target';
 import { OidcVaultHttpError } from './errors';
+import type { DpopDiagnostic } from './diagnostics';
 import type { OidcVaultDpopBinding, OidcVaultVerifiedDpopBinding } from './types';
 
 export interface CapturedVaultRouteProof {
+  readonly diagnostic?: DpopDiagnostic;
   readonly header: DpopRawHeader;
   readonly method: string;
   readonly originalUrl: string;
 }
 
 /** Capture before stores, providers, or mutable hooks; no Host/forwarded origin and no Authorization token. */
-export const captureVaultRouteProof = (req: Request): CapturedVaultRouteProof =>
+export const captureVaultRouteProof = (req: Request, diagnostic?: DpopDiagnostic): CapturedVaultRouteProof =>
   Object.freeze({
+    diagnostic,
     header: readDpopRawHeader(req, 'dpop'),
     method: req.method,
     originalUrl: req.originalUrl,
@@ -69,14 +72,18 @@ export const createVaultRouteProofVerifier = (
     now: options.now,
   });
   const admit = async (request: CapturedVaultRouteProof, proof: string, expectedJkt?: string) => {
-    const result = await replay.verifyAndReserve(() =>
-      verifyDpopProof({
-        proof,
-        method: request.method,
-        targetUrl: () => targetFor(request.originalUrl),
-        proofOptions: policy,
-        expectedJkt,
-      }),
+    const { diagnostic } = request;
+    const result = await replay.verifyAndReserve(
+      () =>
+        verifyDpopProof({
+          proof,
+          method: request.method,
+          targetUrl: () => targetFor(request.originalUrl),
+          proofOptions: policy,
+          expectedJkt,
+          diagnostic,
+        }),
+      diagnostic,
     );
     if (result.type === 'nonce-challenge') {
       throw new VaultDpopNonceChallengeError(toDpopNonceChallengeResponse(result, 'vault-post', policy.algorithms));
@@ -85,9 +92,10 @@ export const createVaultRouteProofVerifier = (
   };
   return Object.freeze({
     async initiate(request: CapturedVaultRouteProof) {
-      const proof = extractDpopProof(request.header);
+      const proof = extractDpopProof(request.header, request.diagnostic);
       if (proof === undefined) {
         assertDeviceBindingPolicy(policy, undefined);
+        request.diagnostic?.emit('presentation', 'ignored', 'proof-absent');
         return undefined;
       }
       return admit(request, proof);
@@ -95,9 +103,11 @@ export const createVaultRouteProofVerifier = (
     async verify(request: CapturedVaultRouteProof, originalBinding: Readonly<OidcVaultDpopBinding> | undefined) {
       const binding = snapshotDpopBinding(originalBinding);
       assertDeviceBindingPolicy(policy, binding);
-      const proof = extractDpopProof(request.header);
+      const proof = extractDpopProof(request.header, request.diagnostic);
       const verified = proof === undefined ? undefined : await admit(request, proof, binding?.jkt);
-      return resolveVerifiedDeviceBinding(policy, binding, verified);
+      const resolved = resolveVerifiedDeviceBinding(policy, binding, verified);
+      if (proof === undefined) request.diagnostic?.emit('presentation', 'ignored', 'proof-absent');
+      return resolved;
     },
   });
 };

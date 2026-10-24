@@ -108,7 +108,7 @@ export class MongoDpopReplayReservations {
           await this.capacity.updateOne({ _id: CAPACITY_ID }, { $set: { entries: entries + 1 } }, { session });
           return true;
         },
-        { readConcern: { level: 'snapshot' } },
+        { readPreference: 'primary', readConcern: { level: 'snapshot' } },
       );
       return result === true;
     } finally {

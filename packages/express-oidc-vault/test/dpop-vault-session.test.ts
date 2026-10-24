@@ -16,6 +16,8 @@ import {
   type OidcVaultOptions,
   type OidcVaultSession,
   type OidcVaultSessionTransport,
+  type OidcVaultDpopDiagnosticEvent,
+  type OidcVaultTokenOutcomeEvent,
 } from '../src/index';
 import { __resetProviderClientCachesForTests } from '../src/provider-client';
 import { createTransactionBrowserBinding } from '../src/transaction-cookie';
@@ -369,6 +371,7 @@ const fixture = (
             },
           }),
       onError,
+      onDpopDiagnostic: overrides.onDpopDiagnostic,
     }),
     api,
   );
@@ -515,6 +518,274 @@ const expectApi = async (f: Fixture, browser: Browser, value: ReturnType<typeof 
   expect(response.body).toMatchObject({ subject: SUBJECT, sessionId: value.sessionId, scope: 'read:profile' });
   if (bound) expect(response.body.deviceBinding).toEqual({ type: 'dpop', jkt: keyA.jkt, alg: 'ES256' });
 };
+
+describe.each(TRANSPORTS)('OVAPP-02 vault proof/outcome correlation (%s)', (transport) => {
+  it('covers login/exchange/refresh/logout without diagnostic-only store work or callback proof events', async () => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const outcomes: OidcVaultTokenOutcomeEvent[] = [];
+    const f = fixture(transport, {
+      onDpopDiagnostic: (event) => {
+        events.push(event);
+      },
+      onTokenOutcome: (event) => {
+        outcomes.push(event);
+      },
+    });
+    const flow = await loginAndCallback(f);
+    expect(new Set(events.map((event) => event.operation))).toEqual(new Set(['login']));
+    expect(events.at(-1)).toMatchObject({
+      operation: 'login',
+      stage: 'proof',
+      outcome: 'accepted',
+      verification: {
+        signature: 'verified',
+        credentialBinding: 'not-applicable',
+        tokenHash: 'not-applicable',
+        replay: 'reserved',
+      },
+    });
+    expect(events.at(-1)?.correlation).toBeUndefined();
+    clearOperationCalls(f);
+    const exchanged = await exchange(f, flow, proofFor('exchange'));
+    const first = credentials(f, flow.browser, exchanged);
+    expect(f.issue.mock.calls[0][0].operation).toBe('exchange');
+    expect(f.calls.getCode).toHaveBeenCalledTimes(1);
+    expect(f.calls.getSession).toHaveBeenCalledTimes(2);
+    expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+    expect(events.at(-1)).toMatchObject({
+      operation: 'exchange',
+      stage: 'proof',
+      correlation: { association: 'authenticated' },
+      timing: { checkedAtMs: NOW, observedAgeMs: 123 },
+    });
+    expect(outcomes.map((event) => event.kind)).toEqual(['token-issued', 'exchange-succeeded']);
+    expect(outcomes[0]).toMatchObject({ operation: 'exchange', deviceBound: true, expiresIn: 900, tokenType: 'DPoP' });
+    clearOperationCalls(f);
+    const refreshed = await sessionRequest(f, flow.browser, 'refresh', first.sessionId, proofFor('refresh'));
+    const next = credentials(f, flow.browser, refreshed);
+    expect(f.issue.mock.calls[0][0].operation).toBe('refresh');
+    expect(f.calls.getSession).toHaveBeenCalledTimes(2);
+    expect(f.calls.getContext).not.toHaveBeenCalled();
+    expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+    expect(events.at(-1)).toMatchObject({ operation: 'refresh', correlation: { association: 'authenticated' } });
+    expect(outcomes.map((event) => [event.kind, event.operation])).toEqual([
+      ['token-issued', 'exchange'],
+      ['exchange-succeeded', 'exchange'],
+      ['token-issued', 'refresh'],
+    ]);
+    expect(outcomes[0].correlation.sessionRef).toBe(outcomes[2].correlation.sessionRef);
+    clearOperationCalls(f);
+    expect((await sessionRequest(f, flow.browser, 'logout', next.sessionId, proofFor('logout'))).status).toBe(200);
+    expect(events.at(-1)).toMatchObject({ operation: 'logout', correlation: { association: 'authenticated' } });
+    expect(f.calls.getSession).toHaveBeenCalledTimes(1);
+    expect(f.calls.getContext).toHaveBeenCalledTimes(2);
+    expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+    const serialized = JSON.stringify({ events, outcomes });
+    for (const secret of [
+      flow.code,
+      flow.session.sessionId,
+      flow.session.refreshToken,
+      flow.session.idToken,
+      first.token,
+      SUBJECT,
+      keyA.jkt,
+      keyA.jwk.x!,
+    ])
+      expect(serialized).not.toContain(secret);
+  });
+
+  it.each(['exchange', 'refresh', 'logout'] as const)(
+    'keeps %s failure association candidate-only and does no telemetry reads',
+    async (route) => {
+      const events: OidcVaultDpopDiagnosticEvent[] = [];
+      const onTokenOutcome = vi.fn();
+      const f = fixture(transport, {
+        onDpopDiagnostic: (event) => {
+          events.push(event);
+        },
+        onTokenOutcome,
+      });
+      const flow = await seedCode(f);
+      clearOperationCalls(f);
+      const wrong = proofFor(route, { key: keyB, claims: { extra: 'private-payload-secret' } });
+      const response =
+        route === 'exchange'
+          ? await exchange(f, flow, wrong)
+          : await sessionRequest(f, flow.browser, route, flow.session.sessionId, wrong);
+      expect(response.body).toEqual(INVALID_PROOF);
+      expect(events.at(-1)).toMatchObject({
+        operation: route,
+        stage: 'binding',
+        outcome: 'rejected',
+        reason: 'key-mismatch',
+        correlation: { association: 'candidate-session' },
+        verification: { signature: 'verified', credentialBinding: 'failed', replay: 'unchecked' },
+      });
+      expect(events.at(-1)?.correlation?.subjectRef).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(f.calls.getSession).toHaveBeenCalledTimes(1);
+      expect(f.calls.getCode).toHaveBeenCalledTimes(route === 'exchange' ? 1 : 0);
+      expect(f.calls.getContext).toHaveBeenCalledTimes(route === 'logout' ? 1 : 0);
+      expect(f.calls.reserve).not.toHaveBeenCalled();
+      expect(onTokenOutcome).not.toHaveBeenCalled();
+      expect(JSON.stringify(events)).not.toMatch(/private-payload-secret|honest-user|upstream-|https:/);
+      expect(f.onError).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('reports browser-binding preflight without calling proof verification or changing the wire contract', async () => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const f = fixture(transport, {
+      onDpopDiagnostic: (event) => {
+        events.push(event);
+      },
+    });
+    const flow = await seedCode(f);
+    clearOperationCalls(f);
+    const response = await request(f.app)
+      .post(`${BASE_PATH}/exchange?private=query-secret`)
+      .set('Origin', FRONTEND_ORIGIN)
+      .set('DPoP', proofFor('exchange'))
+      .send({ code: flow.code });
+    expect(response.body).toEqual(INVALID_BROWSER);
+    expect(events).toEqual([
+      expect.objectContaining({
+        stage: 'preflight',
+        reason: 'browser-binding-rejected',
+        outcome: 'rejected',
+        correlation: expect.objectContaining({ association: 'candidate-session' }),
+        verification: expect.objectContaining({ signature: 'unchecked' }),
+      }),
+    ]);
+    expect(f.calls.reserve).not.toHaveBeenCalled();
+    expect(f.calls.getCode).toHaveBeenCalledTimes(1);
+    expect(f.calls.getSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not promote an optional unbound session proof into authenticated identity', async () => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const f = fixture(transport, {
+      onDpopDiagnostic: (event) => {
+        events.push(event);
+      },
+    });
+    const flow = await seedCode(f, false);
+    expect((await exchange(f, flow, proofFor('exchange'))).status).toBe(200);
+    expect(events.at(-1)).toMatchObject({
+      correlation: { association: 'candidate-session' },
+      verification: { credentialBinding: 'not-applicable', replay: 'reserved' },
+    });
+  });
+
+  it('correlates alias-only logout without reconstructing subject or reading live credentials', async () => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const f = fixture(transport, {
+      onDpopDiagnostic: (event) => {
+        events.push(event);
+      },
+    });
+    const { session, browser } = await seedSession(f);
+    await f.store.rotateSession({
+      sessionId: session.sessionId,
+      nextSession: { ...session, sessionId: 'sess_alias_next', updatedAt: NOW + 1 },
+    });
+    clearOperationCalls(f);
+    expect((await sessionRequest(f, browser, 'logout', session.sessionId, proofFor('logout'))).status).toBe(200);
+    expect(events.at(-1)?.correlation).toEqual({
+      association: 'authenticated',
+      sessionRef: createHash('sha256').update(`session\0${session.logicalSessionId}`).digest('base64url'),
+    });
+    expect(f.calls.getSession).toHaveBeenCalledExactlyOnceWith(session.sessionId);
+    expect(f.calls.getContext).toHaveBeenCalledTimes(2);
+    expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an explicitly skipped proof check for logout without a live target', async () => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const f = fixture(transport, {
+      onDpopDiagnostic: (event) => {
+        events.push(event);
+      },
+    });
+    const browser = createBrowser(f.app);
+    browser.setCookie(SESSION_COOKIE, 'unknown-session');
+    expect((await sessionRequest(f, browser, 'logout', 'unknown-session', 'private-malformed-proof')).status).toBe(200);
+    expect(events).toEqual([
+      expect.objectContaining({ stage: 'presentation', outcome: 'ignored', reason: 'target-absent' }),
+    ]);
+    expect(events[0].correlation).toBeUndefined();
+    expect(f.calls.reserve).not.toHaveBeenCalled();
+  });
+
+  it('keeps bound override acceptance candidate-only, including committed outcomes', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const events: OidcVaultDpopDiagnosticEvent[] = [];
+      const outcomes: OidcVaultTokenOutcomeEvent[] = [];
+      const f = fixture(transport, {
+        deviceBinding: { ignoreTargetFailure: true },
+        onDpopDiagnostic: (event) => {
+          events.push(event);
+        },
+        onTokenOutcome: (event) => {
+          outcomes.push(event);
+        },
+      });
+      const flow = await seedCode(f);
+      expect(
+        (await exchange(f, flow, proofFor('exchange', { claims: { htu: 'https://wrong.example/' } }))).status,
+      ).toBe(200);
+      expect(events.at(-1)).toMatchObject({
+        outcome: 'accepted',
+        correlation: { association: 'candidate-session' },
+        verification: { target: 'ignored', credentialBinding: 'matched', replay: 'reserved' },
+      });
+      expect(outcomes).toHaveLength(2);
+      for (const outcome of outcomes) expect(outcome.correlation.association).toBe('candidate-session');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it.each(['issuer', 'output', 'rotation', 'rollback'] as const)(
+    'never reports committed success after %s failure',
+    async (failure) => {
+      const onTokenOutcome = vi.fn();
+      const f = fixture(transport, {
+        onTokenOutcome,
+        ...(failure === 'issuer' || failure === 'rollback'
+          ? {
+              tokenIssuer: {
+                async issue() {
+                  throw new Error('private-issuer-secret');
+                },
+              },
+            }
+          : failure === 'output'
+            ? {
+                tokenIssuer: {
+                  async issue() {
+                    return { accessToken: 'signed-but-invalid-output-secret', expiresIn: -1 };
+                  },
+                },
+              }
+            : {}),
+      });
+      const { session, browser } = await seedSession(f);
+      if (failure === 'rotation')
+        f.calls.rotate.mockImplementationOnce(async (input) => {
+          const result = await f.originals.rotate(input);
+          return { ...result, logicalSessionId: 'private-wrong-lineage' };
+        });
+      if (failure === 'rollback') f.calls.revoke.mockRejectedValueOnce(new Error('private-rollback-secret'));
+      const response = await sessionRequest(f, browser, 'refresh', session.sessionId, proofFor('refresh'));
+      expect(response.status).toBe(failure === 'rotation' ? 401 : 500);
+      expect(onTokenOutcome).not.toHaveBeenCalled();
+      expect(f.hooks.onSessionRefreshed).not.toHaveBeenCalled();
+      expect(f.onError).toHaveBeenCalledTimes(1);
+      expect(response.text).not.toContain('private-');
+    },
+  );
+});
 
 describe.each(TRANSPORTS)('DBJWT-05 original initiating key lifecycle (%s)', (transport) => {
   it.each(MODES)(

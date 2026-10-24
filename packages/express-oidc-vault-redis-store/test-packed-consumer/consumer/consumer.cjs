@@ -28,13 +28,15 @@ for (const method of ['getAuthorizationTransaction', 'consumeAuthorizationTransa
 (async () => {
   const { createClient } = require('redis');
   const { OidcVaultDpopReplayCapacityError } = require('@web-ts-toolkit/express-oidc-vault');
-  const { assertDeviceBindingStore } = await import('./store-contract.mjs');
+  const { assertDeviceBindingStore, assertLogoutNavigationStore } = await import('./store-contract.mjs');
   const redis = createClient({ url: process.argv[2] });
   const peer = createClient({ url: process.argv[2] });
   await redis.connect(); await peer.connect();
   try {
-    const options = { keyPrefix: process.argv[3], dpopReplayMaxEntries: 1 };
+    const options = { keyPrefix: process.argv[3], dpopReplayMaxEntries: 1, logoutNavigationMaxEntries: 1 };
     await assertDeviceBindingStore(redisStore.createRedisOidcVaultStore({ ...options, client: redis }), OidcVaultDpopReplayCapacityError,
+      redisStore.createRedisOidcVaultStore({ ...options, client: peer }));
+    await assertLogoutNavigationStore(redisStore.createRedisOidcVaultStore({ ...options, client: redis }), require('@web-ts-toolkit/express-oidc-vault'),
       redisStore.createRedisOidcVaultStore({ ...options, client: peer }));
   } finally { await peer.quit(); await redis.quit(); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

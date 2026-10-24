@@ -197,6 +197,8 @@ const fixture = (transport: 'body' | 'cookie', options: Partial<OidcVaultDpopSes
     const url = String(input);
     if (url.endsWith('/login')) return Response.json({ authorizationUrl: 'https://idp.example.com/authorize' });
     if (url.endsWith('/logout')) return Response.json({ loggedOut: true });
+    if (url.endsWith('/logout/navigation'))
+      return Response.json({ loggedOut: true, navigationUrl: 'https://api.example.com/auth/oidc/logout/navigation' });
     return Response.json(credentials());
   });
   const navigate = vi.fn();
@@ -224,7 +226,7 @@ const fixture = (transport: 'body' | 'cookie', options: Partial<OidcVaultDpopSes
 };
 
 describe.each(['body', 'cookie'] as const)('DPH-02 %s operation authority', (transport) => {
-  it.each(['login', 'refresh', 'getKey'] as const)(
+  it.each(['login', 'refresh', 'getKey', 'logoutAndNavigate'] as const)(
     'clear supersedes %s before an asynchronous key result',
     async (method) => {
       const f = fixture(transport);
@@ -574,6 +576,7 @@ describe.each(['body', 'cookie'] as const)('DPH-02 %s operation authority', (tra
       () => f.session.exchange('code'),
       () => f.session.refresh(),
       () => f.session.logout(),
+      () => f.session.logoutAndNavigate(),
       () => f.session.getKey(),
       () => f.session.clear(),
       () => f.session.resetKey(),
@@ -590,6 +593,441 @@ describe.each(['body', 'cookie'] as const)('DPH-02 %s operation authority', (tra
     expect(readDpopScopeState).not.toHaveBeenCalled();
     expect(locks.request).not.toHaveBeenCalled();
     expect(f.request).not.toHaveBeenCalled();
+  });
+});
+
+describe.each(['body', 'cookie'] as const)('OVAPP-07 %s navigation logout', (transport) => {
+  const bare = 'https://api.example.com/auth/oidc/logout/navigation';
+  const ticket = `lnt_${'A'.repeat(43)}`;
+  const result = (navigationUrl: unknown = `${bare}?ticket=${ticket}`) => ({ loggedOut: true, navigationUrl });
+
+  it.each(['reload', 'expired'] as const)(
+    'uses existing authority with %s JWT, no fingerprint/Authorization/ath',
+    async (mode) => {
+      let now = NOW;
+      const headers = vi.fn(async () => ({ 'X-Fingerprint': 'never-on-logout' }));
+      const f = fixture(transport, { now: () => now, fingerprint: { headers } });
+      if (mode === 'reload') f.seed();
+      else {
+        await f.signIn();
+        now += 3_600_001;
+        expect(f.session.getAccessToken()!.expiresAt).toBeLessThan(now);
+      }
+      f.pendingLogin();
+      f.request.mockClear().mockResolvedValueOnce(Response.json(result()));
+      vi.mocked(createDpopProof).mockClear();
+      vi.mocked(getOrCreateDpopKey).mockClear();
+      headers.mockClear();
+      await f.session.logoutAndNavigate();
+      expect(headers).not.toHaveBeenCalled();
+      expect(f.request).toHaveBeenCalledOnce();
+      const [url, init] = f.request.mock.calls[0];
+      expect(url).toBe(bare);
+      expect(init).toMatchObject({
+        method: 'POST',
+        credentials: transport === 'cookie' ? 'include' : 'omit',
+        redirect: 'error',
+      });
+      expect(JSON.parse(init!.body as string)).toEqual(
+        transport === 'body' ? { sessionId: mode === 'reload' ? 'persisted-handle' : 'response-1' } : {},
+      );
+      expect([...new Headers(init!.headers).keys()].sort()).toEqual(['content-type', 'dpop']);
+      expect(vi.mocked(createDpopProof).mock.calls[0][1]).toMatchObject({ method: 'POST', url: bare });
+      expect(vi.mocked(createDpopProof).mock.calls[0][1].accessToken).toBeUndefined();
+      expect(vi.mocked(getOrCreateDpopKey).mock.calls.every(([, options]) => options?.create === false)).toBe(true);
+      expect(f.session.getAccessToken()).toBeUndefined();
+      expect(storage.getItem(f.handleKey)).toBeNull();
+      expect(storage.getItem(f.pendingKey)).toBeNull();
+      if (transport === 'cookie') {
+        expect(version?.active).toBe(false);
+        expect(TestChannel.instances[0].messages.at(-1)).toMatchObject({ type: 'clear' });
+      }
+      expect(f.navigate).toHaveBeenLastCalledWith(`${bare}?ticket=${ticket}`);
+      expect(removeDpopScope).not.toHaveBeenCalled();
+      await expect(f.session.logoutAndNavigate()).rejects.toMatchObject({ code: 'LOGIN_REQUIRED' });
+      expect(f.request).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([bare, ...'AEIMQUYcgkosw048'.split('').map((last) => `${bare}?ticket=lnt_${'A'.repeat(42)}${last}`)])(
+    'accepts canonical bare/ticket URL %s',
+    async (url) => {
+      const f = fixture(transport);
+      f.seed();
+      f.request.mockResolvedValueOnce(Response.json(result(url)));
+      await f.session.logoutAndNavigate();
+      expect(f.navigate).toHaveBeenCalledExactlyOnceWith(url);
+    },
+  );
+
+  it.each([
+    undefined,
+    null,
+    1,
+    '',
+    '/auth/oidc/logout/navigation',
+    '//api.example.com/auth/oidc/logout/navigation',
+    'https://evil.example/auth/oidc/logout/navigation',
+    bare.replace('https:', 'http:'),
+    bare.replace('api.example.com', 'api.example.com.evil.test'),
+    bare.replace('api.example.com', 'user@api.example.com'),
+    bare.replace('api.example.com', 'api.example.com:443'),
+    bare.replace('api.example.com', 'API.example.com'),
+    bare.replace('/auth/', '/auth/../auth/'),
+    bare.replace('/auth/', '/%61uth/'),
+    `${bare}/`,
+    `${bare}#`,
+    `${bare}#fragment`,
+    `${bare}?`,
+    `${bare}?access_token=secret`,
+    `${bare}?ticket=`,
+    `${bare}?ticket=${ticket}&ticket=${ticket}`,
+    `${bare}?ticket=${ticket}&x=1`,
+    `${bare}?%74icket=${ticket}`,
+    `${bare}?ticket=%6cnt_${'A'.repeat(43)}`,
+    `${bare}?ticket=${ticket}=`,
+    `${bare}?ticket=lnt_${'A'.repeat(42)}B`,
+    `${bare}?ticket=lnt_${'A'.repeat(42)}`,
+    `${bare}?ticket=lnt_${'A'.repeat(44)}`,
+    ` ${bare}`,
+    `${bare}\n`,
+    bare.replace('/auth/', '\\auth/'),
+    `${bare}?ticket=${ticket}\t`,
+    'javascript:alert(1)',
+    'https://idp.example.com/logout?id_token_hint=secret',
+  ])('rejects unsafe URL %j after confirmed cleanup', async (url) => {
+    const f = fixture(transport);
+    await f.signIn();
+    f.navigate.mockClear();
+    f.pendingLogin();
+    f.request
+      .mockClear()
+      .mockResolvedValueOnce(Response.json({ loggedOut: true, ...(url === undefined ? {} : { navigationUrl: url }) }));
+    await expect(f.session.logoutAndNavigate()).rejects.toMatchObject({
+      code: 'INVALID_LOGOUT_NAVIGATION_RESPONSE',
+      requiresLogin: false,
+    });
+    expect(f.session.getAccessToken()).toBeUndefined();
+    expect(storage.getItem(f.handleKey)).toBeNull();
+    expect(storage.getItem(f.pendingKey)).toBeNull();
+    if (transport === 'cookie') expect(version?.active).toBe(false);
+    expect(f.navigate).not.toHaveBeenCalled();
+  });
+
+  it.each([400, 401])(
+    'learns a success nonce and coalesces fresh-proof HTTP %s retry through cleanup/adapter',
+    async (status) => {
+      const f = fixture(transport);
+      f.pendingLogin();
+      f.request.mockResolvedValueOnce(Response.json(f.credentials(), { headers: { 'DPoP-Nonce': 'learned' } }));
+      await f.session.exchange('code');
+      const gate = barrier();
+      f.request
+        .mockClear()
+        .mockImplementationOnce(async () => {
+          await gate.wait();
+          return Response.json({ code: 'OIDC_VAULT_USE_DPOP_NONCE' }, { status, headers: { 'DPoP-Nonce': 'fresh' } });
+        })
+        .mockResolvedValueOnce(Response.json(result()));
+      vi.mocked(createDpopProof).mockClear().mockResolvedValueOnce('jti-one').mockResolvedValueOnce('jti-two');
+      const first = f.session.logoutAndNavigate();
+      const observed = outcome(first);
+      await gate.entered;
+      expect(f.session.logoutAndNavigate()).toBe(first);
+      const refresh = outcome(f.session.refresh());
+      expect(f.session.logoutAndNavigate()).toBe(first);
+      gate.release();
+      expect(await observed).toEqual({ value: undefined });
+      expect(await refresh).toMatchObject({ error: { code: 'LOGIN_REQUIRED' } });
+      expect(f.request).toHaveBeenCalledTimes(2);
+      expect(f.request.mock.calls.map(([, init]) => new Headers(init?.headers).get('DPoP'))).toEqual([
+        'jti-one',
+        'jti-two',
+      ]);
+      expect(vi.mocked(createDpopProof).mock.calls.map(([, input]) => input.nonce)).toEqual(['learned', 'fresh']);
+      expect(f.navigate).toHaveBeenCalledExactlyOnceWith(`${bare}?ticket=${ticket}`);
+    },
+  );
+
+  it('never retries a repeated nonce challenge and releases the batch for explicit recovery', async () => {
+    const f = fixture(transport);
+    const old = await f.signIn();
+    f.navigate.mockClear();
+    f.request
+      .mockClear()
+      .mockImplementation(async () =>
+        Response.json({ code: 'OIDC_VAULT_USE_DPOP_NONCE' }, { status: 401, headers: { 'DPoP-Nonce': 'challenge' } }),
+      );
+    const first = f.session.logoutAndNavigate();
+    expect(f.session.logoutAndNavigate()).toBe(first);
+    await expect(first).rejects.toMatchObject({ code: 'DPOP_NONCE_RETRY_EXHAUSTED', requiresLogin: false });
+    expect(f.request).toHaveBeenCalledTimes(2);
+    expect(f.session.getAccessToken()).toBe(old);
+    expect(f.navigate).not.toHaveBeenCalled();
+    f.request.mockResolvedValueOnce(Response.json(result()));
+    const next = f.session.logoutAndNavigate();
+    expect(next).not.toBe(first);
+    await next;
+  });
+
+  it('waits for earlier refresh rotation and prevents a later refresh resurrecting auth', async () => {
+    const f = fixture(transport);
+    await f.signIn();
+    f.navigate.mockClear();
+    const gate = barrier();
+    f.request
+      .mockClear()
+      .mockImplementationOnce(async () => {
+        await gate.wait();
+        return Response.json(f.credentials('rotated'));
+      })
+      .mockResolvedValueOnce(Response.json(result()));
+    const first = f.session.refresh();
+    const refreshing = outcome(first);
+    await gate.entered;
+    const logout = outcome(f.session.logoutAndNavigate());
+    const next = f.session.refresh();
+    const later = outcome(next);
+    expect(next).not.toBe(first);
+    gate.release();
+    expect(await refreshing).toHaveProperty('value');
+    expect(await logout).toEqual({ value: undefined });
+    expect(await later).toMatchObject({ error: { code: 'LOGIN_REQUIRED' } });
+    expect(f.request).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(f.request.mock.calls[1][1]!.body as string)).toEqual(
+      transport === 'body' ? { sessionId: 'rotated' } : {},
+    );
+    expect(f.navigate).toHaveBeenCalledOnce();
+  });
+
+  it.each(['transport', 'malformed', 'unconfirmed', 'oversize', 'server'] as const)(
+    'retains auth after uncertain %s response without retry/navigation',
+    async (failure) => {
+      const f = fixture(transport, { maxResponseBytes: 1024 });
+      const old = await f.signIn();
+      f.navigate.mockClear();
+      const previous = version;
+      const handle = storage.getItem(f.handleKey);
+      f.request.mockClear();
+      if (failure === 'transport') f.request.mockRejectedValueOnce(new TypeError('response lost after server commit'));
+      else if (failure === 'malformed') f.request.mockResolvedValueOnce(new Response('{"loggedOut":true,'));
+      else if (failure === 'unconfirmed')
+        f.request.mockResolvedValueOnce(Response.json({ ...result(), loggedOut: false }));
+      else if (failure === 'oversize')
+        f.request.mockResolvedValueOnce(Response.json({ ...result(), padding: 'x'.repeat(1024) }));
+      else f.request.mockResolvedValueOnce(Response.json({ code: 'OIDC_VAULT_INTERNAL_ERROR' }, { status: 500 }));
+      await expect(f.session.logoutAndNavigate()).rejects.toBeDefined();
+      expect(f.request).toHaveBeenCalledOnce();
+      expect(f.navigate).not.toHaveBeenCalled();
+      expect(f.session.getAccessToken()).toBe(old);
+      expect(storage.getItem(f.handleKey)).toBe(handle);
+      expect(version).toEqual(previous);
+    },
+  );
+
+  it('enforces the HTTP deadline and cancels an unfinished response without retry', async () => {
+    const f = fixture(transport, { requestTimeoutMs: 50 });
+    const old = await f.signIn();
+    f.navigate.mockClear();
+    const gate = barrier();
+    const cancel = vi.fn();
+    f.request
+      .mockClear()
+      .mockResolvedValueOnce(
+        new Response(new ReadableStream({ pull: () => gate.wait(), cancel }, { highWaterMark: 0 })),
+      );
+    vi.useFakeTimers();
+    const pending = outcome(f.session.logoutAndNavigate());
+    await gate.entered;
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await pending).toMatchObject({ error: { code: 'DPOP_REQUEST_TIMEOUT', requiresLogin: false } });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(f.request).toHaveBeenCalledOnce();
+    expect(f.navigate).not.toHaveBeenCalled();
+    expect(f.session.getAccessToken()).toBe(old);
+    gate.release();
+  });
+
+  it.each(['key-loss', 'terminal-server'] as const)('cleans terminal %s without creating a key', async (kind) => {
+    const f = fixture(transport);
+    await f.signIn();
+    f.navigate.mockClear();
+    f.request.mockClear();
+    if (kind === 'key-loss') vi.mocked(getOrCreateDpopKey).mockRejectedValueOnce(keyLost());
+    else f.request.mockResolvedValueOnce(Response.json({ code: 'OIDC_VAULT_INVALID_SESSION' }, { status: 401 }));
+    await expect(f.session.logoutAndNavigate()).rejects.toMatchObject({ requiresLogin: true });
+    expect(f.session.getAccessToken()).toBeUndefined();
+    expect(storage.getItem(f.handleKey)).toBeNull();
+    expect(f.navigate).not.toHaveBeenCalled();
+    if (transport === 'cookie') expect(version?.active).toBe(false);
+  });
+
+  it.each(['clear', 'resetKey', 'dispose'] as const)(
+    '%s aborts a held response; late success cannot clear a newer login',
+    async (action) => {
+      const f = fixture(transport);
+      await f.signIn();
+      f.navigate.mockClear();
+      const gate = barrier();
+      f.request.mockClear().mockImplementationOnce(async () => {
+        await gate.wait();
+        return new Response(JSON.stringify(result()), { headers: { 'Content-Type': 'application/json' } });
+      });
+      const old = outcome(f.session.logoutAndNavigate());
+      await gate.entered;
+      const signal = f.request.mock.calls[0][1]!.signal!;
+      const invalidation = outcome(Promise.resolve(f.session[action]()));
+      expect(signal.aborted).toBe(true);
+      expect(await old).toMatchObject({
+        error: { code: action === 'dispose' ? 'DPOP_SESSION_DISPOSED' : 'DPOP_OPERATION_SUPERSEDED' },
+      });
+      await invalidation;
+      let next: DpopAccessToken | undefined;
+      if (action !== 'dispose') next = await f.signIn();
+      const versionBefore = version;
+      const handleBefore = storage.getItem(f.handleKey);
+      const navigationCalls = f.navigate.mock.calls.length;
+      gate.release();
+      await drainContinuations();
+      expect(f.session.getAccessToken()).toBe(next);
+      expect(storage.getItem(f.handleKey)).toBe(handleBefore);
+      expect(version).toEqual(versionBefore);
+      expect(f.navigate).toHaveBeenCalledTimes(navigationCalls);
+    },
+  );
+
+  it.each(['login', 'exchange', 'logout'] as const)(
+    'queued %s intent withdraws old navigation while allowing committed cleanup',
+    async (action) => {
+      const f = fixture(transport);
+      await f.signIn();
+      f.navigate.mockClear();
+      const gate = barrier();
+      f.request.mockClear().mockImplementationOnce(async () => {
+        await gate.wait();
+        return Response.json(result());
+      });
+      const first = f.session.logoutAndNavigate();
+      const old = outcome(first);
+      await gate.entered;
+      const following = outcome<unknown>(action === 'exchange' ? f.session.exchange('new-code') : f.session[action]());
+      gate.release();
+      expect(await old).toMatchObject({ error: { code: 'DPOP_OPERATION_SUPERSEDED', requiresLogin: false } });
+      if (action === 'login') {
+        expect(await following).toEqual({ value: undefined });
+        expect(storage.getItem(f.pendingKey)).not.toBeNull();
+        const next = await f.session.exchange('new-code');
+        expect(f.session.getAccessToken()).toBe(next);
+        expect(f.navigate).toHaveBeenCalledExactlyOnceWith('https://idp.example.com/authorize');
+      } else if (action === 'logout' && transport === 'cookie') {
+        // Ordinary cookie logout retains its compatibility idempotency policy.
+        expect(await following).toEqual({ value: undefined });
+        expect(f.navigate).not.toHaveBeenCalled();
+      } else {
+        expect(await following).toMatchObject({ error: { code: 'LOGIN_REQUIRED' } });
+        expect(f.navigate).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it('checks intent at dequeue before any key/proof/POST and detaches the old coalescing batch', async () => {
+    const f = fixture(transport);
+    await f.signIn();
+    const gate = barrier();
+    f.request.mockImplementationOnce(async () => {
+      await gate.wait();
+      return Response.json(f.credentials());
+    });
+    const refreshing = outcome(f.session.refresh());
+    await gate.entered;
+    const old = outcome(f.session.logoutAndNavigate());
+    const login = outcome(f.session.login());
+    const next = outcome(f.session.logoutAndNavigate());
+    gate.release();
+    await refreshing;
+    expect(await old).toMatchObject({ error: { code: 'DPOP_OPERATION_SUPERSEDED' } });
+    expect(await login).toEqual({ value: undefined });
+    expect(await next).toMatchObject({ error: { code: 'LOGIN_REQUIRED' } });
+    expect(f.request.mock.calls.some(([url]) => String(url) === bare)).toBe(false);
+  });
+
+  it('clears memory before cleanup/adapter failure and never repeats the navigation', async () => {
+    const f = fixture(transport);
+    await f.signIn();
+    f.request.mockClear().mockResolvedValueOnce(Response.json(result()));
+    f.navigate.mockClear().mockImplementation(() => {
+      expect(f.session.getAccessToken()).toBeUndefined();
+      throw new Error('adapter failed');
+    });
+    await expect(f.session.logoutAndNavigate()).rejects.toThrow('adapter failed');
+    expect(f.navigate).toHaveBeenCalledOnce();
+    await expect(f.session.logoutAndNavigate()).rejects.toMatchObject({ code: 'LOGIN_REQUIRED' });
+    expect(f.request).toHaveBeenCalledOnce();
+  });
+});
+
+describe('OVAPP-07 cookie lock/metadata boundaries', () => {
+  it('rejects inactive matching metadata even with an in-memory JWT', async () => {
+    const f = fixture('cookie');
+    await f.signIn();
+    version = { ...version!, active: false };
+    f.request.mockClear();
+    f.navigate.mockClear();
+    await expect(f.session.logoutAndNavigate()).rejects.toMatchObject({ code: 'LOGIN_REQUIRED' });
+    expect(f.request).not.toHaveBeenCalled();
+    expect(f.navigate).not.toHaveBeenCalled();
+  });
+
+  it('checks queued login intent after waiting for a held Web Lock', async () => {
+    const f = fixture('cookie');
+    f.seed();
+    const gate = barrier();
+    lockTail = gate.wait();
+    await gate.entered;
+    const logout = outcome(f.session.logoutAndNavigate());
+    await drainContinuations();
+    const login = outcome(f.session.login());
+    gate.release();
+    expect(await logout).toMatchObject({ error: { code: 'DPOP_OPERATION_SUPERSEDED' } });
+    expect(await login).toEqual({ value: undefined });
+    expect(f.request.mock.calls.every(([url]) => String(url).endsWith('/login'))).toBe(true);
+  });
+
+  it.each(['login', 'clear', 'dispose'] as const)(
+    '%s during held metadata cleanup suppresses final navigation',
+    async (action) => {
+      const f = fixture('cookie');
+      await f.signIn();
+      f.navigate.mockClear();
+      const gate = barrier();
+      vi.mocked(writeCookieSessionVersion).mockImplementationOnce(async (_scope, next, authority) => {
+        await gate.wait();
+        authority.assertCurrent();
+        version = next;
+      });
+      const first = f.session.logoutAndNavigate();
+      const logout = outcome(first);
+      await gate.entered;
+      expect(f.session.getAccessToken()).toBeUndefined();
+      expect(f.session.logoutAndNavigate()).toBe(first);
+      const later = outcome(Promise.resolve(f.session[action]()));
+      gate.release();
+      expect(await logout).toMatchObject({
+        error: { code: action === 'dispose' ? 'DPOP_SESSION_DISPOSED' : 'DPOP_OPERATION_SUPERSEDED' },
+      });
+      await later;
+      expect(f.navigate.mock.calls.filter(([url]) => String(url).includes('/logout/navigation'))).toHaveLength(0);
+    },
+  );
+
+  it('rejects cleanup failure after memory clear without calling the adapter', async () => {
+    const f = fixture('cookie');
+    await f.signIn();
+    f.navigate.mockClear();
+    vi.mocked(writeCookieSessionVersion).mockRejectedValueOnce(new Error('IDB unavailable'));
+    await expect(f.session.logoutAndNavigate()).rejects.toThrow('IDB unavailable');
+    expect(f.session.getAccessToken()).toBeUndefined();
+    expect(f.navigate).not.toHaveBeenCalled();
   });
 });
 

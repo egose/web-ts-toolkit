@@ -43,8 +43,8 @@ export interface OidcVaultDpopSessionOptions {
   maxResponseBytes?: number;
   /** Default global fetch. Injected responses must expose a standard streaming body. */
   fetch?: typeof globalThis.fetch;
-  /** Login redirect after authoritative initiation; default location.assign. */
-  navigate?: (authorizationUrl: string) => void;
+  /** Synchronous login/logout navigation inside lifecycle authority; default location.assign. */
+  navigate?: (url: string) => void;
   /** Epoch-millisecond clock; default Date.now. Credential deadline arithmetic must remain safe. */
   now?: () => number;
 }
@@ -66,6 +66,14 @@ export interface OidcVaultDpopSession {
   refresh(options?: { rejectedToken?: string }): Promise<DpopAccessToken>;
   /** FIFO: an earlier refresh publishes its rotated handle before logout uses it. Revokes server refresh state. */
   logout(): Promise<void>;
+  /**
+   * Proof-authorized local logout followed by top-level provider/fallback navigation.
+   * Requires server logoutNavigation opt-in and the existing key/handle or active
+   * cookie metadata, not a live access JWT. Concurrent clicks share one Promise.
+   * Later login/exchange/logout/clear/resetKey/dispose withdraw navigation intent.
+   * Invalid navigation URLs still clear confirmed logout state, then reject.
+   */
+  logoutAndNavigate(): Promise<void>;
   /** Memory snapshot only; may already be expired, including a valid expiresIn: 0 response. */
   getAccessToken(): DpopAccessToken | undefined;
   /**
@@ -184,6 +192,8 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
   const cookieBindings = new WeakMap<SessionAuthority, { jkt: string; generation?: string }>();
   let refreshPromise: Promise<DpopAccessToken> | undefined;
   let resetPromise: Promise<void> | undefined;
+  let navigationPromise: Promise<void> | undefined;
+  let navigationIntent = 0;
   const lifecycle = createSessionLifecycle();
   // Unsolicited channel callbacks may overlap the FIFO. A newer local state
   // must also supersede their publication and failure cleanup.
@@ -191,6 +201,10 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
   let loginIntent = 0;
   let acceptPeerTokens = true;
   const peerWaiters = new Set<PeerWaiter>();
+  const withdrawNavigation = (): void => {
+    navigationIntent++;
+    navigationPromise = undefined;
+  };
 
   const readStorage = <T>(key: string): T | undefined => {
     try {
@@ -231,6 +245,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
   };
   const invalidateLocal = (clearPendingLogin = true): SessionAuthority => {
     const authority = lifecycle.invalidate();
+    withdrawNavigation();
     refreshPromise = undefined;
     resetPromise = undefined;
     clearLocal(clearPendingLogin);
@@ -331,7 +346,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
 
   const post = async (
     authority: SessionAuthority,
-    route: 'login' | 'exchange' | 'refresh' | 'logout',
+    route: 'login' | 'exchange' | 'refresh' | 'logout' | 'logout/navigation',
     body: object,
     key: DpopKey,
   ): Promise<{ value: unknown; recognition: string }> => {
@@ -340,7 +355,8 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     let nonceRetried = false;
     for (;;) {
       authority.assertCurrent();
-      const recognition = route === 'logout' ? {} : ((await fingerprint?.headers()) ?? {});
+      const recognition =
+        route === 'logout' || route === 'logout/navigation' ? {} : ((await fingerprint?.headers()) ?? {});
       const currentKey = await existingKey(authority, jkt);
       authority.assertCurrent();
       const proof = await createDpopProof(currentKey, {
@@ -670,6 +686,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     sessionTransport,
     async login(returnTo) {
       const authority = lifecycle.capture();
+      withdrawNavigation();
       // Older peer callbacks must not supersede a newer explicit login waiting
       // behind an advisory lookup/FIFO/Web Lock, before it can publish state.
       loginIntent++;
@@ -724,6 +741,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     },
     async exchange(code) {
       const authority = lifecycle.capture();
+      withdrawNavigation();
       refreshPromise = undefined;
       resetPromise = undefined;
       return operation(authority, async () => {
@@ -807,6 +825,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     },
     async logout() {
       const authority = lifecycle.capture();
+      withdrawNavigation();
       refreshPromise = undefined;
       resetPromise = undefined;
       await operation(authority, async () => {
@@ -822,6 +841,68 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
         clearLocal();
         await invalidateCookie(authority, key.jkt);
       });
+    },
+    logoutAndNavigate() {
+      const authority = lifecycle.capture();
+      if (navigationPromise) return navigationPromise;
+      const intent = navigationIntent;
+      const navigation = lifecycle.capture(() => navigationIntent === intent);
+      refreshPromise = undefined;
+      resetPromise = undefined;
+      const pending = operation(authority, async () => {
+        navigation.assertCurrent();
+        const key = await authenticatedKey(authority);
+        authority.assertCurrent();
+        if (channel) {
+          const version = await readCookieSessionVersion(scope.id);
+          authority.assertCurrent();
+          if (!version?.active || version.jkt !== key.jkt) throw loginRequired();
+          cookieBindings.set(authority, { ...version });
+        }
+        const handle = sessionTransport === 'body' ? readStorage<Handle>(storageKey) : undefined;
+        if (sessionTransport === 'body' && (!handle?.sessionId || handle.jkt !== key.jkt)) throw loginRequired();
+        const { value } = await post(
+          authority,
+          'logout/navigation',
+          handle ? { sessionId: handle.sessionId } : {},
+          key,
+        );
+        authority.assertCurrent();
+        const invalidResponse = () =>
+          new OidcVaultDpopClientError(
+            'INVALID_LOGOUT_NAVIGATION_RESPONSE',
+            'The logout navigation response is invalid.',
+          );
+        if (typeof value !== 'object' || value === null || !('loggedOut' in value) || value.loggedOut !== true)
+          throw invalidResponse();
+        // Confirmation owns old-state cleanup even if a queued login has withdrawn
+        // navigation. FIFO + cookie lock prevent that cleanup overtaking new auth.
+        clearLocal();
+        await invalidateCookie(authority, key.jkt);
+        authority.assertCurrent();
+        navigation.assertCurrent();
+        const bare = `${scope.backendOrigin}${scope.basePath === '/' ? '' : scope.basePath}/logout/navigation`;
+        const url = 'navigationUrl' in value ? value.navigationUrl : undefined;
+        // Exact serialized form: URL parsing/normalization must not grant alternate
+        // paths, origins, encodings or query credentials navigation authority.
+        if (
+          typeof url !== 'string' ||
+          (url !== bare &&
+            (url.length !== bare.length + '?ticket='.length + 47 ||
+              !url.startsWith(`${bare}?ticket=`) ||
+              !/^lnt_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(url.slice(`${bare}?ticket=`.length))))
+        )
+          throw invalidResponse();
+        navigation.assertCurrent();
+        navigate(url);
+      });
+      navigationPromise = pending;
+      void pending
+        .finally(() => {
+          if (navigationPromise === pending) navigationPromise = undefined;
+        })
+        .catch(() => {});
+      return pending;
     },
     getAccessToken: () => token,
     async getKey() {
@@ -881,6 +962,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     },
     dispose() {
       lifecycle.dispose();
+      withdrawNavigation();
       publication++;
       refreshPromise = undefined;
       resetPromise = undefined;

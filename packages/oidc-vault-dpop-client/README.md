@@ -179,17 +179,80 @@ fresh proof. Web Locks coordinate tabs of one frontend origin, storage
 partition, and vault scope — they are not a backend refresh lease, so other
 frontends, devices, or processes can still race upstream refresh families.
 
+## Provider logout navigation
+
+With server `logoutNavigation` enabled, call **`logoutAndNavigate(): Promise<void>`**
+from a user action. It confirms local logout, clears old frontend auth and invokes
+the synchronous `navigate(url)` adapter (default `location.assign`) inside lifecycle
+authority. `logout()` remains local-only. No return-URL/prepare API is needed.
+
+```ts
+import {
+  createOidcVaultDpopSession,
+  type OidcVaultLogoutNavigationInput,
+  type OidcVaultLogoutNavigationResult,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+const session = createOidcVaultDpopSession({
+  backendOrigin: 'https://api.example.com',
+  basePath: '/auth/oidc',
+  sessionTransport: 'body', // Or the matching cookie mount and 'cookie'.
+});
+export const signOutThroughProvider = (): Promise<void> => session.logoutAndNavigate();
+// Pure wire types are also bundled at the client root; no backend install needed.
+export type NavigationRequest = OidcVaultLogoutNavigationInput;
+export type NavigationResponse = OidcVaultLogoutNavigationResult;
+```
+
+The existing persistent key plus body handle or **active matching cookie metadata**
+suffices after reload, with an absent or expired memory JWT. It does not refresh,
+create a replacement key, send fingerprint/Authorization/`ath`, or put API tokens
+in query strings. POST uses the same finite HTTP bounds and nonce cache, including
+learned success nonces: at most one recognized challenge retry with a fresh proof/JTI.
+Body credentials are `omit` with `{ sessionId }`; cookie credentials are `include`
+with `{}` under the scope Web Lock. Strict server Origin/Referer checks apply in
+both transports; allow the frontend via `trustedOrigins` and expose `DPoP-Nonce` in CORS.
+
+The client accepts only the exact absolute pinned backend continuation path,
+bare or followed by one literal `?ticket=lnt_<43 canonical base64url characters>`.
+No upstream URL/hint enters initiation JSON. A confirmed `loggedOut: true` clears
+token, handle, pending login, nonces and peer adoption, and invalidates cookie
+metadata/notifies peers even if the URL is invalid; that case rejects with fixed
+nonterminal **`INVALID_LOGOUT_NAVIGATION_RESPONSE`** and never navigates. Unconfirmed,
+malformed, oversized, timed-out or lost responses leave the server commit uncertain,
+retain the existing failure policy and never automatically retry or navigate.
+Cleanup/adapter failure rejects after memory clear, without credential restoration.
+
+Concurrent clicks share the **same pending Promise** through FIFO, nonce retry,
+cleanup and one adapter invocation. An earlier refresh publishes rotation first;
+a later refresh cannot resurrect credentials. Refresh does not split that click
+batch. Later login/exchange/local logout/clear/resetKey/dispose immediately withdraws
+navigation intent, including a login still queued for the FIFO/lock. A started
+POST may finish old-state cleanup before that login, but rejects as superseded
+instead of navigating. No completed ticket URL is cached; another click after
+cleanup requires login. Cancellation cannot undo server commit or navigation
+already handed to the browser.
+
+The server revokes locally before optional provider work. Missing endpoints,
+discovery/ticket failures and missing/spent/expired tickets select its fixed
+configured fallback. Tickets default to 60 seconds (server range 1–120 seconds),
+are single-use, and retain only the final upstream hint URL server-side until
+consume/expiry/cleanup. Navigation/history/proxy logs and the IdP request still
+expose their respective URLs; avoid logging them. After upstream handoff, provider
+availability/termination/return is not guaranteed. Stateless JWTs remain valid
+until expiry unless the application adds revocation.
+
 ## Lifecycle concurrency and cleanup
 
 Use one session instance per tab and vault mount. In **both transports**,
-`login`, `exchange`, `refresh`, and `logout` run in invocation order. A logout
+`login`, `exchange`, `refresh`, `logout`, and `logoutAndNavigate` run in invocation order. A logout
 queued behind refresh uses the rotated handle/cookie. Cookie operations also
 hold the scope's Web Lock across their HTTP work and credential publication.
 Body queues belong to the instance; they do not coordinate other instances or
 copied tab handles.
 
 Concurrent `refresh()` callers receive the **same Promise** until a call to
-`login`, `exchange`, `logout`, `clear`, or `resetKey` starts a new batch. The first caller's
+`login`, `exchange`, `logout`, `logoutAndNavigate`, `clear`, or `resetKey` starts a new batch. The first caller's
 `rejectedToken` applies to that batch. A refresh invoked after a queued logout
 waits behind it instead of joining the earlier refresh. Read-only `getKey()`
 checks can run alongside the queue and one another; only their still-current
@@ -208,12 +271,13 @@ newer auth state is published. A new `login()` intent additionally supersedes
 older peer callbacks immediately, including while that login is waiting in the
 lifecycle queue or for the cookie Web Lock.
 
-| Method       | Effect                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `logout()`   | Ordered server logout, then frontend cleanup. Revokes vault refresh state.                                                                                                                                                                                                                                                                                              |
-| `clear()`    | Immediately drops this context's memory token, vault nonces, body handle and pending-login marker, and aborts its in-flight vault HTTP. Keeps the persistent key. In cookie mode, its Promise waits for the Web Lock, inactive-generation write and peer notification. It does not call the backend or remove the HttpOnly cookie.                                      |
-| `resetKey()` | Explicit local key recovery. Immediately invalidates the same local work/auth as `clear`, then atomically deletes **this scope's key and cookie-session metadata**. Cookie mode uses the shared Web Lock and notifies affected peers. Repeating on absent records is harmless. Creates no key and makes no backend request; await it, then invoke `login()` explicitly. |
-| `dispose()`  | Immediately closes this context, drops its memory token/vault nonces, aborts owned vault HTTP, settles peer waits, removes listeners/timers and closes its channel. Keeps the previously persisted key, handle, pending-login marker and committed cookie metadata so a replacement context can bootstrap normally. Later calls reject.                                 |
+| Method                | Effect                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `logout()`            | Ordered server logout, then frontend cleanup. Revokes vault refresh state.                                                                                                                                                                                                                                                                                              |
+| `logoutAndNavigate()` | Ordered proof-authorized server logout, confirmed cleanup, then provider/fallback navigation; coalesced clicks and withdrawable navigation intent. Requires server opt-in.                                                                                                                                                                                              |
+| `clear()`             | Immediately drops this context's memory token, vault nonces, body handle and pending-login marker, and aborts its in-flight vault HTTP. Keeps the persistent key. In cookie mode, its Promise waits for the Web Lock, inactive-generation write and peer notification. It does not call the backend or remove the HttpOnly cookie.                                      |
+| `resetKey()`          | Explicit local key recovery. Immediately invalidates the same local work/auth as `clear`, then atomically deletes **this scope's key and cookie-session metadata**. Cookie mode uses the shared Web Lock and notifies affected peers. Repeating on absent records is harmless. Creates no key and makes no backend request; await it, then invoke `login()` explicitly. |
+| `dispose()`           | Immediately closes this context, drops its memory token/vault nonces, aborts owned vault HTTP, settles peer waits, removes listeners/timers and closes its channel. Keeps the previously persisted key, handle, pending-login marker and committed cookie metadata so a replacement context can bootstrap normally. Later calls reject.                                 |
 
 Clear/reset/dispose invalidate pending cookie-version and session-owned key
 transactions as well as memory publication. After clear or reset, unsolicited peer messages cannot restore this
@@ -247,7 +311,7 @@ partition/scope.
 
 ## HTTP bounds and cancellation
 
-All vault `login`/`exchange`/`refresh`/`logout` attempts use these session options:
+All vault `login`/`exchange`/`refresh`/`logout`/`logoutAndNavigate` attempts use these session options:
 
 | Option             | Default                     | Valid values / scope                                                                                                                 |
 | ------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -343,6 +407,9 @@ Backend options that must agree with this client (authoritative wire contract:
 - `deviceBinding.mode: 'required'` for bound flows, with a shared nonce secret
   when nonces are enabled (`nonce: { secret, lifetimeSeconds }`, ≥32 random
   bytes shared by instances of that protection space).
+- `logoutNavigation: { fallbackRedirectUri }` enables provider navigation logout;
+  configure/register `postLogoutRedirectUri` for provider return. Built-in stores
+  supply ticket capabilities; custom stores need both optional ticket methods.
 - The API's `replayNamespace` must equal the `replayNamespace` configured in
   `fetchWithDpop` `apis` entries.
 
@@ -576,11 +643,12 @@ error or automatically start login for a non-terminal failure.
 
 `credentials` is owned by the helpers; callers must not set it.
 
-| Operation            | Body transport                           | Cookie transport                                                   |
-| -------------------- | ---------------------------------------- | ------------------------------------------------------------------ |
-| `login` / `exchange` | `include` (temporary transaction cookie) | `include` (temporary transaction cookie)                           |
-| `refresh` / `logout` | `omit` + `{ sessionId }` JSON body       | `include` + `{}` JSON body (no `sessionId`)                        |
-| `fetchWithDpop` API  | `omit` default                           | `omit` default (`include` only for an explicitly cookie-using API) |
+| Operation                | Body transport                           | Cookie transport                                                   |
+| ------------------------ | ---------------------------------------- | ------------------------------------------------------------------ |
+| `login` / `exchange`     | `include` (temporary transaction cookie) | `include` (temporary transaction cookie)                           |
+| `refresh` / `logout`     | `omit` + `{ sessionId }` JSON body       | `include` + `{}` JSON body (no `sessionId`)                        |
+| `logoutAndNavigate` POST | `omit` + `{ sessionId }` JSON body       | `include` + `{}` JSON body (no `sessionId`)                        |
+| `fetchWithDpop` API      | `omit` default                           | `omit` default (`include` only for an explicitly cookie-using API) |
 
 Cookie JSON always omits `sessionId`. Every request uses `redirect: 'error'`
 and `cache: 'no-store'`. Vault POSTs present no access token; API calls send
@@ -768,7 +836,7 @@ singleton, and no client router — the callback is the same page reading
 ## API reference
 
 - `createOidcVaultDpopSession(options)` → `OidcVaultDpopSession`
-  (`login`/`exchange`/`refresh`/`logout`/`getAccessToken`/`getKey`/`clear`/`resetKey`/`dispose`).
+  (`login`/`exchange`/`refresh`/`logout`/`logoutAndNavigate`/`getAccessToken`/`getKey`/`clear`/`resetKey`/`dispose`).
   Options: `backendOrigin`, `basePath` (default `/auth/oidc`),
   `sessionTransport` (`'body'` default | `'cookie'`), optional `fingerprint`,
   `requestTimeoutMs` (default 15,000 ms), `maxResponseBytes` (default 1 MiB),
@@ -785,8 +853,16 @@ pathPrefix?, credentials? }`; longest normalized segment-prefix match wins.
   `DeviceFingerprintSignalSource`, `FingerprintJsAgent`. Wire DTOs stay
   single-sourced from the pure `@web-ts-toolkit/express-oidc-vault/wire` entry
   at build time; no backend import survives in client declarations/JavaScript.
+- Pure root DTOs: `OidcVaultLogoutNavigationInput`, `OidcVaultLogoutNavigationResult`.
 
 ## Upgrade notes
+
+Provider logout is additive: enable the paired server's `logoutNavigation` and
+replace custom logout proof/fetch/redirect handling with `session.logoutAndNavigate()`.
+Keep `logout()` for local-only behavior. Add `logoutAndNavigate` to typed session
+mocks. `navigate` now handles both login and logout URLs synchronously; do not
+defer its actual navigation beyond the call, where lifecycle authority no longer
+protects it. Existing persistent keys and the database schema are retained.
 
 | Area                         | Consumer action / delivered contract                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

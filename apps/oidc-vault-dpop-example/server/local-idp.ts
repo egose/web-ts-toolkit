@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 
 import express from 'express';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { exportJWK, generateKeyPair, jwtVerify, SignJWT } from 'jose';
 
 import { closeServer, listen } from './http';
 
@@ -14,6 +14,8 @@ export interface LocalIdpStats {
   refreshes: number;
   upstreamDpopHeaders: number;
   pkceChecks: number;
+  logouts: number;
+  discoveryRequests: number;
 }
 
 interface AuthorizationCode {
@@ -24,18 +26,30 @@ interface AuthorizationCode {
 }
 
 /** Local deterministic user + real OIDC navigation, PKCE, signed ID tokens and single-use refresh tokens. */
-export const startLocalIdp = async (options: { port?: number; callbackUris?: readonly string[] } = {}) => {
+export const startLocalIdp = async (
+  options: { port?: number; callbackUris?: readonly string[]; postLogoutUris?: readonly string[] } = {},
+) => {
   const { publicKey, privateKey } = await generateKeyPair('RS256', { modulusLength: 2048 });
   const jwk = { ...(await exportJWK(publicKey)), kid: 'local-fixture-rsa', alg: 'RS256', use: 'sig' };
   const app = express();
-  const server = createServer(app);
+  const server = createServer({ maxHeaderSize: 32_768 }, app);
   let issuer = '';
   let refreshDelayMs = 0;
+  let discovery: 'available' | 'missing-endpoint' | 'unavailable' = 'available';
   const codes = new Map<string, AuthorizationCode>();
   const refreshTokens = new Set<string>();
   const accessTokens = new Set<string>();
   const callbackUris = new Set(options.callbackUris ?? []);
-  const stats: LocalIdpStats = { authorizations: 0, callbacks: 0, refreshes: 0, upstreamDpopHeaders: 0, pkceChecks: 0 };
+  const postLogoutUris = new Set(options.postLogoutUris ?? []);
+  const stats: LocalIdpStats = {
+    authorizations: 0,
+    callbacks: 0,
+    refreshes: 0,
+    upstreamDpopHeaders: 0,
+    pkceChecks: 0,
+    logouts: 0,
+    discoveryRequests: 0,
+  };
   const user = { sub: 'fixture-user', email: 'fixture@example.test', name: 'Local fixture user' };
   app.use(express.urlencoded({ extended: false, limit: '8kb' }));
   app.use((req, res, next) => {
@@ -43,20 +57,64 @@ export const startLocalIdp = async (options: { port?: number; callbackUris?: rea
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
-  app.get('/issuer/.well-known/openid-configuration', (_req, res) =>
+  app.get('/issuer/.well-known/openid-configuration', (_req, res) => {
+    stats.discoveryRequests++;
+    if (discovery === 'unavailable') {
+      res.status(503).json({ error: 'fixture_discovery_unavailable' });
+      return;
+    }
     res.json({
       issuer,
       authorization_endpoint: `${issuer}/authorize`,
       token_endpoint: `${issuer}/token`,
       jwks_uri: `${issuer}/jwks`,
       userinfo_endpoint: `${issuer}/userinfo`,
+      ...(discovery === 'available' ? { end_session_endpoint: `${issuer}/logout` } : {}),
       response_types_supported: ['code'],
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['RS256'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
-    }),
-  );
+    });
+  });
+  app.get('/issuer/logout', async (req, res) => {
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    // Bounded, allowlisted protocol fixture. Never reflect the hint into HTML,
+    // retain it in a log, or accept an unregistered browser return destination.
+    const query = new URL(req.originalUrl, issuer).searchParams;
+    const hint = query.get('id_token_hint');
+    const returnUri = query.get('post_logout_redirect_uri');
+    if (
+      req.originalUrl.length > 20_480 ||
+      [...query.keys()].length !== 2 ||
+      query.getAll('id_token_hint').length !== 1 ||
+      query.getAll('post_logout_redirect_uri').length !== 1 ||
+      !hint ||
+      hint.length > 16_384 ||
+      !returnUri ||
+      !postLogoutUris.has(returnUri)
+    ) {
+      res.status(400).send('Invalid local logout.');
+      return;
+    }
+    try {
+      const { payload } = await jwtVerify(hint, publicKey, {
+        issuer,
+        audience: LOCAL_CLIENT_ID,
+        algorithms: ['RS256'],
+      });
+      if (payload.sub !== user.sub || payload.sid !== 'fixture-provider-session')
+        throw new Error('Invalid fixture hint.');
+    } catch {
+      res.status(400).send('Invalid local logout hint.');
+      return;
+    }
+    stats.logouts++;
+    const href = returnUri.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    res.type('html').send(`<!doctype html><html lang="en"><title>Local OIDC logout</title>
+      <h1 id="provider-logged-out">Local provider logout complete</h1>
+      <a id="logout-return" href="${href}">Return to the registered application</a></html>`);
+  });
   app.get('/issuer/jwks', (_req, res) => res.json({ keys: [jwk] }));
   app.get('/issuer/authorize', (req, res) => {
     const { client_id, redirect_uri, state, nonce, code_challenge, code_challenge_method, response_type } = req.query;
@@ -154,6 +212,12 @@ export const startLocalIdp = async (options: { port?: number; callbackUris?: rea
     stats,
     allowCallback(uri: string) {
       callbackUris.add(uri);
+    },
+    allowPostLogout(uri: string) {
+      postLogoutUris.add(uri);
+    },
+    setDiscovery(value: typeof discovery) {
+      discovery = value;
     },
     setRefreshDelay(milliseconds: number) {
       refreshDelayMs = milliseconds;

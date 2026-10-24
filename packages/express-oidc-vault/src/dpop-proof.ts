@@ -9,11 +9,12 @@ import {
   type ResolvedOidcVaultDeviceBindingOptions,
 } from './device-binding-policy';
 import { handleDpopCheckFailure } from './dpop-failure-policy';
+import type { DpopDiagnostic } from './diagnostics';
 import { DPOP_NONCE_MAX_BYTES } from './dpop-nonce';
 import type { DpopProofVerificationResult } from './dpop-replay';
 import { normalizeDpopProofTarget } from './dpop-target';
 import { OidcVaultHttpError } from './errors';
-import type { OidcVaultDpopAlgorithm } from './types';
+import type { OidcVaultDpopAlgorithm, OidcVaultDpopDiagnosticReason, OidcVaultDpopDiagnosticStage } from './types';
 
 export const DPOP_PROOF_MAX_BYTES = 8192;
 export const DPOP_PROTECTED_HEADER_MAX_BYTES = 2048;
@@ -49,7 +50,7 @@ const invalidProof = (diagnostic: string, cause?: unknown): OidcVaultHttpError =
 };
 
 /** Raw duplicates/comma joins and wire size are rejected before any key import. */
-export const extractDpopProof = (header: DpopRawHeader): string | undefined => {
+export const extractDpopProof = (header: DpopRawHeader, diagnostic?: DpopDiagnostic): string | undefined => {
   if (header.count === 0) return undefined;
   const { value } = header;
   if (
@@ -59,6 +60,7 @@ export const extractDpopProof = (header: DpopRawHeader): string | undefined => {
     value.length > DPOP_PROOF_MAX_BYTES ||
     !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value)
   ) {
+    diagnostic?.emit('presentation', 'rejected', 'malformed-proof');
     throw invalidProof('DPoP header must contain one bounded compact signed proof.');
   }
   return value;
@@ -193,88 +195,136 @@ export const verifyDpopProof = async (input: {
   readonly proofOptions: ResolvedOidcVaultDeviceBindingOptions;
   readonly expectedJkt?: string;
   readonly accessToken?: string;
+  readonly diagnostic?: DpopDiagnostic;
 }): Promise<DpopProofVerificationResult> => {
   // Capture scalar authority/allowlist before asynchronous import/verification.
-  const { proof, method, targetUrl, proofOptions, expectedJkt, accessToken } = input;
+  const { proof, method, targetUrl, proofOptions, expectedJkt, accessToken, diagnostic } = input;
   const algorithms = [...proofOptions.algorithms];
   const { ignoreTargetFailure } = proofOptions;
-  extractDpopProof({ count: 1, value: proof });
-  const [encodedHeader, encodedPayload, encodedSignature] = proof.split('.');
-  const header = parseObject(decodeBase64url(encodedHeader, DPOP_PROTECTED_HEADER_MAX_BYTES));
-  // Canonical bounded segments only; do not parse/trust payload before signature.
-  decodeBase64url(encodedPayload, DPOP_PROOF_MAX_BYTES);
-  const signature = decodeBase64url(encodedSignature, 512);
-  const { alg } = header;
-  if (
-    header.typ !== 'dpop+jwt' ||
-    !isDpopAlgorithm(alg) ||
-    !algorithms.includes(alg) ||
-    ['crit', 'b64', 'jku', 'x5u', 'x5c', 'x5t', 'x5t#S256'].some((key) => Object.hasOwn(header, key))
-  ) {
-    throw invalidProof('DPoP protected header has an unsupported type, algorithm or key/critical extension.');
-  }
-  const jwk = publicJwk(header.jwk, alg);
-  const signatureBytes = alg === 'ES256' ? 64 : decodeBase64url(jwk.n!, 512).length;
-  if (signature.length !== signatureBytes)
-    throw invalidProof('DPoP signature length does not match the allowed key profile.');
-  let payload: Uint8Array;
+  let stage: OidcVaultDpopDiagnosticStage = 'header';
+  let reason: OidcVaultDpopDiagnosticReason = 'malformed-proof';
   try {
-    const key = await importJWK(jwk, alg);
-    ({ payload } = await compactVerify(proof, key, { algorithms }));
-  } catch (cause) {
-    throw invalidProof('DPoP public-key import or signature verification failed.', cause);
-  }
-  const claims = parseObject(payload);
-  const { htm, htu, iat, jti, nonce, ath } = claims;
-  if (
-    typeof iat !== 'number' ||
-    !Number.isSafeInteger(iat) ||
-    iat < 0 ||
-    typeof jti !== 'string' ||
-    jti.length < 1 ||
-    jti.length > 128 ||
-    /[^\x20-\x7e]/.test(jti)
-  ) {
-    throw invalidProof('DPoP signed iat/JTI must be nonnegative integer time and bounded printable ASCII.');
-  }
-  try {
-    // Resolve the captured request path here so malformed request/proof targets
-    // and comparison mismatches share the same step-6 failure boundary.
-    const expectedTarget = typeof targetUrl === 'function' ? targetUrl() : targetUrl;
+    extractDpopProof({ count: 1, value: proof }, diagnostic);
+    const [encodedHeader, encodedPayload, encodedSignature] = proof.split('.');
+    const header = parseObject(decodeBase64url(encodedHeader, DPOP_PROTECTED_HEADER_MAX_BYTES));
+    // Canonical bounded segments only; do not parse/trust payload before signature.
+    decodeBase64url(encodedPayload, DPOP_PROOF_MAX_BYTES);
+    const signature = decodeBase64url(encodedSignature, 512);
+    const { alg } = header;
+    reason = 'unsupported-header';
     if (
-      htm !== method ||
-      typeof method !== 'string' ||
-      method.length === 0 ||
-      normalizeDpopProofTarget(htu) !== expectedTarget
+      header.typ !== 'dpop+jwt' ||
+      !isDpopAlgorithm(alg) ||
+      !algorithms.includes(alg) ||
+      ['crit', 'b64', 'jku', 'x5u', 'x5c', 'x5t', 'x5t#S256'].some((key) => Object.hasOwn(header, key))
     ) {
-      throw invalidProof('DPoP signed method or normalized public target does not match this request.');
+      throw invalidProof('DPoP protected header has an unsupported type, algorithm or key/critical extension.');
     }
+    diagnostic?.emit('header', 'accepted', 'check-passed');
+    stage = 'key';
+    reason = 'invalid-key';
+    const jwk = publicJwk(header.jwk, alg);
+    stage = 'signature';
+    reason = 'invalid-signature';
+    const signatureBytes = alg === 'ES256' ? 64 : decodeBase64url(jwk.n!, 512).length;
+    if (signature.length !== signatureBytes)
+      throw invalidProof('DPoP signature length does not match the allowed key profile.');
+    let payload: Uint8Array;
+    try {
+      stage = 'key';
+      reason = 'invalid-key';
+      const key = await importJWK(jwk, alg);
+      diagnostic?.emit('key', 'accepted', 'check-passed');
+      stage = 'signature';
+      reason = 'invalid-signature';
+      ({ payload } = await compactVerify(proof, key, { algorithms }));
+    } catch (cause) {
+      throw invalidProof('DPoP public-key import or signature verification failed.', cause);
+    }
+    diagnostic?.mark({ signature: 'verified' });
+    diagnostic?.emit('signature', 'accepted', 'check-passed');
+    stage = 'claims';
+    reason = 'invalid-claims';
+    const claims = parseObject(payload);
+    const { htm, htu, iat, jti, nonce, ath } = claims;
+    if (
+      typeof iat !== 'number' ||
+      !Number.isSafeInteger(iat) ||
+      iat < 0 ||
+      typeof jti !== 'string' ||
+      jti.length < 1 ||
+      jti.length > 128 ||
+      /[^\x20-\x7e]/.test(jti)
+    ) {
+      throw invalidProof('DPoP signed iat/JTI must be nonnegative integer time and bounded printable ASCII.');
+    }
+    diagnostic?.signedTime(iat);
+    diagnostic?.emit('claims', 'accepted', 'check-passed');
+    stage = 'target';
+    reason = 'target-mismatch';
+    try {
+      // Resolve the captured request path here so malformed request/proof targets
+      // and comparison mismatches share the same step-6 failure boundary.
+      const expectedTarget = typeof targetUrl === 'function' ? targetUrl() : targetUrl;
+      if (
+        htm !== method ||
+        typeof method !== 'string' ||
+        method.length === 0 ||
+        normalizeDpopProofTarget(htu) !== expectedTarget
+      ) {
+        throw invalidProof('DPoP signed method or normalized public target does not match this request.');
+      }
+      diagnostic?.mark({ target: 'matched' });
+      diagnostic?.emit('target', 'accepted', 'check-passed');
+    } catch (error) {
+      if (ignoreTargetFailure) {
+        diagnostic?.mark({ target: 'ignored' });
+        diagnostic?.emit('target', 'ignored', reason);
+      }
+      handleDpopCheckFailure(ignoreTargetFailure, 'target', error);
+    }
+    stage = 'nonce';
+    reason = 'invalid-nonce';
+    if (
+      typeof nonce === 'string' &&
+      (nonce.length > DPOP_NONCE_MAX_BYTES || Buffer.byteLength(nonce, 'utf8') > DPOP_NONCE_MAX_BYTES)
+    ) {
+      throw invalidProof('DPoP signed nonce exceeds its byte bound.');
+    }
+    stage = 'token-hash';
+    reason = 'token-hash-mismatch';
+    if (
+      accessToken !== undefined &&
+      (typeof accessToken !== 'string' ||
+        !/^[\x21-\x7e]+$/.test(accessToken) ||
+        !isCanonicalDpopJkt(ath) ||
+        ath !== createHash('sha256').update(accessToken, 'ascii').digest('base64url'))
+    ) {
+      throw invalidProof('DPoP signed access-token hash does not match the presented API token.');
+    }
+    diagnostic?.mark({ tokenHash: accessToken === undefined ? 'not-applicable' : 'matched' });
+    if (accessToken !== undefined) diagnostic?.emit('token-hash', 'accepted', 'check-passed');
+    stage = 'binding';
+    reason = 'key-mismatch';
+    const jkt = await calculateJwkThumbprint(jwk, 'sha256');
+    if (expectedJkt !== undefined && (!isCanonicalDpopJkt(expectedJkt) || jkt !== expectedJkt)) {
+      throw invalidProof('DPoP verified public key does not match the original credential confirmation.');
+    }
+    diagnostic?.mark({ credentialBinding: expectedJkt === undefined ? 'not-applicable' : 'matched' });
+    if (expectedJkt !== undefined) diagnostic?.emit('binding', 'accepted', 'check-passed');
+    return Object.freeze({
+      binding: Object.freeze({ type: 'dpop', jkt, alg }),
+      iat,
+      jti,
+      ...(nonce === undefined ? {} : { nonce }),
+    });
   } catch (error) {
-    handleDpopCheckFailure(ignoreTargetFailure, 'target', error);
+    if (stage === 'signature') diagnostic?.mark({ signature: 'failed' });
+    else if (stage === 'target') diagnostic?.mark({ target: 'failed' });
+    else if (stage === 'token-hash') diagnostic?.mark({ tokenHash: 'failed' });
+    else if (stage === 'binding') diagnostic?.mark({ credentialBinding: 'failed' });
+    else if (stage === 'nonce') diagnostic?.mark({ nonce: 'failed' });
+    diagnostic?.emit(stage, 'rejected', reason);
+    throw error;
   }
-  if (
-    typeof nonce === 'string' &&
-    (nonce.length > DPOP_NONCE_MAX_BYTES || Buffer.byteLength(nonce, 'utf8') > DPOP_NONCE_MAX_BYTES)
-  ) {
-    throw invalidProof('DPoP signed nonce exceeds its byte bound.');
-  }
-  if (
-    accessToken !== undefined &&
-    (typeof accessToken !== 'string' ||
-      !/^[\x21-\x7e]+$/.test(accessToken) ||
-      !isCanonicalDpopJkt(ath) ||
-      ath !== createHash('sha256').update(accessToken, 'ascii').digest('base64url'))
-  ) {
-    throw invalidProof('DPoP signed access-token hash does not match the presented API token.');
-  }
-  const jkt = await calculateJwkThumbprint(jwk, 'sha256');
-  if (expectedJkt !== undefined && (!isCanonicalDpopJkt(expectedJkt) || jkt !== expectedJkt)) {
-    throw invalidProof('DPoP verified public key does not match the original credential confirmation.');
-  }
-  return Object.freeze({
-    binding: Object.freeze({ type: 'dpop', jkt, alg }),
-    iat,
-    jti,
-    ...(nonce === undefined ? {} : { nonce }),
-  });
 };

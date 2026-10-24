@@ -16,6 +16,7 @@ const idp =
     ? await startLocalIdp({
         port: Number(process.env.IDP_PORT ?? 4319),
         callbackUris: ['body', 'cookie'].map((transport) => `${backendOrigin}${basePath}/${transport}/callback`),
+        postLogoutUris: ['body', 'cookie'].map((transport) => `${frontendOrigin}/signed-out?transport=${transport}`),
       })
     : undefined;
 const config = idp ? { issuer: idp.issuer, clientId: LOCAL_CLIENT_ID } : resolveOidcVaultConfigFromEnv(process.env);

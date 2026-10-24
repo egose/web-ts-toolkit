@@ -251,6 +251,10 @@ function copyConsumerSources(consumerDir: string): void {
     'tsconfig-nodenext-cts.json',
     'tsconfig-bundler.json',
     'docs-runtime.mjs',
+    'optional-auth-runtime.mjs',
+    'diagnostics-runtime.mjs',
+    'jwt-issuer-runtime.mjs',
+    'logout-navigation-runtime.mjs',
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
   }
@@ -299,6 +303,9 @@ function compileWireConsumers(consumerDir: string): void {
 
 function compileInstalledReadme(consumerDir: string): void {
   const readme = readFileSync(path.resolve(consumerDir, 'node_modules', packageName, 'README.md'), 'utf8');
+  const ticketSection = (text: string) =>
+    text.split('### Dedicated Logout Continuation Storage\n')[1]?.split('\n## ')[0];
+  expect(ticketSection(readme)).toBeTruthy();
   const snippet = (heading: string): string => {
     const start = readme.indexOf(heading);
     if (start < 0) throw new Error(`Installed README heading missing: ${heading}`);
@@ -315,6 +322,7 @@ function compileInstalledReadme(consumerDir: string): void {
     snippet('## Optional Fingerprint Recognition (Not PoP)'),
     snippet('## Local Access Token Example (unbound Bearer)'),
     snippet('## Access Token Validation Middleware'),
+    snippet('### Optional authentication and request-scoped guards'),
     snippet('### Request-aware DPoP APIs'),
     snippet('## Quick Start (default unbound lifecycle)'),
     snippet('### Memory store'),
@@ -323,11 +331,14 @@ function compileInstalledReadme(consumerDir: string): void {
     snippet('### Cookie transport\n'),
     snippet('### Manual endpoint mode'),
     snippet('### Audit and user provisioning hooks'),
+    snippet('## Structured DPoP Diagnostics And Token Outcomes'),
+    snippet('### JWT issuer helper'),
+    snippet('### Logout navigation server'),
   ];
   // Pure wire snippets are compiled in the DOM-only lane, not rescued by the
   // backend's Express/Node ambient types.
   const wireSnippets: string[] = [];
-  for (const name of ['initiateLogin', 'exchangeBoundCode']) {
+  for (const name of ['initiateLogin', 'exchangeBoundCode', 'initiateLogoutNavigation']) {
     const code = [...readme.matchAll(/```ts\n([\s\S]*?)\n```/g)].find((match) =>
       match[1].includes(`async function ${name}(`),
     )?.[1];
@@ -373,6 +384,42 @@ function compileInstalledReadme(consumerDir: string): void {
     ...wireSnippets,
   ];
   const website = readFileSync(path.resolve(workspaceRoot, 'website/docs/packages/express-oidc-vault.md'), 'utf8');
+  expect(ticketSection(website)).toBe(ticketSection(readme));
+  const navigationSection = (text: string) =>
+    text.split('## Proof-Authorized Logout Navigation\n')[1]?.split('\n## ')[0];
+  expect(navigationSection(readme)).toBeTruthy();
+  expect(navigationSection(website)).toBe(navigationSection(readme));
+  for (const [websiteHeading, readmeHeading] of [
+    ['## DPoP: complete local JWT and API configuration', '### Complete DPoP server'],
+    ['### JWT issuer helper', '### JWT issuer helper'],
+  ]) {
+    const code = website.slice(website.indexOf(websiteHeading)).match(/```ts\n([\s\S]*?)\n```/)?.[1];
+    expect(code).toBe(snippet(readmeHeading));
+  }
+  const websiteUnbound = website
+    .slice(website.indexOf('## Local Access Token Example'))
+    .match(/```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!websiteUnbound) throw new Error('Website unbound issuer example missing.');
+  const websiteUnboundFile = 'website-unbound-issuer.ts';
+  writeFileSync(path.resolve(consumerDir, websiteUnboundFile), websiteUnbound);
+  const websiteOptional = website
+    .slice(website.indexOf('### Optional authentication and request-scoped guards'))
+    .match(/```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!websiteOptional) throw new Error('Website optional-auth example missing.');
+  const websiteDiagnostics = website
+    .slice(website.indexOf('## Structured DPoP Diagnostics And Token Outcomes'))
+    .match(/```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!websiteDiagnostics) throw new Error('Website diagnostics example missing.');
+  expect(websiteDiagnostics).toBe(snippet('## Structured DPoP Diagnostics And Token Outcomes'));
+  const websiteBackend = 'website-optional-auth.ts';
+  writeFileSync(path.resolve(consumerDir, websiteBackend), websiteOptional);
+  // Both installed declaration modes compile the website's matching backend example too.
+  for (const config of ['tsconfig-readme-nodenext.json', 'tsconfig-readme-bundler.json']) {
+    const target = path.resolve(consumerDir, config);
+    const value = JSON.parse(readFileSync(target, 'utf8')) as { files: string[] };
+    value.files.push(websiteBackend, websiteUnboundFile);
+    writeFileSync(target, JSON.stringify(value));
+  }
   const websiteClient = [...website.matchAll(/```ts\n([\s\S]*?)\n```/g)].find((match) =>
     match[1].includes('async function bootstrapBoundAuth('),
   )?.[1];
@@ -504,6 +551,20 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
         'OidcVaultRequestAwareAccessTokenValidator',
         'OidcVaultDeviceBindingStoreProvider',
         'OidcVaultLoginInitiationResult',
+        'OidcVaultAuthenticator',
+        'OidcVaultAuthDeniedError',
+        'OidcVaultInvalidAccessTokenError',
+        'OidcVaultDpopDiagnosticEvent',
+        'OidcVaultDpopVerificationProvenance',
+        'OidcVaultTokenOutcomeEvent',
+        'OidcVaultTokenOperation',
+        'OidcVaultJwtAccessTokenIssuerOptions',
+        'OidcVaultJwtSigningAlgorithm',
+        'OidcVaultJwtAccessTokenClaims',
+        'createOidcVaultJwtAccessTokenIssuer',
+        'OidcVaultLogoutNavigationOptions',
+        'OidcVaultLogoutNavigationInput',
+        'OidcVaultLogoutNavigationResult',
       ]) {
         expect(text).toContain(contract);
       }
@@ -562,6 +623,14 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     )) {
       run(node, ['consumer.cjs'], consumerDir);
       run(node, ['consumer.mjs'], consumerDir);
+      run(node, ['optional-auth-runtime.mjs', 'esm'], consumerDir);
+      run(node, ['optional-auth-runtime.mjs', 'cjs'], consumerDir);
+      run(node, ['diagnostics-runtime.mjs', 'esm'], consumerDir);
+      run(node, ['diagnostics-runtime.mjs', 'cjs'], consumerDir);
+      run(node, ['jwt-issuer-runtime.mjs', 'esm'], consumerDir);
+      run(node, ['jwt-issuer-runtime.mjs', 'cjs'], consumerDir);
+      run(node, ['logout-navigation-runtime.mjs', 'esm'], consumerDir);
+      run(node, ['logout-navigation-runtime.mjs', 'cjs'], consumerDir);
       run(
         node,
         [

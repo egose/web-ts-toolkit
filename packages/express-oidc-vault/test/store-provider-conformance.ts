@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 
-import { OidcVaultDpopReplayCapacityError, OidcVaultStoreConflictError } from '@web-ts-toolkit/express-oidc-vault';
+import {
+  OidcVaultDpopReplayCapacityError,
+  OidcVaultStoreConflictError,
+  OidcVaultLogoutNavigationCapacityError,
+} from '@web-ts-toolkit/express-oidc-vault';
 import type {
   AuthorizationTransactionInput,
   ExchangeCodeRecordInput,
@@ -9,7 +14,244 @@ import type {
   OidcVaultRecordBindingMatch,
   OidcVaultSession,
   OidcVaultStoreProvider,
+  OidcVaultLogoutNavigationStoreProvider,
+  OidcVaultLogoutNavigationTicket,
 } from '@web-ts-toolkit/express-oidc-vault';
+
+export const logoutTicketHash = (value: string): string => createHash('sha256').update(value).digest('base64url');
+export const logoutTicket = (now: number, id = 'ticket', scope = 'scope'): OidcVaultLogoutNavigationTicket => ({
+  namespace: `logout-navigation:v1:${logoutTicketHash(scope)}`,
+  ticketHash: logoutTicketHash(id),
+  upstreamLogoutUrl: 'https://provider.example/logout?id_token_hint=original',
+  createdAt: now,
+  expiresAt: now + 60_000,
+});
+
+interface LogoutTicketConformanceContext {
+  store: OidcVaultLogoutNavigationStoreProvider;
+  peerStore: OidcVaultLogoutNavigationStoreProvider;
+  now(): number | Promise<number>;
+  advanceTo(now: number): void | Promise<void>;
+  cleanup?(): void | Promise<void>;
+}
+
+/** Separate opt-in suite: base custom stores need neither ticket method. Shared providers use independent clients. */
+export const defineOidcVaultLogoutNavigationStoreConformanceSuite = (
+  providerName: string,
+  options: {
+    createContext(
+      name: string,
+      options: { logoutNavigationMaxEntries: number; dpopReplayMaxEntries: number },
+    ): LogoutTicketConformanceContext | Promise<LogoutTicketConformanceContext>;
+  },
+): void => {
+  const run = async (name: string, test: (context: LogoutTicketConformanceContext) => Promise<void>) => {
+    const context = await options.createContext(name, { logoutNavigationMaxEntries: 4, dpopReplayMaxEntries: 1 });
+    try {
+      await test(context);
+    } finally {
+      await context.cleanup?.();
+    }
+  };
+  describe(`${providerName} optional logout navigation capability`, () => {
+    it('captures exactly five scalar fields before awaits, ignoring extra credentials/serialization hooks', () =>
+      run('ownership', async ({ store, peerStore, now }) => {
+        const expected = logoutTicket(await now());
+        const input = {
+          ...expected,
+          rawTicket: 'must-not-persist',
+          session: { idToken: 'must-not-persist' },
+          toJSON: () => {
+            throw new Error('must-not-run');
+          },
+        };
+        const pending = store.createLogoutNavigationTicket(input);
+        Object.assign(input, logoutTicket(0, 'changed', 'changed'), { upstreamLogoutUrl: 'https://attacker.example' });
+        await pending;
+        const consumed = await peerStore.consumeLogoutNavigationTicket(expected);
+        expect(consumed).toEqual(expected);
+        expect(Object.getPrototypeOf(consumed)).toBe(Object.prototype);
+        consumed!.upstreamLogoutUrl = 'https://mutated.example';
+        expect(expected.upstreamLogoutUrl).toContain('provider.example');
+        expect(await store.consumeLogoutNavigationTicket(expected)).toBeNull();
+      }));
+
+    it('captures both consume identity fields before asynchronous work', () =>
+      run('consume-ownership', async ({ store, peerStore, now }) => {
+        const first = logoutTicket(await now());
+        const other = logoutTicket(await now(), 'other', 'other');
+        await store.createLogoutNavigationTicket(first);
+        await store.createLogoutNavigationTicket(other);
+        const input = { namespace: first.namespace, ticketHash: first.ticketHash };
+        const pending = peerStore.consumeLogoutNavigationTicket(input);
+        Object.assign(input, { namespace: other.namespace, ticketHash: other.ticketHash });
+        expect(await pending).toEqual(first);
+        expect(await store.consumeLogoutNavigationTicket(other)).toEqual(other);
+      }));
+
+    it('atomically consumes once across peers without spending another namespace', () =>
+      run('consume-race', async ({ store, peerStore, now }) => {
+        const first = logoutTicket(await now());
+        const other = logoutTicket(await now(), 'ticket', 'other');
+        await store.createLogoutNavigationTicket(first);
+        await peerStore.createLogoutNavigationTicket(other);
+        expect(
+          await store.consumeLogoutNavigationTicket({ ...first, namespace: logoutTicketHash('wrong') }),
+        ).toBeNull();
+        const results = await Promise.all(
+          Array.from({ length: 16 }, (_, i) => (i % 2 ? store : peerStore).consumeLogoutNavigationTicket(first)),
+        );
+        expect(results.filter(Boolean)).toEqual([first]);
+        expect(await store.consumeLogoutNavigationTicket(other)).toEqual(other);
+      }));
+
+    it('create-only races have one winner and collisions preserve the first destination/deadline', () =>
+      run('create-race', async ({ store, peerStore, now }) => {
+        const record = logoutTicket(await now());
+        const results = await Promise.allSettled(
+          Array.from({ length: 12 }, (_, i) => (i % 2 ? store : peerStore).createLogoutNavigationTicket(record)),
+        );
+        expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+        for (const result of results)
+          if (result.status === 'rejected') expect(result.reason).toBeInstanceOf(OidcVaultStoreConflictError);
+        await expect(
+          store.createLogoutNavigationTicket({
+            ...record,
+            upstreamLogoutUrl: 'https://changed.example',
+            expiresAt: record.expiresAt + 1000,
+          }),
+        ).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
+        expect(await peerStore.consumeLogoutNavigationTicket(record)).toEqual(record);
+      }));
+
+    it('shares capacity physically across namespaces, separately from replay; duplicates precede capacity and consume frees it', () =>
+      run('capacity-race', async ({ store, peerStore, now }) => {
+        const start = await now();
+        const records = Array.from({ length: 12 }, (_, i) => logoutTicket(start, `${i}`, `scope-${i}`));
+        const results = await Promise.allSettled(
+          records.map((record, i) => (i % 2 ? store : peerStore).createLogoutNavigationTicket(record)),
+        );
+        const winners = records.filter((_, i) => results[i]!.status === 'fulfilled');
+        expect(winners).toHaveLength(4);
+        for (const result of results)
+          if (result.status === 'rejected')
+            expect(result.reason).toBeInstanceOf(OidcVaultLogoutNavigationCapacityError);
+        for (const record of winners)
+          await expect(peerStore.createLogoutNavigationTicket(record)).rejects.toBeInstanceOf(
+            OidcVaultStoreConflictError,
+          );
+        if (store.reserveDpopProof) {
+          expect(await store.reserveDpopProof({ replayKey: 'independent-replay', expiresAt: start + 60_000 })).toBe(
+            true,
+          );
+        }
+        expect(await store.consumeLogoutNavigationTicket(winners[0]!)).toEqual(winners[0]);
+        await peerStore.createLogoutNavigationTicket(logoutTicket(start, 'replacement'));
+        await expect(store.createLogoutNavigationTicket(logoutTicket(start, 'full'))).rejects.toBeInstanceOf(
+          OidcVaultLogoutNavigationCapacityError,
+        );
+      }));
+
+    it('uses strict expiry including the exact boundary, and admits original min/max lifetimes', () =>
+      run('expiry', async ({ store, peerStore, now, advanceTo }) => {
+        const start = await now();
+        const minimum = { ...logoutTicket(start, 'minimum'), expiresAt: start + 1000 };
+        const maximum = { ...logoutTicket(start, 'maximum'), expiresAt: start + 120_000 };
+        await store.createLogoutNavigationTicket(minimum);
+        await store.createLogoutNavigationTicket(maximum);
+        await advanceTo(minimum.expiresAt);
+        expect(await peerStore.consumeLogoutNavigationTicket(minimum)).toBeNull();
+        expect(await peerStore.consumeLogoutNavigationTicket(maximum)).toEqual(maximum);
+        await store.createLogoutNavigationTicket(logoutTicket(await now(), 'replacement'));
+      }));
+
+    const invalidFields: Array<[string, Record<string, unknown>]> = [
+      ['raw ticket as hash', { ticketHash: `lnt_${'A'.repeat(43)}` }],
+      ['noncanonical hash bits', { ticketHash: 'B'.repeat(43) }],
+      ['short hash', { ticketHash: 'A'.repeat(42) }],
+      ['wrong namespace', { namespace: 'default' }],
+      ['noncanonical namespace bits', { namespace: `logout-navigation:v1:${'B'.repeat(43)}` }],
+      ['namespace suffix', { namespace: `logout-navigation:v1:${'A'.repeat(43)}:extra` }],
+      ['non-string hash', { ticketHash: 1 }],
+      ['non-string namespace', { namespace: null }],
+      ['relative URL', { upstreamLogoutUrl: '/logout' }],
+      ['non-HTTP URL', { upstreamLogoutUrl: 'javascript:alert(1)' }],
+      ['userinfo', { upstreamLogoutUrl: 'https://user:pass@provider.example/logout' }],
+      ['empty userinfo', { upstreamLogoutUrl: 'https://@provider.example/logout' }],
+      ['non-absolute HTTP', { upstreamLogoutUrl: 'https:provider.example/logout' }],
+      ['fragment', { upstreamLogoutUrl: 'https://provider.example/logout#secret' }],
+      ['empty fragment', { upstreamLogoutUrl: 'https://provider.example/logout#' }],
+      ['raw whitespace', { upstreamLogoutUrl: ' https://provider.example/logout' }],
+      ['raw controls', { upstreamLogoutUrl: 'https://provider.example/\nlogout' }],
+      ['raw C1 control', { upstreamLogoutUrl: 'https://provider.example/\u0085logout' }],
+      ['backslash', { upstreamLogoutUrl: 'https://provider.example/\\logout' }],
+      ['URL byte bound', { upstreamLogoutUrl: `https://provider.example/${'x'.repeat(16_384)}` }],
+      ['URL serialized byte bound', { upstreamLogoutUrl: `https://provider.example/${'é'.repeat(3000)}` }],
+      ['non-string URL', { upstreamLogoutUrl: null }],
+      ['unsafe created time', { createdAt: Number.MAX_SAFE_INTEGER + 1 }],
+      ['Date-range expiry', { expiresAt: 8_640_000_000_000_001 }],
+      ['NaN expiry', { expiresAt: NaN }],
+      ['infinite expiry', { expiresAt: Infinity }],
+      ['fractional expiry', { expiresAt: 0.5 }],
+    ];
+    it.each(invalidFields)('rejects invalid create: %s without reserving the identity', (name, fields) =>
+      run(`invalid-${name}`, async ({ store, peerStore, now }) => {
+        const record = logoutTicket(await now());
+        await expect(
+          store.createLogoutNavigationTicket({ ...record, ...fields } as OidcVaultLogoutNavigationTicket),
+        ).rejects.toBeInstanceOf(TypeError);
+        await store.createLogoutNavigationTicket(record);
+        expect(await peerStore.consumeLogoutNavigationTicket(record)).toEqual(record);
+      }),
+    );
+
+    it('rejects expired/too-short/too-long/over-remaining windows without allocation', () =>
+      run('windows', async ({ store, now }) => {
+        const start = await now();
+        for (const fields of [
+          { createdAt: start - 1000, expiresAt: start },
+          { createdAt: start, expiresAt: start + 999 },
+          { createdAt: start, expiresAt: start + 120_001 },
+          { createdAt: start + 60_000, expiresAt: start + 121_000 },
+        ])
+          await expect(
+            store.createLogoutNavigationTicket({ ...logoutTicket(start), ...fields }),
+          ).rejects.toBeInstanceOf(TypeError);
+        await store.createLogoutNavigationTicket(logoutTicket(await now()));
+      }));
+
+    it('invalid/unknown consumes do not reserve capacity; HTTP endpoints can use another host', () =>
+      run('unknown', async ({ store, peerStore, now }) => {
+        const start = await now();
+        for (const input of [null, {}, { namespace: 'default', ticketHash: 'x' }, logoutTicket(start, 'unknown')]) {
+          expect(await store.consumeLogoutNavigationTicket(input as OidcVaultLogoutNavigationTicket)).toBeNull();
+        }
+        const record = {
+          ...logoutTicket(start),
+          upstreamLogoutUrl: 'http://other-provider.example/logout?hint=private',
+        };
+        await store.createLogoutNavigationTicket(record);
+        expect(await peerStore.consumeLogoutNavigationTicket(record)).toEqual(record);
+        const prefix = 'https://provider.example/';
+        const maximum = {
+          ...logoutTicket(await now()),
+          upstreamLogoutUrl: prefix + 'x'.repeat(16_384 - prefix.length),
+        };
+        await store.createLogoutNavigationTicket(maximum);
+        expect(await peerStore.consumeLogoutNavigationTicket(maximum)).toEqual(maximum);
+      }));
+
+    it('session and lineage deletion do not cascade to authorized continuations', () =>
+      run('no-cascade', async ({ store, peerStore, now }) => {
+        const record = logoutTicket(await now());
+        await store.createLogoutNavigationTicket(record);
+        await store.createSession({ sessionId: 's', subject: 'subject', refreshToken: 'r', idToken: 'i' });
+        await store.deleteSessionsByLogicalSessionId('s');
+        await store.deleteSessionsBySubject('subject');
+        expect(await peerStore.consumeLogoutNavigationTicket(record)).toEqual(record);
+      }));
+  });
+};
 
 export interface OidcVaultStoreConformanceContext {
   store: OidcVaultStoreProvider;

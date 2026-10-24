@@ -24,7 +24,7 @@ mount.innerHTML = `
     <label><input type="checkbox" id="recognition" /> Send current demo signal</label>
     <label>Current demo signal <input id="signal" readonly /></label>
   </fieldset>
-  <nav><button id="login">Sign in via OIDC provider</button><button id="api">GET protected profile</button><button id="refresh">Refresh (also after JWT expiry)</button><button id="logout">Log out</button></nav>
+  <nav><button id="login">Sign in via OIDC provider</button><button id="api">GET protected profile</button><button id="refresh">Refresh (also after JWT expiry)</button><button id="logout">Log out locally</button><button id="logout-navigate">Log out and visit provider</button></nav>
   <p id="status" role="status">Starting…</p>
   <pre id="result"></pre>
 `;
@@ -94,6 +94,7 @@ try {
       status.dataset.state = 'login-required';
       result.textContent = '';
     });
+  document.querySelector<HTMLButtonElement>('#logout-navigate')!.onclick = () => run(() => session.logoutAndNavigate());
   const code = page.searchParams.get('code');
   if (code) {
     // Remove the one-time code before asynchronous exchange; refresh never retries it.

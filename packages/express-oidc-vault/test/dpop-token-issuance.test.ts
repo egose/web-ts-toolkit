@@ -107,7 +107,7 @@ const fixture = async (
   app.post('/issuance-contract', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try {
-      const issued = await withIssuedToken(req, res, options, session, proof);
+      const issued = await withIssuedToken(req, res, options, session, 'exchange', proof);
       if (usesCookieTransport(options)) setSessionCookie(res, options, session.sessionId);
       res.json(createExchangeResponse(options, session, issued));
     } catch (error) {

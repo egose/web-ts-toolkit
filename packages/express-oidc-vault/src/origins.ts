@@ -121,8 +121,9 @@ export const captureTrustedOriginGuard = (
   options: OidcVaultOptions,
   trustedOrigins: TrustedOrigins,
   action: 'login' | 'exchange' | 'refresh' | 'logout',
+  strict = false,
 ): (() => void) => {
-  const guarded = action === 'login' || action === 'exchange';
+  const guarded = strict || action === 'login' || action === 'exchange';
   if (!guarded && !usesCookieTransport(options)) {
     return () => {};
   }

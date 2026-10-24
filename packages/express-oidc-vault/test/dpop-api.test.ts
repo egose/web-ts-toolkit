@@ -15,6 +15,7 @@ import {
   type OidcVaultAccessTokenValidator,
   type OidcVaultApiDeviceBindingOptions,
   type OidcVaultDeviceBindingStoreProvider,
+  type OidcVaultDpopDiagnosticEvent,
 } from '../src/index';
 
 const ORIGIN = 'https://api.example.com';
@@ -97,6 +98,7 @@ const fixture = (
     clock?: { value: number };
     onAuthContext?: OidcVaultAccessTokenMiddlewareOptions['onAuthContext'];
     onError?: OidcVaultAccessTokenMiddlewareOptions['onError'];
+    onDpopDiagnostic?: OidcVaultAccessTokenMiddlewareOptions['onDpopDiagnostic'];
     before?: RequestHandler;
   } = {},
 ) => {
@@ -131,7 +133,13 @@ const fixture = (
           now: () => clock.value,
           ...overrides.deviceBinding,
         } satisfies OidcVaultApiDeviceBindingOptions);
-  const options: OidcVaultAccessTokenMiddlewareOptions = { validator, deviceBinding, onError, onAuthContext };
+  const options: OidcVaultAccessTokenMiddlewareOptions = {
+    validator,
+    deviceBinding,
+    onError,
+    onAuthContext,
+    onDpopDiagnostic: overrides.onDpopDiagnostic,
+  };
   const middleware = createOidcVaultAccessTokenMiddleware(options);
   const app = express();
   if (overrides.before) app.use(overrides.before);
@@ -162,6 +170,397 @@ const expectProofRejection = (response: request.Response, context: ReturnType<ty
   expect(context.reserve).not.toHaveBeenCalled();
   expect(context.onError).toHaveBeenCalledTimes(1);
 };
+
+describe('OVAPP-02 structured API proof diagnostics', () => {
+  const observed = (overrides: Parameters<typeof fixture>[0] = {}) => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const f = fixture({
+      ...overrides,
+      onDpopDiagnostic(event) {
+        events.push(event);
+        return overrides.onDpopDiagnostic?.(event);
+      },
+    });
+    const call = async (options: Parameters<typeof proofFor>[1] = {}, proof?: string) => {
+      const token = await tokenFor();
+      return request(f.app)
+        .get(`${PATH}?private=query-secret`)
+        .set('Authorization', `DPoP ${token}`)
+        .set('DPoP', proof ?? proofFor(token, options));
+    };
+    return { ...f, events, call };
+  };
+
+  it('reports signature-first provenance, actual-check age and authenticated correlation without credentials', async () => {
+    const clock = { value: NOW };
+    const f = observed({
+      clock,
+      onDpopDiagnostic(event) {
+        expect(Object.isFrozen(event)).toBe(true);
+        expect(Object.isFrozen(event.verification)).toBe(true);
+        expect(Reflect.set(event.verification, 'replay', 'ignored')).toBe(false);
+        if (event.stage === 'binding') clock.value += 1234;
+      },
+    });
+    expect((await f.call()).status).toBe(200);
+    const final = f.events.at(-1)!;
+    expect(final).toMatchObject({
+      operation: 'api',
+      stage: 'proof',
+      outcome: 'accepted',
+      reason: 'proof-accepted',
+      verification: {
+        signature: 'verified',
+        target: 'matched',
+        tokenHash: 'matched',
+        credentialBinding: 'matched',
+        freshness: 'passed',
+        nonce: 'disabled',
+        replay: 'reserved',
+      },
+      timing: {
+        provenance: 'signature-verified',
+        clock: 'configured',
+        iatSeconds: NOW / 1000,
+        checkedAtMs: NOW + 1234,
+        observedAgeMs: 1234,
+      },
+      correlation: {
+        association: 'authenticated',
+        subjectRef: createHash('sha256').update('subject\0api-user').digest('base64url'),
+        sessionRef: createHash('sha256').update('session\0local-session').digest('base64url'),
+      },
+    });
+    expect(f.events[0]).toMatchObject({
+      verification: { signature: 'unchecked' },
+      correlation: { association: 'verified-token' },
+    });
+    expect(f.events[0].timing).toBeUndefined();
+    expect(f.reserve).toHaveBeenCalledTimes(1);
+    expect(f.onAuthContext).toHaveBeenCalledTimes(1);
+    const serialized = JSON.stringify(f.events);
+    for (const secret of [
+      'query-secret',
+      'api-user',
+      'local-session',
+      keyA.jkt,
+      keyA.jwk.x!,
+      'ath',
+      'jti',
+      'https://',
+      'private',
+    ])
+      expect(serialized).not.toContain(secret);
+    expect(f.events.length).toBeLessThanOrEqual(16);
+  });
+
+  it.each([
+    ['header', 'unsupported-header', { header: { typ: 'secret-type' } }, 'unchecked'],
+    ['key', 'invalid-key', { header: { jwk: { kty: 'oct', k: 'private-key-secret' } } }, 'unchecked'],
+    ['signature', 'invalid-signature', { signingKey: () => keyB }, 'failed'],
+    ['claims', 'invalid-claims', { claims: { iat: 'private-iat-secret' } }, 'verified'],
+    ['target', 'target-mismatch', { claims: { htu: 'https://wrong.example/private?secret=query-secret' } }, 'verified'],
+    ['token-hash', 'token-hash-mismatch', { claims: { ath: 'B'.repeat(43) } }, 'verified'],
+    ['binding', 'key-mismatch', { key: () => keyB }, 'verified'],
+    ['nonce', 'invalid-nonce', { claims: { nonce: 'private-nonce-secret'.repeat(40) } }, 'verified'],
+  ] as const)('classifies %s failure as %s without parsing messages', async (stage, reason, options, signature) => {
+    const f = observed();
+    const config = {
+      ...options,
+      ...('key' in options ? { key: options.key() } : {}),
+      ...('signingKey' in options ? { signingKey: options.signingKey() } : {}),
+    } as Parameters<typeof proofFor>[1];
+    const response = await f.call(config);
+    expectProofRejection(response, f);
+    expect(f.events.at(-1)).toMatchObject({
+      operation: 'api',
+      stage,
+      reason,
+      outcome: 'rejected',
+      verification: { signature, replay: 'unchecked' },
+      correlation: { association: 'verified-token' },
+    });
+    expect(JSON.stringify(f.events)).not.toContain('secret');
+    if (signature !== 'verified') expect(f.events.at(-1)?.timing).toBeUndefined();
+  });
+
+  it('reports a malformed proof without decoding or retaining any claim', async () => {
+    const f = observed();
+    expectProofRejection(await f.call({}, 'private-proof-secret'), f);
+    expect(f.events).toEqual([
+      expect.objectContaining({
+        stage: 'presentation',
+        reason: 'malformed-proof',
+        outcome: 'rejected',
+        verification: expect.objectContaining({ signature: 'unchecked' }),
+      }),
+    ]);
+  });
+
+  it.each([
+    [NOW + 5000, 'accepted', 'check-passed', -5000],
+    [NOW + 6000, 'rejected', 'proof-in-future', -6000],
+    [NOW - 64000, 'accepted', 'check-passed', 64000],
+    [NOW - 65000, 'rejected', 'proof-too-old', 65000],
+  ] as const)('reports the exact signed-time boundary %i', async (iat, outcome, reason, observedAgeMs) => {
+    const f = observed();
+    const response = await f.call({ claims: { iat: iat / 1000 } });
+    expect(response.status).toBe(outcome === 'accepted' ? 200 : 401);
+    expect(f.events.find((e) => e.stage === 'freshness')).toMatchObject({
+      outcome,
+      reason,
+      timing: { iatSeconds: iat / 1000, checkedAtMs: NOW, observedAgeMs },
+    });
+  });
+
+  it('omits unsafe observed-time arithmetic rather than manufacturing drift', async () => {
+    const f = observed();
+    expect((await f.call({ claims: { iat: Number.MAX_SAFE_INTEGER } })).status).toBe(401);
+    expect(f.events.at(-1)).toMatchObject({
+      stage: 'freshness',
+      reason: 'invalid-time',
+      timing: { iatSeconds: Number.MAX_SAFE_INTEGER, checkedAtMs: NOW },
+    });
+    expect(f.events.at(-1)?.timing?.observedAgeMs).toBeUndefined();
+  });
+
+  it.each([
+    () => {
+      throw new Error('private-clock-secret');
+    },
+    () => NaN,
+  ])('reports clock failure without a fabricated check time', async (now) => {
+    const f = observed({ deviceBinding: { now } });
+    expect((await f.call()).status).toBe(503);
+    expect(f.events.at(-1)).toMatchObject({
+      stage: 'freshness',
+      outcome: 'rejected',
+      reason: 'clock-unavailable',
+      timing: { iatSeconds: NOW / 1000 },
+    });
+    expect(f.events.at(-1)?.timing?.checkedAtMs).toBeUndefined();
+    expect(f.reserve).not.toHaveBeenCalled();
+    expect(f.onError).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(f.events)).not.toContain('private-clock-secret');
+  });
+
+  it('labels failed clock override and system fallback separately', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const system = vi.spyOn(Date, 'now').mockReturnValue(NOW + 123);
+    try {
+      const f = observed({
+        deviceBinding: {
+          now() {
+            throw new Error('private-clock-secret');
+          },
+          ignoreFreshnessFailure: true,
+        },
+      });
+      expect((await f.call()).status).toBe(200);
+      expect(f.events.find((e) => e.reason === 'clock-unavailable')).toMatchObject({
+        outcome: 'ignored',
+        verification: { freshness: 'ignored' },
+      });
+      expect(f.events.at(-1)).toMatchObject({
+        timing: { clock: 'fallback', checkedAtMs: NOW + 123, observedAgeMs: 123 },
+        verification: { freshness: 'ignored', replay: 'reserved' },
+      });
+    } finally {
+      warn.mockRestore();
+      system.mockRestore();
+    }
+  });
+
+  it('reports each ignored check independently without relabeling it as verified', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const f = observed({
+        deviceBinding: { ignoreTargetFailure: true, ignoreFreshnessFailure: true, ignoreReplayFailure: true },
+      });
+      f.reserve.mockRejectedValue(new Error('private-store-secret'));
+      expect((await f.call({ claims: { htu: 'https://wrong.example/', iat: NOW / 1000 - 66 } })).status).toBe(200);
+      expect(f.events.filter((e) => e.outcome === 'ignored').map((e) => e.reason)).toEqual([
+        'target-mismatch',
+        'proof-too-old',
+        'nonce-disabled',
+        'replay-unavailable',
+      ]);
+      expect(f.events.at(-1)).toMatchObject({
+        outcome: 'accepted',
+        correlation: { association: 'verified-token' },
+        verification: { target: 'ignored', freshness: 'ignored', replay: 'ignored' },
+      });
+      expect(f.reserve).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(f.events)).not.toContain('private-store-secret');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('distinguishes replay rejection, provider/capacity outage and nonce retry', async () => {
+    const f = observed({ deviceBinding: { nonce: { secret: SECRET } } });
+    const token = await tokenFor();
+    const call = (proof: string) => request(f.app).get(PATH).set('Authorization', `DPoP ${token}`).set('DPoP', proof);
+    const first = await call(proofFor(token));
+    expect(first.status).toBe(401);
+    expect(first.body.code).toBe('OIDC_VAULT_USE_DPOP_NONCE');
+    expect(f.events.at(-1)).toMatchObject({
+      stage: 'nonce',
+      outcome: 'challenged',
+      reason: 'nonce-required',
+      verification: { nonce: 'challenged', replay: 'unchecked' },
+    });
+    expect(f.reserve).not.toHaveBeenCalled();
+    await call(proofFor(token, { claims: { nonce: 'private-bad-nonce' } }));
+    expect(f.events.at(-1)?.reason).toBe('nonce-invalid');
+    const proof = proofFor(token, { claims: { nonce: first.headers['dpop-nonce'] } });
+    expect((await call(proof)).status).toBe(200);
+    expect((await call(proof)).status).toBe(401);
+    expect(f.events.at(-1)).toMatchObject({
+      stage: 'replay',
+      reason: 'replay-detected',
+      outcome: 'rejected',
+      verification: { nonce: 'passed', replay: 'failed' },
+    });
+    f.reserve.mockRejectedValueOnce(new Error('private-capacity-secret'));
+    expect((await call(proofFor(token, { claims: { nonce: first.headers['dpop-nonce'] } }))).status).toBe(503);
+    expect(f.events.at(-1)).toMatchObject({ stage: 'replay', reason: 'replay-unavailable', outcome: 'rejected' });
+    expect(JSON.stringify(f.events)).not.toContain(first.headers['dpop-nonce']);
+    expect(JSON.stringify(f.events)).not.toContain('private');
+  });
+
+  it('does not report a challenge when nonce issuance itself fails at an unsafe expiry', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const f = observed({
+        deviceBinding: {
+          now: () => Number.MAX_SAFE_INTEGER,
+          ignoreFreshnessFailure: true,
+          nonce: { secret: SECRET },
+        },
+      });
+      const response = await f.call();
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual(INVALID_TOKEN); // Preserve the existing unexpected-adapter error response.
+      expect(response.headers['dpop-nonce']).toBeUndefined();
+      expect(f.events.at(-1)).toMatchObject({
+        stage: 'nonce',
+        outcome: 'rejected',
+        reason: 'nonce-unavailable',
+        verification: { nonce: 'failed' },
+      });
+      expect(f.events.some((event) => event.outcome === 'challenged')).toBe(false);
+      expect(f.reserve).not.toHaveBeenCalled();
+      expect(f.onError).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it.each(['throw', 'reject', 'thenable'] as const)(
+    'isolates %s observers without recursive onError',
+    async (failure) => {
+      const f = observed({
+        onDpopDiagnostic() {
+          if (failure === 'throw') throw new Error('private-observer-secret');
+          if (failure === 'reject') return Promise.reject(new Error('private-observer-secret'));
+          return {
+            then() {
+              throw new Error('private-thenable-secret');
+            },
+          } as unknown as Promise<void>;
+        },
+      });
+      expect((await f.call()).status).toBe(200);
+      expect(f.onError).not.toHaveBeenCalled();
+      expect(f.reserve).toHaveBeenCalledTimes(1);
+      const rejected = await f.call({ signingKey: keyB });
+      expect(rejected.status).toBe(401);
+      expect(rejected.body).toEqual(INVALID_PROOF);
+      expect(f.onError).toHaveBeenCalledTimes(1);
+      expect(f.reserve).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('bounds stalled asynchronous observers across requests without queueing or blocking auth', async () => {
+    const releases: (() => void)[] = [];
+    const f = observed({
+      onDpopDiagnostic() {
+        return new Promise<void>((resolve) => releases.push(resolve));
+      },
+    });
+    for (let index = 0; index < 5; index++) expect((await f.call()).status).toBe(200);
+    expect(releases).toHaveLength(32);
+    expect(f.events).toHaveLength(32);
+    expect(f.reserve).toHaveBeenCalledTimes(5);
+    for (const release of releases) release();
+    await Promise.resolve();
+    expect((await f.call()).status).toBe(200);
+    expect(f.events.length).toBeGreaterThan(32);
+    for (const release of releases) release();
+  });
+
+  it('never authenticates an optional proof as the owner of an unbound token', async () => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const f = fixture({
+      onDpopDiagnostic: (e) => {
+        events.push(e);
+      },
+    });
+    const token = await tokenFor(null);
+    expect(
+      (await request(f.app).get(PATH).set('Authorization', `Bearer ${token}`).set('DPoP', proofFor(token))).status,
+    ).toBe(200);
+    expect(events.at(-1)).toMatchObject({
+      stage: 'proof',
+      correlation: { association: 'verified-token' },
+      verification: { credentialBinding: 'not-applicable' },
+    });
+  });
+
+  it.each([1024, 1025])('bounds correlation inputs at 1024 UTF-16 code units (%i)', async (size) => {
+    const identifier = 'X'.repeat(size);
+    const f = observed({
+      validator: {
+        async validate() {
+          return { subject: identifier };
+        },
+        async validateWithRequest() {
+          return { subject: identifier, sessionId: identifier, confirmation: { jkt: keyA.jkt } };
+        },
+      },
+    });
+    expect((await f.call()).status).toBe(200);
+    const correlation = f.events.at(-1)?.correlation;
+    expect(correlation?.association).toBe('authenticated');
+    if (size === 1024) {
+      expect(correlation?.subjectRef).toHaveLength(43);
+      expect(correlation?.sessionRef).toHaveLength(43);
+    } else expect(correlation).toEqual({ association: 'authenticated' });
+    expect(JSON.stringify(f.events)).not.toContain(identifier);
+  });
+
+  it.each([true, false])('distinguishes proof absence from a disabled check (enabled=%s)', async (enabled) => {
+    const events: OidcVaultDpopDiagnosticEvent[] = [];
+    const f = fixture({
+      deviceBinding: enabled ? {} : false,
+      onDpopDiagnostic: (event) => {
+        events.push(event);
+      },
+    });
+    const token = await tokenFor(null);
+    expect((await request(f.app).get(PATH).set('Authorization', `Bearer ${token}`)).status).toBe(200);
+    expect(events).toEqual([
+      expect.objectContaining({
+        stage: 'presentation',
+        outcome: 'ignored',
+        reason: enabled ? 'proof-absent' : 'policy-disabled',
+        verification: expect.objectContaining({ signature: 'unchecked', replay: 'unchecked' }),
+      }),
+    ]);
+    expect(f.reserve).not.toHaveBeenCalled();
+  });
+});
 
 describe.each(['optional', 'required'] as const)('DBJWT-06 real JWT/API proof matrix (%s)', (mode) => {
   it('[DBJWT-01; DBJWT-06] bound API rejects a copied JWT without proof and Bearer fallback', async () => {

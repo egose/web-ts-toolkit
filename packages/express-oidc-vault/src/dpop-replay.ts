@@ -9,6 +9,7 @@ import {
   type ResolvedOidcVaultDeviceBindingOptions,
 } from './device-binding-policy';
 import { handleDpopCheckFailure } from './dpop-failure-policy';
+import type { DpopDiagnostic } from './diagnostics';
 import { createDpopNoncePolicy, DPOP_NONCE_MAX_BYTES } from './dpop-nonce';
 import { OidcVaultHttpError, toErrorPayload } from './errors';
 import type { OidcVaultDpopAlgorithm, OidcVaultDpopReplayStore, OidcVaultVerifiedDpopBinding } from './types';
@@ -58,7 +59,10 @@ export type DpopReplayResult =
 export interface DpopReplayPolicy {
   readonly effectiveNamespace: DpopEffectiveNamespace;
   /** Invoke the trusted preflight first, then enforce window/nonce and reserve exactly once. */
-  verifyAndReserve(verifyBeforeReplay: VerifyDpopProofBeforeReplay): Promise<DpopReplayResult>;
+  verifyAndReserve(
+    verifyBeforeReplay: VerifyDpopProofBeforeReplay,
+    diagnostic?: DpopDiagnostic,
+  ): Promise<DpopReplayResult>;
 }
 
 export interface DpopPolicyResponse {
@@ -225,15 +229,20 @@ export const createDpopReplayPolicy = (options: {
 
   return Object.freeze({
     effectiveNamespace,
-    async verifyAndReserve(verifyBeforeReplay: VerifyDpopProofBeforeReplay): Promise<DpopReplayResult> {
+    async verifyAndReserve(
+      verifyBeforeReplay: VerifyDpopProofBeforeReplay,
+      diagnostic?: DpopDiagnostic,
+    ): Promise<DpopReplayResult> {
       // No nonce challenge or replay admission until all external preconditions
       // succeed. Do not catch/relabel verifier/target failures as store errors.
       const verified = await verifyBeforeReplay();
       if (typeof verified !== 'object' || verified === null || Array.isArray(verified)) {
+        diagnostic?.emit('claims', 'rejected', 'invalid-claims');
         throw invalidProof('DPoP verifier did not return a proof verification result.');
       }
       const { binding: verifiedBinding, iat, jti, nonce } = verified;
       if (typeof verifiedBinding !== 'object' || verifiedBinding === null || Array.isArray(verifiedBinding)) {
+        diagnostic?.emit('binding', 'rejected', 'invalid-key');
         throw invalidProof('DPoP verifier did not return a verified key binding.');
       }
       const { type, jkt, alg } = verifiedBinding;
@@ -247,21 +256,41 @@ export const createDpopReplayPolicy = (options: {
         !Number.isSafeInteger(iat) ||
         iat < 0
       ) {
+        diagnostic?.emit('claims', 'rejected', 'invalid-claims');
         throw invalidProof('DPoP verified key/algorithm or signed iat/JTI shape is invalid.');
       }
       const binding = Object.freeze({ type, jkt, alg });
       let checkedNow: number;
+      let clockSource: 'configured' | 'system' | 'fallback' = configuredNow ? 'configured' : 'system';
       try {
         checkedNow = now();
         if (!Number.isSafeInteger(checkedNow) || checkedNow < 0) throw new TypeError('DPoP replay clock is invalid.');
       } catch (error) {
+        diagnostic?.mark({ freshness: policy.ignoreFreshnessFailure ? 'ignored' : 'failed' });
+        diagnostic?.emit('freshness', policy.ignoreFreshnessFailure ? 'ignored' : 'rejected', 'clock-unavailable');
         handleDpopCheckFailure(policy.ignoreFreshnessFailure, 'freshness', replayUnavailable(error));
         checkedNow = Date.now();
-        if (!Number.isSafeInteger(checkedNow) || checkedNow < 0)
+        if (!Number.isSafeInteger(checkedNow) || checkedNow < 0) {
+          diagnostic?.mark({ freshness: 'failed' });
+          diagnostic?.emit('freshness', 'rejected', 'clock-unavailable');
           throw replayUnavailable(new TypeError('DPoP fallback clock is invalid.'));
+        }
+        clockSource = 'fallback';
       }
+      diagnostic?.checkTime(checkedNow, clockSource);
       let expiresAt = getDpopReplayExpiresAt({ ...policy, iat, now: checkedNow });
       if (expiresAt === null) {
+        diagnostic?.mark({ freshness: policy.ignoreFreshnessFailure ? 'ignored' : 'failed' });
+        diagnostic?.emit(
+          'freshness',
+          policy.ignoreFreshnessFailure ? 'ignored' : 'rejected',
+          !Number.isSafeInteger(iat * 1000) ||
+            !Number.isSafeInteger((iat + policy.proofMaxAgeSeconds + policy.clockSkewSeconds) * 1000)
+            ? 'invalid-time'
+            : iat * 1000 - checkedNow > policy.clockSkewSeconds * 1000
+              ? 'proof-in-future'
+              : 'proof-too-old',
+        );
         handleDpopCheckFailure(
           policy.ignoreFreshnessFailure,
           'freshness',
@@ -270,22 +299,43 @@ export const createDpopReplayPolicy = (options: {
         // An ignored stale/future iat still needs a live bounded reservation.
         // Keep replay enforcement independent from freshness enforcement.
         expiresAt = checkedNow + (policy.proofMaxAgeSeconds + policy.clockSkewSeconds) * 1000;
+      } else {
+        diagnostic?.mark({ freshness: clockSource === 'fallback' ? 'ignored' : 'passed' });
+        diagnostic?.emit('freshness', 'accepted', 'check-passed');
       }
 
       if (noncePolicy) {
         if (!noncePolicy.verify(nonce, jkt, checkedNow)) {
-          return Object.freeze({ type: 'nonce-challenge', nonce: noncePolicy.issue(jkt, checkedNow) });
+          let challengeNonce: string;
+          try {
+            challengeNonce = noncePolicy.issue(jkt, checkedNow);
+          } catch (error) {
+            diagnostic?.mark({ nonce: 'failed' });
+            diagnostic?.emit('nonce', 'rejected', 'nonce-unavailable');
+            throw error;
+          }
+          diagnostic?.mark({ nonce: 'challenged' });
+          diagnostic?.emit('nonce', 'challenged', nonce === undefined ? 'nonce-required' : 'nonce-invalid');
+          return Object.freeze({ type: 'nonce-challenge', nonce: challengeNonce });
         }
+        diagnostic?.mark({ nonce: 'passed' });
+        diagnostic?.emit('nonce', 'accepted', 'check-passed');
       } else if (
         nonce !== undefined &&
         (typeof nonce !== 'string' ||
           nonce.length > DPOP_NONCE_MAX_BYTES ||
           Buffer.byteLength(nonce, 'utf8') > DPOP_NONCE_MAX_BYTES)
       ) {
+        diagnostic?.mark({ nonce: 'failed' });
+        diagnostic?.emit('nonce', 'rejected', 'invalid-nonce');
         throw invalidProof('DPoP signed nonce claim exceeds its string/byte bound.');
+      } else {
+        diagnostic?.mark({ nonce: 'disabled' });
+        diagnostic?.emit('nonce', 'ignored', 'nonce-disabled');
       }
 
       let reservationError: OidcVaultHttpError | undefined;
+      let unavailable = false;
       try {
         const reserved = await replayStore.reserveDpopProof({
           replayKey: createDpopReplayKey(effectiveNamespace, jkt, jti),
@@ -296,8 +346,21 @@ export const createDpopReplayPolicy = (options: {
         if (!reserved) reservationError = invalidProof('DPoP replay reservation was duplicate or no longer live.');
       } catch (error) {
         reservationError = replayUnavailable(error);
+        unavailable = true;
       }
-      if (reservationError) handleDpopCheckFailure(policy.ignoreReplayFailure, 'replay', reservationError);
+      if (reservationError) {
+        diagnostic?.mark({ replay: policy.ignoreReplayFailure ? 'ignored' : 'failed' });
+        diagnostic?.emit(
+          'replay',
+          policy.ignoreReplayFailure ? 'ignored' : 'rejected',
+          unavailable ? 'replay-unavailable' : 'replay-detected',
+        );
+        handleDpopCheckFailure(policy.ignoreReplayFailure, 'replay', reservationError);
+      } else {
+        diagnostic?.mark({ replay: 'reserved' });
+        diagnostic?.emit('replay', 'accepted', 'check-passed');
+      }
+      diagnostic?.accept();
       return Object.freeze({ type: 'accepted', binding, expiresAt });
     },
   });

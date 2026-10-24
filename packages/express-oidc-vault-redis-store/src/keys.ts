@@ -53,6 +53,22 @@ export class RedisOidcVaultStoreKeys {
     return `${this.keyPrefix}:dpop-proofs`;
   }
 
+  logoutNavigationTicket(id: string): string {
+    return this.logoutNavigationTicketPrefix() + id;
+  }
+
+  logoutNavigationTicketPrefix(): string {
+    return `${this.keyPrefix}:logout-navigation-ticket:`;
+  }
+
+  logoutNavigationExpiries(): string {
+    return `${this.keyPrefix}:logout-navigation-expiries`;
+  }
+
+  logoutNavigationCapacity(): string {
+    return `${this.keyPrefix}:logout-navigation-capacity`;
+  }
+
   rotatedSessionAliasIndex(logicalSessionId: string): string {
     return prefixKey(this.keyPrefix, 'rotated-session-alias-index', logicalSessionId);
   }

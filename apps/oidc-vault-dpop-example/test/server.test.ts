@@ -132,6 +132,32 @@ describe('DBJWT-10 fixture CORS and environment IdP contracts', () => {
         body: new URLSearchParams({ ...form, code_verifier: transaction!.pkceVerifier }),
       });
       expect(honestPkce.status).toBe(200);
+      const tokens = (await honestPkce.json()) as { id_token: string };
+      const returnUri = 'http://127.0.0.1:4317/signed-out?transport=body';
+      idp.allowPostLogout(returnUri);
+      const logoutUrl = new URL(`${idp.issuer}/logout`);
+      logoutUrl.searchParams.set('id_token_hint', tokens.id_token);
+      logoutUrl.searchParams.set('post_logout_redirect_uri', returnUri);
+      const loggedOut = await fetch(logoutUrl);
+      expect(loggedOut.status).toBe(200);
+      const document = await loggedOut.text();
+      expect(document).toContain('id="provider-logged-out"');
+      expect(document).toContain('id="logout-return"');
+      expect(document).not.toContain(tokens.id_token);
+      for (const [key, value] of [
+        ['id_token_hint', 'forged.hint.signature'],
+        ['id_token_hint', 'x'.repeat(16_385)],
+        ['post_logout_redirect_uri', 'https://evil.example/return'],
+        ['extra', 'unsupported'],
+      ]) {
+        const invalid = new URL(logoutUrl);
+        invalid.searchParams.set(key, value);
+        expect((await fetch(invalid)).status).toBe(400);
+      }
+      const duplicate = new URL(logoutUrl);
+      duplicate.searchParams.append('id_token_hint', tokens.id_token);
+      expect((await fetch(duplicate)).status).toBe(400);
+      expect(idp.stats.logouts).toBe(1);
       expect(idp.stats.pkceChecks).toBe(1);
       expect(idp.stats.authorizations).toBe(1);
     } finally {

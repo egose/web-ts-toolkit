@@ -1,10 +1,10 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 
 import express from 'express';
-import { SignJWT } from 'jose';
 import {
   createOidcVaultAccessTokenMiddleware,
+  createOidcVaultJwtAccessTokenIssuer,
   createOidcVaultJwtAccessTokenValidator,
   createOidcVaultMiddleware,
   normalizeOidcVaultBasePath,
@@ -62,7 +62,8 @@ export const startExampleServer = async (options: ExampleServerOptions) => {
       mode: 'required' as const,
       ...(nonceSecret ? { nonce: { secret: nonceSecret, lifetimeSeconds: options.nonceLifetimeSeconds ?? 60 } } : {}),
     };
-    const store = createMemoryOidcVaultStore();
+    const now = Date.now;
+    const store = createMemoryOidcVaultStore({ now });
     const requests: ExampleRequestEvidence[] = [];
     const stats = { apiCalls: 0, mutations: 0, refreshes: 0, resourceAssignments: 0 };
     let resource = '';
@@ -103,7 +104,10 @@ export const startExampleServer = async (options: ExampleServerOptions) => {
           frontendRedirectUri: `${frontendOrigin}/callback`,
           trustedOrigins: [frontendOrigin],
           storeProvider: store,
+          now,
           sessionTransport: transport,
+          postLogoutRedirectUri: `${frontendOrigin}/signed-out?transport=${transport}`,
+          logoutNavigation: { fallbackRedirectUri: `${frontendOrigin}/signed-out?transport=${transport}&fallback=1` },
           transactionCookie: { name: `oidc_vault_transaction_${transport}` },
           cookie: { name: `oidc_vault_session_${transport}`, deploymentMode: 'same-site' },
           deviceBinding: proofPolicy,
@@ -114,23 +118,17 @@ export const startExampleServer = async (options: ExampleServerOptions) => {
               stats.refreshes++;
             },
           },
-          tokenIssuer: {
-            async issue({ session, deviceBinding }) {
-              if (!deviceBinding) throw new Error('A verified DPoP binding is required.');
-              // The JWT is browser-readable: do not embed the opaque vault handle,
-              // especially when cookie transport keeps that credential HttpOnly.
-              const accessToken = await new SignJWT({ scope: 'read:profile', cnf: { jkt: deviceBinding.jkt } })
-                .setProtectedHeader({ alg: 'HS256' })
-                .setIssuer(backendOrigin)
-                .setAudience(API_REPLAY_NAMESPACE)
-                .setSubject(session.subject)
-                .setJti(randomUUID())
-                .setIssuedAt()
-                .setExpirationTime(`${tokenLifetime}s`)
-                .sign(secret);
-              return { accessToken, expiresIn: tokenLifetime, tokenType: 'DPoP' };
-            },
-          },
+          // Public helper owns verified cnf and token type; only application
+          // claims are mapped. No cookie handle or upstream credential in JWTs.
+          tokenIssuer: createOidcVaultJwtAccessTokenIssuer({
+            key: secret,
+            algorithm: 'HS256',
+            issuer: backendOrigin,
+            audience: API_REPLAY_NAMESPACE,
+            lifetimeSeconds: tokenLifetime,
+            now,
+            mapClaims: () => ({ scope: 'read:profile' }),
+          }),
         }),
       );
     }

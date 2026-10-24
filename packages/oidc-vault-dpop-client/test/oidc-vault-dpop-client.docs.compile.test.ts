@@ -105,7 +105,7 @@ afterAll(() => {
 
 describe('CLIENT-06 documentation examples compile against the packed artifact', () => {
   it('compiles the shipped README and matching website/example TypeScript blocks as strict DOM-only consumers', () => {
-    const consumerDir = installPackedConsumer();
+    const consumerDir = installPackedConsumer(true);
     const installedReadme = path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/oidc-vault-dpop-client/README.md');
     expect(readFileSync(installedReadme, 'utf8')).toBe(readFileSync(path.resolve(packageRoot, 'README.md'), 'utf8'));
     const documents = [
@@ -113,6 +113,10 @@ describe('CLIENT-06 documentation examples compile against the packed artifact',
       { name: 'website', file: path.resolve(workspaceRoot, 'website/docs/packages/oidc-vault-dpop-client.md') },
       { name: 'example', file: path.resolve(workspaceRoot, 'apps/oidc-vault-dpop-example/README.md') },
     ];
+    const navigationSection = (file: string) =>
+      readFileSync(file, 'utf8').split('## Provider logout navigation\n')[1]?.split('\n## ')[0];
+    expect(navigationSection(installedReadme)).toBeTruthy();
+    expect(navigationSection(documents[1].file)).toBe(navigationSection(installedReadme));
 
     // Each documented block becomes one compilable example importing the
     // package root from the fresh install (no `src/` deep imports).

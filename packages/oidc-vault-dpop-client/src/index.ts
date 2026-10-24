@@ -32,3 +32,4 @@ export {
   type FingerprintJsAgent,
 } from './device-fingerprint';
 export { OidcVaultDpopClientError } from './errors';
+export type { OidcVaultLogoutNavigationInput, OidcVaultLogoutNavigationResult } from './wire';

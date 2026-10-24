@@ -1,4 +1,29 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+
+// Dedicated optional capability, constructed with a one-entry ticket cap.
+export async function assertLogoutNavigationStore(store, errors, peer = store) {
+  await store.ready?.();
+  await peer.ready?.();
+  const hash = (value) => createHash('sha256').update(value).digest('base64url');
+  const now = Date.now();
+  const record = {
+    namespace: `logout-navigation:v1:${hash('installed-scope')}`,
+    ticketHash: hash('installed-ticket'), upstreamLogoutUrl: 'https://provider.example/logout?id_token_hint=original',
+    createdAt: now, expiresAt: now + 60000,
+  };
+  const input = { ...record, rawTicket: 'must-not-persist', session: { refreshToken: 'must-not-persist' } };
+  const pending = store.createLogoutNavigationTicket(input);
+  Object.assign(input, { namespace: 'mutated', ticketHash: 'mutated', upstreamLogoutUrl: 'https://mutated.example' });
+  await pending;
+  await assert.rejects(peer.createLogoutNavigationTicket({ ...record, expiresAt: now + 61000 }), errors.OidcVaultStoreConflictError);
+  await assert.rejects(peer.createLogoutNavigationTicket({ ...record, ticketHash: hash('full'), namespace: `logout-navigation:v1:${hash('another-scope')}` }), errors.OidcVaultLogoutNavigationCapacityError);
+  assert.equal(await peer.consumeLogoutNavigationTicket({ ...record, namespace: `logout-navigation:v1:${hash('wrong-scope')}` }), null);
+  const winners = await Promise.all([store, peer].map((provider) => provider.consumeLogoutNavigationTicket(record)));
+  assert.deepEqual(winners.filter(Boolean), [record]);
+  await peer.createLogoutNavigationTicket({ ...record, ticketHash: hash('replacement') });
+  assert.deepEqual(await store.consumeLogoutNavigationTicket({ ...record, ticketHash: hash('replacement') }), { ...record, ticketHash: hash('replacement') });
+}
 
 // Copied into disposable installed applications. All providers are constructed
 // from their package roots with capacity=1; no workspace implementation imports.

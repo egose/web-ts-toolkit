@@ -4,6 +4,7 @@ import { resolveDpopFailureOption } from './dpop-failure-policy';
 import { OidcVaultHttpError } from './errors';
 import type { ResolvedOidcVaultFingerprintRecognitionOptions } from './fingerprint-recognition';
 import type { ResolvedOidcVaultTransactionCookieOptions } from './transaction-cookie';
+import type { ResolvedLogoutNavigationOptions } from './logout-navigation';
 import type {
   OidcVaultDeviceBindingMode,
   OidcVaultDeviceBindingOptions,
@@ -34,11 +35,12 @@ export interface ResolvedOidcVaultDeviceBindingOptions {
 
 export interface ResolvedOidcVaultOptions extends Omit<
   OidcVaultOptions,
-  'deviceBinding' | 'fingerprintRecognition' | 'transactionCookie'
+  'deviceBinding' | 'fingerprintRecognition' | 'transactionCookie' | 'logoutNavigation'
 > {
   readonly deviceBinding?: ResolvedOidcVaultDeviceBindingOptions;
   readonly fingerprintRecognition?: ResolvedOidcVaultFingerprintRecognitionOptions;
   readonly transactionCookie?: ResolvedOidcVaultTransactionCookieOptions;
+  readonly logoutNavigation?: ResolvedLogoutNavigationOptions;
 }
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> => {
@@ -128,7 +130,7 @@ const DEVICE_BINDING_STORE_CAPABILITIES = [
 
 export function assertDeviceBindingStoreCapabilities(
   store: OidcVaultStoreProvider,
-  feature: 'deviceBinding' | 'fingerprintRecognition' = 'deviceBinding',
+  feature: 'deviceBinding' | 'fingerprintRecognition' | 'logoutNavigation' = 'deviceBinding',
 ): asserts store is OidcVaultDeviceBindingStoreProvider {
   for (const name of DEVICE_BINDING_STORE_CAPABILITIES) {
     if (typeof store?.[name] !== 'function') {

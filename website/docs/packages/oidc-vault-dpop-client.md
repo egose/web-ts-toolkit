@@ -94,6 +94,69 @@ scopes reject before auth work. Outbound paths and proofs normalize unreserved
 escapes/dot segments, retain reserved separators, and preserve query data in
 the request. Distinct namespaces isolate gateway services' nonces.
 
+## Provider logout navigation
+
+With server `logoutNavigation` enabled, call **`logoutAndNavigate(): Promise<void>`**
+from a user action. It confirms local logout, clears old frontend auth and invokes
+the synchronous `navigate(url)` adapter (default `location.assign`) inside lifecycle
+authority. `logout()` remains local-only. No return-URL/prepare API is needed.
+
+```ts
+import {
+  createOidcVaultDpopSession,
+  type OidcVaultLogoutNavigationInput,
+  type OidcVaultLogoutNavigationResult,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+const session = createOidcVaultDpopSession({
+  backendOrigin: 'https://api.example.com',
+  basePath: '/auth/oidc',
+  sessionTransport: 'body', // Or the matching cookie mount and 'cookie'.
+});
+export const signOutThroughProvider = (): Promise<void> => session.logoutAndNavigate();
+// Pure wire types are also bundled at the client root; no backend install needed.
+export type NavigationRequest = OidcVaultLogoutNavigationInput;
+export type NavigationResponse = OidcVaultLogoutNavigationResult;
+```
+
+The existing persistent key plus body handle or **active matching cookie metadata**
+suffices after reload, with an absent or expired memory JWT. It does not refresh,
+create a replacement key, send fingerprint/Authorization/`ath`, or put API tokens
+in query strings. POST uses the same finite HTTP bounds and nonce cache, including
+learned success nonces: at most one recognized challenge retry with a fresh proof/JTI.
+Body credentials are `omit` with `{ sessionId }`; cookie credentials are `include`
+with `{}` under the scope Web Lock. Strict server Origin/Referer checks apply in
+both transports; allow the frontend via `trustedOrigins` and expose `DPoP-Nonce` in CORS.
+
+The client accepts only the exact absolute pinned backend continuation path,
+bare or followed by one literal `?ticket=lnt_<43 canonical base64url characters>`.
+No upstream URL/hint enters initiation JSON. A confirmed `loggedOut: true` clears
+token, handle, pending login, nonces and peer adoption, and invalidates cookie
+metadata/notifies peers even if the URL is invalid; that case rejects with fixed
+nonterminal **`INVALID_LOGOUT_NAVIGATION_RESPONSE`** and never navigates. Unconfirmed,
+malformed, oversized, timed-out or lost responses leave the server commit uncertain,
+retain the existing failure policy and never automatically retry or navigate.
+Cleanup/adapter failure rejects after memory clear, without credential restoration.
+
+Concurrent clicks share the **same pending Promise** through FIFO, nonce retry,
+cleanup and one adapter invocation. An earlier refresh publishes rotation first;
+a later refresh cannot resurrect credentials. Refresh does not split that click
+batch. Later login/exchange/local logout/clear/resetKey/dispose immediately withdraws
+navigation intent, including a login still queued for the FIFO/lock. A started
+POST may finish old-state cleanup before that login, but rejects as superseded
+instead of navigating. No completed ticket URL is cached; another click after
+cleanup requires login. Cancellation cannot undo server commit or navigation
+already handed to the browser.
+
+The server revokes locally before optional provider work. Missing endpoints,
+discovery/ticket failures and missing/spent/expired tickets select its fixed
+configured fallback. Tickets default to 60 seconds (server range 1–120 seconds),
+are single-use, and retain only the final upstream hint URL server-side until
+consume/expiry/cleanup. Navigation/history/proxy logs and the IdP request still
+expose their respective URLs; avoid logging them. After upstream handoff, provider
+availability/termination/return is not guaranteed. Stateless JWTs remain valid
+until expiry unless the application adds revocation.
+
 ## Recovery and limits
 
 - **Credentials:** exact `DPoP`, canonical compact signed JWT, exact `cnf: { jkt }`,

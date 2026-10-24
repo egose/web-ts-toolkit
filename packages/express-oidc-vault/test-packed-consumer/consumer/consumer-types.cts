@@ -4,6 +4,14 @@ import {
   OIDC_VAULT_ROUTE_PATHS,
   OidcVaultStoreConflictError,
   OidcVaultDpopReplayCapacityError,
+  OidcVaultLogoutNavigationCapacityError,
+  type OidcVaultLogoutNavigationStoreProvider,
+  type OidcVaultLogoutNavigationTicket,
+  type OidcVaultLogoutNavigationOptions,
+  type OidcVaultLogoutNavigationInput,
+  type OidcVaultLogoutNavigationResult,
+  type CreateLogoutNavigationTicketInput,
+  type ConsumeLogoutNavigationTicketInput,
   type AuthorizationTransactionInput,
   type ConsumeAuthorizationTransactionIfMatchesInput,
   type ConsumeExchangeCodeIfMatchesInput,
@@ -20,6 +28,18 @@ import {
   type OidcVaultDeviceBindingOptions,
   type OidcVaultDeviceBindingStoreProvider,
   type OidcVaultDpopAlgorithm,
+  type OidcVaultDpopDiagnosticEvent,
+  type OidcVaultDpopDiagnosticObserver,
+  type OidcVaultDpopDiagnosticStage,
+  type OidcVaultDpopDiagnosticOutcome,
+  type OidcVaultDpopDiagnosticReason,
+  type OidcVaultDpopDiagnosticTiming,
+  type OidcVaultDpopOperation,
+  type OidcVaultDpopVerificationProvenance,
+  type OidcVaultDiagnosticCorrelation,
+  type OidcVaultTokenOperation,
+  type OidcVaultTokenOutcomeEvent,
+  type OidcVaultTokenOutcomeObserver,
   type OidcVaultDpopBinding,
   type OidcVaultDpopNonceOptions,
   type OidcVaultDpopProofOptions,
@@ -42,11 +62,42 @@ import {
   type OidcVaultVerifiedDpopBinding,
   type ReserveDpopProofInput,
   createOidcVaultAccessTokenMiddleware,
+  createOidcVaultAuthenticator,
+  OidcVaultAuthDeniedError,
+  OidcVaultInvalidAccessTokenError,
+  type OidcVaultAuthenticator,
   createOidcVaultJwtAccessTokenValidator,
+  createOidcVaultJwtAccessTokenIssuer,
+  type OidcVaultJwtAccessTokenIssuerOptions,
+  type OidcVaultJwtAccessTokenClaims,
+  type OidcVaultJwtSigningAlgorithm,
   createOidcVaultMiddleware,
   normalizeOidcVaultBasePath,
   resolveOidcVaultConfig,
 } from '@web-ts-toolkit/express-oidc-vault';
+
+declare const navigationStore: OidcVaultLogoutNavigationStoreProvider;
+declare const navigationTicket: CreateLogoutNavigationTicketInput;
+declare const navigationIdentity: ConsumeLogoutNavigationTicketInput;
+void navigationStore.createLogoutNavigationTicket(navigationTicket);
+navigationStore.consumeLogoutNavigationTicket(
+  navigationIdentity,
+) satisfies Promise<OidcVaultLogoutNavigationTicket | null>;
+new OidcVaultLogoutNavigationCapacityError() satisfies Error;
+declare const legacyStore: Omit<
+  OidcVaultStoreProvider,
+  'createLogoutNavigationTicket' | 'consumeLogoutNavigationTicket'
+>;
+legacyStore satisfies OidcVaultStoreProvider;
+const logoutNavigation: OidcVaultLogoutNavigationOptions = {
+  fallbackRedirectUri: 'https://api.example.com/signed-out', ticketTtlMs: 60_000, namespace: 'app',
+};
+declare const navigationOptions: OidcVaultOptions;
+createOidcVaultMiddleware({ ...navigationOptions, logoutNavigation });
+const navigationInput: OidcVaultLogoutNavigationInput = { sessionId: 'body-handle' };
+const navigationResult: OidcVaultLogoutNavigationResult = { loggedOut: true, navigationUrl: 'https://api.example.com/vault/logout/navigation' };
+OIDC_VAULT_ROUTE_PATHS['logout-navigation'] satisfies string;
+void [navigationInput, navigationResult];
 
 const config: OidcVaultConfig = {
   issuer: 'https://issuer.example.com',
@@ -108,6 +159,8 @@ const options: OidcVaultOptions = {
   frontendRedirectUri: 'https://app.example.com/callback',
   storeProvider,
   sessionTtlMs: 8 * 60 * 60 * 1000,
+  onDpopDiagnostic: observeProof,
+  onTokenOutcome: observeOutcome,
   hooks: {
     onBeforeSessionCreate({ session }) {
       if (session?.expiresAt !== undefined) {
@@ -122,7 +175,8 @@ const options: OidcVaultOptions = {
     },
   },
   tokenIssuer: {
-    async issue({ session }) {
+    async issue({ session, operation }) {
+      operation satisfies OidcVaultTokenOperation;
       session.provider?.issuer satisfies string | undefined;
       session.provider?.clientId satisfies string | undefined;
       // Type fixture only; a real issuer signs/creates its application token.
@@ -147,6 +201,7 @@ const validator: OidcVaultAccessTokenValidator = {
 
 const middlewareOptions: OidcVaultAccessTokenMiddlewareOptions = {
   validator,
+  onDpopDiagnostic: observeProof,
   onAuthContext({ req, auth }) {
     req.auth satisfies OidcVaultAuthContext | undefined;
     auth satisfies OidcVaultAuthContext;
@@ -167,6 +222,90 @@ const route: RequestHandler = (req, res) => {
 
 const app = express();
 app.get('/me', accessTokenMiddleware, route);
+
+function observeProof(event: OidcVaultDpopDiagnosticEvent): void {
+  event.operation satisfies OidcVaultDpopOperation;
+  event.stage satisfies OidcVaultDpopDiagnosticStage;
+  event.outcome satisfies OidcVaultDpopDiagnosticOutcome;
+  event.reason satisfies OidcVaultDpopDiagnosticReason;
+  event.verification satisfies Readonly<OidcVaultDpopVerificationProvenance>;
+  event.timing satisfies Readonly<OidcVaultDpopDiagnosticTiming> | undefined;
+  event.correlation satisfies Readonly<OidcVaultDiagnosticCorrelation> | undefined;
+  // @ts-expect-error Observations cannot rewrite verification authority.
+  event.verification.signature = 'verified';
+  // @ts-expect-error Observations expose no credential-bearing session.
+  void event.session;
+  // @ts-expect-error No URL/query/request diagnostic channel.
+  void event.req;
+}
+function observeOutcome(event: OidcVaultTokenOutcomeEvent): void {
+  if (event.kind === 'token-issued') {
+    event.expiresIn satisfies number;
+    event.operation satisfies OidcVaultTokenOperation;
+  } else {
+    event.operation satisfies 'exchange';
+    event.tokenIssued satisfies boolean;
+  }
+  // @ts-expect-error Tokens never enter outcome events.
+  void event.accessToken;
+}
+observeProof satisfies OidcVaultDpopDiagnosticObserver;
+observeOutcome satisfies OidcVaultTokenOutcomeObserver;
+// @ts-expect-error An issuer input cannot omit its operation discriminator.
+const missingOperation: IssueTokenInput = { session, req: {} as express.Request, res: {} as express.Response };
+void missingOperation;
+
+// OVAPP-03: strict CommonJS uses the same public application-mapping surface.
+const jwtIssuerOptions: OidcVaultJwtAccessTokenIssuerOptions = {
+  key: new Uint8Array(32), algorithm: 'HS256', issuer: 'https://api.example.com', audience: ['app-api'],
+  lifetimeSeconds: 0, now: Date.now,
+  async mapSubject({ session, operation }) {
+    operation satisfies OidcVaultTokenOperation;
+    return `app:${session.subject}`;
+  },
+  async mapClaims({ session, operation, deviceBinding }) {
+    deviceBinding satisfies Readonly<OidcVaultVerifiedDpopBinding> | undefined;
+    return { email: session.user?.email, operation, scope: 'api:read' } satisfies OidcVaultJwtAccessTokenClaims;
+  },
+};
+jwtIssuerOptions.algorithm satisfies OidcVaultJwtSigningAlgorithm;
+const jwtIssuer: OidcVaultTokenIssuer = createOidcVaultJwtAccessTokenIssuer(jwtIssuerOptions);
+const localIssueResult: Promise<OidcVaultTokenIssueResult> = jwtIssuer.issue({ session, operation: 'refresh', req: {} as express.Request, res: {} as express.Response });
+// @ts-expect-error Security-owned confirmation cannot be returned from application mapping.
+const reservedClaims: OidcVaultJwtAccessTokenClaims = { cnf: { jkt: 'A'.repeat(43) } };
+// @ts-expect-error No implicit issuer/audience/algorithm configuration.
+createOidcVaultJwtAccessTokenIssuer({ key: new Uint8Array(32) });
+// @ts-expect-error Unsigned JWTs are not a supported signing algorithm.
+const unsignedAlgorithm: OidcVaultJwtSigningAlgorithm = 'none';
+// @ts-expect-error Lifetimes use numeric seconds, not JOSE duration strings.
+const durationIssuer: OidcVaultJwtAccessTokenIssuerOptions = { ...jwtIssuerOptions, lifetimeSeconds: '5m' };
+void [localIssueResult, reservedClaims, unsignedAlgorithm, durationIssuer];
+
+// OVAPP-01: installed strict CommonJS NodeNext surface.
+const authenticator: OidcVaultAuthenticator = createOidcVaultAuthenticator({
+  validator: { async validate(token) {
+    if (token === 'rejected') throw new OidcVaultInvalidAccessTokenError('Private rejection diagnostic.');
+    return { subject: token };
+  } },
+  authentication: 'optional', invalidCredentials: 'anonymous',
+  onAuthContext({ auth }) {
+    if (auth.subject === 'denied') throw new OidcVaultAuthDeniedError('Access denied.');
+  },
+});
+authenticator.authenticate satisfies RequestHandler;
+authenticator.requireAuth satisfies RequestHandler;
+authenticator.requireDeviceBinding satisfies RequestHandler;
+app.use('/optional', authenticator.authenticate);
+app.get('/optional/private', authenticator.requireAuth, route);
+app.get('/optional/bound', authenticator.requireDeviceBinding, route);
+new OidcVaultAuthDeniedError('Sign in again.', 401) satisfies Error;
+// @ts-expect-error Intentional auth denial permits only 401 or 403.
+new OidcVaultAuthDeniedError('Wrong status.', 500);
+// @ts-expect-error Missing-only optional authentication uses an exact enum.
+const invalidAuthentication: OidcVaultAccessTokenMiddlewareOptions = { validator, authentication: true };
+// @ts-expect-error Fallback cannot be inferred from status-code predicates.
+const invalidFallback: OidcVaultAccessTokenMiddlewareOptions = { validator, invalidCredentials: () => true };
+void [invalidAuthentication, invalidFallback];
 
 const exchange = { accessToken: 'token', expiresIn: 60 } satisfies OidcVaultExchangeResult;
 void exchange;
