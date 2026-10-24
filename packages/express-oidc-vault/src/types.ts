@@ -1,6 +1,6 @@
 import type { KeyObject } from 'node:crypto';
 
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import type {} from 'express-serve-static-core';
 import type { JWK } from 'jose';
 
@@ -12,6 +12,8 @@ export type {
   OidcVaultLoginInitiationInput,
   OidcVaultLoginInitiationResult,
   OidcVaultLogoutResult,
+  OidcVaultLogoutNavigationInput,
+  OidcVaultLogoutNavigationResult,
   OidcVaultSessionTransport,
   OidcVaultTokenIssueResult,
   OidcVaultUserProfile,
@@ -24,6 +26,122 @@ export type OidcVaultDeviceBindingMode = 'optional' | 'required';
 
 /** DPoP proof algorithms, independent of the app-local access token's signing algorithm. */
 export type OidcVaultDpopAlgorithm = 'ES256' | 'PS256' | 'RS256';
+
+export type OidcVaultDpopOperation = 'login' | 'exchange' | 'refresh' | 'logout' | 'api';
+export type OidcVaultDpopDiagnosticStage =
+  | 'presentation'
+  | 'preflight'
+  | 'header'
+  | 'key'
+  | 'signature'
+  | 'claims'
+  | 'target'
+  | 'token-hash'
+  | 'binding'
+  | 'freshness'
+  | 'nonce'
+  | 'replay'
+  | 'proof';
+export type OidcVaultDpopDiagnosticOutcome = 'accepted' | 'rejected' | 'challenged' | 'ignored';
+export type OidcVaultDpopDiagnosticReason =
+  | 'check-passed'
+  | 'policy-disabled'
+  | 'proof-absent'
+  | 'proof-required'
+  | 'binding-required'
+  | 'preflight-failed'
+  | 'session-unavailable'
+  | 'target-absent'
+  | 'session-mismatch'
+  | 'origin-rejected'
+  | 'browser-binding-rejected'
+  | 'recognition-rejected'
+  | 'credential-rejected'
+  | 'malformed-proof'
+  | 'unsupported-header'
+  | 'invalid-key'
+  | 'invalid-signature'
+  | 'invalid-claims'
+  | 'target-mismatch'
+  | 'token-hash-mismatch'
+  | 'key-mismatch'
+  | 'invalid-time'
+  | 'proof-too-old'
+  | 'proof-in-future'
+  | 'clock-unavailable'
+  | 'invalid-nonce'
+  | 'nonce-required'
+  | 'nonce-invalid'
+  | 'nonce-disabled'
+  | 'nonce-unavailable'
+  | 'replay-detected'
+  | 'replay-unavailable'
+  | 'proof-accepted';
+
+/** Opaque correlation only, not authority. SHA-256 of purpose + NUL + identifier; oversized inputs are omitted. */
+export interface OidcVaultDiagnosticCorrelation {
+  readonly association: 'candidate-session' | 'verified-token' | 'authenticated';
+  readonly subjectRef?: string;
+  readonly sessionRef?: string;
+}
+
+/** Each check reports its own provenance, including policy overrides; signature verification alone is not identity authentication. */
+export interface OidcVaultDpopVerificationProvenance {
+  readonly signature: 'unchecked' | 'verified' | 'failed';
+  readonly target: 'unchecked' | 'matched' | 'failed' | 'ignored';
+  readonly tokenHash: 'unchecked' | 'not-applicable' | 'matched' | 'failed';
+  readonly credentialBinding: 'unchecked' | 'not-applicable' | 'matched' | 'failed';
+  readonly freshness: 'unchecked' | 'passed' | 'failed' | 'ignored';
+  readonly nonce: 'unchecked' | 'disabled' | 'passed' | 'challenged' | 'failed';
+  readonly replay: 'unchecked' | 'reserved' | 'failed' | 'ignored';
+}
+
+/** A signed timestamp is a claim, not proof of an accurate physical clock. Unsafe millisecond arithmetic is omitted. */
+export interface OidcVaultDpopDiagnosticTiming {
+  readonly provenance: 'signature-verified';
+  readonly iatSeconds: number;
+  readonly clock?: 'configured' | 'system' | 'fallback';
+  readonly checkedAtMs?: number;
+  /** Observed signed-claim age: checkedAtMs - iatSeconds * 1000; negative means a future claim. */
+  readonly observedAgeMs?: number;
+}
+
+/** Fixed-size, server-only allowlist. No errors, request objects, URLs, credentials, keys, proof IDs or raw session identifiers. */
+export interface OidcVaultDpopDiagnosticEvent {
+  readonly operation: OidcVaultDpopOperation;
+  readonly stage: OidcVaultDpopDiagnosticStage;
+  readonly outcome: OidcVaultDpopDiagnosticOutcome;
+  readonly reason: OidcVaultDpopDiagnosticReason;
+  readonly verification: Readonly<OidcVaultDpopVerificationProvenance>;
+  readonly timing?: Readonly<OidcVaultDpopDiagnosticTiming>;
+  readonly correlation?: Readonly<OidcVaultDiagnosticCorrelation>;
+}
+
+/** Best-effort, non-blocking invocation in check order. At most 32 pending promises per dispatcher; excess/reentrant calls drop without queue/retry. Throws/rejections are swallowed, never sent to onError. */
+export type OidcVaultDpopDiagnosticObserver = (event: OidcVaultDpopDiagnosticEvent) => void | Promise<void>;
+
+export type OidcVaultTokenOperation = 'exchange' | 'refresh';
+
+/** Generated once after output/response validation, committed store work and cookie preparation, before HTTP writing. Not a delivery receipt. */
+export type OidcVaultTokenOutcomeEvent =
+  | Readonly<{
+      kind: 'token-issued';
+      operation: OidcVaultTokenOperation;
+      correlation: Readonly<OidcVaultDiagnosticCorrelation>;
+      deviceBound: boolean;
+      expiresIn: number;
+      tokenType?: 'Bearer' | 'DPoP';
+    }>
+  | Readonly<{
+      kind: 'exchange-succeeded';
+      operation: 'exchange';
+      correlation: Readonly<OidcVaultDiagnosticCorrelation>;
+      deviceBound: boolean;
+      tokenIssued: boolean;
+    }>;
+
+/** Same bounded best-effort delivery contract as DPoP observers; token-issued precedes exchange-succeeded. */
+export type OidcVaultTokenOutcomeObserver = (event: OidcVaultTokenOutcomeEvent) => void | Promise<void>;
 
 /**
  * Immutable persisted sender constraint. `jkt` is the canonical RFC 7638
@@ -367,6 +485,56 @@ export class OidcVaultDpopReplayCapacityError extends Error {
   }
 }
 
+/** Dedicated, short-lived logout continuation. No raw ticket or session is persisted. */
+export interface OidcVaultLogoutNavigationTicket {
+  /** `logout-navigation:v1:` followed by a canonical SHA-256 base64url hash of the configured scope. */
+  namespace: string;
+  /** Canonical SHA-256 base64url hash of the entire 256-bit `lnt_` ticket. Never the secret itself. */
+  ticketHash: string;
+  /** Already-built HTTP(S) provider URL, at most 16384 UTF-8 bytes; retained credential material. */
+  upstreamLogoutUrl: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export type CreateLogoutNavigationTicketInput = OidcVaultLogoutNavigationTicket;
+
+export interface ConsumeLogoutNavigationTicketInput {
+  namespace: string;
+  ticketHash: string;
+}
+
+/** Independent physical-store capacity; no live continuation is evicted. */
+export class OidcVaultLogoutNavigationCapacityError extends Error {
+  constructor(message = 'OIDC vault logout navigation ticket store capacity is exhausted.') {
+    super(message);
+    this.name = 'OidcVaultLogoutNavigationCapacityError';
+  }
+}
+
+/** Optional dedicated capability, independent of device binding and replay admission. */
+export interface OidcVaultLogoutNavigationStoreProvider extends OidcVaultStoreProvider {
+  /**
+   * Capture only the five scalar fields before yielding. Create-only: a live
+   * collision throws OidcVaultStoreConflictError before capacity rejection,
+   * without replacing or extending it. Invalid/expired input throws TypeError.
+   * Epochs must be safe Date-range integers, original TTL 1000..120000 ms,
+   * and remaining TTL > 0 and <= 120000 ms. Never retry ambiguous backend errors.
+   */
+  createLogoutNavigationTicket(input: CreateLogoutNavigationTicketInput): Promise<void>;
+  /**
+   * Atomically remove and return one detached, valid exact-pair record with
+   * expiresAt > storeNow. Invalid input/unknown/spent/malformed/expired returns
+   * null; selected malformed/expired records are retired. Backend, clock and
+   * accounting failures throw. No read/unconditional-delete implementation.
+   * Built-ins reclaim at most 64 unrelated expiries plus the selected record,
+   * allocate nothing for unknown identities, and free consumed capacity now.
+   */
+  consumeLogoutNavigationTicket(
+    input: ConsumeLogoutNavigationTicketInput,
+  ): Promise<OidcVaultLogoutNavigationTicket | null>;
+}
+
 /**
  * Portable store boundary for JSON-compatible plain objects/arrays and scalar
  * values (strings, finite numbers, booleans, null). Built-in providers capture
@@ -427,6 +595,12 @@ export interface OidcVaultStoreProvider {
   getSessionRevocationContext?(sessionId: string): Promise<OidcVaultSessionRevocationContext | null>;
   /** Optional opt-in capability; see `OidcVaultDpopReplayStore.reserveDpopProof`. */
   reserveDpopProof?(input: ReserveDpopProofInput): Promise<boolean>;
+  /** Optional dedicated logout capability; see OidcVaultLogoutNavigationStoreProvider. */
+  createLogoutNavigationTicket?(input: CreateLogoutNavigationTicketInput): Promise<void>;
+  /** Optional atomic consume-if-live; not session authentication or revocation. */
+  consumeLogoutNavigationTicket?(
+    input: ConsumeLogoutNavigationTicketInput,
+  ): Promise<OidcVaultLogoutNavigationTicket | null>;
   /**
    * Atomically replace an existing session with a distinct unused `nextSession.sessionId`.
    *
@@ -557,6 +731,8 @@ export interface OidcVaultHooks {
 }
 
 export interface IssueTokenInput {
+  /** Explicit operation, independent of mutable request URLs. */
+  operation: OidcVaultTokenOperation;
   /** Owned session data; reserved fingerprint recognition evidence is omitted to keep hashes out of application tokens. */
   session: OidcVaultSession;
   req: Request;
@@ -586,6 +762,49 @@ export interface OidcVaultTokenIssuer {
    * APIs must independently verify signature, issuer, audience, and expiry.
    */
   issue(input: IssueTokenInput): Promise<OidcVaultTokenIssueResult>;
+}
+
+/** Local JWT signing algorithms, independent of the DPoP proof allowlist. EdDSA uses Ed25519. */
+export type OidcVaultJwtSigningAlgorithm =
+  | 'HS256'
+  | 'HS384'
+  | 'HS512'
+  | 'RS256'
+  | 'RS384'
+  | 'RS512'
+  | 'PS256'
+  | 'PS384'
+  | 'PS512'
+  | 'ES256'
+  | 'ES384'
+  | 'ES512'
+  | 'EdDSA';
+
+/** Application-owned JSON claims only. Reserved fields reject at runtime too, including serializer-produced overrides. */
+export type OidcVaultJwtAccessTokenClaims = Record<string, unknown> & {
+  iss?: never;
+  aud?: never;
+  iat?: never;
+  exp?: never;
+  sub?: never;
+  cnf?: never;
+};
+
+/** Captured at construction. No implicit signing key, vault sid, profile/metadata or upstream-token copying. */
+export interface OidcVaultJwtAccessTokenIssuerOptions {
+  /** Secret bytes, secret/private KeyObject, signing CryptoKey, or secret/private JWK. HMAC requires at least hash-size bits; RSA at least 2048. */
+  key: CryptoKey | KeyObject | JWK | Uint8Array;
+  algorithm: OidcVaultJwtSigningAlgorithm;
+  issuer: string;
+  audience: string | string[];
+  /** Nonnegative safe-integer seconds; default 300. Zero issues an already-expired JWT without failing vault rotation. */
+  lifetimeSeconds?: number;
+  /** Nonnegative safe-integer epoch milliseconds; sampled at construction and after mapping before signing. Default Date.now. Arithmetic must remain safe. */
+  now?: () => number;
+  /** Defaults to the session subject captured before callbacks. Runs before mapClaims; must return a nonblank string. */
+  mapSubject?(input: IssueTokenInput): string | Promise<string>;
+  /** Explicit application allowlist. Default scope is captured session.scope; override it or omit with scope: undefined. No reserved security claims. */
+  mapClaims?(input: IssueTokenInput): OidcVaultJwtAccessTokenClaims | Promise<OidcVaultJwtAccessTokenClaims>;
 }
 
 export interface OidcVaultAccessTokenValidationResult {
@@ -620,7 +839,7 @@ export interface OidcVaultAuthContext extends OidcVaultAccessTokenValidationResu
 }
 
 export interface OidcVaultAccessTokenValidator {
-  /** Binding-disabled middleware invokes exactly validate(token), with one argument. Report any known confirmation. */
+  /** Binding-disabled middleware invokes exactly validate(token), with one argument. Report any known confirmation. Throw OidcVaultInvalidAccessTokenError for explicit credential rejection; other exceptions never authorize anonymous fallback. */
   validate(token: string): Promise<OidcVaultAccessTokenValidationResult>;
   /** Required at middleware construction when deviceBinding is enabled; called for both Bearer and DPoP. */
   validateWithRequest?(
@@ -649,13 +868,20 @@ export interface OidcVaultAccessTokenMiddlewareErrorContext {
 
 export interface OidcVaultAccessTokenMiddlewareOptions {
   validator: OidcVaultAccessTokenValidator;
+  /** Redacted server-only per-check observations; cannot veto authentication. */
+  onDpopDiagnostic?: OidcVaultDpopDiagnosticObserver;
+  /** Default required. Optional permits absent credentials, independently of deviceBinding.mode. Empty/malformed/duplicate headers are invalid, not missing. */
+  authentication?: 'required' | 'optional';
+  /** Default reject. Anonymous requires optional authentication and applies only to known credential rejections, never nonce challenges, replay outages, adapter contract/unknown errors or hook vetoes/failures. */
+  invalidCredentials?: 'reject' | 'anonymous';
   /** Opt-in API DPoP enforcement; requires validateWithRequest. Omission preserves the one-argument legacy path. */
   deviceBinding?: OidcVaultApiDeviceBindingOptions;
   /**
    * Pre-`next()` veto hook, not a post-commit notification: when it throws,
    * downstream middleware never runs and `req.auth` is detached before the
    * error response is sent. A valid credential plus a failing hook
-   * never surfaces as an invalid-token 401: a controlled package error from the
+   * never surfaces as an invalid-token 401: OidcVaultAuthDeniedError provides a
+   * public intentional 401/403 denial; a controlled package error from the
    * hook keeps its own status/code/client message (a 401 uses the attempted
    * scheme's challenge, other statuses carry no challenge), while any other hook
    * error becomes a sanitized `500 OIDC_VAULT_AUTH_CONTEXT_FAILED` without
@@ -667,13 +893,29 @@ export interface OidcVaultAccessTokenMiddlewareOptions {
   onAuthContext?(input: { req: Request; res: Response; auth: OidcVaultAuthContext }): void | Promise<void>;
   /**
    * Observes the original error for every API-middleware failure
-   * (extraction, validator, proof/nonce/replay, and `onAuthContext`) without affecting
+   * (extraction, validator, proof/nonce/replay, guards, and `onAuthContext`),
+   * including rejected credentials explicitly falling back anonymously, without affecting
    * the sanitized client response. Failures thrown by this observer are
    * swallowed so the original error response is preserved. Replay failures
    * retain the provider diagnostic in non-enumerable error.cause. No request
    * auth context is attached before proof acceptance or after a veto.
    */
   onError?(context: OidcVaultAccessTokenMiddlewareErrorContext): void | Promise<void>;
+}
+
+/**
+ * Mount authenticate exactly once before routes, then use this same instance's
+ * guards. Guards consume private completed Request/Response-scoped evidence;
+ * they never verify, reserve a proof or enrich again. req.auth alone (including
+ * a copy from another request/instance) grants no authority. Re-entry fails
+ * closed. Do not replace/mutate top-level req.auth fields between these handlers;
+ * application enrichment belongs in onAuthContext (or application-owned locals).
+ */
+export interface OidcVaultAuthenticator {
+  readonly authenticate: RequestHandler;
+  readonly requireAuth: RequestHandler;
+  /** Requires original bound-token confirmation AND accepted original-key proof; an optional unbound proof does not qualify. */
+  readonly requireDeviceBinding: RequestHandler;
 }
 
 export interface OidcVaultAuthenticatedRequest extends Request {
@@ -792,7 +1034,21 @@ export interface OidcVaultCookieOptions {
   httpOnly?: boolean;
 }
 
+/** Opt-in proof-authorized local logout followed by one-time headerless browser navigation. */
+export interface OidcVaultLogoutNavigationOptions {
+  /** Static backend/frontend-origin HTTPS destination (loopback HTTP allowed), <=2048 UTF-8 bytes; no userinfo/fragment/unsafe characters or continuation loop. */
+  fallbackRedirectUri: string;
+  /** Integer milliseconds, 1000..120000 inclusive; default 60000. Sampled after discovery. */
+  ticketTtlMs?: number;
+  /** Static printable ASCII deployment label, 1..128 bytes; default default. Effective scope also pins provider, mount and return policy. */
+  namespace?: string;
+}
+
 export interface OidcVaultOptions {
+  /** Redacted server-only per-check observations; cannot veto or change enforcement. */
+  onDpopDiagnostic?: OidcVaultDpopDiagnosticObserver;
+  /** Committed local token/exchange outcomes. No credentials or mutable lifecycle context; observers cannot veto. */
+  onTokenOutcome?: OidcVaultTokenOutcomeObserver;
   /** Public router mount; default /auth/oidc. DPoP vault proxies must preserve this externally visible path. */
   basePath?: string;
   /** Pinned public callback/proof origin. DPoP requires a static HTTPS origin, with loopback HTTP allowed for development. */
@@ -822,6 +1078,8 @@ export interface OidcVaultOptions {
    * snapshots/freezes plain options and algorithms and copies nonce bytes.
    */
   deviceBinding?: OidcVaultDeviceBindingOptions;
+  /** Requires configured deviceBinding and both ticket-store methods. Snapshots/freeze return policy, TTL and derived namespace. Originally unbound targets must use ordinary logout. */
+  logoutNavigation?: OidcVaultLogoutNavigationOptions;
   /**
    * Separate opt-in recognition policy; omission means no signal capture/check.
    * Enables JSON POST login and its temporary HttpOnly cookie in both session
@@ -847,7 +1105,9 @@ export interface OidcVaultOptions {
   frontendRedirectUri?: string;
   /**
    * Optional provider-registered HTTP(S) URL used in the upstream end-session
-   * redirect. Only consulted for redirected logout (`redirect: true`); local
+   * redirect. Consulted for redirected logout (`redirect: true`) and opt-in
+   * logout navigation; navigation additionally validates/snapshots its syntax
+   * and 2048-byte bound at construction. Local
    * logout never contacts the provider, and redirected logout treats upstream
    * discovery failures or an absent endpoint as best-effort (local
    * `200 { loggedOut: true }`, with `onLogout` still delivered for a live

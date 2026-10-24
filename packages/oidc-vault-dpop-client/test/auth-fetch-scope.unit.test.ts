@@ -89,6 +89,7 @@ const fixture = (apis: readonly DpopApi[], responses: Response[] = []) => {
       login: async () => {},
       exchange: async () => credential(),
       logout: async () => {},
+      logoutAndNavigate: async () => {},
       dispose() {},
       resetKey: async () => {
         throw new Error('Unexpected automatic key reset.');

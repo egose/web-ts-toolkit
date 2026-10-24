@@ -3,6 +3,7 @@ import { decodeJwt, decodeProtectedHeader } from 'jose';
 
 import { isCompactSignedJwt, readJwtExpirationMs, snapshotJkt } from './access-token-confirmation';
 import { clearSessionCookie, usesCookieTransport } from './cookies';
+import { diagnosticCorrelation, type DpopDiagnostic } from './diagnostics';
 import {
   resolveVerifiedDeviceBinding,
   withSessionDeviceBinding,
@@ -13,6 +14,8 @@ import type {
   OidcVaultOptions,
   OidcVaultSession,
   OidcVaultTokenIssueResult,
+  OidcVaultTokenOperation,
+  OidcVaultTokenOutcomeEvent,
   OidcVaultVerifiedDpopBinding,
 } from './types';
 import { copyVaultSession, copyVaultUserProfile } from './vault-session';
@@ -28,6 +31,36 @@ export const createExchangeResponse = (
   expiresIn: issuedToken.expiresIn,
   tokenType: issuedToken.tokenType,
 });
+
+/** Call only at the route's commit point, after response materialization and cookie preparation. */
+export const notifyTokenOutcomes = (
+  operation: OidcVaultTokenOperation,
+  session: OidcVaultSession,
+  issuedToken: Partial<OidcVaultTokenIssueResult>,
+  notify: (event: OidcVaultTokenOutcomeEvent) => void,
+  diagnostic?: DpopDiagnostic,
+): void => {
+  const deviceBound = session.deviceBinding !== undefined;
+  const correlation = diagnosticCorrelation(
+    deviceBound && !diagnostic?.hasAuthenticatedProof() ? 'candidate-session' : 'authenticated',
+    session.subject,
+    session.logicalSessionId ?? session.sessionId,
+  );
+  const tokenIssued = issuedToken.accessToken !== undefined;
+  if (tokenIssued)
+    notify(
+      Object.freeze({
+        kind: 'token-issued',
+        operation,
+        correlation,
+        deviceBound,
+        expiresIn: issuedToken.expiresIn!,
+        ...(issuedToken.tokenType === undefined ? {} : { tokenType: issuedToken.tokenType }),
+      }),
+    );
+  if (operation === 'exchange')
+    notify(Object.freeze({ kind: 'exchange-succeeded', operation, correlation, deviceBound, tokenIssued }));
+};
 
 const assertIssuedBoundJwt = (accessToken: string, jkt: string): void => {
   // This is the trusted issuer's OUTPUT contract, never authentication by
@@ -70,6 +103,7 @@ export const withIssuedToken = async (
   res: Response,
   options: ResolvedOidcVaultOptions,
   session: OidcVaultSession,
+  operation: OidcVaultTokenOperation,
   verifiedBinding?: Readonly<OidcVaultVerifiedDpopBinding>,
 ): Promise<Partial<OidcVaultTokenIssueResult>> => {
   const binding = resolveVerifiedDeviceBinding(options.deviceBinding, session.deviceBinding, verifiedBinding);
@@ -83,6 +117,7 @@ export const withIssuedToken = async (
   try {
     const issuerSession = withSessionDeviceBinding(copyVaultSession(session, true), binding);
     const result: unknown = await options.tokenIssuer.issue({
+      operation,
       req,
       res,
       session: issuerSession,

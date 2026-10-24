@@ -16,6 +16,7 @@ import {
   OidcVaultStoreConflictError,
   OidcVaultDpopReplayCapacityError,
   createOidcVaultAccessTokenMiddleware,
+  createOidcVaultJwtAccessTokenIssuer,
   createOidcVaultJwtAccessTokenValidator,
   createOidcVaultMiddleware,
   normalizeOidcVaultBasePath,
@@ -33,7 +34,12 @@ const expected = [
   'OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT',
   'OidcVaultStoreConflictError',
   'OidcVaultDpopReplayCapacityError',
+  'OidcVaultLogoutNavigationCapacityError',
+  'OidcVaultAuthDeniedError',
+  'OidcVaultInvalidAccessTokenError',
   'createOidcVaultAccessTokenMiddleware',
+  'createOidcVaultAuthenticator',
+  'createOidcVaultJwtAccessTokenIssuer',
   'createOidcVaultJwtAccessTokenValidator',
   'createOidcVaultMiddleware',
   'normalizeOidcVaultBasePath',
@@ -52,6 +58,7 @@ assert.strictEqual(OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT, 16);
 assert.strictEqual(OIDC_VAULT_ROUTE_PATHS.login, '/login');
 assert.strictEqual(typeof createOidcVaultAccessTokenMiddleware, 'function');
 assert.strictEqual(typeof createOidcVaultJwtAccessTokenValidator, 'function');
+assert.strictEqual(typeof createOidcVaultJwtAccessTokenIssuer, 'function');
 assert.strictEqual(typeof createOidcVaultMiddleware, 'function');
 assert.strictEqual(normalizeOidcVaultBasePath('custom'), '/custom');
 assert.strictEqual(typeof resolveOidcVaultConfig, 'function');

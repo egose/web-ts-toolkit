@@ -14,6 +14,7 @@ createDeviceFingerprint, fingerprintJsSignalSource, OidcVaultDpopClientError.
 Full root type list and member contracts: README API reference + index.d.mts.
 Both declaration conditions are DOM-only (types:[], skipLibCheck:false).
 Wire DTOs come from express-oidc-vault/wire at build time and are bundled here.
+Root DTOs: OidcVaultLogoutNavigationInput, OidcVaultLogoutNavigationResult (DOM-only).
 
 Session: createOidcVaultDpopSession({backendOrigin,basePath,sessionTransport})
 defaults to /auth/oidc + body. login -> exchange(code) -> API/refresh -> logout.
@@ -35,6 +36,19 @@ need this explicit recovery; no automatic reset/Bearer fallback. logout requests
 server revocation; reset leaves old sessions/JWTs until revocation/expiry.
 DPOP_OPERATION_SUPERSEDED / DPOP_SESSION_DISPOSED are non-terminal; stale work
 cannot publish/navigate/clear newer auth. See README's cleanup/recovery tables.
+
+Provider logout: server logoutNavigation opt-in + session.logoutAndNavigate():Promise<void>.
+Existing key/handle or active matching cookie metadata; absent/expired JWT works,
+no refresh/fingerprint/Authorization/ath. Same HTTP bounds/nonce cache, one fresh-proof retry.
+Exact pinned backend bare or canonical ticket URL only; no API token in GET/IdP URL in JSON.
+Confirmed loggedOut:true clears old state even on INVALID_LOGOUT_NAVIGATION_RESPONSE.
+Unconfirmed/lost responses retain uncertainty, no navigation or automatic mutation retry.
+Clicks share one Promise/adapter call; FIFO preserves rotation. Login/exchange/local logout/
+clear/reset/dispose withdraw old navigation intent immediately, including queued login.
+Synchronous navigate adapter handles login AND logout inside authority; do not defer handoff.
+Single-use ticket (default60s, 1..120s) -> provider or fixed fallback; replay falls back.
+Hint URL retained server-side until consume/expiry/cleanup; navigation URLs remain log/history
+exposures. After IdP handoff its availability/return is not guaranteed. logout() stays local.
 
 HTTP: requestTimeoutMs=15000 ms per vault headers/body/JSON attempt;
 maxResponseBytes=1048576 streamed bytes. Bounds exclude queue/storage/key/hooks/

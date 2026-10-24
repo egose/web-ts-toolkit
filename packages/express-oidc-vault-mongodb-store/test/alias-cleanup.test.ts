@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { ClientSession, Db } from 'mongodb';
+import type { ClientSession, CollectionOptions, Db } from 'mongodb';
 
 import { createMongoOidcVaultStore } from '../src/index';
 import { createReplicaSetHarness, MONGO_TIMEOUT, type MongoMemoryHarness } from './mongo-memory';
@@ -13,8 +13,8 @@ const afterLivenessRead = (db: Db, hook: () => Promise<void>, failDelete = false
         const value = Reflect.get(target, property);
         return typeof value === 'function' ? value.bind(target) : value;
       }
-      return (name: string) => {
-        const collection = target.collection(name);
+      return (name: string, options?: CollectionOptions) => {
+        const collection = target.collection(name, options);
         return new Proxy(collection, {
           get(current, method) {
             if (name === 'oidc_vault_sessions' && method === 'find') {

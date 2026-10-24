@@ -2,6 +2,10 @@ import {
   OidcVaultDpopReplayCapacityError,
   type OidcVaultDeviceBindingStoreProvider,
   type OidcVaultStoreProvider,
+  type OidcVaultLogoutNavigationStoreProvider,
+  type CreateLogoutNavigationTicketInput,
+  type ConsumeLogoutNavigationTicketInput,
+  type OidcVaultLogoutNavigationTicket,
 } from '@web-ts-toolkit/express-oidc-vault';
 import {
   type MemoryOidcVaultStoreOptions,
@@ -11,9 +15,15 @@ import {
 const defaultProvider = createMemoryOidcVaultStore();
 defaultProvider satisfies OidcVaultStoreProvider;
 defaultProvider satisfies OidcVaultDeviceBindingStoreProvider;
+defaultProvider satisfies OidcVaultLogoutNavigationStoreProvider;
+declare const ticket: CreateLogoutNavigationTicketInput;
+declare const identity: ConsumeLogoutNavigationTicketInput;
+void defaultProvider.createLogoutNavigationTicket(ticket);
+defaultProvider.consumeLogoutNavigationTicket(identity) satisfies Promise<OidcVaultLogoutNavigationTicket | null>;
 
 const options: MemoryOidcVaultStoreOptions = {
   dpopReplayMaxEntries: 100_000,
+  logoutNavigationMaxEntries: 10_000,
   now: () => 1_700_000_000_000,
 };
 void defaultProvider.getAuthorizationTransaction('state');

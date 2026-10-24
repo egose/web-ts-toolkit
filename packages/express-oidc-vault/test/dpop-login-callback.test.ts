@@ -14,6 +14,7 @@ import {
   type OidcVaultOptions,
   type OidcVaultSessionTransport,
   type OidcVaultTransactionCookieOptions,
+  type OidcVaultDpopDiagnosticEvent,
 } from '../src/index';
 import { __resetProviderClientCachesForTests } from '../src/provider-client';
 import { createDpopReplayKey, resolveDpopEffectiveNamespace } from '../src/dpop-replay';
@@ -262,6 +263,40 @@ const expectNoCallbackWork = (f: Fixture): void => {
   expect(f.calls.revoke).not.toHaveBeenCalled();
   expect(providerRequests).toEqual([]);
 };
+
+describe('OVAPP-02 login diagnostics', () => {
+  it.each(['signature', 'origin', 'disabled'] as const)(
+    'reports %s failure without credentials or authenticated association',
+    async (failure) => {
+      const events: OidcVaultDpopDiagnosticEvent[] = [];
+      const f = fixture('body', {
+        ...(failure === 'disabled' ? { deviceBinding: undefined, fingerprintRecognition: {} } : {}),
+        onDpopDiagnostic: (event) => {
+          events.push(event);
+        },
+      });
+      const response = await request(f.app)
+        .post(`${BASE_PATH}/login?secret=private-query`)
+        .set('Origin', failure === 'origin' ? 'https://foreign.example.com' : FRONTEND_ORIGIN)
+        .set('DPoP', proofFor(failure === 'signature' ? { signingKey: keyB } : {}))
+        .send({});
+      expect(response.status).toBe(failure === 'origin' ? 403 : 401);
+      expect(events.at(-1)).toMatchObject({
+        operation: 'login',
+        stage: failure === 'signature' ? 'signature' : failure === 'origin' ? 'preflight' : 'presentation',
+        outcome: 'rejected',
+        reason:
+          failure === 'signature' ? 'invalid-signature' : failure === 'origin' ? 'origin-rejected' : 'policy-disabled',
+        verification: { signature: failure === 'signature' ? 'failed' : 'unchecked', replay: 'unchecked' },
+      });
+      expect(events.at(-1)?.correlation).toBeUndefined();
+      expect(JSON.stringify(events)).not.toMatch(/private-|https:|jwk|jkt/);
+      expect(f.calls.reserve).not.toHaveBeenCalled();
+      expect(f.calls.createTransaction).not.toHaveBeenCalled();
+      expect(f.onError).toHaveBeenCalledTimes(1);
+    },
+  );
+});
 
 describe.each(TRANSPORTS)('DBJWT-04 initiation and headerless callback (%s)', (transport) => {
   it.each(['optional', 'required'] as const)(

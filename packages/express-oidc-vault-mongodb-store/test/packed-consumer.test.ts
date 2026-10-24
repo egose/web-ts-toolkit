@@ -313,7 +313,7 @@ describe('MDB-09 packed MongoDB store contract', () => {
     }
   });
 
-  it('loads packed CJS/ESM roots and exercises live guarded replay/capacity across independent Mongo clients', async () => {
+  it('loads packed CJS/ESM roots with secondary-preferring callers and primary vault routing across independent clients', async () => {
     const consumerDir = stagePackedConsumer();
 
     writeFileSync(
@@ -325,20 +325,18 @@ if (api.DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS !== 300000) throw new Error('
 if ('MongoOidcVaultStore' in api || 'resolveCollectionNames' in api) throw new Error('ESM internal export leaked');
 import { MongoClient } from 'mongodb';
 import { OidcVaultDpopReplayCapacityError } from '@web-ts-toolkit/express-oidc-vault';
-import { assertDeviceBindingStore } from './store-contract.mjs';
+import { assertPrimaryReadPolicy } from './read-policy.mjs';
 // DBJWT-13: bounded handshake budget for the ephemeral replica set on loaded
 // hosts — 60s server selection across fresh sockets, 30s per-socket connect.
 // Both are finite (never zero/infinite) and fit the 180s test timeout.
 // socketTimeoutMS stays at the driver default: only handshake/selection is
 // extended, operation semantics are unchanged.
-const client = new MongoClient(process.argv[2], { serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
-const peer = new MongoClient(process.argv[2], { serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
-await client.connect(); await peer.connect();
+const client = new MongoClient(process.argv[2], { readPreference: 'secondaryPreferred', monitorCommands: true, serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
+const peer = new MongoClient(process.argv[2], { monitorCommands: true, serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
 try {
-  const options = { dpopReplayMaxEntries: 1, dpopProofsCollectionName: 'packed_proofs', dpopReplayCapacityCollectionName: 'packed_capacity' };
-  await assertDeviceBindingStore(api.createMongoOidcVaultStore({ ...options, db: client.db(process.argv[3]) }),
-    OidcVaultDpopReplayCapacityError, api.createMongoOidcVaultStore({ ...options, db: peer.db(process.argv[3]) }));
-} finally { await peer.close(); await client.close(); }
+  await client.connect(); await peer.connect();
+  await assertPrimaryReadPolicy(api, OidcVaultDpopReplayCapacityError, client, peer, process.argv[3], 'secondaryPreferred', 'secondary', await import('@web-ts-toolkit/express-oidc-vault'));
+} finally { try { await peer.close(); } finally { await client.close(); } }
 `,
     );
     writeFileSync(
@@ -351,16 +349,15 @@ if ('MongoOidcVaultStore' in api || 'resolveCollectionNames' in api) throw new E
 (async () => {
   const { MongoClient } = require('mongodb');
   const { OidcVaultDpopReplayCapacityError } = require('@web-ts-toolkit/express-oidc-vault');
-  const { assertDeviceBindingStore } = await import('./store-contract.mjs');
+   const { assertPrimaryReadPolicy } = await import('./read-policy.mjs');
   // DBJWT-13: same bounded handshake budget as the ESM temp consumer above.
-  const client = new MongoClient(process.argv[2], { serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
-  const peer = new MongoClient(process.argv[2], { serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
-  await client.connect(); await peer.connect();
-  try {
-    const options = { dpopReplayMaxEntries: 1, dpopProofsCollectionName: 'packed_proofs', dpopReplayCapacityCollectionName: 'packed_capacity' };
-    await assertDeviceBindingStore(api.createMongoOidcVaultStore({ ...options, db: client.db(process.argv[3]) }),
-      OidcVaultDpopReplayCapacityError, api.createMongoOidcVaultStore({ ...options, db: peer.db(process.argv[3]) }));
-  } finally { await peer.close(); await client.close(); }
+   const uri = process.argv[2] + (process.argv[2].includes('?') ? '&' : '?') + 'readPreference=secondary';
+   const client = new MongoClient(uri, { monitorCommands: true, serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
+   const peer = new MongoClient(process.argv[2], { monitorCommands: true, serverSelectionTimeoutMS: 60000, connectTimeoutMS: 30000 });
+   try {
+     await client.connect(); await peer.connect();
+      await assertPrimaryReadPolicy(api, OidcVaultDpopReplayCapacityError, client, peer, process.argv[3], 'secondary', 'secondaryPreferred', require('@web-ts-toolkit/express-oidc-vault'));
+   } finally { try { await peer.close(); } finally { await client.close(); } }
 })().catch((error) => { console.error(error); process.exitCode = 1; });
 `,
     );
@@ -369,7 +366,11 @@ if ('MongoOidcVaultStore' in api || 'resolveCollectionNames' in api) throw new E
       path.resolve(workspaceRoot, 'packages/express-oidc-vault/test-packed-consumer/consumer/store-contract.mjs'),
       path.resolve(consumerDir, 'store-contract.mjs'),
     );
-    const harness = await createReplicaSetHarness();
+    cpSync(
+      path.resolve(packageRoot, 'test-packed-consumer/consumer/read-policy.mjs'),
+      path.resolve(consumerDir, 'read-policy.mjs'),
+    );
+    const harness = await createReplicaSetHarness({ replicaSetMembers: 2 });
     try {
       // DBJWT-13: async spawn (never blocking) + at most one retry per
       // consumer, handshake-flake only.
@@ -393,7 +394,7 @@ if ('MongoOidcVaultStore' in api || 'resolveCollectionNames' in api) throw new E
       path.resolve(consumerDir, 'consumer-types.ts'),
       `import { createMongoOidcVaultStore, DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';
 import type { MongoOidcVaultStoreOptions, OidcVaultMongoStoreProvider } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';
-import { OidcVaultDpopReplayCapacityError, type OidcVaultStoreProvider, type OidcVaultDeviceBindingStoreProvider } from '@web-ts-toolkit/express-oidc-vault';
+import { OidcVaultDpopReplayCapacityError, OidcVaultLogoutNavigationCapacityError, type OidcVaultStoreProvider, type OidcVaultDeviceBindingStoreProvider, type OidcVaultLogoutNavigationStoreProvider, type CreateLogoutNavigationTicketInput, type ConsumeLogoutNavigationTicketInput, type OidcVaultLogoutNavigationTicket } from '@web-ts-toolkit/express-oidc-vault';
 import type { Db } from 'mongodb';
 
 declare const db: Db;
@@ -409,12 +410,21 @@ const options: MongoOidcVaultStoreOptions = {
   dpopProofsCollectionName: 'auth_dpop_proofs',
   dpopReplayCapacityCollectionName: 'auth_dpop_capacity',
   dpopReplayMaxEntries: 100000,
+  logoutNavigationMaxEntries: 10000,
+  logoutNavigationTicketsCollectionName: 'auth_logout_tickets',
+  logoutNavigationCapacityCollectionName: 'auth_logout_capacity',
   now: () => Date.now(),
 };
 
 const provider: OidcVaultMongoStoreProvider = createMongoOidcVaultStore(options);
 const baseProvider: OidcVaultStoreProvider = provider;
 const strongerProvider: OidcVaultDeviceBindingStoreProvider = provider;
+provider satisfies OidcVaultLogoutNavigationStoreProvider;
+declare const ticket: CreateLogoutNavigationTicketInput;
+declare const identity: ConsumeLogoutNavigationTicketInput;
+void provider.createLogoutNavigationTicket(ticket);
+provider.consumeLogoutNavigationTicket(identity) satisfies Promise<OidcVaultLogoutNavigationTicket | null>;
+new OidcVaultLogoutNavigationCapacityError() satisfies Error;
 void strongerProvider.getAuthorizationTransaction('state');
 void strongerProvider.getExchangeCode('code');
 void strongerProvider.consumeAuthorizationTransactionIfMatches({ state: 'state', match: { deviceBinding: null, browserBindingHash: null } });
@@ -443,7 +453,7 @@ void [provider.ready(), baseProvider];
             skipLibCheck: false,
             types: ['node'],
           },
-          include: ['consumer-types.ts', 'consumer-types.cts', 'readme-quick-start.ts'],
+          include: ['consumer-types.ts', 'consumer-types.cts', 'readme-quick-start.ts', 'readme-read-policy.ts'],
         },
         null,
         2,
@@ -458,12 +468,25 @@ void [provider.ready(), baseProvider];
     const snippet = readme.slice(readme.indexOf('## Quick Start')).match(/```ts\n([\s\S]*?)\n```/)?.[1];
     if (!snippet) throw new Error('Installed Mongo README quickstart missing.');
     writeFileSync(path.resolve(consumerDir, 'readme-quick-start.ts'), snippet);
+    const policy = readme.split('## Primary Reads And Migration')[1]?.split('\n## ')[0];
+    const website = readFileSync(
+      path.resolve(workspaceRoot, 'website/docs/packages/express-oidc-vault-mongodb-store.md'),
+      'utf8',
+    );
+    expect(website.split('## Primary Reads And Migration')[1]?.split('\n### ')[0]?.trim()).toBe(policy?.trim());
+    const ticketSection = (text: string) =>
+      text.split('## Dedicated Logout Continuation Tickets\n')[1]?.split('\n## ')[0];
+    expect(ticketSection(readme)).toBeTruthy();
+    expect(ticketSection(website)).toBe(ticketSection(readme));
+    const policySnippet = policy?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
+    if (!policySnippet) throw new Error('Installed Mongo README read-policy example missing.');
+    writeFileSync(path.resolve(consumerDir, 'readme-read-policy.ts'), policySnippet);
     writeFileSync(
       path.resolve(consumerDir, 'tsconfig-bundler.json'),
       JSON.stringify({
         extends: './tsconfig-nodenext.json',
         compilerOptions: { module: 'ESNext', moduleResolution: 'Bundler' },
-        include: ['consumer-types.ts', 'readme-quick-start.ts'],
+        include: ['consumer-types.ts', 'readme-quick-start.ts', 'readme-read-policy.ts'],
       }),
     );
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);

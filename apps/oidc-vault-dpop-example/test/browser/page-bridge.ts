@@ -227,6 +227,7 @@ export const createSession = async (
       const held = heldResponses.get(input.name);
       if (response.ok && held && String(args[0]).endsWith(`/${held.route}`)) {
         heldResponses.delete(input.name);
+        heldResponseValues.set(input.name, (await response.clone().json()) as unknown);
         await waitAtGate(held.gate);
       }
       return response;
@@ -243,9 +244,11 @@ export const setSignal = async (input: { name: string; signal?: string }) => {
   signals.set(input.name, input.signal);
 };
 
-export const refresh = async (input: { name: string; count?: number }) => {
+export const refresh = async (input: { name: string; count?: number; rejectedToken?: string }) => {
   const session = sessions.get(input.name)!;
-  const promises = Array.from({ length: input.count ?? 1 }, () => session.refresh());
+  const promises = Array.from({ length: input.count ?? 1 }, () =>
+    session.refresh({ rejectedToken: input.rejectedToken }),
+  );
   const tokens = await Promise.all(promises);
   return {
     samePromise: promises.every((promise) => promise === promises[0]),
@@ -284,7 +287,8 @@ interface Gate {
   release(): void;
 }
 const gates = new Map<string, Gate>();
-const heldResponses = new Map<string, { route: 'login' | 'refresh'; gate: string }>();
+const heldResponses = new Map<string, { route: 'login' | 'refresh' | 'logout/navigation'; gate: string }>();
+const heldResponseValues = new Map<string, unknown>();
 const navigations = new Map<string, number>();
 const operations = new Map<string, Promise<{ ok: boolean; code?: string }>>();
 const createGate = (id: string): void => {
@@ -316,7 +320,7 @@ const trackOperation = (id: string, run: () => unknown): void => {
 export const beginSessionOperation = async (input: {
   name: string;
   id: string;
-  operation: 'login' | 'refresh' | 'logout' | 'clear' | 'resetKey' | 'getKey';
+  operation: 'login' | 'refresh' | 'logout' | 'logoutAndNavigate' | 'clear' | 'resetKey' | 'getKey';
 }) => {
   trackOperation(input.id, () => sessions.get(input.name)![input.operation]());
 };
@@ -326,10 +330,23 @@ export const releaseGate = async (input: { id: string }) => {
   gates.get(input.id)!.release();
 };
 export const navigationCount = async (input: { name: string }) => navigations.get(input.name) ?? 0;
+export const heldResponseValue = async (input: { name: string }) => heldResponseValues.get(input.name);
 
-export const holdSessionResponse = async (input: { name: string; route: 'login' | 'refresh'; gate: string }) => {
+export const holdSessionResponse = async (input: {
+  name: string;
+  route: 'login' | 'refresh' | 'logout/navigation';
+  gate: string;
+}) => {
   createGate(input.gate);
   heldResponses.set(input.name, input);
+};
+
+export const beginNavigationClicks = async (input: { name: string; id: string }) => {
+  const session = sessions.get(input.name)!;
+  const first = session.logoutAndNavigate();
+  const second = session.logoutAndNavigate();
+  trackOperation(input.id, () => first);
+  return { samePromise: first === second };
 };
 
 export const holdKeyLookup = async (input: { gate: string }) => {

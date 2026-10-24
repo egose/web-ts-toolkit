@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -16,9 +17,8 @@ import path from 'node:path';
  * the export map (no `tsconfig.json` `paths` override). Centralizing the
  * pack + install plumbing here keeps the two test files from drifting on
  * the staging contract — mirroring the access-router-client/react
- * `packed-consumer-harness.ts` layout (without the publish-transformation
- * staging, which is CLIENT-09 release territory: this package packs
- * `dist/` as-is).
+ * `packed-consumer-harness.ts` layout. OVAPP-07 also exercises flat release
+ * staging with the existing publish manifest transformer, alongside raw packs.
  *
  * `preparePackedTarball()` is memoized per test process so both test files
  * reuse the same tarball rather than paying the pack cost twice.
@@ -29,7 +29,7 @@ export const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
 
 export const rootPackageJson = JSON.parse(readFileSync(path.resolve(workspaceRoot, 'package.json'), 'utf8')) as {
   devDependencies: Record<string, string>;
-};
+} & Record<string, unknown>;
 
 export const typescriptVersion = rootPackageJson.devDependencies.typescript;
 
@@ -99,6 +99,50 @@ export function seedToolVersions(dir: string): string {
 }
 
 let packedTarballCache: string | undefined;
+let releaseTarballCache: string | undefined;
+
+/** Same release manifest transformer and flat staging used by the core harness. */
+export function prepareReleaseTarball(): string {
+  if (releaseTarballCache) return releaseTarballCache;
+  const publisherRequire = createRequire(require.resolve('@repo-toolkit/release-artifact')) as NodeRequire;
+  const { createPublishPackageJson, DEFAULT_PACKAGE_FILES, DEFAULT_VERSION_PLACEHOLDER } = publisherRequire(
+    '@repo-toolkit/publish-package',
+  ) as {
+    createPublishPackageJson: (
+      source: Record<string, unknown>,
+      options: Record<string, unknown>,
+    ) => Record<string, unknown>;
+    DEFAULT_PACKAGE_FILES: string[];
+    DEFAULT_VERSION_PLACEHOLDER: string;
+  };
+  const stage = trackTempRoot(mkdtempSync(path.join(os.tmpdir(), 'oidc-vault-dpop-client-release-')));
+  seedToolVersions(stage);
+  cpSync(path.resolve(packageRoot, 'dist'), stage, { recursive: true });
+  for (const file of DEFAULT_PACKAGE_FILES) {
+    const source = path.resolve(packageRoot, file);
+    if (existsSync(source)) cpSync(source, path.resolve(stage, path.basename(file)));
+  }
+  cpSync(path.resolve(workspaceRoot, 'LICENSE'), path.resolve(stage, 'LICENSE'));
+  const manifest = createPublishPackageJson(
+    JSON.parse(readFileSync(path.resolve(packageRoot, 'package.json'), 'utf8')),
+    {
+      version: '0.99.0-test',
+      internalPackageNames: new Set(['@web-ts-toolkit/oidc-vault-dpop-client']),
+      rootMetadata: {
+        author: rootPackageJson.author,
+        bugs: rootPackageJson.bugs,
+        engines: rootPackageJson.engines,
+        license: rootPackageJson.license,
+        repository: { ...(rootPackageJson.repository as object), directory: 'packages/oidc-vault-dpop-client' },
+      },
+      rewrite: { versionPlaceholder: DEFAULT_VERSION_PLACEHOLDER, publishDir: 'dist' },
+    },
+  );
+  writeFileSync(path.resolve(stage, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  run('npm', ['pack'], stage);
+  releaseTarballCache = path.resolve(stage, readdirSync(stage).find((entry) => entry.endsWith('.tgz'))!);
+  return releaseTarballCache;
+}
 
 /**
  * Run the real `npm pack` in the package directory (honoring the `files:
@@ -141,8 +185,8 @@ export function unpackTarballToDir(tarballPath: string): string {
  * backend package are installed: browser declarations must stand alone.
  * Returns the consumer directory.
  */
-export function installPackedConsumer(): string {
-  const tarball = preparePackedTarball();
+export function installPackedConsumer(release = false): string {
+  const tarball = release ? prepareReleaseTarball() : preparePackedTarball();
   const consumerDir = trackTempRoot(mkdtempSync(path.join(os.tmpdir(), 'oidc-vault-dpop-client-consumer-')));
   seedToolVersions(consumerDir);
 

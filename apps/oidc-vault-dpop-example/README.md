@@ -20,7 +20,7 @@ pnpm --filter oidc-vault-dpop-example dev
 
 Open **http://127.0.0.1:4317/?transport=body** or **http://127.0.0.1:4317/?transport=cookie**. Click **Sign in**, then **Continue as the fixture user** on the local IdP document. The fixed user is `fixture@example.test`; PKCE, state, nonce, real RSA-signed ID tokens, callback navigation and single-use upstream refresh tokens still run. The local IdP listens on port **4319**, backend **4318**, SPA **4317**. Use `127.0.0.1` consistently: `localhost` is a different origin/key scope.
 
-The JWT lasts **30 seconds**; the vault session has an **8-hour absolute lifetime**. Try API, refresh after JWT expiry, page reload, a second cookie-mode tab, or logout. The browser tests also exercise corrupt-key recovery with the public `resetKey()` API. Optional recognition is unchecked by default.
+The JWT lasts **30 seconds**; the vault session has an **8-hour absolute lifetime**. Try API, refresh after JWT expiry, page reload, a second cookie-mode tab, **Log out locally**, or **Log out and visit provider**. The latter commits a provider logout document with a registered return link, even after local JWT expiry. The browser tests also exercise corrupt-key recovery with the public `resetKey()` API. Optional recognition is unchecked by default.
 
 ```sh
 # Dependencies before this app; builds/typechecks are serialized.
@@ -117,6 +117,12 @@ export async function signOut(): Promise<void> {
   await session.logout();
 }
 
+// Server logoutNavigation is enabled in this example; the client owns proof,
+// nonce retry, confirmed cleanup, URL validation and top-level navigation.
+export async function signOutThroughProvider(): Promise<void> {
+  await session.logoutAndNavigate();
+}
+
 // An application's explicit recovery action when an existing key is unusable.
 export async function recoverBrowserKey(): Promise<void> {
   await session.resetKey();
@@ -126,7 +132,7 @@ export async function recoverBrowserKey(): Promise<void> {
 
 The client root exports the session/fetch factories, key/proof helpers,
 `DpopNonceCache`, recognition helpers, errors and their public types. Session
-methods include `login`, `exchange`, `refresh`, `logout`, `getAccessToken`,
+methods include `login`, `exchange`, `refresh`, `logout`, `logoutAndNavigate`, `getAccessToken`,
 `getKey`, `clear`, `resetKey` and `dispose`. For your own backend mount, use its
 exact public `basePath` (default `/auth/oidc`). The example server uses separate
 `/body` and `/cookie` suffixes and cookie names to exercise both transports.
@@ -146,7 +152,67 @@ An existing corrupt key needs explicit reset-then-login; normal login alone
 cannot repair it. Reset is local, makes no HTTP call, creates no key, leaves other
 scopes intact, and preserves the historical `oidc-vault-dpop-example-v1` DB/schema.
 Old sessions/JWTs need server revocation/expiry, and other contexts sharing the
-removed key need fresh login. Only `logout()` requests server sign-out.
+removed key need fresh login. `logout()` and `logoutAndNavigate()` request server sign-out.
+
+### Provider logout navigation
+
+The server opts into `logoutNavigation` with a fixed per-transport fallback
+`/signed-out?transport=<body|cookie>&fallback=1` and registered provider return
+`/signed-out?transport=<body|cookie>` on the frontend origin. The local IdP advertises
+an end-session endpoint, validates the bounded signed original ID-token hint and
+exact registered return, and commits a logout document before the user returns.
+The server uses public `createOidcVaultJwtAccessTokenIssuer` for local JWTs;
+application claims remain in its small mapper, with no vault `sid` in cookie mode.
+
+`logoutAndNavigate()` uses the existing persistent key and current handle/cookie,
+without refreshing or requiring a memory JWT. Active matching cookie metadata is
+required. POST goes through existing finite HTTP/proof/nonce machinery (one fresh
+nonce retry); the only returned URL is the exact pinned backend continuation,
+bare or with one canonical opaque ticket. No API token in a query or upstream URL
+in JSON. The default synchronous navigation adapter stays under FIFO/cookie-lock
+authority. Double-clicks share one Promise/adapter call; later login/exchange/local
+logout/clear/reset/dispose withdraws the old navigation intent, including queued login.
+
+Confirmed local logout clears old state even when the URL is invalid, then rejects
+with nonterminal `INVALID_LOGOUT_NAVIGATION_RESPONSE`. Lost/unconfirmed responses
+retain transport uncertainty with no automatic mutation retry or navigation.
+Provider discovery/missing endpoint/ticket failures select the static fallback;
+replaying a ticket also falls back. Local revocation precedes all provider work.
+Tickets default to 60 seconds (server range 1–120 seconds), store only a bounded
+final upstream hint URL server-side until consume/expiry/cleanup, and authorize one
+continuation. Navigation URLs remain history/proxy-log/IdP exposures. After handoff
+to an unavailable/rejecting IdP, termination/return cannot be guaranteed. Stateless
+JWTs remain valid until expiry unless the application adds revocation.
+
+Chromium and Firefox tests cover both transports, actual main-frame provider/return
+documents, expired and missing memory JWTs, nonce/coalescing/FIFO, held native
+response/IDB/Web Lock boundaries, discovery/missing-endpoint/consume fallback,
+malicious URLs, response loss and replay. Browser evidence is same-site loopback
+HTTP; external IdPs, arbitrary cross-site cookies and Safari/WebKit need separate checks.
+
+### Composed application integration
+
+[`test/application-integration.test.ts`](test/application-integration.test.ts)
+is a small public-package consumer combining the JWT issuer's subject/claim
+mappers, an application-user approval callback, optional `/api/session`, and
+required authentication/device-binding guards. Both body and cookie cases perform
+exchange, API enrichment and one-time navigation logout over HTTP. Three chained
+compatible guards use one replay reservation and one enrichment. A disabled
+application account is explicitly denied; a wrong-target proof never reaches
+application-user approval. Only the test HTTP driver supplies proofs/cookies; the
+SPA uses `session.logoutAndNavigate()` and the real-browser lane above proves its
+top-level navigation.
+
+The fixture also shows application-owned telemetry correlation: generate a request
+ID with `AsyncLocalStorage`, capture it synchronously beside redacted library
+events, then join it with the allowlisted user ID from successful application
+mapping. Its IdP subject deliberately differs from its local JWT subject. Opaque
+subject/session hashes alone cannot perform that database-user mapping, and early
+or rejected proof observations are not authenticated-user audit records. No proof
+decoding, error-message regex, response interception, provider discovery or cookie
+parsing is part of the application observer. The fixture's in-memory sink is
+test-only; production retention, bounded persistence and account linking belong to
+the host application.
 
 ### Proofs and retry policy
 
@@ -199,14 +265,16 @@ restore old auth or clear a newer login. See the shipped client's
 
 For `<mount> = /auth/oidc/body` or `/auth/oidc/cookie`:
 
-| Request                 | Body / credentials / proof                                                                                          | Success                                                                                        |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `POST <mount>/login`    | JSON `{ returnTo? }`, **include** temporary cookie credentials in both transports, fresh DPoP, optional fingerprint | `200 { authorizationUrl }`; navigate                                                           |
-| `GET <mount>/callback`  | IdP top-level navigation + temporary HttpOnly transaction cookie, **no proof header**                               | Redirect to frontend `?code=`                                                                  |
-| `POST <mount>/exchange` | JSON `{ code }`, **include** credentials in both transports, original key DPoP, optional current fingerprint        | `200 { accessToken, tokenType: 'DPoP', expiresIn, user, sessionId? }`; clears temporary cookie |
-| `POST <mount>/refresh`  | Body `{ sessionId }` + omit credentials, or cookie `{}` + **include**, original key DPoP, current fingerprint       | Same result; rotates handle/cookie                                                             |
-| `POST <mount>/logout`   | Same handle/cookie transport, original key DPoP, **no fingerprint/ath/Authorization**                               | `200 { loggedOut: true }`                                                                      |
-| `GET /api/profile`      | `Authorization: DPoP <JWT>` + fresh original-key proof/**ath**                                                      | `200 { subject, scope, binding }`                                                              |
+| Request                                    | Body / credentials / proof                                                                                          | Success                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `POST <mount>/login`                       | JSON `{ returnTo? }`, **include** temporary cookie credentials in both transports, fresh DPoP, optional fingerprint | `200 { authorizationUrl }`; navigate                                                           |
+| `GET <mount>/callback`                     | IdP top-level navigation + temporary HttpOnly transaction cookie, **no proof header**                               | Redirect to frontend `?code=`                                                                  |
+| `POST <mount>/exchange`                    | JSON `{ code }`, **include** credentials in both transports, original key DPoP, optional current fingerprint        | `200 { accessToken, tokenType: 'DPoP', expiresIn, user, sessionId? }`; clears temporary cookie |
+| `POST <mount>/refresh`                     | Body `{ sessionId }` + omit credentials, or cookie `{}` + **include**, original key DPoP, current fingerprint       | Same result; rotates handle/cookie                                                             |
+| `POST <mount>/logout`                      | Same handle/cookie transport, original key DPoP, **no fingerprint/ath/Authorization**                               | `200 { loggedOut: true }`                                                                      |
+| `POST <mount>/logout/navigation`           | Same original-key transport/proof; strict trusted Origin in both modes                                              | `200 { loggedOut: true, navigationUrl }`; client validates/cleans/navigates                    |
+| `GET <mount>/logout/navigation?ticket=...` | Real top-level navigation, no API token/cookie/proof required                                                       | One-time provider redirect; bare/missing/spent/failed ticket goes to fixed fallback            |
+| `GET /api/profile`                         | `Authorization: DPoP <JWT>` + fresh original-key proof/**ath**                                                      | `200 { subject, scope, binding }`                                                              |
 
 Cookie JSON always omits `sessionId`. The local issuer also omits the vault handle from the browser-readable JWT payload (no vault `sid` claim), preserving the cookie's HttpOnly boundary. The example always configures a local issuer; the core also supports no issuer, but this SPA deliberately requires a DPoP JWT response. Browser proofs are never forwarded to the IdP; upstream tokens remain Bearer/server-held. All vault and protected API credential responses are `Cache-Control: no-store`.
 
@@ -244,6 +312,14 @@ Hashing is not anonymization. Backend enrollment retention follows the transacti
 ```text
 http://127.0.0.1:4318/auth/oidc/body/callback
 http://127.0.0.1:4318/auth/oidc/cookie/callback
+```
+
+For provider logout, also register these exact post-logout returns (change them
+with `FRONTEND_ORIGIN` in your deployment):
+
+```text
+http://127.0.0.1:4317/signed-out?transport=body
+http://127.0.0.1:4317/signed-out?transport=cookie
 ```
 
 Use `BACKEND_ORIGIN`, `FRONTEND_ORIGIN`, `VAULT_BASE_PATH` and matching `VITE_BACKEND_ORIGIN` / `VITE_VAULT_BASE_PATH` for a different deployment. Local nonce/JWT secrets are freshly random per server startup unless configured as canonical base64url of >=32 random bytes (`LOCAL_JWT_SECRET`, `DPOP_NONCE_SECRET`). Restarting this memory-store server requires fresh login. `DPOP_NONCES=off` restores the core's default nonce-off policy. External-IdP availability and cross-site deployment are application checks; automated tests use only their owned local fixture.

@@ -3,6 +3,8 @@ import type {
   OidcVaultLoginInitiationInput,
   OidcVaultLoginInitiationResult,
   OidcVaultLogoutResult,
+  OidcVaultLogoutNavigationInput,
+  OidcVaultLogoutNavigationResult,
   OidcVaultSessionTransport,
   OidcVaultTokenIssueResult,
   OidcVaultUserProfile,
@@ -16,7 +18,26 @@ const user: OidcVaultUserProfile = { sub: 'subject', name: 'Example' };
 const issued: OidcVaultTokenIssueResult = { accessToken: 'type-fixture', tokenType: 'DPoP', expiresIn: 0 };
 const exchanged: OidcVaultExchangeResult = { ...issued, user };
 const loggedOut: OidcVaultLogoutResult = { loggedOut: true };
-void [transport, login, initiated, exchanged, loggedOut];
+const logoutInput: OidcVaultLogoutNavigationInput = { sessionId: 'body-handle' };
+const logoutNavigation: OidcVaultLogoutNavigationResult = {
+  loggedOut: true,
+  navigationUrl: 'https://api.example.com/vault/logout/navigation',
+};
+// @ts-expect-error — request-selected destinations are never navigation authority.
+const invalidLogoutInput: OidcVaultLogoutNavigationInput = { returnTo: 'https://evil.example' };
+// @ts-expect-error — local success must be confirmed before a navigation result.
+const invalidLogoutResult: OidcVaultLogoutNavigationResult = { loggedOut: false, navigationUrl: 'x' };
+void [
+  transport,
+  login,
+  initiated,
+  exchanged,
+  loggedOut,
+  logoutInput,
+  logoutNavigation,
+  invalidLogoutInput,
+  invalidLogoutResult,
+];
 
 // @ts-expect-error — only the defined transports are supported.
 const invalidTransport: OidcVaultSessionTransport = 'header';

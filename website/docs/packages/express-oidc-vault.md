@@ -46,6 +46,8 @@ Use **named imports from the package root** for backend APIs; there is no defaul
 
 - `createOidcVaultMiddleware(...)`
 - `createOidcVaultAccessTokenMiddleware(...)`
+- `createOidcVaultAuthenticator(...)`, `type OidcVaultAuthenticator`
+- `OidcVaultInvalidAccessTokenError`, `OidcVaultAuthDeniedError`
 - `createOidcVaultJwtAccessTokenValidator(...)`
 - route-path and default-value constants such as `DEFAULT_OIDC_VAULT_BASE_PATH`, `OIDC_VAULT_ROUTE_PATHS`, `DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT`, and `OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT`
 - public types for sessions, hooks, token issuing, validators, config, and store-provider interfaces (including `OidcVaultConfig`, `OidcVaultSessionInput`, `OidcVaultStoreConflictError`, `OidcVaultExchangeResult`, and `OidcVaultLogoutResult`; curated subset — see the package exports for the full list)
@@ -144,6 +146,7 @@ The middleware exposes these routes under a configurable base path such as `/aut
 - `POST /auth/oidc/exchange`
 - `POST /auth/oidc/refresh`
 - `POST /auth/oidc/logout`
+- `POST /auth/oidc/logout/navigation` and `GET /auth/oidc/logout/navigation` when `logoutNavigation` is configured (JSON initiation, then one-time navigation)
 - `POST /auth/oidc/backchannel-logout`
 
 The OIDC router parses JSON and `application/x-www-form-urlencoded` request bodies with an explicit default limit of `16kb`. This is enough for the small `exchange`, `refresh`, `logout`, and backchannel logout payloads. Opt-in POST login accepts only `application/json`; other media types return `415 OIDC_VAULT_UNSUPPORTED_REQUEST_BODY_TYPE` before general parsing. If an IdP requires a larger form-encoded `logout_token`, set `requestBodyLimit` to a string or byte count accepted by Express body parsers.
@@ -186,11 +189,11 @@ Use the memory store for local development and tests. For production deployments
 
 `backendOrigin` must be the public backend origin registered with your OIDC provider, such as `https://api.example.com`. Callback `redirect_uri` values are built from this pinned origin and the configured `basePath`, so reverse proxies and untrusted `Host` headers cannot change the provider callback URL. Configure Express `trust proxy` only for other request metadata needs; it is not used to derive the OIDC callback origin.
 
-`postLogoutRedirectUri` is optional. When configured, it must be an absolute HTTP(S) URL registered with the OIDC provider for post-logout redirects. It may be hosted on a different origin from `frontendRedirectUri` when that exact URL is provider-registered. It is only consulted for redirected logout (`redirect: true`).
+`postLogoutRedirectUri` is optional and provider-registered; it may be on another origin. Redirected logout and opt-in logout navigation use it. Navigation additionally applies the stricter syntax and length rules below.
 
 After original live/alias lineage identity and required proof/nonce/replay checks, local logout (`redirect` unset or `false`) never contacts the provider: it revokes the local lineage, clears the cookie under cookie transport, delivers `onLogout` for a live handle, and returns `200 { loggedOut: true }`. Redirected live logout commits that local result before best-effort upstream discovery/redirect; failure or a missing endpoint falls back to local success with private `onError`. Built-in alias-only logout authenticates the surviving lineage's key/provider using `getSessionRevocationContext`, then revokes without live-session hooks or upstream credentials. No currently live target is idempotent success without deletion/proof reservation/hooks; the selected transport's handle/cookie is still required. A proof/identity mismatch leaves the lineage/cookie untouched. Stateless JWTs are not revoked.
 
-Every vault route response carries `Cache-Control: no-store` (login/callback/logout redirects, exchange/refresh/logout/backchannel JSON, and error JSON including body-parser errors) so caches do not retain session/access credentials, one-time exchange codes, or authorization redirects. Only `no-store` is emitted: legacy `Pragma`/`Expires` add no protection once `no-store` is present, and no `Referrer-Policy` is set because redirect targets intentionally expose protocol-required values (provider authorization URL, frontend `?code=`, upstream `id_token_hint`) to the navigation target. This does not clear browser history, disable reverse-proxy request logging, strip `?code=` from frontend URLs/history (the frontend must still clean up the callback URL, e.g. `history.replaceState`), or hide intentional provider redirect exposure. Verify with `curl -i` (expect `Cache-Control: no-store` on `GET /auth/oidc/login`, `POST /auth/oidc/exchange`, `POST /auth/oidc/refresh`, and `POST /auth/oidc/logout`) or assert `response.headers['cache-control'] === 'no-store'` in integration tests under both transports.
+Every vault response carries `Cache-Control: no-store`, including parser errors. Legacy `Pragma`/`Expires` are unnecessary. The opt-in `/logout/navigation` route additionally carries `Referrer-Policy: no-referrer`; other routes retain their existing header policy. These headers do not clear history, disable proxy logging, strip callback `?code=` (use frontend `history.replaceState`), or hide protocol-required URL values from the navigation target. Assert both transports' response headers in integration tests.
 
 ## Public Options And Defaults
 
@@ -201,7 +204,7 @@ Every vault route response carries `Cache-Control: no-store` (login/callback/log
 | `storeProvider`                 | required                                   | Durable vault store provider. Use Redis or MongoDB for production and multi-instance deployments.                                                                                                                                                  |
 | `config`                        | required provider values                   | Supply `issuer` and `clientId`, or use `resolveOidcVaultConfigFromEnv(process.env)`. Endpoint settings select manual mode; see Config Modes.                                                                                                       |
 | `frontendRedirectUri`           | unset                                      | Default browser return target after backend callback completion. Required if login accepts custom `returnTo`. Validated before durable callback state; missing destination fails the callback with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI`. |
-| `postLogoutRedirectUri`         | unset                                      | Optional provider-registered HTTP(S) URL used in the upstream end-session redirect. Only consulted for redirected logout (`redirect: true`); upstream failures fall back to local `200 { loggedOut: true }` with `onError`.                        |
+| `postLogoutRedirectUri`         | unset                                      | Provider-registered return URL for redirected logout and opt-in navigation. Navigation applies stricter syntax/2048-byte checks; upstream failures retain local logout.                                                                            |
 | `fetchUserInfo`                 | enabled when usable                        | Fetches UserInfo if an endpoint exists and the response supplies an access token; false disables it. Claims merge only after matching subject.                                                                                                     |
 | `authorizationTransactionTtlMs` | `600000`                                   | TTL for one-time authorization transactions created during login.                                                                                                                                                                                  |
 | `exchangeCodeTtlMs`             | `30000`                                    | TTL for one-time local exchange codes returned to the frontend callback route.                                                                                                                                                                     |
@@ -209,6 +212,7 @@ Every vault route response carries `Cache-Control: no-store` (login/callback/log
 | `sessionTransport`              | `body`                                     | `body` returns and accepts JSON `sessionId`; `cookie` stores the session pointer in an `HttpOnly` cookie and rejects body-only refresh/logout IDs.                                                                                                 |
 | `cookie`                        | default cookie settings                    | Cookie transport options. `httpOnly` is always enforced as `true`; unsafe names, paths, domains, and `__Secure-`/`__Host-` prefix violations are rejected.                                                                                         |
 | `deviceBinding`                 | disabled                                   | Vault DPoP policy; object defaults to optional. Selects the key at POST login and enforces it through callback/exchange/refresh/logout; API enforcement is separate.                                                                               |
+| `logoutNavigation`              | disabled                                   | Proof-authorized JSON logout and headerless continuation. Required fallback, default `ticketTtlMs: 60000` (1000..120000), default namespace label `default`. Requires DPoP and ticket-store capabilities.                                          |
 | `fingerprintRecognition`        | disabled                                   | Separate opt-in recognition; `headerName` defaults to `X-Device-Fingerprint`. POST-only enrollment, precommit exchange/refresh comparison, fresh login on change; never PoP or an API sender constraint.                                           |
 | `transactionCookie`             | HTTPS `__Host-oidc_vault_transaction`, Lax | Temporary cookie independent of session transport. Only name and SameSite lax/none are configurable; HTTP default name is oidc_vault_transaction.                                                                                                  |
 | `trustedOrigins`                | `[]` plus `backendOrigin` internally       | POST-login/guarded-exchange sources in both transports, plus cookie refresh/logout. Required for cross-site session cookies.                                                                                                                       |
@@ -222,15 +226,15 @@ Construction takes an internal resolved snapshot without mutating caller options
 
 ## DPoP: complete local JWT and API configuration
 
-Install the core, a store, Express, and your application's direct signing/CORS dependencies (`jose`, `cors`; TypeScript also needs `@types/express`, `@types/node`, `@types/cors`). This development-memory example matches the shipped README. Set OIDC issuer/client values and a stable strong random APP_JWT_SECRET encoding at least 32 bytes; register **https://api.example.com/auth/oidc/callback**, serve HTTPS at that public origin and preserve the vault mount path.
+Install the core, a store, Express, and your application's CORS dependency (`cors`; TypeScript also needs `@types/express`, `@types/node`, `@types/cors`). This development-memory example matches the shipped README. Set OIDC issuer/client values and a stable strong random APP_JWT_SECRET encoding at least 32 bytes; register **https://api.example.com/auth/oidc/callback**, serve HTTPS at that public origin and preserve the vault mount path.
 
 ```ts
 import express from 'express';
 import cors from 'cors';
-import { SignJWT } from 'jose';
 import {
   createOidcVaultMiddleware,
   createOidcVaultAccessTokenMiddleware,
+  createOidcVaultJwtAccessTokenIssuer,
   createOidcVaultJwtAccessTokenValidator,
 } from '@web-ts-toolkit/express-oidc-vault';
 import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
@@ -268,20 +272,17 @@ app.use(
     sessionTransport: 'body',
     sessionTtlMs: 8 * 60 * 60 * 1000,
     deviceBinding: { mode: 'required' }, // ES256, age 60s, skew 5s, nonces off.
-    tokenIssuer: {
-      async issue({ session, deviceBinding }) {
-        if (!deviceBinding) throw new Error('A verified DPoP binding is required.');
-        const accessToken = await new SignJWT({ scope: session.scope, cnf: { jkt: deviceBinding.jkt } })
-          .setSubject(session.subject)
-          .setProtectedHeader({ alg: 'HS256' })
-          .setIssuer(backendOrigin)
-          .setAudience(audience)
-          .setIssuedAt()
-          .setExpirationTime('5m')
-          .sign(signingKey);
-        return { accessToken, tokenType: 'DPoP', expiresIn: 300 };
+    tokenIssuer: createOidcVaultJwtAccessTokenIssuer({
+      key: signingKey,
+      algorithm: 'HS256',
+      issuer: backendOrigin,
+      audience,
+      lifetimeSeconds: 300,
+      mapClaims({ session }) {
+        // Application-owned allowlist; account/permission decisions belong here.
+        return { email: typeof session.user?.email === 'string' ? session.user.email : undefined };
       },
-    },
+    }),
   }),
 );
 app.use(
@@ -302,7 +303,7 @@ app.get('/api/profile', (req, res) => {
 app.listen(3000);
 ```
 
-Use verified `IssueTokenInput.deviceBinding.jkt`, not mutable profile/session fields. Local HS256 signing is independent of asymmetric ES256 proof signing. The JWT contains no vault handle/`sid`, preserving the HttpOnly boundary when using cookie mode. Keep authorization application-owned and use a shared Redis/Mongo provider in production. No tokenIssuer is also supported: binding is enforced, but no local token fields are emitted.
+The issuer helper captures verified `IssueTokenInput.deviceBinding.jkt`, never mutable profile/session fields, and automatically selects DPoP/Bearer. Local HS256 signing is independent of asymmetric ES256 proof signing. The JWT contains no vault handle/`sid`, preserving the HttpOnly boundary when using cookie mode. Keep authorization application-owned and use a shared Redis/Mongo provider in production. No tokenIssuer is also supported: binding is enforced, but no local token fields are emitted.
 
 ### Modes, defaults and migration
 
@@ -472,6 +473,8 @@ export async function getBoundProfile(signal?: AbortSignal): Promise<unknown> {
   return response.json();
 }
 export const signOut = (): Promise<void> => session.logout();
+// With server logoutNavigation enabled:
+export const signOutThroughProvider = (): Promise<void> => session.logoutAndNavigate();
 
 export async function recoverBrowserKey(): Promise<void> {
   await session.resetKey(); // Explicit recovery action for an unusable persisted key.
@@ -490,7 +493,7 @@ an intervening mutation. Cookie mode adds Web Locks/BroadcastChannel and a 180 m
 peer wait. `clear` invalidates local auth/owned HTTP but keeps the key; `dispose`
 closes a context while keeping committed reload state; `resetKey` removes only
 the scoped key/metadata. Await clear/reset before teardown if persistence must
-finish. Only `logout` requests server revocation. Reset cannot revoke old
+finish. `logout` and `logoutAndNavigate` request server revocation. Reset cannot revoke old
 sessions/JWTs or remove HttpOnly cookies; other sessions sharing the key need login.
 
 Each attempt signs a fresh proof/JTI, with API-only `ath`. API scopes use the
@@ -912,10 +915,11 @@ Minimum required manual config:
 
 Provide `tokenIssuer` if you want `exchange` and `refresh` to return an app-issued local access token.
 
-This is the default unbound Bearer example. Bound JWTs use the complete DPoP configuration above. A browser-readable JWT must omit the vault handle/sid if cookie transport is intended to keep that credential HttpOnly; the sid example deliberately exposes the body-transport handle.
+This is the default unbound Bearer example. Bound JWTs use the complete DPoP configuration above. The helper omits vault handles from JWTs in both transports; application claims are explicitly allowlisted.
 
 ```ts
-import { SignJWT } from 'jose';
+import { createOidcVaultMiddleware, createOidcVaultJwtAccessTokenIssuer } from '@web-ts-toolkit/express-oidc-vault';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
 
 // Fail startup when no suitably strong signing key is configured. There is no
 // public fallback: `APP_JWT_SECRET` must be a strong random value that encodes
@@ -948,31 +952,59 @@ createOidcVaultMiddleware({
   },
   frontendRedirectUri: 'https://frontend.example.com/callback',
   storeProvider: createMemoryOidcVaultStore(),
-  tokenIssuer: {
-    async issue({ session }) {
-      const accessToken = await new SignJWT({
-        sub: session.subject,
-        sid: session.sessionId,
-        scope: session.scope,
-      })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuer(localTokenIssuer)
-        .setAudience(localTokenAudience)
-        .setIssuedAt()
-        .setExpirationTime('15m')
-        .sign(jwtSecret);
-
-      return {
-        accessToken,
-        expiresIn: 900,
-        tokenType: 'Bearer',
-      };
+  tokenIssuer: createOidcVaultJwtAccessTokenIssuer({
+    key: jwtSecret,
+    algorithm: 'HS256',
+    issuer: localTokenIssuer,
+    audience: localTokenAudience,
+    lifetimeSeconds: 900,
+    mapClaims({ session }) {
+      return { email: typeof session.user?.email === 'string' ? session.user.email : undefined };
     },
-  },
+  }),
 });
 ```
 
 That local access token is separate from the upstream IdP token. The upstream refresh token stays only in the server-side vault.
+
+### JWT issuer helper
+
+`createOidcVaultJwtAccessTokenIssuer(options): OidcVaultTokenIssuer` is the signing counterpart of `createOidcVaultJwtAccessTokenValidator`. Configure the signing key/algorithm, exact nonblank issuer and nonempty audience (string or string array). The defaults are `lifetimeSeconds: 300`, `now: Date.now`, `sub: session.subject` and `scope: session.scope`. No key or algorithm is inferred. The protected header is `{ alg: algorithm, typ: 'JWT' }`.
+
+```ts
+import {
+  createOidcVaultJwtAccessTokenIssuer,
+  type OidcVaultJwtAccessTokenIssuerOptions,
+  type OidcVaultTokenIssuer,
+} from '@web-ts-toolkit/express-oidc-vault';
+
+declare const signingKey: Uint8Array; // Your configured random secret, never a public fallback.
+declare function loadPermissions(subject: string): Promise<string[]>;
+
+const options: OidcVaultJwtAccessTokenIssuerOptions = {
+  key: signingKey,
+  algorithm: 'HS256',
+  issuer: 'https://api.example.com',
+  audience: ['app-api-v1'],
+  lifetimeSeconds: 300,
+  // Optional application subject namespace; runs before mapClaims.
+  mapSubject: ({ session }) => `app:${session.subject}`,
+  async mapClaims({ session, operation }) {
+    const permissions = await loadPermissions(session.subject);
+    return { permissions, scope: 'api:read', issuanceOperation: operation };
+  },
+};
+const tokenIssuer: OidcVaultTokenIssuer = createOidcVaultJwtAccessTokenIssuer(options);
+void tokenIssuer; // Pass as createOidcVaultMiddleware({ ..., tokenIssuer }).
+```
+
+Supported `OidcVaultJwtSigningAlgorithm` values: **HS256/384/512**, **RS256/384/512**, **PS256/384/512**, **ES256/384/512**, and **EdDSA (Ed25519)**. Accepts JOSE secret `Uint8Array`, secret/private Node `KeyObject`, signing `CryptoKey`, or secret/private `JWK`. Construction rejects incompatible type/curve/hash/usage, HMAC keys shorter than the hash size (32/48/64 bytes), RSA below 2048 bits, public-only keys, and contradictory JWK `alg`/`use`/`key_ops`. Use a generic RSA private key for RS/PS; restricted `rsa-pss` KeyObjects are unsupported. Import PEM material yourself with JOSE/Node; key rotation and JWKS serving remain application-owned.
+
+The factory captures options/callback/clock references and copies audience arrays and mutable secret/JWK material; immutable native keys remain referenced. Later caller mutations do not reconfigure it. Lifetime must be nonnegative safe-integer seconds. Clock values must be nonnegative safe-integer epoch milliseconds, and lifetime conversion, response-deadline addition and JWT expiry milliseconds must remain safe. Validation runs at construction and again after mapping immediately before signing. JWT `iat = floor(now() / 1000)`, `exp = iat + lifetimeSeconds`, and returned `expiresIn = lifetimeSeconds`: subsecond rounding can shorten effective validity by less than a second. Zero lifetime signs an already-expired token with `exp === iat`, returns `expiresIn: 0`, and still permits delivery of a rotated vault handle/cookie; APIs reject its expiry and the browser retains no reusable credential.
+
+Both optional mappers may be async and receive `IssueTokenInput` with `operation: 'exchange' | 'refresh'`. `mapSubject` must return a nonblank subject. `mapClaims` returns `OidcVaultJwtAccessTokenClaims`, an explicit application allowlist. It can override default scope, or omit it with `scope: undefined`; it must not supply **`iss`, `aud`, `iat`, `exp`, `sub`, or `cnf`**, even with undefined. Attempts reject with TypeError, including fields produced by JSON serializers. Claims are JSON-materialized before security-owned fields are attached. Non-object results and serialization failures reject. Subject/scope defaults and binding are captured before callbacks; only the authoritative input `deviceBinding` selects exact `cnf: { jkt }`/`DPoP`, and its absence selects no cnf/`Bearer`. Mutable session/profile/metadata binding never enrolls or rebinds a token.
+
+No vault `sid`, session metadata, entire profile, or upstream tokens are copied automatically. Deliberate application claims remain trusted; keep business-user lookup, account/archived checks, roles/permissions and provisioning in callbacks. Mapper/serialization/clock/signing failures reach existing exchange/refresh rollback and private `hooks.onError`; committed outcomes still come from `onTokenOutcome`. Custom JWT/opaque unbound issuers and their existing output checks remain supported.
 
 ### Local issuer result contract
 
@@ -1001,8 +1033,119 @@ Malformed results return HTTP 500 with `{"code":"OIDC_VAULT_INTERNAL_ERROR","mes
 
 Core decodes trusted issuer output only to check the bound-token contract; APIs independently verify JWT signature/issuer/audience/expiry. Local signing algorithms and proof algorithms are independent. Issuers receive owned session/plain containers with reserved recognition evidence omitted; original key/lineage rollback authority survives mutable hooks/issuer calls. This contains accidental extensions, while issuers/hooks remain trusted code with request/response access. Deliberate secrets in allowed fields are not redacted.
 
+## Proof-Authorized Logout Navigation
+
+Enable `logoutNavigation` to revoke locally using the original browser key, then navigate the document through an opaque backend ticket. An HTTP fetch following a provider 302 does not navigate the page, and browser manual redirects do not expose a usable Location. The provider's `id_token_hint` URL is never returned in JSON.
+
+### Logout navigation server
+
+```ts
+import express from 'express';
+import { createOidcVaultMiddleware, type OidcVaultLogoutNavigationOptions } from '@web-ts-toolkit/express-oidc-vault';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+
+const logoutNavigation: OidcVaultLogoutNavigationOptions = {
+  fallbackRedirectUri: 'https://app.example.com/signed-out',
+  ticketTtlMs: 60_000,
+  namespace: 'app-v1',
+};
+const app = express();
+app.use(
+  createOidcVaultMiddleware({
+    backendOrigin: 'https://api.example.com',
+    frontendRedirectUri: 'https://app.example.com/callback',
+    trustedOrigins: ['https://app.example.com'],
+    config: { issuer: 'https://provider.example.com', clientId: 'app' },
+    deviceBinding: {},
+    storeProvider: createMemoryOidcVaultStore(), // Shared Redis/MongoDB for multiple processes.
+    postLogoutRedirectUri: 'https://app.example.com/provider-return',
+    logoutNavigation,
+  }),
+);
+```
+
+Construction requires a plain options object, configured `deviceBinding`, its six store capabilities and both `createLogoutNavigationTicket`/`consumeLogoutNavigationTicket`. Missing capabilities fail synchronously with a feature/method-specific error. Options, normalized return destinations, TTL and derived namespace are detached/frozen; service references stay live. Feature-disabled custom stores need neither new method and register neither route.
+
+`fallbackRedirectUri` is required, static, at most **2048 serialized UTF-8 bytes**, HTTPS (loopback HTTP development allowed), without userinfo, fragment, raw whitespace/backslashes/controls. It must stay on the pinned backend or configured frontend origin and cannot be the backend continuation path, even with a query. Static query parameters are allowed. `trustedOrigins` grants source authority only. When navigation is enabled, `postLogoutRedirectUri` receives the same syntax/length checks, with no fallback-origin restriction; register it with the provider. Both are operator configuration, never request destinations.
+
+### Browser navigation logout
+
+Use the companion client's public method after enabling the server above. It
+owns bounded HTTP, original-key proof, nonce retry, cleanup and navigation:
+
+```ts
+import { createOidcVaultDpopSession } from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+const session = createOidcVaultDpopSession({
+  backendOrigin: 'https://api.example.com',
+  basePath: '/auth/oidc',
+  sessionTransport: 'body',
+});
+export const signOutThroughProvider = (): Promise<void> => session.logoutAndNavigate();
+```
+
+An expired/absent local JWT needs no preliminary refresh: retain the original
+persistent key and body handle or active matching cookie metadata. The client
+accepts only the exact pinned backend bare/canonical-ticket URL. Confirmed logout
+clears old state even on an invalid URL (`INVALID_LOGOUT_NAVIGATION_RESPONSE`);
+unconfirmed/transport failures never automatically retry or navigate. Concurrent
+clicks share one Promise through cleanup and one synchronous `navigate` adapter
+call under lifecycle authority. Later login/exchange/local logout/clear/resetKey/
+dispose withdraws old navigation intent immediately, even with login queued.
+Earlier refresh rotation is published first; later refresh cannot restore auth.
+The client root re-exports both pure navigation DTOs without Node/Express types.
+Keep `logout()` for local-only behavior, add the new method to typed mocks, and
+make custom navigation adapters hand off synchronously. See the client's
+[navigation contract](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md#provider-logout-navigation)
+and real Chromium/Firefox reference example for both transports.
+
+### Navigation wire protocol
+
+Root and `/wire` export pure `OidcVaultLogoutNavigationInput { sessionId? }` and `OidcVaultLogoutNavigationResult { loggedOut: true, navigationUrl }`. This single-attempt example shows the HTTP boundary; a browser integration must also serialize lifecycle operations, retry a recognized nonce challenge once with a fresh proof/JTI, clean up confirmed local state and suppress stale navigation intents.
+
+```ts
+import type {
+  OidcVaultLogoutNavigationInput,
+  OidcVaultLogoutNavigationResult,
+  OidcVaultSessionTransport,
+} from '@web-ts-toolkit/express-oidc-vault/wire';
+
+async function initiateLogoutNavigation(
+  input: OidcVaultLogoutNavigationInput,
+  freshOriginalKeyProof: string,
+  transport: OidcVaultSessionTransport,
+): Promise<OidcVaultLogoutNavigationResult> {
+  const response = await fetch('https://api.example.com/auth/oidc/logout/navigation', {
+    method: 'POST',
+    credentials: transport === 'cookie' ? 'include' : 'omit',
+    redirect: 'error',
+    headers: { 'Content-Type': 'application/json', DPoP: freshOriginalKeyProof },
+    body: JSON.stringify(transport === 'cookie' ? {} : input),
+  });
+  if (!response.ok) throw new Error('Logout initiation failed.');
+  return response.json() as Promise<OidcVaultLogoutNavigationResult>;
+}
+```
+
+POST accepts only a JSON object with optional string `sessionId`: body transport needs its nonempty handle; cookie transport selects only the configured cookie and ignores the body handle. Arrays/other fields are `400 OIDC_VAULT_INVALID_REQUEST_BODY`; unsupported media is `415 OIDC_VAULT_UNSUPPORTED_REQUEST_BODY_TYPE`. Query destinations are ignored. Strict raw Origin/Referer checks apply in **both transports** before store/proof work: absent/null/foreign/ambiguous sources reject; Referer is used only without Origin. Live/alias targets must have an original stored DPoP binding even under optional mode. An optional-unbound target gets `401 OIDC_VAULT_DEVICE_BINDING_REQUIRED` and can still use ordinary `/logout`. No local access JWT, Authorization, preliminary refresh, fingerprint or `ath` is needed. Proof/nonce/shared replay policies, explicit overrides and `logout` diagnostics are preserved.
+
+Successful POST returns exactly `200 { loggedOut: true, navigationUrl }`. With an acknowledged ticket it is `https://api.example.com/auth/oidc/logout/navigation?ticket=lnt_<43 canonical base64url characters>`; otherwise it is that **bare absolute backend path**, whose GET selects fallback. Validate the exact pinned origin/path and either no query or one literal canonical ticket before top-level navigation; reject relative URLs, userinfo, fragments, alternate encodings, duplicate/extra parameters or other origins/paths. On confirmed `loggedOut: true`, clear local credentials even if its navigation URL is invalid, then reject without navigating. A transport/malformed-response failure leaves the server commit uncertain; do not automatically repeat the mutation or navigate. Repeated clicks should coalesce through cleanup/navigation, not cache a completed URL.
+
+The order is original identity/key/proof -> context recheck -> live `onBeforeLogout` -> **await lineage deletion** -> configured cookie clear -> existing provider discovery/build -> ticket persistence -> live `onLogout` -> JSON. Ticket time is sampled after discovery: default **60000 ms**, integer **1000..120000 ms** inclusive, with Date-range epoch arithmetic checked at construction and issuance. Definite create conflicts get at most three independent random attempts sharing one deadline; other storage failures are not retried. Only the final provider URL, bounded to **16384 serialized UTF-8 bytes** and HTTP(S) without userinfo/fragment/raw unsafe characters, survives in the five-field server ticket. The ticket is 32 random bytes with `lnt_` prefix; storage sees only SHA-256 of the entire secret and an exact origin/mount/issuer/client/label/return-policy scope. See dedicated storage below for capacity, cleanup and provider retention.
+
+Aliases authorize revocation only: no successor credential lookup, discovery, ticket or logout hooks. Missing/expired targets are idempotent bare-path success with no reservation/deletion/hooks. Missing original hint/endpoint also yields the bare path. Provider/build/ticket errors after deletion retain confirmed local logout, report privately through `onError` and still notify the live post-hook once. A deletion rejection, including partial deletion/alias-cleanup failure, is **uncertain**: sanitized error, no success DTO/navigation URL, cookie-clear signal or post-hook. Cookie preparation failure after deletion retains revocation, emits the live post-hook, errors and mints no ticket. Hooks retain route `logout` and owned original snapshots; no new credential metadata or token-outcome event is emitted. Hook notification is per admitted live request, not globally exactly-once; concurrent live initiations can each issue a grant. Crashes or response loss can lose notifications or leave an undelivered grant until expiry; credentials are never recreated.
+
+GET needs no cookie, handle, API token or proof. It accepts only one canonical raw `ticket` parameter, hashes it in its pinned namespace, atomically consumes it **before** writing an empty-body 302 Location and validates returned identity/window/URL. It does no discovery/session work/hooks/diagnostics and cannot clear a newer login cookie. Missing/malformed/duplicate/extra/unknown/expired/spent/foreign tickets select the fixed fallback; malformed queries never call storage. Consume errors/invalid adapter records report privately and also select fallback, without restore or ambiguous retry. Cross-instance simultaneous GETs have one upstream winner. Response loss after consume burns the grant. Explicit HEAD is **405, Allow: GET, POST**, before GET/body parsing, and never consumes; other methods cannot spend tickets, and CORS OPTIONS remains caller-owned.
+
+All new-route success/error/redirect responses carry **Cache-Control: no-store** and **Referrer-Policy: no-referrer**. JSON contains no upstream URL/token, session handle, subject or provider fields. The short-lived ticket is a bearer continuation, independent of cleared cookies/IP/user agent; possession can spend only that continuation. URLs/history/proxy logging and the IdP-visible hint remain navigation exposures, and lookup hashing does not encrypt the stored destination. After upstream handoff, IdP availability/termination/return is not guaranteed. Local logout does not revoke stateless JWTs; existing local/302 POST logout, signed backchannel logout and override contracts remain supported.
+
 ## Migration And Behavior Changes
 
+- Logout navigation is additive and opt-in. Use JSON POST plus top-level navigation through the backend continuation when integrating proof-authorized upstream logout. Replace duplicated discovery/cookie/alias logic with this protocol. Keep ordinary `/logout` for local-only/legacy unbound sessions. Built-in stores support tickets; custom stores need both optional methods only when enabling `logoutNavigation`. Enabled flows tighten configured return-URI validation as described above. There is no store schema migration for disabled custom stores.
+
+- The local JWT issuer helper is additive. Replace manual signing/`cnf.jkt`/tokenType/expiry construction with `createOidcVaultJwtAccessTokenIssuer`, preserving business claims in its mapper. Set an explicit strong key, algorithm, issuer and audience; use `mapSubject` for subject remapping and remove reserved fields from `mapClaims`. It omits vault sid by default, including in cookie transport. Existing custom issuers retain output validation and rollback behavior.
+- Structured telemetry is additive: opt into `onDpopDiagnostic` and `onTokenOutcome` on vault options, and `onDpopDiagnostic` on API options. `IssueTokenInput` now includes required `operation: 'exchange' | 'refresh'`; update hand-built typed issuer inputs. Existing issuer callbacks may ignore the new field. Move successful-exchange/issuance logging out of signing callbacks into committed outcomes; signing alone is not success. Existing `onError`, enforcement/overrides, rollback, and browser errors/challenges are preserved.
+- Optional API authentication is additive: `authentication` defaults to `required` and `invalidCredentials` to `reject`, independently of binding mode. Mount one `createOidcVaultAuthenticator` instance for enrichment and guards, replacing response interception/repeated authentication. Empty/duplicate/comma-joined/non-ASCII Authorization credentials are rejected on the legacy path too. Custom adapters enabling anonymous fallback deliberately throw `OidcVaultInvalidAccessTokenError` for rejected credentials; unknown exceptions retain their existing strict failure response.
 - Browser DTO type imports can use the pure `@web-ts-toolkit/express-oidc-vault/wire` entry. Backend root type imports and strict ESM/CJS `req.auth` augmentation are preserved. The companion client now ships DOM-only declarations and requires Node >=22.12.0 for CJS tooling.
 - Bound JWTs now require exact canonical `cnf.jkt`, canonical compact encoding and safe mandatory `exp` seconds; bound `expiresIn` must convert safely to milliseconds. Invalid output fails with sanitized HTTP 500/original-lineage rollback. Both validator paths reject invalid bound profiles before mapping; generic unbound/opaque and zero-lifetime output compatibility remain.
 - Use the published client in place of the former standalone browser implementation. See its [upgrade notes](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md#upgrade-notes) for FIFO/cleanup, finite HTTP bounds, terminal/recoverable errors, nonce learning, gateway normalization and explicit key recovery. Installed keys retain the historical database name/schema.
@@ -1094,6 +1237,68 @@ OIDC_VAULT_AUTH_CONTEXT_FAILED` without leaking the original message. Pass
 `onError` to observe original extraction/token/proof/nonce/replay/hook errors for private server-side logs; it never affects the sanitized client response. Successful hooks cannot replace security-owned token/confirmation/binding; vetoes detach req.auth and keep replay reservations. API middleware responses carry no-store.
 
 The package augments Express request typing so `req.auth` is available without casting in TypeScript route handlers.
+
+### Optional authentication and request-scoped guards
+
+`authentication: 'optional'` permits absent credentials. `deviceBinding.mode: 'optional'` separately permits verified unbound tokens and does not make authentication optional. Invalid credentials still reject by default; `invalidCredentials: 'anonymous'` requires explicit optional authentication. The options apply to both the existing middleware factory and the composable authenticator:
+
+```ts
+import express from 'express';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+import {
+  createOidcVaultAuthenticator,
+  createOidcVaultJwtAccessTokenValidator,
+  OidcVaultAuthDeniedError,
+} from '@web-ts-toolkit/express-oidc-vault';
+
+declare function findApplicationUser(subject: string): Promise<{ id: string; active: boolean } | null>;
+const rawSecret = process.env.APP_JWT_SECRET;
+if (!rawSecret || Buffer.byteLength(rawSecret, 'utf8') < 32) {
+  throw new Error('APP_JWT_SECRET must encode at least 32 random bytes.');
+}
+const auth = createOidcVaultAuthenticator({
+  authentication: 'optional',
+  invalidCredentials: 'reject', // Default; anonymous credential fallback is a separate explicit choice.
+  validator: createOidcVaultJwtAccessTokenValidator({
+    key: new TextEncoder().encode(rawSecret),
+    issuer: 'https://api.example.com',
+    audience: 'app-api',
+    algorithms: ['HS256'],
+  }),
+  deviceBinding: {
+    mode: 'optional',
+    publicOrigin: 'https://api.example.com',
+    replayNamespace: 'app-api',
+    replayStore: createMemoryOidcVaultStore(), // Single process; share Redis/MongoDB across processes.
+  },
+  async onAuthContext({ auth, res }) {
+    const user = await findApplicationUser(auth.subject);
+    if (!user?.active) throw new OidcVaultAuthDeniedError('Account access denied.');
+    res.locals.user = { id: user.id };
+  },
+});
+const app = express();
+app.use('/api', auth.authenticate);
+app.get('/api/session', (req, res) => res.json({ authenticated: !!req.auth, user: res.locals.user ?? null }));
+app.get('/api/private', auth.requireAuth, (_req, res) => res.json({ user: res.locals.user }));
+app.get('/api/bound', auth.requireAuth, auth.requireDeviceBinding, (_req, res) => res.json({ user: res.locals.user }));
+```
+
+Mount `authenticate` exactly once **before** routes and guards. All guards must come from the same instance: they consume completed private evidence without rerunning token verification, replay reservation or enrichment. `requireAuth` needs authenticated identity; `requireDeviceBinding` additionally needs original bound-token confirmation and its accepted original-key proof. An unbound Bearer token with an optional proof never becomes bound. Application-user lookup/account policy remains callback-owned; route permissions remain application-owned after the guard.
+
+The private evidence belongs to the original Request/Response and factory policy. Forged/copied/replaced `req.auth`, another request and another authenticator (even identically configured) cannot authorize a guard. Do not mutate top-level context fields between handlers: enrich in `onAuthContext` or `res.locals`. Missing/incompatible/changed evidence gives `401 OIDC_VAULT_AUTHENTICATION_REQUIRED`; the bound guard rejects authenticated unbound context with `401 OIDC_VAULT_DEVICE_BINDING_REQUIRED`. Repeated authentication or a guard entered while authentication is pending invalidates pending work and gives `500 OIDC_VAULT_AUTHENTICATION_REENTRY`, preventing its later context attachment/downstream continuation.
+
+| Outcome                                                                                                                     | Optional authentication                                               | Explicit anonymous fallback                 |
+| --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------- |
+| Missing (no Authorization or DPoP header)                                                                                   | Anonymous continuation                                                | Same                                        |
+| Invalid (including empty/duplicate/malformed headers, bound Bearer downgrade, missing/wrong/replayed proof, rejected token) | Existing rejection                                                    | Anonymous continuation; guards still reject |
+| Authenticated                                                                                                               | Attach context after proof and hook acceptance                        | Same                                        |
+| Nonce challenged                                                                                                            | Preserve original status/body/challenge/nonce; fresh-proof retry once | Same, never anonymous                       |
+| Failed (replay outage/capacity, unknown adapter/contract error, hook veto/failure)                                          | Preserve failure                                                      | Same, never anonymous                       |
+
+Custom validators explicitly reject credentials with root `OidcVaultInvalidAccessTokenError('Private diagnostic.')`, whose client response is fixed. The JWT helper also identifies malformed JWT/JWS, expiry, claims/issuer/audience, signature, disallowed-algorithm, verified confirmation/expiry-profile and default-subject rejections. Unknown exceptions, arbitrary HTTP statuses/codes, malformed adapter results, unsupported/configuration errors and custom `mapClaims` exceptions never authorize fallback; existing strict responses, including legacy validator 401s, remain. Optional proof-only input is invalid rather than missing.
+
+Intentional hook denial uses root `OidcVaultAuthDeniedError(message?, status?: 401 | 403)`: fixed `OIDC_VAULT_AUTH_DENIED`, default 403 and public `Authentication denied.` message. Supply only a deliberately public message. A 401 uses the attempted scheme challenge; 403 has none. Unexpected hook failures remain sanitized `500 OIDC_VAULT_AUTH_CONTEXT_FAILED`. Vetoes keep proof reservations and never become anonymous. Original errors, including fallback rejections/guards, reach `onError`; observer failure cannot alter outcomes. Anonymous continuation detaches auth, removes challenge headers after observers and keeps no-store.
 
 ### JWT validator helper
 
@@ -1188,6 +1393,155 @@ Source failures keep 403 OIDC_VAULT_UNTRUSTED_ORIGIN and route-specific fixed Lo
 For default ES256, API proof/downgrade errors use `DPoP error="invalid_dpop_proof", algs="ES256"`; invalid DPoP token/unbound DPoP use invalid_token, invalid Bearer/required-unbound Bearer use `Bearer error="invalid_token"`. Missing optional credentials advertise `Bearer, DPoP algs="ES256"`; required only DPoP. Nonce uses `DPoP error="use_dpop_nonce", algs="ES256"`. No error_description; non-401 failures have no auth challenge. Disabled legacy parser/errors remain compatible.
 
 Nonce is **off by default**; enable with shared random Uint8Array of at least 32 bytes, lifetime default 60s/integer 1–300. Stateless versioned HMAC-SHA-256 challenges include 128 random bits, issue/expiry, namespace digest and jkt, max 512 bytes, no per-client nonce storage. Any authentic live issued nonce works for parallel fresh proofs; not single-use/latest-only, and normal iat/JTI replay still apply. After other valid target/key/token/cookie checks, missing/expired/wrong nonce challenges **before reservation/mutation/upstream**: one DPoP-Nonce, fixed 400 vault POST/401 API. Vault 400 has no auth challenge; API 401 has use_dpop_nonce. Headerless callback/no-proof unbound are excluded. Cache per space/key and retry once with new proof/JTI/iat/signature; repeated challenge stops. Secret rotation causes a new challenge, with no previous-secret list. All responses carry no-store.
+
+## Structured DPoP Diagnostics And Token Outcomes
+
+Use root-exported `OidcVaultDpopDiagnosticObserver` and
+`OidcVaultTokenOutcomeObserver` for server telemetry. Configure each vault/API
+instance explicitly; diagnostics do not use the browser wire entry.
+
+```ts
+import type {
+  OidcVaultAccessTokenMiddlewareOptions,
+  OidcVaultDpopDiagnosticObserver,
+  OidcVaultOptions,
+  OidcVaultTokenOutcomeObserver,
+} from '@web-ts-toolkit/express-oidc-vault';
+
+const onDpopDiagnostic: OidcVaultDpopDiagnosticObserver = (event) => {
+  if (event.stage === 'freshness' && event.outcome !== 'accepted') {
+    console.info('dpop-time-check', {
+      operation: event.operation,
+      outcome: event.outcome,
+      reason: event.reason,
+      timing: event.timing,
+      correlation: event.correlation,
+    });
+  }
+  if (event.stage === 'replay' || event.outcome === 'challenged') {
+    console.info('dpop-admission', event);
+  }
+};
+const onTokenOutcome: OidcVaultTokenOutcomeObserver = (event) => {
+  // Persistence, retention and deduplication remain application-owned.
+  console.info('vault-committed-outcome', event);
+};
+
+export function instrumentVault(vault: OidcVaultOptions, api: OidcVaultAccessTokenMiddlewareOptions) {
+  return {
+    vault: { ...vault, onDpopDiagnostic, onTokenOutcome },
+    api: { ...api, onDpopDiagnostic },
+  };
+}
+```
+
+### Check events and verification provenance
+
+`OidcVaultDpopDiagnosticEvent` has explicit `operation` (`login`, `exchange`,
+`refresh`, `logout`, `api`), `stage`, `outcome` (`accepted`, `rejected`,
+`challenged`, `ignored`) and stable literal `reason`. No message matching or JWT
+decoding is needed. Typical classifications:
+
+| Stage                                  | Reasons/outcomes                                                                                                                                                                                                                                                                                               |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `presentation`, `preflight`            | `malformed-proof`, `proof-required`, `binding-required`, `credential-rejected`, `session-unavailable`, `session-mismatch`, `origin-rejected`, `browser-binding-rejected`, `recognition-rejected`, generic `preflight-failed`; ignored `policy-disabled`/`proof-absent`/`target-absent` (no live logout target) |
+| `header`, `key`, `signature`, `claims` | `unsupported-header`/`malformed-proof`, `invalid-key`, `invalid-signature`, `invalid-claims`                                                                                                                                                                                                                   |
+| `target`, `token-hash`, `binding`      | `target-mismatch`, `token-hash-mismatch`, `key-mismatch`                                                                                                                                                                                                                                                       |
+| `freshness`                            | `proof-too-old`, `proof-in-future`, `invalid-time`, `clock-unavailable`                                                                                                                                                                                                                                        |
+| `nonce`                                | challenged `nonce-required`/`nonce-invalid`, rejected `invalid-nonce`/`nonce-unavailable` (challenge issuance failed), ignored `nonce-disabled`                                                                                                                                                                |
+| `replay`                               | `replay-detected` (duplicate/not-live admission), `replay-unavailable` (including capacity, invalid adapter result, and uncertain store failure)                                                                                                                                                               |
+| `proof`                                | accepted `proof-accepted` after admission                                                                                                                                                                                                                                                                      |
+
+Successful individual checks use `check-passed`. Events are produced in check
+order and stop at rejection/challenge/omitted proof or final proof admission.
+There are at most 16 events per proof attempt. Headerless callback and guards
+reusing OVAPP-01 private request evidence perform no proof checks and emit none.
+A proof accepted before a later hook/provider/issuer failure remains an accepted
+proof, not a completed login/exchange/API authorization.
+
+Each frozen `verification` snapshot independently reports signature,
+target, access-token hash (`tokenHash`), original credential binding,
+freshness, nonce, and replay. `unchecked` means not reached; `failed` means
+checked and failed; passed/matched/reserved, disabled/not-applicable,
+challenged, and explicitly ignored checks are distinct. An override still runs
+its check and preserves the existing warning/enforcement behavior. Final
+`proof-accepted` can contain ignored checks; it does not assert strict success.
+
+`timing` appears only after signature verification and valid signed iat/JTI
+shape. `provenance: 'signature-verified'` describes the **claim**, not identity or
+physical-clock accuracy. Freshness enforcement samples the actual check clock,
+with `checkedAtMs`, `iatSeconds`, and safe `observedAgeMs = checkedAtMs -
+iatSeconds * 1000` (positive means older, negative means future). Clock source
+is `configured` or `system`; clock failure reports no fabricated check time.
+An enabled freshness override separately labels the `fallback` system clock.
+Unsafe millisecond arithmetic is omitted rather than clamped. Persisting or
+deduplicating observed differences belongs to the application.
+
+Correlation reuses already-captured records/validator results and adds **no store
+reads or replay reservations**. It contains only SHA-256 base64url `subjectRef`
+and `sessionRef`, computed from UTF-8 `subject + NUL + subjectIdentifier` and
+`session + NUL + logicalSessionIdentifier` respectively (API uses its validated
+session claim; record-only exchange preflight uses the code's session handle
+until a logical-session snapshot is available). Empty/non-string/over-1024-UTF-16-code-unit identifiers are
+omitted. These are pseudonymous correlation references, not anonymity or
+authorization credentials. Vault failures are labeled `candidate-session`,
+never proof that the caller owns the session. API intermediate/failure events
+are `verified-token`, which alone does not prove bound-token possession. Final
+original-bound proof admission uses `authenticated` only when every applicable
+check passes without overrides; this is before application authorization. An
+optional unbound proof or any ignored check does not promote either association.
+Login has no session association; logout aliases
+can carry only a session reference without a subject.
+
+Application telemetry can join these events with its own request context. For
+example, establish a generated request ID in Node `AsyncLocalStorage` before
+mounting the vault/authenticator, and capture that ID synchronously in each
+observer. Record an allowlisted application user ID separately from the issuer's
+subject mapper or successful `onAuthContext` user lookup. A request ID joins the
+records without decoding a proof or performing diagnostic-only session reads.
+Early proof events precede application lookup/approval; a failed request's
+candidate association must never be labeled as the authenticated application user.
+The hashed references alone are not a database-user lookup API: an application's
+mapped JWT subject can differ from its IdP subject, and session references may be
+absent or refer to different handle/lineage claims. Account linking, retention and
+bounded persistence remain application-owned. Copy only an explicit log allowlist,
+never the Request, auth context, session, profile or entire async-local container.
+The [composed application fixture](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/test/application-integration.test.ts)
+exercises this join together with the issuer, user enrichment, optional session
+route, compatible required guards and navigation logout in both transports. Real
+top-level browser navigation is covered by the reference app's Chromium/Firefox lane.
+
+### Committed outcomes and observer delivery
+
+`IssueTokenInput.operation` is `exchange` or `refresh`, independent of mutable
+request URLs. `OidcVaultTokenOutcomeEvent` generates `token-issued` once for a
+validated local issuer result, then `exchange-succeeded` once for exchange.
+Issuer-less exchange generates only `exchange-succeeded` with `tokenIssued:
+false`; issuer-less refresh generates neither. The commit point is after code
+consumption/checked rotation, issuer-output validation, response DTO
+materialization, existing refresh post-commit notification, and cookie
+preparation, immediately before HTTP writing. It is not a network-delivery
+receipt. Issuer/output/rotation validation or rollback failure generates no
+success. Correlation is `authenticated` for unbound capability use or fully
+checked original-bound proof; bound override acceptance stays `candidate-session`.
+Fields are only kind, operation,
+correlation, deviceBound, and validated expiresIn/tokenType or tokenIssued.
+
+All new events and nested objects are frozen allowlisted snapshots: **no raw
+tokens/proofs, keys/thumbprints/JTIs/nonces, credential-bearing sessions, raw
+identifiers, requests/responses, URLs/query strings, profiles/metadata or
+arbitrary provider/store/Error text**. Existing private `onError` remains a
+separate, richer diagnostic contract with its existing ordering and behavior.
+
+Callbacks are captured at construction and invoked synchronously in production
+order; returned promises are **not awaited** and their settlement order is
+unspecified. Delivery is best-effort: each dispatcher (per API instance or vault
+route/observer) permits at most 32 pending promises and drops excess or synchronous
+reentrant calls, without queue, retry or timer. A stalled observer cannot stall
+authentication. Throws/rejections are swallowed, never recursively sent to
+`onError`, and never undo state or produce unhandled rejections. Use lifecycle
+veto hooks for application policy, not these observers; durable audit delivery
+requires application-owned bounded persistence.
 
 ## Hook Examples
 
@@ -1290,6 +1644,22 @@ Recommended hook usage:
 - `onLoginStart`, `onAuthorizationUrl`, `onCallbackTokens`, `onUserInfo`, `onBeforeSessionCreate`, and `onBeforeLogout` are pre-commit hooks. Throwing from one of these hooks vetoes the operation before related durable session state is created, rotated, or deleted.
 - `onSessionCreated`, `onSessionRefreshed`, and `onLogout` are post-commit notification hooks. Their failures are reported to `onError` but do not change a successful callback redirect, refresh response, logout response, or already-committed store mutation.
 - client error responses keep a stable `{ code, message }` shape; original provider/store/hook/issuer diagnostics reach private hooks.onError, while separate API extraction/token/proof/nonce/replay/hook diagnostics reach API onError. Private observers are not automatic log redaction.
+
+### Dedicated Logout Continuation Storage
+
+All three built-in factories also satisfy `OidcVaultLogoutNavigationStoreProvider`. This independent capability adds `createLogoutNavigationTicket(input): Promise<void>` and `consumeLogoutNavigationTicket({ namespace, ticketHash }): Promise<OidcVaultLogoutNavigationTicket | null>`. Both methods remain **optional on `OidcVaultStoreProvider`** for existing custom stores. Enable core `logoutNavigation` separately to register the continuation routes; storage alone does not change ordinary logout.
+
+The core root exports `OidcVaultLogoutNavigationTicket`, `CreateLogoutNavigationTicketInput`, `ConsumeLogoutNavigationTicketInput`, `OidcVaultLogoutNavigationStoreProvider`, and `OidcVaultLogoutNavigationCapacityError`. Exactly five scalar fields are captured before the first await and returned as detached plain records: **`namespace`, `ticketHash`, `upstreamLogoutUrl`, `createdAt`, `expiresAt`**. Extra input fields/serializers are ignored. No raw ticket, full session/profile, handle, subject, or separate upstream tokens are copied. The already-built upstream URL can contain `id_token_hint`: hashing lookup keys does not encrypt this credential-bearing destination. Exclude records/URLs and arbitrary backend errors from logs.
+
+Namespace is `logout-navigation:v1:` followed by a canonical 43-character SHA-256 base64url digest; `ticketHash` is also a canonical 43-character digest. The continuation protocol uses `lnt_` plus **32 cryptographically random bytes** encoded as unpadded canonical base64url (47 characters total); hash the **entire prefixed ticket** with SHA-256. Scope hashing uses UTF-8 `JSON.stringify(['oidc-vault-logout-navigation', 1, backendOrigin, normalizedBasePath, exactConfiguredIssuer, configuredClientId, namespaceLabel, normalizedFallbackUri, normalizedPostLogoutUriOrNull])`. Scope labels are static printable ASCII, default `default`, 1..128 bytes. Hash formats cannot establish entropy: callers must never intentionally reuse secrets/hashes. Origin/mount/provider/return-policy changes isolate continuations, not legacy sessions.
+
+Create is **create-only**: live exact-pair collision throws `OidcVaultStoreConflictError` before capacity rejection without changing the first destination/deadline. Invalid/expired create throws `TypeError` without ticket allocation. Epochs and clock must be safe integers within ECMAScript Date range; original lifetime **1000..120000 ms**, remaining lifetime **>0 and <=120000 ms** (protocol default 60000 ms). Destinations must be absolute HTTP(S), without userinfo, fragment, raw whitespace/control characters or backslashes, and at most **16384 serialized UTF-8 bytes**. Discovered endpoints may use another host. Core/provider clocks must agree; Redis uses server `TIME`, ignoring its application clock for tickets.
+
+Consume atomically checks the exact pair and `expiresAt > now`, removes the record and returns it once. Invalid input/unknown/spent/expired/malformed selected records return `null`; selected malformed/expired records are retired. Backend, clock and accounting errors **throw**, never successful grants. No read followed by unconditional delete or process-local lock implements shared consumption. An uncertain create/consume can have committed: never retry an arbitrary backend error or restore a consumed record.
+
+Every built-in accepts `logoutNavigationMaxEntries?: number`, positive safe integer, default **10000**, independent of DPoP replay. Capacity spans effective ticket namespaces in one memory object, MongoDB collection pair or Redis keyPrefix; it is not tenant availability isolation. No live eviction; exhaustion throws `OidcVaultLogoutNavigationCapacityError`. Successful consume frees its own capacity immediately. Each operation reclaims at most **64 unrelated expiries plus its selected record**. Unknown consumes allocate no per-request state; expired accounting awaiting cleanup can conservatively occupy capacity. Session/lineage/backchannel deletion does not cascade to already-authorized continuations. See provider READMEs for physical retention/configuration details.
+
+Migration: custom stores need this capability only when opting into a continuation flow; device binding's six methods remain separate. Built-in inferred return types expose both capabilities without casts or optional chaining.
 
 ## Session Identity And Store Namespaces
 

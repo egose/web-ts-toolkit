@@ -118,6 +118,7 @@ describe('CLIENT-08 published package README copy/paste consumers', () => {
         expect(code, source.path).not.toContain('@web-ts-toolkit/express');
         expect(code, source.path).not.toContain('@web-ts-toolkit/oidc-vault-dpop-client/');
         expect(code, source.path).not.toMatch(/\bfrom\s+['"]\./);
+        expect(code, source.path).toContain('session.logoutAndNavigate()');
         expect(code, source.path).toMatch(
           /url\.searchParams\.delete\('code'\);\s*history\.replaceState\(null, '', url\.href\);\s*await session\.exchange\(code\);/,
         );

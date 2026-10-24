@@ -15,7 +15,8 @@ for (const method of ['getAuthorizationTransaction', 'consumeAuthorizationTransa
 }
 
 (async () => {
-  const { assertDeviceBindingStore } = await import('./store-contract.mjs');
+  const { assertDeviceBindingStore, assertLogoutNavigationStore } = await import('./store-contract.mjs');
   const { OidcVaultDpopReplayCapacityError } = require('@web-ts-toolkit/express-oidc-vault');
   await assertDeviceBindingStore(memoryStore.createMemoryOidcVaultStore({ dpopReplayMaxEntries: 1 }), OidcVaultDpopReplayCapacityError);
+  await assertLogoutNavigationStore(memoryStore.createMemoryOidcVaultStore({ logoutNavigationMaxEntries: 1 }), require('@web-ts-toolkit/express-oidc-vault'));
 })().catch((error) => { console.error(error); process.exitCode = 1; });

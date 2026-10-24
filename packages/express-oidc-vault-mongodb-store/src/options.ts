@@ -1,5 +1,8 @@
 import type { Db } from 'mongodb';
-import type { OidcVaultDeviceBindingStoreProvider } from '@web-ts-toolkit/express-oidc-vault';
+import type {
+  OidcVaultDeviceBindingStoreProvider,
+  OidcVaultLogoutNavigationStoreProvider,
+} from '@web-ts-toolkit/express-oidc-vault';
 
 /**
  * Options for `createMongoOidcVaultStore`.
@@ -9,9 +12,16 @@ import type { OidcVaultDeviceBindingStoreProvider } from '@web-ts-toolkit/expres
  * from `ready()`, so applications should await readiness before accepting
  * traffic. Rotation and shared replay admission require transactions; standalone servers
  * fail closed instead of using non-atomic multi-write fallback behavior.
+ *
+ * Store-owned collection reads (including readiness) and all store transactions
+ * use primary, overriding URI/client/Db secondary preferences only for vault work.
+ * The supplied Db, namespaces, unrelated collections, BSON options and existing
+ * read/write concerns are retained; no extra client is created. An unavailable
+ * primary causes an error, never secondary or memory fallback. Primary selection
+ * does not add linearizable reads, cross-call causal sessions or failover durability.
  */
 export interface MongoOidcVaultStoreOptions {
-  /** MongoDB database handle. The caller owns the underlying client lifecycle. */
+  /** Connected caller-owned database; vault handles/transactions use primary without changing its defaults or client lifecycle. */
   db: Db;
   /** Collection for authorization transactions, keyed by OIDC `state`. */
   authorizationTransactionsCollectionName?: string;
@@ -29,6 +39,12 @@ export interface MongoOidcVaultStoreOptions {
   dpopReplayCapacityCollectionName?: string;
   /** Positive safe integer shared by both replay collections; default 100000. All clients must configure the same limit. */
   dpopReplayMaxEntries?: number;
+  /** TTL payloads; default `oidc_vault_logout_navigation_tickets`. Distinct from every other role. */
+  logoutNavigationTicketsCollectionName?: string;
+  /** Non-TTL serialization/expiry ledger; default `oidc_vault_logout_navigation_capacity`. */
+  logoutNavigationCapacityCollectionName?: string;
+  /** Independent ticket cap across namespaces in the paired collections; positive safe integer, default 10000. */
+  logoutNavigationMaxEntries?: number;
   /**
    * Finite alias retention for sessions without explicit expiry, in
    * milliseconds. Defaults to `DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS`.
@@ -43,15 +59,19 @@ export interface MongoOidcVaultStoreOptions {
  *
  * Create the store after connecting the MongoDB client, then await `ready()`
  * before accepting traffic. The application owns the MongoDB client lifecycle,
- * including shutdown.
+ * including shutdown. Vault reads/transactions require primary without changing
+ * caller defaults or strengthening read/write concerns.
  */
 export interface OidcVaultMongoStoreProvider extends OidcVaultDeviceBindingStoreProvider {
+  createLogoutNavigationTicket: OidcVaultLogoutNavigationStoreProvider['createLogoutNavigationTicket'];
+  consumeLogoutNavigationTicket: OidcVaultLogoutNavigationStoreProvider['consumeLogoutNavigationTicket'];
   /**
    * Waits for startup validation to complete.
    *
    * Readiness validates collection names, creates required indexes, and verifies
    * the MongoDB deployment supports rotation/replay transactions and matching
-   * shared replay-capacity configuration.
+   * shared replay/ticket-capacity configuration and ticket collection pairing.
+   * Index/configuration reads use primary even if caller defaults prefer secondaries.
    * If readiness fails, every store operation rejects with the same error.
    */
   ready(): Promise<void>;
@@ -67,6 +87,8 @@ export const DEFAULT_COLLECTION_NAMES = {
   rotatedSessionAliases: 'oidc_vault_rotated_session_aliases',
   dpopProofs: 'oidc_vault_dpop_proofs',
   dpopReplayCapacity: 'oidc_vault_dpop_replay_capacity',
+  logoutNavigationTickets: 'oidc_vault_logout_navigation_tickets',
+  logoutNavigationCapacity: 'oidc_vault_logout_navigation_capacity',
 } as const;
 
 export type MongoOidcVaultCollectionNames = Record<keyof typeof DEFAULT_COLLECTION_NAMES, string>;
@@ -101,6 +123,10 @@ export const resolveCollectionNames = (options: MongoOidcVaultStoreOptions): Mon
       options.rotatedSessionAliasesCollectionName ?? DEFAULT_COLLECTION_NAMES.rotatedSessionAliases,
     dpopProofs: options.dpopProofsCollectionName ?? DEFAULT_COLLECTION_NAMES.dpopProofs,
     dpopReplayCapacity: options.dpopReplayCapacityCollectionName ?? DEFAULT_COLLECTION_NAMES.dpopReplayCapacity,
+    logoutNavigationTickets:
+      options.logoutNavigationTicketsCollectionName ?? DEFAULT_COLLECTION_NAMES.logoutNavigationTickets,
+    logoutNavigationCapacity:
+      options.logoutNavigationCapacityCollectionName ?? DEFAULT_COLLECTION_NAMES.logoutNavigationCapacity,
   };
 
   for (const [role, name] of Object.entries(collectionNames)) {

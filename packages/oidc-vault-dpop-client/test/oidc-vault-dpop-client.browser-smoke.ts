@@ -70,6 +70,7 @@ describe('CLIENT-05 browser (jsdom) bundle smoke', () => {
         throw new Error('no exchange in smoke');
       },
       logout: async () => {},
+      logoutAndNavigate: async () => {},
       dispose() {},
       getAccessToken: () => undefined,
       getKey: async () => {

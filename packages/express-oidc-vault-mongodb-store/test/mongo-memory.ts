@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 
 import {
   MongoClient,
   type Admin,
   type Collection,
+  type CollectionOptions,
   type CommandStartedEvent,
   type Db,
   type RunCommandOptions,
@@ -14,6 +16,8 @@ export const MONGO_TIMEOUT = 120_000;
 
 type MongoMemoryHarnessOptions = {
   monitorCommands?: boolean;
+  replicaSetMembers?: number;
+  serverSelectionTimeoutMS?: number;
 };
 
 export type MongoMemoryHarness = {
@@ -30,7 +34,10 @@ const createDbName = (prefix: string) => `${prefix.slice(0, 20)}-${randomUUID().
 
 const createClient = async (uri: string, options: MongoMemoryHarnessOptions = {}) => {
   const commandStartedEvents: CommandStartedEvent[] = [];
-  const client = new MongoClient(uri, { monitorCommands: options.monitorCommands });
+  const client = new MongoClient(uri, {
+    monitorCommands: options.monitorCommands,
+    serverSelectionTimeoutMS: options.serverSelectionTimeoutMS,
+  });
 
   if (options.monitorCommands) {
     client.on('commandStarted', (event) => {
@@ -38,7 +45,12 @@ const createClient = async (uri: string, options: MongoMemoryHarnessOptions = {}
     });
   }
 
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (error) {
+    await client.close();
+    throw error;
+  }
 
   return { client, commandStartedEvents };
 };
@@ -64,28 +76,76 @@ export const createStandaloneHarness = async (options: MongoMemoryHarnessOptions
   };
 };
 
-export const createReplicaSetHarness = async (options: MongoMemoryHarnessOptions = {}): Promise<MongoMemoryHarness> => {
+export const createReplicaSetHarness = async (
+  options: MongoMemoryHarnessOptions = {},
+): Promise<MongoMemoryHarness & { stopPrimary: () => Promise<void> }> => {
   const replSet = await MongoMemoryReplSet.create({
     replSet: {
-      count: 1,
+      count: options.replicaSetMembers ?? 1,
+      // memory-server's 500ms election default is too aggressive for concurrent
+      // package fixtures. Use MongoDB's normal 10s budget for multi-member sets.
+      configSettings: (options.replicaSetMembers ?? 1) > 1 ? { electionTimeoutMillis: 10_000 } : undefined,
     },
-    instanceOpts: [
-      {
-        args: enableTestCommandsArgs,
-      },
-    ],
+    instanceOpts: Array.from({ length: options.replicaSetMembers ?? 1 }, () => ({ args: enableTestCommandsArgs })),
   });
   const uri = replSet.getUri();
-  const { client, commandStartedEvents } = await createClient(uri, options);
+  let connected: Awaited<ReturnType<typeof createClient>> | undefined;
+  try {
+    connected = await createClient(uri, options);
+    if ((options.replicaSetMembers ?? 1) > 1) {
+      const deadline = Date.now() + 30_000;
+      for (;;) {
+        const status = await connected.client.db('admin').command({ replSetGetStatus: 1 });
+        const members = status.members as { stateStr: string }[];
+        if (
+          members.length === options.replicaSetMembers &&
+          members.filter((member) => member.stateStr === 'PRIMARY').length === 1 &&
+          members.filter((member) => member.stateStr === 'SECONDARY').length === members.length - 1
+        ) {
+          break;
+        }
+        if (Date.now() >= deadline) throw new Error('Disposable replica set members did not become ready.');
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  } catch (error) {
+    try {
+      await connected?.client.close();
+    } finally {
+      await replSet.stop();
+    }
+    throw error;
+  }
+  const { client, commandStartedEvents } = connected;
 
   return {
     uri,
     client,
     commandStartedEvents,
     createDb: (prefix) => client.db(createDbName(prefix)),
+    stopPrimary: async () => {
+      const hello = await client.db('admin').command({ hello: 1 });
+      const server = replSet.servers.find((member) => hello.primary === `127.0.0.1:${member.instanceInfo?.port}`);
+      if (!server) throw new Error('Disposable replica set primary not found.');
+      // A graceful shutdown can hand primary to the other member before exiting.
+      // Crash this disposable process so a two-voter set loses majority instead.
+      const instance = server.instanceInfo?.instance;
+      const process = instance?.mongodProcess;
+      if (!instance || !process) throw new Error('Disposable primary process not found.');
+      const exited = once(process, 'exit');
+      process.kill('SIGKILL');
+      await exited;
+      // memory-server keeps an exited process reference after an external crash;
+      // clear it only after exit so normal stop/cleanup can remove its data dir.
+      instance.mongodProcess = undefined;
+      await server.stop({ doCleanup: false });
+    },
     stop: async () => {
-      await client.close();
-      await replSet.stop();
+      try {
+        await client.close();
+      } finally {
+        await replSet.stop();
+      }
     },
   };
 };
@@ -135,8 +195,11 @@ export const createDbWithCollectionWriteFailure = (
         return Reflect.get(target, property, receiver);
       }
 
-      return <TSchema extends { _id?: unknown } = { _id?: unknown }>(name: string) => {
-        const collection = target.collection<TSchema>(name);
+      return <TSchema extends { _id?: unknown } = { _id?: unknown }>(
+        name: string,
+        collectionOptions?: CollectionOptions,
+      ) => {
+        const collection = target.collection<TSchema>(name, collectionOptions);
 
         if (name !== options.collectionName) {
           return collection;

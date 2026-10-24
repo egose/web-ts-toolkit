@@ -76,5 +76,17 @@ export interface OidcVaultLogoutResult {
   loggedOut: true;
 }
 
+/** JSON-only POST <basePath>/logout/navigation. Proof belongs in DPoP, with no access token or ath. */
+export interface OidcVaultLogoutNavigationInput {
+  /** Required nonempty handle in body transport; ignored in cookie transport, which selects only the configured cookie. */
+  sessionId?: string;
+}
+
+/** Confirmed local logout, not an IdP delivery receipt. Never contains an upstream token-bearing URL. */
+export interface OidcVaultLogoutNavigationResult extends OidcVaultLogoutResult {
+  /** Absolute pinned backend continuation URL, bare or with one opaque one-use ticket. Navigate at top level; do not fetch the provider redirect. */
+  navigationUrl: string;
+}
+
 /** Vault handle transport; independent of DPoP mode. Default: body. */
 export type OidcVaultSessionTransport = 'body' | 'cookie';

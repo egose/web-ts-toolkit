@@ -3,6 +3,9 @@ import {
   type ConsumeBackchannelLogoutTokenJtiInput,
   type ConsumeAuthorizationTransactionIfMatchesInput,
   type ConsumeExchangeCodeIfMatchesInput,
+  type ConsumeLogoutNavigationTicketInput,
+  type CreateLogoutNavigationTicketInput,
+  type OidcVaultLogoutNavigationTicket,
   type DeleteSessionsByLogicalSessionIdInput,
   type DeleteSessionsByProviderSessionIdInput,
   type DeleteSessionsBySubjectInput,
@@ -56,6 +59,20 @@ import {
   type SessionAuthority,
 } from './binding';
 import { MongoDpopReplayReservations } from './dpop-replay';
+import { primaryCollection } from './read-policy';
+import {
+  MongoLogoutNavigationTickets,
+  type LogoutCapacityDocument,
+  type LogoutTicketDocument,
+  type LogoutTicketConfig,
+} from './logout-tickets';
+import {
+  assertTicket,
+  captureTicket,
+  captureTicketIdentity,
+  ticketLimit,
+  validTicketIdentity,
+} from './logout-ticket-validation';
 
 // Own portable containers before yielding, without coercing native BSON values
 // or custom serialization hooks. Opaque, non-plain values retain backend semantics;
@@ -124,6 +141,9 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   private readonly dpopProofs: Collection<DpopProofDocument>;
   private readonly dpopReplayCapacity: Collection<DpopReplayCapacityDocument>;
   private readonly dpopReplay: MongoDpopReplayReservations;
+  private readonly logoutNavigationTickets: Collection<LogoutTicketDocument | LogoutTicketConfig>;
+  private readonly logoutNavigationCapacity: Collection<LogoutCapacityDocument>;
+  private readonly logoutTickets: MongoLogoutNavigationTickets;
   private readonly now: () => number;
   private readonly rotatedSessionAliasRetentionMs: number;
   private readonly initialization: Promise<void>;
@@ -131,25 +151,40 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
 
   constructor(options: MongoOidcVaultStoreOptions) {
     const collectionNames = resolveCollectionNames(options);
+    const logoutMaxEntries = ticketLimit(options.logoutNavigationMaxEntries);
     const maxEntries = options.dpopReplayMaxEntries === undefined ? 100_000 : options.dpopReplayMaxEntries;
     if (!Number.isSafeInteger(maxEntries) || maxEntries <= 0) {
       throw new TypeError('OIDC vault DPoP replay maximum entries must be a positive safe integer.');
     }
 
     this.db = options.db;
-    this.authorizationTransactions = options.db.collection<AuthorizationTransactionDocument>(
+    this.authorizationTransactions = primaryCollection<AuthorizationTransactionDocument>(
+      this.db,
       collectionNames.authorizationTransactions,
     );
-    this.exchangeCodes = options.db.collection<ExchangeCodeDocument>(collectionNames.exchangeCodes);
-    this.sessions = options.db.collection<SessionDocument>(collectionNames.sessions);
-    this.backchannelLogoutTokenJtis = options.db.collection<BackchannelLogoutTokenJtiDocument>(
+    this.exchangeCodes = primaryCollection<ExchangeCodeDocument>(this.db, collectionNames.exchangeCodes);
+    this.sessions = primaryCollection<SessionDocument>(this.db, collectionNames.sessions);
+    this.backchannelLogoutTokenJtis = primaryCollection<BackchannelLogoutTokenJtiDocument>(
+      this.db,
       collectionNames.backchannelLogoutTokenJtis,
     );
-    this.rotatedSessionAliases = options.db.collection<RotatedSessionAliasDocument>(
+    this.rotatedSessionAliases = primaryCollection<RotatedSessionAliasDocument>(
+      this.db,
       collectionNames.rotatedSessionAliases,
     );
-    this.dpopProofs = options.db.collection<DpopProofDocument>(collectionNames.dpopProofs);
-    this.dpopReplayCapacity = options.db.collection<DpopReplayCapacityDocument>(collectionNames.dpopReplayCapacity);
+    this.dpopProofs = primaryCollection<DpopProofDocument>(this.db, collectionNames.dpopProofs);
+    this.dpopReplayCapacity = primaryCollection<DpopReplayCapacityDocument>(
+      this.db,
+      collectionNames.dpopReplayCapacity,
+    );
+    this.logoutNavigationTickets = primaryCollection<LogoutTicketDocument | LogoutTicketConfig>(
+      this.db,
+      collectionNames.logoutNavigationTickets,
+    );
+    this.logoutNavigationCapacity = primaryCollection<LogoutCapacityDocument>(
+      this.db,
+      collectionNames.logoutNavigationCapacity,
+    );
     this.rotatedSessionAliasRetentionMs =
       options.rotatedSessionAliasRetentionMs ?? DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS;
 
@@ -158,6 +193,13 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
     }
 
     this.now = options.now ?? (() => Date.now());
+    this.logoutTickets = new MongoLogoutNavigationTickets(
+      this.db,
+      this.logoutNavigationTickets,
+      this.logoutNavigationCapacity,
+      logoutMaxEntries,
+      this.now,
+    );
     this.dpopReplay = new MongoDpopReplayReservations(
       this.db,
       this.dpopProofs,
@@ -172,6 +214,22 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
 
   async ready(): Promise<void> {
     await this.waitUntilReady();
+  }
+
+  async createLogoutNavigationTicket(input: CreateLogoutNavigationTicketInput): Promise<void> {
+    const record = captureTicket(input);
+    assertTicket(record);
+    await this.waitUntilReady();
+    await this.logoutTickets.create(record);
+  }
+
+  async consumeLogoutNavigationTicket(
+    input: ConsumeLogoutNavigationTicketInput,
+  ): Promise<OidcVaultLogoutNavigationTicket | null> {
+    const identity = captureTicketIdentity(input);
+    if (!validTicketIdentity(identity)) return null;
+    await this.waitUntilReady();
+    return this.logoutTickets.consume(identity);
   }
 
   async createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void> {
@@ -340,7 +398,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
             }
             return source ? toRevocationContext(source) : null;
           },
-          { readConcern: { level: 'snapshot' } },
+          { readPreference: 'primary', readConcern: { level: 'snapshot' } },
         )) ?? null
       );
     } finally {
@@ -494,10 +552,13 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
         rotatedSessionAliases: this.rotatedSessionAliases,
         dpopProofs: this.dpopProofs,
         dpopReplayCapacity: this.dpopReplayCapacity,
+        logoutNavigationTickets: this.logoutNavigationTickets,
+        logoutNavigationCapacity: this.logoutNavigationCapacity,
       }),
       assertTransactionSupport(this.db),
     ]);
     await this.dpopReplay.initialize();
+    await this.logoutTickets.initialize();
   }
 
   private async waitUntilReady(): Promise<void> {
@@ -514,27 +575,30 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
     const session = this.db.client.startSession();
 
     try {
-      await session.withTransaction(async () => {
-        const current = await this.sessions.findOne({ _id: input.sessionId }, { session });
+      await session.withTransaction(
+        async () => {
+          const current = await this.sessions.findOne({ _id: input.sessionId }, { session });
 
-        if (!current || isExpired(current, this.now())) {
-          throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
-        }
+          if (!current || isExpired(current, this.now())) {
+            throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+          }
 
-        if (!isSameSessionDocumentGeneration(current, expectedSource)) {
-          throw new OidcVaultStoreConflictError('OIDC vault session changed before rotation could commit.');
-        }
+          if (!isSameSessionDocumentGeneration(current, expectedSource)) {
+            throw new OidcVaultStoreConflictError('OIDC vault session changed before rotation could commit.');
+          }
 
-        await this.sessions.insertOne(sessionToDocument(nextSession), { session });
+          await this.sessions.insertOne(sessionToDocument(nextSession), { session });
 
-        const deleteResult = await this.sessions.deleteOne({ _id: input.sessionId }, { session });
+          const deleteResult = await this.sessions.deleteOne({ _id: input.sessionId }, { session });
 
-        if (deleteResult.deletedCount !== 1) {
-          throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
-        }
+          if (deleteResult.deletedCount !== 1) {
+            throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+          }
 
-        await this.createRotatedSessionAlias(input.sessionId, nextSession, session);
-      });
+          await this.createRotatedSessionAlias(input.sessionId, nextSession, session);
+        },
+        { readPreference: 'primary' },
+      );
 
       return nextSession;
     } finally {
@@ -651,7 +715,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
             await this.rotatedSessionAliases.deleteMany({ logicalSessionId: { $in: inactiveIds } }, { session });
           }
         },
-        { readConcern: { level: 'snapshot' } },
+        { readPreference: 'primary', readConcern: { level: 'snapshot' } },
       );
     } finally {
       await session.endSession();

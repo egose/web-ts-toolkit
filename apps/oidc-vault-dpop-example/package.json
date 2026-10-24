@@ -16,9 +16,9 @@
     "preview": "vite preview --host 127.0.0.1 --port 4317 --strictPort",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
-    "test": "pnpm --filter oidc-vault-dpop-example... build && vitest run --config vitest.config.ts && vitest run --config vitest.browser.config.ts",
-    "test:unit": "pnpm --filter oidc-vault-dpop-example... build && vitest run --config vitest.config.ts",
-    "test:browser": "pnpm --filter oidc-vault-dpop-example... build && vitest run --config vitest.browser.config.ts"
+    "test": "pnpm --workspace-concurrency=1 --filter oidc-vault-dpop-example... build && vitest run --config vitest.config.ts && vitest run --config vitest.browser.config.ts",
+    "test:unit": "pnpm --workspace-concurrency=1 --filter oidc-vault-dpop-example... build && vitest run --config vitest.config.ts",
+    "test:browser": "pnpm --workspace-concurrency=1 --filter oidc-vault-dpop-example... build && vitest run --config vitest.browser.config.ts"
   },
   "dependencies": {
     "@web-ts-toolkit/express-oidc-vault": "workspace:*",

@@ -1,6 +1,7 @@
 import {
   OidcVaultStoreConflictError,
   OidcVaultDpopReplayCapacityError,
+  OidcVaultLogoutNavigationCapacityError,
   type DeleteSessionsByLogicalSessionIdInput,
   type DeleteSessionsByProviderSessionIdInput,
   type DeleteSessionsBySubjectInput,
@@ -10,6 +11,10 @@ import type {
   AuthorizationTransactionInput,
   ConsumeAuthorizationTransactionIfMatchesInput,
   ConsumeExchangeCodeIfMatchesInput,
+  ConsumeLogoutNavigationTicketInput,
+  CreateLogoutNavigationTicketInput,
+  OidcVaultLogoutNavigationTicket,
+  OidcVaultLogoutNavigationStoreProvider,
   ExchangeCodeRecord,
   ExchangeCodeRecordInput,
   OidcVaultSession,
@@ -22,6 +27,15 @@ import type {
 } from '@web-ts-toolkit/express-oidc-vault';
 
 import { DEFAULT_KEY_PREFIX, RedisOidcVaultStoreKeys } from './keys.js';
+import {
+  assertTicket,
+  captureTicket,
+  captureTicketIdentity,
+  ticketLimit,
+  validTicket,
+  validTicketIdentity,
+} from './logout-ticket-validation.js';
+import { buildLogoutNavigationTicketCommand } from './logout-tickets.js';
 import {
   OidcVaultRedisStoreRecordError,
   assertRecordBinding,
@@ -96,6 +110,8 @@ export interface OidcVaultRedisClient {
  * `disconnect()`). The package never calls `connect`, `quit`, or `disconnect`.
  */
 export interface RedisOidcVaultStoreOptions {
+  /** Independent ticket cap across effective namespaces per keyPrefix; positive safe integer, default 10000. */
+  logoutNavigationMaxEntries?: number;
   /** Positive safe integer per shared keyPrefix; default 100000. Configure identically on all clients. */
   dpopReplayMaxEntries?: number;
   /** Connected Redis client or compatible adapter implementing {@link OidcVaultRedisClient}. */
@@ -177,15 +193,17 @@ const matchesProviderScope = (
   return true;
 };
 
-class RedisOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
+class RedisOidcVaultStore implements OidcVaultDeviceBindingStoreProvider, OidcVaultLogoutNavigationStoreProvider {
   private readonly client: OidcVaultRedisClient;
   private readonly keys: RedisOidcVaultStoreKeys;
   private readonly now: () => number;
   private readonly scriptRunner: RedisScriptRunner;
   private indexCleanupCursor = '0';
   private readonly dpopReplayMaxEntries: number;
+  private readonly logoutNavigationMaxEntries: number;
 
   constructor(options: RedisOidcVaultStoreOptions) {
+    this.logoutNavigationMaxEntries = ticketLimit(options.logoutNavigationMaxEntries);
     this.dpopReplayMaxEntries = options.dpopReplayMaxEntries === undefined ? 100_000 : options.dpopReplayMaxEntries;
     if (!Number.isSafeInteger(this.dpopReplayMaxEntries) || this.dpopReplayMaxEntries <= 0) {
       throw new TypeError('OIDC vault DPoP replay maximum entries must be a positive safe integer.');
@@ -302,6 +320,40 @@ class RedisOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
     const result = await this.runScript(buildReserveDpopProofCommand(this.keys, input, this.dpopReplayMaxEntries));
     if (result === 2 || result === '2') throw new OidcVaultDpopReplayCapacityError();
     return result === 1 || result === '1';
+  }
+
+  async createLogoutNavigationTicket(input: CreateLogoutNavigationTicketInput): Promise<void> {
+    const record = captureTicket(input);
+    assertTicket(record);
+    const result = await this.runScript(
+      buildLogoutNavigationTicketCommand(this.keys, record, this.logoutNavigationMaxEntries, record),
+    );
+    if (result === -1) throw new TypeError('OIDC vault logout navigation ticket is invalid or expired.');
+    if (result === 2) throw new OidcVaultStoreConflictError();
+    if (result === 3) throw new OidcVaultLogoutNavigationCapacityError();
+    if (result !== 1) throw new Error('OIDC vault Redis logout navigation create returned an unexpected result.');
+  }
+
+  async consumeLogoutNavigationTicket(
+    input: ConsumeLogoutNavigationTicketInput,
+  ): Promise<OidcVaultLogoutNavigationTicket | null> {
+    const identity = captureTicketIdentity(input);
+    if (!validTicketIdentity(identity)) return null;
+    const raw = await this.runScript(
+      buildLogoutNavigationTicketCommand(this.keys, identity, this.logoutNavigationMaxEntries),
+    );
+    if (raw === null || raw === false) return null;
+    if (typeof raw !== 'string')
+      throw new Error('OIDC vault Redis logout navigation consume returned an unexpected result.');
+    let record: OidcVaultLogoutNavigationTicket;
+    try {
+      record = JSON.parse(raw) as OidcVaultLogoutNavigationTicket;
+    } catch {
+      return null;
+    }
+    return validTicket(record) && record.namespace === identity.namespace && record.ticketHash === identity.ticketHash
+      ? captureTicket(record)
+      : null;
   }
 
   /**
@@ -834,11 +886,15 @@ class RedisOidcVaultStore implements OidcVaultDeviceBindingStoreProvider {
  * not supported and is rejected here. Guarded consumes and per-proof replay use
  * cached atomic Lua; replay is shared per keyPrefix, uses server TIME, and never
  * evicts live entries. All clients must use the same dpopReplayMaxEntries.
+ * Dedicated logout continuation tickets also use native atomic scripts and
+ * server TIME, with independent logoutNavigationMaxEntries (default 10000).
  *
  * @param options construction options; see {@link RedisOidcVaultStoreOptions}.
- * @returns a provider satisfying the stronger `OidcVaultDeviceBindingStoreProvider` contract.
+ * @returns a provider satisfying both device-binding and logout-navigation capabilities.
  */
-export function createRedisOidcVaultStore(options: RedisOidcVaultStoreOptions): OidcVaultDeviceBindingStoreProvider {
+export function createRedisOidcVaultStore(
+  options: RedisOidcVaultStoreOptions,
+): OidcVaultDeviceBindingStoreProvider & OidcVaultLogoutNavigationStoreProvider {
   return new RedisOidcVaultStore(options);
 }
 

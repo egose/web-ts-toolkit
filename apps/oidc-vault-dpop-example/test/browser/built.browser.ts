@@ -39,6 +39,7 @@ describe.each(browserNames)('DBJWT-10 real %s production SPA bundle', (name) => 
     const context = await browser.newContext();
     try {
       idp.allowCallback(`${backend.backendOrigin}${EXAMPLE_BASE_PATH}/cookie/callback`);
+      idp.allowPostLogout(`${frontendOrigin}/signed-out?transport=cookie`);
       const moduleIds: string[] = [];
       await build({
         root: fileURLToPath(new URL('../../', import.meta.url)),
@@ -64,6 +65,7 @@ describe.each(browserNames)('DBJWT-10 real %s production SPA bundle', (name) => 
       );
       frontendApp.use(express.static(output));
       frontendApp.get('/callback', (_req, res) => res.sendFile(join(output, 'index.html')));
+      frontendApp.get('/signed-out', (_req, res) => res.sendFile(join(output, 'index.html')));
       const page = await context.newPage();
       await page.goto(`${frontendOrigin}/?transport=cookie`);
       await page.waitForFunction(() => Boolean(document.querySelector('#status')?.getAttribute('data-state')));
@@ -100,6 +102,12 @@ describe.each(browserNames)('DBJWT-10 real %s production SPA bundle', (name) => 
         expect(await calculateJwkThumbprint(decodeProtectedHeader(request.proof!).jwk!)).toBe(stored.jkt);
       }
       expect(idp.stats).toMatchObject({ callbacks: 1, refreshes: 1, pkceChecks: 1, upstreamDpopHeaders: 0 });
+      await page.locator('#logout-navigate').click();
+      await page.waitForURL(`${idp.issuer}/logout?**`);
+      await page.locator('#provider-logged-out').waitFor();
+      await page.locator('#logout-return').click();
+      await page.waitForURL(`${frontendOrigin}/signed-out?transport=cookie`);
+      expect(idp.stats.logouts).toBe(1);
     } finally {
       await context.close();
       await closeServer(frontendServer);

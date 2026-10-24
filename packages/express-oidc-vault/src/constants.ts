@@ -7,11 +7,12 @@ export const DEFAULT_SESSION_COOKIE_NAME = 'oidc_vault_session';
 export const DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT = '16kb';
 export const OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT = 16;
 
-export const OIDC_VAULT_ROUTE_PATHS: Record<OidcVaultRouteName, string> = {
+export const OIDC_VAULT_ROUTE_PATHS: Record<OidcVaultRouteName | 'logout-navigation', string> = {
   login: '/login',
   callback: '/callback',
   exchange: '/exchange',
   refresh: '/refresh',
   logout: '/logout',
+  'logout-navigation': '/logout/navigation',
   'backchannel-logout': '/backchannel-logout',
 };

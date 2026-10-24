@@ -45,8 +45,10 @@ export const startBrowserFixture = async (
     fixture: true,
     ...options,
   });
-  for (const transport of ['body', 'cookie'])
+  for (const transport of ['body', 'cookie']) {
     idp.allowCallback(`${backend.backendOrigin}${EXAMPLE_BASE_PATH}/${transport}/callback`);
+    idp.allowPostLogout(`${frontendOrigin}/signed-out?transport=${transport}`);
+  }
   const context = await browser.newContext();
   await context.addInitScript((backendOrigin) => {
     Object.defineProperty(globalThis, '__DPOP_TEST_BACKEND__', { value: backendOrigin });

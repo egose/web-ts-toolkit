@@ -1,4 +1,4 @@
-import { jwtVerify } from 'jose';
+import { errors as joseErrors, jwtVerify } from 'jose';
 
 import {
   invalidAccessToken,
@@ -6,6 +6,7 @@ import {
   readJwtExpirationMs,
   snapshotVerifiedJwtConfirmation,
 } from './access-token-confirmation';
+import { markAccessTokenRejected, markAccessTokenValidationFailure } from './access-token-errors';
 import { OidcVaultHttpError, getRequiredFiniteNonNegativeInteger, getRequiredString } from './errors';
 import type { OidcProviderMetadata, ProviderRequestOptions } from './provider-client';
 import { resolveJwks } from './provider-client';
@@ -282,22 +283,49 @@ export function createOidcVaultJwtAccessTokenValidator(
   const audience = Array.isArray(configuredAudience) ? [...configuredAudience] : configuredAudience;
   const algorithms = configuredAlgorithms === undefined ? undefined : [...configuredAlgorithms];
   const validateJwt = async (token: string): Promise<OidcVaultRequestAwareAccessTokenValidationResult> => {
-    const result = await jwtVerify(token, key, { issuer, audience, algorithms });
+    const result = await jwtVerify(token, key, { issuer, audience, algorithms }).catch((error: unknown) => {
+      if (
+        error instanceof joseErrors.JWTExpired ||
+        error instanceof joseErrors.JWTClaimValidationFailed ||
+        error instanceof joseErrors.JWTInvalid ||
+        error instanceof joseErrors.JWSInvalid ||
+        error instanceof joseErrors.JWSSignatureVerificationFailed ||
+        error instanceof joseErrors.JOSEAlgNotAllowed
+      ) {
+        markAccessTokenRejected(error);
+      }
+      throw error;
+    });
     const claims = result.payload as Record<string, unknown>;
-    const confirmation = snapshotVerifiedJwtConfirmation(claims);
-    if (confirmation !== null) {
-      if (!isCompactSignedJwt(token)) {
-        throw invalidAccessToken('Bound JWT must use canonical compact signed encoding.');
+    let confirmation: OidcVaultRequestAwareAccessTokenValidationResult['confirmation'];
+    try {
+      confirmation = snapshotVerifiedJwtConfirmation(claims);
+      if (confirmation !== null) {
+        if (!isCompactSignedJwt(token)) {
+          throw invalidAccessToken('Bound JWT must use canonical compact signed encoding.');
+        }
+        if (readJwtExpirationMs(claims.exp) === undefined) {
+          throw invalidAccessToken('Bound JWT exp must be a nonnegative safe integer with safe milliseconds.');
+        }
       }
-      if (readJwtExpirationMs(claims.exp) === undefined) {
-        throw invalidAccessToken('Bound JWT exp must be a nonnegative safe integer with safe milliseconds.');
-      }
+      // Only the built-in subject mapper's credential checks belong here.
+      // Custom mapper exceptions/invalid outputs are adapter failures.
+      if (!mapClaims) return { ...defaultJwtClaimsMapper(claims), confirmation };
+    } catch (error) {
+      markAccessTokenRejected(error);
+      throw error;
     }
-    const mapped = mapClaims ? mapClaims(claims) : defaultJwtClaimsMapper(claims);
     // Copy only mapping-owned fields. Never evaluate mapper confirmation or
     // token/deviceBinding getters and never retain the mutable mapped container.
-    const { subject, sessionId, scope, claims: mappedClaims } = mapped;
-    return { subject, sessionId, scope, claims: mappedClaims, confirmation };
+    try {
+      const { subject, sessionId, scope, claims: mappedClaims } = mapClaims!(claims);
+      return { subject, sessionId, scope, claims: mappedClaims, confirmation };
+    } catch (error) {
+      // Even a public rejection error thrown by application mapping is a
+      // callback failure here, not the JWT verifier rejecting a credential.
+      markAccessTokenValidationFailure(error);
+      throw error;
+    }
   };
   return Object.freeze({
     async validate(token: string): Promise<OidcVaultAccessTokenValidationResult> {

@@ -1,9 +1,15 @@
 import express from 'express';
+import { SignJWT } from 'jose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemoryOidcVaultStore } from '../../express-oidc-vault-memory-store/src/index';
-import { createOidcVaultMiddleware, type OidcVaultOptions, type OidcVaultTokenIssuer } from '../src/index';
+import {
+  createOidcVaultJwtAccessTokenIssuer,
+  createOidcVaultMiddleware,
+  type OidcVaultOptions,
+  type OidcVaultTokenIssuer,
+} from '../src/index';
 
 const ISSUER = 'https://provider.example.com';
 const ORIGIN = 'https://app.example.com';
@@ -47,6 +53,7 @@ const fixture = async (transport: Transport, issuer?: OidcVaultTokenIssuer) => {
   });
   const onError = vi.fn<NonNullable<NonNullable<OidcVaultOptions['hooks']>['onError']>>();
   const onSessionRefreshed = vi.fn<NonNullable<NonNullable<OidcVaultOptions['hooks']>['onSessionRefreshed']>>();
+  const onTokenOutcome = vi.fn<NonNullable<OidcVaultOptions['onTokenOutcome']>>();
   const rotate = vi.spyOn(store, 'rotateSession');
   const revoke = vi.spyOn(store, 'deleteSessionsByLogicalSessionId');
   const app = express();
@@ -65,6 +72,7 @@ const fixture = async (transport: Transport, issuer?: OidcVaultTokenIssuer) => {
       sessionTransport: transport,
       cookie: { name: 'vault' },
       tokenIssuer: issuer,
+      onTokenOutcome,
       hooks: { onError, onSessionRefreshed },
     }),
   );
@@ -88,6 +96,7 @@ const fixture = async (transport: Transport, issuer?: OidcVaultTokenIssuer) => {
     }
   };
   const assertRollback = async (response: request.Response, route: Route) => {
+    expect(onTokenOutcome).not.toHaveBeenCalled();
     expect(response.status).toBe(500);
     expect(response.body).toEqual(INTERNAL_ERROR);
     expect(response.headers['cache-control']).toBe('no-store');
@@ -116,11 +125,67 @@ const fixture = async (transport: Transport, issuer?: OidcVaultTokenIssuer) => {
       expect(response.headers['set-cookie']).toBeUndefined();
     }
   };
-  return { session, store, upstream, rotate, revoke, onError, onSessionRefreshed, post, assertSuccess, assertRollback };
+  return {
+    session,
+    store,
+    upstream,
+    rotate,
+    revoke,
+    onError,
+    onSessionRefreshed,
+    onTokenOutcome,
+    post,
+    assertSuccess,
+    assertRollback,
+  };
 };
 
 describe('OVH-05 local issuer response boundary', () => {
   describe.each(['body', 'cookie'] as const)('%s transport', (transport) => {
+    it.each(
+      (['exchange', 'refresh'] as const).flatMap((route) =>
+        (['subject', 'claims', 'reserved', 'serialize', 'clock', 'sign'] as const).map((failure) => ({
+          route,
+          failure,
+        })),
+      ),
+    )('rolls back helper $failure failure during $route', async ({ route, failure }) => {
+      const diagnostic = new Error('private-helper-mapper');
+      let now = Date.now();
+      const issuer = createOidcVaultJwtAccessTokenIssuer({
+        key: new Uint8Array(32).fill(83),
+        algorithm: 'HS256',
+        issuer: ORIGIN,
+        audience: 'api',
+        now: () => now,
+        mapSubject(input) {
+          input.session.logicalSessionId = 'lineage_other';
+          if (failure === 'subject') throw diagnostic;
+          return input.session.subject;
+        },
+        async mapClaims() {
+          if (failure === 'claims') throw diagnostic;
+          if (failure === 'reserved') return JSON.parse('{"cnf":null}');
+          if (failure === 'serialize')
+            return {
+              toJSON() {
+                throw diagnostic;
+              },
+            };
+          if (failure === 'clock') now = NaN;
+          return { role: 'reader' };
+        },
+      });
+      const signing =
+        failure === 'sign' ? vi.spyOn(SignJWT.prototype, 'sign').mockRejectedValue(diagnostic) : undefined;
+      const f = await fixture(transport, issuer);
+      await f.assertRollback(await f.post(route), route);
+      if (failure === 'reserved' || failure === 'clock')
+        expect(f.onError.mock.calls[0][0].error).toBeInstanceOf(TypeError);
+      else expect(f.onError.mock.calls[0][0].error).toBe(diagnostic);
+      signing?.mockRestore();
+    });
+
     it('allowlists an extended frozen issuer result through exchange and refresh', async () => {
       const extraGetter = vi.fn(() => 'private-extra');
       const toJSON = vi.fn(() => ({ secret: 'private-serialization-override' })); // pragma: allowlist secret
@@ -137,13 +202,22 @@ describe('OVH-05 local issuer response boundary', () => {
         toJSON,
       });
       // Structural typing legitimately permits these extra properties.
-      const issue = vi.fn(async () => extended);
+      const issue = vi.fn<OidcVaultTokenIssuer['issue']>(async () => extended);
       const f = await fixture(transport, { issue });
       f.assertSuccess(await f.post('exchange'), f.session.sessionId, VALID);
       const refreshed = await f.post('refresh');
       const rotated = await f.rotate.mock.results[0].value;
       f.assertSuccess(refreshed, rotated.sessionId, VALID);
       expect(issue).toHaveBeenCalledTimes(2);
+      expect(issue.mock.calls.map(([input]) => input.operation)).toEqual(['exchange', 'refresh']);
+      expect(f.onTokenOutcome.mock.calls.map(([event]) => [event.kind, event.operation])).toEqual([
+        ['token-issued', 'exchange'],
+        ['exchange-succeeded', 'exchange'],
+        ['token-issued', 'refresh'],
+      ]);
+      expect(JSON.stringify(f.onTokenOutcome.mock.calls)).not.toMatch(
+        /private-|local-access|session_original|lineage_1|user_1/,
+      );
       expect(extraGetter).not.toHaveBeenCalled();
       expect(toJSON).not.toHaveBeenCalled();
       expect(f.revoke).not.toHaveBeenCalled();
@@ -159,6 +233,9 @@ describe('OVH-05 local issuer response boundary', () => {
       f.assertSuccess(refreshed, rotated.sessionId, {});
       expect(f.onError).not.toHaveBeenCalled();
       expect(f.revoke).not.toHaveBeenCalled();
+      expect(f.onTokenOutcome).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ kind: 'exchange-succeeded', operation: 'exchange', tokenIssued: false }),
+      );
     });
 
     it.each(['exchange', 'refresh'] as const)('rolls back %s for a null issuer result', async (route) => {
@@ -239,7 +316,45 @@ describe('OVH-05 local issuer response boundary', () => {
     f.assertSuccess(response, rotated.sessionId, VALID);
     for (const getter of [accessToken, expiresIn, tokenType]) expect(getter).toHaveBeenCalledTimes(1);
     expect(f.onSessionRefreshed).toHaveBeenCalledTimes(1);
+    expect(f.onTokenOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ kind: 'token-issued', operation: 'refresh', expiresIn: 60 }),
+    );
   });
+
+  it.each(['throw', 'reject', 'pending'] as const)(
+    'keeps committed outcomes independent of %s observers and existing postcommit errors',
+    async (failure) => {
+      const f = await fixture('cookie', { issue: async () => VALID });
+      const order: string[] = [];
+      f.onSessionRefreshed.mockImplementation(() => {
+        order.push('refreshed');
+        throw new Error('private-postcommit-secret');
+      });
+      f.onError.mockImplementation(async () => {
+        order.push('error');
+        throw new Error('private-error-observer-secret');
+      });
+      let release: (() => void) | undefined;
+      f.onTokenOutcome.mockImplementation((event) => {
+        order.push(event.kind);
+        if (failure === 'throw') throw new Error('private-outcome-secret');
+        if (failure === 'reject') return Promise.reject(new Error('private-outcome-secret'));
+        return new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      });
+      const response = await f.post('refresh');
+      const rotated = await f.rotate.mock.results[0].value;
+      f.assertSuccess(response, rotated.sessionId, VALID);
+      expect(order).toEqual(['refreshed', 'error', 'token-issued']);
+      expect(f.onError).toHaveBeenCalledTimes(1);
+      expect(f.revoke).not.toHaveBeenCalled();
+      expect(Object.isFrozen(f.onTokenOutcome.mock.calls[0][0])).toBe(true);
+      expect(Object.isFrozen(f.onTokenOutcome.mock.calls[0][0].correlation)).toBe(true);
+      expect(await f.store.getSession(rotated.sessionId)).not.toBeNull();
+      release?.();
+    },
+  );
 
   it('preserves a throwing allowed getter diagnostic privately while revoking the rotated lineage', async () => {
     const diagnostic = new Error('private-getter-diagnostic');
@@ -253,6 +368,32 @@ describe('OVH-05 local issuer response boundary', () => {
     });
     await f.assertRollback(await f.post('refresh'), 'refresh');
     expect(f.onError.mock.calls[0][0].error).toBe(diagnostic);
+  });
+
+  it('bounds pending outcome observers across exchanges without queueing or delaying committed responses', async () => {
+    const f = await fixture('body', { issue: async () => VALID });
+    const releases: (() => void)[] = [];
+    f.onTokenOutcome.mockImplementation(() => new Promise<void>((resolve) => releases.push(resolve)));
+    const exchangeAgain = async () => {
+      await f.store.createExchangeCode({
+        code: 'exchange_code',
+        sessionId: f.session.sessionId,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+      });
+      expect((await f.post('exchange')).status).toBe(200);
+    };
+    for (let index = 0; index < 17; index++) await exchangeAgain();
+    expect(f.onTokenOutcome).toHaveBeenCalledTimes(32);
+    expect(releases).toHaveLength(32);
+    for (const release of releases) release();
+    await Promise.resolve();
+    expect(f.onTokenOutcome).toHaveBeenCalledTimes(32); // Nothing buffered for later delivery.
+    await exchangeAgain();
+    expect(f.onTokenOutcome).toHaveBeenCalledTimes(34);
+    for (const release of releases) release();
+    expect(f.onError).not.toHaveBeenCalled();
+    expect(f.revoke).not.toHaveBeenCalled();
   });
 
   it.each([

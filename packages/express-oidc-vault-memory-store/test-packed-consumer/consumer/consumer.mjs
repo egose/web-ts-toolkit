@@ -2,7 +2,7 @@ import assert from 'node:assert';
 
 import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
 import { OidcVaultDpopReplayCapacityError } from '@web-ts-toolkit/express-oidc-vault';
-import { assertDeviceBindingStore } from './store-contract.mjs';
+import { assertDeviceBindingStore, assertLogoutNavigationStore } from './store-contract.mjs';
 
 const expected = ['createMemoryOidcVaultStore'].sort();
 
@@ -19,3 +19,4 @@ for (const method of ['getAuthorizationTransaction', 'consumeAuthorizationTransa
 }
 
 await assertDeviceBindingStore(createMemoryOidcVaultStore({ dpopReplayMaxEntries: 1 }), OidcVaultDpopReplayCapacityError);
+await assertLogoutNavigationStore(createMemoryOidcVaultStore({ logoutNavigationMaxEntries: 1 }), await import('@web-ts-toolkit/express-oidc-vault'));

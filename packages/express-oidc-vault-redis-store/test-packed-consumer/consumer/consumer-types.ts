@@ -2,6 +2,10 @@ import {
   OidcVaultDpopReplayCapacityError,
   type OidcVaultDeviceBindingStoreProvider,
   type OidcVaultStoreProvider,
+  type OidcVaultLogoutNavigationStoreProvider,
+  type CreateLogoutNavigationTicketInput,
+  type ConsumeLogoutNavigationTicketInput,
+  type OidcVaultLogoutNavigationTicket,
 } from '@web-ts-toolkit/express-oidc-vault';
 import {
   createRedisOidcVaultStore,
@@ -30,9 +34,16 @@ const options: RedisOidcVaultStoreOptions = {
   keyPrefix: 'consumer',
   now: () => 1_700_000_000_000,
   dpopReplayMaxEntries: 100_000,
+  logoutNavigationMaxEntries: 10_000,
 };
 
 const provider: OidcVaultStoreProvider = createRedisOidcVaultStore(options);
+const ticketProvider = createRedisOidcVaultStore(options);
+ticketProvider satisfies OidcVaultLogoutNavigationStoreProvider;
+declare const ticket: CreateLogoutNavigationTicketInput;
+declare const identity: ConsumeLogoutNavigationTicketInput;
+void ticketProvider.createLogoutNavigationTicket(ticket);
+ticketProvider.consumeLogoutNavigationTicket(identity) satisfies Promise<OidcVaultLogoutNavigationTicket | null>;
 void provider.createSession;
 const strongerProvider: OidcVaultDeviceBindingStoreProvider = createRedisOidcVaultStore(options);
 void strongerProvider.getAuthorizationTransaction('state');

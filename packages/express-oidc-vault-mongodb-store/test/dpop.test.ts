@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MongoClient, type Db } from 'mongodb';
+import { MongoClient, type CollectionOptions, type Db } from 'mongodb';
 import { OidcVaultDpopReplayCapacityError, OidcVaultStoreConflictError } from '@web-ts-toolkit/express-oidc-vault';
 import type { OidcVaultDpopBinding, OidcVaultRecordBindingMatch } from '@web-ts-toolkit/express-oidc-vault';
 import { createMongoOidcVaultStore } from '../src';
@@ -28,8 +28,8 @@ const intercept = (db: Db, name: string, method: string, hook: () => Promise<voi
   new Proxy(db, {
     get(target, property) {
       if (property === 'collection')
-        return (collectionName: string) => {
-          const collection = target.collection(collectionName);
+        return (collectionName: string, options?: CollectionOptions) => {
+          const collection = target.collection(collectionName, options);
           if (collectionName !== name) return collection;
           return new Proxy(collection, {
             get(target, property) {
