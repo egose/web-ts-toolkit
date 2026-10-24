@@ -185,26 +185,22 @@ describe('real MongoDB logout ticket storage', () => {
         ...logoutTicket(clock, `${i}`),
         expiresAt: clock + 1000,
       }));
-      await db
-        .collection(PAYLOAD)
-        .insertMany(
-          records.map((record) => ({
-            _id: ticketId(record),
-            ...record,
-            expiresAt: new Date(record.expiresAt),
-          })) as never,
-        );
-      await db
-        .collection(LEDGER)
-        .insertMany(
-          records.map((record) => ({
-            _id: `ticket:${ticketId(record)}`,
-            kind: 'ticket',
-            namespace: record.namespace,
-            ticketHash: record.ticketHash,
-            expiresAt: new Date(record.expiresAt),
-          })) as never,
-        );
+      await db.collection(PAYLOAD).insertMany(
+        records.map((record) => ({
+          _id: ticketId(record),
+          ...record,
+          expiresAt: new Date(record.expiresAt),
+        })) as never,
+      );
+      await db.collection(LEDGER).insertMany(
+        records.map((record) => ({
+          _id: `ticket:${ticketId(record)}`,
+          kind: 'ticket',
+          namespace: record.namespace,
+          ticketHash: record.ticketHash,
+          expiresAt: new Date(record.expiresAt),
+        })) as never,
+      );
       await db.collection(LEDGER).updateOne({ _id: 'capacity' } as never, { $set: { entries: 200 } });
       const live = logoutTicket(clock, 'live');
       await store.createLogoutNavigationTicket(live);
@@ -288,11 +284,9 @@ describe('real MongoDB logout ticket storage', () => {
         await store.createLogoutNavigationTicket(record);
         if (mode === 'missing') await db.collection(LEDGER).deleteOne({ _id: `ticket:${ticketId(record)}` } as never);
         else
-          await db
-            .collection(LEDGER)
-            .updateOne({ _id: `ticket:${ticketId(record)}` } as never, {
-              $set: mode === 'expiry' ? { expiresAt: new Date(record.expiresAt + 1) } : { ticketHash: 'bad' },
-            });
+          await db.collection(LEDGER).updateOne({ _id: `ticket:${ticketId(record)}` } as never, {
+            $set: mode === 'expiry' ? { expiresAt: new Date(record.expiresAt + 1) } : { ticketHash: 'bad' },
+          });
         await expect(store.consumeLogoutNavigationTicket(record)).rejects.toThrow('accounting');
         expect(await db.collection(PAYLOAD).findOne({ _id: ticketId(record) } as never)).not.toBeNull();
       });
