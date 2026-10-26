@@ -17,6 +17,8 @@ ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 [Virtuals](#virtuals-computed-fields) · [Hook admission](#hook-admission-and-reentrant-service-calls) ·
 [Persistence limits](#persistence-concurrency-and-resource-limits)
 
+**Private virtual inputs:** [Populated dependencies and runnable example](#private-populated-dependencies)
+
 **Migration:** [Removed overrides](#breaking-release-service-overrides-migration) ·
 [Server-owned hydration](#breaking-release-server-owned-hydration) ·
 [Named helpers](#breaking-release-named-helpers-and-default-behavior) ·
@@ -1927,6 +1929,7 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 - option helpers: `setGlobalOptions`, `setGlobalOption`, `getGlobalOptions`, `getGlobalOption`, `setModelOptions`, `setModelOption`, `getModelOptions`, `getModelOption`, `getModelNames`, `getModelJsonSchema`, `setDefaultModelOptions`, `setDefaultModelOption`, `getDefaultModelOptions`, `getDefaultModelOption`
 - route-policy types: `OperationAccess`, `SubOperationAccess`, `Validation`, `GuardHook`, `RouteVariantAccess`, `ModelRouterOptions`, `DefaultModelRouterOptions`, `DataRouterOptions`, `ExtendedModelRouterOptions`, `ExtendedDefaultModelRouterOptions`, and `ExtendedDataRouterOptions` for typed setters; `PermissionSchema` / `FieldOperationAccess` are separate base-operation field grants. These types are also available from `/advanced`.
 - fetch configuration types (also `/advanced`): `HydrationMode`, `ModelHydrationOptions` — server-owned model/default configuration, never per-call/wire options.
+- virtual types (also `/advanced`): `ModelVirtualGetter`, `ModelVirtualDescriptor`, `ModelVirtualAccessRecord`, `ModelVirtualLeaf`, `ModelVirtuals`, `ModelVirtualDoc`, `ModelVirtualContext`, `ModelVirtualPopulateDependency`, `ModelVirtualPopulateInputs`. Explicit private target maps type only the fourth getter argument; see [Private populated dependencies](#private-populated-dependencies).
 - trusted service policy types (also `/advanced`): `ServiceAuthorization` (reads), `MutationAuthorization` (update/upsert), `CreateAuthorization`, `InputFieldAuthorization`, `InputFieldPath`, `OutputAuthorization`, `FieldAuthorization`, `RowAuthorization`, `OperationAuthorization`, `RelatedAuthorization`, `OutputFieldPath`. Input paths use persisted types only; output paths also include virtuals. Unknown models have an explicit runtime-validated string fallback; grant arrays may be readonly.
 - named helper/result types (also `/advanced`): `OutputPlanningOptions`, `OutputFieldOptions`, `AllowedOutputFieldOptions`, opaque `DocumentAuthorization`, `ServiceOutputContext`, `ServiceOutputDecorator`, `AuthorizedSingleResult`, `AuthorizedListResult`, `NewArgs`, `NewOptions`. Acquire the service from a router/request; there is no standalone `Service` export or public issuer/execution/prepared API.
 
@@ -2484,8 +2487,12 @@ Only returned field values are committed via document-aware helpers;
 `undefined` omits the field; a throw omits it fail-closed with a structural
 log (no raw values or secret-bearing text). Sibling virtual values are never
 visible regardless of completion order, and mutating getter input cannot change
-response data or lifecycle snapshots. Related documents finalize before parent
-getters run, and embedded children finalize before their parent getter.
+response data or lifecycle snapshots implicitly. Public related documents finalize
+before parent getters run, and embedded children finalize before their parent getter.
+The first getter argument retains that ordinary persisted/local/public-related
+view. An opted-in getter receives its declaration-scoped **private populated inputs
+separately in argument four**; see below. A trusted getter may deliberately return
+a value derived from private inputs, subject to the virtual's output authorization.
 
 Coverage: every document-bearing public model output uses its own model's
 definitions, permissions, selection, and effective access — direct
@@ -2524,9 +2531,8 @@ A create-only getter runs only on create/upsert-create responses; an
 update-only getter only on update/upsert-update responses. On other responses
 the name stays a registered virtual: omitted from output and never entering
 persisted projections, write admission, or sort/filter/distinct handling. A
-read-denied virtual (explicit deny, or document grants fail the rule) never
-runs its getter on any path and fetches nothing for it; a document-dependent
-rule defers to post-fetch evaluation with real grants.
+known-denied virtual adds no dependency-only fetch and never runs its getter;
+a document-dependent rule may fetch inputs before real grants deny the getter.
 
 Output-only database/write restrictions: registered virtual names for any
 access (including bare `permissionSchema: true` rules and inapplicable
@@ -2548,7 +2554,9 @@ object or logical branch is retained; a wholly virtual ordinary filter becomes `
 
 Trusted `decorate`/`decorateAll`/tasks boundary: virtuals evaluate before
 `decorate`/`decorateAll`/tasks; internal-only dependency fields are stripped
-before those hooks see the object. Trusted hooks may deliberately construct new
+before those hooks see the object. Private fourth-argument maps are never implicitly
+transported there; an authorized getter's deliberate returned value is output.
+Trusted hooks may deliberately construct new
 output from trusted context; no second authorization pass after those hooks is
 promised.
 
@@ -2559,8 +2567,303 @@ data over per-row database calls. On a 24-row list with 2 getters at
 label via `populate: [{ path: 'addrId', select: ['label'] }]` and a getter
 reading the finalized `doc.addrId` object issued 2 driver reads (batched `$in`)
 with identical output and the same peak bound. Bounds do not collapse N+1
-into 1. Parent getters see only finalized related/embedded outputs and must
-not rely on a related model's stripped private fields.
+into 1. Argument one contains finalized public related/embedded outputs; it cannot
+recover stripped related fields. Use an explicit `dependsOnPopulate` declaration
+and the separate fourth argument when an authorized virtual needs private inputs.
+
+### Private populated dependencies
+
+`dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }]`
+is trusted **server virtual configuration**, available from the existing root and
+`/advanced` types. It grants the declaring getter private persisted **input fields**,
+even when source `account` or target `balance`/`creditLimit` output is denied.
+The source ref is retained automatically; repeating it in local `dependsOn` is unnecessary.
+
+- `dependsOn` supplies persisted fields in the current scope through argument one.
+- Ordinary query `populate` requests public related output under source and target
+  authorization, selection and match rules.
+- `dependsOnPopulate` supplies one-hop persisted target values **only to that
+  resolved getter's fourth argument**. It neither requests public population nor
+  grants output. HTTP, root, service query and client options cannot declare it.
+
+#### Runnable private dependency example
+
+Save as `private-populate-example.mts` and run with Node 22.18+ or compile with
+TypeScript/NodeNext. Install the package, Express and Mongoose as above. This
+self-contained example creates/removes a uniquely named database, registers the
+target **before** the source, and checks all three response shapes. The example
+tenant is server-owned; real applications derive it from their authenticated actor.
+
+<!-- doc-example: complete-runtime -->
+
+```ts
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import type { Server } from 'node:http';
+import express from 'express';
+import mongoose from 'mongoose';
+import { createAccessRuntime, type ModelVirtualDescriptor } from '@web-ts-toolkit/access-router';
+
+interface Account {
+  name: string;
+  balance: number;
+  creditLimit: number;
+  tenantId: string;
+}
+interface Order {
+  total: number;
+  account: mongoose.Types.ObjectId | null; // stays a persisted ref, not an Account
+}
+interface OrderVirtuals {
+  canPlaceOrder: boolean;
+}
+
+async function runPrivatePopulateExample() {
+  const connection = await mongoose
+    .createConnection(process.env.MONGODB_URL ?? 'mongodb://127.0.0.1:27017', {
+      dbName: `private_populate_example_${randomUUID().replaceAll('-', '')}`,
+    })
+    .asPromise();
+  let server: Server | undefined;
+  try {
+    const api = createAccessRuntime();
+    api.setGlobalOptions({ globalPermissions: () => [] });
+    const AccountModel = connection.model<Account>(
+      'PrivateExampleAccount',
+      new mongoose.Schema<Account>({
+        name: String,
+        balance: { type: Number, select: false },
+        creditLimit: Number,
+        tenantId: String,
+      }),
+    );
+    // Both the actual model instance and its options must exist in this runtime first.
+    const accounts = api.createRouter(AccountModel, {
+      operationAccess: { read: true },
+      baseFilter: { read: () => ({ tenantId: 'shop-a' }) },
+      permissionSchema: { name: true, balance: false, creditLimit: false },
+      stripPermissionsField: true,
+    });
+    const OrderModel = connection.model<Order>(
+      'PrivateExampleOrder',
+      new mongoose.Schema<Order>({
+        total: Number,
+        account: { type: mongoose.Schema.Types.ObjectId, ref: AccountModel.modelName },
+      }),
+    );
+    // Explicit target map: an ObjectId alone cannot infer its related model.
+    const canPlaceOrder: ModelVirtualDescriptor<Order, boolean, { account: Account }> = {
+      dependsOn: ['total'],
+      dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }],
+      get(doc, _permissions, _context, populated = {}) {
+        const account = populated.account;
+        if (doc.total === undefined || account?.balance === undefined || account.creditLimit === undefined)
+          return undefined;
+        return doc.total <= account.balance + account.creditLimit;
+      },
+    };
+    const orders = api.createRouter<Order, OrderVirtuals>(OrderModel, {
+      basePath: '/orders',
+      operationAccess: { read: true },
+      permissionSchema: { total: false, account: true, canPlaceOrder: true },
+      virtuals: { canPlaceOrder }, // assign the separately typed descriptor normally
+      stripPermissionsField: true,
+    });
+    const account = await AccountModel.create({ name: 'Main', balance: 80, creditLimit: 20, tenantId: 'shop-a' });
+    const order = await OrderModel.create({ total: 90, account: account._id });
+    const app = express();
+    app.use(express.json());
+    app.use(orders.routes);
+    server = app.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const url = `http://127.0.0.1:${address.port}/orders/__query/${order._id}`;
+    async function read(args: object) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(args),
+      });
+      assert.equal(response.status, 200);
+      return response.json();
+    }
+    const select = ['account', 'canPlaceOrder', '-_id'];
+    // 1. Public population: fetch name + private inputs, return only the public mask.
+    assert.deepEqual(await read({ select, populate: [{ path: 'account', select: 'name -_id' }] }), {
+      account: { name: 'Main' },
+      canPlaceOrder: true,
+    });
+    // 2. No ordinary population: restore the exact selected/permitted original ID.
+    assert.deepEqual(await read({ select }), { account: String(account._id), canPlaceOrder: true });
+    // 3. Unselected reference: compute privately, omit account entirely.
+    assert.deepEqual(await read({ select: ['canPlaceOrder', '-_id'] }), { canPlaceOrder: true });
+    // Readable-but-unrequested private fields still do not join public output.
+    accounts.setOption('permissionSchema', { name: true, balance: true, creditLimit: true });
+    assert.deepEqual(await read({ select, populate: [{ path: 'account', select: 'name -_id' }] }), {
+      account: { name: 'Main' },
+      canPlaceOrder: true,
+    });
+    // Denying the source field also leaves only the authorized virtual result.
+    orders.permissionSchema('account', false);
+    assert.deepEqual(await read({ select }), { canPlaceOrder: true });
+    // Input-field authority does not bypass the target's base read operation.
+    accounts.setOption('operationAccess.read', false);
+    assert.deepEqual(await read({ select: ['canPlaceOrder', '-_id'] }), {});
+  } finally {
+    if (server)
+      await new Promise<void>((resolve, reject) => server!.close((error) => (error ? reject(error) : resolve())));
+    await connection.dropDatabase();
+    await connection.close();
+  }
+}
+runPrivatePopulateExample().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+```
+
+#### Typing and isolated getter inputs
+
+`ModelVirtualGetter`, `ModelVirtualDescriptor`, `ModelVirtualAccessRecord` and
+`ModelVirtualLeaf` accept a third generic `TPopulated`, defaulting to an empty
+shape. `ModelVirtualPopulateInputs<Source, { account: Account }>` is the fourth
+argument's type. Known source keys are checked, scalar/array cardinality follows
+the persisted source field, and unknown cardinality allows both. No target shape
+is guessed without an annotation; the annotation grants no runtime authority.
+Neither persisted/write models nor public selected-output models are widened.
+
+Each mapped key is optional. A scalar is a deeply partial/readonly target or null;
+an array is a readonly array of partial targets/null slots, or null. Guard missing
+fields. Native Date/Buffer/BSON scalar types remain native; mutable methods still
+exist, but every getter, row and repeated array slot receives an isolated copy.
+The runtime always supplies argument four (`{}` without a declaration). Its type
+is optional to preserve existing three-argument callbacks **and direct calls**;
+use `populated = {}` or guard undefined in typed getters.
+
+Argument one remains the ordinary persisted/local-dependency/finalized-public-related
+view for every getter. Automatically fetched private-only refs are not added there;
+an existing local `dependsOn` on that ref keeps its ordinary behavior. Each getter
+sees only its own resolved declarations and target selections in argument four.
+Private maps/raw targets are not implicitly attached to response DTOs, contexts,
+lifecycle snapshots, public permission hooks/metadata, document handles, or ordinary
+decorate/decorateAll/task inputs. **Only an authorized getter's deliberate return
+becomes computed output**; this is not a prohibition on returning derived values.
+
+#### Target authority, selection and reconstruction
+
+Private targets always use captured base **`read`** admission, including array refs,
+source lists, writes and templates. The original actor's `operationAccess.read`,
+`overrideFilter.read` (starting with `{}`) and `baseFilter.read` run under request row
+authority with their normal exact → default → bare fallback/cache rules. Mandatory
+source IDs are ANDed afterward, preserving tenant scope. There is no private read-to-list
+fallback or route-variant gate. `authorization.related` governs only an ordinary
+requested populate/include; its grants/replacement rows, public `match`, `access`
+and `select` cannot redefine private inputs. A related policy naming only a
+dependency-only path is unused/invalid.
+
+Only selected, applicable, not-definitely-denied virtuals add dependency work;
+document-dependent authorization may defer until after fetching. Compatible public
+and private reads share a positive persisted **fetch union**, including internal
+identity/hook/join requirements. Their original authorization/output masks stay
+separate and immutable. Even a readable private field is omitted unless originally
+selected and permitted. Public exclusions and `-_id` remain effective. Different
+public match/access/row scopes require independent queries.
+
+The original query includes resolved server defaults. A default populate is ordinary
+population; explicit `populate: []` suppresses it. Admitted ordinary population keeps
+its original target projection, match/missing/null/array behavior. Denied ordinary
+population keeps its existing fallback shape. Without ordinary population, selected
+and permitted refs restore their exact pre-populate IDs/arrays, including missing
+target IDs, order, duplicates, nulls, empty arrays and own absence. Unselected,
+excluded or denied source refs are omitted, including their IDs. Reconstruction
+runs even when the getter is omitted or fails, before presentation hooks/tasks.
+
+#### Supported declarations and validation
+
+- Entries accept **only `{ path, select? }`**: no shorthand string, model, match,
+  access, populate or arbitrary Mongoose options. Duplicate paths within a resolved
+  declaration reject. Different virtuals may declare the same path.
+- `path` is a top-level, scope-local ObjectId scalar or one-dimensional ObjectId
+  ref array with a static string ref to an actual same-connection, same-runtime,
+  registered ObjectId-identity model. Embedded object/nested/document-array virtuals
+  use their `.sub` scope (declare `account`, not `contacts.account`). Dotted source
+  paths, Map/Mixed/dynamic refs, refPath, function/model-valued refs, virtual populate,
+  discriminator-varying source scopes or discriminator targets, cross-connection
+  targets, non-ObjectId IDs and multidimensional ref arrays reject explicitly.
+- Target `select` accepts comma/space strings, string arrays, or **1/-1** objects
+  (not Mongo's 1/0). Omitted/undefined/effectively empty (`''`, `[]`, `{}`) means all
+  eligible static persisted fields. Exclusion-only subtracts from that universe;
+  positive paths select eligible descendants, with explicit negatives winning.
+  `_id` is included unless `-_id` (or `{ _id: -1 }`) is declared; association identity
+  is still privately fetched. For example `{ balance: 1, _id: -1 }` supplies only balance.
+- Static embedded/dotted target fields work. Containers expand to eligible stored
+  leaves; stored target refs remain IDs only. Explicit target virtuals/aliases,
+  unknown/unsafe/control/metadata/version paths, dynamic Map/Mixed paths, ref
+  traversal, `+` tokens, non-string array entries and invalid object values reject,
+  including invalid exclusions. No recursive target virtual computation/private
+  population occurs. Target `requireExplicitSelect` and service defaults do not
+  replace the declaration's selection.
+- Shared per-access `dependsOnPopulate` inherits independently of `dependsOn`:
+  exact access getter → default getter; a bare getter inherits its shared lists.
+  A leaf's defined list replaces the shared list wholesale, `[]` clears it,
+  undefined inherits, and null rejects. Descriptor arrays/masks and target policies
+  are captured with the getter before asynchronous work; later calls see updates.
+- Validation is eager and atomic for constructors, bulk and dotted setters. Target
+  model instances **and options must be registered first**, even with
+  `requireRegisteredPopulateModels: false`. For mutually referencing models, register
+  both options before assigning virtuals; self-refs use the proposed source options.
+  Operation capture rechecks schema/target/metadata binding before hooks or writes.
+
+#### Absence, errors, lifecycle and measured work
+
+Absent/undefined source refs omit the virtual without invoking it. Present null and
+empty arrays invoke the getter with null/[] without a target query when read is
+admitted. Deleted/out-of-scope target rows become scalar null or null array slots;
+private arrays preserve original order, duplicates and null/missing slots. Missing
+target fields remain partial inputs; null/false/zero/empty-string stay present and
+the getter decides what to return.
+
+Target read denial or terminal false transform/base scope makes dependencies
+unavailable and omits affected virtuals (even for null/empty source refs). A
+dependency-only query/hook/cast failure also omits them with structural-only logging.
+There is no raw fallback, retry or new retryable write error: a successful write
+stays successful. A failed query that also serves ordinary public population keeps
+that ordinary error path. Getter undefined/throw omits fail-closed; invalid server
+configuration is a preflight error, not an unavailable input.
+
+Support covers direct/root/trusted reads, create/update/both upsert branches, `new`,
+ordinary populated and legacy/correlated included targets, embedded scopes, and
+visible dedicated subdocument list/read/create/update/bulkUpdate outputs. Count,
+distinct, exists, delete identities, include-count and field helpers add no private
+dependency I/O/getters. `SubPopulate` remains path/select-only. Writes capture
+post-save/post-afterPersist refs on detached output copies after lifecycle work;
+hidden mutation rows do not run getters. `new` still ignores `args.select`, uses
+create access, and loads present default refs under target read authority without saving.
+
+Private fetches use the receiving output's captured hydration: source read mode for
+direct reads/populate, fixed lean for include targets, hydrated for dedicated child
+read/list and ordinary writes/templates, fixed lean for child mutation visibility.
+Restoration is exact relative to that pre-populate materialized value, not raw BSON
+parity across modes. Defaults/getters/transforms/init hooks and dotted projection's
+omitted null containers can differ; see the [hydration caveat](#breaking-release-server-owned-hydration).
+
+Measured batching: with two compatible target groups, **1 and 24 source rows both
+issued 1 parent find + 2 target finds**, in lean and hydrated modes. Getter counts
+were 4 and 96; observed persistence/getter peaks were 1/1 or 2/2 at matching limits.
+Compatible rows/virtuals/scopes batch and deduplicate fetched IDs, not reconstructed
+slots or public authorization. Covered raw work can be reused only within its
+captured request/runtime/family/mode and ID/projection coverage. Different scopes
+still query separately; ordinary per-parent correlated public queries remain
+per-parent. This is not a constant-query-count promise for independent includes.
+
+**Compatibility:** existing bare/descriptor/per-access getters and local `dependsOn`
+keep their first-argument and three-argument direct-call contract. Opt in by adding
+the declaration and a separately typed descriptor/default fourth argument; no new
+router-wide generic, entrypoint, client API or persisted-field migration is required.
+The deliberate opt-in constraints are eager target registration and strict static
+reference/target-selection validation; ordinary public populate grammar is unchanged.
 
 ### Hook admission and reentrant service calls
 

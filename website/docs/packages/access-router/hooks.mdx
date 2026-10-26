@@ -95,11 +95,84 @@ metadata. Later named output helpers reuse original decisions via the opaque res
 handle, even after ownerId and metadata trim; a fresh raw policy is new evaluation, not
 document-state reuse. See [Services](./services#call-policy-and-document-result-reuse).
 
+### Private populated getter inputs
+
+Package virtuals run after internal document grants and before decoration/tasks.
+Their first argument remains an isolated ordinary persisted/local-`dependsOn` view
+plus finalized **public** related/embedded outputs. A `dependsOnPopulate` declaration
+adds only a separate, declaration-scoped **fourth argument**; it does not retype ref
+IDs in argument one or add private maps to `ModelVirtualContext`.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { Types } from 'mongoose';
+import type { ModelVirtualDescriptor } from '@web-ts-toolkit/access-router';
+
+interface Order {
+  total: number;
+  account: Types.ObjectId | null;
+}
+interface Account {
+  balance: number;
+  creditLimit: number;
+}
+const canPlaceOrder: ModelVirtualDescriptor<Order, boolean, { account: Account }> = {
+  dependsOn: ['total'],
+  dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }],
+  get(doc, _permissions, _context, populated = {}) {
+    const account = populated.account;
+    if (doc.total === undefined || account?.balance === undefined || account.creditLimit === undefined)
+      return undefined;
+    return doc.total <= account.balance + account.creditLimit;
+  },
+};
+```
+
+Assign this separately typed descriptor to ordinary `virtuals` after registering
+the target model/options first; see [configuration](./configuration#private-populated-virtual-dependencies).
+`ModelVirtualPopulateDependency` and `ModelVirtualPopulateInputs` are available from
+root and `/advanced`. The optional third generic explicitly maps source keys to
+target persisted shapes; unannotated argument four defaults to an empty type.
+It does not select fields or widen persisted, write or public output types.
+
+The runtime always supplies argument four (`{}` without a declaration); the callback
+parameter stays optional so existing callbacks and three-argument direct invocations
+remain compatible. Default it to `{}` or guard undefined. Known source keys/cardinality
+are checked; keys/target fields are optional, scalar targets may be null and source
+arrays become readonly arrays of partial targets/null slots (or null). Containers
+are deeply readonly/partial. Date/Buffer/BSON keep native types/methods and are cloned
+independently per getter, row and repeated slot; readonly containers do not make
+native methods immutable or promise equal lean/hydrated materialization.
+
+Only the resolved declaration's paths/mask reach each getter, independently of public
+match/select/access. Missing/undefined source refs skip invocation. Present null/empty
+arrays invoke with null/[] when target read is admitted; deleted/out-of-scope rows
+become null/null slots in original order, preserving duplicates. Missing target fields
+remain absent/undefined; present null/false/zero/empty-string survive. The getter chooses
+what to return for partial inputs.
+
+Target base-read denial/terminal false row scope makes dependencies unavailable and
+skips affected getters, even for null/empty refs. Dependency-only hook/query/cast errors
+omit the virtual with structural-only logs, without raw fallback/retry/new retryable
+write errors. Shared ordinary-public query failures keep the ordinary error path.
+Invalid configuration fails preflight. Getter undefined/throw and later authorization
+denial still reach unconditional public reconstruction/cleanup.
+
+There is **no implicit transport** of private maps/raw targets to DTOs, lifecycle
+snapshots, public permission hooks/metadata, document handles, or decorate/task input.
+Only an authorized getter's deliberate returned value becomes computed output;
+mutating inputs alone cannot change another getter, persistence or response fields.
+Public related outputs still use target-owned output authority; private terminal
+reads use the actor's base-read/request tenant scope and never compute target virtuals.
+
 ### `decorate` / `decorateAll`
 
 Use these trusted application stages (and tasks) after authorization/finalization. They
 can intentionally remove/construct output; no automatic second authorization pass is promised.
 Arbitrary replacements/mutations do not acquire valid same-stage document handles.
+Private virtual dependency maps have no implicit presence here; returned authorized
+virtual values and the reconstructed original public reference shapes do.
 
 ## Request Augmentation
 
