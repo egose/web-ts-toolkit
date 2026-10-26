@@ -501,6 +501,12 @@ export interface ModelRouterOptions<
    * authorized. Virtuals are output-only: registered names (including
    * embedded `sub` leaves) are excluded from persisted projections, client
    * write admission, and database sort/filter/distinct handling.
+   * `dependsOnPopulate` declares one-hop private persisted target inputs only in
+   * that getter's fourth argument. Annotate ModelVirtualDescriptor<Source, Value,
+   * { ref: Target }> separately, then assign here; persisted/write/public types
+   * stay unchanged. Register target models/options first in this runtime. Source
+   * refs are retained automatically; target base read/tenant gates still apply.
+   * The original public selection/population is preserved, including ID restoration.
    *
    * @example Shortest typed happy-path (persisted model lacks `fullAddress`):
    * ```ts

@@ -14,6 +14,7 @@ import type {
   ServiceAuthorization,
 } from '../interfaces/service-authorization';
 import { authorizationError, authorizationRecord, copyAuthorizationValue } from './authorization-snapshot';
+import type { VirtualPopulateSnapshotToken } from './virtual-populate-dependencies';
 export { ServiceAuthorizationError } from './authorization-snapshot';
 
 export interface AuthorizationBinding {
@@ -55,6 +56,8 @@ export interface AuthorizationFieldCatalog {
 
 export interface AuthorizationConfiguration {
   readonly catalog: AuthorizationFieldCatalog;
+  /** Opaque terminal private-input capture. Never related authority or public document metadata. */
+  readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   readonly documentPermissionField?: string;
   /** Captured permission schema, virtual descriptors, always-select and metadata posture. */
   readonly [key: string]: unknown;
@@ -65,9 +68,15 @@ export interface AuthorizationRelatedTarget {
   readonly path: string;
   readonly modelName: string;
   readonly configuration: AuthorizationConfiguration;
+  /** Effective include args/options, resolved with that target's captured defaults. */
+  readonly queryIntent?: import('../services/model-service-intent').ModelServiceIntent;
+  /** Existing include operation gate, resolved synchronously with its target. */
+  readonly operationGuard?: unknown;
   /** Passthrough is the existing global unregistered-populate opt-out, not a caller policy. */
   readonly kind?: 'output' | 'count' | 'passthrough';
   readonly relatedTargets?: readonly AuthorizationRelatedTarget[];
+  /** Captured supported raw-ref transport shape; exotic ordinary populates keep their adapter path. */
+  readonly staticObjectIdReference?: boolean;
 }
 
 export type AuthorizationApplicability = 'service' | 'mutation' | 'create' | 'output';

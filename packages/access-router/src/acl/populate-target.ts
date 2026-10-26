@@ -35,6 +35,9 @@
 import type { Populate } from '../interfaces';
 import type { VirtualProjectionAccess, VirtualProjectionPlan } from './virtual-projection';
 import type { FinalizeSnapshot } from '../output/finalize-model-output';
+import type { AccessRuntime } from '../runtime';
+import type { Model } from 'mongoose';
+import type { AuthorizationConfiguration } from './service-authorization';
 
 /** Effective target data policy; trusted non-reserved custom accesses remain exact. */
 export type PopulateTargetAccess = VirtualProjectionAccess;
@@ -50,6 +53,15 @@ export interface PopulateTargetMeta {
   plan: VirtualProjectionPlan;
   /** Coherent options snapshot for the target finalizer. */
   snapshot: FinalizeSnapshot;
+  /** Captured raw-query binding only. Contains no target rows or private inputs. */
+  fetchBinding?: {
+    runtime: AccessRuntime;
+    model: Model<unknown>;
+    schema: object;
+    configuration: AuthorizationConfiguration;
+    requestRead: boolean;
+    staticObjectIdReference?: boolean;
+  };
 }
 
 /**

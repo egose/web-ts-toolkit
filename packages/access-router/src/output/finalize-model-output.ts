@@ -14,14 +14,16 @@
  *   outputAccess, docPermissionsAccess }` + already-computed internal grants.
  *   Embedded scopes reuse the owning parent's grants with scoped field rules.
  * - D4: getters see an isolated snapshot of persisted deps + already-finalized
- *   related/embedded outputs; sibling virtuals never visible; input mutation
- *   cannot change output/snapshots; only returned values committed;
+ *   public related/embedded outputs in argument one; declared private populated
+ *   inputs are isolated in argument four (DPV D3). Sibling virtuals never visible;
+ *   input mutation has no implicit effect on output/snapshots; only returned values committed;
  *   `undefined`/throw omits fail-closed; `Date`/`Buffer`/`ObjectId`/BSON cloned
  *   without JSON cloning.
  * - D5: `dependsOn` are top-level persisted names relative to scope; only absent
  *   (`missing` or `undefined`) omits; present `null`/`0`/`false`/`''` runs.
  * - D6: effective selection computed before evaluation (captured plan);
- *   internal-only deps stripped before `decorate`/tasks see the object.
+ *   internal-only deps stripped before `decorate`/tasks see the object. This is
+ *   no implicit transport, not a restriction on an authorized getter's deliberate return.
  * - D7/ARL-07: per-call row/child maps preserve order; the request/runtime
  *   gate admits independent hook chains across all services and output scopes.
  *   Nested service hooks reuse a chain with FIFO, one-child-at-a-time admission
@@ -78,6 +80,15 @@ import {
 } from '../acl/output-field-filter';
 import { evaluateEffectiveFieldAuthorization, extractScopedOutputRule } from '../acl/field-authorization';
 import { matchesCatalogPattern } from '../acl/field-catalog';
+import {
+  getVirtualPopulateRow,
+  hasVirtualPopulatePublicReference,
+  readVirtualPopulateInputs,
+  readVirtualPopulateOriginalReference,
+  type VirtualPopulateAddress,
+  type VirtualPopulateRow,
+} from '../acl/virtual-populate-execution';
+import { getIncludeOriginal } from './include-output';
 
 export type VirtualFinalizeAccess = VirtualProjectionAccess;
 
@@ -101,8 +112,8 @@ export interface FinalizeRelatedTarget {
 /**
  * Traversal/integration hooks for VIRT-05 (related) / VIRT-06 (embedded).
  * Defaults finalize through this same boundary (`finalizeModelOutput`
- * recursively) before parent getters; only finalized children appear in the
- * parent getter view. Raw association/correlated values are retained privately
+ * recursively) before parent getters; only finalized public children appear in
+ * argument one. Declared private inputs use argument four. Raw association/correlated values are retained privately
  * (never attached to output) via `retainRawAssociation`.
  */
 export interface VirtualTraversalHooks {
@@ -154,6 +165,9 @@ export interface FinalizeModelOutputArgs {
   /** Package-only embedded ownership: reuse raw owning grants, with scope-local decisions. */
   owningDocument?: DocumentAuthorization;
   owningBinding?: AuthorizationBinding;
+  /** Package-private execution handoff, never serialized or put into hook contexts/handles. */
+  virtualPopulateRow?: VirtualPopulateRow;
+  virtualPopulateAddress?: VirtualPopulateAddress;
   /** Private service handoff, after association; never attach this context to data. Lists supply the row index. */
   onFinalized?: (output: Record<string, unknown>, context: ServiceOutputContext, index?: number) => void;
 }
@@ -348,6 +362,10 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   const snapshot = captured ? (captured.configuration as FinalizeSnapshot) : args.snapshot;
   const limit = args.resolvedLimit;
   const gate = args.sharedGate;
+  const original = getIncludeOriginal(input);
+  const privateRow =
+    args.virtualPopulateRow ?? (original && typeof original === 'object' ? getVirtualPopulateRow(original) : undefined);
+  const privateAddress = args.virtualPopulateAddress ?? [];
 
   // 1. Normalize to an isolated output object (never mutates input/snapshots).
   const isolated = isolateDocForOutput(input);
@@ -408,7 +426,8 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
 
   // 3. Finalize related/embedded children through the same boundary BEFORE
   //    parent getters. Raw association values retained privately; only
-  //    finalized children appear in the parent getter view. Child orchestration
+  //    finalized public children appear in argument one; declared private inputs
+  //    use argument four. Child orchestration
   //    uses bounded maps with the same finite limit and never holds persistence
   //    permits (orchestration only) or the shared hook gate while awaiting.
   const childPlans = plan.childPlans ?? {};
@@ -447,9 +466,11 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       owningDocument: documentAuthorization,
       owningBinding: binding,
       related: [],
+      virtualPopulateRow: privateRow,
     };
-    const finalizeOneChild = async (rawChild: unknown): Promise<unknown> => {
-      if (captured && Array.isArray(rawChild)) return mapWithConcurrencyLimit(rawChild, limit, finalizeOneChild);
+    const finalizeOneChild = async (rawChild: unknown, address: VirtualPopulateAddress): Promise<unknown> => {
+      if (captured && Array.isArray(rawChild))
+        return mapWithConcurrencyLimit(rawChild, limit, (entry, index) => finalizeOneChild(entry, [...address, index]));
       if (!isPlainObject(rawChild) && !Array.isArray(rawChild)) return captured ? null : deepIsolateValue(rawChild);
       if (args.traversal?.finalizeEmbeddedChildren) {
         return args.traversal.finalizeEmbeddedChildren({
@@ -463,17 +484,24 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
                 owningBinding: binding,
                 docPermissions: docGrants,
                 context: scopeContext,
+                virtualPopulateRow: privateRow,
+                virtualPopulateAddress: address,
               }
-            : args,
+            : { ...args, virtualPopulateRow: privateRow, virtualPopulateAddress: address },
         });
       }
-      return finalizeSingleDoc(childBase, rawChild);
+      return finalizeSingleDoc({ ...childBase, virtualPopulateAddress: address }, rawChild);
     };
     if (Array.isArray(rawContainer)) {
-      const finalized = await mapWithConcurrencyLimit(rawContainer, limit, (entry) => finalizeOneChild(entry));
+      const finalized = await mapWithConcurrencyLimit(rawContainer, limit, (entry, index) =>
+        finalizeOneChild(entry, [...privateAddress, containerName, index]),
+      );
       (output as Record<string, unknown>)[containerName] = finalized;
     } else if (isPlainObject(rawContainer)) {
-      (output as Record<string, unknown>)[containerName] = await finalizeOneChild(rawContainer);
+      (output as Record<string, unknown>)[containerName] = await finalizeOneChild(rawContainer, [
+        ...privateAddress,
+        containerName,
+      ]);
     }
     // Primitives left as-is (no embedded traversal).
   }
@@ -481,10 +509,12 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   const relatedTargets = args.related ?? [];
   for (const target of relatedTargets) {
     let rawRelated: unknown;
+    let originalRelated: unknown;
     try {
       rawRelated = target.path.includes('.')
         ? get(output as object, target.path)
         : (output as Record<string, unknown>)[target.path];
+      originalRelated = get(original as object, target.path);
     } catch {
       continue;
     }
@@ -510,24 +540,36 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       onFinalized: undefined,
       owningDocument: undefined,
       owningBinding: undefined,
+      virtualPopulateRow: undefined,
+      virtualPopulateAddress: [],
       context: scopeContext as unknown as ModelHookContext,
       related: target.plan.relatedPlans?.length
         ? (args.related ?? []).filter((entry) => entry.path.startsWith(`${target.path}.`))
         : [],
     };
-    const finalizeOneRelated = async (rawChild: unknown): Promise<unknown> => {
+    const finalizeOneRelated = async (rawChild: unknown, originalChild: unknown = rawChild): Promise<unknown> => {
       if (!isPlainObject(rawChild) && !Array.isArray(rawChild)) return rawChild;
       if (typeof (rawChild as Record<string, unknown>)?._bsontype === 'string') return rawChild;
+      const childOriginal = getIncludeOriginal(originalChild);
+      const childRow =
+        childOriginal && typeof childOriginal === 'object' ? getVirtualPopulateRow(childOriginal) : undefined;
       if (args.traversal?.finalizeRelatedValue) {
-        return args.traversal.finalizeRelatedValue({ path: target.path, target, rawValue: rawChild, parentArgs: args });
+        return args.traversal.finalizeRelatedValue({
+          path: target.path,
+          target,
+          rawValue: rawChild,
+          parentArgs: { ...args, virtualPopulateRow: childRow, virtualPopulateAddress: [] },
+        });
       }
-      return finalizeSingleDoc(relatedBase, rawChild);
+      return finalizeSingleDoc({ ...relatedBase, virtualPopulateRow: childRow }, rawChild);
     };
     let finalized: unknown;
     if (Array.isArray(rawRelated)) {
-      finalized = await mapWithConcurrencyLimit(rawRelated, limit, (entry) => finalizeOneRelated(entry));
+      finalized = await mapWithConcurrencyLimit(rawRelated, limit, (entry, index) =>
+        finalizeOneRelated(entry, Array.isArray(originalRelated) ? originalRelated[index] : undefined),
+      );
     } else if (isPlainObject(rawRelated)) {
-      finalized = await finalizeOneRelated(rawRelated);
+      finalized = await finalizeOneRelated(rawRelated, originalRelated);
     } else {
       continue;
     }
@@ -555,7 +597,7 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   const staged = new Map<string, unknown>();
   const runCandidate = async (candidate: {
     name: string;
-    descriptor: { get: (...args: never[]) => unknown; dependsOn: string[] };
+    descriptor: { get: (...args: never[]) => unknown; dependsOn: string[]; dependsOnPopulate?: unknown[] };
   }): Promise<void> => {
     const dependsOn = Array.isArray(candidate.descriptor?.dependsOn) ? candidate.descriptor.dependsOn : [];
     for (const dep of dependsOn) {
@@ -574,6 +616,12 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
     if (!allowed) return;
     const getter = candidate.descriptor?.get;
     if (typeof getter !== 'function') return;
+    const privateInputs = privateRow
+      ? readVirtualPopulateInputs(privateRow, privateAddress, candidate.name)
+      : candidate.descriptor.dependsOnPopulate?.length
+        ? { available: false as const }
+        : { available: true as const, populated: {} };
+    if (!privateInputs.available) return;
     const isolatedView = deepIsolateValue(stableBase);
     const virtualContext = {
       ...scopeContext,
@@ -587,6 +635,7 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       view: isolatedView,
       permissions: globalPerms as unknown as Permissions,
       context: virtualContext,
+      populated: privateInputs.populated,
       logMeta: {
         modelName: args.receivingModelName,
         scope: scopeLabel,
@@ -670,6 +719,16 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
 
   const trimmed: Record<string, unknown> = {};
   for (const key of keep) {
+    // Reconstruction is independent of every getter outcome. Private-only work
+    // cannot implicitly populate output; a getter's deliberate return is separate.
+    // Exact originals are never inferred from targets.
+    if (privateRow && !hasVirtualPopulatePublicReference(privateRow, privateAddress, key)) {
+      const ref = readVirtualPopulateOriginalReference(privateRow, privateAddress, key);
+      if (ref) {
+        if (ref.present) output[key] = ref.value;
+        else delete output[key];
+      }
+    }
     if (!(key in output)) continue;
     if (captured && !plan.childPlans[key]) {
       const path = [...(binding!.scopePath ?? []), key].join('.');

@@ -24,7 +24,12 @@ import { Codes } from '../enums';
 import { assertPublicAdmission, PublicAdmissionError } from '../validation/public-admission';
 import { sanitizeSubScopeVirtualKeys, validateClientFilter } from './base';
 import type { Service } from './service';
-import { copySubdocumentParent, finalizeSubdocumentRows, prepareSubdocumentPopulate } from '../acl/subdocument-output';
+import {
+  copySubdocumentParent,
+  finalizeSubdocumentRows,
+  prepareSubdocumentPopulate,
+  subdocumentRequiresPopulateCapture,
+} from '../acl/subdocument-output';
 import {
   prepareSubdocumentCall,
   subdocumentGateAllowed,
@@ -180,6 +185,7 @@ export async function listSub<T, V extends object>(
 ): Promise<ListResult | ErrorResult> {
   return result(async () => {
     const call = prepareSubdocumentCall(service, sub, 'list', options);
+    options = deepIsolateValue(options);
     const errors = validateClientFilter(options?.filter);
     if (errors.length) return { ...denied(Codes.BadRequest), errors };
     if (options?.filter === false) return denied();
@@ -218,16 +224,19 @@ export async function readSub<T, V extends object>(
     const childFilter = await subdocumentRows(service, call.child, identity, identity, sub);
     if (childFilter === false) return denied();
     const entries = await prepareSubdocumentPopulate(service, call.output!);
+    const capture = subdocumentRequiresPopulateCapture(call.output!, entries);
     const parent = await service.findRawParentDoc({
       filter,
       select: parentSelection(service, call),
-      populate: entries,
+      populate: capture ? [] : entries,
     });
     if (!parent) return denied(Codes.NotFound);
-    const row = findElement(get(copySubdocumentParent(parent), sub) as Record<string, unknown>[], childFilter);
+    const row = findElement(
+      get(capture ? parent : copySubdocumentParent(parent), sub) as Record<string, unknown>[],
+      childFilter,
+    );
     if (!row) return denied(Codes.NotFound);
-    await service.finalizePopulateForSubParent({ [sub]: [row] }, entries, 'subRead');
-    const data = await finalizeSubdocumentRows(service, call.output!, parent, [row]);
+    const data = await finalizeSubdocumentRows(service, call.output!, parent, [row], entries);
     return { success: true as const, kind: 'single' as const, code: Codes.Success, data: data[0] ?? null };
   });
 }
@@ -314,6 +323,7 @@ export async function createSub<T, V extends object>(
 ): Promise<ListResult | ErrorResult> {
   return result(async () => {
     const call = prepareSubdocumentCall(service, sub, 'create', options);
+    const addFirst = options?.addFirst;
     const { maxBulkItems } = service.getRequestComplexity();
     if (Array.isArray(data) && data.length > maxBulkItems)
       return invalid(`Bulk subdocument create exceeds maximum item count of ${maxBulkItems}`);
@@ -327,7 +337,7 @@ export async function createSub<T, V extends object>(
     const rows = get(parent, sub) as Record<string, unknown>[];
     const admit = await inputAdmission(service, call, parent);
     const allowed = (Array.isArray(data) ? data : [data]).map((row) => admit(row).allowedData);
-    if (options?.addFirst) rows.unshift(...allowed);
+    if (addFirst) rows.unshift(...allowed);
     else rows.push(...allowed);
     await persist(() => parent.save());
     const visible = await visibleMutationRows(service, call, parent._id, rows);

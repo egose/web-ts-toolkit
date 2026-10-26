@@ -18,8 +18,12 @@ import { captureRelatedTargets } from './related-execution';
 import type { AuthorizationConfiguration } from './service-authorization';
 import type { AccessRouterPermissions } from '../permission';
 import type { OutputAuthorization } from '../interfaces';
+import { getPopulateTargetMeta, setPopulateTargetMeta } from './populate-target';
+import { loadVirtualPopulateOutputRows, planVirtualPopulateQuery } from './virtual-populate-execution';
+import { getRequestWorkState } from '../helpers/request-work';
 
 interface SubdocumentOutputPlan {
+  sub: string;
   execution: import('./service-execution').ServiceExecutionContext;
   state: ReturnType<typeof readServiceExecution>;
   plan: import('./virtual-projection').VirtualProjectionPlan;
@@ -29,16 +33,34 @@ interface SubdocumentOutputPlan {
 // Keep the canonical population executor private rather than adding a service option/method.
 const populateExecutors = new WeakMap<
   object,
-  (execution: SubdocumentOutputPlan['execution'], populate: Populate[]) => Promise<Populate[]>
+  {
+    execute: (execution: SubdocumentOutputPlan['execution'], populate: Populate[]) => Promise<Populate[]>;
+    core?: object;
+  }
 >();
 export function registerSubdocumentPopulateExecutor(
   service: object,
   execute: (execution: SubdocumentOutputPlan['execution'], populate: Populate[]) => Promise<Populate[]>,
+  core?: object,
 ): void {
-  populateExecutors.set(service, execute);
+  populateExecutors.set(service, { execute, core });
 }
 export function prepareSubdocumentPopulate(service: object, prepared: SubdocumentOutputPlan): Promise<Populate[]> {
-  return populateExecutors.get(service)!(prepared.execution, prepared.populate);
+  return populateExecutors.get(service)!.execute(prepared.execution, prepared.populate);
+}
+
+/** The dedicated child is an output root, while ordinary population is parent-relative. */
+function childPopulate(prepared: SubdocumentOutputPlan, populate: readonly Populate[]): Populate[] {
+  return populate.map((entry) => {
+    const local = { ...entry, path: entry.path.slice(prepared.sub.length + 1) };
+    const meta = getPopulateTargetMeta(entry);
+    if (meta) setPopulateTargetMeta(local, meta);
+    return local;
+  });
+}
+
+export function subdocumentRequiresPopulateCapture(prepared: SubdocumentOutputPlan, populate: Populate[]): boolean {
+  return planVirtualPopulateQuery(prepared.plan, childPopulate(prepared, populate)).requiresCapture;
 }
 
 export function prepareSubdocumentOutput<T, V extends object>(
@@ -85,7 +107,7 @@ export function prepareSubdocumentOutput<T, V extends object>(
     requestPermissions: getAuthorizationPermissions(state.authorization, state.binding),
   });
   const plan = planAuthorizedModelProjection({ authorization, binding, requestedSelect: select });
-  return { execution, state, plan, populate: populate ?? [] };
+  return { sub, execution, state, plan, populate: populate ?? [] };
 }
 
 export async function finalizeSubdocumentRows<T, V extends object>(
@@ -93,6 +115,7 @@ export async function finalizeSubdocumentRows<T, V extends object>(
   prepared: SubdocumentOutputPlan,
   parent: unknown,
   rows: unknown[],
+  populate: Populate[] = [],
 ): Promise<Record<string, unknown>[]> {
   if (!rows.length) return [];
   const { state, plan } = prepared;
@@ -107,9 +130,45 @@ export async function finalizeSubdocumentRows<T, V extends object>(
     snapshot: isolateDocForOutput(parent) as Record<string, unknown>,
     context,
   });
+  const localPopulate = childPopulate(prepared, populate);
+  const population = planVirtualPopulateQuery(plan, localPopulate);
+  let inputs = rows;
+  if (population.requiresCapture) {
+    // Parent hooks keep their raw owning-document input. Only visible children
+    // enter this collected batch; never populate persistence documents.
+    const runtime = state.binding.runtime as import('../runtime').AccessRuntime;
+    inputs = await loadVirtualPopulateOutputRows(
+      {
+        request: service.getServiceRequest(),
+        runtime,
+        family: state.family,
+        core: populateExecutors.get(service)?.core,
+        permissions: getAuthorizationPermissions(state.authorization, state.binding),
+        hydration: ['subCreate', 'subUpdate', 'subBulkUpdate'].includes(state.access.operation) ? 'lean' : 'hydrated',
+      },
+      rows,
+      plan,
+      population.publicPopulate,
+      [...plan.publicPersistedFetchSelection, ...localPopulate.map((entry) => entry.path)],
+      population.queryPopulate,
+      population.queryPopulate.length
+        ? (output) =>
+            getRequestWorkState(service.getServiceRequest(), runtime).scheduler.work(() =>
+              (state.binding.model as import('mongoose').Model<unknown>).populate(
+                { [prepared.sub]: output },
+                populate.filter((entry) =>
+                  population.queryPopulate.some((local) => entry.path === `${prepared.sub}.${local.path}`),
+                ),
+              ),
+            )
+        : undefined,
+    );
+  }
+  if (populate.length)
+    await service.finalizePopulateForSubParent({ [prepared.sub]: inputs }, populate, state.access.operation);
   return finalizeModelOutputs({
     receivingModelName: state.binding.modelName,
-    inputs: rows,
+    inputs,
     plan,
     snapshot: readServiceAuthorization(state.authorization, state.binding).configuration as FinalizeSnapshot,
     request: service.getServiceRequest(),

@@ -82,7 +82,11 @@ import type {
 import { planModelOutputForHelper } from './acl/model-output-planning';
 import { filterModelOutputForHelper } from './acl/output-field-filter';
 import { getRequestWorkState } from './helpers/request-work';
-import { constructOwnedModelService, registerModelCoreOwner } from './acl/model-service-owner';
+import {
+  constructOwnedModelService,
+  consumeCapturedModelOperationGuard,
+  registerModelCoreOwner,
+} from './acl/model-service-owner';
 
 type InternalModelHookContext = ModelHookContext & {
   fieldPermissionAccess?: {
@@ -786,6 +790,8 @@ export class Core {
   }
 
   async isAllowed(modelName: string, access: RouteGuardAccess | string): Promise<boolean> {
+    const captured = consumeCapturedModelOperationGuard(this, modelName, access);
+    if (captured) return evaluateRouteGuard(this.req, captured.permissions, captured.guard as Validation);
     if (access.startsWith('subs')) {
       const keys = access.split('.');
       if (keys.length < 3) {

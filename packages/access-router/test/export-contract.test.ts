@@ -437,6 +437,103 @@ describe('AR-14 published export contract', () => {
       }
     });
 
+    it.each(['d.ts', 'd.mts'])('DPV-05 exports private input types and editor hover in %s', (extension) => {
+      const ts = require('typescript') as typeof import('typescript');
+      const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));
+      const program = ts.createProgram(entries, {
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        noEmit: true,
+        skipLibCheck: true,
+        types: [],
+      });
+      const checker = program.getTypeChecker();
+      const exported = (entry: string, name: string) => {
+        const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
+        let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === name)!;
+        expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
+        if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+        return { symbol, type: checker.getDeclaredTypeOfSymbol(symbol) };
+      };
+      const hover = (symbol: import('typescript').Symbol) =>
+        ts.displayPartsToString(symbol.getDocumentationComment(checker));
+      const names = (type: import('typescript').Type) =>
+        type
+          .getProperties()
+          .map((p) => p.name)
+          .sort();
+      for (const entry of entries) {
+        const dependency = exported(entry, 'ModelVirtualPopulateDependency');
+        expect(names(dependency.type)).toEqual(['path', 'select']);
+        for (const phrase of [
+          'one-hop',
+          'same-connection',
+          'eager/atomic',
+          'operationAccess.read',
+          'authorization.related',
+        ])
+          expect(hover(dependency.symbol)).toContain(phrase);
+        expect(hover(dependency.type.getProperty('path')!)).toContain('Retained automatically');
+        expect(hover(dependency.type.getProperty('select')!)).toContain('1/-1');
+        const descriptor = exported(entry, 'ModelVirtualDescriptor');
+        expect(names(descriptor.type)).toEqual(['dependsOn', 'dependsOnPopulate', 'get']);
+        expect(hover(descriptor.symbol)).toContain('populated = {}');
+        const example = descriptor.symbol.getJsDocTags(checker).find((tag) => tag.name === 'example');
+        expect(example).toBeDefined();
+        expect(ts.displayPartsToString(example!.text)).toContain('populated = {}');
+        expect(hover(descriptor.type.getProperty('dependsOnPopulate')!)).toContain('fourth-argument');
+        expect(hover(descriptor.type.getProperty('get')!)).toContain('not implicitly transported');
+        for (const name of [
+          'ModelVirtualGetter',
+          'ModelVirtualDescriptor',
+          'ModelVirtualAccessRecord',
+          'ModelVirtualLeaf',
+        ]) {
+          const declaration = exported(entry, name).symbol.declarations!.find(
+            (node): node is import('typescript').InterfaceDeclaration | import('typescript').TypeAliasDeclaration =>
+              ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node),
+          )!;
+          expect(declaration.typeParameters).toHaveLength(3);
+          expect(declaration.typeParameters![2].name.text).toBe('TPopulated');
+          const emptyDefault = declaration.typeParameters![2].default!;
+          expect(emptyDefault).toBeDefined();
+          expect(checker.getTypeAtLocation(emptyDefault).getProperties()).toHaveLength(0);
+        }
+        const getter = exported(entry, 'ModelVirtualGetter');
+        const parameters = getter.type.getCallSignatures()[0].getParameters();
+        expect(parameters.map((p) => p.name)).toEqual(['doc', 'permissions', 'context', 'populated']);
+        expect(
+          (parameters[3].valueDeclaration as import('typescript').ParameterDeclaration).questionToken,
+        ).toBeDefined();
+        expect(hover(getter.symbol)).toContain('three-argument direct calls');
+        expect(hover(exported(entry, 'ModelVirtualDoc').symbol)).toContain('does not');
+        expect(hover(exported(entry, 'ModelVirtualPopulateInputs').symbol)).toContain(
+          'Native methods are not made immutable',
+        );
+        expect(exported(entry, 'ModelVirtualContext').type.getProperty('populated')).toBeUndefined();
+        expect(hover(exported(entry, 'ModelRouterOptions').type.getProperty('virtuals')!)).toContain(
+          'ModelVirtualDescriptor',
+        );
+        for (const name of [
+          'VirtualPopulateSnapshotToken',
+          'CapturedVirtualPopulateDependency',
+          'loadVirtualPopulateOutputRows',
+        ]) {
+          const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
+          expect(checker.getExportsOfModule(module).some((symbol) => symbol.name === name)).toBe(false);
+        }
+      }
+      for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
+        for (const name of [
+          'ModelVirtualPopulateDependency',
+          'ModelVirtualPopulateInputs',
+          'loadVirtualPopulateOutputRows',
+        ])
+          expect(runtime).not.toHaveProperty(name);
+      }
+    });
+
     it.each(['d.ts', 'd.mts'])('SVA-10 exports consumer policy/handle types with editor JSDoc in %s', (extension) => {
       const ts = require('typescript') as typeof import('typescript');
       const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));

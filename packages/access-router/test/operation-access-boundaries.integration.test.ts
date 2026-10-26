@@ -877,9 +877,10 @@ describe('OAV-05 populate input boundaries', () => {
         return { canInspectTarget: true };
       });
       const readGrants = vi.fn(() => ({}));
+      const inspectionGuard = vi.fn((_permissions: unknown) => true);
       router.operationAccess('read', false);
       router.operationAccess('advancedRead', true);
-      router.operationAccess('inspection', true);
+      router.operationAccess('inspection', inspectionGuard);
       router.baseFilter('inspection', () => ({ tenant: 'read' }));
       // Trusted custom data-policy keys are intentionally outside the typed base
       // field-rule shape; JavaScript configurations retain their existing behavior.
@@ -960,8 +961,11 @@ describe('OAV-05 populate input boundaries', () => {
       }
       expect(customGrants).toHaveBeenCalledTimes(1);
       expect(readGrants).not.toHaveBeenCalled();
-      const observation = f.observations.at(-1)!;
-      expect(observation.allowed.mock.calls).toContainEqual([receiverName, 'inspection']);
+      // Populate evaluates its frozen target guard directly. Observe the policy
+      // hook, rather than requiring a live Core option lookup after capture.
+      expect(inspectionGuard).toHaveBeenCalledTimes(1);
+      expect(inspectionGuard.mock.calls[0][0]).toHaveProperty('has', expect.any(Function));
+      expect(inspectionGuard.mock.contexts[0]).toHaveProperty('macl');
       expectBasePolicy(f);
     },
   );
@@ -1175,8 +1179,10 @@ describe('OAV-05 secondary target authorization', () => {
       async (access) => {
         const f = await fixture();
         f.sourceRouter.operationAccess('advancedList', true);
-        f.targetRouter.operationAccess(access, false);
-        f.targetRouter.operationAccess(`advanced${access[0].toUpperCase()}${access.slice(1)}`, true);
+        const deniedGuard = vi.fn((_permissions: unknown) => false);
+        const variantGuard = vi.fn(() => true);
+        f.targetRouter.operationAccess(access, deniedGuard);
+        f.targetRouter.operationAccess(`advanced${access[0].toUpperCase()}${access.slice(1)}`, variantGuard);
         let body: Record<string, unknown>;
         let entry: Record<string, unknown>;
         let path = '/oav05-sources/__query';
@@ -1233,9 +1239,14 @@ describe('OAV-05 secondary target authorization', () => {
         expectNoWork(f.leafWork);
         const sourceReads = f.sourceWork.find.mock.calls.length + f.sourceWork.findOne.mock.calls.length;
         expect(sourceReads).toBe(kind === 'subquery' ? 0 : 2);
-        for (const observation of f.observations) {
-          expect(observation.allowed.mock.calls).toContainEqual([f.targetName, access]);
-        }
+        expect(deniedGuard).toHaveBeenCalledTimes(2);
+        expect(variantGuard).not.toHaveBeenCalled();
+        for (const [permissions] of deniedGuard.mock.calls)
+          expect(permissions).toHaveProperty('has', expect.any(Function));
+        for (const actor of deniedGuard.mock.contexts) expect(actor).toHaveProperty('macl');
+        if (!dropPopulate)
+          for (const observation of f.observations)
+            expect(observation.allowed.mock.calls).toContainEqual([f.targetName, access]);
         expectBasePolicy(f);
       },
     );

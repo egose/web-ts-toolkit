@@ -17,7 +17,8 @@
  * - D5: `dependsOn` are top-level persisted names relative to scope;
  *   dotted/virtual-to-virtual already rejected at config (VIRT-01).
  * - D6: effective virtual selection is computed before evaluation;
- *   internal-only deps never reach decorate/tasks as ordinary fields.
+ *   internal-only deps are not implicitly transported to decorate/tasks. An
+ *   authorized getter's deliberate return is computed output, not fetch authority.
  * - D8: arbitrary select strings preserved; registered virtuals stay
  *   virtual (excluded from persisted projections, write admission, DB
  *   sort/filter/distinct).
@@ -28,17 +29,30 @@
  * explicit deny, missing applicable getter, purely-global miss) omits the
  * candidate and fetches nothing for it.
  */
-import { get, isArray, isFunction, isPlainObject } from '@web-ts-toolkit/utils';
+import { get, isArray, isPlainObject } from '@web-ts-toolkit/utils';
 import { normalizeSelect } from '../helpers/query';
 import type { Projection } from '../interfaces';
 import { classifyRequestFieldRule, extractScopedOutputRule } from './field-authorization';
 import type { FieldAuthorizationState } from './field-authorization';
 import type {
   AuthorizationBinding,
+  AuthorizationConfiguration,
   AuthorizationFieldCatalog,
   ResolvedServiceAuthorization,
 } from './service-authorization';
 import { compactPersistedProjection, planCatalogProjection } from './output-projection';
+import {
+  getScopeVirtualsObject,
+  isVirtualContainerValue,
+  resolveSnapshotDescriptor,
+  type ResolvedVirtualDescriptor,
+} from './virtual-descriptor';
+import {
+  resolveVirtualPopulateDependencies,
+  type CapturedVirtualPopulateDependency,
+  type VirtualPopulateSnapshotToken,
+} from './virtual-populate-dependencies';
+export { getScopeVirtualsObject, resolveSnapshotDescriptor } from './virtual-descriptor';
 
 /** Internal effective data policy, including trusted custom accesses; virtual configuration keys stay narrow. */
 export type VirtualProjectionAccess = 'list' | 'create' | 'read' | 'update' | (string & {});
@@ -46,6 +60,7 @@ export type VirtualProjectionAccess = 'list' | 'create' | 'read' | 'update' | (s
 export type VirtualCandidateAuthState = 'granted' | 'deferred';
 
 export interface VirtualProjectionSnapshot {
+  virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   catalog?: AuthorizationFieldCatalog;
   permissionSchema?: Record<string, unknown> | null;
   virtuals?: Record<string, unknown> | null;
@@ -82,9 +97,11 @@ export interface VirtualProjectionRelatedDescriptor {
 
 export interface PlanVirtualCandidate {
   name: string;
-  descriptor: { get: (...args: never[]) => unknown; dependsOn: string[] };
+  descriptor: ResolvedVirtualDescriptor;
   authState: VirtualCandidateAuthState;
   dependsOn: string[];
+  /** Terminal private reads for this active getter; not first-argument dependencies. */
+  populateDependencies: readonly CapturedVirtualPopulateDependency[];
   virtualAccess: VirtualProjectionAccess;
   outputAccess: VirtualProjectionAccess;
 }
@@ -111,6 +128,10 @@ export interface VirtualProjectionPlan {
   outputVirtualNames: string[];
   /** Safe Mongoose projection: no virtuals, no `.sub` paths, no `-_id`. */
   persistedFetchSelection: string[];
+  /** Pre-expansion persisted/hook input mask. Fetching new refs confers no hook-input authority. */
+  publicPersistedFetchSelection: string[];
+  /** Empty embedded hook views retain container shape, never a private fetch's contents. */
+  publicStructurePaths?: string[];
   candidates: PlanVirtualCandidate[];
   virtualOnlyDeps: string[];
   internalOnlyFields: string[];
@@ -142,70 +163,6 @@ export interface PlanVirtualProjectionArgs {
 // Snapshot-scoped registry helpers (mirror runtime.ts VIRT-01, snapshot-based
 // so in-flight planning/finalization stay coherent).
 // ---------------------------------------------------------------------------
-
-const isVirtualContainerValue = (value: unknown): value is { sub: Record<string, unknown> } =>
-  isPlainObject(value) && 'sub' in (value as Record<string, unknown>);
-
-export const getScopeVirtualsObject = (
-  rootVirtuals: Record<string, unknown> | null | undefined,
-  scopePath: string[] | undefined,
-): Record<string, unknown> | null => {
-  if (!rootVirtuals || !isPlainObject(rootVirtuals)) return null;
-  if (!scopePath || scopePath.length === 0) return rootVirtuals;
-  let current: unknown = rootVirtuals;
-  for (let i = 0; i < scopePath.length; i += 2) {
-    const field = scopePath[i];
-    const subMarker = scopePath[i + 1];
-    if (!field || subMarker !== 'sub') return null;
-    if (!isPlainObject(current)) return null;
-    const container = (current as Record<string, unknown>)[field];
-    if (!isVirtualContainerValue(container)) return null;
-    current = (container as { sub: Record<string, unknown> }).sub;
-    if (!isPlainObject(current)) return null;
-  }
-  return current as Record<string, unknown>;
-};
-
-const toSnapshotDescriptor = (
-  leaf: unknown,
-  sharedDependsOn: unknown,
-): { get: (...args: never[]) => unknown; dependsOn: string[] } | null => {
-  if (isFunction(leaf))
-    return { get: leaf as (...args: never[]) => unknown, dependsOn: ((sharedDependsOn as string[]) ?? []) as string[] };
-  if (!isPlainObject(leaf)) return null;
-  const record = leaf as Record<string, unknown>;
-  if (!isFunction(record.get)) return null;
-  const dependsOn = (record.dependsOn ?? sharedDependsOn ?? []) as string[];
-  return { get: record.get as (...args: never[]) => unknown, dependsOn: [...dependsOn] };
-};
-
-export const resolveSnapshotDescriptor = (
-  scopeVirtuals: Record<string, unknown> | null,
-  virtualName: string,
-  access: string,
-): { get: (...args: never[]) => unknown; dependsOn: string[] } | undefined => {
-  if (!scopeVirtuals || !(virtualName in scopeVirtuals)) return undefined;
-  const entry = scopeVirtuals[virtualName];
-  if (entry === undefined || isVirtualContainerValue(entry)) return undefined;
-  if (isFunction(entry)) return { get: entry as (...args: never[]) => unknown, dependsOn: [] };
-  if (!isPlainObject(entry)) return undefined;
-  const record = entry as Record<string, unknown>;
-  if ('get' in record) {
-    return toSnapshotDescriptor(entry, undefined) ?? undefined;
-  }
-  const sharedDependsOn = record.dependsOn as string[] | undefined;
-  const exact = record[access];
-  if (exact !== undefined) {
-    const descriptor = toSnapshotDescriptor(exact, sharedDependsOn);
-    if (descriptor) return descriptor;
-  }
-  const fallback = record.default;
-  if (fallback !== undefined) {
-    const descriptor = toSnapshotDescriptor(fallback, sharedDependsOn);
-    if (descriptor) return descriptor;
-  }
-  return undefined;
-};
 
 /** Scoped permissionSchema object for a scopePath (VIRT-00A D2). */
 const getScopedPermissionSchema = (
@@ -374,6 +331,12 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
         descriptor,
         authState,
         dependsOn: [...descriptor.dependsOn],
+        populateDependencies: resolveVirtualPopulateDependencies(
+          snapshot as AuthorizationConfiguration,
+          scopePath,
+          name,
+          virtualAccess,
+        ),
         virtualAccess,
         outputAccess,
       });
@@ -549,6 +512,10 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
 
   const internalIdentityFields = fetchIdRetained ? ['_id'] : [];
   const internalJoinFields = [...new Set(joinFields.map(stripLeadingDash))];
+  const publicPersistedFetchSelection = [...persistedFetchSelection];
+  const populateRefs = candidates.flatMap((candidate) => candidate.populateDependencies.map((dep) => dep.path));
+  persistedFetchSelection = compactPersistedProjection([...persistedFetchSelection, ...populateRefs]);
+  for (const path of populateRefs) if (!outputPersistedSet.has(path)) internalOnly.add(path);
 
   return {
     receivingModelName,
@@ -562,6 +529,7 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
     outputPersistedFields: [...outputPersisted],
     outputVirtualNames: [...outputVirtualNames],
     persistedFetchSelection: [...persistedFetchSelection],
+    publicPersistedFetchSelection,
     candidates: candidates.map((c) => ({ ...c, dependsOn: [...c.dependsOn] })),
     virtualOnlyDeps: [...virtualOnlyDeps].sort(),
     internalOnlyFields: [...internalOnly].sort(),

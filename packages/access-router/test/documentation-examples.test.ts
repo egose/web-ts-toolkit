@@ -156,6 +156,7 @@ const assembleAllBlocks = (): CompiledBlock[] => {
     },
     { name: 'routing.mdx', file: '../../website/docs/packages/access-router/routing.mdx', markedOnly: true },
     { name: 'services.mdx', file: '../../website/docs/packages/access-router/services.mdx', markedOnly: true },
+    { name: 'hooks.mdx', file: '../../website/docs/packages/access-router/hooks.mdx', markedOnly: true },
   ];
 
   for (const { name, file, markedOnly } of files) {

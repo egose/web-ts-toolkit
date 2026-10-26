@@ -72,6 +72,7 @@ Common model options:
 - `basePath`
 - `permissionSchema` accepts booleans, permission names, or per-operation rule objects
 - `alwaysSelectFields`
+- `virtuals`, including server-only `dependsOn` and `dependsOnPopulate`
 - `docPermissions`
 - `baseFilter`
 - `overrideFilter`
@@ -120,7 +121,8 @@ even in unrestricted row mode; scope/unrestricted replace only `baseFilter` auth
 
 `skim` is a deprecated compatibility no-op in canonical model operations. True, false
 and omission all retain authorization, document grants, virtuals and decoration.
-`lean` separately chooses Mongoose hydration; it does not skip field enforcement.
+Server model `hydration` separately chooses Mongoose materialization; there is no
+per-call/wire `lean` or `hydration` control, and field enforcement always runs.
 
 At each method resolver, non-nullish supplied values win over its `defaults` bucket,
 then built-ins. Public wrappers resolve `public*Args`/`public*Options` before internal
@@ -131,6 +133,140 @@ policy before awaiting hooks. Retained services keep their original core, actor,
 connection and related registry across a same-request runtime handoff. Base-filter cache
 entries are reused only for the same model/access and policy function.
 Request base-filter caches remain owned by their request/runtime/access.
+
+### Private populated virtual dependencies
+
+Declare `dependsOnPopulate` in trusted model virtual configuration when an authorized
+computed output needs related persisted fields the caller cannot receive. Local
+`dependsOn` remains the current scope's persisted inputs in getter argument one;
+ordinary query `populate` remains public related output. The new declaration supplies
+only that getter's **fourth argument**, independently of public population.
+
+Register the actual target model **and its options first**, in the source's runtime
+and Mongoose connection. Validation is eager/atomic for construction, bulk and dotted
+setters, including when `requireRegisteredPopulateModels` is false. Operation capture
+rechecks bindings before hooks/writes; in-flight calls retain coherent getter/masks/policies.
+
+<!-- doc-example: partial -->
+
+```ts
+import mongoose from 'mongoose';
+import { createAccessRuntime, type ModelVirtualDescriptor } from '@web-ts-toolkit/access-router';
+
+interface Account {
+  name: string;
+  balance: number;
+  creditLimit: number;
+  tenantId: string;
+}
+interface Order {
+  total: number;
+  account: mongoose.Types.ObjectId | null;
+}
+const api = createAccessRuntime();
+const AccountModel = mongoose.model<Account>(
+  'ConfiguredAccount',
+  new mongoose.Schema<Account>({
+    name: String,
+    balance: Number,
+    creditLimit: Number,
+    tenantId: String,
+  }),
+);
+api.createRouter(AccountModel, {
+  operationAccess: { read: true },
+  baseFilter: { read: () => ({ tenantId: 'example-server-owned-tenant' }) },
+  permissionSchema: { name: true, balance: false, creditLimit: false },
+});
+const OrderModel = mongoose.model<Order>(
+  'ConfiguredOrder',
+  new mongoose.Schema<Order>({
+    total: Number,
+    account: { type: mongoose.Schema.Types.ObjectId, ref: AccountModel.modelName },
+  }),
+);
+const canPlaceOrder: ModelVirtualDescriptor<Order, boolean, { account: Account }> = {
+  dependsOn: ['total'],
+  dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }],
+  get(doc, _permissions, _context, populated = {}) {
+    const account = populated.account;
+    if (doc.total === undefined || account?.balance === undefined || account.creditLimit === undefined)
+      return undefined;
+    return doc.total <= account.balance + account.creditLimit;
+  },
+};
+const orders = api.createRouter<Order, { canPlaceOrder: boolean }>(OrderModel, {
+  operationAccess: { read: true },
+  permissionSchema: { total: false, account: true, canPlaceOrder: true },
+  virtuals: { canPlaceOrder },
+});
+```
+
+The ref is automatically retained; there is no need for `dependsOn: ['account']`.
+Use the authenticated server actor's tenant in real row hooks. Private input-field
+authority still requires captured **base read** admission and request-mode
+`overrideFilter.read`/`baseFilter.read`, with source IDs ANDed after transforms.
+There is no read-to-list fallback, route-variant gate or private `access` override.
+Ordinary `populate.match`, `access`, selection and `authorization.related` cannot
+redefine these inputs or grant private reads. A related policy for a dependency-only
+path is unused/invalid.
+
+Compatible public/private target queries fetch a normalized persisted union; the
+original public selection and authorization stay separate and immutable:
+
+- Ordinary admitted `populate: [{ path: 'account', select: 'name -_id' }]` returns
+  only `account.name`, even if private fetched fields are readable but unrequested.
+- Without ordinary population, a selected/permitted ref restores the exact original
+  ID/array: missing IDs, order, duplicates, nulls, absence and empty arrays survive.
+- An unselected/excluded/denied source ref is omitted, including its ID; the selected
+  authorized virtual can still compute. Denied ordinary population keeps its fallback.
+
+Resolved default population counts as ordinary; explicit `populate: []` suppresses
+defaults. Public `-_id` exclusions survive private identity fetching. Cleanup runs
+before decorate/decorateAll/tasks, including on unavailable inputs, undefined/throw
+and post-fetch virtual denial. No private maps/raw values are implicitly transported
+to DTOs, hooks, handles or metadata; only the authorized getter's deliberate return
+becomes computed output.
+
+Declarations accept only `{ path, select? }`, no model/match/access/populate. `path`
+must be a scope-local static string ref on an ObjectId scalar or 1D ObjectId array
+to a registered ObjectId-identity model. Embedded virtuals declare the field in their
+`.sub` scope, never a dotted root path. Dynamic/refPath/function/model-valued refs,
+Map/Mixed, virtual populate, discriminator-varying scopes/targets, cross-connection
+models, non-ObjectId IDs and multidimensional ref arrays reject explicitly.
+
+`select` accepts comma/space strings, string arrays or **1/-1** objects (not 0).
+Omitted/empty selects all eligible static stored fields; exclusion-only subtracts
+from that catalog; negative paths win over positives. `_id` is supplied unless
+excluded, while association identity stays privately fetched. Static embedded dotted
+paths/containers expand to eligible stored leaves; target refs remain IDs, not traversed
+objects. Explicit virtual/alias/unknown/unsafe/control/metadata/version/dynamic paths
+and invalid exclusions/tokens reject. No recursive private target virtual computation
+occurs; target service defaults/requireExplicitSelect do not replace this mask.
+
+Per-access lists inherit independently of local `dependsOn`: exact getter then
+default, bare getter inherits shared lists, defined leaf list replaces wholesale,
+`[]` clears, undefined inherits, null rejects. Duplicate paths within one declaration
+reject. Different getters may share a path but receive only their own isolated mask.
+
+Support includes direct/root/trusted reads, writes/upserts, templates, ordinary
+populated/included outputs, embedded scopes and visible dedicated subdocuments.
+Writes capture post-lifecycle refs without changing saved refs/snapshots or retry
+semantics; hidden rows run no getter. `new` ignores args.select and loads present
+default refs under target read without saving. Count/distinct/exists/delete identities
+and include-count/field helpers add no dependency I/O. `SubPopulate` stays path/select-only.
+
+Private reads inherit receiving hydration: direct read/populate mode, fixed lean for
+includes and child mutation visibility, hydrated for dedicated child read/list and
+ordinary writes/templates. Native values/defaults/getters/transforms can differ; exact
+restoration refers to that captured materialized value, not cross-mode raw BSON equality.
+Measured one-versus-24-row lists with two compatible target groups both used two target
+finds (plus one parent find), at persistence/getter limits 1 and 2. Independent public
+correlated queries remain per parent; no universal constant query count is promised.
+
+See [Getter absence/error rules](./hooks#private-populated-getter-inputs) and the
+[installed README's runnable example](https://www.npmjs.com/package/@web-ts-toolkit/access-router#private-populated-dependencies)
+for all three executable response shapes and compatibility guidance.
 
 ## Operation Access
 
@@ -147,15 +283,15 @@ base exact → `operationAccess.default` → scalar `operationAccess` shorthand
 resolution. False, an empty array, and a false-returning hook are final. With no
 other fallback/default variant configured:
 
-| Rules | Basic list | Advanced list | Root list entry |
-| --- | --- | --- | --- |
-| `list: true` | allowed | allowed | allowed |
-| `list: false` | denied | denied | denied |
-| `list: true, basicList: false` | denied | allowed | allowed |
-| `list: true, advancedList: false` | allowed | denied | allowed |
-| `list: false, basicList: true` | allowed | denied | denied |
-| only `basicList: true` | allowed | denied | denied |
-| `list: true, basicList: undefined` | allowed | allowed | allowed |
+| Rules                              | Basic list | Advanced list | Root list entry |
+| ---------------------------------- | ---------- | ------------- | --------------- |
+| `list: true`                       | allowed    | allowed       | allowed         |
+| `list: false`                      | denied     | denied        | denied          |
+| `list: true, basicList: false`     | denied     | allowed       | allowed         |
+| `list: true, advancedList: false`  | allowed    | denied        | allowed         |
+| `list: false, basicList: true`     | allowed    | denied        | denied          |
+| only `basicList: true`             | allowed    | denied        | denied          |
+| `list: true, basicList: undefined` | allowed    | allowed       | allowed         |
 
 <!-- doc-example: partial -->
 
@@ -408,7 +544,9 @@ const current = runtime.getModelOptions(router.modelName);
 const exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.basicRead');
 
 const dataRouter = runtime.createDataRouter('VariantData', {
-  idParam: 'id', data: [], operationAccess: { list: true, read: true },
+  idParam: 'id',
+  data: [],
+  operationAccess: { list: true, read: true },
 });
 dataRouter.setOption('operationAccess.basicRead', false);
 dataRouter.runtime.setDataOption('VariantData', 'operationAccess.advancedRead', true);
