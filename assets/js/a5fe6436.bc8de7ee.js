@@ -47,6 +47,10 @@ const toc = [{
   "id": "session-and-gateway-example",
   "level": 2
 }, {
+  "value": "Provider logout navigation",
+  "id": "provider-logout-navigation",
+  "level": 2
+}, {
   "value": "Recovery and limits",
   "id": "recovery-and-limits",
   "level": 2
@@ -136,6 +140,62 @@ function _createMdxContent(props) {
       }), ". Omission or ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/"
       }), " permits the entire origin. Duplicate normalized\nscopes reject before auth work. Outbound paths and proofs normalize unreserved\nescapes/dot segments, retain reserved separators, and preserve query data in\nthe request. Distinct namespaces isolate gateway services' nonces."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "provider-logout-navigation",
+      children: "Provider logout navigation"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["With server ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "logoutNavigation"
+      }), " enabled, call ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "logoutAndNavigate(): Promise<void>"
+        })
+      }), "\nfrom a user action. It confirms local logout, clears old frontend auth and invokes\nthe synchronous ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "navigate(url)"
+      }), " adapter (default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "location.assign"
+      }), ") inside lifecycle\nauthority. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "logout()"
+      }), " remains local-only. No return-URL/prepare API is needed."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import {\n  createOidcVaultDpopSession,\n  type OidcVaultLogoutNavigationInput,\n  type OidcVaultLogoutNavigationResult,\n} from '@web-ts-toolkit/oidc-vault-dpop-client';\n\nconst session = createOidcVaultDpopSession({\n  backendOrigin: 'https://api.example.com',\n  basePath: '/auth/oidc',\n  sessionTransport: 'body', // Or the matching cookie mount and 'cookie'.\n});\nexport const signOutThroughProvider = (): Promise<void> => session.logoutAndNavigate();\n// Pure wire types are also bundled at the client root; no backend install needed.\nexport type NavigationRequest = OidcVaultLogoutNavigationInput;\nexport type NavigationResponse = OidcVaultLogoutNavigationResult;\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The existing persistent key plus body handle or ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "active matching cookie metadata"
+      }), "\nsuffices after reload, with an absent or expired memory JWT. It does not refresh,\ncreate a replacement key, send fingerprint/Authorization/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ath"
+      }), ", or put API tokens\nin query strings. POST uses the same finite HTTP bounds and nonce cache, including\nlearned success nonces: at most one recognized challenge retry with a fresh proof/JTI.\nBody credentials are ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "omit"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ sessionId }"
+      }), "; cookie credentials are ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "include"
+      }), "\nwith ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " under the scope Web Lock. Strict server Origin/Referer checks apply in\nboth transports; allow the frontend via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "trustedOrigins"
+      }), " and expose ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DPoP-Nonce"
+      }), " in CORS."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The client accepts only the exact absolute pinned backend continuation path,\nbare or followed by one literal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "?ticket=lnt_<43 canonical base64url characters>"
+      }), ".\nNo upstream URL/hint enters initiation JSON. A confirmed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "loggedOut: true"
+      }), " clears\ntoken, handle, pending login, nonces and peer adoption, and invalidates cookie\nmetadata/notifies peers even if the URL is invalid; that case rejects with fixed\nnonterminal ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "INVALID_LOGOUT_NAVIGATION_RESPONSE"
+        })
+      }), " and never navigates. Unconfirmed,\nmalformed, oversized, timed-out or lost responses leave the server commit uncertain,\nretain the existing failure policy and never automatically retry or navigate.\nCleanup/adapter failure rejects after memory clear, without credential restoration."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Concurrent clicks share the ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "same pending Promise"
+      }), " through FIFO, nonce retry,\ncleanup and one adapter invocation. An earlier refresh publishes rotation first;\na later refresh cannot resurrect credentials. Refresh does not split that click\nbatch. Later login/exchange/local logout/clear/resetKey/dispose immediately withdraws\nnavigation intent, including a login still queued for the FIFO/lock. A started\nPOST may finish old-state cleanup before that login, but rejects as superseded\ninstead of navigating. No completed ticket URL is cached; another click after\ncleanup requires login. Cancellation cannot undo server commit or navigation\nalready handed to the browser."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The server revokes locally before optional provider work. Missing endpoints,\ndiscovery/ticket failures and missing/spent/expired tickets select its fixed\nconfigured fallback. Tickets default to 60 seconds (server range 1–120 seconds),\nare single-use, and retain only the final upstream hint URL server-side until\nconsume/expiry/cleanup. Navigation/history/proxy logs and the IdP request still\nexpose their respective URLs; avoid logging them. After upstream handoff, provider\navailability/termination/return is not guaranteed. Stateless JWTs remain valid\nuntil expiry unless the application adds revocation."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "recovery-and-limits",
       children: "Recovery and limits"

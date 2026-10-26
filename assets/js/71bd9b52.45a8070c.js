@@ -55,6 +55,10 @@ const toc = [{
   "id": "authority-hook-inputs-and-metadata",
   "level": 3
 }, {
+  "value": "Private populated virtual dependencies",
+  "id": "private-populated-virtual-dependencies",
+  "level": 3
+}, {
   "value": "Operation Access",
   "id": "operation-access",
   "level": 2
@@ -264,6 +268,14 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "alwaysSelectFields"
         })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "virtuals"
+        }), ", including server-only ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dependsOn"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dependsOnPopulate"
+        })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "docPermissions"
@@ -396,9 +408,13 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "skim"
-      }), " is a deprecated compatibility no-op in canonical model operations. True, false\nand omission all retain authorization, document grants, virtuals and decoration.\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), " is a deprecated compatibility no-op in canonical model operations. True, false\nand omission all retain authorization, document grants, virtuals and decoration.\nServer model ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hydration"
+      }), " separately chooses Mongoose materialization; there is no\nper-call/wire ", (0,jsx_runtime.jsx)(_components.code, {
         children: "lean"
-      }), " separately chooses Mongoose hydration; it does not skip field enforcement."]
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hydration"
+      }), " control, and field enforcement always runs."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["At each method resolver, non-nullish supplied values win over its ", (0,jsx_runtime.jsx)(_components.code, {
         children: "defaults"
@@ -407,6 +423,106 @@ function _createMdxContent(props) {
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "public*Options"
       }), " before internal\nmethods; already-resolved flags take precedence over internal defaults. Public upsert\nuses its create/update branch's public bucket. A model service captures current presentation\ndefaults from its originating runtime per call; per-call model authority captures current\npolicy before awaiting hooks. Retained services keep their original core, actor, model\nconnection and related registry across a same-request runtime handoff. Base-filter cache\nentries are reused only for the same model/access and policy function.\nRequest base-filter caches remain owned by their request/runtime/access."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "private-populated-virtual-dependencies",
+      children: "Private populated virtual dependencies"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Declare ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOnPopulate"
+      }), " in trusted model virtual configuration when an authorized\ncomputed output needs related persisted fields the caller cannot receive. Local\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOn"
+      }), " remains the current scope's persisted inputs in getter argument one;\nordinary query ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "populate"
+      }), " remains public related output. The new declaration supplies\nonly that getter's ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "fourth argument"
+      }), ", independently of public population."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Register the actual target model ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "and its options first"
+      }), ", in the source's runtime\nand Mongoose connection. Validation is eager/atomic for construction, bulk and dotted\nsetters, including when ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireRegisteredPopulateModels"
+      }), " is false. Operation capture\nrechecks bindings before hooks/writes; in-flight calls retain coherent getter/masks/policies."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import mongoose from 'mongoose';\nimport { createAccessRuntime, type ModelVirtualDescriptor } from '@web-ts-toolkit/access-router';\n\ninterface Account {\n  name: string;\n  balance: number;\n  creditLimit: number;\n  tenantId: string;\n}\ninterface Order {\n  total: number;\n  account: mongoose.Types.ObjectId | null;\n}\nconst api = createAccessRuntime();\nconst AccountModel = mongoose.model<Account>(\n  'ConfiguredAccount',\n  new mongoose.Schema<Account>({\n    name: String,\n    balance: Number,\n    creditLimit: Number,\n    tenantId: String,\n  }),\n);\napi.createRouter(AccountModel, {\n  operationAccess: { read: true },\n  baseFilter: { read: () => ({ tenantId: 'example-server-owned-tenant' }) },\n  permissionSchema: { name: true, balance: false, creditLimit: false },\n});\nconst OrderModel = mongoose.model<Order>(\n  'ConfiguredOrder',\n  new mongoose.Schema<Order>({\n    total: Number,\n    account: { type: mongoose.Schema.Types.ObjectId, ref: AccountModel.modelName },\n  }),\n);\nconst canPlaceOrder: ModelVirtualDescriptor<Order, boolean, { account: Account }> = {\n  dependsOn: ['total'],\n  dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }],\n  get(doc, _permissions, _context, populated = {}) {\n    const account = populated.account;\n    if (doc.total === undefined || account?.balance === undefined || account.creditLimit === undefined)\n      return undefined;\n    return doc.total <= account.balance + account.creditLimit;\n  },\n};\nconst orders = api.createRouter<Order, { canPlaceOrder: boolean }>(OrderModel, {\n  operationAccess: { read: true },\n  permissionSchema: { total: false, account: true, canPlaceOrder: true },\n  virtuals: { canPlaceOrder },\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The ref is automatically retained; there is no need for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOn: ['account']"
+      }), ".\nUse the authenticated server actor's tenant in real row hooks. Private input-field\nauthority still requires captured ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "base read"
+      }), " admission and request-mode\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "overrideFilter.read"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "baseFilter.read"
+      }), ", with source IDs ANDed after transforms.\nThere is no read-to-list fallback, route-variant gate or private ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access"
+      }), " override.\nOrdinary ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "populate.match"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access"
+      }), ", selection and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "authorization.related"
+      }), " cannot\nredefine these inputs or grant private reads. A related policy for a dependency-only\npath is unused/invalid."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Compatible public/private target queries fetch a normalized persisted union; the\noriginal public selection and authorization stay separate and immutable:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Ordinary admitted ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "populate: [{ path: 'account', select: 'name -_id' }]"
+        }), " returns\nonly ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "account.name"
+        }), ", even if private fetched fields are readable but unrequested."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Without ordinary population, a selected/permitted ref restores the exact original\nID/array: missing IDs, order, duplicates, nulls, absence and empty arrays survive."
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "An unselected/excluded/denied source ref is omitted, including its ID; the selected\nauthorized virtual can still compute. Denied ordinary population keeps its fallback."
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Resolved default population counts as ordinary; explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "populate: []"
+      }), " suppresses\ndefaults. Public ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "-_id"
+      }), " exclusions survive private identity fetching. Cleanup runs\nbefore decorate/decorateAll/tasks, including on unavailable inputs, undefined/throw\nand post-fetch virtual denial. No private maps/raw values are implicitly transported\nto DTOs, hooks, handles or metadata; only the authorized getter's deliberate return\nbecomes computed output."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Declarations accept only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ path, select? }"
+      }), ", no model/match/access/populate. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "path"
+      }), "\nmust be a scope-local static string ref on an ObjectId scalar or 1D ObjectId array\nto a registered ObjectId-identity model. Embedded virtuals declare the field in their\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".sub"
+      }), " scope, never a dotted root path. Dynamic/refPath/function/model-valued refs,\nMap/Mixed, virtual populate, discriminator-varying scopes/targets, cross-connection\nmodels, non-ObjectId IDs and multidimensional ref arrays reject explicitly."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "select"
+      }), " accepts comma/space strings, string arrays or ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "1/-1"
+      }), " objects (not 0).\nOmitted/empty selects all eligible static stored fields; exclusion-only subtracts\nfrom that catalog; negative paths win over positives. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " is supplied unless\nexcluded, while association identity stays privately fetched. Static embedded dotted\npaths/containers expand to eligible stored leaves; target refs remain IDs, not traversed\nobjects. Explicit virtual/alias/unknown/unsafe/control/metadata/version/dynamic paths\nand invalid exclusions/tokens reject. No recursive private target virtual computation\noccurs; target service defaults/requireExplicitSelect do not replace this mask."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Per-access lists inherit independently of local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOn"
+      }), ": exact getter then\ndefault, bare getter inherits shared lists, defined leaf list replaces wholesale,\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "[]"
+      }), " clears, undefined inherits, null rejects. Duplicate paths within one declaration\nreject. Different getters may share a path but receive only their own isolated mask."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Support includes direct/root/trusted reads, writes/upserts, templates, ordinary\npopulated/included outputs, embedded scopes and visible dedicated subdocuments.\nWrites capture post-lifecycle refs without changing saved refs/snapshots or retry\nsemantics; hidden rows run no getter. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new"
+      }), " ignores args.select and loads present\ndefault refs under target read without saving. Count/distinct/exists/delete identities\nand include-count/field helpers add no dependency I/O. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SubPopulate"
+      }), " stays path/select-only."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Private reads inherit receiving hydration: direct read/populate mode, fixed lean for\nincludes and child mutation visibility, hydrated for dedicated child read/list and\nordinary writes/templates. Native values/defaults/getters/transforms can differ; exact\nrestoration refers to that captured materialized value, not cross-mode raw BSON equality.\nMeasured one-versus-24-row lists with two compatible target groups both used two target\nfinds (plus one parent find), at persistence/getter limits 1 and 2. Independent public\ncorrelated queries remain per parent; no universal constant query count is promised."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./hooks#private-populated-getter-inputs",
+        children: "Getter absence/error rules"
+      }), " and the\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://www.npmjs.com/package/@web-ts-toolkit/access-router#private-populated-dependencies",
+        children: "installed README's runnable example"
+      }), "\nfor all three executable response shapes and compatibility guidance."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "operation-access",
       children: "Operation Access"
@@ -955,7 +1071,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import mongoose from 'mongoose';\nimport { createAccessRuntime } from '@web-ts-toolkit/access-router';\n\nconst runtime = createAccessRuntime();\nconst User = mongoose.model('ConfigurationVariantUser', new mongoose.Schema({ name: String }));\nconst router = runtime.createRouter(User, {\n  basePath: '/users',\n  operationAccess: { list: true, read: true },\n  permissionSchema: { name: true },\n});\nrouter.operationAccess('basicRead', false); // Preserve the other keys.\nrouter.operationAccess('subs.comments.basicRead', false);\nrouter.set('operationAccess.advancedList', 'isAdmin');\nrouter.setOption('operationAccess.basicRead', undefined); // Restore inheritance.\nruntime.setModelOption(router.modelName, 'operationAccess.basicRead', false);\n\nrouter.operationAccess({ list: true, read: true, basicRead: false }); // Whole rule replacement.\nrouter.setOptions({ operationAccess: { list: true, advancedList: false } }); // Same shallow assignment.\nconst current = runtime.getModelOptions(router.modelName);\nconst exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.basicRead');\n\nconst dataRouter = runtime.createDataRouter('VariantData', {\n  idParam: 'id', data: [], operationAccess: { list: true, read: true },\n});\ndataRouter.setOption('operationAccess.basicRead', false);\ndataRouter.runtime.setDataOption('VariantData', 'operationAccess.advancedRead', true);\nconst currentData = dataRouter.runtime.getDataOptions('VariantData');\n"
+        children: "import mongoose from 'mongoose';\nimport { createAccessRuntime } from '@web-ts-toolkit/access-router';\n\nconst runtime = createAccessRuntime();\nconst User = mongoose.model('ConfigurationVariantUser', new mongoose.Schema({ name: String }));\nconst router = runtime.createRouter(User, {\n  basePath: '/users',\n  operationAccess: { list: true, read: true },\n  permissionSchema: { name: true },\n});\nrouter.operationAccess('basicRead', false); // Preserve the other keys.\nrouter.operationAccess('subs.comments.basicRead', false);\nrouter.set('operationAccess.advancedList', 'isAdmin');\nrouter.setOption('operationAccess.basicRead', undefined); // Restore inheritance.\nruntime.setModelOption(router.modelName, 'operationAccess.basicRead', false);\n\nrouter.operationAccess({ list: true, read: true, basicRead: false }); // Whole rule replacement.\nrouter.setOptions({ operationAccess: { list: true, advancedList: false } }); // Same shallow assignment.\nconst current = runtime.getModelOptions(router.modelName);\nconst exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.basicRead');\n\nconst dataRouter = runtime.createDataRouter('VariantData', {\n  idParam: 'id',\n  data: [],\n  operationAccess: { list: true, read: true },\n});\ndataRouter.setOption('operationAccess.basicRead', false);\ndataRouter.runtime.setDataOption('VariantData', 'operationAccess.advancedRead', true);\nconst currentData = dataRouter.runtime.getDataOptions('VariantData');\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {

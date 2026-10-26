@@ -53,6 +53,10 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
+  "value": "Primary Reads And Migration",
+  "id": "primary-reads-and-migration",
+  "level": 2
+}, {
   "value": "Custom collection names",
   "id": "custom-collection-names",
   "level": 3
@@ -85,6 +89,10 @@ const toc = [{
   "id": "scoped-deletion-indexes",
   "level": 2
 }, {
+  "value": "Dedicated Logout Continuation Tickets",
+  "id": "dedicated-logout-continuation-tickets",
+  "level": 2
+}, {
   "value": "Related Packages",
   "id": "related-packages",
   "level": 2
@@ -101,6 +109,12 @@ function _createMdxContent(props) {
     p: "p",
     pre: "pre",
     strong: "strong",
+    table: "table",
+    tbody: "tbody",
+    td: "td",
+    th: "th",
+    thead: "thead",
+    tr: "tr",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -170,6 +184,38 @@ function _createMdxContent(props) {
       children: ["For a store-only snippet without Express wiring, see the ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Quick Start"
       }), " section in the package README."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "primary-reads-and-migration",
+      children: "Primary Reads And Migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The store selects ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "primary"
+      }), " for its own collection reads, including authorization/exchange/session preflight, alias/liveness queries, and readiness index/configuration reads. Rotation, revocation-context, inactive-alias cleanup, and replay transactions also explicitly use primary. This overrides ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "secondaryPreferred"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "secondary"
+      }), ", or other read preferences inherited from a URI, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MongoClient"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Db"
+      }), " for vault work only; there is no secondary-read exception for authentication state."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Reuse an application connection even when ordinary application reads prefer secondaries:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { MongoClient } from 'mongodb';\nimport { createMongoOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';\n\nconst client = new MongoClient(process.env.MONGODB_URI!, { readPreference: 'secondaryPreferred' });\nawait client.connect();\nconst db = client.db('app-auth');\nconst storeProvider = createMongoOidcVaultStore({ db });\nawait storeProvider.ready();\n\n// Vault reads/transactions use primary; unrelated handles keep caller defaults.\nconst applicationRecords = db.collection('application_records');\nawait applicationRecords.findOne({});\n\n// After draining requests and other in-flight store work:\nawait client.close();\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Migration: applications with a separate primary-only vault client can instead pass their existing connected ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Db"
+      }), ", preserving the same database and configured collection names. No second client, replacement ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Db"
+      }), ", or per-operation application override is needed. The store leaves caller/client/Db defaults, read-preference tags/staleness settings, unrelated collection routing, BSON serialization options, and existing read/write concerns intact. The caller still owns connection, shutdown, and pool/selection/timeout configuration."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Compatibility: vault reads that previously inherited secondary routing now require a primary. If none is available, readiness or the affected operation rejects with the backend/driver error under the caller's selection/timeout policy; the store never falls back to a secondary or memory. Deletion errors can still follow committed session deletion, as described below. Primary selection is a routing policy: it does ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "not"
+      }), " add linearizable read concern, causal sessions across separate store calls, stronger write concern, or failover durability. Existing snapshot transaction concerns and rotation's inherited concerns are unchanged. Configure durability for your deployment; replica-set coverage does not certify sharded topology or distributed-failure behavior."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "custom-collection-names",
       children: "Custom collection names"
@@ -178,14 +224,14 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n  authorizationTransactionsCollectionName: 'auth_oidc_transactions',\n  exchangeCodesCollectionName: 'auth_oidc_exchange_codes',\n  sessionsCollectionName: 'auth_oidc_sessions',\n  backchannelLogoutTokenJtisCollectionName: 'auth_oidc_backchannel_logout_jtis',\n  rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',\n  dpopProofsCollectionName: 'auth_dpop_proofs',\n  dpopReplayCapacityCollectionName: 'auth_dpop_capacity',\n});\n"
+        children: "const storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n  authorizationTransactionsCollectionName: 'auth_oidc_transactions',\n  exchangeCodesCollectionName: 'auth_oidc_exchange_codes',\n  sessionsCollectionName: 'auth_oidc_sessions',\n  backchannelLogoutTokenJtisCollectionName: 'auth_oidc_backchannel_logout_jtis',\n  rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',\n  dpopProofsCollectionName: 'auth_dpop_proofs',\n  dpopReplayCapacityCollectionName: 'auth_dpop_capacity',\n  logoutNavigationTicketsCollectionName: 'auth_logout_tickets',\n  logoutNavigationCapacityCollectionName: 'auth_logout_capacity',\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "behavior",
       children: "Behavior"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses seven distinct collections for transactions, codes, sessions, backchannel JTIs, aliases, DPoP proofs and replay capacity/accounting"
+        children: "uses nine distinct collections for transactions, codes, sessions, backchannel JTIs, aliases, DPoP proofs, replay capacity/accounting, logout tickets and ticket capacity/accounting"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "creates TTL indexes on expiring records"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
@@ -396,6 +442,109 @@ function _createMdxContent(props) {
       }), " examined 100, 100, and 10 documents respectively, matching the scoped result set size in that dataset."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The package creates one compound index per public scoped identity delete path rather than one index per optional-filter permutation. The leading identity key still supports identity-only deletes, while issuer/client scoped deletes avoid broad scans in multi-tenant collections. Very large deployments should still expect deletion cost to scale with the number of sessions being revoked inside the selected issuer/client scope."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "dedicated-logout-continuation-tickets",
+      children: "Dedicated Logout Continuation Tickets"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultMongoStoreProvider"
+      }), " also satisfies core ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLogoutNavigationStoreProvider"
+      }), ", with required ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createLogoutNavigationTicket"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "consumeLogoutNavigationTicket"
+      }), " and retained ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ready()"
+      }), ". Ticket/create/consume types and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLogoutNavigationCapacityError"
+      }), " are core-root exports; both methods remain optional on the base custom-store contract. This storage extension does not register HTTP routes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Mongo ticket option"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Default"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Contract"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "logoutNavigationMaxEntries"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "10000"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Positive safe integer, identical on shared clients; independent of replay"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "logoutNavigationTicketsCollectionName"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "oidc_vault_logout_navigation_tickets"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Composite namespace/hash ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "_id"
+            }), ", five-field payload with Date expiry, ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "expiresAt_ttl"
+            })]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "logoutNavigationCapacityCollectionName"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "oidc_vault_logout_navigation_capacity"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Non-TTL capacity/revision and hash/expiry ledger; ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "logout_navigation_expiry_accounting_idx"
+            })]
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["All ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "nine"
+      }), " collection roles must be distinct. Readiness rejects TTL indexes on the ticket ledger and validates limits/pairing in ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "both directions"
+      }), ": a fixed configuration row in the payload collection and a fixed capacity row in the ledger. Both new handles/readiness reads use primary on the supplied Db; ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "every ticket transaction explicitly uses primary and snapshot read concern"
+      }), ". Caller defaults, concerns and client lifecycle are retained. No secondary/memory fallback."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Create/consume serialize on an actual capacity-row revision write. Transactions validate count/ledger consistency, retire the selected entry plus at most ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "64 unrelated indexed expiries"
+      }), ", and commit payload/ledger/count changes together. The consistency count is proportional to retained accounting, bounded by configured capacity; the single row can contend. Cleanup/retries add work; no throughput SLA. Successful consume frees its count once. A live ledger protects an identity from collision reuse after early payload disappearance; consume retires it and returns null. Physical TTL deletion never loses accounting. Expired payloads awaiting TTL are unusable; non-TTL accounting may occupy capacity while idle until later traffic. Normal retention is at most the cap in payloads/ledger entries plus two fixed configuration rows. Changing a collection or limit without a matching migration fails closed."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Exactly five scalar fields are captured before the first await and returned detached: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "namespace"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ticketHash"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upstreamLogoutUrl"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createdAt"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "expiresAt"
+      }), ". Core's README defines canonical scope/hash formats, 256-bit ticket generation, Date-range integer epochs/clocks, original TTL 1000..120000 ms, remaining TTL >0 and ≤120000 ms, and 16384-byte HTTP(S) URL syntax. Invalid creates throw TypeError; live collisions throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultStoreConflictError"
+      }), " before capacity rejection without replacement/extension. Capacity throws ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLogoutNavigationCapacityError"
+      }), ", never evicting live grants. Invalid/unknown/spent/expired/malformed selected consumes return null; selected unusable payloads are retired. Backend, clock, pairing and accounting failures throw; transaction failures roll back. Ambiguous acknowledgements are not retry authority."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The final URL can retain an ID-token hint; hashing does not encrypt it. No raw ticket, full session/profile, handle/subject or separate tokens are stored. Exclude records/credential URLs and arbitrary errors from logs. Session/lineage/backchannel deletion does not cascade to authorized tickets. Provisioning is additive; existing identity, rotation, alias and replay semantics remain intact."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"

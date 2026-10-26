@@ -79,6 +79,10 @@ const toc = [{
   "id": "docpermissions",
   "level": 3
 }, {
+  "value": "Private populated getter inputs",
+  "id": "private-populated-getter-inputs",
+  "level": 3
+}, {
   "value": "<code>decorate</code> / <code>decorateAll</code>",
   "id": "decorate--decorateall",
   "level": 3
@@ -292,6 +296,53 @@ function _createMdxContent(props) {
         href: "./services#call-policy-and-document-result-reuse",
         children: "Services"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "private-populated-getter-inputs",
+      children: "Private populated getter inputs"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Package virtuals run after internal document grants and before decoration/tasks.\nTheir first argument remains an isolated ordinary persisted/local-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOn"
+      }), " view\nplus finalized ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "public"
+      }), " related/embedded outputs. A ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOnPopulate"
+      }), " declaration\nadds only a separate, declaration-scoped ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "fourth argument"
+      }), "; it does not retype ref\nIDs in argument one or add private maps to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelVirtualContext"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import type { Types } from 'mongoose';\nimport type { ModelVirtualDescriptor } from '@web-ts-toolkit/access-router';\n\ninterface Order {\n  total: number;\n  account: Types.ObjectId | null;\n}\ninterface Account {\n  balance: number;\n  creditLimit: number;\n}\nconst canPlaceOrder: ModelVirtualDescriptor<Order, boolean, { account: Account }> = {\n  dependsOn: ['total'],\n  dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }],\n  get(doc, _permissions, _context, populated = {}) {\n    const account = populated.account;\n    if (doc.total === undefined || account?.balance === undefined || account.creditLimit === undefined)\n      return undefined;\n    return doc.total <= account.balance + account.creditLimit;\n  },\n};\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Assign this separately typed descriptor to ordinary ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "virtuals"
+      }), " after registering\nthe target model/options first; see ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./configuration#private-populated-virtual-dependencies",
+        children: "configuration"
+      }), ".\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelVirtualPopulateDependency"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelVirtualPopulateInputs"
+      }), " are available from\nroot and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/advanced"
+      }), ". The optional third generic explicitly maps source keys to\ntarget persisted shapes; unannotated argument four defaults to an empty type.\nIt does not select fields or widen persisted, write or public output types."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The runtime always supplies argument four (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " without a declaration); the callback\nparameter stays optional so existing callbacks and three-argument direct invocations\nremain compatible. Default it to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " or guard undefined. Known source keys/cardinality\nare checked; keys/target fields are optional, scalar targets may be null and source\narrays become readonly arrays of partial targets/null slots (or null). Containers\nare deeply readonly/partial. Date/Buffer/BSON keep native types/methods and are cloned\nindependently per getter, row and repeated slot; readonly containers do not make\nnative methods immutable or promise equal lean/hydrated materialization."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Only the resolved declaration's paths/mask reach each getter, independently of public\nmatch/select/access. Missing/undefined source refs skip invocation. Present null/empty\narrays invoke with null/[] when target read is admitted; deleted/out-of-scope rows\nbecome null/null slots in original order, preserving duplicates. Missing target fields\nremain absent/undefined; present null/false/zero/empty-string survive. The getter chooses\nwhat to return for partial inputs."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Target base-read denial/terminal false row scope makes dependencies unavailable and\nskips affected getters, even for null/empty refs. Dependency-only hook/query/cast errors\nomit the virtual with structural-only logs, without raw fallback/retry/new retryable\nwrite errors. Shared ordinary-public query failures keep the ordinary error path.\nInvalid configuration fails preflight. Getter undefined/throw and later authorization\ndenial still reach unconditional public reconstruction/cleanup."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["There is ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "no implicit transport"
+      }), " of private maps/raw targets to DTOs, lifecycle\nsnapshots, public permission hooks/metadata, document handles, or decorate/task input.\nOnly an authorized getter's deliberate returned value becomes computed output;\nmutating inputs alone cannot change another getter, persistence or response fields.\nPublic related outputs still use target-owned output authority; private terminal\nreads use the actor's base-read/request tenant scope and never compute target virtuals."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
       id: "decorate--decorateall",
       children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -300,7 +351,7 @@ function _createMdxContent(props) {
         children: "decorateAll"
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use these trusted application stages (and tasks) after authorization/finalization. They\ncan intentionally remove/construct output; no automatic second authorization pass is promised.\nArbitrary replacements/mutations do not acquire valid same-stage document handles."
+      children: "Use these trusted application stages (and tasks) after authorization/finalization. They\ncan intentionally remove/construct output; no automatic second authorization pass is promised.\nArbitrary replacements/mutations do not acquire valid same-stage document handles.\nPrivate virtual dependency maps have no implicit presence here; returned authorized\nvirtual values and the reconstructed original public reference shapes do."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "request-augmentation",
       children: "Request Augmentation"

@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] ||= []).push([[887],{
+(globalThis["webpackChunkwebsite"] ||= []).push([[569],{
 
-/***/ 7291
+/***/ 3702
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_redis_store_md_f9d_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_memory_store_md_e3d_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-redis-store-md-f9d.json
-const site_docs_packages_express_oidc_vault_redis_store_md_f9d_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-redis-store","title":"@web-ts-toolkit/express-oidc-vault-redis-store","description":"Redis-backed store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-redis-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-redis-store","permalink":"/docs/packages/express-oidc-vault-redis-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":8,"frontMatter":{"sidebar_label":"OIDC Vault Redis Store","sidebar_position":8},"sidebar":"packagesSidebar","previous":{"title":"OIDC Vault Memory Store","permalink":"/docs/packages/express-oidc-vault-memory-store"},"next":{"title":"OIDC Vault MongoDB Store","permalink":"/docs/packages/express-oidc-vault-mongodb-store"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-memory-store-md-e3d.json
+const site_docs_packages_express_oidc_vault_memory_store_md_e3d_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-memory-store","title":"@web-ts-toolkit/express-oidc-vault-memory-store","description":"In-memory store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-memory-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-memory-store","permalink":"/docs/packages/express-oidc-vault-memory-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":7,"frontMatter":{"sidebar_label":"OIDC Vault Memory Store","sidebar_position":7},"sidebar":"packagesSidebar","previous":{"title":"OIDC Vault DPoP Client","permalink":"/docs/packages/oidc-vault-dpop-client"},"next":{"title":"OIDC Vault Redis Store","permalink":"/docs/packages/express-oidc-vault-redis-store"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.3.0/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(4686);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.3.0_react@19.3.0/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(3191);
 var Tabs = __webpack_require__(5430);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.2_@types+react@19.3.0_clean-css@5.3.3_cssnano@6.1.2_post_c44c21a2aff2f66b8f5ad01a9453139c/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(2608);
-;// ./docs/packages/express-oidc-vault-redis-store.md
+;// ./docs/packages/express-oidc-vault-memory-store.md
 
 
 const frontMatter = {
-	sidebar_label: 'OIDC Vault Redis Store',
-	sidebar_position: 8
+	sidebar_label: 'OIDC Vault Memory Store',
+	sidebar_position: 7
 };
-const contentTitle = '@web-ts-toolkit/express-oidc-vault-redis-store';
+const contentTitle = '@web-ts-toolkit/express-oidc-vault-memory-store';
 
 const assets = {
 
@@ -49,36 +49,24 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
+  "value": "Use Cases",
+  "id": "use-cases",
+  "level": 2
+}, {
+  "value": "Production Note",
+  "id": "production-note",
+  "level": 2
+}, {
   "value": "Quick Start",
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "Namespaced Redis keys",
-  "id": "namespaced-redis-keys",
+  "value": "Test-friendly clock override",
+  "id": "test-friendly-clock-override",
   "level": 3
 }, {
   "value": "Behavior",
   "id": "behavior",
-  "level": 2
-}, {
-  "value": "Supported Redis Topologies",
-  "id": "supported-redis-topologies",
-  "level": 2
-}, {
-  "value": "Client Lifecycle And Ownership",
-  "id": "client-lifecycle-and-ownership",
-  "level": 2
-}, {
-  "value": "Portable Lifetime And Maintenance Contract",
-  "id": "portable-lifetime-and-maintenance-contract",
-  "level": 2
-}, {
-  "value": "Key Namespace And Migration",
-  "id": "key-namespace-and-migration",
-  "level": 2
-}, {
-  "value": "Stored Data Characteristics",
-  "id": "stored-data-characteristics",
   "level": 2
 }, {
   "value": "When To Use It",
@@ -89,12 +77,12 @@ const toc = [{
   "id": "api",
   "level": 2
 }, {
-  "value": "Guarded records and bounded DPoP replay",
-  "id": "guarded-records-and-bounded-dpop-replay",
+  "value": "Guarded records and per-request replay",
+  "id": "guarded-records-and-per-request-replay",
   "level": 2
 }, {
-  "value": "Operational Notes",
-  "id": "operational-notes",
+  "value": "Dedicated Logout Continuation Tickets",
+  "id": "dedicated-logout-continuation-tickets",
   "level": 2
 }, {
   "value": "Related Packages",
@@ -120,28 +108,18 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-oidc-vault-redis-store",
+        id: "web-ts-toolkitexpress-oidc-vault-memory-store",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-oidc-vault-redis-store"
+          children: "@web-ts-toolkit/express-oidc-vault-memory-store"
         })
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Redis-backed store provider for ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["In-memory store provider for ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@web-ts-toolkit/express-oidc-vault"
       }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "redis"
-      }), " package is referenced by the quick start below, but this package\ntreats it as a development-only dependency: the package does not import ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "redis"
-      }), "\nat runtime and accepts any client that implements the ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultRedisClient"
-      }), "\ncontract. Install ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "redis"
-      }), " (or your adapter of choice) in your app."]
     }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
       groupId: "npm2yarn",
       children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -149,7 +127,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -158,7 +136,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -167,7 +145,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -176,227 +154,148 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "use-cases",
+      children: "Use Cases"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "local development"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "tests"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "examples and smoke checks"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "production-note",
+      children: "Production Note"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This package stores authorization transactions, exchange codes, sessions, rotated-session aliases, backchannel logout replay JTIs and bounded DPoP proof reservations in process memory."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Do not use it for production or multi-instance deployments. Use the Redis or MongoDB store provider instead."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { createClient } from 'redis';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';\n\nconst app = express();\nconst redis = createClient({ url: process.env.REDIS_URL });\nredis.on('error', () => console.warn('OIDC vault Redis connection error.'));\n\nawait redis.connect();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider: createRedisOidcVaultStore({\n      client: redis,\n      keyPrefix: 'oidc-vault',\n    }),\n  }),\n);\n"
+        children: "import express from 'express';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';\n\nconst app = express();\nconst storeProvider = createMemoryOidcVaultStore();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    storeProvider,\n  }),\n);\n"
       })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["For a store-only snippet without Express wiring, see the ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "Quick Start"
-      }), " section in the package README."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "For local development, this is the shortest setup because it has no Redis, MongoDB, or file-system dependency. Sessions are lost on process restart and are not visible to other Node.js instances."
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "namespaced-redis-keys",
-      children: "Namespaced Redis keys"
+      id: "test-friendly-clock-override",
+      children: "Test-friendly clock override"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "keyPrefix"
-      }), " when the same Redis instance stores data for multiple apps or environments."]
+      children: ["The store accepts a custom ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "now()"
+      }), " function. It returns epoch milliseconds and defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Date.now"
+      }), ". Override it only as a deterministic test seam; the returned value must be monotonic enough for the expiry scenarios your test exercises."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const storeProvider = createRedisOidcVaultStore({\n  client: redis,\n  keyPrefix: 'my-app:oidc-vault',\n});\n"
+        children: "const storeProvider = createMemoryOidcVaultStore({\n  now: () => 1_700_000_000_000,\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This prevents the OIDC vault records from colliding with other apps using the same Redis deployment."
+      children: "That lets tests control expiry behavior without waiting for real time to pass."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "behavior",
       children: "Behavior"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses prefixed Redis keys for sessions, authorization transactions, and exchange codes"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "stores JSON payloads directly in Redis values"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["uses ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "PXAT"
-        }), " for expiry timestamps"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses cached guarded Lua for atomic one-time consumption, including legacy consumes that refuse guarded records"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "updates subject and provider-session indexes so logout and backchannel logout can delete matching sessions efficiently"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses Redis-side scripts for session writes, deletes, and rotation so concurrent refreshes do not fork multiple active sessions"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "supported-redis-topologies",
-      children: "Supported Redis Topologies"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["supported: standalone Redis with the official ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "redis"
-        }), " ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "createClient(...)"
-        }), " client (", (0,jsx_runtime.jsx)(_components.code, {
-          children: "RedisClientType"
-        }), ")"]
+        children: ["authorization transactions, exchange codes, sessions, rotated-session aliases, and backchannel logout replay JTIs are stored in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Map"
+        }), " instances in the current Node.js process"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "authorization transactions and exchange codes are consumed once"
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["supported: Redis Sentinel, by passing the underlying master client retrieved from a ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "redis.createSentinel(...)"
-        }), " sentinel (e.g. via ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "await sentinel.acquire()"
-        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "await sentinel.use(c => c)"
-        }), ")"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["unsupported: Redis Cluster with the official ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "redis"
-        }), " ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "createCluster(...)"
-        }), " client"]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The bare ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "createSentinel(...)"
-      }), " root client does NOT satisfy this package's structural contract directly: its ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sendCommand(isReadonly, args, options?)"
-      }), " requires an ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "isReadonly"
-      }), " first argument, while this store calls ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sendCommand(args)"
-      }), ". Pass the underlying master client returned by ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sentinel.acquire()"
-      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sentinel.use(c => c)"
-      }), ", or wrap the Sentinel root with an adapter conforming to ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultRedisClient"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Redis Cluster clients are rejected when the store is created. The store uses atomic scripts that touch multiple vault keys, and this package does not currently provide a Cluster routing/hash-slot adapter that colocates every key used by one script."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.strong, {
-        children: "Minimum Redis version: 6.2."
-      }), " Standalone 6.2/7.2 are exercised. Cached Lua now handles guarded/legacy consumption; Sentinel adapter/failover durability remains deployment-owned and is not certified by those tests. Loss of unexpired replay state on failover weakens protection until the proof window expires."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "client-lifecycle-and-ownership",
-      children: "Client Lifecycle And Ownership"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Connect the client yourself."
-        }), " The store never calls ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.connect()"
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "createAuthorizationTransaction"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.quit()"
-        }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.disconnect()"
-        }), ". Pass an already-connected client and reuse it across requests."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsxs)(_components.strong, {
-          children: ["Own ", (0,jsx_runtime.jsx)(_components.code, {
-            children: "error"
-          }), " listeners, reconnects, and shutdown."]
-        }), " The store reads and writes commands but does not attach ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "error"
-        }), " listeners, suppress client errors, or close the client. Always register a client ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "error"
-        }), " listener on production connections; an unhandled client error can crash the process."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Graceful shutdown."
-        }), " Drain ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createExchangeCode"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "createSession"
-        }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "rotateSession"
-        }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "deleteSessionsBy*"
-        }), " in-flight calls, then ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.quit()"
-        }), ". The store holds no background timers, so no store-side teardown is required beyond verifying in-flight operations have settled."]
+        }), " are upserts; creating the same key again replaces the old value"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "metadata should be structured-clone compatible and JSON-compatible for portability across the memory, Redis, and MongoDB stores"
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Concurrency."
-        }), " Scripts protect individual mutations. Indexed deletion traverses once and sums primary deletions, including matching rotation successors, excluding expired/missing records and alias/index repair. Later arrivals can survive; errors can follow earlier commits. This is not a global logout snapshot or a fixed total-work bound."]
+        children: ["inputs and returned records are cloned with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "structuredClone"
+        }), ", so callers retain ownership of their objects"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["expiry uses ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "expiresAt <= now()"
+        }), " as expired, and cleanup is opportunistic during reads and writes rather than a background timer"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["rotation requires a distinct unused target session ID; missing-source, same-ID, and existing-target conflicts throw ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultStoreConflictError"
+        }), " without changing source or target records"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["aliases expire with their immediate successor's ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "expiresAt"
+        }), "; later rotations do not extend them. Without expiry, memory/Redis impose no time limit, unlike MongoDB's default five-minute fallback. Non-expiring alias growth has no fixed size bound"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "A/L1 -> B/L1 -> C/L2"
+        }), ", B revokes L2; retained A still revokes L1, not C. Memory retires inactive old-lineage aliases on rotation/upsert and clears alias-only target ownership on reuse. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getSession"
+        }), " never resolves aliases"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteSession(...)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteSessionsByLogicalSessionId(...)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteSessionsBySubject(...)"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteSessionsByProviderSessionId(...)"
+        }), " logically revoke live sessions and remove stale rotation aliases when no live session remains in a logical lineage"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["backchannel logout token JTI records are consumed only when ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "expiresAt"
+        }), " is a finite timestamp greater than the store clock at consume time"]
       }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "portable-lifetime-and-maintenance-contract",
-      children: "Portable Lifetime And Maintenance Contract"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Each alias keeps its immediate successor's ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "expiresAt"
-      }), "; later rotations never extend it. Without expiry, Redis/memory impose no alias time limit (MongoDB defaults to five minutes), so non-expiring alias growth has no fixed size bound. With ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "A/L1 -> B/L1 -> C/L2"
-      }), ", B revokes L2; retained A keeps L1 and its original deadline. Redis can retain old-lineage aliases after that transition until expiry or explicit cleanup. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "getSession"
-      }), " never resolves aliases. Use fresh session IDs and distinct logical IDs for unrelated login families."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Subject/provider-session object deletes filter each supplied issuer/client; strings, logical IDs and aliases are unscoped. Scoped/direct deletion preserves unexpired aliases while another live member survives. Redis create is create-only (memory/MongoDB upsert); alias-only target reuse clears former ownership. JSON-compatible plain inputs are captured at invocation and detached on return. Opaque native values retain JSON/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "toJSON"
-      }), " semantics without portable mutation isolation."]
+      children: ["Portable callers use fresh session IDs (memory/MongoDB upsert live duplicates, Redis rejects) and JSON-compatible plain data. Inputs are captured at invocation and returned portable data is detached. Memory uses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "structuredClone"
+      }), "; MongoDB BSON and Redis JSON/native-object semantics differ outside that subset."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Preserve store-written TTLs/index scores on restore. Legacy consumes/getSession retain key-TTL authority; new transaction/code preflight getters check payload expiry with GET + TIME and guarded consumes check inside Lua. They do not repair external TTL/index inconsistency. Post-write SCAN COUNT 100 and revocation ZSCAN COUNT 250 are hints, not caps; whole responses/lineages/aliases can be materialized. Those costs are separate from hard-bounded replay admission."
+      children: "Bulk deletes count live sessions, not expired records or aliases. Subject/provider-session objects filter each supplied issuer/client; string inputs and logical IDs are unscoped. A survivor in another scope preserves its unexpired aliases. Mutations run synchronously in this process, but later arrivals can survive. The 64-slot expiry sweep does not cap full key-snapshot rebuilds, full-map bulk deletion, or nested lineage/alias scans. No connection, readiness, or teardown is needed. Use fixed diagnostic categories instead of records, credentials or raw errors."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Post-commit maintenance failure preserves successful create/rotation and emits only fixed operation text, with no adapter error details. Arbitrary client errors can still reject other operations; do not log raw errors, connection URLs, whole records or credential-valued labels. The ", (0,jsx_runtime.jsx)(_components.a, {
-        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault-redis-store/README.md",
+      children: ["The ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault-memory-store/README.md",
         children: "shipped README"
-      }), " contains the full lifecycle/compatibility guidance."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "key-namespace-and-migration",
-      children: "Key Namespace And Migration"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["All vault keys are written as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "<keyPrefix>:<kind>:<id>"
-        }), " and default to the ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "oidc-vault"
-        }), " prefix. Use ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix"
-        }), " when the same Redis instance stores data for multiple apps, environments, or tenants."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Changing the prefix is not a migration."
-        }), " Switching ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix"
-        }), " starts an independent empty namespace: existing sessions, indexes, aliases, exchange codes, and authorization transactions remain under the previous prefix and are neither revoked nor cleaned up by the new store. Rotate the prefix only when you are prepared to lose access to, or coordinate decommissioning of, the previous namespace."]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "stored-data-characteristics",
-      children: "Stored Data Characteristics"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["This package stores refresh tokens, ID tokens, access tokens (when present), and session metadata as ", (0,jsx_runtime.jsx)(_components.strong, {
-          children: "plaintext JSON"
-        }), " in Redis values. It does not encrypt the values, redact them on read, or strip token fields before returning them."]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Audit-trail and long-term persistence safety depends entirely on your Redis deployment: AOF/RDB snapshots, replicas, backups, and slow-query logs may all retain these plaintext values. Treat the Redis instance, its backups, and any persistence or replication as trusted infrastructure with the same access control you apply to your application database."
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["ACLs, TLS, network isolation, and Redis instance boundaries are the responsibility of the operator. Run the Redis instance on a private network, enable TLS for any cross-network hop, and apply ACL rules that limit clients to the ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix"
-        }), " keyspace."]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "The package holds no cross-version schema migration guarantee. Treat the package version as the schema owner unless a future release documents a migration path."
-      }), "\n"]
+      }), " contains the complete portable/lifecycle contract and compatibility notes."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
       children: "When To Use It"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use Redis when you need:"
+      children: "Choose the memory store when you want:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "shared session state across multiple app instances"
+        children: "the shortest local-development setup"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "fast short-lived exchange code handling"
+        children: "integration tests without Redis or MongoDB"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "production-grade server-side session storage without coupling auth data to your primary database"
+        children: "predictable in-process behavior for smoke tests and examples"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This is usually the best production default when you already operate Redis and want auth/session state decoupled from your primary app database."
+      children: "Do not choose it when sessions must survive process restarts or be shared across multiple Node.js instances."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "api",
       children: "API"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "createRedisOidcVaultStore(options)"
+        children: "createMemoryOidcVaultStore(options?)"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Creates a stronger core OidcVaultDeviceBindingStoreProvider. Use named package-root imports; Node >=22.12.0 and @types/node/@types/express for TypeScript. Both ESM (", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Creates a stronger core ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultDeviceBindingStoreProvider"
+      }), ". Use named root imports; no default/subpath API. The core runtime requires Node >=22.12.0 and TypeScript consumers need @types/node/@types/express. Both ESM (", (0,jsx_runtime.jsx)(_components.code, {
         children: "import"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "index.d.mts"
@@ -407,58 +306,76 @@ function _createMdxContent(props) {
       }), ") declaration conditions are shipped."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "RedisOidcVaultStoreOptions"
+        children: "MemoryOidcVaultStoreOptions"
       })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "client"
-        }), ": connected Redis client or compatible adapter"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix?"
-        }), ": optional key namespace, defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "oidc-vault"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "now?"
-        }), ": override clock source for tests or deterministic simulations"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "dpopReplayMaxEntries?"
-        }), ": positive safe integer, default 100000, identical on clients sharing keyPrefix"]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultRedisClient"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Minimal client shape: set/get/del and required sendCommand(args). Cached Lua (EVALSHA, SCRIPT LOAD/retry), TYPE/TIME/ZRANGE/ZSCAN/MGET transit that command interface. Official standalone and adapter-compliant acquired Sentinel master clients satisfy it; the bare Sentinel root does not. Cluster is excluded."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "guarded-records-and-bounded-dpop-replay",
-      children: "Guarded records and bounded DPoP replay"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The six stronger methods are live getAuthorizationTransaction/getExchangeCode, atomic consumeAuthorizationTransactionIfMatches/consumeExchangeCodeIfMatches, getSessionRevocationContext and reserveDpopProof. Import shared types and OidcVaultDpopReplayCapacityError from the core root. Either vault opt-in requires all six; fingerprint-only reserves no proofs. Getters are detached preflight, not locks. Match contains both key/hash; null requires absence, never wildcard/JSON null. Legacy neither field, cookie-only hash, bound hash+canonical jkt are valid; malformed/null/extra/key-without-hash rejects. Exchange also atomically matches expectedSessionId; mismatches preserve live records and matching clients have one winner. Old consumes refuse guarded records. Rotation inherits original binding and CAS-checks source identity/credential/key generation; changing/removing/enrolling binding rejects."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Revocation context resolves current live lineage authority through a live handle/unexpired alias within one Lua snapshot (whole-lineage work); returns only logical ID/provider issuer-client/key, no credentials/profile/metadata. Missing alias binding never downgrades the lineage. Malformed/mixed authority throws; empty/expired lineages return null and aliases never authenticate refresh."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Replay lives in ", (0,jsx_runtime.jsxs)(_components.strong, {
-        children: ["<keyPrefix>", ":dpop-proofs"]
-      }), ", one sorted set for proof/expiry/capacity. Normally one cached EVALSHA/proof, server TIME, hard LIMIT 64 expired cleanup plus requested expired key, duplicate-first admission, no session scans/live eviction. NOSCRIPT load/retry adds two calls. Future safe-integer expiry with remaining TTL ≤360000ms is required; invalid/expired returns false without allocation. Duplicate false never renews; at capacity throw core capacity error → sanitized 503 replay-unavailable. Set expiry tracks latest score; expired members awaiting bounded cleanup can conservatively occupy capacity. ACLs must permit scripts and TIME/TYPE/GET/DEL/ZSCORE/ZRANGEBYSCORE/ZREM/ZCARD/ZADD/ZREVRANGE/PEXPIREAT. Share namespaces/windows/limits and synchronized clocks, never release after downstream failure, size for per-request proof writes × retained window (defaults max 70s). Atomic bounds are not throughput/durability guarantees."]
+      children: ["Supports custom epoch-millisecond ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "now()"
+      }), " for tests and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dpopReplayMaxEntries"
+      }), " (positive safe integer, default 100000)."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "operational-notes",
-      children: "Operational Notes"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "the package expects a connected client before use"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "official standalone clients and standalone-shaped acquired/wrapped Sentinel master clients satisfy the required shape"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "one-time authorization transactions and exchange codes are consumed atomically"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "subject and provider-session indexes make bulk session deletion practical for logout flows"
-      }), "\n"]
+      id: "guarded-records-and-per-request-replay",
+      children: "Guarded records and per-request replay"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "All six methods are available on the inferred factory result: live getAuthorizationTransaction/getExchangeCode, atomic consumeAuthorizationTransactionIfMatches/consumeExchangeCodeIfMatches, token-free getSessionRevocationContext and reserveDpopProof. Shared types/capacity error are core package-root exports. Either vault DPoP or recognition opt-in requires all six; fingerprint-only does not reserve proofs. API middleware uses explicit replayStore and performs HTTP verification; the store does not authenticate proofs."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Match includes ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "both"
+      }), " ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ deviceBinding, browserBindingHash }"
+      }), "; null requires stored absence/undefined, never wildcard/stored null. Legacy neither field, cookie-only hash, bound hash + ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ type: 'dpop', jkt }"
+      }), " are valid; hashes are canonical 43-character SHA-256 base64url. Invalid/null/extra/key-without-hash writes reject. Mismatches leave live records, matching concurrent consumes have one winner, and legacy consumes refuse guarded records. Exchange atomically matches expectedSessionId. Reads are preflight, not locks. Rotation inherits omitted binding and rejects changed/removed/new binding. Revocation context resolves a currently live lineage through live handles/unexpired aliases; inconsistent provider/key authority throws, with no tokens/profile/metadata returned. Aliases still do not authenticate refresh."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Replay is shared ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "only by the same store object"
+      }), ", not separate objects/processes. Map + indexed min-heap has one node per retained key, O(log N) work, at most 64 expired entries plus the requested expired key reclaimed per admission; no session/alias sweep on replay. Expiry is future safe-integer epoch milliseconds with remaining TTL ≤360000ms; invalid/expired input returns false without allocation. Duplicate false never renews, takes precedence over capacity; at capacity throw core OidcVaultDpopReplayCapacityError, no live eviction/fail-open. Core maps failure/capacity to 503 OIDC_VAULT_DPOP_REPLAY_UNAVAILABLE. Expired state can conservatively occupy capacity until later bounded traffic cleanup. Size for unique proofs/s × retained window (defaults at most 70s), share identical proof windows/namespaces/clocks and never release after downstream failure. There is no throughput guarantee or implicit core fallback."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "dedicated-logout-continuation-tickets",
+      children: "Dedicated Logout Continuation Tickets"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The inferred factory result satisfies both core ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultDeviceBindingStoreProvider"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLogoutNavigationStoreProvider"
+      }), ". The latter requires ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createLogoutNavigationTicket"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "consumeLogoutNavigationTicket"
+      }), "; they remain optional on the base custom-store contract. Import ticket/create/consume types and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLogoutNavigationCapacityError"
+      }), " from the ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "core root"
+      }), ". This storage extension does not enable HTTP routes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "logoutNavigationMaxEntries"
+      }), " is a positive safe integer, default ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "10000"
+      }), ", shared across effective ticket namespaces in this object, independent of replay capacity. Live collisions throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultStoreConflictError"
+      }), " before capacity rejection, preserving destination/expiry. New admissions at capacity throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultLogoutNavigationCapacityError"
+      }), ", never evicting live grants. Exactly five scalar fields are captured before yielding and returned detached: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "namespace"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ticketHash"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upstreamLogoutUrl"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createdAt"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "expiresAt"
+      }), ". Invalid creates throw TypeError; invalid/unknown/spent/expired/malformed selected consumes return null and retire selected unusable data. Clock failures throw. Core's README defines canonical scope/hash formats, 256-bit generation, Date-range integer clocks/epochs, 1000..120000-ms original and maximum remaining lifetime, strict expiry, and 16384-byte HTTP(S) URL syntax."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["A dedicated map and ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "removable indexed min-heap"
+      }), " retain one node per ticket. Check/remove has no asynchronous gap; arbitrary consumes remove their heap node immediately, without tombstones. Each ticket operation removes its selected entry plus at most ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "64 unrelated expiries"
+      }), ", with O(log N) heap work and no session/alias/replay sweeps. Unknown consumes allocate no entries. Expired payloads can remain idle until later ticket traffic or disposal, but are unusable and occupy the fixed cap. No timers. Only this same memory object shares consumption; separate objects/processes do not."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The already-built URL can retain an ID-token hint; hashing does not encrypt it. No raw ticket/session/profile/separate tokens are stored. Exclude records/URLs from diagnostics. Session/lineage/backchannel deletion does not cascade to authorized tickets; discarding the store loses them. Existing identity, alias, rotation and replay contracts remain intact."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
@@ -472,9 +389,9 @@ function _createMdxContent(props) {
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault-memory-store",
+          href: "./express-oidc-vault-redis-store",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault-memory-store"
+            children: "@web-ts-toolkit/express-oidc-vault-redis-store"
           })
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
