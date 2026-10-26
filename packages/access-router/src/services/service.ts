@@ -34,7 +34,13 @@ import { RequestConcurrencyScheduler, type SharedHookGate } from '../helpers/con
 import { getRequestWorkState } from '../helpers/request-work';
 import { resolveAlwaysSelectForAccess, type VirtualProjectionPlan } from '../acl/virtual-projection';
 import { compactPersistedProjection, planAuthorizedModelProjection } from '../acl/output-projection';
-import { captureModelAuthorizationConfiguration } from '../acl/model-output-planning';
+import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption } from '../acl/model-output-planning';
+import {
+  getVirtualPopulatePublicIdentity,
+  getVirtualPopulateRow,
+  loadVirtualPopulateOutputRows,
+  planVirtualPopulateQuery,
+} from '../acl/virtual-populate-execution';
 import { resolveAuthorizedAccessFilter } from '../acl/filter-resolution';
 import { getAuthorizationPermissions, readServiceAuthorization } from '../acl/service-authorization';
 import {
@@ -51,6 +57,7 @@ import {
   deriveServiceExecution,
   readServiceExecution,
   registerServiceExecutors,
+  withExecutionQueryIntent,
 } from '../acl/service-execution';
 import { registerSubdocumentPopulateExecutor } from '../acl/subdocument-output';
 import type { ServiceExecutionContext, PreparedModelQuery } from '../acl/service-execution';
@@ -68,7 +75,7 @@ import {
   executeCreate,
 } from '../acl/prepared-query';
 import Permission from '../permission';
-import { intersectFilters } from '../core-shared';
+import { evaluateRouteGuard, intersectFilters } from '../core-shared';
 import { validateExpandedCorrelatedOperands } from '../correlated-includes';
 import { finalizeModelOutput, type FinalizeSnapshot } from '../output/finalize-model-output';
 import { attachPermissionsAlias, removeGeneratedPermissionsAlias } from '../output/permissions-alias';
@@ -107,6 +114,7 @@ import {
   Defaults,
   Populate,
   ModelRequest,
+  HydrationMode,
   Projection,
   FindArgs,
   FindOptions,
@@ -170,23 +178,8 @@ import {
   readSub as readSubImpl,
   updateSub as updateSubImpl,
 } from './model-subdocument-service';
-import {
-  resolveCreateArgs,
-  resolveCreateOptions,
-  resolveExistsOptions,
-  resolveFindArgs,
-  resolveFindByIdArgs,
-  resolveFindByIdOptions,
-  resolveFindOneArgs,
-  resolveFindOneOptions,
-  resolveFindOptions,
-  resolveUpdateByIdArgs,
-  resolveUpdateByIdOptions,
-  resolveUpdateOneArgs,
-  resolveUpdateOneOptions,
-  resolveUpsertArgs,
-  resolveUpsertOptions,
-} from './model-service-defaults';
+import { resolveExistsOptions, resolveUpsertArgs, resolveUpsertOptions } from './model-service-defaults';
+import { captureModelServiceIntent, type ModelServiceIntentMethod } from './model-service-intent';
 
 type ServiceHookContext = ModelHookContext & {
   diff?(doc: Document): void;
@@ -353,6 +346,95 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     });
   }
 
+  private preparedOutputIntent(
+    execution: ServiceExecutionContext,
+    method: ModelServiceIntentMethod,
+    args?: FindArgs,
+    options?: import('./model-service-intent').ModelServiceIntent['options'],
+  ) {
+    const state = readServiceExecution(this, execution);
+    if (state.queryIntent) return state.queryIntent;
+    // Private helper-only dispatches can supply package-owned arguments. Their
+    // defaults/posture still come from operation capture, never the live service.
+    const { configuration } = readServiceAuthorization(state.authorization, state.binding);
+    return captureModelServiceIntent(
+      {
+        defaults: (configuration.defaults as Defaults | undefined) ?? {},
+        getPermissionsPosture: () => ({
+          stripPermissionsField: !!configuration.stripPermissionsField,
+          disableFieldPermissions: !!configuration.disableFieldPermissions,
+        }),
+      },
+      method,
+      args,
+      options,
+    );
+  }
+
+  /** Raw result -> exact ref capture -> detached ordinary source/hook rows.
+   * Private inputs travel separately through finalization, never through snapshots.
+   */
+  private async loadOutputPopulateDependencies(
+    execution: ServiceExecutionContext,
+    rows: readonly unknown[],
+    plan: VirtualProjectionPlan,
+    populate: readonly Populate[],
+    sourcePopulate: readonly Populate[] = populate,
+    hydration?: HydrationMode,
+    sourceFields: readonly string[] = [],
+    populateAdapter = false,
+  ): Promise<Record<string, unknown>[]> {
+    const state = readServiceExecution(this, execution);
+    return loadVirtualPopulateOutputRows(
+      {
+        request: this.req,
+        runtime: this.requestRuntime,
+        family: state.family,
+        permissions: getAuthorizationPermissions(state.authorization, state.binding),
+        hydration: hydration ?? state.hydration,
+        core: this.requestCore,
+      },
+      rows,
+      plan,
+      populate,
+      [...plan.publicPersistedFetchSelection, ...sourcePopulate.map((entry) => entry.path), ...sourceFields],
+      sourcePopulate.filter((entry) => !populate.includes(entry)),
+      populateAdapter
+        ? (output) =>
+            this.persist(() =>
+              this.model.mongooseModel.populate(
+                output,
+                sourcePopulate.filter((entry) => !populate.includes(entry)),
+              ),
+            )
+        : undefined,
+    );
+  }
+
+  /** Dependency-bearing post-lifecycle/template work uses detached output copies. */
+  private async prepareDetachedOutputRows(
+    execution: ServiceExecutionContext,
+    rows: readonly unknown[],
+    plan: VirtualProjectionPlan,
+    populate: readonly Populate[],
+  ): Promise<unknown[]> {
+    const population = planVirtualPopulateQuery(plan, populate);
+    if (!population.requiresCapture) {
+      if (populate.length) for (const row of rows) await this.persist(() => populateDoc(row as Document, populate));
+      return [...rows];
+    }
+    return this.loadOutputPopulateDependencies(
+      execution,
+      rows,
+      plan,
+      population.publicPopulate,
+      populate,
+      'hydrated',
+      [],
+      population.queryPopulate.length > 0,
+    );
+  }
+
   private requestSortFields(execution: ServiceExecutionContext): string[] {
     const { authorization, binding, access } = readServiceExecution(this, execution);
     const { configuration } = readServiceAuthorization(authorization, binding);
@@ -416,6 +498,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       context,
       operation: access.operation,
       documentAuthorizationStage: stage,
+      virtualPopulateRow: getVirtualPopulateRow(getIncludeOriginal(args.doc) as object),
       sharedGate: gate,
       concurrencyLimit: this.getVirtualHookConcurrencyLimit(),
       onFinalized: (_output, outputContext) => {
@@ -600,7 +683,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
    * Finalizes already-filtered (visible-only) sub rows through the shared
    * boundary with scope ` [sub,'sub']`, owning-parent `read` grants, and
    * scoped rules. Children (deeper nested + related via `related`) finalize
-   * before sub getters; only finalized children appear in getter views.
+   * before sub getters; argument one has finalized public children. Declared
+   * private populated inputs travel separately in argument four.
    * Uses a bounded row map + request/runtime hook-chain admission (stable
    * order, limit-one reentry, no persistence permits held). Waiting ancestor
    * callback frames do not consume extra permits. Callers must filter rows BEFORE
@@ -835,13 +919,24 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         descriptor.path,
       );
       if (isExecutionRowDenied(svc, child)) continue;
-      if (policy?.operation.mode !== 'grant' && !(await this.requestCore.isAllowed(modelName, targetAccess))) continue;
+      const childState = readServiceExecution(svc, child);
+      const targetConfiguration = readServiceAuthorization(childState.authorization, childState.binding).configuration;
+      if (
+        policy?.operation.mode !== 'grant' &&
+        !(await this.hookGate.run(() =>
+          evaluateRouteGuard(
+            this.req,
+            getAuthorizationPermissions(childState.authorization, childState.binding),
+            getCapturedAuthorizationOption(targetConfiguration, `operationAccess.${targetAccess}`) as never,
+          ),
+        ))
+      )
+        continue;
       // Match is a required relationship constraint, even when a transform rewrites ordinary input.
       const match = (descriptor.match ?? {}) as Filter;
       const query = await prepareModelQuery(svc, child, { kind: 'client-read', filter: match }, {}, true);
       const filter = readPreparedModelQuery(svc, child, query).filter;
       if (filter === false) continue;
-      const childState = readServiceExecution(svc, child);
       const plan = planAuthorizedModelProjection({
         authorization: childState.authorization,
         binding: childState.binding,
@@ -857,6 +952,19 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         plan,
         snapshot: readServiceAuthorization(childState.authorization, childState.binding)
           .configuration as FinalizeSnapshot,
+        fetchBinding: {
+          runtime: this.requestRuntime,
+          model: childState.binding.model as never,
+          schema: (childState.binding.model as import('mongoose').Model<unknown>).schema,
+          configuration: targetConfiguration,
+          requestRead:
+            targetAccess === 'read' &&
+            policy?.operation.mode !== 'grant' &&
+            readServiceAuthorization(childState.authorization, childState.binding).authorization.rows.mode ===
+              'request',
+          staticObjectIdReference: captured.relatedTargets.find((target) => target.path === descriptor.path)
+            ?.staticObjectIdReference,
+        },
       });
       result.push(ret);
     }
@@ -909,7 +1017,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     }
     // Include source copies retain the actual fetched target identity for cache
     // reuse. Never infer this identity from IDs/values or finalize the original.
-    const cacheKey = originalTarget && typeof originalTarget === 'object' ? originalTarget : (rawTarget as object);
+    const originalKey = originalTarget && typeof originalTarget === 'object' ? originalTarget : (rawTarget as object);
+    const cacheKey = getVirtualPopulatePublicIdentity(originalKey) ?? originalKey;
     const existing = cache.get(cacheKey);
     if (existing) {
       const source = await existing;
@@ -948,6 +1057,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       docPermissions: undefined,
       concurrencyLimit: hookLimit,
       sharedGate,
+      virtualPopulateRow: getVirtualPopulateRow(originalKey) ?? getVirtualPopulateRow(rawTarget as object),
     });
     cache.set(cacheKey, pending);
     const finalized = await pending;
@@ -1134,8 +1244,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     super(req, modelName);
 
     this.model = admitModelPersistence(this.createModelAdapter(modelName), this.getCorrelatedExecState().scheduler);
-    registerSubdocumentPopulateExecutor(this, (execution, populate) =>
-      this.genExecutionPopulate(execution, 'read', populate),
+    registerSubdocumentPopulateExecutor(
+      this,
+      (execution, populate) => this.genExecutionPopulate(execution, 'read', populate),
+      this.requestCore,
     );
     this.baseFields = ['_id'];
     registerServiceExecutors(this, {
@@ -1147,7 +1259,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }),
       configuration: () =>
         this.requestRuntime.getModelInstance(this.modelName)
-          ? captureModelAuthorizationConfiguration(this.requestRuntime, this.modelName, this.options)
+          ? captureModelAuthorizationConfiguration(this.requestRuntime, this.modelName, {
+              ...this.options,
+              defaults: this.defaults,
+            })
           : { catalog: { paths: [] }, ...this.options },
       permissions: () => this.requestCore.getPermissions?.() ?? new Permission({}),
       parse: (filter) => this.parseClientData(filter, this.getCorrelatedExecState().scheduler),
@@ -1206,19 +1321,24 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
     try {
       this.admitServiceCall(args, options);
-      const access = this.resolveFindOneOptions(options).access;
-      const execution = createServiceExecution(
+      const intent = captureModelServiceIntent(this, 'findOne', args, options);
+      const access = intent.options.access!;
+      const execution = withExecutionQueryIntent(
         this,
-        {
-          operation: 'read',
-          rowAccess: access,
-          virtualAccess: access,
-          outputAccess: access,
-          docPermissionsAccess: access,
-        },
-        options?.authorization,
-        'service',
-        this.captureRelated(args, this.defaults.findOneArgs),
+        createServiceExecution(
+          this,
+          {
+            operation: 'read',
+            rowAccess: access,
+            virtualAccess: access,
+            outputAccess: access,
+            docPermissionsAccess: access,
+          },
+          options?.authorization,
+          'service',
+          this.captureRelated(intent.args),
+        ),
+        intent,
       );
       const query = await prepareModelQuery(this, execution, { kind: 'client-read', filter });
       return await executePreparedFindOne(this, execution, query, args, options);
@@ -1237,15 +1357,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
 
-    const { select: requestedSelect, sort, populate, include } = this.resolveFindOneArgs(args);
-    const { includePermissions, includeFieldPermissions, access, populateAccess } = this.resolveFindOneOptions(options);
     const state = readServiceExecution(this, execution);
+    const intent = this.preparedOutputIntent(execution, 'findOne', args, options);
+    const { select: requestedSelect, sort, populate, include } = intent.args;
+    const { includePermissions, includeFieldPermissions, populateAccess } = intent.options;
+    const access = state.access.rowAccess!;
     const virtualSnapshot = readServiceAuthorization(state.authorization, state.binding)
       .configuration as FinalizeSnapshot;
 
     let processedInclude: ReturnType<typeof this.processInclude>;
     try {
-      processedInclude = this.processInclude(include);
+      processedInclude = this.processInclude(include, state.authorization);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -1320,11 +1442,27 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }
     }
 
-    let doc = await this.model.findOne({ ...query, select: dbSelect, lean: state.hydration === 'lean' });
+    const population = planVirtualPopulateQuery(virtualPlan, _populate);
+    let doc = await this.model.findOne({
+      ...query,
+      populate: population.queryPopulate,
+      select: dbSelect,
+      lean: state.hydration === 'lean',
+    });
     if (!doc) {
       this.completeOp('findOne', startedAt, Codes.NotFound, _filter);
       return { success: false, kind: 'error', code: Codes.NotFound, query };
     }
+    if (population.requiresCapture)
+      [doc] = await this.loadOutputPopulateDependencies(
+        execution,
+        [doc],
+        virtualPlan,
+        population.publicPopulate,
+        _populate,
+        undefined,
+        findOneAssociationField ? [findOneAssociationField] : [],
+      );
 
     const context: ModelHookContext = {
       mongooseModel: this.model.mongooseModel,
@@ -1423,25 +1561,29 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
     try {
       this.admitServiceCall(args, options);
-      const { select, populate, include } = this.resolveFindByIdArgs(args);
-      const { skim, includePermissions, includeFieldPermissions, access, populateAccess } =
-        this.resolveFindByIdOptions(options);
-      const execution = createServiceExecution(
+      const intent = captureModelServiceIntent(this, 'findById', args, options);
+      const { select, populate, include, sort } = intent.args;
+      const { skim, includePermissions, includeFieldPermissions, access = 'read', populateAccess } = intent.options;
+      const execution = withExecutionQueryIntent(
         this,
-        {
-          operation: 'read',
-          rowAccess: access,
-          virtualAccess: access,
-          outputAccess: access,
-          docPermissionsAccess: access,
-        },
-        options?.authorization,
-        'service',
-        this.captureRelated(args, this.defaults.findByIdArgs),
-        undefined,
-        undefined,
-        undefined,
-        'findById',
+        createServiceExecution(
+          this,
+          {
+            operation: 'read',
+            rowAccess: access,
+            virtualAccess: access,
+            outputAccess: access,
+            docPermissionsAccess: access,
+          },
+          options?.authorization,
+          'service',
+          this.captureRelated(intent.args),
+          undefined,
+          undefined,
+          undefined,
+          'findById',
+        ),
+        intent,
       );
       const filter = readModelIdentifier(this, execution, await resolveModelIdentifier(this, execution, id));
       const query = await prepareModelQuery(this, execution, { kind: 'client-read', filter });
@@ -1453,6 +1595,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           select,
           populate,
           include,
+          sort,
         },
         { skim, includePermissions, includeFieldPermissions, access, populateAccess },
       );
@@ -1471,18 +1614,23 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedListResult<TModel> | ErrorResult> {
     try {
       this.admitServiceCall(args, options);
-      const execution = createServiceExecution(
+      const intent = captureModelServiceIntent(this, 'find', args, options);
+      const execution = withExecutionQueryIntent(
         this,
-        {
-          operation: 'list',
-          rowAccess: 'list',
-          virtualAccess: 'list',
-          outputAccess: 'list',
-          docPermissionsAccess: 'list',
-        },
-        options?.authorization,
-        'service',
-        this.captureRelated(args, this.defaults.findArgs),
+        createServiceExecution(
+          this,
+          {
+            operation: 'list',
+            rowAccess: 'list',
+            virtualAccess: 'list',
+            outputAccess: 'list',
+            docPermissionsAccess: 'list',
+          },
+          options?.authorization,
+          'service',
+          this.captureRelated(intent.args),
+        ),
+        intent,
       );
       const query = await prepareModelQuery(this, execution, { kind: 'client-read', filter });
       return await executePreparedFind(this, execution, query, args, options, decorate);
@@ -1506,22 +1654,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     const virtualSnapshot = readServiceAuthorization(state.authorization, state.binding)
       .configuration as FinalizeSnapshot;
 
-    const {
-      select: requestedSelect,
-      populate,
-      include,
-      sort,
-      skip,
-      limit,
-      page,
-      pageSize,
-    } = this.resolveFindArgs(args);
-    const { includePermissions, includeFieldPermissions, includeCount, populateAccess } =
-      this.resolveFindOptions(options);
+    const intent = this.preparedOutputIntent(execution, 'find', args, options);
+    const { select: requestedSelect, populate, include, sort, skip, limit, page, pageSize } = intent.args;
+    const { includePermissions, includeFieldPermissions, includeCount, populateAccess } = intent.options;
 
     let processedInclude: ReturnType<typeof this.processInclude>;
     try {
-      processedInclude = this.processInclude(include);
+      processedInclude = this.processInclude(include, state.authorization);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -1564,9 +1703,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     const filteredPopulate =
       isArray(withAssocSelect) && isArray(_populate)
         ? _populate.filter((p) =>
-            withAssocSelect.some(
-              (field) => field === p.path || field.startsWith(`${p.path}.`) || p.path.startsWith(`${field}.`),
-            ),
+            [
+              ...virtualPlan.publicPersistedFetchSelection,
+              ...(findAssociationField ? [findAssociationField] : []),
+            ].some((field) => field === p.path || field.startsWith(`${p.path}.`) || p.path.startsWith(`${field}.`)),
           )
         : _populate;
 
@@ -1612,12 +1752,24 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }
     }
 
+    const population = planVirtualPopulateQuery(virtualPlan, filteredPopulate);
     let docs = (await this.model.find({
       ...query,
+      populate: population.queryPopulate,
       select: dbSelect,
       hardLimit: this.options.listHardLimit,
       lean: state.hydration === 'lean',
     })) as any[];
+    if (population.requiresCapture)
+      docs = await this.loadOutputPopulateDependencies(
+        execution,
+        docs,
+        virtualPlan,
+        population.publicPopulate,
+        filteredPopulate,
+        undefined,
+        findAssociationField ? [findAssociationField] : [],
+      );
     // VIRT-05 association capture (before trim/nested): immutable values
     // aligned to rows for the caller's join index.
     const capturedAssociation = findAssociationField
@@ -1760,12 +1912,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedListResult<TModel> | ErrorResult> {
     try {
       this.admitServiceCall(args, options);
-      const execution = createServiceExecution(
+      const intent = captureModelServiceIntent(this, 'create', args, options);
+      const execution = withExecutionQueryIntent(
         this,
-        { operation: 'create', virtualAccess: 'create', outputAccess: 'read', docPermissionsAccess: 'create' },
-        options?.authorization,
-        'create',
-        this.captureRelated(args, this.defaults.createArgs),
+        createServiceExecution(
+          this,
+          { operation: 'create', virtualAccess: 'create', outputAccess: 'read', docPermissionsAccess: 'create' },
+          options?.authorization,
+          'create',
+          this.captureRelated(intent.args),
+        ),
+        intent,
       );
       return await executeCreate(this, execution, data, args, options, decorate);
     } catch (error) {
@@ -1785,8 +1942,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     assertModelInputComplexity(data, this.getRequestComplexity());
     const state = readServiceExecution(this, execution);
     const captured = readServiceAuthorization(state.authorization, state.binding);
-    const { populate, select } = this.resolveCreateArgs(args);
-    const { includePermissions, includeFieldPermissions, populateAccess } = this.resolveCreateOptions(options);
+    const intent = this.preparedOutputIntent(execution, 'create', args, options);
+    const { populate, select } = intent.args;
+    const { includePermissions, includeFieldPermissions, populateAccess } = intent.options;
     const initiatingOperation = state.access.operation;
     const createPlan = this.executionOutputPlan(execution, select);
 
@@ -1925,7 +2083,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     const outputContexts: ServiceOutputContext[] = [];
 
     const createdDocs = (await this.model.create(items)) as Array<ModelDocument<TModel>>;
-    const docs = await mapWithConcurrencyLimit(createdDocs, maxBulkConcurrency, async (doc, index) => {
+    const persistedDocs = await mapWithConcurrencyLimit(createdDocs, maxBulkConcurrency, async (doc, index) => {
       contexts[index].currentDocument = doc;
       doc = assertModelDocument<TModel>(
         await this.afterPersist(doc, 'create', contexts[index]),
@@ -1934,8 +2092,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       );
       contexts[index].currentDocument = doc;
       contexts[index].finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
-      if (resolvedPopulate.length > 0) await this.persist(() => populateDoc(doc as Document, resolvedPopulate));
-      // VIRT-05: target-model finalization after `populateDoc` resolves, before
+      return doc;
+    });
+    const detached = await this.prepareDetachedOutputRows(execution, persistedDocs, createPlan, resolvedPopulate);
+    const docs = await mapWithConcurrencyLimit(detached, maxBulkConcurrency, async (doc, index) => {
+      // Target-model finalization on detached populated output, before
       // parent getters (own plans/contexts, trimming even without virtuals).
       if (resolvedPopulate.length > 0) {
         await this.finalizePopulateForSingleDoc(
@@ -2033,9 +2194,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         originalDocumentSnapshot: toObject(data) as Record<string, unknown>,
         resolvedQuery: {},
       };
+      const [detached] = await this.prepareDetachedOutputRows(execution, [data], newPlan, []);
 
       const output = await this.finalizeDirectOutput({
-        doc: data,
+        doc: detached,
         plan: newPlan,
         context: newContext,
         includePermissions,
@@ -2073,18 +2235,23 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
     try {
       this.admitServiceCall(args, options);
-      const execution = createServiceExecution(
+      const intent = captureModelServiceIntent(this, 'updateOne', args, options);
+      const execution = withExecutionQueryIntent(
         this,
-        {
-          operation: 'update',
-          rowAccess: 'update',
-          virtualAccess: 'update',
-          outputAccess: 'read',
-          docPermissionsAccess: 'update',
-        },
-        options?.authorization,
-        'mutation',
-        this.captureRelated(args, this.defaults.updateOneArgs),
+        createServiceExecution(
+          this,
+          {
+            operation: 'update',
+            rowAccess: 'update',
+            virtualAccess: 'update',
+            outputAccess: 'read',
+            docPermissionsAccess: 'update',
+          },
+          options?.authorization,
+          'mutation',
+          this.captureRelated(intent.args),
+        ),
+        intent,
       );
       const query = await prepareModelQuery(this, execution, { kind: 'mutation-lookup', filter });
       return await executePreparedUpdateOne(this, execution, query, data, args, options, decorate);
@@ -2108,8 +2275,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
     const state = readServiceExecution(this, execution);
     const captured = readServiceAuthorization(state.authorization, state.binding);
-    const { populate, select } = this.resolveUpdateOneArgs(args);
-    const { includePermissions, includeFieldPermissions, populateAccess } = this.resolveUpdateOneOptions(options);
+    const intent = this.preparedOutputIntent(execution, 'updateOne', args, options);
+    const { populate, select } = intent.args;
+    const { includePermissions, includeFieldPermissions, populateAccess } = intent.options;
     const initiatingOperation = state.access.operation;
     const updatePlan = this.executionOutputPlan(execution, select);
 
@@ -2227,14 +2395,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
     await this.changes(doc.toObject({ virtuals: false }) as Record<string, unknown>, context);
 
-    if (_populate) await this.persist(() => populateDoc(doc as Document, _populate));
-    // VIRT-05: target-model finalization after `populateDoc` resolves, before
+    const [detached] = await this.prepareDetachedOutputRows(execution, [doc], updatePlan, _populate);
+    // Target-model finalization on detached populated output, before
     // parent getters (own plans/contexts, trimming even without virtuals).
     if (_populate) {
       const updateHookLimit = this.getVirtualHookConcurrencyLimit();
       const updateGate = this.hookGate;
       await this.finalizePopulateForSingleDoc(
-        doc,
+        detached,
         _populate as Populate[],
         context,
         initiatingOperation,
@@ -2243,7 +2411,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       );
     }
     const output = await this.finalizeDirectOutput({
-      doc,
+      doc: detached,
       plan: updatePlan,
       context,
       includePermissions,
@@ -2271,21 +2439,25 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
     try {
       this.admitServiceCall(args, options);
-      const { populate, select } = this.resolveUpdateByIdArgs(args);
-      const { skim, includePermissions, includeFieldPermissions, populateAccess } =
-        this.resolveUpdateByIdOptions(options);
-      const execution = createServiceExecution(
+      const intent = captureModelServiceIntent(this, 'updateById', args, options);
+      const { populate, select } = intent.args;
+      const { skim, includePermissions, includeFieldPermissions, populateAccess } = intent.options;
+      const execution = withExecutionQueryIntent(
         this,
-        {
-          operation: 'update',
-          rowAccess: 'update',
-          virtualAccess: 'update',
-          outputAccess: 'read',
-          docPermissionsAccess: 'update',
-        },
-        options?.authorization,
-        'mutation',
-        this.captureRelated(args, this.defaults.updateByIdArgs),
+        createServiceExecution(
+          this,
+          {
+            operation: 'update',
+            rowAccess: 'update',
+            virtualAccess: 'update',
+            outputAccess: 'read',
+            docPermissionsAccess: 'update',
+          },
+          options?.authorization,
+          'mutation',
+          this.captureRelated(intent.args),
+        ),
+        intent,
       );
       const filter = readModelIdentifier(this, execution, await resolveModelIdentifier(this, execution, id));
       const query = await prepareModelQuery(this, execution, { kind: 'mutation-lookup', filter });
@@ -2317,21 +2489,35 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   ): Promise<AuthorizedSingleResult<TModel> | AuthorizedListResult<TModel> | ErrorResult> {
     try {
       this.admitServiceCall(args, options);
-      const execution = createServiceExecution(
-        this,
-        {
-          operation: 'upsert',
-          rowAccess: 'update',
-          virtualAccess: 'update',
-          outputAccess: 'read',
-          docPermissionsAccess: 'update',
-        },
-        options?.authorization,
-        'mutation',
-        this.captureRelated(args, this.defaults.upsertArgs),
+      const upsertArgs = this.resolveUpsertArgs(args);
+      const upsertOptions = this.resolveUpsertOptions(options);
+      const updateIntent = captureModelServiceIntent(this, 'updateOne', upsertArgs, upsertOptions);
+      const createIntent = captureModelServiceIntent(this, 'create', upsertArgs, upsertOptions);
+      // The branch is known only after lookup. Capture both possible ordinary
+      // target sets now; only the taken branch's owned intent executes/outputs.
+      const related = uniqBy(
+        [...this.captureRelated(updateIntent.args), ...this.captureRelated(createIntent.args)],
+        (target) => target.path,
       );
-      const { populate, select } = this.resolveUpsertArgs(args);
-      const { skim, includePermissions, includeFieldPermissions, populateAccess } = this.resolveUpsertOptions(options);
+      const execution = withExecutionQueryIntent(
+        this,
+        createServiceExecution(
+          this,
+          {
+            operation: 'upsert',
+            rowAccess: 'update',
+            virtualAccess: 'update',
+            outputAccess: 'read',
+            docPermissionsAccess: 'update',
+          },
+          options?.authorization,
+          'mutation',
+          related,
+        ),
+        updateIntent,
+      );
+      const { populate, select } = updateIntent.args;
+      const { skim, includePermissions, includeFieldPermissions, populateAccess } = updateIntent.options;
       const preparedQuery = await prepareModelQuery(this, execution, { kind: 'mutation-lookup', filter });
       const _filter = readPreparedModelQuery(this, execution, preparedQuery).filter;
       const query = { filter: _filter };
@@ -2364,11 +2550,15 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       } else {
         // VIRT-00A D1: create branch keeps operation `upsert`; accesses
         // follow the taken branch (create/read/create).
-        const createExecution = deriveServiceExecution(
+        const createExecution = withExecutionQueryIntent(
           this,
-          execution,
-          { operation: 'upsert', virtualAccess: 'create', outputAccess: 'read', docPermissionsAccess: 'create' },
-          'create',
+          deriveServiceExecution(
+            this,
+            execution,
+            { operation: 'upsert', virtualAccess: 'create', outputAccess: 'read', docPermissionsAccess: 'create' },
+            'create',
+          ),
+          createIntent,
         );
         result = await executeCreate(
           this,
@@ -2840,54 +3030,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
   public getDocPermissions(doc: unknown): Record<string, unknown> {
     return getDocPermissions(this.modelName, doc);
-  }
-
-  private resolveFindOneArgs(args: FindOneArgs<TModel> = {}) {
-    return resolveFindOneArgs(this, args);
-  }
-
-  private resolveFindOneOptions(options: FindOneOptions = {}) {
-    return resolveFindOneOptions(this, options);
-  }
-
-  private resolveFindByIdArgs(args: FindByIdArgs<TModel> = {}) {
-    return resolveFindByIdArgs(this, args);
-  }
-
-  private resolveFindByIdOptions(options: FindByIdOptions = {}) {
-    return resolveFindByIdOptions(this, options);
-  }
-
-  private resolveFindArgs(args: FindArgs<TModel> = {}) {
-    return resolveFindArgs(this, args);
-  }
-
-  private resolveFindOptions(options: FindOptions = {}) {
-    return resolveFindOptions(this, options);
-  }
-
-  private resolveCreateArgs(args: CreateArgs = {}) {
-    return resolveCreateArgs(this, args);
-  }
-
-  private resolveCreateOptions(options: CreateOptions = {}) {
-    return resolveCreateOptions(this, options);
-  }
-
-  private resolveUpdateOneArgs(args: UpdateOneArgs<TModel> = {}) {
-    return resolveUpdateOneArgs(this, args);
-  }
-
-  private resolveUpdateOneOptions(options: UpdateOneOptions = {}) {
-    return resolveUpdateOneOptions(this, options);
-  }
-
-  private resolveUpdateByIdArgs(args: UpdateByIdArgs<TModel> = {}) {
-    return resolveUpdateByIdArgs(this, args);
-  }
-
-  private resolveUpdateByIdOptions(options: UpdateByIdOptions = {}) {
-    return resolveUpdateByIdOptions(this, options);
   }
 
   private resolveUpsertArgs(args: UpsertArgs<TModel> = {}) {

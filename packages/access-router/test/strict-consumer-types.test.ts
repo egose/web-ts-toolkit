@@ -96,6 +96,36 @@ describe('ARF-14 strict packed-consumer types', () => {
     consumerDir = stageConsumerDir();
   });
 
+  it.each(['ts', 'mts', 'cts'])('DPV-01 checks private populated getter inputs (%s)', (extension) => {
+    const source = `virtuals-populate-dependencies.${extension}`;
+    writeFileSync(
+      path.resolve(consumerDir, source),
+      readFileSync(path.resolve(packageRoot, 'test/virtuals-populate-dependencies.types.fixture.ts'), 'utf8'),
+    );
+    const config = `tsconfig-dpv01-${extension}.json`;
+    writeFileSync(
+      path.resolve(consumerDir, config),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: extension === 'ts' ? 'ESNext' : 'NodeNext',
+          moduleResolution: extension === 'ts' ? 'Bundler' : 'NodeNext',
+          strict: true,
+          noUnusedLocals: true,
+          noUnusedParameters: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: ['node'],
+          lib: ['ES2022', 'DOM'],
+        },
+        files: [source],
+      }),
+    );
+    const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+    expect(result.stdout + result.stderr).toBe('');
+    expect(result.status).toBe(0);
+  });
+
   it.each([
     ['Bundler', 'ts', 'ESNext'],
     ['NodeNext', 'mts', 'NodeNext'],

@@ -13,6 +13,11 @@ export function registerRequestRowCache(core: object, cache: Cache<string, unkno
   rowCaches.set(core, cache);
 }
 
+/** Shared request-only base-scope convention for terminal private reads. No row grants. */
+export function getRequestRowCache(core: object): Cache<string, unknown> | undefined {
+  return rowCaches.get(core);
+}
+
 export async function resolveAuthorizedAccessFilter(
   core: object,
   call: ResolvedServiceAuthorization,

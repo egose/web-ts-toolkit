@@ -33,6 +33,12 @@ import { OptionsManager, getNestedOption } from './options/manager';
 import { DataOptionsManager } from './options/data-manager';
 import { emptyDataSnapshot } from './options/data-values';
 import { defaultRequestComplexity } from './request-complexity';
+import {
+  getScopeVirtualsObject,
+  resolveSnapshotDescriptor,
+  type ResolvedVirtualDescriptor,
+} from './acl/virtual-descriptor';
+import { captureVirtualPopulateDependencies } from './acl/virtual-populate-dependencies';
 
 type ModelReferenceMap = {
   [key: string]: string | ModelReferenceMap;
@@ -309,8 +315,10 @@ const validateVirtualLeafValue = (
   }
   validateVirtualDependsOn(record.dependsOn ?? sharedDependsOn, entryLabel, storedFields, siblingVirtualNames);
   for (const k of Object.keys(record)) {
-    if (k !== 'get' && k !== 'dependsOn') {
-      throw new Error(`Virtual ${entryLabel}: unsupported descriptor key "${k}" (expected only get/dependsOn)`);
+    if (k !== 'get' && k !== 'dependsOn' && k !== 'dependsOnPopulate') {
+      throw new Error(
+        `Virtual ${entryLabel}: unsupported descriptor key "${k}" (expected get/dependsOn/dependsOnPopulate)`,
+      );
     }
   }
 };
@@ -378,6 +386,7 @@ const validateVirtualsScope = (scope: VirtualScopeValidation, documentPermission
       (k) =>
         k !== 'get' &&
         k !== 'dependsOn' &&
+        k !== 'dependsOnPopulate' &&
         k !== 'sub' &&
         !(VIRTUAL_SUPPORTED_ACCESSES as readonly string[]).includes(k),
     );
@@ -448,13 +457,17 @@ const validateVirtualsTree = (
     currentVirtuals: Record<string, unknown>,
     currentSchema: mongoose.Schema | null,
     currentPrefix: string,
+    schemaPrefix = '',
   ): void => {
     for (const [containerName, raw] of Object.entries(currentVirtuals)) {
       if (raw === undefined || !isVirtualContainerValue(raw)) continue;
       const record = raw as { sub: Record<string, unknown> };
-      const childSchema = getChildSchemaForField(currentSchema, containerName);
-      const nestedFields = getNestedChildFields(currentSchema, containerName);
-      const currentStored = collectStoredTopLevel(currentSchema);
+      const schemaPath = virtualFullPath(schemaPrefix, containerName);
+      const childSchema = getChildSchemaForField(currentSchema, schemaPath);
+      const nestedFields = getNestedChildFields(currentSchema, schemaPath);
+      const currentStored = schemaPrefix
+        ? getNestedChildFields(currentSchema, schemaPrefix)
+        : collectStoredTopLevel(currentSchema);
       if (!currentStored.has(containerName)) {
         throw new Error(
           `Virtual ${containerName}: scope-container "${containerName}" is not a persisted field in its scope`,
@@ -478,44 +491,10 @@ const validateVirtualsTree = (
         },
         documentPermissionField,
       );
-      const nextSchema = childSchema;
-      visitContainers(subVirtuals, nextSchema, subPrefix);
+      visitContainers(subVirtuals, childSchema ?? currentSchema, subPrefix, childSchema ? '' : schemaPath);
     }
   };
   visitContainers(rootVirtuals, rootSchema, '');
-};
-
-const getScopeVirtualsObject = (
-  rootVirtuals: Record<string, unknown> | null | undefined,
-  scopePath: string[] | undefined,
-): Record<string, unknown> | null => {
-  if (!rootVirtuals || !isPlainObject(rootVirtuals)) return null;
-  if (!scopePath || scopePath.length === 0) return rootVirtuals;
-  let current: unknown = rootVirtuals;
-  for (let i = 0; i < scopePath.length; i += 2) {
-    const field = scopePath[i];
-    const subMarker = scopePath[i + 1];
-    if (!field || subMarker !== 'sub') return null;
-    if (!isPlainObject(current)) return null;
-    const container = (current as Record<string, unknown>)[field];
-    if (!isVirtualContainerValue(container)) return null;
-    current = (container as { sub: Record<string, unknown> }).sub;
-    if (!isPlainObject(current)) return null;
-  }
-  return current as Record<string, unknown>;
-};
-
-const toVirtualDescriptor = (
-  leaf: unknown,
-  sharedDependsOn: unknown,
-): { get: (...args: never[]) => unknown; dependsOn: string[] } | null => {
-  if (isFunction(leaf))
-    return { get: leaf as (...args: never[]) => unknown, dependsOn: (sharedDependsOn as string[]) ?? [] };
-  if (!isPlainObject(leaf)) return null;
-  const record = leaf as Record<string, unknown>;
-  if (!isFunction(record.get)) return null;
-  const dependsOn = (record.dependsOn ?? sharedDependsOn ?? []) as string[];
-  return { get: record.get as (...args: never[]) => unknown, dependsOn };
 };
 
 /**
@@ -873,9 +852,8 @@ export class AccessRuntime {
   ) {
     assertPublicDefaults(options.defaults);
     if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
-    const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     const defaultOptions = this.getDefaultModelOptions() as ModelRouterOptions<TModel, TVirtuals>;
-    const currentModelOptions = manager.fetch();
+    const currentModelOptions = this.modelOptions[modelName]?.fetch() ?? { ...defaultModelOptions, modelName };
 
     const merged = { ...defaultOptions, ...currentModelOptions, ...options } as Record<string, unknown>;
     const model = this.getModelInstance(modelName) as mongoose.Model<unknown> | null;
@@ -886,7 +864,9 @@ export class AccessRuntime {
       '_permissions';
     // Validate before commit; rejected mutations preserve the previous valid config.
     validateVirtualsTree(model, merged.virtuals, permissionField, modelName);
+    captureVirtualPopulateDependencies(this, modelName, merged as ModelRouterOptions);
 
+    const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     manager.assign({ ...defaultOptions, ...currentModelOptions, ...options });
   }
 
@@ -910,13 +890,13 @@ export class AccessRuntime {
       assertPublicDefaults(proposed);
     }
 
-    const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
+    const manager = this.modelOptions[modelName];
 
     if (keyStr === 'virtuals' || keyStr.startsWith('virtuals.') || keyStr === 'documentPermissionField') {
       const model = this.getModelInstance(modelName) as mongoose.Model<unknown> | null;
-      const currentVirtuals = manager.get('virtuals' as K) as unknown;
+      const currentVirtuals = manager?.get('virtuals' as K) as unknown;
       const currentPermissionField =
-        (manager.get('documentPermissionField' as K) as string | undefined) ??
+        (manager?.get('documentPermissionField' as K) as string | undefined) ??
         (this.getDefaultModelOption('documentPermissionField' as never) as string | undefined) ??
         '_permissions';
 
@@ -949,9 +929,15 @@ export class AccessRuntime {
       }
 
       validateVirtualsTree(model, proposedVirtuals, proposedPermissionField, modelName);
+      captureVirtualPopulateDependencies(this, modelName, {
+        ...this.getDefaultModelOptions(),
+        ...manager?.fetch(),
+        virtuals: proposedVirtuals,
+        documentPermissionField: proposedPermissionField,
+      } as ModelRouterOptions);
     }
 
-    manager.set(key, value);
+    this.getOrCreateModelOptions<TModel, TVirtuals>(modelName).set(key, value);
   }
 
   /** Frozen stored snapshot, not fully resolved per-path defaults. Read again for current configuration. */
@@ -1034,39 +1020,19 @@ export class AccessRuntime {
    * interpreted as a getter descriptor when the access is absent: an
    * inapplicable registered name stays virtual (excluded from persisted
    * projections, write admission, and DB sort/filter/distinct).
-   * Shared record-level `dependsOn` is inherited when a leaf lacks its own.
+   * Shared `dependsOn` and `dependsOnPopulate` lists inherit independently;
+   * each defined leaf list replaces its shared list wholesale.
    */
   resolveVirtualDescriptor(
     modelName: string,
     virtualName: string,
     access: string,
     scopePath?: string[],
-  ): { get: (...args: never[]) => unknown; dependsOn: string[] } | undefined {
+  ): ResolvedVirtualDescriptor | undefined {
     const manager = this.getOrCreateModelOptions(modelName);
     const rootVirtuals = manager.get('virtuals') as Record<string, unknown> | undefined;
     const scopeVirtuals = getScopeVirtualsObject(rootVirtuals, scopePath);
-    if (!scopeVirtuals || !(virtualName in scopeVirtuals)) return undefined;
-    const entry = scopeVirtuals[virtualName];
-    if (entry === undefined || isVirtualContainerValue(entry)) return undefined;
-    if (isFunction(entry)) return { get: entry as (...args: never[]) => unknown, dependsOn: [] };
-    if (!isPlainObject(entry)) return undefined;
-    const record = entry as Record<string, unknown>;
-    if ('get' in record) {
-      const descriptor = toVirtualDescriptor(entry, undefined);
-      return descriptor ?? undefined;
-    }
-    const sharedDependsOn = record.dependsOn as string[] | undefined;
-    const exact = record[access];
-    if (exact !== undefined) {
-      const descriptor = toVirtualDescriptor(exact, sharedDependsOn);
-      if (descriptor) return descriptor;
-    }
-    const fallback = record.default;
-    if (fallback !== undefined) {
-      const descriptor = toVirtualDescriptor(fallback, sharedDependsOn);
-      if (descriptor) return descriptor;
-    }
-    return undefined;
+    return resolveSnapshotDescriptor(scopeVirtuals, virtualName, access);
   }
 
   getModelNames() {

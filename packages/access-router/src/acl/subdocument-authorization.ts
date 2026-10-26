@@ -46,11 +46,12 @@ export function prepareSubdocumentCall<T, V extends object>(
   options: unknown,
 ): SubdocumentCall {
   assertPublicDefaults(service.defaults);
-  const input = options === undefined ? {} : authorizationRecord(options, 'subdocument options');
+  const original = options === undefined ? {} : authorizationRecord(options, 'subdocument options');
   // Inspect inherited/non-enumerable controls before positively excluding the one internal slot.
-  const publicPart = Object.create(Object.getPrototypeOf(input));
-  for (const key of Reflect.ownKeys(input)) {
-    if (key !== 'authorization') Object.defineProperty(publicPart, key, Object.getOwnPropertyDescriptor(input, key)!);
+  const publicPart = Object.create(Object.getPrototypeOf(original));
+  for (const key of Reflect.ownKeys(original)) {
+    if (key !== 'authorization')
+      Object.defineProperty(publicPart, key, Object.getOwnPropertyDescriptor(original, key)!);
   }
   assertPublicAdmission(publicPart);
   const keys =
@@ -61,11 +62,12 @@ export function prepareSubdocumentCall<T, V extends object>(
         : method === 'create'
           ? ['addFirst']
           : [];
-  assertAuthorizationKeys(input, [...keys, 'authorization'], 'subdocument options');
-  const descriptor = Object.getOwnPropertyDescriptor(input, 'authorization');
+  assertAuthorizationKeys(original, [...keys, 'authorization'], 'subdocument options');
+  const descriptor = Object.getOwnPropertyDescriptor(original, 'authorization');
   if (descriptor && (!('value' in descriptor) || !descriptor.enumerable))
     authorizationError('authorization must be enumerable data');
-  const raw = copyAuthorizationValue(input.authorization);
+  const raw = copyAuthorizationValue(original.authorization);
+  const input = deepIsolateValue(original);
   const errors = validateRequestComplexity(raw, service.getRequestComplexity());
   if (errors.length) authorizationError(errors[0].detail);
   const policy = raw === undefined ? {} : authorizationRecord(raw, 'subdocument authorization');

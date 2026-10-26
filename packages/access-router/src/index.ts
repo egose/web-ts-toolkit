@@ -268,6 +268,8 @@ export type {
   ModelVirtualDoc,
   ModelVirtualGetter,
   ModelVirtualDescriptor,
+  ModelVirtualPopulateDependency,
+  ModelVirtualPopulateInputs,
   ModelVirtualAccessRecord,
   ModelVirtualLeaf,
   ModelVirtuals,

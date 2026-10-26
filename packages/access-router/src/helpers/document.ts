@@ -244,8 +244,9 @@ export const unsetIsolatedVirtual = (output: Record<string, unknown>, fieldName:
 /**
  * Private association/correlated retention (VIRT-03 requirement 3, VIRT-05/06 hook).
  * Raw association values are retained privately keyed by the finalized output
- * object and never attached to the output itself, so getters and serializers
- * see only finalized children.
+ * object and never attached to the output itself. Getter argument one sees
+ * finalized public children; declared private inputs use a separate fourth argument.
+ * Serialization has no implicit access to either private retention channel.
  */
 const retainedAssociations = new WeakMap<object, Record<string, unknown>>();
 

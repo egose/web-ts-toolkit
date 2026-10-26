@@ -1,13 +1,15 @@
 /** Package-only related descriptor capture and target derivation. */
 import type { AccessRuntime } from '../runtime';
-import type { Include, Populate } from '../interfaces';
+import type { SchemaType } from 'mongoose';
+import type { Defaults, Include, Populate } from '../interfaces';
 import type { Service } from '../services/service';
 import { getModelRef } from '../meta';
-import { assertPublicAdmission } from '../validation/public-admission';
+import { assertPublicAdmission, forwardPublicOptions } from '../validation/public-admission';
 import { assertPopulateAccess } from './populate-access';
 import { captureModelAuthorizationConfiguration } from './model-output-planning';
 import { authorizationError } from './authorization-snapshot';
-import { createServiceExecution, getServiceExecutors } from './service-execution';
+import { createServiceExecution, getServiceExecutors, withExecutionQueryIntent } from './service-execution';
+import { captureModelServiceIntent } from '../services/model-service-intent';
 import {
   getAuthorizationPermissions,
   readServiceAuthorization,
@@ -20,6 +22,30 @@ import type {
   ResolvedServiceAuthorization,
 } from './service-authorization';
 
+function staticObjectIdReference(runtime: AccessRuntime, source: string, path: string, target: string): boolean {
+  const model = runtime.getModelInstance(source),
+    related = runtime.getModelInstance(target);
+  if (!model || !related || model.db !== related.db || related.schema.path('_id')?.instance !== 'ObjectId')
+    return false;
+  const parts = path.split('.');
+  if (parts.some((part) => part.startsWith('$'))) return false;
+  for (let n = 1; n < parts.length; n++) {
+    const parent = model.schema.path(parts.slice(0, n).join('.'));
+    if (parent?.instance === 'Map' || parent?.instance === 'Mixed' || parent?.options?.ref || parent?.options?.refPath)
+      return false;
+  }
+  const type = model.schema.path(path) as
+    | (SchemaType & { $embeddedSchemaType?: SchemaType; embeddedSchemaType?: SchemaType; caster?: SchemaType })
+    | undefined;
+  const scalar =
+    type?.instance === 'Array' ? (type.$embeddedSchemaType ?? type.embeddedSchemaType ?? type.caster) : type;
+  return (
+    scalar?.instance === 'ObjectId' &&
+    (type?.options?.ref ?? scalar.options?.ref) === target &&
+    type?.options?.refPath === undefined &&
+    scalar.options?.refPath === undefined
+  );
+}
 export function captureRelatedTargets(
   runtime: AccessRuntime,
   modelName: string,
@@ -36,7 +62,12 @@ export function captureRelatedTargets(
     if (typeof entry !== 'string') assertPopulateAccess(entry.access);
     const model = getModelRef(modelName, path);
     if (model && runtime.hasModel(model))
-      targets.push({ path, modelName: model, configuration: captureModelAuthorizationConfiguration(runtime, model) });
+      targets.push({
+        path,
+        modelName: model,
+        configuration: captureModelAuthorizationConfiguration(runtime, model),
+        staticObjectIdReference: staticObjectIdReference(runtime, modelName, path, model),
+      });
     else if (model && !runtime.getGlobalOption('requireRegisteredPopulateModels', true)) {
       // Capture the existing explicit opt-out at the requested path. No target
       // policy or document handle can be issued for an unregistered model.
@@ -45,12 +76,36 @@ export function captureRelatedTargets(
   }
   for (const entry of entries<Include>(args.include)) {
     if (!runtime.hasModel(entry.model)) authorizationError(`Model ${entry.model} not found`);
+    const configuration = captureModelAuthorizationConfiguration(runtime, entry.model);
+    const queryIntent =
+      entry.op === 'count'
+        ? undefined
+        : captureModelServiceIntent(
+            {
+              defaults: (configuration.defaults as Defaults | undefined) ?? {},
+              getPermissionsPosture: () => ({
+                stripPermissionsField: !!configuration.stripPermissionsField,
+                disableFieldPermissions: !!configuration.disableFieldPermissions,
+              }),
+            },
+            entry.op === 'list' ? 'find' : 'findOne',
+            entry.args,
+            {
+              ...forwardPublicOptions(entry.options, entry.op),
+              access: 'read',
+              includePermissions: false,
+              includeFieldPermissions: false,
+              includeCount: false,
+            },
+          );
     targets.push({
       path: entry.path,
       modelName: entry.model,
       kind: entry.op === 'count' ? 'count' : 'output',
-      configuration: captureModelAuthorizationConfiguration(runtime, entry.model),
-      relatedTargets: captureRelatedTargets(runtime, entry.model, entry.args ?? {}, depth + 1),
+      configuration,
+      queryIntent,
+      operationGuard: runtime.getModelOption(entry.model, `operationAccess.${entry.op}`),
+      relatedTargets: captureRelatedTargets(runtime, entry.model, queryIntent?.args ?? entry.args ?? {}, depth + 1),
     });
   }
   if (new Set(targets.map((target) => target.path)).size !== targets.length)
@@ -80,7 +135,7 @@ export function createRelatedExecution<T, V extends object>(
   const policy = captured.authorization.related[path];
   if (policy && (!target || target.modelName !== getServiceExecutors(receiver).binding().modelName))
     authorizationError(`related model mismatch: ${path}`);
-  return createServiceExecution(
+  const execution = createServiceExecution(
     receiver,
     access,
     policy ? serviceAuthorizationInput(policy, target?.relatedTargets ?? []) : undefined,
@@ -90,4 +145,5 @@ export function createRelatedExecution<T, V extends object>(
     target?.configuration,
     getAuthorizationPermissions(parent, binding),
   );
+  return target?.queryIntent ? withExecutionQueryIntent(receiver, execution, target.queryIntent) : execution;
 }

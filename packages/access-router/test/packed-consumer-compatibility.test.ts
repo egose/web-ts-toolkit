@@ -441,6 +441,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'field-helper-migration.types.fixture',
     'grouped-count-consumer.types.fixture',
     'hydration-consumer.types.fixture',
+    'virtuals-populate-dependencies.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -472,11 +473,28 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     .map((match) => match[1])
     .find((snippet) => snippet.includes('async function runServiceAuthorizationExample()'));
   if (!authorizationExample) throw new Error('Installed README is missing its runnable authorization contract');
+  const privatePopulateExample = [
+    ...readme.matchAll(/<!--\s*doc-example:\s*complete-runtime\s*-->\s*```ts\n([\s\S]*?)```/g),
+  ]
+    .map((match) => match[1])
+    .find((snippet) => snippet.includes('async function runPrivatePopulateExample()'));
+  if (!privatePopulateExample) throw new Error('Installed README is missing its runnable private-populate contract');
+  authorizationFixtures.push('private-populate.readme');
+  for (const extension of ['ts', 'mts', 'cts']) {
+    writeFileSync(path.resolve(consumerDir, `private-populate.readme.${extension}`), privatePopulateExample);
+  }
   for (const extension of ['mts', 'cts']) {
     writeFileSync(path.resolve(consumerDir, `authorization.readme.${extension}`), authorizationExample);
     writeFileSync(
       path.resolve(consumerDir, `field-helper.runtime.${extension}`),
       readFileSync(path.resolve(packageRoot, 'test/field-helper-consumer.runtime.fixture.ts'), 'utf8'),
+    );
+    writeFileSync(
+      path.resolve(consumerDir, `private-populate.runtime.${extension}`),
+      readFileSync(
+        path.resolve(packageRoot, 'test/virtuals-populate-dependencies.consumer.runtime.fixture.ts'),
+        'utf8',
+      ),
     );
   }
   writeFileSync(
@@ -499,6 +517,10 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
         'authorization.readme.cts',
         'field-helper.runtime.mts',
         'field-helper.runtime.cts',
+        'private-populate.readme.mts',
+        'private-populate.readme.cts',
+        'private-populate.runtime.mts',
+        'private-populate.runtime.cts',
       ],
     }),
   );
@@ -974,6 +996,16 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   run('node', ['authorization-out/field-helper.runtime.cjs'], consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
+  // DPV-05: exact shipped three-shape workflow plus array/default/denial restoration,
+  // using the real transformed packed installation and both runtime entry conditions.
+  for (const file of [
+    'private-populate.readme.mjs',
+    'private-populate.readme.cjs',
+    'private-populate.runtime.mjs',
+    'private-populate.runtime.cjs',
+  ]) {
+    await runMongoConsumer(`authorization-out/${file}`, consumerDir);
+  }
   // Include the installed access-router and its implementation in a real Node
   // bundle. Keep framework peers external so model/Express identity stays shared.
   buildSync({

@@ -58,7 +58,7 @@ export interface VirtualGetterLogMeta {
 
 /**
  * Invoke a single virtual getter with VIRT-00A calling convention
- * (`this` = request, `(view, permissions, context)`).
+ * (`this` = request, `(view, permissions, context, populated)`).
  * Failures are fail-closed: this helper logs with allowlisted structural
  * metadata only (model/scope/field/access/operation + fixed category) and
  * returns `{ ok: false }` so the caller omits the field. Getter input, return
@@ -72,6 +72,7 @@ export async function runVirtualGetter({
   view,
   permissions,
   context,
+  populated = {},
   logMeta,
 }: {
   req: AccessRouterBaseRequest;
@@ -80,10 +81,11 @@ export async function runVirtualGetter({
   view: unknown;
   permissions: Permissions;
   context: unknown;
+  populated?: Record<string, unknown>;
   logMeta: VirtualGetterLogMeta;
 }): Promise<{ ok: true; value: unknown } | { ok: false }> {
   try {
-    const value = await gate.run(() => (getter as Function).call(req, view, permissions, context));
+    const value = await gate.run(() => (getter as Function).call(req, view, permissions, context, populated));
     return { ok: true, value };
   } catch {
     try {

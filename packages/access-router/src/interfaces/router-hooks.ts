@@ -9,6 +9,7 @@ import type {
   ModelRequest,
 } from './base';
 import type { AccessRouterRequest } from './request';
+import type { Projection } from './query-types';
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -128,6 +129,8 @@ export type ModelVirtualRecordAccess = 'default' | ModelVirtualAccess;
  * routes resolve grants from the raw parent lookup. Related (populate/
  * include) targets finalize with the target model's own definitions,
  * permissions, selection, and effective access before parent getters run.
+ * Declaration-scoped private inputs use the getter's fourth argument, never
+ * this context or its document-authorization metadata.
  */
 export interface ModelVirtualContext extends ModelHookContext {
   receivingModelName: string;
@@ -143,7 +146,9 @@ type IsUnknownVirtual<T> = unknown extends T ? ([keyof T] extends [never] ? true
  * Typed isolated persisted view for a virtual getter scope (VIRT-00A D3/D4).
  * Known models use a partial read-only persisted view (never
  * `Record<string, unknown>`); unknown/untyped models keep an explicit
- * loose fallback.
+ * loose fallback. This first argument retains the ordinary persisted/local
+ * dependency and finalized-public-related view. `dependsOnPopulate` does not
+ * retype persisted ref IDs or add its automatically retained refs here.
  */
 export type ModelVirtualDoc<TModel = unknown> =
   IsUnknownVirtual<TModel> extends true
@@ -153,23 +158,101 @@ export type ModelVirtualDoc<TModel = unknown> =
       : Readonly<Partial<TModel>>;
 
 /**
- * Virtual getter signature (VIRT-00A D3/D4, frozen).
- * Receives an isolated plain-object snapshot of persisted dependencies +
- * already-finalized related/embedded outputs for its scope. Sibling virtual
- * values are not visible. Mutating the input cannot change response data or
- * lifecycle snapshots. Only the returned field value is committed;
- * `undefined` omits the field; throws omit fail-closed. `this` is the
- * model request.
+ * Server-owned, one-hop persisted input declaration. `path` is a scope-local
+ * ObjectId ref (scalar or 1D array) to a model already configured in this runtime.
+ * Embedded virtuals use their `.sub` scope's field, never a dotted source path.
+ * `select` uses Populate's string/array/1-or-minus-1 grammar; omitted/empty means
+ * all eligible static persisted fields. Target virtuals, metadata, dynamic paths
+ * and traversal through target refs are rejected. `_id` is included unless excluded.
+ * Static string refs must bind the actual same-connection ObjectId model; register
+ * its model instance AND options first. Validation is eager/atomic, including setters.
+ * This grants getter input fields only, not public population or output fields.
+ * Target operationAccess.read, overrideFilter.read and baseFilter.read still use
+ * the original actor's request authority/tenant scope, independently of ordinary
+ * populate match/access and authorization.related. Private target virtuals never run.
  */
-export type ModelVirtualGetter<TModel = unknown, TValue = unknown> = (
+export interface ModelVirtualPopulateDependency<TModel = unknown> {
+  /** Top-level ref relative to this virtual's scope; no dotted source paths. Retained automatically. */
+  path: AccessRouterFieldKey<TModel>;
+  /** Persisted target mask: string, string[], or 1/-1 object (not 0). Empty/omitted selects all eligible fields. */
+  select?: Projection;
+}
+
+type VirtualPopulateMap<TModel, TPopulated> = {
+  [K in keyof TPopulated]: K extends AccessRouterFieldKey<TModel> ? unknown : never;
+};
+
+type VirtualPopulatePartial<T> = T extends
+  | Date
+  | RegExp
+  | ArrayBuffer
+  | ArrayBufferView
+  | { readonly _bsontype: string }
+  ? T
+  : T extends readonly (infer U)[]
+    ? readonly VirtualPopulatePartial<U>[]
+    : T extends object
+      ? { readonly [K in keyof T]?: VirtualPopulatePartial<T[K]> }
+      : T;
+
+type VirtualPopulateKnownValue<TSource, TTarget> = TSource extends readonly unknown[]
+  ? readonly (VirtualPopulatePartial<TTarget> | null)[]
+  : VirtualPopulatePartial<TTarget>;
+
+type VirtualPopulateValue<TSource, TTarget> = unknown extends TSource
+  ? VirtualPopulatePartial<TTarget> | readonly (VirtualPopulatePartial<TTarget> | null)[] | null
+  : VirtualPopulateKnownValue<NonNullable<TSource>, TTarget> | null;
+
+/**
+ * Declaration-scoped fourth getter input. Explicitly map source keys to target
+ * persisted shapes; IDs cannot infer a target model. Each key and target field
+ * may be missing, scalar misses are null, and arrays preserve null slots. Source
+ * cardinality determines the view (unknown sources permit scalar or array).
+ * Containers are deeply readonly/partial; native scalar types are preserved.
+ * Each getter/row/array slot receives isolated copies, including native mutable
+ * leaves. Native methods are not made immutable by this type. Hydrated and lean
+ * materialization can differ; this is not a JSON-value conversion promise.
+ * This annotation does not select fields or confer authority. No implicit transport
+ * to DTOs, hooks, handles or metadata; an authorized getter's deliberate return is output.
+ */
+export type ModelVirtualPopulateInputs<
+  TModel = unknown,
+  TPopulated extends VirtualPopulateMap<TModel, TPopulated> = Record<never, never>,
+> = {
+  readonly [K in keyof TPopulated]?: VirtualPopulateValue<K extends keyof TModel ? TModel[K] : unknown, TPopulated[K]>;
+};
+
+/**
+ * Virtual getter signature (VIRT-00A D3/D4, frozen).
+ * Its first argument is an isolated plain-object snapshot of ordinary persisted/
+ * local-dependency inputs + finalized public related/embedded outputs for its scope.
+ * Sibling virtual values are not visible. Input mutations have no implicit effect
+ * on response data or lifecycle snapshots. Only the returned field value is committed;
+ * `undefined` omits the field; throws omit fail-closed. `this` is the
+ * model request. The optional fourth argument contains only this getter's
+ * declared private populated inputs; default it to `{}` or guard undefined.
+ * It is separate from `doc`, whose persisted/public-related typing is unchanged.
+ * The runtime supplies it (empty without a declaration); the empty default generic
+ * guesses no target shape. Optionality preserves legacy three-argument direct calls
+ * and callbacks. Absent source refs or unavailable target reads skip invocation;
+ * present null/empty refs and missing target rows yield null/[]/null array slots.
+ * Private values are not implicitly transported to output or authorization metadata;
+ * an authorized getter can deliberately return a computed value using them.
+ */
+export type ModelVirtualGetter<
+  TModel = unknown,
+  TValue = unknown,
+  TPopulated extends VirtualPopulateMap<TModel, TPopulated> = Record<never, never>,
+> = (
   this: ModelRequest,
   doc: ModelVirtualDoc<TModel>,
   permissions: AccessRouterPermissions,
   context: ModelVirtualContext,
+  populated?: ModelVirtualPopulateInputs<TModel, TPopulated>,
 ) => MaybePromise<TValue | undefined>;
 
 /**
- * Leaf virtual descriptor (VIRT-01): `{ get, dependsOn }`.
+ * Leaf virtual descriptor: `{ get, dependsOn?, dependsOnPopulate? }`.
  * `dependsOn` lists top-level persisted field names relative to the
  * definition's scope (e.g. `['displayName']` inside `contacts.sub`, never
  * `['contacts.sub.displayName']`). Dotted paths and virtual-to-virtual
@@ -181,21 +264,44 @@ export type ModelVirtualGetter<TModel = unknown, TValue = unknown> = (
  * committed via document-aware helpers: `undefined` (or a throw) omits the
  * field fail-closed and computed values never persist. Getters see an
  * isolated plain-object view for both lean and hydrated results; mutating the
- * input cannot change response data or lifecycle snapshots.
+ * input has no implicit effect on response data or lifecycle snapshots.
+ *
+ * Annotate a descriptor separately with `TPopulated` to type its private fourth
+ * getter argument, then assign it to ordinary `ModelVirtuals`. The optional
+ * generic never changes the persisted model, write types or public output.
+ * Use `populated = {}` or guard undefined to retain three-argument direct calls.
+ * See the shipped README's "Private populated dependencies" for registration,
+ * all three public reference shapes, target read/row gates and absence/error rules.
  *
  * @example
  * ```ts
  * import type { ModelVirtualDescriptor } from '@web-ts-toolkit/access-router';
- * interface User { name: string; address: string; }
- * const descriptor: ModelVirtualDescriptor<User, string> = {
- *   dependsOn: ['address'],
- *   get: async (doc) => (doc.address === undefined ? undefined : `addr:${doc.address}`),
+ * import type { Types } from 'mongoose';
+ * interface Order { total: number; account: Types.ObjectId | null; }
+ * interface Account { balance: number; creditLimit: number; }
+ * const descriptor: ModelVirtualDescriptor<Order, boolean, { account: Account }> = {
+ *   dependsOn: ['total'],
+ *   dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }],
+ *   get(doc, _permissions, _context, populated = {}) {
+ *     const account = populated.account;
+ *     if (doc.total === undefined || account?.balance === undefined || account.creditLimit === undefined)
+ *       return undefined;
+ *     return doc.total <= account.balance + account.creditLimit;
+ *   },
  * };
  * ```
  */
-export interface ModelVirtualDescriptor<TModel = unknown, TValue = unknown> {
-  get: ModelVirtualGetter<TModel, TValue>;
+export interface ModelVirtualDescriptor<
+  TModel = unknown,
+  TValue = unknown,
+  TPopulated extends VirtualPopulateMap<TModel, TPopulated> = Record<never, never>,
+> {
+  /** Only this return becomes virtual output; private inputs are not implicitly transported. */
+  get: ModelVirtualGetter<TModel, TValue, TPopulated>;
+  /** Local top-level persisted input names relative to the definition's scope. */
   dependsOn?: Array<AccessRouterFieldKey<TModel>>;
+  /** Server-only private fourth-argument inputs; source refs retained automatically. `[]` clears a shared list. */
+  dependsOnPopulate?: ModelVirtualPopulateDependency<TModel>[];
 }
 
 /**
@@ -203,22 +309,34 @@ export interface ModelVirtualDescriptor<TModel = unknown, TValue = unknown> {
  * `update` (NOT `delete`/`distinct`/`count`). Each present access holds a
  * leaf descriptor or bare getter shorthand. An optional shared `dependsOn`
  * supports the documented `{ dependsOn, read: getter }` shape; a leaf's own
- * `dependsOn` wins over the shared list during resolution.
+ * `dependsOn` wins over the shared list during resolution. `dependsOnPopulate`
+ * inherits independently by the same rule: undefined inherits, a defined leaf
+ * list replaces the shared list wholesale (including `[]`).
  */
-export type ModelVirtualAccessRecord<TModel = unknown, TValue = unknown> = {
-  default?: ModelVirtualDescriptor<TModel, TValue> | ModelVirtualGetter<TModel, TValue>;
-  list?: ModelVirtualDescriptor<TModel, TValue> | ModelVirtualGetter<TModel, TValue>;
-  create?: ModelVirtualDescriptor<TModel, TValue> | ModelVirtualGetter<TModel, TValue>;
-  read?: ModelVirtualDescriptor<TModel, TValue> | ModelVirtualGetter<TModel, TValue>;
-  update?: ModelVirtualDescriptor<TModel, TValue> | ModelVirtualGetter<TModel, TValue>;
+export type ModelVirtualAccessRecord<
+  TModel = unknown,
+  TValue = unknown,
+  TPopulated extends VirtualPopulateMap<TModel, TPopulated> = Record<never, never>,
+> = {
+  default?: ModelVirtualDescriptor<TModel, TValue, TPopulated> | ModelVirtualGetter<TModel, TValue, TPopulated>;
+  list?: ModelVirtualDescriptor<TModel, TValue, TPopulated> | ModelVirtualGetter<TModel, TValue, TPopulated>;
+  create?: ModelVirtualDescriptor<TModel, TValue, TPopulated> | ModelVirtualGetter<TModel, TValue, TPopulated>;
+  read?: ModelVirtualDescriptor<TModel, TValue, TPopulated> | ModelVirtualGetter<TModel, TValue, TPopulated>;
+  update?: ModelVirtualDescriptor<TModel, TValue, TPopulated> | ModelVirtualGetter<TModel, TValue, TPopulated>;
   dependsOn?: Array<AccessRouterFieldKey<TModel>>;
+  /** Shared private input list; each resolved getter gets only its own mask. A leaf's defined list replaces it. */
+  dependsOnPopulate?: ModelVirtualPopulateDependency<TModel>[];
 };
 
 /** Single virtual entry: bare getter, leaf descriptor, or per-access record. */
-export type ModelVirtualLeaf<TModel = unknown, TValue = unknown> =
-  | ModelVirtualGetter<TModel, TValue>
-  | ModelVirtualDescriptor<TModel, TValue>
-  | ModelVirtualAccessRecord<TModel, TValue>;
+export type ModelVirtualLeaf<
+  TModel = unknown,
+  TValue = unknown,
+  TPopulated extends VirtualPopulateMap<TModel, TPopulated> = Record<never, never>,
+> =
+  | ModelVirtualGetter<TModel, TValue, TPopulated>
+  | ModelVirtualDescriptor<TModel, TValue, TPopulated>
+  | ModelVirtualAccessRecord<TModel, TValue, TPopulated>;
 
 type UnwrapVirtualArray<T> = T extends readonly (infer U)[] ? U : T;
 

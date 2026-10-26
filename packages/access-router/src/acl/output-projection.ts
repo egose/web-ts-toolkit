@@ -5,11 +5,13 @@ import { normalizeSelect } from '../helpers/query';
 import { authorizationError } from './authorization-snapshot';
 import { isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
 import { classifyEffectiveFieldAuthorization, extractOutputFieldRules } from './field-authorization';
+import { resolveVirtualPopulateDependencies } from './virtual-populate-dependencies';
 import type { FieldAuthorizationState } from './field-authorization';
 import {
   getAuthorizationPermissions,
   readServiceAuthorization,
   type AuthorizationBinding,
+  type AuthorizationConfiguration,
   type ResolvedServiceAuthorization,
 } from './service-authorization';
 import {
@@ -167,6 +169,12 @@ export function planCatalogProjection(
         name,
         descriptor,
         dependsOn: [...descriptor.dependsOn],
+        populateDependencies: resolveVirtualPopulateDependencies(
+          snapshot as AuthorizationConfiguration,
+          args.scopePath ?? [],
+          name,
+          virtualAccess,
+        ),
         authState: states[relative] as 'granted' | 'deferred',
         virtualAccess,
         outputAccess,
@@ -225,7 +233,28 @@ export function planCatalogProjection(
     depProvenance[name] = allVirtuals.filter((p) => p.startsWith(`${name}.`));
     return [name];
   });
-  const privateFields = [...dependencies, ...forced.filter(fetchSafe), ...identity, ...childFetch];
+  const publicChildFetch = Object.entries(children).flatMap(([name, child]) =>
+    child.publicPersistedFetchSelection.length
+      ? child.publicPersistedFetchSelection.map((path) => `${name}.${path}`)
+      : [name],
+  );
+  const publicPersistedFetchSelection = compactPersistedProjection([
+    ...persisted,
+    ...dependencies,
+    ...forced.filter(fetchSafe),
+    ...identity,
+    ...publicChildFetch,
+  ]);
+  const publicStructurePaths = Object.entries(children).flatMap(([name, child]) => {
+    // An independently retained local/hook/join container keeps its old full view.
+    if ([...persisted, ...dependencies, ...forced].some((path) => name === path || name.startsWith(`${path}.`)))
+      return [];
+    return child.publicPersistedFetchSelection.length
+      ? (child.publicStructurePaths ?? []).map((path) => `${name}.${path}`)
+      : [name];
+  });
+  const populateRefs = candidates.flatMap((candidate) => candidate.populateDependencies.map((dep) => dep.path));
+  const privateFields = [...dependencies, ...populateRefs, ...forced.filter(fetchSafe), ...identity, ...childFetch];
   const fetch = compactPersistedProjection([...persisted, ...privateFields]);
   const outputIdExcluded = excludes.includes('_id');
   const coveredOutput = (path: string) => persisted.some((p) => p === path || path.startsWith(`${p}.`));
@@ -245,6 +274,8 @@ export function planCatalogProjection(
     fieldStates: Object.freeze(states),
     minimalAncestorPaths: Object.freeze([...ancestors]),
     persistedFetchSelection: fetch,
+    publicPersistedFetchSelection,
+    publicStructurePaths,
     candidates,
     depProvenance,
     virtualOnlyDeps: Object.keys(depProvenance).filter((p) => fetchSafe(p) && !coveredOutput(p)),

@@ -20,6 +20,7 @@ import type { AccessRouterPermissions } from '../permission';
 import type { DocumentAuthorizationStage } from './document-authorization';
 import type { Service } from '../services/service';
 import type { GroupedCountInput } from '../services/grouped-count';
+import type { ModelServiceIntent } from '../services/model-service-intent';
 import type {
   FindArgs,
   FindOneArgs,
@@ -59,6 +60,7 @@ export interface ServiceExecutionContext {
 
 /** Intended private owner record, not structurally accepted authority. */
 export interface ServiceExecutionState {
+  readonly queryIntent?: ModelServiceIntent;
   readonly hydration: HydrationMode;
   readonly authorization: ResolvedServiceAuthorization;
   readonly access: AuthorizationAccess;
@@ -213,6 +215,20 @@ export function readServiceExecution<T, V extends object>(
   if (!record || record.receiver !== receiver) authorizationError('invalid execution receiver/call');
   assertAuthorizationBinding(record.authorization, getServiceExecutors(receiver).binding());
   return record;
+}
+
+/** Own effective output arguments alongside the authenticated configuration/actor.
+ * Derivations retain intent; only package-selected branch/fallback options differ.
+ */
+export function withExecutionQueryIntent<T, V extends object>(
+  receiver: Service<T, V>,
+  parent: ServiceExecutionContext,
+  queryIntent: ModelServiceIntent,
+): ServiceExecutionContext {
+  const record = readServiceExecution(receiver, parent);
+  const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  executions.set(execution, Object.freeze({ ...record, queryIntent }));
+  return execution;
 }
 
 /** Explicit branch/fallback derivation; query tokens still require the exact execution. */

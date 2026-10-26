@@ -269,6 +269,9 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
    * Mongoose schema + child scopes, protected permission-field overlaps,
    * `_id`/reserved paths, and dotted names; rejected mutations preserve the
    * previous valid configuration.
+   * `dependsOnPopulate` uses a separately typed ModelVirtualDescriptor's private
+   * fourth argument. Register target models/options in this runtime first; its
+   * read/tenant gates still apply. No implicit public population or field grant.
    *
    * Reachable from the root (`@web-ts-toolkit/access-router`) and the
    * existing `./advanced` interface barrel; no new subpaths. Selected

@@ -437,10 +437,22 @@ import {
 import { Codes, FilterOperator } from '../enums';
 import { resolveRequestComplexity, validateRequestComplexity } from '../request-complexity';
 import type { AccessRuntime } from '../runtime';
-import { bindModelOwnerMethods, captureModelServiceOwner, hasModelCoreOwner } from '../acl/model-service-owner';
+import {
+  bindModelOwnerMethods,
+  captureModelServiceOwner,
+  hasModelCoreOwner,
+  withCapturedModelOperationGuard,
+} from '../acl/model-service-owner';
 import { getRequestWorkState } from '../helpers/request-work';
 import { GroupedCountInputError, prepareCountGroups } from './grouped-count';
-import { ServiceAuthorizationError, type ResolvedServiceAuthorization } from '../acl/service-authorization';
+import {
+  ServiceAuthorizationError,
+  getAuthorizationPermissions,
+  readServiceAuthorization,
+  type AuthorizationConfiguration,
+  type AuthorizationRelatedTarget,
+  type ResolvedServiceAuthorization,
+} from '../acl/service-authorization';
 import { createRelatedExecution, relatedPolicy } from '../acl/related-execution';
 import { createServiceExecution, withExecutionHydration } from '../acl/service-execution';
 import { isExecutionRowDenied } from '../acl/prepared-query';
@@ -748,7 +760,24 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     }
 
     const policy = path ? relatedPolicy(parentAuthorization, this.relatedBinding(), path) : undefined;
-    const allowed = policy?.operation.mode === 'grant' || (await this.requestCore.isAllowed(modelName, op));
+    const captured = parentAuthorization
+      ? readServiceAuthorization(parentAuthorization, this.relatedBinding())
+      : undefined;
+    const target = captured?.relatedTargets.find((entry) => entry.path === path);
+    const allowed =
+      policy?.operation.mode === 'grant' ||
+      (target
+        ? await getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
+            withCapturedModelOperationGuard(
+              this.requestCore,
+              modelName,
+              op,
+              target.operationGuard,
+              getAuthorizationPermissions(parentAuthorization!, this.relatedBinding()),
+              () => this.requestCore.isAllowed(modelName, op),
+            ),
+          )
+        : await this.requestCore.isAllowed(modelName, op));
     if (!allowed) {
       this.throwClientRequestError(Codes.Unauthorized, 'Unauthorized');
     }
@@ -796,7 +825,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     );
   }
 
-  protected processInclude(include: Include | Include[]) {
+  protected processInclude(include: Include | Include[], authorization?: ResolvedServiceAuthorization) {
     assertPublicAdmission(include, 'include');
     const items = compact(castArray(include));
     const legacy: LegacyInclude[] = [];
@@ -846,7 +875,8 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       seenCorrelatedPaths.add(entry.path);
     }
 
-    this.assertIncludeOutputPaths([...legacy, ...correlated]);
+    if (authorization) this.assertIncludeOutputPaths([...legacy, ...correlated], authorization);
+    else this.assertIncludeOutputPaths([...legacy, ...correlated]);
 
     // include Include local fields and paths
     let includeLocalFields: string[] = [];
@@ -869,8 +899,10 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     };
   }
 
-  private validateIncludeOutputPath(path: string, modelName: string): void {
-    const permissionField = getModelOption(modelName, 'documentPermissionField');
+  private validateIncludeOutputPath(path: string, modelName: string, configuration?: AuthorizationConfiguration): void {
+    const permissionField = configuration
+      ? ((configuration.documentPermissionField ?? '_permissions') as string)
+      : getModelOption(modelName, 'documentPermissionField');
     // Use the attachment helper's path semantics, including legacy bracket
     // notation. Reading either probe at the other path detects equal paths
     // and both ancestor directions without rejecting unrelated siblings.
@@ -883,7 +915,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         `Include output path ${path} overlaps document permission field ${permissionField} on model ${modelName}`,
       );
     }
-    this.validateIncludeVirtualCollision(path, modelName);
+    this.validateIncludeVirtualCollision(path, modelName, configuration);
   }
 
   /**
@@ -895,9 +927,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
    * with `BadRequest`. Ordinary non-virtual collisions stay permitted and
    * existing permission-metadata protections above are preserved.
    */
-  private collectVirtualDbPathsForPreflight(modelName: string): string[] {
+  private collectVirtualDbPathsForPreflight(modelName: string, configuration?: AuthorizationConfiguration): string[] {
     try {
-      const virtuals = getModelOption(modelName, 'virtuals', null) as Record<string, unknown> | null;
+      const virtuals = (configuration ? configuration.virtuals : getModelOption(modelName, 'virtuals', null)) as Record<
+        string,
+        unknown
+      > | null;
       if (!virtuals || typeof virtuals !== 'object') return [];
       const out: string[] = [];
       const walk = (node: Record<string, unknown>, prefix: string): void => {
@@ -918,22 +953,15 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     }
   }
 
-  private validateIncludeVirtualCollision(path: string, modelName: string): void {
+  private validateIncludeVirtualCollision(
+    path: string,
+    modelName: string,
+    configuration?: AuthorizationConfiguration,
+  ): void {
     if (typeof path !== 'string' || path.length === 0) return;
     let virtualPaths: string[];
     try {
-      // Prefer the runtime registry (VIRT-01) when available; fall back to
-      // the raw option walk above for embedded containers.
-      const runtime = this.requestRuntime;
-      const rootNames: string[] = (() => {
-        try {
-          return runtime.getVirtualNames(modelName, []) ?? [];
-        } catch {
-          return [];
-        }
-      })();
-      void rootNames;
-      virtualPaths = this.collectVirtualDbPathsForPreflight(modelName);
+      virtualPaths = this.collectVirtualDbPathsForPreflight(modelName, configuration);
     } catch {
       return;
     }
@@ -953,11 +981,25 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     }
   }
 
-  private assertIncludeOutputPaths(include: Include[]): void {
-    const pending = [{ entries: include, modelName: this.modelName }];
+  private assertIncludeOutputPaths(include: Include[], authorization?: ResolvedServiceAuthorization): void {
+    if (include.length === 0) return;
+    const captured = authorization ? readServiceAuthorization(authorization, this.relatedBinding()) : undefined;
+    const pending: {
+      entries: Include[];
+      modelName: string;
+      configuration?: AuthorizationConfiguration;
+      targets?: readonly AuthorizationRelatedTarget[];
+    }[] = [
+      {
+        entries: include,
+        modelName: this.modelName,
+        configuration: captured?.configuration,
+        targets: captured?.relatedTargets,
+      },
+    ];
     const visited = new WeakMap<object, Set<string>>();
     while (pending.length > 0) {
-      const { entries, modelName } = pending.pop()!;
+      const { entries, modelName, configuration, targets } = pending.pop()!;
       if (modelName !== this.modelName && !getModelNames().includes(modelName)) {
         this.throwClientRequestError(Codes.BadRequest, `Model ${modelName} not found`);
       }
@@ -968,7 +1010,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         models.add(modelName);
         visited.set(entry, models);
         if (typeof entry.path === 'string' && entry.path) {
-          this.validateIncludeOutputPath(entry.path, modelName);
+          this.validateIncludeOutputPath(entry.path, modelName, configuration);
         }
         // Preflight nested descriptors too: a legacy parent can otherwise
         // swallow a target's error result, and earlier siblings could query.
@@ -978,7 +1020,14 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
         // is preflighted here against the intermediate target scope.)
         if ((entry.op === 'read' || entry.op === 'list') && typeof entry.model === 'string') {
           const nested = (entry.args as { include?: Include | Include[] } | undefined)?.include;
-          if (nested) pending.push({ entries: compact(castArray(nested)), modelName: entry.model });
+          const target = targets?.find((target) => target.path === entry.path);
+          if (nested)
+            pending.push({
+              entries: compact(castArray(nested)),
+              modelName: entry.model,
+              configuration: target?.configuration,
+              targets: target?.relatedTargets,
+            });
         }
       }
     }
