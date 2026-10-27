@@ -49,6 +49,44 @@ userSchema.plugin(modelFunctionPlugin, {
 // static + instance methods `fullName` and `fullNameById` are now available on the model
 ```
 
+Persisted derived fields (see README "Persisted Derived Fields" for full contract):
+
+```ts
+import { Schema } from 'mongoose';
+import { defineDerivedField, derivedFieldsPlugin } from '@web-ts-toolkit/moo';
+
+type User = { firstName: string; lastName: string; fullName: string };
+const userSchema = new Schema<User>({
+  firstName: String,
+  lastName: String,
+  fullName: {
+    type: String,
+    index: true,
+    derived: defineDerivedField<User, 'fullName'>({
+      dependsOn: ['firstName', 'lastName'],
+      get: (doc) => `${doc.firstName ?? ''} ${doc.lastName ?? ''}`.trim(),
+    }),
+  },
+}, { optimisticConcurrency: true });
+// Register source mutators first, then this plugin, then compile the model.
+userSchema.plugin(derivedFieldsPlugin);
+```
+
+- Stored results are searchable/filterable/sortable/indexable with ordinary MongoDB queries; reads/property access never compute or persist.
+- Existing explicit dependencies: no dependency modification/target assignment/pending default write => skip regardless of selection; work requested + all available => recompute; work requested + missing => reject before any getter. An omitted/missing target alone does not request repair.
+- Actual pending non-null source/target defaults count as writes without modification flags (including '', 0, false); null/undefined defaults alone do not write. Pending target fallback defaults recompute. Applying defaults to excluded dependencies can queue writes and require rejection even on an otherwise unrelated save; defaults never prove an excluded input available.
+- Available = selected (defaults usable, genuine absence without a default is known `undefined`, stored `null` is known) or explicitly fully replaced, including excluded null/undefined/default assignments retained on the same document. Unselected defaults/getters and relative `$inc()`/child modifications are not replacements. No automatic fetch.
+- New documents retain their supplied/defaulted/absent input availability on later saves, including with constructor projection metadata.
+- Bare getter shorthand recomputes each async validation/save and requires every supported non-derived input, including hidden fields and `_id`.
+- Sync/async getters receive isolated readonly partial plain inputs, depopulated ids and copied Date/ObjectId/Decimal128 scalars, no virtuals/derived targets/managed version key/containers. Return `undefined` to clear; staged results use Mongoose setters/casting. Getters/validators must not mutate captured hydrated inputs.
+- Root String/Number/Boolean/Date/ObjectId/Decimal128/BigInt only; reject nested/container/Mixed/Union/Binary/UUID/custom kinds, derived chains, immutable/virtual targets, unknown names, malformed options, and duplicate registration. Other ordinary fields coexist but are not getter inputs.
+- Reject Mongoose-managed versionKey (default __v or custom) as a target/explicit dependency and omit it from every input view: Mongoose initializes/increments it after pre-save middleware. With versionKey:false, explicitly declared version-like scalar fields are ordinary supported targets/inputs.
+- `DerivedFieldsDependencyError`: code `MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES`, frozen path-only `issues: [{ targetPath, missingPaths }]`. Getter failures propagate; casting/validation use Mongoose errors. Rejection preserves application assignments in memory.
+- Register source-mutating validation/save middleware before plugin. Normal validation sees results; earlier pre-save changes recompute/revalidate. Later pre-save mutations are outside guarantee; unstable validation-time mutations reject on save. `validateBeforeSave:false` computes/casts but skips required/custom validators.
+- Guaranteed writes: hydrated save/Model.create; async document validation computes without persisting. Query updates/replacements/raw writes bypass. insertMany/bulk inserts may incidentally validate, not all-writer support; validateSync/middleware bypass/pathsToSave excluded.
+- Backfill old rows/formula changes explicitly (load dependencies, mark target modified, save). Ordinary multi-writer Mongoose concurrency applies; optimisticConcurrency recommended for source/result invariants.
+- All helper/error/types also available from `@web-ts-toolkit/moo/plugins` and `@web-ts-toolkit/moo/plugins/derived-fields`.
+
 New-document plugin:
 
 ```ts
@@ -146,8 +184,9 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - `@web-ts-toolkit/moo/is` — `isObjectId`
 - `@web-ts-toolkit/moo/schema` — `uniqueNullableString`, `uniqueEmptiableString`
 - `@web-ts-toolkit/moo/utils` — `isSchema`, `isObjectIdType`, `isReference`
-- `@web-ts-toolkit/moo/plugins` — non-Keycloak plugins (`modelFunctionPlugin`, `cascadeDeletePlugin`, `newDocumentPlugin`)
+- `@web-ts-toolkit/moo/plugins` — non-Keycloak plugins (`modelFunctionPlugin`, `cascadeDeletePlugin`, `derivedFieldsPlugin`, `newDocumentPlugin`)
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — `cascadeDeletePlugin`
+- `@web-ts-toolkit/moo/plugins/derived-fields` — `derivedFieldsPlugin`, `defineDerivedField`, `DerivedFieldsDependencyError`, authoring types
 - `@web-ts-toolkit/moo/plugins/model-function` — `modelFunctionPlugin`
 - `@web-ts-toolkit/moo/plugins/new-document` — `newDocumentPlugin`
 - `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — `createManagedKeycloakClient`, `keycloakUserSyncPlugin`

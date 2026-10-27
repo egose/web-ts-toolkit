@@ -10,6 +10,8 @@ import { cleanupPackedConsumerTempRoots, installPackedConsumer, run } from './su
  * and ById helpers with inference; typed query operators; nullable
  * orphan/dependent maps; schema-option overrides) plus `@ts-expect-error`
  * negative cases, compiled with strict NodeNext against the packed tarball.
+ * Derived-field authoring covers public root/grouped/direct entries on Mongoose
+ * 8 and 9, including partial/plain inputs, dependency names, and result types.
  * Deliberately isolated from MongoDB runtime fixtures: the generated
  * consumer imports only `mongoose` and `@web-ts-toolkit/moo*` by package
  * name — never `../dist`, repo aliases, `./setup`, or
@@ -28,6 +30,9 @@ function positiveSource(): string {
   return `import mongoose, { Schema, type HydratedDocument, type Model } from 'mongoose';
 import {
   cascadeDeletePlugin,
+  defineDerivedField,
+  derivedFieldsPlugin,
+  DerivedFieldsDependencyError,
   isObjectId,
   modelFunctionPlugin,
   newDocumentPlugin,
@@ -38,12 +43,60 @@ import {
 } from '@web-ts-toolkit/moo';
 import { uniqueEmptiableString } from '@web-ts-toolkit/moo/schema';
 import { isReference, isSchema } from '@web-ts-toolkit/moo/utils';
+import {
+  defineDerivedField as defineGrouped,
+  derivedFieldsPlugin as derivedGrouped,
+  type DerivedFieldDescriptor,
+  type DerivedFieldGetter,
+} from '@web-ts-toolkit/moo/plugins';
+import {
+  defineDerivedField as defineDirect,
+  derivedFieldsPlugin as derivedDirect,
+  type DerivedFieldDefinition,
+  type DerivedFieldDependencyIssue,
+  type DerivedFieldInput,
+} from '@web-ts-toolkit/moo/plugins/derived-fields';
 import type {
   CascadeDeleteDependencyMap,
   CascadeDeleteDocumentMethods,
   CascadeDeleteModelStatics,
   QueryFilter,
 } from '@web-ts-toolkit/moo/plugins/cascade-delete';
+
+// --- Canonical persisted-derived example and public authoring types ---
+type User = { firstName: string; lastName: string | null; fullName: string; score: number };
+const fullName = defineDerivedField<User, 'fullName'>({
+  dependsOn: ['firstName', 'lastName'],
+  get: (doc) => {
+    const first: string | undefined = doc.firstName;
+    const last: string | null | undefined = doc.lastName;
+    return [first, last].filter((part) => part != null).join(' ');
+  },
+});
+const userSchema = new Schema<User>({
+  firstName: { type: String, required: true },
+  lastName: String,
+  fullName: { type: String, required: true, index: true, derived: fullName },
+  score: { type: Number, derived: defineDirect<User, 'score'>({ dependsOn: ['firstName'], get: async (doc) => doc.firstName?.length }) },
+}, { optimisticConcurrency: true });
+userSchema.plugin(derivedFieldsPlugin);
+new Schema<User>({ fullName: { type: String, derived: defineGrouped<User, 'fullName'>((doc) => doc.firstName) } }).plugin(derivedGrouped);
+new Schema<User>({ fullName: { type: String, derived: defineDirect<User, 'fullName'>(async () => undefined) } }).plugin(derivedDirect);
+const descriptor: DerivedFieldDescriptor<User, string> = fullName;
+const getter: DerivedFieldGetter<User, string> = async (doc) => doc.lastName ?? undefined;
+const choice: DerivedFieldDefinition<User, string> = Math.random() > 0.5 ? descriptor : getter;
+defineDerivedField<User, 'fullName'>(choice);
+const input: DerivedFieldInput<User> = { lastName: null };
+const error = new DerivedFieldsDependencyError([{ targetPath: 'fullName', missingPaths: ['lastName'] }]);
+const code: 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES' = error.code;
+const issues: readonly DerivedFieldDependencyIssue[] = error.issues;
+const User = mongoose.model<User>('TypedDerivedUser', userSchema);
+async function useDerived(): Promise<void> {
+  await User.create({ firstName: 'Ada', lastName: 'Lovelace' });
+  const matches: HydratedDocument<User>[] = await User.find({ fullName: /^Ada/ }).sort({ fullName: 1 });
+  void matches;
+}
+void [input, code, issues, useDerived];
 
 // --- Model-function: sync/async instance, static, and ById with inference ---
 // Result types stay free of the CartDocument alias (plain numbers, not the
@@ -158,6 +211,8 @@ if (!isSchema(ownerSchema) || !isReference({ type: Schema.Types.ObjectId, ref: '
 function negativeSource(): string {
   return `import mongoose, { Schema, type Model } from 'mongoose';
 import {
+  defineDerivedField,
+  DerivedFieldsDependencyError,
   modelFunctionPlugin,
   type ModelDocument,
   type ModelFunctionInstanceMethods,
@@ -168,6 +223,41 @@ import type {
   QueryFilter,
 } from '@web-ts-toolkit/moo/plugins/cascade-delete';
 import { uniqueNullableString } from '@web-ts-toolkit/moo/schema';
+import { defineDerivedField as defineDirect, type DerivedFieldInput } from '@web-ts-toolkit/moo/plugins/derived-fields';
+
+type User = { firstName: string; lastName: string | null; fullName: string; score: number };
+// @ts-expect-error target keys must exist in the raw model
+defineDerivedField<User, 'missing'>({ dependsOn: [], get: () => 'x' });
+// @ts-expect-error dependency names must exist in the raw model
+defineDirect<User, 'fullName'>({ dependsOn: ['missing'], get: () => 'x' });
+// @ts-expect-error sync result must match the target type
+defineDerivedField<User, 'fullName'>({ dependsOn: ['firstName'], get: () => 42 });
+// @ts-expect-error async result must match the target type
+defineDirect<User, 'fullName'>({ dependsOn: ['firstName'], get: async () => 42 });
+// @ts-expect-error bare getters also have target-specific results
+defineDerivedField<User, 'score'>((doc) => doc.firstName);
+// @ts-expect-error null is not a result for a non-nullable target
+defineDirect<User, 'fullName'>(() => null);
+// @ts-expect-error a hydrated this is not supplied
+defineDerivedField<User, 'fullName'>(function(this: { save(): void }) { return 'x'; });
+defineDirect<User, 'fullName'>({ dependsOn: ['firstName'], get(doc) {
+  // @ts-expect-error input properties are partial even for required raw-model fields
+  const required: string = doc.firstName;
+  // @ts-expect-error getters receive plain inputs, not hydrated document methods
+  doc.isModified('firstName');
+  // @ts-expect-error unknown input properties are not allowed
+  void doc.missing;
+  // @ts-expect-error input properties are readonly
+  doc.firstName = 'mutation';
+  return required;
+} });
+const input: DerivedFieldInput<User> = {};
+// @ts-expect-error the plain input's property types are preserved
+const badInput: DerivedFieldInput<User> = { firstName: 42 };
+const error = new DerivedFieldsDependencyError([{ targetPath: 'fullName', missingPaths: ['lastName'] }]);
+// @ts-expect-error issues expose readonly path arrays
+error.issues[0].missingPaths.push('firstName');
+void [input, badInput];
 
 type Cart = { name: string; price: number };
 type CartMethods =
@@ -215,7 +305,8 @@ export async function negative(): Promise<void> {
 
 function shouldFailSource(): string {
   return `import type { Model } from 'mongoose';
-import type { ModelDocument, ModelFunctionStaticMethods } from '@web-ts-toolkit/moo';
+import { defineDerivedField, type ModelDocument, type ModelFunctionStaticMethods } from '@web-ts-toolkit/moo';
+import { defineDerivedField as defineDirect } from '@web-ts-toolkit/moo/plugins/derived-fields';
 
 type Cart = { name: string; price: number };
 type CartMethods = { applyDiscount(suffix: string, priceChange: number): number };
@@ -231,6 +322,9 @@ declare const doc: CartDocument;
 export function shouldFail(): void {
   model.applyDiscount(doc, 123, 5);
 }
+type User = { firstName: string; fullName: string };
+defineDerivedField<User, 'fullName'>({ dependsOn: ['missing'], get: () => 'x' });
+defineDirect<User, 'fullName'>({ dependsOn: ['firstName'], get: async () => 42 });
 `;
 }
 
@@ -265,51 +359,62 @@ afterAll(() => {
 });
 
 describe('Moo typed consumer compiler gate (MOO-10)', () => {
-  it('compiles representative package-name examples with inference and expected negative cases', () => {
-    const consumerDir = installPackedConsumer({ mongooseVersion: '^9.8.0' });
-    writeTypedConsumer(consumerDir);
+  it.each(['^8.24.0', '^9.8.0'])(
+    'compiles strict package-name authoring and negative cases on Mongoose %s',
+    (mongooseVersion) => {
+      const consumerDir = installPackedConsumer({ mongooseVersion });
+      writeTypedConsumer(consumerDir);
 
-    for (const file of ['typed-positive.mts', 'typed-negative.mts']) {
-      const content = readFileSync(path.resolve(consumerDir, file), 'utf8');
-      expect(content).toContain('@web-ts-toolkit/moo');
-      expect(content).not.toContain('../dist');
-      expect(content).not.toContain('./setup');
-      expect(content).not.toContain('mongodb-memory-server');
-    }
+      for (const file of ['typed-positive.mts', 'typed-negative.mts']) {
+        const content = readFileSync(path.resolve(consumerDir, file), 'utf8');
+        expect(content).toContain('@web-ts-toolkit/moo');
+        expect(content).not.toContain('../dist');
+        expect(content).not.toContain('./setup');
+        expect(content).not.toContain('mongodb-memory-server');
+      }
 
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-typed-nodenext.json', '--noEmit'], consumerDir);
-  }, 180_000);
+      run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-typed-nodenext.json', '--noEmit'], consumerDir);
+    },
+    180_000,
+  );
 
-  it('rejects wrong plugin arguments without a suppression comment', () => {
-    const consumerDir = installPackedConsumer({ mongooseVersion: '^9.8.0' });
-    writeTypedConsumer(consumerDir);
-    writeFileSync(path.resolve(consumerDir, 'typed-should-fail.mts'), shouldFailSource());
-    writeFileSync(
-      path.resolve(consumerDir, 'tsconfig-typed-should-fail.json'),
-      `${JSON.stringify(
-        {
-          compilerOptions: {
-            strict: true,
-            skipLibCheck: false,
-            target: 'ES2022',
-            module: 'NodeNext',
-            moduleResolution: 'NodeNext',
-            types: ['node'],
+  it.each(['^8.24.0', '^9.8.0'])(
+    'rejects wrong plugin arguments/dependencies/results without suppression on Mongoose %s',
+    (mongooseVersion) => {
+      const consumerDir = installPackedConsumer({ mongooseVersion });
+      writeTypedConsumer(consumerDir);
+      writeFileSync(path.resolve(consumerDir, 'typed-should-fail.mts'), shouldFailSource());
+      writeFileSync(
+        path.resolve(consumerDir, 'tsconfig-typed-should-fail.json'),
+        `${JSON.stringify(
+          {
+            compilerOptions: {
+              strict: true,
+              skipLibCheck: false,
+              target: 'ES2022',
+              module: 'NodeNext',
+              moduleResolution: 'NodeNext',
+              types: ['node'],
+            },
+            include: ['typed-should-fail.mts'],
           },
-          include: ['typed-should-fail.mts'],
-        },
-        null,
-        2,
-      )}\n`,
-    );
+          null,
+          2,
+        )}\n`,
+      );
 
-    let failure: unknown = null;
-    try {
-      run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-typed-should-fail.json', '--noEmit'], consumerDir);
-    } catch (error) {
-      failure = error;
-    }
-    expect(failure).not.toBeNull();
-    expect(String((failure as Error)?.message ?? failure)).toMatch(/TS\d+/);
-  }, 180_000);
+      let failure: unknown = null;
+      try {
+        run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-typed-should-fail.json', '--noEmit'], consumerDir);
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).not.toBeNull();
+      const diagnostics = String((failure as Error)?.message ?? failure);
+      expect(diagnostics).toMatch(/TS\d+/);
+      expect(diagnostics).toContain('"missing"');
+      expect(diagnostics).toContain('Promise<number>');
+    },
+    180_000,
+  );
 });

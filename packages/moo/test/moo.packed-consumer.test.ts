@@ -15,15 +15,36 @@ import {
 } from './support/packed-consumer-harness';
 
 const CORE_RUNTIME_EXPORTS: Array<{ subpath: string; names: string[] }> = [
-  { subpath: '@web-ts-toolkit/moo', names: ['isObjectId', 'uniqueNullableString', 'cascadeDeletePlugin'] },
+  {
+    subpath: '@web-ts-toolkit/moo',
+    names: [
+      'isObjectId',
+      'uniqueNullableString',
+      'cascadeDeletePlugin',
+      'derivedFieldsPlugin',
+      'defineDerivedField',
+      'DerivedFieldsDependencyError',
+    ],
+  },
   { subpath: '@web-ts-toolkit/moo/is', names: ['isObjectId'] },
   { subpath: '@web-ts-toolkit/moo/schema', names: ['uniqueNullableString', 'uniqueEmptiableString'] },
   { subpath: '@web-ts-toolkit/moo/utils', names: ['isSchema', 'isObjectIdType', 'isReference'] },
   {
     subpath: '@web-ts-toolkit/moo/plugins',
-    names: ['modelFunctionPlugin', 'cascadeDeletePlugin', 'newDocumentPlugin'],
+    names: [
+      'modelFunctionPlugin',
+      'cascadeDeletePlugin',
+      'derivedFieldsPlugin',
+      'defineDerivedField',
+      'DerivedFieldsDependencyError',
+      'newDocumentPlugin',
+    ],
   },
   { subpath: '@web-ts-toolkit/moo/plugins/cascade-delete', names: ['cascadeDeletePlugin'] },
+  {
+    subpath: '@web-ts-toolkit/moo/plugins/derived-fields',
+    names: ['derivedFieldsPlugin', 'defineDerivedField', 'DerivedFieldsDependencyError'],
+  },
   { subpath: '@web-ts-toolkit/moo/plugins/model-function', names: ['modelFunctionPlugin'] },
   { subpath: '@web-ts-toolkit/moo/plugins/new-document', names: ['newDocumentPlugin'] },
 ];
@@ -35,6 +56,7 @@ import * as schemaEntry from '@web-ts-toolkit/moo/schema';
 import * as utilsEntry from '@web-ts-toolkit/moo/utils';
 import * as pluginsEntry from '@web-ts-toolkit/moo/plugins';
 import * as cascadeEntry from '@web-ts-toolkit/moo/plugins/cascade-delete';
+import * as derivedEntry from '@web-ts-toolkit/moo/plugins/derived-fields';
 import * as modelFunctionEntry from '@web-ts-toolkit/moo/plugins/model-function';
 import * as newDocumentEntry from '@web-ts-toolkit/moo/plugins/new-document';`;
 }
@@ -54,6 +76,7 @@ function writeConsumerFiles(consumerDir: string, includeKeycloak: boolean): void
   writeFileSync(
     path.resolve(consumerDir, 'core-runtime.mjs'),
     `${esmImportLines()}
+import assert from 'node:assert/strict';
 import mongoose, { Schema } from 'mongoose';
 ${includeKeycloak ? keycloakEsm : ''}
 
@@ -82,6 +105,8 @@ ownerSchema.plugin(cascadeEntry.cascadeDeletePlugin, { model: 'MooPackedChild', 
 const childSchema = new Schema({ ownerId: Schema.Types.ObjectId });
 mongoose.model('MooPackedChild', childSchema);
 mongoose.model('MooPackedOwner', ownerSchema);
+${derivedRuntimeChecks()}
+await checkDerivedFields([rootEntry, pluginsEntry, derivedEntry]);
 ${includeKeycloak ? keycloakRuntimeEsm() : ''}
 `,
   );
@@ -89,6 +114,7 @@ ${includeKeycloak ? keycloakRuntimeEsm() : ''}
     path.resolve(consumerDir, 'core-runtime.cjs'),
     `${CORE_RUNTIME_EXPORTS.map(({ subpath }) => `const ns_${sanitize(subpath)} = require('${subpath}');`).join('\n')}
 const mongoose = require('mongoose');
+const assert = require('node:assert/strict');
 ${includeKeycloak ? keycloakCjs : ''}
 for (const [label, mod, name] of [
 ${CORE_RUNTIME_EXPORTS.map(({ subpath, names }) => names.map((name) => `  ['${subpath}#${name}', ns_${sanitize(subpath)}, '${name}'],`).join('\n')).join('\n')}
@@ -103,6 +129,11 @@ ownerSchema.plugin(modelFunctionPlugin, { fnName: 'greet', fn: (doc) => String(d
 ownerSchema.plugin(cascadeDeletePlugin, { model: 'MooPackedChildCjs', localField: '_id', foreignField: 'ownerId' });
 mongoose.model('MooPackedChildCjs', new mongoose.Schema({ ownerId: mongoose.Schema.Types.ObjectId }));
 mongoose.model('MooPackedOwnerCjs', ownerSchema);
+${derivedRuntimeChecks()}
+checkDerivedFields([ns_root, ns_plugins, ns_plugins_derived_fields]).catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 ${includeKeycloak ? keycloakRuntimeCjs() : ''}
 `,
   );
@@ -171,6 +202,268 @@ if (!String(threw.message).includes('@egose/keycloak-fluent')) throw new Error('
   );
 }
 
+/** Run only installed, public APIs against the consumer's own Mongoose metadata. */
+function derivedRuntimeChecks(): string {
+  return `
+async function checkDerivedFields(entries) {
+  const { Schema, Types } = mongoose;
+  // BSON's ESM and CJS entries provide distinct, valid ObjectId constructors.
+  // Mongoose accepts either without copying it during casting.
+  const { createRequire } = await import('node:module');
+  const { dirname, join } = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const consumerRequire = createRequire(join(process.cwd(), 'package.json'));
+  const mongooseRequire = createRequire(consumerRequire.resolve('mongoose'));
+  const foreignBson = await import(pathToFileURL(join(dirname(mongooseRequire.resolve('bson')), 'bson.mjs')).href);
+  assert.notEqual(foreignBson.ObjectId, Types.ObjectId);
+  for (const [entryIndex, api] of entries.entries()) {
+    for (const name of ['derivedFieldsPlugin', 'defineDerivedField', 'DerivedFieldsDependencyError']) {
+      assert.equal(typeof api[name], 'function', name);
+    }
+    let calls = 0;
+    const views = [];
+    const schema = new Schema({
+      firstName: { type: String, get: () => 'not a persisted input' },
+      lastName: String,
+      note: String,
+      fullName: {
+        type: String,
+        required: true,
+        derived: api.defineDerivedField({
+          dependsOn: ['firstName', 'lastName'],
+          get: async (view) => {
+            calls += 1;
+            views.push(view);
+            await Promise.resolve();
+            return [view.firstName, view.lastName].filter((part) => part != null).join(' ');
+          },
+        }),
+      },
+    });
+    schema.plugin(api.derivedFieldsPlugin);
+    // The registration marker must also work across separately bundled entries.
+    assert.throws(() => schema.plugin(entries[(entryIndex + 1) % entries.length].derivedFieldsPlugin), /already registered/);
+    const User = mongoose.model('PackedDerivedUser' + entryIndex, schema);
+    const fresh = new User({ firstName: 'Ada', lastName: 'Lovelace' });
+    await fresh.validate();
+    assert.equal(fresh.fullName, 'Ada Lovelace'); // required validation sees the result
+    assert.equal(calls, 1);
+    assert.ok(Object.isFrozen(views[0]));
+    assert.equal(views[0].firstName, 'Ada'); // bypass property getters
+    assert.equal(views[0].save, undefined);
+    assert.equal(Object.hasOwn(views[0], 'fullName'), false);
+
+    const unchanged = User.hydrate({ fullName: 'persisted' }, { fullName: 1 });
+    unchanged.note = 'unrelated';
+    await unchanged.validate();
+    assert.equal(unchanged.fullName, 'persisted');
+    assert.equal(calls, 1); // all sources can be omitted when unchanged
+    const omittedTarget = User.hydrate({ firstName: 'Ada', lastName: 'Lovelace' }, { firstName: 1, lastName: 1 });
+    await omittedTarget.validate();
+    assert.equal(omittedTarget.fullName, undefined);
+    assert.equal(calls, 1); // an omitted target is not a repair request
+
+    const partial = User.hydrate({ firstName: 'Ada', fullName: 'persisted' }, { firstName: 1, fullName: 1 });
+    partial.firstName = 'Grace';
+    await assert.rejects(partial.validate(), (error) => {
+      assert.ok(error instanceof api.DerivedFieldsDependencyError);
+      assert.equal(error.code, 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES');
+      assert.deepEqual(error.issues, [{ targetPath: 'fullName', missingPaths: ['lastName'] }]);
+      assert.ok(Object.isFrozen(error.issues[0].missingPaths));
+      return true;
+    });
+    assert.equal(calls, 1);
+    assert.equal(partial.fullName, 'persisted');
+    assert.equal(partial.get('firstName', null, { getters: false }), 'Grace');
+
+    // Selected genuine absence/null is available, unlike an unselected path.
+    for (const lastName of [undefined, null]) {
+      const selected = User.hydrate({ firstName: 'Ada', ...(lastName === null ? { lastName } : {}) }, { firstName: 1, lastName: 1 });
+      selected.firstName = 'Grace';
+      await selected.validate();
+      assert.equal(selected.fullName, 'Grace');
+      assert.equal(Object.hasOwn(views.at(-1), 'lastName'), true);
+      assert.equal(views.at(-1).lastName, lastName);
+    }
+    for (const lastName of ['Hopper', undefined, null]) {
+      const replaced = User.hydrate({ firstName: 'Ada' }, { firstName: 1 });
+      replaced.firstName = 'Grace';
+      replaced.lastName = lastName;
+      await replaced.validate();
+      assert.equal(replaced.fullName, lastName ? 'Grace Hopper' : 'Grace');
+      // Model a successful-save dirty reset, using public modification APIs.
+      replaced.unmarkModified('lastName');
+      replaced.unmarkModified('fullName');
+      replaced.firstName = 'Admiral';
+      await replaced.validate();
+      assert.equal(replaced.fullName, lastName ? 'Admiral Hopper' : 'Admiral');
+    }
+    const override = User.hydrate({ fullName: 'persisted' }, { fullName: 1 });
+    override.fullName = 'caller override';
+    await assert.rejects(override.validate(), (error) => {
+      assert.deepEqual(error.issues, [{ targetPath: 'fullName', missingPaths: ['firstName', 'lastName'] }]);
+      return true;
+    });
+    const completeOverride = User.hydrate({ firstName: 'Ada', lastName: 'Lovelace' });
+    completeOverride.fullName = 'caller override';
+    await completeOverride.validate();
+    assert.equal(completeOverride.fullName, 'Ada Lovelace');
+
+    for (const projection of [{ lastName: 0 }, { 'lastName.child': 1, firstName: 1 }, { 'lastName.child': 0 }, { lastName: { $slice: 1 } }]) {
+      const projected = User.hydrate({ firstName: 'Ada' }, projection);
+      projected.firstName = 'Grace';
+      await assert.rejects(projected.validate(), { code: 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES' });
+      projected.lastName = 'Hopper';
+      await projected.validate();
+      assert.equal(projected.fullName, 'Grace Hopper');
+    }
+    const booleanIdExclusion = User.hydrate({ firstName: 'Ada', lastName: 'Lovelace' }, { _id: false });
+    booleanIdExclusion.firstName = 'Grace';
+    await booleanIdExclusion.validate();
+    assert.equal(booleanIdExclusion.fullName, 'Grace Lovelace');
+
+    const defaultSchema = new Schema({
+      firstName: String,
+      lastName: { type: String, default: 'manufactured', select: false },
+      fullName: { type: String, derived: { dependsOn: ['firstName', 'lastName'], get: (view) => view.firstName + ' ' + view.lastName } },
+    });
+    defaultSchema.plugin(api.derivedFieldsPlugin);
+    const Defaults = mongoose.model('PackedDerivedDefaults' + entryIndex, defaultSchema);
+    const withDefault = Defaults.hydrate({ firstName: 'Ada' }, { firstName: 1 });
+    Defaults.applyDefaults(withDefault);
+    assert.equal(withDefault.lastName, 'manufactured');
+    // An actual default write requests preflight even without an explicit source change.
+    await assert.rejects(withDefault.validate(), { code: 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES' });
+    withDefault.firstName = 'Grace';
+    await assert.rejects(withDefault.validate(), { code: 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES' });
+    withDefault.lastName = 'manufactured'; // same-default explicit assignment is a replacement
+    await withDefault.validate();
+    assert.equal(withDefault.fullName, 'Grace manufactured');
+
+    for (const value of ['new-default', '', 0, false, null, undefined]) {
+      let defaultCalls = 0;
+      const pendingSchema = new Schema({
+        source: { type: typeof value === 'number' ? Number : typeof value === 'boolean' ? Boolean : String, default: value },
+        note: String,
+        result: { type: String, derived: { dependsOn: ['source'], get: (view) => {
+          defaultCalls += 1;
+          return 'derived:' + view.source;
+        } } },
+      });
+      pendingSchema.plugin(api.derivedFieldsPlugin);
+      const Pending = mongoose.model('PackedPendingDefault' + entryIndex + '_' + mongoose.modelNames().length, pendingSchema);
+      const pending = Pending.hydrate({ _id: new Types.ObjectId(), result: 'preserved' });
+      pending.note = 'unrelated';
+      assert.equal(pending.isModified('source'), false);
+      await pending.validate();
+      assert.equal(pending.result, value == null ? 'preserved' : 'derived:' + value);
+      assert.equal(defaultCalls, value == null ? 0 : 1);
+    }
+    const targetDefaultSchema = new Schema({
+      source: String,
+      result: { type: String, default: 'fallback', derived: { dependsOn: ['source'], get: (view) => 'derived:' + view.source } },
+    });
+    targetDefaultSchema.plugin(api.derivedFieldsPlugin);
+    const TargetDefault = mongoose.model('PackedTargetDefault' + entryIndex, targetDefaultSchema);
+    const targetDefault = TargetDefault.hydrate({ _id: new Types.ObjectId(), source: 'original' });
+    await targetDefault.validate();
+    assert.equal(targetDefault.result, 'derived:original');
+    const missingForDefault = TargetDefault.hydrate({ _id: new Types.ObjectId() }, { result: 1 });
+    await assert.rejects(missingForDefault.validate(), { code: 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES' });
+
+    for (const key of ['__v', 'revision']) {
+      const versionTarget = new Schema({ [key]: { type: Number, derived: () => 14 } }, { versionKey: key });
+      assert.throws(() => versionTarget.plugin(api.derivedFieldsPlugin), /Mongoose-managed version key/);
+      const versionInput = new Schema({
+        [key]: Number,
+        result: { type: String, derived: { dependsOn: [key], get: () => 'value' } },
+      }, { versionKey: key });
+      assert.throws(() => versionInput.plugin(api.derivedFieldsPlugin), /Mongoose-managed version key/);
+      const versionShorthand = new Schema({
+        source: String, [key]: Number,
+        result: { type: String, derived: (view) => {
+          assert.equal(Object.hasOwn(view, key), false);
+          return view.source;
+        } },
+      }, { versionKey: key });
+      versionShorthand.plugin(api.derivedFieldsPlugin);
+      const VersionShorthand = mongoose.model('PackedVersionShorthand' + entryIndex + key, versionShorthand);
+      const noVersionInput = VersionShorthand.hydrate({ _id: new Types.ObjectId(), source: 'ordinary' }, { source: 1 });
+      await noVersionInput.validate();
+      assert.equal(noVersionInput.result, 'ordinary');
+
+      const disabledSchema = new Schema({
+        [key]: Number,
+        result: { type: String, derived: { dependsOn: [key], get: (view) => 'derived:' + view[key] } },
+      }, { versionKey: false });
+      disabledSchema.plugin(api.derivedFieldsPlugin);
+      const Disabled = mongoose.model('PackedVersionDisabled' + entryIndex + key, disabledSchema);
+      const ordinaryVersionField = new Disabled({ [key]: 3 });
+      await ordinaryVersionField.validate();
+      assert.equal(ordinaryVersionField.result, 'derived:3');
+    }
+
+    const counterSchema = new Schema({
+      count: Number,
+      doubled: { type: Number, derived: { dependsOn: ['count'], get: (view) => view.count == null ? undefined : view.count * 2 } },
+    });
+    counterSchema.plugin(api.derivedFieldsPlugin);
+    const Counter = mongoose.model('PackedDerivedCounter' + entryIndex, counterSchema);
+    const relative = Counter.hydrate({ _id: new Types.ObjectId() }, { _id: 1 });
+    relative.$inc('count', 1);
+    await assert.rejects(relative.validate(), { code: 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES' });
+    relative.count = 10;
+    await relative.validate();
+    assert.equal(relative.doubled, 20);
+    relative.count = undefined;
+    await relative.validate();
+    assert.equal(relative.doubled, undefined); // undefined clears a target
+
+    const shorthandSchema = new Schema({
+      firstName: String,
+      hidden: { type: String, select: false },
+      label: { type: String, derived: api.defineDerivedField((view) => view.firstName) },
+    });
+    shorthandSchema.plugin(api.derivedFieldsPlugin);
+    const Shorthand = mongoose.model('PackedDerivedShorthand' + entryIndex, shorthandSchema);
+    const omitted = Shorthand.hydrate({ firstName: 'Ada' }, { firstName: 1, _id: 0 });
+    await assert.rejects(omitted.validate(), (error) => {
+      assert.deepEqual(error.issues, [{ targetPath: 'label', missingPaths: ['hidden', '_id'] }]);
+      return true;
+    });
+    const booleanOmitted = Shorthand.hydrate({ firstName: 'Ada' }, { firstName: true, hidden: true, _id: false });
+    await assert.rejects(booleanOmitted.validate(), (error) => {
+      assert.deepEqual(error.issues, [{ targetPath: 'label', missingPaths: ['_id'] }]);
+      return true;
+    });
+
+    const foreignId = new foreignBson.ObjectId();
+    const originalId = Buffer.from(foreignId.id);
+    const returnedId = new foreignBson.ObjectId();
+    const originalReturnedId = Buffer.from(returnedId.id);
+    const bsonSchema = new Schema({
+      owner: Schema.Types.ObjectId,
+      attack: { type: String, derived: { dependsOn: ['owner'], get: (view) => {
+        view.owner.id = Buffer.alloc(12);
+        return 'isolated';
+      } } },
+      ownerLabel: { type: String, derived: { dependsOn: ['owner'], get: (view) => view.owner.toHexString() } },
+      returned: { type: Schema.Types.ObjectId, derived: { dependsOn: ['owner'], get: () => returnedId } },
+    });
+    bsonSchema.plugin(api.derivedFieldsPlugin);
+    const BsonModel = mongoose.model('PackedDerivedForeignBson' + entryIndex, bsonSchema);
+    const bsonDocument = new BsonModel({ owner: foreignId });
+    assert.equal(bsonDocument.owner, foreignId); // proves the cross-constructor casting case
+    await bsonDocument.validate();
+    assert.deepEqual(Buffer.from(bsonDocument.owner.id), originalId);
+    assert.equal(bsonDocument.ownerLabel, new Types.ObjectId(originalId).toHexString());
+    returnedId.id = Buffer.alloc(12);
+    assert.deepEqual(Buffer.from(bsonDocument.returned.id), originalReturnedId);
+  }
+}
+`;
+}
+
 function keycloakRuntimeEsm(): string {
   return `
 if (typeof keycloakUserSyncPlugin !== 'function') throw new Error('missing keycloakUserSyncPlugin');
@@ -228,6 +521,7 @@ import { isObjectId as isObjectIdDirect } from '@web-ts-toolkit/moo/is';
 import { uniqueEmptiableString } from '@web-ts-toolkit/moo/schema';
 import { isReference, isSchema } from '@web-ts-toolkit/moo/utils';
 import { cascadeDeletePlugin as cascadeDirect } from '@web-ts-toolkit/moo/plugins/cascade-delete';
+import { derivedFieldsPlugin, defineDerivedField, DerivedFieldsDependencyError } from '@web-ts-toolkit/moo/plugins/derived-fields';
 import { modelFunctionPlugin as modelFunctionDirect } from '@web-ts-toolkit/moo/plugins/model-function';
 import { newDocumentPlugin as newDocumentDirect } from '@web-ts-toolkit/moo/plugins/new-document';
 import type { CascadeDeleteDependencyMap } from '@web-ts-toolkit/moo/plugins/cascade-delete';
@@ -256,6 +550,16 @@ if (!isSchema(schema) || !isReference({ type: Schema.Types.ObjectId, ref: 'Child
 }
 type Dependents = CascadeDeleteDependencyMap<'Child', { name: string }>;
 void (undefined as unknown as Dependents);
+type User = { firstName: string; lastName: string; fullName: string };
+const userSchema = new Schema<User>({
+  firstName: String,
+  lastName: String,
+  fullName: { type: String, derived: defineDerivedField<User, 'fullName'>({ dependsOn: ['firstName', 'lastName'], get: (doc) => [doc.firstName, doc.lastName].join(' ') }) },
+});
+userSchema.plugin(derivedFieldsPlugin);
+const error = new DerivedFieldsDependencyError([{ targetPath: 'fullName', missingPaths: ['lastName'] }]);
+const code: 'MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES' = error.code;
+void code;
 `;
 }
 
@@ -266,8 +570,10 @@ import schemaEntry = require('@web-ts-toolkit/moo/schema');
 import utilsEntry = require('@web-ts-toolkit/moo/utils');
 import pluginsEntry = require('@web-ts-toolkit/moo/plugins');
 import cascadeEntry = require('@web-ts-toolkit/moo/plugins/cascade-delete');
+import derivedEntry = require('@web-ts-toolkit/moo/plugins/derived-fields');
 import modelFunctionEntry = require('@web-ts-toolkit/moo/plugins/model-function');
 import newDocumentEntry = require('@web-ts-toolkit/moo/plugins/new-document');
+import mongoose = require('mongoose');
 
 const schema = new (require('mongoose').Schema)({
   email: moo.uniqueNullableString('email'),
@@ -283,6 +589,34 @@ if (moo.isObjectId(candidate) && isEntry.isObjectId(candidate) && utilsEntry.isS
   const narrowed: string | object = candidate;
   void narrowed;
 }
+type User = { firstName: string; lastName: string | null; fullName: string; score: number };
+const fullName: derivedEntry.DerivedFieldDescriptor<User, string> = derivedEntry.defineDerivedField<User, 'fullName'>({
+  dependsOn: ['firstName', 'lastName'],
+  get: async (doc) => [doc.firstName, doc.lastName].join(' '),
+});
+const getter: pluginsEntry.DerivedFieldGetter<User, string> = (doc) => doc.firstName;
+const definition: moo.DerivedFieldDefinition<User, string> = getter;
+const input: derivedEntry.DerivedFieldInput<User> = {};
+const userSchema = new mongoose.Schema<User>({ firstName: String, lastName: String, fullName: { type: String, derived: fullName }, score: Number });
+userSchema.plugin(derivedEntry.derivedFieldsPlugin);
+new mongoose.Schema<User>({ fullName: { type: String, derived: definition } }).plugin(pluginsEntry.derivedFieldsPlugin);
+new mongoose.Schema<User>({ fullName: String }).plugin(moo.derivedFieldsPlugin);
+// @ts-expect-error dependency names must exist
+derivedEntry.defineDerivedField<User, 'fullName'>({ dependsOn: ['missing'], get: () => 'x' });
+// @ts-expect-error async results must match the target type
+moo.defineDerivedField<User, 'fullName'>({ dependsOn: ['firstName'], get: async () => 42 });
+// @ts-expect-error shorthand results must match the target type
+pluginsEntry.defineDerivedField<User, 'score'>((doc) => doc.firstName);
+derivedEntry.defineDerivedField<User, 'fullName'>({ dependsOn: ['firstName'], get(doc) {
+  // @ts-expect-error required raw-model paths can be undefined in the partial view
+  const required: string = doc.firstName;
+  // @ts-expect-error plain partial input does not have hydrated methods
+  doc.save();
+  // @ts-expect-error inputs are readonly
+  doc.firstName = 'mutation';
+  return required;
+} });
+void input;
 `;
 }
 
@@ -346,7 +680,7 @@ afterAll(() => {
 });
 
 describe('Moo packed-package consumer harness (MOO-09)', () => {
-  it('packs a release-like manifest covering all nine subpaths with one peer policy', () => {
+  it('packs a release-like manifest covering every public entry with one peer policy', () => {
     const packed = preparePackedWorkspace();
     const manifest = packed.manifests['@web-ts-toolkit/moo'];
     const packageJson = JSON.parse(
@@ -394,6 +728,10 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
       'package/plugins/cascade-delete.js',
       'package/plugins/cascade-delete.mjs',
       'package/plugins/cascade-delete.d.ts',
+      'package/plugins/derived-fields.js',
+      'package/plugins/derived-fields.mjs',
+      'package/plugins/derived-fields.d.ts',
+      'package/plugins/derived-fields.d.mts',
       'package/plugins/model-function.js',
       'package/plugins/model-function.mjs',
       'package/plugins/model-function.d.ts',
@@ -415,6 +753,9 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
     run('node', ['core-runtime.mjs'], consumerDir);
     run('node', ['core-runtime.cjs'], consumerDir);
     run('node', ['keycloak-absent.cjs'], consumerDir);
+    const version = run('node', ['-p', "require('mongoose').version"], consumerDir).trim();
+    expect(version).toMatch(/^9\./);
+    console.info(`Packed ESM/CJS core and dependency-selection checks: Mongoose ${version}, no Keycloak peer`);
   }, 180_000);
 
   it('compiles strict NodeNext core declarations without the optional peer', () => {
@@ -469,6 +810,9 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
     ) as { mongoose: string; keycloak: string };
     expect(versions.mongoose).toMatch(/^8\./);
     expect(versions.keycloak).toBe('0.12.1');
+    console.info(
+      `Packed ESM/CJS core and dependency-selection checks: Mongoose ${versions.mongoose}, Keycloak ${versions.keycloak}`,
+    );
   }, 180_000);
 
   it('compiles strict NodeNext declarations for every subpath with the minimum Keycloak peer', () => {
@@ -497,6 +841,9 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
       'uniqueEmptiableString',
       'modelFunctionPlugin',
       'cascadeDeletePlugin',
+      'derivedFieldsPlugin',
+      'defineDerivedField',
+      'DerivedFieldsDependencyError',
       'newDocumentPlugin',
     ]) {
       expect(keys).toContain(exportName);

@@ -53,6 +53,12 @@
       "require": "./dist/plugins/cascade-delete.js",
       "default": "./dist/plugins/cascade-delete.js"
     },
+    "./plugins/derived-fields": {
+      "types": "./dist/plugins/derived-fields.d.ts",
+      "import": "./dist/plugins/derived-fields.mjs",
+      "require": "./dist/plugins/derived-fields.js",
+      "default": "./dist/plugins/derived-fields.js"
+    },
     "./plugins/model-function": {
       "types": "./dist/plugins/model-function.d.ts",
       "import": "./dist/plugins/model-function.mjs",

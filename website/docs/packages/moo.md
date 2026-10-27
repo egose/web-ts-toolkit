@@ -11,7 +11,7 @@ This package includes:
 
 - partial-index helpers for nullable or empty string fields
 - an `isObjectId(...)` guard for strict ObjectId checks
-- document plugins for model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync
+- document plugins for persisted derived fields, model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync
 
 ## Installation
 
@@ -47,6 +47,7 @@ Published subpaths:
 - `@web-ts-toolkit/moo/utils` for schema and reference helpers such as `isSchema(...)`, `isObjectIdType(...)`, and `isReference(...)`
 - `@web-ts-toolkit/moo/plugins` for the shared plugin entrypoint
 - `@web-ts-toolkit/moo/plugins/cascade-delete` for the cascade-delete plugin
+- `@web-ts-toolkit/moo/plugins/derived-fields` for `derivedFieldsPlugin`, `defineDerivedField`, dependency errors and authoring types
 - `@web-ts-toolkit/moo/plugins/model-function` for the model-function plugin
 - `@web-ts-toolkit/moo/plugins/new-document` for the new-document plugin
 - `@web-ts-toolkit/moo/plugins/keycloak-user-sync` for the Keycloak user-sync plugin
@@ -105,6 +106,147 @@ const userSchema = new Schema({
 isSchema(userSchema);
 isReference({ type: Schema.Types.ObjectId, ref: 'User' }, 'User');
 ```
+
+### Persisted derived fields
+
+`derived` metadata computes a stored field before async document validation and
+persists it with hydrated `save()` / `Model.create()`. Stored values support normal
+MongoDB search/filter/sort/index operations. Reads and property access do not
+compute or write anything. Canonical typed authoring uses named root imports:
+
+```ts
+import mongoose, { Schema } from 'mongoose';
+import { defineDerivedField, derivedFieldsPlugin } from '@web-ts-toolkit/moo';
+
+type User = { firstName: string; lastName: string; fullName: string };
+const userSchema = new Schema<User>(
+  {
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    fullName: {
+      type: String,
+      required: true,
+      index: true,
+      derived: defineDerivedField<User, 'fullName'>({
+        dependsOn: ['firstName', 'lastName'],
+        get: (doc) => `${doc.firstName ?? ''} ${doc.lastName ?? ''}`.trim(),
+      }),
+    },
+  },
+  { optimisticConcurrency: true },
+);
+
+// Define all paths and source-mutating middleware before the plugin.
+userSchema.plugin(derivedFieldsPlugin);
+const User = mongoose.model<User>('User', userSchema);
+
+await mongoose.connect('mongodb://127.0.0.1:27017/app');
+await User.create({ firstName: 'Ada', lastName: 'Lovelace' });
+const matches = await User.find({ fullName: /^Ada/ }).sort({ fullName: 1 });
+```
+
+The helper checks dependency names, readonly partial raw-model input, and the
+target's result type without Mongoose global augmentation. The grouped
+`@web-ts-toolkit/moo/plugins` entrypoint and direct variant expose the same API:
+
+```ts
+import {
+  defineDerivedField,
+  derivedFieldsPlugin,
+  DerivedFieldsDependencyError,
+  type DerivedFieldDefinition,
+  type DerivedFieldDependencyIssue,
+  type DerivedFieldDescriptor,
+  type DerivedFieldGetter,
+  type DerivedFieldInput,
+} from '@web-ts-toolkit/moo/plugins/derived-fields';
+```
+
+Declare every source read by `get` in `dependsOn`. Existing documents request
+recomputation for a dependency modification or explicit target change, including
+actual pending default writes to either:
+
+| Recompute requested? | All dependencies available? | Result                                                           |
+| -------------------- | --------------------------- | ---------------------------------------------------------------- |
+| No                   | Either                      | Skip and preserve the persisted derived value.                   |
+| Yes                  | Yes                         | Recompute and save with the source changes.                      |
+| Yes                  | No                          | Reject before persistence without invoking any scheduled getter. |
+
+Mongoose can queue non-null defaults on existing documents without marking them
+modified. Such pending writes include `''`, `0`, and `false` and request computation;
+`null`/`undefined` defaults alone do not write. A pending target fallback default is
+recomputed rather than accepted as an override. Missing/projected-out targets
+without a write request do not request repair. New documents compute from supplied/
+defaulted inputs before ordinary validation. `dependsOn: []` supports creation and
+target-change/default-write constants.
+
+Available means selected or explicitly fully replaced on this hydrated document.
+Selected defaults are available; genuine absence without a default is known
+`undefined`, and stored `null` is known too. Unselected fields stay unavailable even
+if defaults/getters could manufacture values. Explicit assignments, including excluded null/undefined
+or same-default assignments, provide replacements retained on the same document
+across saves; child-only changes and relative `$inc()` do not. The plugin never
+fetches omitted dependencies: select them yourself or provide complete replacements.
+Applying defaults to excluded dependencies may queue actual writes but never proves
+availability: an otherwise unrelated save then rejects before getters/persistence
+rather than saving manufactured sources with stale results.
+A newly inserted document retains its supplied/defaulted/absent input availability
+on later saves, including with constructor projection metadata.
+A bare function is conservative shorthand: it recomputes every async validation/
+save operation and needs every supported non-derived input, including hidden
+fields and `_id`, even when the getter reads fewer inputs.
+
+Getters can be sync/async and return `undefined` to clear a target. Each gets an
+isolated frozen partial plain persisted view containing available supported
+scalars, persisted reference ids, and copied Date/ObjectId/Decimal128 values.
+Document methods/`this`, property getters, transforms, virtuals, derived targets,
+the managed version key, and containers are absent. Results are staged before
+applying Mongoose setters/casting. Getters and validators must not mutate captured
+hydrated inputs.
+Missing-dependency preflight aggregates all affected targets before any getter:
+`DerivedFieldsDependencyError` has stable code
+`MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES` and frozen path-only
+`issues: [{ targetPath, missingPaths }]`, without source values. Getter failures
+propagate; casting/validation failures use Mongoose errors. A rejected save does
+not persist that save, but retains application assignments; no in-memory rollback
+is promised. Use the error code across separately bundled entrypoints.
+
+**Lifecycle:** register source-mutating pre-validation/pre-save middleware before
+the plugin and compile afterward. Normal async validation sees derived results;
+earlier pre-save source/target changes trigger recomputation/revalidation, preserving
+`validateModifiedOnly`. A save reuses its own unchanged validation computation;
+separate validations/saves are separate operations. Later pre-save mutations are
+outside the guarantee. Later validation-hook/validator mutations are not a
+standalone-validation guarantee; save retries validation once and rejects an
+ordering error if inputs/results remain unstable. Earlier timestamp hooks are
+covered, but first validation of a new document can see an unset timestamp.
+Ordinary Mongoose change tracking applies, including marking in-place Date changes
+modified. Schema/per-save `validateBeforeSave: false` still preflights/computes/
+casts but skips ordinary required/custom validators; dependency/getter/casting
+errors still reject.
+
+**Write scope:** query updates/replacements and raw writes bypass computation.
+`insertMany()` and bulk inserts may incidentally invoke async document validation;
+this is not guaranteed all-writer support (lean, skip-validation, and bulk updates
+can bypass it). `validateSync()`, middleware bypass, and restricted `pathsToSave`
+are excluded. Formula changes and old rows lacking values need explicit backfill:
+load all dependencies, mark the target modified (`doc.markModified('fullName')`),
+then save. There is no automatic read-time repair. Multi-writer behavior remains
+ordinary Mongoose concurrency; use `optimisticConcurrency` where source/result
+invariants matter and reload complete inputs when retrying version conflicts.
+
+**Initial scope:** root persisted String, Number, Boolean, Date, ObjectId,
+Decimal128, BigInt targets/dependencies only. Nested paths, subdocuments, arrays,
+maps, Mixed, Union, Buffer/Binary/UUID, BSON Double/Int32, and unknown custom kinds
+are unsupported. Other ordinary fields can coexist but are not getter inputs.
+Self/derived-to-derived dependencies, unknown/duplicate names, malformed options,
+virtual/immutable targets, and duplicate plugin registration reject at registration.
+Paths/definitions are snapshotted; later schema/option edits are not discovered.
+The Mongoose-managed `versionKey` (default `__v` or custom) rejects as a target or
+explicit dependency and is omitted from all getter views, including shorthand:
+Mongoose initializes/increments it after pre-save middleware. With
+`versionKey: false`, explicitly declared version-like scalar fields are ordinary
+targets/inputs.
 
 ### Model function plugin
 

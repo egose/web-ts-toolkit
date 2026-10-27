@@ -19,6 +19,9 @@ captures are not restarted by later setters.
 
 - `requestPermissionField` defaults to `_permissions`
 - `globalPermissions(req)` returns the permission set for the current request
+- `requireRegisteredPopulateModels` defaults to `true` for ordinary populate targets
+- `requireReadOperationAccessForPopulateDependencies` defaults to `true`; only literal
+  `false` bypasses target-operation read admission for declared private virtual inputs
 - `logger` receives `debug`, `info`, `warn`, and `error` calls
 
 <!-- doc-example: partial -->
@@ -43,6 +46,8 @@ acl.setGlobalOptions({
 Null/undefined resolver results establish empty grants, replacing prior runtime-owned
 values. Application-supplied unowned maps are preserved; same-runtime middleware
 reuses its initialized state. Populate targets require runtime registration by default.
+The private-input flag is a separate server/runtime policy; see
+[private populated virtual dependencies](#private-populated-virtual-dependencies).
 
 ## Default Model Options
 
@@ -147,6 +152,31 @@ and Mongoose connection. Validation is eager/atomic for construction, bulk and d
 setters, including when `requireRegisteredPopulateModels` is false. Operation capture
 rechecks bindings before hooks/writes; in-flight calls retain coherent getter/masks/policies.
 
+`GlobalOptions.requireReadOperationAccessForPopulateDependencies` defaults to **true**:
+private loading requires the captured original caller's target base `operationAccess.read`.
+Only literal boolean **false** bypasses that operation gate. Missing/undefined/malformed
+JavaScript values normalize conservatively to true; an omitted key in a shallow setter
+preserves the current value. Configure it on the owning runtime:
+
+<!-- doc-example: partial -->
+
+```ts
+import { createAccessRuntime, type GlobalOptions } from '@web-ts-toolkit/access-router';
+
+const api = createAccessRuntime();
+api.setGlobalOptions({ requireReadOperationAccessForPopulateDependencies: false });
+api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', false);
+const snapshot: GlobalOptions = api.getGlobalOptions();
+void snapshot;
+```
+
+`api.set` supports the same object/exact forms. This is not a model/default, HTTP/root,
+service query or client option; same-spelled business fields remain ordinary data.
+The flag, source/target policy and query intent are captured together before the first
+await. Nested related/embedded/child output retains that call's mode; later calls see
+setters and separate runtimes remain isolated. It is independent of
+`requireRegisteredPopulateModels`; private target registration/static declarations stay mandatory.
+
 <!-- doc-example: partial -->
 
 ```ts
@@ -203,27 +233,37 @@ const orders = api.createRouter<Order, { canPlaceOrder: boolean }>(OrderModel, {
 ```
 
 The ref is automatically retained; there is no need for `dependsOn: ['account']`.
-Use the authenticated server actor's tenant in real row hooks. Private input-field
-authority still requires captured **base read** admission and request-mode
+Use the authenticated server actor's tenant in real row hooks. Source/target input-field
+`permissionSchema` is already bypassed by the declaration; the virtual's own output
+authorization still applies. True requires captured **base read** admission; false skips
+only that private operation guard. Both modes retain request-mode
 `overrideFilter.read`/`baseFilter.read`, with source IDs ANDed after transforms.
 There is no read-to-list fallback, route-variant gate or private `access` override.
 Ordinary `populate.match`, `access`, selection and `authorization.related` cannot
 redefine these inputs or grant private reads. A related policy for a dependency-only
-path is unused/invalid.
+path is unused/invalid. False-mode virtual-only output performs no operation check
+solely to fetch private inputs; it grants no public field/operation, row or write authority.
 
 Compatible public/private target queries fetch a normalized persisted union; the
 original public selection and authorization stay separate and immutable:
 
-- Ordinary admitted `populate: [{ path: 'account', select: 'name -_id' }]` returns
+- In **both modes**, active selected/applicable dependency refs require the captured
+  caller-context target base **read** visibility grant, independently of private fetch
+  availability. Denied/failed read omits the **entire reference including its ID**,
+  even without population or with admitted list/custom access or a trusted public
+  related-operation grant. An unselected/excluded/denied source ref is also omitted.
+- With source selected/permitted and target read allowed, ordinary admitted
+  `populate: [{ path: 'account', select: 'name -_id' }]` returns
   only `account.name`, even if private fetched fields are readable but unrequested.
-- Without ordinary population, a selected/permitted ref restores the exact original
+- With source selected/permitted and target read allowed, no ordinary population restores the exact original
   ID/array: missing IDs, order, duplicates, nulls, absence and empty arrays survive.
-- An unselected/excluded/denied source ref is omitted, including its ID; the selected
-  authorized virtual can still compute. Denied ordinary population keeps its fallback.
+- **No active dependency plan/no feature keeps ordinary behavior unchanged**; the
+  additional read gate does not apply globally to unrelated refs.
 
 Resolved default population counts as ordinary; explicit `populate: []` suppresses
-defaults. Public `-_id` exclusions survive private identity fetching. Cleanup runs
-before decorate/decorateAll/tasks, including on unavailable inputs, undefined/throw
+defaults. The additional read check runs only for potentially eligible source output;
+strict private admission is reused. Public `-_id` exclusions survive private identity fetching. Cleanup runs
+before output copying/handles and decorate/decorateAll/tasks, including on unavailable inputs, undefined/throw
 and post-fetch virtual denial. No private maps/raw values are implicitly transported
 to DTOs, hooks, handles or metadata; only the authorized getter's deliberate return
 becomes computed output.
@@ -253,7 +293,7 @@ Support includes direct/root/trusted reads, writes/upserts, templates, ordinary
 populated/included outputs, embedded scopes and visible dedicated subdocuments.
 Writes capture post-lifecycle refs without changing saved refs/snapshots or retry
 semantics; hidden rows run no getter. `new` ignores args.select and loads present
-default refs under target read without saving. Count/distinct/exists/delete identities
+default refs under the captured private-read mode/request read-row scope without saving. Count/distinct/exists/delete identities
 and include-count/field helpers add no dependency I/O. `SubPopulate` stays path/select-only.
 
 Private reads inherit receiving hydration: direct read/populate mode, fixed lean for
@@ -267,6 +307,13 @@ correlated queries remain per parent; no universal constant query count is promi
 See [Getter absence/error rules](./hooks#private-populated-getter-inputs) and the
 [installed README's runnable example](https://www.npmjs.com/package/@web-ts-toolkit/access-router#private-populated-dependencies)
 for all three executable response shapes and compatibility guidance.
+
+**Release compatibility:** the earlier private-dependency D1 denied-populate ID fallback
+is intentionally superseded for active dependency refs, including default/true mode.
+Handle absent fields when caller target base read is denied/failed. Setting false permits
+private computation, not denied IDs. Permit source output and target base read independently
+to return the original authorized populated mask or exact refs. Ordinary/no-active-plan
+behavior and registration/static-ref/hydration limitations remain as before.
 
 ## Operation Access
 
