@@ -997,8 +997,8 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   run('node', ['authorization-out/field-helper.runtime.cjs'], consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
-  // DPV-05/PPR-03: exact shipped mode/denied-reference workflow plus both-hydration
-  // array/default/authorized-union/exact-ID controls,
+  // POP-04: exact shipped four-mode/configuration-only Document workflow plus
+  // both-hydration array/default/authorized-union/exact-ID/miss controls,
   // using the real transformed packed installation and both runtime entry conditions.
   for (const file of [
     'private-populate.readme.mjs',

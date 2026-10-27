@@ -152,7 +152,7 @@ become null/null slots in original order, preserving duplicates. Missing target 
 remain absent/undefined; present null/false/zero/empty-string survive. The getter chooses
 what to return for partial inputs.
 
-The runtime flag `requireReadOperationAccessForPopulateDependencies` defaults to true.
+The runtime flag `requireOperationAccessForPopulateDependencies` defaults to true.
 Only literal false bypasses target base `operationAccess.read` for private loading;
 undefined/malformed JavaScript values stay conservative true. Source/target input-field
 permissions are already bypassed, but virtual output authorization still governs its result.
@@ -160,7 +160,9 @@ Request-mode `overrideFilter.read`, `baseFilter.read` and original source IDs re
 False-mode virtual-only output adds no operation check solely for its private fetch.
 This server/runtime option is captured before awaits with source/target/query configuration,
 including nested output; later calls see changes and runtimes remain isolated. It is not a
-caller/query option or `requireRegisteredPopulateModels` registration opt-out.
+caller/query or model option. It is independent of
+`requireOperationAccessForPopulateQueries`; actual model registration and an effective
+object `permissionSchema` remain mandatory for every target in all four modes.
 
 In true mode target base-read denial, and in both modes terminal false read-row policy,
 makes dependencies unavailable and skips affected getters, even for null/empty refs. Dependency-only hook/query/cast errors
@@ -169,17 +171,15 @@ write errors. Shared ordinary-public query failures keep the ordinary error path
 Invalid configuration fails preflight. Getter undefined/throw and later authorization
 denial still reach unconditional public reconstruction/cleanup.
 
-In **both modes**, active selected/applicable dependency refs have an independent captured
-caller-context target base-read visibility gate after source field authorization. Unselected/
-denied source fields are omitted; denied/failed target read omits the **entire ref including
-IDs**, even when private computation succeeds, a getter fails/is denied, or ordinary list/
-custom populate access or a public related-operation grant permits population. Strict private
-admission is reused; false mode checks output only when the source could be returned.
-Allowed target read keeps only the original authorized public populate mask, or exact
-original refs/arrays (nulls, misses, ordering, duplicates and presence) without ordinary
-population. No active dependency plan leaves ordinary behavior unchanged. This intentionally
-supersedes the prior D1 denied-ID fallback even in default mode; see
-[release compatibility](./configuration#private-populated-virtual-dependencies).
+In **all four modes**, private work leaves ordinary ref shape unchanged. The extra
+target-base-read reference-visibility gate is removed. Unselected/field-denied source refs
+are omitted; otherwise no admitted ordinary population means exact original IDs/arrays
+(nulls, missing IDs, ordering, duplicates and presence), including when strict private
+admission fails, private rows/queries fail, a getter throws/omits or deferred output
+authorization denies it. Admitted ordinary population keeps only its original authorized
+mask; admitted misses return scalar null/filtered arrays, not IDs. Query bypass or
+list/custom/public related-operation grants cannot be undone by selecting a virtual.
+See the [independent policy matrix and migration](./configuration#populate-operation-policies).
 
 There is **no implicit transport** of private maps/raw targets to DTOs, lifecycle
 snapshots, public permission hooks/metadata, document handles, or decorate/task input.

@@ -904,7 +904,7 @@ describe('model router integration', () => {
     expect(readWithPopulate.body.org).toEqual(expect.any(String));
   });
 
-  it('can return raw populate targets without a registered router through a global option', async () => {
+  it('rejects unconfigured populate targets even with operation bypass and removed legacy controls', async () => {
     const orgModelName = `AclMongoOrg${++modelCounter}`;
     const userModelName = `AclMongoPopulateUser${++modelCounter}`;
     mongoose.model(orgModelName, new mongoose.Schema({ name: String }));
@@ -934,12 +934,16 @@ describe('model router integration', () => {
     app.use(userRouter.routes);
 
     expect(runtime.runtime.hasModel(orgModelName)).toBe(false);
-    const deniedByDefault = await request(app).get('/optional-populate-users/custom/populate-query').expect(200);
-    expect(deniedByDefault.body).toEqual([]);
+    const deniedByDefault = await request(app).get('/optional-populate-users/custom/populate-query').expect(400);
+    expect(deniedByDefault.body.errors[0].detail).toContain(`Populate target "${orgModelName}"`);
 
-    runtime.setGlobalOption('requireRegisteredPopulateModels', false);
-    const allowed = await request(app).get('/optional-populate-users/custom/populate-query').expect(200);
-    expect(allowed.body).toEqual([{ path: 'org' }]);
+    runtime.setGlobalOptions({
+      requireOperationAccessForPopulateQueries: false,
+      requireOperationAccessForPopulateDependencies: false,
+    });
+    Reflect.apply(runtime.setGlobalOption, undefined, ['requireRegisteredPopulateModels', false]);
+    const denied = await request(app).get('/optional-populate-users/custom/populate-query').expect(400);
+    expect(denied.body.errors[0].detail).toContain(`Populate target "${orgModelName}"`);
     expect(runtime.runtime.hasModel(orgModelName)).toBe(false);
   });
 

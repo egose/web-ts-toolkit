@@ -28,7 +28,7 @@ async function fixture(hydration: 'lean' | 'hydrated', enabled: boolean, strict 
   api.setGlobalOptions({
     requestPermissionField: '_permissions',
     globalPermissions: () => ['canRead'],
-    requireReadOperationAccessForPopulateDependencies: strict,
+    requireOperationAccessForPopulateDependencies: strict,
     requestComplexity: { maxBulkConcurrency: 1, maxHookConcurrency: 1 },
   } as never);
   const n = ++serial;
@@ -203,9 +203,8 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
       });
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.code);
-      // PPR-02 tightens only ACTIVE dependency references. No-feature ID fallback stays intact.
-      if (enabled && !(entry.privateAllowed ?? entry.allowed)) expect(result.data).not.toHaveProperty('account');
-      else expect(result.data.account).toEqual(entry.allowed ? { name: 'public name' } : f.target._id);
+      // Private operation admission never changes ordinary DTO/ID fallback.
+      expect(result.data.account).toEqual(entry.allowed ? { name: 'public name' } : f.target._id);
       const computed = enabled && (!strict || (entry.privateAllowed ?? entry.allowed));
       if (computed) expect(result.data).toHaveProperty('eligible', 7);
       else expect(result.data).not.toHaveProperty('eligible');
@@ -248,7 +247,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
         expect(result).toMatchObject({ success: true, data: { account: { name: 'public name' } } });
         if (!result.success) throw new Error(result.code);
         expect(result.data.account).toEqual({ name: 'public name' });
-        expect(guard).toHaveBeenCalledTimes(enabled ? 2 : 1);
+        expect(guard).toHaveBeenCalledTimes(enabled && strict ? 2 : 1);
         for (const [index, [permissions]] of guard.mock.calls.entries()) {
           expect(guard.mock.contexts[index]).toBe(actor!);
           expect(permissions.has('canRead')).toBe(true);
@@ -289,8 +288,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
         const allowed = index === 0 ? initial : !initial;
         expect(result.success).toBe(true);
         if (!result.success) throw new Error(result.code);
-        if (enabled && !allowed) expect(result.data).not.toHaveProperty('account');
-        else expect(result.data.account).toEqual(allowed ? { name: 'public name' } : f.target._id);
+        expect(result.data.account).toEqual(allowed ? { name: 'public name' } : f.target._id);
         if (enabled && (allowed || !strict)) expect(result.data).toHaveProperty('eligible', 7);
         else expect(result.data).not.toHaveProperty('eligible');
       }
@@ -300,7 +298,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
   });
 
   it.each(['request', 'scope', 'unrestricted'] as const)(
-    'PPR-02 base read visibility overrides related operation grants with %s rows',
+    'POP-03 strict private denial preserves related operation grants with %s rows',
     async (mode) => {
       const f = await fixture(hydration, true);
       f.api.setDefaultModelOption('operationAccess.read', true);
@@ -320,7 +318,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
       );
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.code);
-      expect(result.data).not.toHaveProperty('account');
+      expect(result.data.account).toEqual(mode === 'request' ? f.target._id : { name: 'public name' });
       expect(result.data).not.toHaveProperty('eligible');
       expect(f.getter).not.toHaveBeenCalled();
       expect(base).toHaveBeenCalledTimes(mode === 'request' ? 1 : 0);
@@ -340,7 +338,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
     );
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.code);
-    expect(result.data).not.toHaveProperty('account');
+    expect(result.data.account).toEqual(f.target._id);
     expect(result.data).not.toHaveProperty('eligible');
     expect(f.getter).not.toHaveBeenCalled();
     expect(f.finds).not.toHaveBeenCalled();

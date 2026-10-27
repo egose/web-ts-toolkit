@@ -14,7 +14,7 @@ const resetGlobalOptions = () => {
   setGlobalOptions({
     requestPermissionField: '_permissions',
     globalPermissions: () => ({}),
-    requireRegisteredPopulateModels: true,
+    requireOperationAccessForPopulateQueries: true,
   });
 };
 
@@ -54,7 +54,7 @@ const createSubdocumentPopulateApp = async ({
     globalPermissions(req: express.Request) {
       return req.headers.user === 'admin' ? ['isAdmin'] : [];
     },
-    requireRegisteredPopulateModels: true,
+    requireOperationAccessForPopulateQueries: true,
   });
 
   if (registerReviewerRouter) {
@@ -198,17 +198,17 @@ describe('subdocument populate authorization', () => {
     expect(response.body[0].result.data.reviewer.secret).toBeUndefined();
   });
 
-  it('does not populate subdocument references whose target model is not registered in the active runtime', async () => {
-    const { app, postId, visibleCommentId, visibleReviewerId } = await createSubdocumentPopulateApp({
+  it('rejects requested subdocument population whose target is not configured in this runtime', async () => {
+    const { app, postId, visibleCommentId } = await createSubdocumentPopulateApp({
       registerReviewerRouter: false,
     });
 
     const response = await request(app)
       .post(`/posts/${postId}/comments/${visibleCommentId}/__query`)
       .send({ populate: ['reviewer'] })
-      .expect(200)
+      .expect(400)
       .expect('Content-Type', /json/);
 
-    expect(response.body.reviewer).toBe(visibleReviewerId);
+    expect(response.body.errors[0].detail).toMatch(/Populate target.*must be configured first/);
   });
 });

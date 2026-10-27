@@ -25,10 +25,9 @@
  * traversal through embedded arrays is handled during target finalization in
  * `services/service.ts` (per-parent isolated copies, null/scalar/array aware).
  *
- * Denial/registration behavior is preserved: parent-path allowlist,
- * target-operation `isAllowed`, terminal `genFilter === false`, and
- * `requireRegisteredPopulateModels` all still drop/keep entries exactly as
- * before. Global-only virtual denial is never reinterpreted as definitive —
+ * Targets require runtime ACL configuration and an effective object permissionSchema.
+ * Parent-path admission, target operation admission and terminal `genFilter === false`
+ * remain distinct. Global-only virtual denial is never reinterpreted as definitive —
  * document-dependent/function rules stay `deferred` in the retained plan until
  * the target finalizer evaluates actual document grants.
  */

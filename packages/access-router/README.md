@@ -533,11 +533,16 @@ use `result.context.getDocumentAuthorization(child)` (or the corresponding list-
 context) with **that target model's** helper. Private dependencies and join keys do
 not become output grants; related copies retain their own document results.
 
-The existing `requireRegisteredPopulateModels: false` configuration remains an
-explicit compatibility opt-out for requested unregistered populate targets. Those
-values retain the descriptor's projection, have no target authorization handle,
-and cannot receive `related` policies. It does not make an unassociated object
-passed to a raw-policy helper into authorized target output.
+Every requested populate target needs an actual registered Mongoose model and ACL
+configuration with an **effective object `permissionSchema`** in the owning runtime.
+Runtime model defaults may supply the schema; `{}` explicitly closes business fields.
+Missing registration/schema is controlled BadRequest before target I/O or initiating
+mutation persistence. Unused ordinary schema refs need not be configured at startup.
+There is no raw/unregistered passthrough. Configure a model without mounting target
+HTTP routes using `registerModelInstance` + `setModelOptions`; its own read/list can
+stay false while ordinary population skips only target operation admission with
+`requireOperationAccessForPopulateQueries: false`. See the [two-flag policy matrix](#runtime-populate-operation-policies)
+and [runnable Document example](#runnable-private-dependency-example).
 
 ### Selection, grants and document results
 
@@ -2586,12 +2591,35 @@ The source ref is retained automatically; repeating it in local `dependsOn` is u
   resolved getter's fourth argument**. It neither requests public population nor
   grants output. HTTP, root, service query and client options cannot declare it.
 
-#### Runtime private-read mode
+#### Runtime populate operation policies
 
-`GlobalOptions.requireReadOperationAccessForPopulateDependencies` defaults to **true**.
-True requires the original caller's captured target base `operationAccess.read` before
-private loading. Set **literal boolean false** on the owning runtime to allow declared
-private computation inputs despite that operation denial:
+`GlobalOptions` exposes exactly two independent populate operation flags, both
+defaulting to **true**. Only **literal boolean false** disables their respective gate:
+
+- `requireOperationAccessForPopulateQueries`: ordinary caller population requires
+  the target's effective operation (`read` normally, supported `list` or trusted custom
+  access). False skips **only** that admission: source entry/source-field access,
+  target field/document grants, row/base/transform filters, original selection and
+  `_id` exclusions, requested match and mandatory reference IDs still apply.
+- `requireOperationAccessForPopulateDependencies`: private loading requires the
+  original caller's captured target **base `operationAccess.read`**. False skips only
+  that gate. The server declaration already grants source/target input fields; the
+  virtual's own output authorization and request-mode `baseFilter.read`,
+  `overrideFilter.read` and original IDs remain mandatory. No private read-to-list fallback.
+
+For a registered target whose relevant public operation and base read are denied,
+with selected/permitted source refs and otherwise eligible fields/rows:
+
+| Query flag | Dependency flag | Requested ordinary population     | Authorized private virtual    |
+| ---------- | --------------- | --------------------------------- | ----------------------------- |
+| true       | true            | Original parent ID(s)             | Omitted                       |
+| false      | true            | Selected/authorized target DTO(s) | Omitted                       |
+| true       | false           | Original parent ID(s)             | Computed from declared inputs |
+| false      | false           | Selected/authorized target DTO(s) | Computed from declared inputs |
+
+Direct/generated target endpoints and root target reads/lists still enforce their
+own operation access. A configuration-only `Document` requires no mounted routes.
+Neither flag grants standalone target access, fields, rows or writes.
 
 <!-- doc-example: partial -->
 
@@ -2599,43 +2627,53 @@ private computation inputs despite that operation denial:
 import { createAccessRuntime, type GlobalOptions } from '@web-ts-toolkit/access-router';
 
 const api = createAccessRuntime();
-api.setGlobalOptions({ requireReadOperationAccessForPopulateDependencies: false });
+api.setGlobalOptions({
+  requireOperationAccessForPopulateQueries: true,
+  requireOperationAccessForPopulateDependencies: false,
+});
 // The exact setter and api.set(key, value)/api.set(options) aliases are also typed.
-api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', false);
+api.setGlobalOption('requireOperationAccessForPopulateQueries', false);
 const snapshot: GlobalOptions = api.getGlobalOptions();
-const mode: boolean | undefined = api.getGlobalOption('requireReadOperationAccessForPopulateDependencies');
+const mode: boolean | undefined = api.getGlobalOption('requireOperationAccessForPopulateDependencies');
 void [snapshot, mode];
 ```
 
 Missing/undefined or malformed JavaScript values (`'false'`, `0`, null, objects)
 use the conservative true mode; typed setters accept only boolean/undefined. An
 omitted property in a shallow object setter preserves the current setting. The
-flag is captured with source/target configuration and query intent **before the first
-await**. Nested related/embedded/subdocument output retains that call's mode; later
+flags are captured with source/target configuration and query intent **before the first
+await**. Nested related/embedded/subdocument output retains that call's modes; later
 calls see updates. Separate runtimes remain isolated.
 
-This is **server/runtime configuration**, not a model default, service query option,
+These are **server/runtime configuration**, not model defaults, service query options,
 HTTP/root/client control or persisted capability. Business fields with the same
-spelling keep ordinary data semantics. It is independent of
-`requireRegisteredPopulateModels`: private targets still require eager registration
-and valid static server declarations in either mode.
+spelling keep ordinary data semantics. Actual runtime registration and an effective
+object `permissionSchema` are mandatory in **all four combinations**; private targets
+also require eagerly validated static declarations. `api.getGlobalOptions()` returns
+a frozen snapshot; read it again to observe later setters. The named root exports
+`getGlobalOptions`/`getGlobalOption` refer to the shared default runtime.
 
-False bypasses **only private target-operation read admission**. Source/target
-`permissionSchema` input-field rules are already bypassed by the declaration;
-the virtual's own output authorization still governs its result. Target request-mode
-`baseFilter.read`, `overrideFilter.read` and retained source IDs still constrain every
-private read. False grants no public target read, field, row, query or write authority.
-If only the virtual is output-eligible, false mode adds no operation check solely to
-fetch its private inputs. A potentially visible reference has a separate target-read
-output check in **both** modes, as [specified below](#target-authority-selection-and-reconstruction).
+There is **no additional target-base-read reference-visibility gate**. Adding a virtual
+does not change ordinary ref shape. Without admitted public population, selected/
+permitted parent fields retain exact IDs even on strict private denial, row/query/getter
+failure or deferred virtual denial. Only parent field denial/unselection omits them.
+Actual admitted population misses yield scalar null or filtered arrays, never restored
+IDs. See [reconstruction](#target-authority-selection-and-reconstruction).
+
+Missing target configuration/schema raises a controlled service result with
+`code: 'bad_request'` and actionable `errors[].detail` (HTTP 400); direct helpers and
+configuration setters throw with the same controlled `result`. Private declaration
+validation is eager/atomic. Ordinary required operation-hook errors propagate; bypass
+does not call that guard. Private required guard errors make inputs unavailable and
+omit the virtual with structural-only logging, preserving permitted parent IDs.
 
 #### Runnable private dependency example
 
 Save as `private-populate-example.mts` and run with Node 22.18+ or compile with
 TypeScript/NodeNext. Install the package, Express and Mongoose as above. This
 self-contained example creates/removes a uniquely named database, registers the
-target **before** the source, and checks population, exact IDs and omission, including
-false-mode computation with a selected/permitted source and denied target. The example
+configuration-only `Document` **before** the source, and checks all four modes,
+selection/field denial, exact IDs, population misses and standalone denial. The example
 tenant is server-owned; real applications derive it from their authenticated actor.
 
 <!-- doc-example: complete-runtime -->
@@ -2648,8 +2686,9 @@ import type { Server } from 'node:http';
 import express from 'express';
 import mongoose from 'mongoose';
 import { createAccessRuntime, type ModelVirtualDescriptor } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
 
-interface Account {
+interface DocumentRecord {
   name: string;
   balance: number;
   creditLimit: number;
@@ -2657,7 +2696,7 @@ interface Account {
 }
 interface Order {
   total: number;
-  account: mongoose.Types.ObjectId | null; // stays a persisted ref, not an Account
+  account: mongoose.Types.ObjectId | null; // stays a persisted ref, not a DocumentRecord
 }
 interface OrderVirtuals {
   canPlaceOrder: boolean;
@@ -2673,9 +2712,9 @@ async function runPrivatePopulateExample() {
   try {
     const api = createAccessRuntime();
     api.setGlobalOptions({ globalPermissions: () => [] });
-    const AccountModel = connection.model<Account>(
-      'PrivateExampleAccount',
-      new mongoose.Schema<Account>({
+    const DocumentModel = connection.model<DocumentRecord>(
+      'Document',
+      new mongoose.Schema<DocumentRecord>({
         name: String,
         balance: { type: Number, select: false },
         creditLimit: Number,
@@ -2683,8 +2722,9 @@ async function runPrivatePopulateExample() {
       }),
     );
     // Both the actual model instance and its options must exist in this runtime first.
-    const accounts = api.createRouter(AccountModel, {
-      operationAccess: { read: true },
+    api.registerModelInstance(DocumentModel.modelName, DocumentModel);
+    api.setModelOptions(DocumentModel.modelName, {
+      operationAccess: { read: false, list: false },
       baseFilter: { read: () => ({ tenantId: 'shop-a' }) },
       permissionSchema: { name: true, balance: false, creditLimit: false },
       stripPermissionsField: true,
@@ -2693,11 +2733,11 @@ async function runPrivatePopulateExample() {
       'PrivateExampleOrder',
       new mongoose.Schema<Order>({
         total: Number,
-        account: { type: mongoose.Schema.Types.ObjectId, ref: AccountModel.modelName },
+        account: { type: mongoose.Schema.Types.ObjectId, ref: DocumentModel.modelName },
       }),
     );
     // Explicit target map: an ObjectId alone cannot infer its related model.
-    const canPlaceOrder: ModelVirtualDescriptor<Order, boolean, { account: Account }> = {
+    const canPlaceOrder: ModelVirtualDescriptor<Order, boolean, { account: DocumentRecord }> = {
       dependsOn: ['total'],
       dependsOnPopulate: [{ path: 'account', select: ['balance', 'creditLimit'] }],
       get(doc, _permissions, _context, populated = {}) {
@@ -2714,11 +2754,20 @@ async function runPrivatePopulateExample() {
       virtuals: { canPlaceOrder }, // assign the separately typed descriptor normally
       stripPermissionsField: true,
     });
-    const account = await AccountModel.create({ name: 'Main', balance: 80, creditLimit: 20, tenantId: 'shop-a' });
+    const account = await DocumentModel.create({ name: 'Main', balance: 80, creditLimit: 20, tenantId: 'shop-a' });
     const order = await OrderModel.create({ total: 90, account: account._id });
+    // Check standalone base admission without constructing target HTTP routes.
+    orders.router.post('/verify-target', async (req, res) => {
+      const core = (req as ModelRequest).macl;
+      assert.equal(await core.isAllowed(DocumentModel.modelName, 'read'), false);
+      assert.equal(await core.isAllowed(DocumentModel.modelName, 'list'), false);
+      res.json({ ok: true });
+    });
+    const root = api.createRouter({ basePath: '/batch', operationAccess: true });
     const app = express();
     app.use(express.json());
     app.use(orders.routes);
+    app.use(root.routes); // no Document HTTP router is constructed or mounted
     server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const address = server.address();
@@ -2734,49 +2783,55 @@ async function runPrivatePopulateExample() {
       return response.json();
     }
     const select = ['account', 'canPlaceOrder', '-_id'];
-    // 1. Public population: fetch name + private inputs, return only the public mask.
+    const populate = [{ path: 'account', select: 'name balance -_id' }];
+    for (const queries of [true, false]) {
+      for (const dependencies of [true, false]) {
+        api.setGlobalOptions({
+          requireOperationAccessForPopulateQueries: queries,
+          requireOperationAccessForPopulateDependencies: dependencies,
+        });
+        const computed = dependencies ? {} : { canPlaceOrder: true };
+        assert.deepEqual(await read({ select, populate }), {
+          account: queries ? String(account._id) : { name: 'Main' }, // balance stays private
+          ...computed,
+        });
+        assert.deepEqual(await read({ select }), { account: String(account._id), ...computed });
+        assert.deepEqual(await read({ select: ['canPlaceOrder', '-_id'] }), computed);
+        orders.permissionSchema('account', false);
+        assert.deepEqual(await read({ select, populate }), computed);
+        orders.permissionSchema('account', true);
+      }
+    }
+    // Both false: readable-but-unrequested private fetch inputs still cannot widen the public mask.
+    api.setModelOption(DocumentModel.modelName, 'permissionSchema', { name: true, balance: true, creditLimit: false });
     assert.deepEqual(await read({ select, populate: [{ path: 'account', select: 'name -_id' }] }), {
       account: { name: 'Main' },
       canPlaceOrder: true,
     });
-    // 2. No ordinary population: restore the exact selected/permitted original ID.
-    assert.deepEqual(await read({ select }), { account: String(account._id), canPlaceOrder: true });
-    // 3. Unselected reference: compute privately, omit account entirely.
-    assert.deepEqual(await read({ select: ['canPlaceOrder', '-_id'] }), { canPlaceOrder: true });
-    // Readable-but-unrequested private fields still do not join public output.
-    accounts.setOption('permissionSchema', { name: true, balance: true, creditLimit: true });
-    assert.deepEqual(await read({ select, populate: [{ path: 'account', select: 'name -_id' }] }), {
-      account: { name: 'Main' },
-      canPlaceOrder: true,
-    });
-    // Denying the source field also leaves only the authorized virtual result.
-    orders.permissionSchema('account', false);
-    assert.deepEqual(await read({ select }), { canPlaceOrder: true });
-    // Default true: input-field authority does not bypass the target's base read operation.
-    accounts.setOption('operationAccess.read', false);
-    assert.deepEqual(await read({ select: ['canPlaceOrder', '-_id'] }), {});
-    // Select and permit the source ref: denied target read removes even its ID.
-    orders.permissionSchema('account', true);
-    assert.deepEqual(await read({ select }), {});
-    api.setGlobalOptions({ requireReadOperationAccessForPopulateDependencies: false });
-    assert.deepEqual(await read({ select }), { canPlaceOrder: true });
-    // An ordinary list-populate grant cannot override the additional base-read visibility gate.
-    accounts.setOption('operationAccess.list', true);
-    assert.deepEqual(await read({ select, populate: [{ path: 'account', select: 'name -_id', access: 'list' }] }), {
-      canPlaceOrder: true,
-    });
-    // Strict control: denied target read now prevents private computation too.
-    api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', true);
-    assert.deepEqual(await read({ select }), {});
-    // Allowed-target controls in BOTH modes: original public mask or exact original ID.
-    accounts.setOption('operationAccess.read', true);
-    for (const strict of [true, false]) {
-      api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', strict);
-      assert.deepEqual(await read({ select, populate: [{ path: 'account', select: 'name -_id' }] }), {
-        account: { name: 'Main' },
+    const withId = await read({ select, populate: [{ path: 'account', select: ['name'] }] });
+    assert.deepEqual(withId.account, { _id: String(account._id), name: 'Main' });
+    // Admitted public match miss is null; private inputs retain their independent read-row scope.
+    assert.deepEqual(
+      await read({ select, populate: [{ path: 'account', select: 'name -_id', match: { name: 'Other' } }] }),
+      {
+        account: null,
         canPlaceOrder: true,
-      });
-      assert.deepEqual(await read({ select }), { account: String(account._id), canPlaceOrder: true });
+      },
+    );
+    const origin = `http://127.0.0.1:${address.port}`;
+    assert.equal((await fetch(`${origin}/orders/verify-target`, { method: 'POST' })).status, 200);
+    const batch = await fetch(`${origin}/batch`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify([
+        { target: 'model', name: DocumentModel.modelName, op: 'read', id: String(account._id) },
+        { target: 'model', name: DocumentModel.modelName, op: 'list' },
+      ]),
+    });
+    assert.equal(batch.status, 200);
+    for (const entry of await batch.json()) {
+      assert.equal(entry.statusCode, 401);
+      assert.equal(entry.result.code, 'unauthorized');
     }
   } finally {
     if (server)
@@ -2839,31 +2894,26 @@ separate and immutable. Even a readable private field is omitted unless original
 selected and permitted. Public exclusions and `-_id` remain effective. Different
 public match/access/row scopes require independent queries.
 
-**Independent reference visibility, in both modes:** for paths in an **active selected/
-applicable `dependsOnPopulate` plan**, the captured target base **read** rule and original
-actor/permissions decide visibility separately from private fetch availability. It uses
-the same exact/default/bare/runtime-default semantics, not a route variant or an ordinary
-populate list/custom rule. A public `authorization.related` operation grant cannot
-override it. Strict private admission is reused for this decision; false mode evaluates
-the output-only check only after source selection/field authorization makes output eligible.
+**Ordinary reference visibility is independent of private computation, in all four modes.**
+The extra target-base-read reference-visibility gate is removed. Adding a virtual,
+selecting it, or changing private input availability must not change ordinary ref shape.
 
-| Source field / captured caller target base read / original query                       | Returned dependency-backed reference in either mode                         |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Source unselected, excluded or denied                                                  | Omitted entirely                                                            |
-| Source selected/permitted, target read denied or check failed                          | Omitted entirely, **including its ID**, with or without ordinary population |
-| Source selected/permitted, target read allowed, ordinary population requested/admitted | Original requested and authorized populated projection                      |
-| Source selected/permitted, target read allowed, no ordinary population                 | Exact original ID/array of IDs                                              |
+| Source field / original query                                               | Returned reference                                             |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Source unselected, excluded or field-denied                                 | Omitted entirely                                               |
+| Source selected/permitted, ordinary population denied/not requested         | Exact original ID/array of IDs                                 |
+| Source selected/permitted, ordinary population admitted                     | Original requested/authorized populated projection             |
+| Source selected/permitted, admitted population finds no matching target row | Scalar null / filtered array (possibly `[]`), not original IDs |
 
 The original query includes resolved server defaults. A default populate is ordinary
 population; explicit `populate: []` suppresses it. Allowed ordinary population retains
 its original target projection, match/missing/null/array behavior. Without admitted
-ordinary population, read-allowed refs restore exact pre-populate IDs/arrays, including
-missing target IDs, order, duplicates, nulls, empty arrays and own absence. Denied/failed
-target-read visibility always takes precedence over ID restoration, including after
-private row denial/query failure or getter omission/failure/deferred authorization denial.
-Cleanup runs before output copying/handles and presentation hooks/tasks. **No active
-dependency plan means ordinary reference/populate behavior is unchanged**; this is not
-a new gate on every reference in a model with virtuals.
+ordinary population, permitted refs restore exact pre-populate IDs/arrays, including
+missing target IDs, order, duplicates, nulls, empty arrays and own absence. Strict
+private operation denial, private row/query failure, getter omission/failure and deferred
+virtual authorization denial cannot hide permitted IDs. Public list/custom population
+and scoped backend operation grants retain their own admission and target-owned output
+authority. Cleanup runs before output copying/handles and presentation hooks/tasks.
 
 #### Supported declarations and validation
 
@@ -2896,8 +2946,8 @@ a new gate on every reference in a model with virtuals.
   undefined inherits, and null rejects. Descriptor arrays/masks and target policies
   are captured with the getter before asynchronous work; later calls see updates.
 - Validation is eager and atomic for constructors, bulk and dotted setters. Target
-  model instances **and options must be registered first**, even with
-  `requireRegisteredPopulateModels: false`. For mutually referencing models, register
+  model instances **and options with an effective object `permissionSchema` must be
+  registered first**, regardless of either operation flag. For mutually referencing models, register
   both options before assigning virtuals; self-refs use the proposed source options.
   Operation capture rechecks schema/target/metadata binding before hooks or writes.
 
@@ -2912,9 +2962,9 @@ the getter decides what to return.
 
 In true mode, target read denial makes dependencies unavailable; in either mode,
 a terminal false `overrideFilter.read`/`baseFilter.read` does so. Affected virtuals
-are omitted even for null/empty source refs. In false mode, a denied/failed output-only
-read check hides the ref without removing otherwise available private computation. A
-dependency-only query/hook/cast failure also omits them with structural-only logging.
+are omitted even for null/empty source refs. Permitted parent IDs remain available
+independently of those private outcomes. A dependency-only query/hook/cast failure
+also omits the virtual with structural-only logging.
 There is no raw fallback, retry or new retryable write error: a successful write
 stays successful. A failed query that also serves ordinary public population keeps
 that ordinary error path. Getter undefined/throw omits fail-closed; invalid server
@@ -2953,22 +3003,29 @@ router-wide generic, entrypoint, client API or persisted-field migration is requ
 The declaration's opt-in constraints are eager target registration and strict static
 reference/target-selection validation; ordinary public populate grammar is unchanged.
 
-#### Release compatibility: dependency-reference omission
+#### Breaking release: populate policy migration
 
-This release intentionally tightens the earlier private-dependency **D1** contract:
-for active dependency-backed refs, denied/failed caller target base read now removes
-the **entire field, including IDs**, even in default/true mode. Earlier denied ordinary
-population could leave IDs behind; that fallback is superseded in this scope, even
-without an ordinary populate descriptor and even with public list/custom access or a
-trusted related-operation grant. No active plan/no feature retains ordinary behavior.
+**Removed:** `requireRegisteredPopulateModels` and
+`requireReadOperationAccessForPopulateDependencies`. There are no aliases, deprecated
+mappings or replacement registration enums. Register every used target's actual model
+and ACL options with an effective object `permissionSchema`; use an explicit `{}` to
+close its business fields. Defaults may supply the schema. Old unregistered/raw output
+is no longer supported, including with both new flags false.
 
-Consumers must handle absent dependency-backed refs rather than assuming a denied
-population leaves an ID. Keep the default true for strict private admission, or set
-false explicitly when the authorized virtual is intended to compute despite target
-operation denial. False does **not** restore denied IDs or relax row filters. To return
-references, independently permit the source field and caller-context target base read;
-ordinary population still applies its original requested/authorized mask. Existing local
-views, fourth-argument isolation, registration, static-ref and hydration limitations remain.
+Choose `requireOperationAccessForPopulateQueries` and
+`requireOperationAccessForPopulateDependencies` explicitly from the matrix above;
+both default true. Migrate a deliberate private operation bypass to the new dependency
+name, then review the query policy independently. Changing a registration setting is
+not a boolean-to-new-policy migration. Keep configuration in the owning runtime, not
+model defaults, per-call options or clients.
+
+The former PPR whole-reference omission rule is superseded: selected/permitted parent
+IDs survive denied ordinary/private admission and private failure. Source-field denial
+or unselection still omits the field; admitted population still returns its DTO/null/
+filtered-array result. Consumers that relied on target-read denial to conceal IDs must
+deny the **source field** instead. Private inputs remain isolated fourth arguments,
+and registration, row, static-ref and hydration limitations remain mandatory. Plan this
+as a breaking application upgrade; no release/version automation is changed here.
 
 ### Hook admission and reentrant service calls
 

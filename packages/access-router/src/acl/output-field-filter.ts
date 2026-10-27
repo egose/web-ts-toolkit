@@ -255,10 +255,6 @@ export function copyAuthorizedReference(value: unknown, plan: VirtualProjectionP
     transferDocumentAuthorizationGraph(value, copy);
     return copy;
   }
-  const { relatedTargets } = readServiceAuthorization(plan.authorization!, plan.authorizationBinding!);
-  if (relatedTargets.some((target) => target.path === path && target.kind === 'passthrough')) {
-    return deepIsolateValue(value);
-  }
   return Object.prototype.hasOwnProperty.call(value, '_id') ? deepIsolateValue(value._id) : undefined;
 }
 

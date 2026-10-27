@@ -126,13 +126,13 @@ describe('ARF-14 strict packed-consumer types', () => {
     expect(result.status).toBe(0);
   });
 
-  it.each(['ts', 'mts', 'cts'])('PPR-01 checks the server-only populate read mode (%s)', (extension) => {
+  it.each(['ts', 'mts', 'cts'])('POP-04 checks both server-only populate operation flags (%s)', (extension) => {
     const source = `private-populate-read-policy.${extension}`;
     writeFileSync(
       path.resolve(consumerDir, source),
       readFileSync(path.resolve(packageRoot, 'test/private-populate-read-policy.types.fixture.ts'), 'utf8'),
     );
-    const config = `tsconfig-ppr01-${extension}.json`;
+    const config = `tsconfig-pop04-${extension}.json`;
     writeFileSync(
       path.resolve(consumerDir, config),
       JSON.stringify({
@@ -144,7 +144,7 @@ describe('ARF-14 strict packed-consumer types', () => {
           noUnusedLocals: true,
           noUnusedParameters: true,
           noEmit: true,
-          skipLibCheck: true,
+          skipLibCheck: false,
           types: ['node'],
           lib: ['ES2022', 'DOM'],
         },

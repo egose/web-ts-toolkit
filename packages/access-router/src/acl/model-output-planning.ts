@@ -37,10 +37,13 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
         options as ModelRouterOptions,
         globalOptions,
       ),
-      requireReadOperationAccessForPopulateDependencies:
-        globalOptions.requireReadOperationAccessForPopulateDependencies !== false,
-      requireRegisteredPopulateModels: globalOptions.requireRegisteredPopulateModels,
-      permissionSchema: options.permissionSchema,
+      requireOperationAccessForPopulateDependencies:
+        globalOptions.requireOperationAccessForPopulateDependencies !== false,
+      requireOperationAccessForPopulateQueries: globalOptions.requireOperationAccessForPopulateQueries !== false,
+      permissionSchema:
+        options.permissionSchema === undefined
+          ? runtime.getDefaultModelOption('permissionSchema')
+          : options.permissionSchema,
       virtuals,
       alwaysSelectFields: options.alwaysSelectFields,
       modelPermissionPrefix: options.modelPermissionPrefix,

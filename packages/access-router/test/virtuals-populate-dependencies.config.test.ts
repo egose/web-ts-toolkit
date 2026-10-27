@@ -58,6 +58,7 @@ function models() {
     }),
   );
   api.createRouter(target, {
+    permissionSchema: {},
     operationAccess: { read: true },
     documentPermissionField: 'metadata.permissions',
     requireExplicitSelect: true,
@@ -385,16 +386,28 @@ describe('DPV-01 populated dependency configuration', () => {
     expect(privateInputs(f)[0].target.identity).not.toBe(first.target.identity);
   });
 
-  it('requires target options in this runtime even with the unregistered public-populate opt-out', () => {
+  it('requires target options and effective schema even with both operation requirements disabled', () => {
     const f = models();
     const other = createAccessRuntime();
-    other.setGlobalOption('requireRegisteredPopulateModels', false);
+    other.setGlobalOptions({
+      requireOperationAccessForPopulateQueries: false,
+      requireOperationAccessForPopulateDependencies: false,
+    });
     other.registerModelInstance(f.target.modelName, f.target);
     expect(() => other.createRouter(f.source, { virtuals: { canOrder: descriptor() } as never })).toThrow(
       /configured first/,
     );
     expect(other.runtime.hasModel(f.source.modelName)).toBe(false);
     other.setModelOptions(f.target.modelName, {});
+    expect(() => other.createRouter(f.source, { virtuals: { canOrder: descriptor() } as never })).toThrow(
+      expect.objectContaining({
+        result: expect.objectContaining({
+          code: 'bad_request',
+          errors: [{ detail: expect.stringContaining('effective object permissionSchema') }],
+        }),
+      }),
+    );
+    other.setModelOption(f.target.modelName, 'permissionSchema', {});
     expect(() => other.createRouter(f.source, { virtuals: { canOrder: descriptor() } as never })).not.toThrow();
   });
 
@@ -475,6 +488,7 @@ describe('DPV-01 populated dependency configuration', () => {
     f.source.schema.add({ parent: { type: mongoose.Schema.Types.ObjectId, ref: f.source.modelName } });
     f.api.createRouter(f.source, {
       documentPermissionField: 'total',
+      permissionSchema: {},
       virtuals: { canOrder: descriptor('account', 'parent') } as never,
     });
     expect(privateInputs(f)[0].target.model).toBe(f.source);

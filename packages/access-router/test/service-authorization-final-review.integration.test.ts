@@ -494,9 +494,31 @@ describe('SVA-11 independent opaque subtree review', () => {
   }
 });
 
-describe('SVA-11 independent unregistered-populate compatibility review', () => {
+describe('POP-01 unregistered-populate fail-closed controls (supersedes SVA-11 raw opt-out)', () => {
+  it.each(['model', 'runtime-default'] as const)(
+    'an effective empty %s target schema is valid and closes all business output in bypass mode',
+    async (mode) => {
+      const f = await fixture({}, { permissionSchema: mode === 'model' ? {} : undefined });
+      if (mode === 'runtime-default') f.runtime.setDefaultModelOption('permissionSchema', {});
+      f.runtime.setGlobalOptions({
+        requireOperationAccessForPopulateQueries: false,
+        requireOperationAccessForPopulateDependencies: false,
+      });
+      const target = await f.target.create({ slug: 'configured-target', ownerId: 'private', internalNote: 'private' });
+      await f.model.updateOne({ slug: 'first' }, { ref: target._id });
+      const result = await f.service.findOne(
+        { slug: 'first' },
+        { select: ['ref'], populate: [{ path: 'ref', select: ['slug', 'ownerId', 'internalNote'] }] },
+        quiet,
+      );
+      expect(result).toMatchObject({ success: true, data: { ref: { _id: target._id } } });
+      if (!result.success) throw new Error('expected configured closed-schema population');
+      expect(Object.keys((result.data as any).ref)).toEqual(['_id']);
+    },
+  );
+
   it.each(['internal', 'public'] as const)(
-    '%s execution preserves the explicit raw-target opt-out without turning helpers into target authority',
+    '%s execution rejects unconfigured targets before I/O despite both operation bypasses and legacy controls',
     async (entry) => {
       const f = await fixture({}, {}, false);
       const target = await f.target.create({ slug: 'raw-target', ownerId: 'private', internalNote: 'private' });
@@ -508,15 +530,21 @@ describe('SVA-11 independent unregistered-populate compatibility review', () => 
           entry === 'internal'
             ? service.findOne({ slug: 'first' }, args, quiet)
             : service._read(String(f.documents[0]._id), args, { ...quiet, tryList: false });
-        const defaultResult = await query();
-        expect(defaultResult.success).toBe(true);
-        if (defaultResult.success) expect(String((defaultResult.data as any).ref)).toBe(String(target._id));
-        f.runtime.setGlobalOption('requireRegisteredPopulateModels', false);
+        f.calls.length = 0;
+        expect(await query()).toMatchObject({ success: false, code: 'bad_request' });
+        f.runtime.setGlobalOptions({
+          requireOperationAccessForPopulateQueries: false,
+          requireOperationAccessForPopulateDependencies: false,
+        });
+        f.runtime.setGlobalOption('requireRegisteredPopulateModels' as never, false as never);
+        f.runtime.setGlobalOption('requireReadOperationAccessForPopulateDependencies' as never, false as never);
         const result = await query();
-        expect(result).toMatchObject({ success: true, data: { ref: { slug: 'raw-target' } } });
-        if (!result.success) throw new Error('expected opt-out population');
-        expect((result.data as any).ref).not.toHaveProperty('ownerId');
-        expect((result.data as any).ref).not.toHaveProperty('internalNote');
+        expect(result).toMatchObject({
+          success: false,
+          code: 'bad_request',
+          errors: [{ detail: expect.stringContaining(`Populate target "${f.targetName}"`) }],
+        });
+        expect(f.calls).toEqual([]);
         expect(
           await service.pickAllowedFields({ ref: { _id: target._id, slug: 'forged' } }, 'read', {
             authorization: { outputFields: { mode: 'grant', paths: ['ref'] } },
@@ -534,25 +562,32 @@ describe('SVA-11 independent unregistered-populate compatibility review', () => 
     },
   );
 
-  it('both public upsert branches capture the existing opt-out while keeping request write admission', async () => {
+  it('both public upsert branches reject unconfigured output targets before persistence', async () => {
     const f = await fixture({}, {}, false);
     const target = await f.target.create({ slug: 'raw-target', ownerId: 'private' });
-    f.runtime.setGlobalOption('requireRegisteredPopulateModels', false);
+    f.runtime.setGlobalOptions({
+      requireOperationAccessForPopulateQueries: false,
+      requireOperationAccessForPopulateDependencies: false,
+    });
     await f.run(async () => {
       const service = f.request.macl.getPublicService(f.name);
       const args = { select: ['ref'], populate: [{ path: 'ref', select: ['slug'] }] };
       const data = { ref: target._id, internalNote: 'denied-write' };
+      f.calls.length = 0;
+      const insert = vi.spyOn(f.model.collection, 'insertOne');
+      const update = vi.spyOn(f.model.collection, 'updateOne');
       expect(await service._upsert({ ...data, slug: 'created' }, args, quiet)).toMatchObject({
-        success: true,
-        kind: 'list',
-        data: [{ ref: { slug: 'raw-target' } }],
+        success: false,
+        code: 'bad_request',
       });
       expect(await service._upsert({ ...data, _id: String(f.documents[0]._id) }, args, quiet)).toMatchObject({
-        success: true,
-        kind: 'single',
-        data: { ref: { slug: 'raw-target' } },
+        success: false,
+        code: 'bad_request',
       });
-      expect((await f.model.findOne({ slug: 'created' }).select('+internalNote').lean())!.internalNote).toBeUndefined();
+      expect(f.calls).toEqual([]);
+      expect(insert).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+      expect(await f.model.findOne({ slug: 'created' }).lean()).toBeNull();
       expect((await f.model.findById(f.documents[0]._id).select('+internalNote').lean())!.internalNote).toBe('note-a');
     });
   });

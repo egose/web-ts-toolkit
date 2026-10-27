@@ -4,6 +4,11 @@ Created: 2026-10-26 12:28:32 local (`20261026-122832`, generated with `date +%Y%
 
 Status: completed — PPR-01 through PPR-04 are completed; independent review and V1-V4 pass with no unresolved required finding.
 
+Subsequent breaking phase: [registered targets and independent populate operation policies](20261026-225914-access-router-populate-operation-policy.md).
+It replaces this phase's option names and whole-reference omission contract with
+mandatory configured targets, two operation flags and authorized original-ID retention.
+This completed record preserves the earlier implementation and verification history.
+
 ## Objective and authorization
 
 The user approved a runtime-owned flag for privileged virtual dependency loading:

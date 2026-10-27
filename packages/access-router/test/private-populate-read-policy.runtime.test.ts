@@ -7,7 +7,7 @@ import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
-const flag = 'requireReadOperationAccessForPopulateDependencies';
+const flag = 'requireOperationAccessForPopulateDependencies';
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
 const runtimes: ReturnType<typeof createAccessRuntime>[] = [];
 let serial = 0;
@@ -135,11 +135,11 @@ async function fixture(hydration: 'lean' | 'hydrated', strict: boolean, allowed 
 }
 
 describe.each(['lean', 'hydrated'] as const)(
-  'PPR-02 independent private loading / reference visibility (%s)',
+  'PPR-02 / POP-03 independent private loading and source reference output (%s)',
   (hydration) => {
     describe.each([true, false])('strict=%s', (strict) => {
       it.each([false, true])(
-        'denied base read omits the entire reference, ordinary population=%s',
+        'denied base read retains the permitted source ID, ordinary population=%s',
         async (populate) => {
           const f = await fixture(hydration, strict);
           const result = await f.execute((req) =>
@@ -150,13 +150,13 @@ describe.each(['lean', 'hydrated'] as const)(
           );
           expect(result).toMatchObject({ success: true });
           if (!result.success) throw new Error(result.code);
-          expect(result.data).not.toHaveProperty('account');
+          expect(result.data).toHaveProperty('account', f.a._id);
           if (strict) expect(result.data).not.toHaveProperty('total');
           else expect(result.data).toHaveProperty('total', 7);
           expect(f.getter).toHaveBeenCalledTimes(strict ? 0 : 1);
           expect(f.finds).toHaveBeenCalledTimes(strict ? 0 : 1);
-          // Ordinary planning has its own admission. Visibility reuses strict private admission.
-          expect(f.guard).toHaveBeenCalledTimes(populate ? 2 : 1);
+          // Ordinary admission and strict private admission are independent; IDs need neither.
+          expect(f.guard).toHaveBeenCalledTimes(Number(populate) + Number(strict));
           expect(f.targetHooks).not.toHaveBeenCalled();
         },
       );
@@ -192,13 +192,13 @@ describe.each(['lean', 'hydrated'] as const)(
           expect(result).not.toHaveProperty('data.total');
           expect(f.getter).not.toHaveBeenCalled();
           expect(f.finds).not.toHaveBeenCalled();
-          expect(f.guard).toHaveBeenCalledTimes(1);
+          expect(f.guard).toHaveBeenCalledTimes(Number(strict));
           expect(deny).toHaveBeenCalledTimes(1);
         },
       );
 
       it.each(['list', 'grant'] as const)(
-        'base read visibility outranks ordinary %s authority on active paths',
+        'private base read denial preserves admitted ordinary %s output on active paths',
         async (mode) => {
           const f = await fixture(hydration, strict);
           const result = await f.execute((req) =>
@@ -227,13 +227,14 @@ describe.each(['lean', 'hydrated'] as const)(
             ),
           );
           expect(result).toMatchObject({ success: true });
-          expect(result).not.toHaveProperty('data.account');
+          expect(result).toHaveProperty('data.account', { name: 'a' });
+          expect(result).not.toHaveProperty('data.account.balance');
           if (strict) expect(result).not.toHaveProperty('data.total');
           else expect(result).toHaveProperty('data.total', 7);
         },
       );
 
-      it('omits every active array occurrence even after a getter fails or is document-denied', async () => {
+      it('retains exact array references even after a getter fails or is document-denied', async () => {
         const f = await fixture(hydration, strict);
         f.getter.mockImplementation(() => {
           throw new Error('getter failure');
@@ -245,11 +246,9 @@ describe.each(['lean', 'hydrated'] as const)(
         const result = await f.execute((req) =>
           f.read(req, { select: ['account', 'accounts', 'total', 'slots', 'other'] }),
         );
-        expect(result).toMatchObject({ success: true, data: { other: f.b._id } });
-        expect(result).not.toHaveProperty('data.account');
-        expect(result).not.toHaveProperty('data.accounts');
+        expect(result).toMatchObject({ success: true, data: { other: f.b._id, account: f.a._id, accounts: f.ids } });
         expect(result).not.toHaveProperty('data.total');
-        expect(f.guard).toHaveBeenCalledTimes(1);
+        expect(f.guard).toHaveBeenCalledTimes(Number(strict));
         if (!strict) expect(result).toHaveProperty('data.slots', [7, null, null, 7, 8, null]);
       });
 
@@ -267,7 +266,7 @@ describe.each(['lean', 'hydrated'] as const)(
             .updateById(String(f.source._id), { name: 'saved' }, { select: ['name', 'account', 'total'] }, quiet),
         );
         expect(result).toMatchObject({ success: true, data: { name: 'saved' } });
-        expect(result).not.toHaveProperty('data.account');
+        expect(result).toHaveProperty('data.account', f.a._id);
         if (strict) expect(result).not.toHaveProperty('data.total');
         else expect(result).toHaveProperty('data.total', 7);
         expect(writes).toHaveBeenCalledTimes(1);
@@ -287,7 +286,7 @@ describe.each(['lean', 'hydrated'] as const)(
       });
 
       it.each(['_read', '_readFilter'] as const)(
-        '%s fallback uses private read policy and independent read visibility',
+        '%s fallback uses private read policy and preserves source IDs',
         async (method) => {
           const f = await fixture(hydration, strict);
           f.api.setModelOption(f.Source.modelName, 'baseFilter.read', () => ({ name: 'no-read-row' }));
@@ -299,10 +298,10 @@ describe.each(['lean', 'hydrated'] as const)(
               : service._readFilter({ _id: f.source._id }, args, { ...quiet, tryList: true });
           });
           expect(result).toMatchObject({ success: true });
-          expect(result).not.toHaveProperty('data.account');
+          expect(result).toHaveProperty('data.account', f.a._id);
           if (strict) expect(result).not.toHaveProperty('data.total');
           else expect(result).toHaveProperty('data.total', 7);
-          expect(f.guard).toHaveBeenCalledTimes(1);
+          expect(f.guard).toHaveBeenCalledTimes(Number(strict));
         },
       );
     });
@@ -345,7 +344,7 @@ describe.each(['lean', 'hydrated'] as const)(
         });
         for (const [index, result] of results.entries()) {
           expect(result).toMatchObject({ success: true });
-          expect(result).not.toHaveProperty('data.account');
+          expect(result).toHaveProperty('data.account', f.a._id);
           const strict = index === 0 ? initial : !initial;
           if (strict) expect(result).not.toHaveProperty('data.total');
           else expect(result).toHaveProperty('data.total', 7);
@@ -363,16 +362,15 @@ describe.each(['lean', 'hydrated'] as const)(
         });
         const result = await f.execute((req) => f.read(req));
         expect(result).toMatchObject({ success: true });
-        if (allowed) expect(result).toHaveProperty('data.account', f.a._id);
-        else expect(result).not.toHaveProperty('data.account');
+        expect(result).toHaveProperty('data.account', f.a._id);
         expect(result).not.toHaveProperty('data.total');
-        expect(f.guard).toHaveBeenCalledTimes(1);
+        expect(f.guard).not.toHaveBeenCalled();
         expect(f.finds).toHaveBeenCalledTimes(1);
       },
     );
 
     it.each(['undefined', 'throw'] as const)(
-      'false mode denied reference remains omitted after getter %s',
+      'false mode preserves the permitted reference after getter %s',
       async (outcome) => {
         const f = await fixture(hydration, false);
         f.getter.mockImplementation(() => {
@@ -380,11 +378,10 @@ describe.each(['lean', 'hydrated'] as const)(
           return undefined;
         });
         const result = await f.execute((req) => f.read(req));
-        expect(result).toMatchObject({ success: true, data: {} });
-        expect(result).not.toHaveProperty('data.account');
+        expect(result).toMatchObject({ success: true, data: { account: f.a._id } });
         expect(result).not.toHaveProperty('data.total');
         expect(f.getter).toHaveBeenCalledTimes(1);
-        expect(f.guard).toHaveBeenCalledTimes(1);
+        expect(f.guard).not.toHaveBeenCalled();
       },
     );
 
@@ -406,32 +403,25 @@ describe.each(['lean', 'hydrated'] as const)(
         expect(result).toMatchObject({ success: true });
         if (!result.success) throw new Error(result.code);
         const byName = Object.fromEntries(result.data.map((row) => [row.name, row]));
-        if (allowed) {
-          expect(byName.source.accounts).toEqual(f.ids);
-          expect(byName.null).toMatchObject({ account: null, accounts: null, total: null, slots: null });
-          expect(byName.empty).toHaveProperty('accounts', []);
-          expect(byName.missing).toMatchObject({
-            account: f.missing,
-            accounts: [f.missing],
-            total: null,
-            slots: [null],
-          });
-        } else {
-          for (const row of result.data) {
-            expect(row).not.toHaveProperty('account');
-            expect(row).not.toHaveProperty('accounts');
-          }
-        }
+        expect(byName.source.accounts).toEqual(f.ids);
+        expect(byName.null).toMatchObject({ account: null, accounts: null, total: null, slots: null });
+        expect(byName.empty).toHaveProperty('accounts', []);
+        expect(byName.missing).toMatchObject({
+          account: f.missing,
+          accounts: [f.missing],
+          total: null,
+          slots: [null],
+        });
         expect(byName.absent).not.toHaveProperty('account');
         expect(byName.absent).not.toHaveProperty('accounts');
         expect(byName.absent).not.toHaveProperty('total');
         expect(byName.absent).not.toHaveProperty('slots');
-        expect(f.guard).toHaveBeenCalledTimes(1);
+        expect(f.guard).not.toHaveBeenCalled();
         expect(f.finds).toHaveBeenCalledTimes(1);
       },
     );
 
-    it('false mode checks a document-granted reference but does not check an absent reference', async () => {
+    it('false mode preserves a document-granted reference and own absence without an operation guard', async () => {
       const f = await fixture(hydration, false);
       f.api.setModelOptions(f.Source.modelName, {
         modelPermissionPrefix: 'doc:',
@@ -439,9 +429,8 @@ describe.each(['lean', 'hydrated'] as const)(
         docPermissions: () => ({ canSee: true }),
       } as never);
       const result = await f.execute((req) => f.read(req));
-      expect(result).toMatchObject({ success: true, data: { total: 7 } });
-      expect(result).not.toHaveProperty('data.account');
-      expect(f.guard).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({ success: true, data: { total: 7, account: f.a._id } });
+      expect(f.guard).not.toHaveBeenCalled();
       await f.Source.updateOne({ _id: f.source._id }, { $unset: { account: 1 } });
       f.guard.mockClear();
       const absent = await f.execute((req) => f.read(req));
@@ -456,7 +445,7 @@ describe.each(['lean', 'hydrated'] as const)(
       f.api.setModelOption(f.Target.modelName, 'overrideFilter.read', override);
       const result = await f.execute((req) => f.read(req));
       expect(result).toMatchObject({ success: true, data: { total: null } });
-      expect(result).not.toHaveProperty('data.account');
+      expect(result).toHaveProperty('data.account', f.a._id);
       expect(f.getter.mock.calls[0][3]).toEqual({ account: null });
       expect(override).toHaveBeenCalledTimes(1);
       expect(f.base).toHaveBeenCalledTimes(1);
@@ -467,8 +456,8 @@ describe.each(['lean', 'hydrated'] as const)(
       expect(JSON.stringify(filter)).toContain(String(f.a._id));
     });
 
-    it('false mode retains the captured guard/permissions and gives nested Core checks their own context', async () => {
-      const f = await fixture(hydration, false, true);
+    it('strict mode retains the captured guard/permissions and gives nested Core checks their own context', async () => {
+      const f = await fixture(hydration, true, true);
       const nested: boolean[] = [];
       const guard = vi.fn(async function (this: ModelRequest, permissions) {
         expect(permissions.has('original')).toBe(true);
@@ -503,7 +492,7 @@ describe.each(['lean', 'hydrated'] as const)(
         globalPermissions: () => ['original'],
         requestPermissionField: '_permissions',
       } as never);
-      other.createRouter(f.Target, { operationAccess: { read: false } });
+      other.createRouter(f.Target, { operationAccess: { read: false }, permissionSchema: {} });
       const router = other.createRouter(f.Source, {
         ...f.api.runtime.getModelOptions(f.Source.modelName),
         basePath: '/other-ppr',
@@ -513,12 +502,12 @@ describe.each(['lean', 'hydrated'] as const)(
       app.use(router.routes);
       const bypass = await f.execute((req) => f.read(req));
       expect(bypass).toMatchObject({ success: true, data: { total: 7 } });
-      expect(bypass).not.toHaveProperty('data.account');
+      expect(bypass).toHaveProperty('data.account', f.a._id);
       const strict = await request(app)
         .post('/other-ppr/__query')
         .send({ select: ['account', 'total'] })
         .expect(200);
-      expect(strict.body.data[0]).not.toHaveProperty('account');
+      expect(strict.body.data[0]).toHaveProperty('account', String(f.a._id));
       expect(strict.body.data[0]).not.toHaveProperty('total');
       expect(f.finds).toHaveBeenCalledTimes(1);
     });
@@ -530,7 +519,7 @@ describe.each(['lean', 'hydrated'] as const)(
         const result = await f.read(req);
         expect(result).toMatchObject({ success: true, data: { total: 7 } });
         if (!result.success) throw new Error(result.code);
-        expect(result.data).not.toHaveProperty('account');
+        expect(result.data).toHaveProperty('account', f.a._id);
         expect(result.context.originalDocumentSnapshot.account).toEqual(f.a._id);
         expect(result.context.documentAuthorization).not.toHaveProperty('populated');
         expect(result.context).not.toHaveProperty('populated');
@@ -539,7 +528,7 @@ describe.each(['lean', 'hydrated'] as const)(
           documentAuthorization: result.context.documentAuthorization,
         });
         expect(picked).toHaveProperty('total', 7);
-        expect(picked).not.toHaveProperty('account');
+        expect(picked).toHaveProperty('account', f.a._id);
         expect(await req.macl.isAllowed(f.Target.modelName, 'read')).toBe(false);
       });
       expect((await f.Source.findById(f.source._id).lean())!.account).toEqual(f.a._id);

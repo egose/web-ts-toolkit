@@ -896,10 +896,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       const target = captured.relatedTargets.find((target) => target.path === descriptor.path);
       const modelName = target?.modelName;
       if (!modelName) continue;
-      if (target.kind === 'passthrough') {
-        result.push({ path: descriptor.path, select: descriptor.select });
-        continue;
-      }
       const policy = relatedPolicy(state.authorization, state.binding, descriptor.path);
       const svc = this.requestCore.getPublicService(modelName);
       const child = createRelatedExecution(
@@ -919,6 +915,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       const childState = readServiceExecution(svc, child);
       const targetConfiguration = readServiceAuthorization(childState.authorization, childState.binding).configuration;
       if (
+        targetConfiguration.requireOperationAccessForPopulateQueries !== false &&
         policy?.operation.mode !== 'grant' &&
         !(await this.hookGate.run(() =>
           evaluateRouteGuard(
@@ -1185,8 +1182,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     for (const entry of populateEntries) {
       if (!entry || typeof (entry as Populate).path !== 'string') continue;
       const meta = getPopulateTargetMeta(entry);
-      // Registered targets retain their plan at admission. Unregistered targets
-      // follow the configured `requireRegisteredPopulateModels: false` passthrough.
+      // Only admitted, configured targets with retained output plans reach finalization.
       if (!meta) continue;
       const segments = (entry as Populate).path.split('.').filter(Boolean);
       if (segments.length === 0) continue;

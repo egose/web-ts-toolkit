@@ -7,6 +7,7 @@ import { getModelRef } from '../meta';
 import { assertPublicAdmission, forwardPublicOptions } from '../validation/public-admission';
 import { assertPopulateAccess } from './populate-access';
 import { captureModelAuthorizationConfiguration } from './model-output-planning';
+import { capturePopulateTargetConfiguration } from './populate-target-configuration';
 import { authorizationError } from './authorization-snapshot';
 import { createServiceExecution, getServiceExecutors, withExecutionQueryIntent } from './service-execution';
 import { captureModelServiceIntent } from '../services/model-service-intent';
@@ -53,7 +54,7 @@ export function captureRelatedTargets(
   depth = 0,
   globalOptions: Pick<
     GlobalOptions,
-    'requireRegisteredPopulateModels' | 'requireReadOperationAccessForPopulateDependencies'
+    'requireOperationAccessForPopulateQueries' | 'requireOperationAccessForPopulateDependencies'
   > = runtime.getGlobalOptions(),
 ): AuthorizationRelatedTarget[] {
   if (depth > 32) authorizationError('related descriptor depth exceeded');
@@ -64,23 +65,15 @@ export function captureRelatedTargets(
   for (const entry of entries<Populate | string>(args.populate)) {
     const path = typeof entry === 'string' ? entry : entry.path;
     if (typeof entry !== 'string') assertPopulateAccess(entry.access);
-    const model = getModelRef(modelName, path);
-    if (model && runtime.hasModel(model))
+    const model = getModelRef(modelName, path, runtime);
+    if (model) {
+      const target = capturePopulateTargetConfiguration(runtime, model, `${modelName}.${path}`);
       targets.push({
         path,
         modelName: model,
-        configuration: captureModelAuthorizationConfiguration(runtime, model, undefined, globalOptions),
+        configuration: captureModelAuthorizationConfiguration(runtime, model, target.options, globalOptions),
         staticObjectIdReference: staticObjectIdReference(runtime, modelName, path, model),
       });
-    else if (
-      model &&
-      !(globalOptions.requireRegisteredPopulateModels === undefined
-        ? true
-        : globalOptions.requireRegisteredPopulateModels)
-    ) {
-      // Capture the existing explicit opt-out at the requested path. No target
-      // policy or document handle can be issued for an unregistered model.
-      targets.push({ path, modelName: model, kind: 'passthrough', configuration: { catalog: { paths: [] } } });
     }
   }
   for (const entry of entries<Include>(args.include)) {

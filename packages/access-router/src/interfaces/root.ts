@@ -168,7 +168,7 @@ export interface AccessRouterLogger {
 }
 
 /**
- * Runtime-wide request initialization, private-input policy and resource settings, configured with
+ * Runtime-wide request initialization, populate operation policies and resource settings, configured with
  * api.setGlobalOptions / api.setGlobalOption. These are not model options or wire
  * options. Object assignment is shallow; nested requestComplexity replaces as a unit.
  */
@@ -184,8 +184,20 @@ export interface GlobalOptions {
    * context. Generated routers do not authenticate client claims for this hook.
    */
   globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
-  /** Require populate target models to be registered in the active runtime. Defaults to `true`. */
-  requireRegisteredPopulateModels?: boolean;
+  /**
+   * Require the caller's effective target operation (`read`, supported `list` or trusted
+   * custom access) for ordinary query population (default `true`). Only literal `false`
+   * skips that admission gate; source entry/field authorization, target field/document
+   * grants, row/base/transform policies, original selection, match and mandatory reference
+   * IDs still constrain output. Denied population retains selected/permitted original
+   * source IDs; admitted population misses return null/filtered arrays, not restored IDs.
+   * Targets always require an actual Mongoose model and ACL configuration with an
+   * effective object permissionSchema in this runtime; `{}` closes business fields.
+   * Runtime-owned and captured before awaits, independently of private dependency
+   * admission. A configuration-only Document needs no HTTP routes. Its denied direct/root
+   * read/list operations stay denied. No per-model/query/client override.
+   */
+  requireOperationAccessForPopulateQueries?: boolean;
   /**
    * Require the original caller's target base `operationAccess.read` before loading
    * declared private `dependsOnPopulate` inputs (default `true`). Only literal boolean
@@ -197,28 +209,32 @@ export interface GlobalOptions {
    * nested output scopes. In-flight calls retain their mode; later calls see updates.
    * Runtime-isolated server configuration only: no caller/query or per-model override.
    *
-   * In BOTH modes, references in an active selected/applicable dependency plan require
-   * source selection/field permission AND the captured caller-context target base read
-   * grant. Denied/failed read visibility omits the entire reference, including its ID,
-   * even with ordinary list/custom populate access or a public related-operation grant.
-   * Allowed read keeps the original authorized public populate mask, or exact original
-   * refs without population. No active dependency plan leaves ordinary behavior intact.
-   * False-mode private-only loading adds no operation check solely for that fetch.
-   * This never grants public fields, row/write authority or query controls. Registration
-   * and static input declarations remain required, independently of requireRegisteredPopulateModels.
+   * Neither mode changes ordinary reference shape: selected/permitted parent fields keep
+   * exact original IDs (including array order, duplicates, missing IDs and nulls) when no
+   * admitted ordinary population owns them. Private denial, row/query/getter failure or
+   * deferred virtual denial cannot hide those IDs. Omit only for parent unselection/field
+   * denial; admitted public DTO/null/filtered-array results retain their original masks.
+   * There is no additional target-base-read reference-visibility gate. False-mode loading
+   * adds no operation check solely for its private fetch. Private fourth-argument inputs
+   * never implicitly enter DTOs, hooks, handles, snapshots or permission metadata.
+   * An actual registered model, effective object permissionSchema and static declarations
+   * remain mandatory, independently of requireOperationAccessForPopulateQueries.
    *
    * @example
    * ```ts
    * import { createAccessRuntime, type GlobalOptions } from '@web-ts-toolkit/access-router';
    * const api = createAccessRuntime();
-   * const policy = { requireReadOperationAccessForPopulateDependencies: false } satisfies GlobalOptions;
-   * api.setGlobalOptions(policy); // privileged computation inputs; no public target-read grant
+   * const policy = {
+   *   requireOperationAccessForPopulateQueries: true,
+   *   requireOperationAccessForPopulateDependencies: false,
+   * } satisfies GlobalOptions;
+   * api.setGlobalOptions(policy); // private computation; denied public population retains permitted IDs
    * const snapshot: GlobalOptions = api.getGlobalOptions();
-   * api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', true);
+   * api.setGlobalOption('requireOperationAccessForPopulateDependencies', true);
    * void snapshot; // stored snapshot; read again to observe the setter
    * ```
    */
-  requireReadOperationAccessForPopulateDependencies?: boolean;
+  requireOperationAccessForPopulateDependencies?: boolean;
   logger?: AccessRouterLogger;
   /** Request budgets and separate hook/persistence pools; concurrency limits are captured on first owner use. */
   requestComplexity?: RequestComplexityOptions;
@@ -381,6 +397,12 @@ export interface ModelHydrationOptions {
 
 /** Model starting defaults; data/root routers do not inherit these. Nested values assign shallowly. */
 export interface DefaultModelRouterOptions<TModel = unknown> {
+  /**
+   * Default business-field policy when a model's permissionSchema is undefined.
+   * Populate targets require an effective object schema; `{}` explicitly closes
+   * business fields. A model's defined schema replaces this entire default.
+   */
+  permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
   /** Server-owned fetch choices, captured per call. Not a per-call or method-default option. */
   hydration?: ModelHydrationOptions;
   /** Maximum returned list rows (default 1000), independent of exact match/count totals. */
@@ -511,6 +533,8 @@ export interface ModelRouterOptions<
    * siblings; a whole-object/array grant permits replacement (no generic deep merge).
    * Send nested JSON; literal dotted client keys are not update operators.
    * Basic/advanced keys are route guards in operationAccess, not field grants here.
+   * Requested populate targets require an effective object schema in their owning
+   * runtime (model defaults may supply it); `{}` explicitly closes business fields.
    */
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel> | Extract<keyof TVirtuals, string>>;
   /**
@@ -538,12 +562,13 @@ export interface ModelRouterOptions<
    * that getter's fourth argument. Annotate ModelVirtualDescriptor<Source, Value,
    * { ref: Target }> separately, then assign here; persisted/write/public types
    * stay unchanged. Register target models/options first in this runtime. Source
-   * refs are retained automatically. GlobalOptions.requireReadOperationAccessForPopulateDependencies
+   * refs are retained automatically. GlobalOptions.requireOperationAccessForPopulateDependencies
    * defaults to true; false bypasses only private target-operation admission, never
-   * request read-row filters/retained IDs. In both modes an active dependency ref's
-   * denied caller-context target base read omits the entire ref, including its ID.
-   * Allowed refs keep the original authorized populate mask or exact original IDs;
-   * unselected/denied source fields remain hidden. No active plan keeps ordinary behavior.
+   * request read-row filters/retained IDs. Neither mode changes ordinary reference
+   * shape: admitted population keeps its original authorized mask/miss; otherwise
+   * selected/permitted parent fields keep exact original IDs, even on private failure.
+   * Only unselected/field-denied source refs are omitted. Query operation admission is
+   * independently controlled by GlobalOptions.requireOperationAccessForPopulateQueries.
    *
    * @example Shortest typed happy-path (persisted model lacks `fullAddress`):
    * ```ts
@@ -671,7 +696,7 @@ export interface DataRouterOptions<TData = unknown> {
 }
 
 export interface ExtendedModelRouterOptions<TModel = unknown, TVirtuals extends object = Record<never, never>>
-  extends ModelRouterOptions<TModel, TVirtuals>, ExtendedDefaultModelRouterOptions<TModel> {
+  extends ModelRouterOptions<TModel, TVirtuals>, Omit<ExtendedDefaultModelRouterOptions<TModel>, 'permissionSchema'> {
   'alwaysSelectFields.default'?: string[];
   'alwaysSelectFields.list'?: string[];
   'alwaysSelectFields.create'?: string[];

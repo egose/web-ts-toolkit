@@ -21,7 +21,7 @@ async function fixture(hydration: 'lean' | 'hydrated', strict: boolean, read = f
   const api = createAccessRuntime();
   runtimes.push(api);
   api.setGlobalOptions({
-    requireReadOperationAccessForPopulateDependencies: strict,
+    requireOperationAccessForPopulateDependencies: strict,
     globalPermissions: () => ['actor'],
     requestComplexity: { maxHookConcurrency: 1, maxBulkConcurrency: 1 },
   });
@@ -106,14 +106,14 @@ async function fixture(hydration: 'lean' | 'hydrated', strict: boolean, read = f
 
 describe.each(['lean', 'hydrated'] as const)('PPR-04 adversarial output boundaries (%s)', (hydration) => {
   it.each([false, true])(
-    'false mode defers the read gate until a function source grant resolves (%s)',
+    'false mode respects an awaited source grant without any output-only read gate (%s)',
     async (grant) => {
       const f = await fixture(hydration, false);
       const field = vi.fn(async function (this: ModelRequest, permissions) {
         expect(permissions.has('actor')).toBe(true);
         await Promise.resolve();
         // Deliberately replace both live policies after the operation has captured them.
-        f.api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', true);
+        f.api.setGlobalOption('requireOperationAccessForPopulateDependencies', true);
         f.api.setModelOption(f.Target.modelName, 'operationAccess.read', true);
         return grant;
       });
@@ -124,9 +124,10 @@ describe.each(['lean', 'hydrated'] as const)('PPR-04 adversarial output boundari
           .findOne({ _id: f.source._id }, { select: ['link', 'amount', 'date', '-_id'] }, quiet),
       );
       expect(result).toMatchObject({ success: true, data: { amount: 17, date: '2026-10-01T00:00:00.000Z' } });
-      expect(result).not.toHaveProperty('data.link');
+      if (grant) expect(result).toHaveProperty('data.link', f.target._id);
+      else expect(result).not.toHaveProperty('data.link');
       expect(field).toHaveBeenCalledTimes(1);
-      expect(f.guard).toHaveBeenCalledTimes(grant ? 1 : 0);
+      expect(f.guard).not.toHaveBeenCalled();
       expect(f.finds).toHaveBeenCalledTimes(1);
       // Distinct fourth-argument masks remain isolated despite sharing a raw query/target.
       expect(Object.keys(f.amount.mock.calls[0][3].link).sort()).toEqual(['amount', 'date']);
@@ -159,7 +160,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-04 adversarial output boundari
         expect(result).toMatchObject({ success: true, data: { link: f.target._id } });
         expect(result).not.toHaveProperty('data.amount');
         expect(result).not.toHaveProperty('data.date');
-        expect(f.guard).toHaveBeenCalledTimes(1);
+        expect(f.guard).toHaveBeenCalledTimes(Number(strict));
         expect(f.finds).toHaveBeenCalledTimes(failure === 'row' ? 0 : 1);
         expect(f.amount).not.toHaveBeenCalled();
         expect(f.date).not.toHaveBeenCalled();
@@ -202,11 +203,11 @@ describe.each(['lean', 'hydrated'] as const)('PPR-04 adversarial output boundari
                 ? [{ label: 'independent attachment' }]
                 : { label: 'independent attachment' },
           );
-        else expect(result.data).not.toHaveProperty('link');
+        else expect(result.data.link).toEqual(f.target._id);
         if (strict) expect(result.data).not.toHaveProperty('amount');
         else expect(result.data).toHaveProperty('amount', 17);
-        expect(f.guard).toHaveBeenCalledTimes(1);
-        expect(JSON.stringify(result.data)).not.toContain(String(f.target._id));
+        expect(f.guard).toHaveBeenCalledTimes(Number(strict));
+        if (produced) expect(JSON.stringify(result.data)).not.toContain(String(f.target._id));
         expect(result.context.originalDocumentSnapshot.link).toEqual(f.target._id);
         expect(result.data).not.toHaveProperty('link.amount');
         expect((await f.Source.findById(f.source._id).lean())!.link).toEqual(f.target._id);

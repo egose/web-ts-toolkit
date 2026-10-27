@@ -6,6 +6,11 @@ Reviewed and revised: 2026-10-05 12:56:12 PDT
 
 Review revision: added VIRT-00A as a contract-freeze prerequisite and corrected deferred authorization, write/query admission, include join-key lifetime, embedded recursion, public typing, getter isolation, concurrency, and execution gates. Implementation tasks remain pending; review probes are baseline evidence, not feature-completion evidence.
 
+Subsequent breaking contract: [registered targets and independent populate operation policies](20261026-225914-access-router-populate-operation-policy.md)
+removes this record's historical unregistered/raw populate compatibility option.
+The original task/evidence below is preserved; current targets require runtime ACL
+registration and an effective object permission schema in every operation mode.
+
 ## Objective and scope
 
 Add a package-level computed-field feature (“virtuals”) to `@web-ts-toolkit/access-router` so model authors can define async, request-aware derived output fields that behave like first-class response fields.

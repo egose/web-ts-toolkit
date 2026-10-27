@@ -662,7 +662,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 related and nested parity (
     const other = createAccessRuntime();
     runtimes.push(other);
     other.setGlobalOptions({ requestComplexity: { maxHookConcurrency: 1, maxBulkConcurrency: 1 } } as never);
-    other.createRouter(f.Account, { operationAccess: { read: false } } as never);
+    other.createRouter(f.Account, { operationAccess: { read: false }, permissionSchema: {} } as never);
     other.createRouter(f.Member, { operationAccess: { read: true }, permissionSchema: { name: true } } as never);
     const router = other.createRouter(f.Parent, {
       ...f.api.runtime.getModelOptions(f.Parent.modelName),
@@ -976,24 +976,25 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 alternate entry points (%s)
   });
 });
 
-describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (%s)', (hydration) => {
-  describe.each([true, false])('requireReadOperationAccessForPopulateDependencies=%s', (strict) => {
+describe.each(['lean', 'hydrated'] as const)('PPR-02 / POP-03 denied-read ID retention parity (%s)', (hydration) => {
+  describe.each([true, false])('requireOperationAccessForPopulateDependencies=%s', (strict) => {
     const policyFixture = async () => {
       const f = await fixture(hydration, {
         account: { operationAccess: { read: false, list: true } },
         parent: { docPermissions: () => ({ owns: true }) },
       });
-      f.api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', strict);
+      f.api.setGlobalOption('requireOperationAccessForPopulateDependencies', strict);
       return f;
     };
-    const assertRow = (row: Row, access: string, balance = 10) => {
-      expect(row).not.toHaveProperty('account');
+    const assertRow = (row: Row, access: string, account: unknown, balance = 10) => {
+      expect(String(row.account)).toBe(String(account));
+      expect(row).not.toHaveProperty('account.balance');
       if (strict) expect(row).not.toHaveProperty('total');
       else expect(row).toHaveProperty('total', `${access}:${balance}`);
     };
 
     it.each(['list', 'read', 'readFilter', 'subList', 'subRead'] as const)(
-      '%s direct/root/trusted returns no reference ID',
+      '%s direct/root/trusted preserves the permitted reference ID',
       async (op) => {
         const f = await policyFixture();
         const id = String(f.parent._id);
@@ -1039,6 +1040,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
         assertRow(
           Array.isArray(directData) ? directData[0] : directData,
           op.endsWith('List') || op === 'list' ? 'list' : 'read',
+          f.a._id,
         );
         f.assertTargetRowsUnchanged();
       },
@@ -1088,7 +1090,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
         ? response.body[0].result.data
         : [response.body[0].result.data];
       const row = sub && operation === 'subCreate' ? rows.find((value: Row) => value.name === 'ppr-write') : rows[0];
-      assertRow(row, create ? 'create' : 'update', 20);
+      assertRow(row, create ? 'create' : 'update', f.b._id, 20);
       const stored = sub ? await f.Parent.findById(id).lean() : await f.Parent.findOne({ name: 'ppr-write' }).lean();
       if (stored) {
         expect(stored).not.toHaveProperty('total');
@@ -1117,7 +1119,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
           expect(result).toMatchObject({ success: true });
           if (!result.success) throw new Error(result.code);
           const row = Array.isArray(result.data) ? result.data[0] : result.data;
-          assertRow(row, index === 1 || index === 2 ? 'update' : 'create', 20);
+          assertRow(row, index === 1 || index === 2 ? 'update' : 'create', f.b._id, 20);
           if ('contexts' in result) expect(result.contexts[0].finalDocumentSnapshot.account).toEqual(f.b._id);
           else if (index !== 4) expect(result.context.finalDocumentSnapshot.account).toEqual(f.b._id);
         }
@@ -1148,10 +1150,10 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
       );
       expect(result).toMatchObject({ success: true });
       if (!result.success) throw new Error(result.code);
-      assertRow(result.data.children[0], 'read');
-      assertRow(result.data.children[0].notes[0], 'read', 20);
-      assertRow(result.data.profile, 'read', 20);
-      assertRow(result.data.nested.inner, 'read');
+      assertRow(result.data.children[0], 'read', f.a._id);
+      assertRow(result.data.children[0].notes[0], 'read', f.b._id, 20);
+      assertRow(result.data.profile, 'read', f.b._id, 20);
+      assertRow(result.data.nested.inner, 'read', f.a._id);
       f.assertTargetRowsUnchanged();
     });
 
@@ -1170,8 +1172,8 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
       expect(result).toMatchObject({ success: true });
       if (!result.success) throw new Error(result.code);
       const rows = result.data.members;
-      for (const row of rows) expect(row).not.toHaveProperty('account');
-      assertRow(rows[0], 'read');
+      assertRow(rows[0], 'read', f.a._id);
+      expect(rows[1].account).toEqual(f.b._id);
       expect(rows[1]).not.toHaveProperty('total');
       expect(rows[2]).toEqual(rows[0]);
       expect(rows[2]).not.toBe(rows[0]);
@@ -1180,7 +1182,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
     });
 
     it.each(['legacy', 'correlated'] as const)(
-      '%s include output uses captured target base-read visibility',
+      '%s include output retains permitted target references independently of private base read',
       async (mode) => {
         const f = await policyFixture();
         const result = await f.execute((req) =>
@@ -1205,7 +1207,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
         );
         expect(result).toMatchObject({ success: true });
         if (!result.success) throw new Error(result.code);
-        assertRow(result.data.joined[0], 'list');
+        assertRow(result.data.joined[0], 'list', f.a._id);
       },
     );
 
@@ -1256,7 +1258,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
                 );
           const pending = read();
           await ready;
-          f.api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', !strict);
+          f.api.setGlobalOption('requireOperationAccessForPopulateDependencies', !strict);
           release();
           return [await pending, await read()];
         });
@@ -1272,7 +1274,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (
                 : stage === 'include'
                   ? data.joined
                   : data;
-          expect(row).not.toHaveProperty('account');
+          expect(row.account).toEqual(f.a._id);
           if (index === 0 ? strict : !strict) expect(row).not.toHaveProperty('total');
           else expect(row).toHaveProperty('total', 'read:10');
         }
