@@ -163,6 +163,20 @@ function _createMdxContent(props) {
         }), " returns the permission set for the current request"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "requireRegisteredPopulateModels"
+        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "true"
+        }), " for ordinary populate targets"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "requireReadOperationAccessForPopulateDependencies"
+        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "true"
+        }), "; only literal\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "false"
+        }), " bypasses target-operation read admission for declared private virtual inputs"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "logger"
         }), " receives ", (0,jsx_runtime.jsx)(_components.code, {
           children: "debug"
@@ -179,8 +193,11 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import acl from '@web-ts-toolkit/access-router';\n\ndeclare module '@web-ts-toolkit/access-router' {\n  interface AccessRouterRequestExtensions {\n    actor?: { permissions: string[] }; // set by application authentication middleware\n  }\n}\n\nacl.setGlobalOptions({\n  requestPermissionField: '_permissions',\n  globalPermissions(req) {\n    return req.actor?.permissions ?? [];\n  },\n});\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Null/undefined resolver results establish empty grants, replacing prior runtime-owned\nvalues. Application-supplied unowned maps are preserved; same-runtime middleware\nreuses its initialized state. Populate targets require runtime registration by default."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Null/undefined resolver results establish empty grants, replacing prior runtime-owned\nvalues. Application-supplied unowned maps are preserved; same-runtime middleware\nreuses its initialized state. Populate targets require runtime registration by default.\nThe private-input flag is a separate server/runtime policy; see\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "#private-populated-virtual-dependencies",
+        children: "private populated virtual dependencies"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "default-model-options",
       children: "Default Model Options"
@@ -442,6 +459,27 @@ function _createMdxContent(props) {
       }), ", in the source's runtime\nand Mongoose connection. Validation is eager/atomic for construction, bulk and dotted\nsetters, including when ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireRegisteredPopulateModels"
       }), " is false. Operation capture\nrechecks bindings before hooks/writes; in-flight calls retain coherent getter/masks/policies."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "GlobalOptions.requireReadOperationAccessForPopulateDependencies"
+      }), " defaults to ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "true"
+      }), ":\nprivate loading requires the captured original caller's target base ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "operationAccess.read"
+      }), ".\nOnly literal boolean ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "false"
+      }), " bypasses that operation gate. Missing/undefined/malformed\nJavaScript values normalize conservatively to true; an omitted key in a shallow setter\npreserves the current value. Configure it on the owning runtime:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { createAccessRuntime, type GlobalOptions } from '@web-ts-toolkit/access-router';\n\nconst api = createAccessRuntime();\napi.setGlobalOptions({ requireReadOperationAccessForPopulateDependencies: false });\napi.setGlobalOption('requireReadOperationAccessForPopulateDependencies', false);\nconst snapshot: GlobalOptions = api.getGlobalOptions();\nvoid snapshot;\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "api.set"
+      }), " supports the same object/exact forms. This is not a model/default, HTTP/root,\nservice query or client option; same-spelled business fields remain ordinary data.\nThe flag, source/target policy and query intent are captured together before the first\nawait. Nested related/embedded/child output retains that call's mode; later calls see\nsetters and separate runtimes remain isolated. It is independent of\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireRegisteredPopulateModels"
+      }), "; private target registration/static declarations stay mandatory."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -450,9 +488,11 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The ref is automatically retained; there is no need for ", (0,jsx_runtime.jsx)(_components.code, {
         children: "dependsOn: ['account']"
-      }), ".\nUse the authenticated server actor's tenant in real row hooks. Private input-field\nauthority still requires captured ", (0,jsx_runtime.jsx)(_components.strong, {
+      }), ".\nUse the authenticated server actor's tenant in real row hooks. Source/target input-field\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissionSchema"
+      }), " is already bypassed by the declaration; the virtual's own output\nauthorization still applies. True requires captured ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "base read"
-      }), " admission and request-mode\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), " admission; false skips\nonly that private operation guard. Both modes retain request-mode\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "overrideFilter.read"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "baseFilter.read"
@@ -464,27 +504,37 @@ function _createMdxContent(props) {
         children: "access"
       }), ", selection and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "authorization.related"
-      }), " cannot\nredefine these inputs or grant private reads. A related policy for a dependency-only\npath is unused/invalid."]
+      }), " cannot\nredefine these inputs or grant private reads. A related policy for a dependency-only\npath is unused/invalid. False-mode virtual-only output performs no operation check\nsolely to fetch private inputs; it grants no public field/operation, row or write authority."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Compatible public/private target queries fetch a normalized persisted union; the\noriginal public selection and authorization stay separate and immutable:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["Ordinary admitted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["In ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "both modes"
+        }), ", active selected/applicable dependency refs require the captured\ncaller-context target base ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "read"
+        }), " visibility grant, independently of private fetch\navailability. Denied/failed read omits the ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "entire reference including its ID"
+        }), ",\neven without population or with admitted list/custom access or a trusted public\nrelated-operation grant. An unselected/excluded/denied source ref is also omitted."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["With source selected/permitted and target read allowed, ordinary admitted\n", (0,jsx_runtime.jsx)(_components.code, {
           children: "populate: [{ path: 'account', select: 'name -_id' }]"
         }), " returns\nonly ", (0,jsx_runtime.jsx)(_components.code, {
           children: "account.name"
         }), ", even if private fetched fields are readable but unrequested."]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Without ordinary population, a selected/permitted ref restores the exact original\nID/array: missing IDs, order, duplicates, nulls, absence and empty arrays survive."
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "An unselected/excluded/denied source ref is omitted, including its ID; the selected\nauthorized virtual can still compute. Denied ordinary population keeps its fallback."
+        children: "With source selected/permitted and target read allowed, no ordinary population restores the exact original\nID/array: missing IDs, order, duplicates, nulls, absence and empty arrays survive."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "No active dependency plan/no feature keeps ordinary behavior unchanged"
+        }), "; the\nadditional read gate does not apply globally to unrelated refs."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Resolved default population counts as ordinary; explicit ", (0,jsx_runtime.jsx)(_components.code, {
         children: "populate: []"
-      }), " suppresses\ndefaults. Public ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " suppresses\ndefaults. The additional read check runs only for potentially eligible source output;\nstrict private admission is reused. Public ", (0,jsx_runtime.jsx)(_components.code, {
         children: "-_id"
-      }), " exclusions survive private identity fetching. Cleanup runs\nbefore decorate/decorateAll/tasks, including on unavailable inputs, undefined/throw\nand post-fetch virtual denial. No private maps/raw values are implicitly transported\nto DTOs, hooks, handles or metadata; only the authorized getter's deliberate return\nbecomes computed output."]
+      }), " exclusions survive private identity fetching. Cleanup runs\nbefore output copying/handles and decorate/decorateAll/tasks, including on unavailable inputs, undefined/throw\nand post-fetch virtual denial. No private maps/raw values are implicitly transported\nto DTOs, hooks, handles or metadata; only the authorized getter's deliberate return\nbecomes computed output."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Declarations accept only ", (0,jsx_runtime.jsx)(_components.code, {
         children: "{ path, select? }"
@@ -510,7 +560,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Support includes direct/root/trusted reads, writes/upserts, templates, ordinary\npopulated/included outputs, embedded scopes and visible dedicated subdocuments.\nWrites capture post-lifecycle refs without changing saved refs/snapshots or retry\nsemantics; hidden rows run no getter. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "new"
-      }), " ignores args.select and loads present\ndefault refs under target read without saving. Count/distinct/exists/delete identities\nand include-count/field helpers add no dependency I/O. ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " ignores args.select and loads present\ndefault refs under the captured private-read mode/request read-row scope without saving. Count/distinct/exists/delete identities\nand include-count/field helpers add no dependency I/O. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "SubPopulate"
       }), " stays path/select-only."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -523,6 +573,10 @@ function _createMdxContent(props) {
         href: "https://www.npmjs.com/package/@web-ts-toolkit/access-router#private-populated-dependencies",
         children: "installed README's runnable example"
       }), "\nfor all three executable response shapes and compatibility guidance."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Release compatibility:"
+      }), " the earlier private-dependency D1 denied-populate ID fallback\nis intentionally superseded for active dependency refs, including default/true mode.\nHandle absent fields when caller target base read is denied/failed. Setting false permits\nprivate computation, not denied IDs. Permit source output and target base read independently\nto return the original authorized populated mask or exact refs. Ordinary/no-active-plan\nbehavior and registration/static-ref/hydration limitations remain as before."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "operation-access",
       children: "Operation Access"

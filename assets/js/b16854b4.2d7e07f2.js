@@ -73,6 +73,10 @@ const toc = [{
   "id": "utilities-subpath",
   "level": 3
 }, {
+  "value": "Persisted derived fields",
+  "id": "persisted-derived-fields",
+  "level": 3
+}, {
   "value": "Model function plugin",
   "id": "model-function-plugin",
   "level": 3
@@ -104,6 +108,13 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
+    table: "table",
+    tbody: "tbody",
+    td: "td",
+    th: "th",
+    thead: "thead",
+    tr: "tr",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -128,7 +139,7 @@ function _createMdxContent(props) {
           children: "isObjectId(...)"
         }), " guard for strict ObjectId checks"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "document plugins for model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync"
+        children: "document plugins for persisted derived fields, model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
@@ -282,6 +293,14 @@ function _createMdxContent(props) {
         }), " for the cascade-delete plugin"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/plugins/derived-fields"
+        }), " for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "derivedFieldsPlugin"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "defineDerivedField"
+        }), ", dependency errors and authoring types"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/moo/plugins/model-function"
         }), " for the model-function plugin"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
@@ -358,6 +377,143 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { Schema } from 'mongoose';\nimport { isReference, isSchema } from '@web-ts-toolkit/moo/utils';\n\nconst userSchema = new Schema({\n  manager: { type: Schema.Types.ObjectId, ref: 'User' },\n});\n\nisSchema(userSchema);\nisReference({ type: Schema.Types.ObjectId, ref: 'User' }, 'User');\n"
       })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "persisted-derived-fields",
+      children: "Persisted derived fields"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "derived"
+      }), " metadata computes a stored field before async document validation and\npersists it with hydrated ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model.create()"
+      }), ". Stored values support normal\nMongoDB search/filter/sort/index operations. Reads and property access do not\ncompute or write anything. Canonical typed authoring uses named root imports:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import mongoose, { Schema } from 'mongoose';\nimport { defineDerivedField, derivedFieldsPlugin } from '@web-ts-toolkit/moo';\n\ntype User = { firstName: string; lastName: string; fullName: string };\nconst userSchema = new Schema<User>(\n  {\n    firstName: { type: String, required: true },\n    lastName: { type: String, required: true },\n    fullName: {\n      type: String,\n      required: true,\n      index: true,\n      derived: defineDerivedField<User, 'fullName'>({\n        dependsOn: ['firstName', 'lastName'],\n        get: (doc) => `${doc.firstName ?? ''} ${doc.lastName ?? ''}`.trim(),\n      }),\n    },\n  },\n  { optimisticConcurrency: true },\n);\n\n// Define all paths and source-mutating middleware before the plugin.\nuserSchema.plugin(derivedFieldsPlugin);\nconst User = mongoose.model<User>('User', userSchema);\n\nawait mongoose.connect('mongodb://127.0.0.1:27017/app');\nawait User.create({ firstName: 'Ada', lastName: 'Lovelace' });\nconst matches = await User.find({ fullName: /^Ada/ }).sort({ fullName: 1 });\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The helper checks dependency names, readonly partial raw-model input, and the\ntarget's result type without Mongoose global augmentation. The grouped\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/moo/plugins"
+      }), " entrypoint and direct variant expose the same API:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import {\n  defineDerivedField,\n  derivedFieldsPlugin,\n  DerivedFieldsDependencyError,\n  type DerivedFieldDefinition,\n  type DerivedFieldDependencyIssue,\n  type DerivedFieldDescriptor,\n  type DerivedFieldGetter,\n  type DerivedFieldInput,\n} from '@web-ts-toolkit/moo/plugins/derived-fields';\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Declare every source read by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), " in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOn"
+      }), ". Existing documents request\nrecomputation for a dependency modification or explicit target change, including\nactual pending default writes to either:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Recompute requested?"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "All dependencies available?"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Result"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: "No"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Either"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Skip and preserve the persisted derived value."
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: "Yes"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Yes"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Recompute and save with the source changes."
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: "Yes"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "No"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Reject before persistence without invoking any scheduled getter."
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Mongoose can queue non-null defaults on existing documents without marking them\nmodified. Such pending writes include ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "''"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "0"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " and request computation;\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " defaults alone do not write. A pending target fallback default is\nrecomputed rather than accepted as an override. Missing/projected-out targets\nwithout a write request do not request repair. New documents compute from supplied/\ndefaulted inputs before ordinary validation. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOn: []"
+      }), " supports creation and\ntarget-change/default-write constants."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Available means selected or explicitly fully replaced on this hydrated document.\nSelected defaults are available; genuine absence without a default is known\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), ", and stored ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " is known too. Unselected fields stay unavailable even\nif defaults/getters could manufacture values. Explicit assignments, including excluded null/undefined\nor same-default assignments, provide replacements retained on the same document\nacross saves; child-only changes and relative ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$inc()"
+      }), " do not. The plugin never\nfetches omitted dependencies: select them yourself or provide complete replacements.\nApplying defaults to excluded dependencies may queue actual writes but never proves\navailability: an otherwise unrelated save then rejects before getters/persistence\nrather than saving manufactured sources with stale results.\nA newly inserted document retains its supplied/defaulted/absent input availability\non later saves, including with constructor projection metadata.\nA bare function is conservative shorthand: it recomputes every async validation/\nsave operation and needs every supported non-derived input, including hidden\nfields and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), ", even when the getter reads fewer inputs."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Getters can be sync/async and return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " to clear a target. Each gets an\nisolated frozen partial plain persisted view containing available supported\nscalars, persisted reference ids, and copied Date/ObjectId/Decimal128 values.\nDocument methods/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), ", property getters, transforms, virtuals, derived targets,\nthe managed version key, and containers are absent. Results are staged before\napplying Mongoose setters/casting. Getters and validators must not mutate captured\nhydrated inputs.\nMissing-dependency preflight aggregates all affected targets before any getter:\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DerivedFieldsDependencyError"
+      }), " has stable code\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MOO_DERIVED_FIELDS_MISSING_DEPENDENCIES"
+      }), " and frozen path-only\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "issues: [{ targetPath, missingPaths }]"
+      }), ", without source values. Getter failures\npropagate; casting/validation failures use Mongoose errors. A rejected save does\nnot persist that save, but retains application assignments; no in-memory rollback\nis promised. Use the error code across separately bundled entrypoints."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Lifecycle:"
+      }), " register source-mutating pre-validation/pre-save middleware before\nthe plugin and compile afterward. Normal async validation sees derived results;\nearlier pre-save source/target changes trigger recomputation/revalidation, preserving\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateModifiedOnly"
+      }), ". A save reuses its own unchanged validation computation;\nseparate validations/saves are separate operations. Later pre-save mutations are\noutside the guarantee. Later validation-hook/validator mutations are not a\nstandalone-validation guarantee; save retries validation once and rejects an\nordering error if inputs/results remain unstable. Earlier timestamp hooks are\ncovered, but first validation of a new document can see an unset timestamp.\nOrdinary Mongoose change tracking applies, including marking in-place Date changes\nmodified. Schema/per-save ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateBeforeSave: false"
+      }), " still preflights/computes/\ncasts but skips ordinary required/custom validators; dependency/getter/casting\nerrors still reject."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Write scope:"
+      }), " query updates/replacements and raw writes bypass computation.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertMany()"
+      }), " and bulk inserts may incidentally invoke async document validation;\nthis is not guaranteed all-writer support (lean, skip-validation, and bulk updates\ncan bypass it). ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateSync()"
+      }), ", middleware bypass, and restricted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pathsToSave"
+      }), "\nare excluded. Formula changes and old rows lacking values need explicit backfill:\nload all dependencies, mark the target modified (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "doc.markModified('fullName')"
+      }), "),\nthen save. There is no automatic read-time repair. Multi-writer behavior remains\nordinary Mongoose concurrency; use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "optimisticConcurrency"
+      }), " where source/result\ninvariants matter and reload complete inputs when retrying version conflicts."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Initial scope:"
+      }), " root persisted String, Number, Boolean, Date, ObjectId,\nDecimal128, BigInt targets/dependencies only. Nested paths, subdocuments, arrays,\nmaps, Mixed, Union, Buffer/Binary/UUID, BSON Double/Int32, and unknown custom kinds\nare unsupported. Other ordinary fields can coexist but are not getter inputs.\nSelf/derived-to-derived dependencies, unknown/duplicate names, malformed options,\nvirtual/immutable targets, and duplicate plugin registration reject at registration.\nPaths/definitions are snapshotted; later schema/option edits are not discovered.\nThe Mongoose-managed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "versionKey"
+      }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__v"
+      }), " or custom) rejects as a target or\nexplicit dependency and is omitted from all getter views, including shorthand:\nMongoose initializes/increments it after pre-save middleware. With\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "versionKey: false"
+      }), ", explicitly declared version-like scalar fields are ordinary\ntargets/inputs."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "model-function-plugin",
       children: "Model function plugin"
