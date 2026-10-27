@@ -18,7 +18,7 @@ import {
 } from '@web-ts-toolkit/utils';
 import { diff } from 'just-diff';
 import MongooseModelAdapter, { admitModelPersistence } from '../model';
-import { modelServiceOptions } from '../acl/model-service-owner';
+import { modelServiceGlobalOptions, modelServiceOptions } from '../acl/model-service-owner';
 import { isDistinctFieldAuthorized } from '../acl/distinct-field-authorization';
 import {
   getDocPermissions,
@@ -89,7 +89,6 @@ import {
 } from './base';
 import { getPopulateTargetMeta, type PopulateTargetMeta } from '../acl/populate-target';
 import { deepIsolateValue, getDocValue, setDocValue, isolateDocForOutput } from '../helpers/document';
-import { getModelRef as getModelRefWithDotted } from '../meta';
 import { captureRelatedTargets, createRelatedExecution, relatedPolicy } from '../acl/related-execution';
 import { assertPopulateAccess } from '../acl/populate-access';
 import { setPopulateTargetMeta } from '../acl/populate-target';
@@ -861,12 +860,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     args?: { populate?: unknown; include?: unknown },
     defaults?: { populate?: unknown; include?: unknown },
   ): import('../acl/service-authorization').AuthorizationRelatedTarget[] {
+    const globalOptions = modelServiceGlobalOptions(this, this.requestRuntime);
     const effective = { populate: args?.populate ?? defaults?.populate, include: args?.include ?? defaults?.include };
     if (effective.include) {
       const processed = this.processInclude(effective.include as Include[]);
       effective.include = [...processed.includes, ...processed.correlatedIncludes];
     }
-    return captureRelatedTargets(this.requestRuntime, this.modelName, effective);
+    return captureRelatedTargets(this.requestRuntime, this.modelName, effective, 0, globalOptions);
   }
 
   /** Canonical population uses the target's retained policy for both fetch and output. */
@@ -893,14 +893,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         modelPermissionPrefix: captured.configuration.modelPermissionPrefix as string,
       });
       if (sourceState === 'denied') continue;
-      const modelName = getModelRefWithDotted(this.modelName, descriptor.path);
+      const target = captured.relatedTargets.find((target) => target.path === descriptor.path);
+      const modelName = target?.modelName;
       if (!modelName) continue;
-      if (!this.requestRuntime.hasModel(modelName)) {
-        if (
-          captured.relatedTargets.some((target) => target.path === descriptor.path && target.kind === 'passthrough')
-        ) {
-          result.push({ path: descriptor.path, select: descriptor.select });
-        }
+      if (target.kind === 'passthrough') {
+        result.push({ path: descriptor.path, select: descriptor.select });
         continue;
       }
       const policy = relatedPolicy(state.authorization, state.binding, descriptor.path);
@@ -1026,15 +1023,15 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       transferDocumentAuthorizationGraph(source, copy);
       return copy;
     }
-    let targetMongooseModel: unknown;
-    try {
-      const inst = (this.requestRuntime as { getModelInstance?: (n: string) => unknown }).getModelInstance?.(
-        meta.targetModelName,
-      ) as { mongooseModel?: unknown } | unknown;
-      void inst;
-      targetMongooseModel = inst;
-    } catch {
-      targetMongooseModel = parentContext.mongooseModel;
+    let targetMongooseModel: unknown = meta.fetchBinding?.model;
+    if (!targetMongooseModel) {
+      // Legacy helper descriptors have no execution binding. Canonical output
+      // always keeps the admitted model rather than rereading a live registry.
+      try {
+        targetMongooseModel = this.requestRuntime.getModelInstance(meta.targetModelName);
+      } catch {
+        targetMongooseModel = parentContext.mongooseModel;
+      }
     }
     const targetContext: ModelHookContext = {
       mongooseModel: (targetMongooseModel as never) ?? parentContext.mongooseModel,
@@ -1259,10 +1256,12 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }),
       configuration: () =>
         this.requestRuntime.getModelInstance(this.modelName)
-          ? captureModelAuthorizationConfiguration(this.requestRuntime, this.modelName, {
-              ...this.options,
-              defaults: this.defaults,
-            })
+          ? captureModelAuthorizationConfiguration(
+              this.requestRuntime,
+              this.modelName,
+              { ...this.options, defaults: this.defaults },
+              modelServiceGlobalOptions(this, this.requestRuntime),
+            )
           : { catalog: { paths: [] }, ...this.options },
       permissions: () => this.requestCore.getPermissions?.() ?? new Permission({}),
       parse: (filter) => this.parseClientData(filter, this.getCorrelatedExecState().scheduler),

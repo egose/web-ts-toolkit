@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 const localRequire = createRequire(import.meta.url);
@@ -64,6 +63,7 @@ export const mooSubpaths = [
   './utils',
   './plugins',
   './plugins/cascade-delete',
+  './plugins/derived-fields',
   './plugins/model-function',
   './plugins/new-document',
   './plugins/keycloak-user-sync',
@@ -110,7 +110,7 @@ export function preparePackedWorkspace() {
     return packedWorkspaceCache;
   }
 
-  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'moo-moo09-packed-'));
+  const tempRoot = mkdtempSync(path.join(workspaceRoot, '_tmp-moo-packed-'));
   tempRoots.push(tempRoot);
   seedToolVersions(tempRoot);
   const tarballDir = path.resolve(tempRoot, 'tarballs');
@@ -152,7 +152,7 @@ export interface PackedConsumerOptions {
 export function installPackedConsumer(options: PackedConsumerOptions): string {
   const packed = preparePackedWorkspace();
   const label = `moo09-${options.keycloakVersion ? 'kc' : 'core'}-m${options.mongooseVersion.replace(/[^0-9]/g, '')}`;
-  const consumerDir = mkdtempSync(path.join(os.tmpdir(), `${label}-consumer-`));
+  const consumerDir = mkdtempSync(path.join(workspaceRoot, `_tmp-${label}-consumer-`));
   tempRoots.push(consumerDir);
   seedToolVersions(consumerDir);
 

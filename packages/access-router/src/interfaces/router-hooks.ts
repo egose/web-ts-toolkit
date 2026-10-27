@@ -166,10 +166,19 @@ export type ModelVirtualDoc<TModel = unknown> =
  * and traversal through target refs are rejected. `_id` is included unless excluded.
  * Static string refs must bind the actual same-connection ObjectId model; register
  * its model instance AND options first. Validation is eager/atomic, including setters.
- * This grants getter input fields only, not public population or output fields.
- * Target operationAccess.read, overrideFilter.read and baseFilter.read still use
- * the original actor's request authority/tenant scope, independently of ordinary
+ * This bypasses source/target input-field permissions, not the virtual's own output
+ * authorization. GlobalOptions.requireReadOperationAccessForPopulateDependencies defaults
+ * to true, requiring the captured caller's target base operationAccess.read for private
+ * loading. Only literal false bypasses that gate; private-only loading then adds no
+ * operation check solely for the fetch. Target overrideFilter.read/baseFilter.read and
+ * retained source IDs always use request authority/tenant scope, independently of ordinary
  * populate match/access and authorization.related. Private target virtuals never run.
+ * In both modes, active selected/applicable dependency refs denied caller-context base
+ * read visibility are omitted entirely, including IDs; public list/custom access or a
+ * related-operation grant cannot override this. Allowed selected/permitted refs keep the
+ * original authorized populate mask or exact original refs. No active plan keeps ordinary
+ * behavior. The mode and source/target policy are captured before awaits; registration
+ * remains mandatory independently of requireRegisteredPopulateModels.
  */
 export interface ModelVirtualPopulateDependency<TModel = unknown> {
   /** Top-level ref relative to this virtual's scope; no dotted source paths. Retained automatically. */
@@ -234,7 +243,7 @@ export type ModelVirtualPopulateInputs<
  * It is separate from `doc`, whose persisted/public-related typing is unchanged.
  * The runtime supplies it (empty without a declaration); the empty default generic
  * guesses no target shape. Optionality preserves legacy three-argument direct calls
- * and callbacks. Absent source refs or unavailable target reads skip invocation;
+ * and callbacks. Absent source refs or unavailable private inputs skip invocation;
  * present null/empty refs and missing target rows yield null/[]/null array slots.
  * Private values are not implicitly transported to output or authorization metadata;
  * an authorized getter can deliberately return a computed value using them.
@@ -271,7 +280,8 @@ export type ModelVirtualGetter<
  * generic never changes the persisted model, write types or public output.
  * Use `populated = {}` or guard undefined to retain three-argument direct calls.
  * See the shipped README's "Private populated dependencies" for registration,
- * all three public reference shapes, target read/row gates and absence/error rules.
+ * reference omission/population/ID shapes, captured private-read mode, mandatory row
+ * gates and absence/error rules. Private computation does not imply reference visibility.
  *
  * @example
  * ```ts

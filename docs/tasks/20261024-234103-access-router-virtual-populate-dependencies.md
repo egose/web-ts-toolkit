@@ -7,6 +7,10 @@ The same independent DPV-06 reviewer accepted the corrections and completed fina
 DPV-09 build/test/lint/type/installed-surface verification. Historical failures and
 the final exact evidence are retained below.
 
+Subsequent phase: [configurable private read admission and reference visibility](20261026-122832-access-router-private-populate-read-policy.md)
+adds an explicit runtime opt-in and revises denied dependency-reference output.
+This completed record preserves the original contract and its verification history.
+
 ## Objective and purpose
 
 Add server-configured `dependsOnPopulate` alongside virtuals' existing `dependsOn`.

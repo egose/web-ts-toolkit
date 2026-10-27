@@ -442,6 +442,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'grouped-count-consumer.types.fixture',
     'hydration-consumer.types.fixture',
     'virtuals-populate-dependencies.types.fixture',
+    'private-populate-read-policy.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -996,7 +997,8 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   run('node', ['authorization-out/field-helper.runtime.cjs'], consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
-  // DPV-05: exact shipped three-shape workflow plus array/default/denial restoration,
+  // DPV-05/PPR-03: exact shipped mode/denied-reference workflow plus both-hydration
+  // array/default/authorized-union/exact-ID controls,
   // using the real transformed packed installation and both runtime entry conditions.
   for (const file of [
     'private-populate.readme.mjs',

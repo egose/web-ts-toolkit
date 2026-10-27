@@ -147,24 +147,47 @@ native methods immutable or promise equal lean/hydrated materialization.
 
 Only the resolved declaration's paths/mask reach each getter, independently of public
 match/select/access. Missing/undefined source refs skip invocation. Present null/empty
-arrays invoke with null/[] when target read is admitted; deleted/out-of-scope rows
+arrays invoke with null/[] when private admission/row policy permits; deleted/out-of-scope rows
 become null/null slots in original order, preserving duplicates. Missing target fields
 remain absent/undefined; present null/false/zero/empty-string survive. The getter chooses
 what to return for partial inputs.
 
-Target base-read denial/terminal false row scope makes dependencies unavailable and
-skips affected getters, even for null/empty refs. Dependency-only hook/query/cast errors
+The runtime flag `requireReadOperationAccessForPopulateDependencies` defaults to true.
+Only literal false bypasses target base `operationAccess.read` for private loading;
+undefined/malformed JavaScript values stay conservative true. Source/target input-field
+permissions are already bypassed, but virtual output authorization still governs its result.
+Request-mode `overrideFilter.read`, `baseFilter.read` and original source IDs remain mandatory.
+False-mode virtual-only output adds no operation check solely for its private fetch.
+This server/runtime option is captured before awaits with source/target/query configuration,
+including nested output; later calls see changes and runtimes remain isolated. It is not a
+caller/query option or `requireRegisteredPopulateModels` registration opt-out.
+
+In true mode target base-read denial, and in both modes terminal false read-row policy,
+makes dependencies unavailable and skips affected getters, even for null/empty refs. Dependency-only hook/query/cast errors
 omit the virtual with structural-only logs, without raw fallback/retry/new retryable
 write errors. Shared ordinary-public query failures keep the ordinary error path.
 Invalid configuration fails preflight. Getter undefined/throw and later authorization
 denial still reach unconditional public reconstruction/cleanup.
+
+In **both modes**, active selected/applicable dependency refs have an independent captured
+caller-context target base-read visibility gate after source field authorization. Unselected/
+denied source fields are omitted; denied/failed target read omits the **entire ref including
+IDs**, even when private computation succeeds, a getter fails/is denied, or ordinary list/
+custom populate access or a public related-operation grant permits population. Strict private
+admission is reused; false mode checks output only when the source could be returned.
+Allowed target read keeps only the original authorized public populate mask, or exact
+original refs/arrays (nulls, misses, ordering, duplicates and presence) without ordinary
+population. No active dependency plan leaves ordinary behavior unchanged. This intentionally
+supersedes the prior D1 denied-ID fallback even in default mode; see
+[release compatibility](./configuration#private-populated-virtual-dependencies).
 
 There is **no implicit transport** of private maps/raw targets to DTOs, lifecycle
 snapshots, public permission hooks/metadata, document handles, or decorate/task input.
 Only an authorized getter's deliberate returned value becomes computed output;
 mutating inputs alone cannot change another getter, persistence or response fields.
 Public related outputs still use target-owned output authority; private terminal
-reads use the actor's base-read/request tenant scope and never compute target virtuals.
+reads use the captured private-read mode and actor's request read-row/tenant scope and
+never compute target virtuals. Hydration/native isolation/registration limits are unchanged.
 
 ### `decorate` / `decorateAll`
 

@@ -57,7 +57,12 @@ const queryIds = (value: unknown): string[] => {
   return Object.values(row).flatMap((child) => (Array.isArray(child) ? child.flatMap(queryIds) : queryIds(child)));
 };
 
-describe.each(['lean', 'hydrated'] as const)('DPV-04 measured bounded batching (%s)', (hydration) => {
+describe.each([
+  { hydration: 'lean', strict: true },
+  { hydration: 'lean', strict: false },
+  { hydration: 'hydrated', strict: true },
+  { hydration: 'hydrated', strict: false },
+] as const)('DPV-04/PPR-02 measured bounded batching ($hydration, strict=$strict)', ({ hydration, strict }) => {
   it.each([1, 2])('1/24 rows, two model groups, four getters, limit %s', async (limit) => {
     const n = ++serial;
     const api = createAccessRuntime();
@@ -100,13 +105,17 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 measured bounded batching (
         children: [{ account: aRef }],
       }),
     );
-    api.setGlobalOptions({ requestComplexity: { maxBulkConcurrency: limit, maxHookConcurrency: limit } } as never);
+    api.setGlobalOptions({
+      requireReadOperationAccessForPopulateDependencies: strict,
+      requestComplexity: { maxBulkConcurrency: limit, maxHookConcurrency: limit },
+    } as never);
+    const operationGuard = vi.fn(() => true);
     const privateGetter = vi.fn(() => {
       throw new Error('terminal private targets must not finalize');
     });
     for (const Target of [A, B])
       api.createRouter(Target, {
-        operationAccess: { read: true },
+        operationAccess: { read: operationGuard },
         permissionSchema: { name: true, balance: false, credit: false, loop: true },
       } as never);
     const router = api.createRouter(Source, {
@@ -179,6 +188,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 measured bounded batching (
       aFind.mockClear();
       bFind.mockClear();
       getter.mockClear();
+      operationGuard.mockClear();
       observations.length = 0;
       persistence = probe(Math.min(limit, 2));
       hooks = probe(limit);
@@ -209,6 +219,9 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 measured bounded batching (
         expect(bFind).toHaveBeenCalledTimes(1);
         expect(getter).toHaveBeenCalledTimes(rows * 4);
         expect(privateGetter).not.toHaveBeenCalled();
+        // Two ordinary descriptors, plus one shared strict admission per model
+        // or one output-only A decision. Hidden B has no false-mode guard.
+        expect(operationGuard).toHaveBeenCalledTimes(strict ? 4 : 3);
         expect(persistence.peak).toBe(Math.min(limit, 2));
         expect(hooks.peak).toBe(limit);
         expect(persistence.active).toBe(0);
@@ -239,6 +252,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 measured bounded batching (
           getters: getter.mock.calls.length,
           driverReads: sourceFind.mock.calls.length + aFind.mock.calls.length + bFind.mock.calls.length,
           targetGroups: observations.length,
+          readGuards: operationGuard.mock.calls.length,
           ids: observations.map((entry) => entry.ids.length).sort(),
           persistencePeak: persistence.peak,
           hookPeak: hooks.peak,
@@ -248,6 +262,6 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 measured bounded batching (
         hooks.release();
       }
     }
-    console.log(`[DPV-04 bounded ${hydration} limit=${limit}] ${JSON.stringify(measurements)}`);
+    console.log(`[DPV-04/PPR-02 bounded ${hydration} strict=${strict} limit=${limit}] ${JSON.stringify(measurements)}`);
   });
 });

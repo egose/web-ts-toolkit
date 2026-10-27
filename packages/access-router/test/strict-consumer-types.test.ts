@@ -126,6 +126,36 @@ describe('ARF-14 strict packed-consumer types', () => {
     expect(result.status).toBe(0);
   });
 
+  it.each(['ts', 'mts', 'cts'])('PPR-01 checks the server-only populate read mode (%s)', (extension) => {
+    const source = `private-populate-read-policy.${extension}`;
+    writeFileSync(
+      path.resolve(consumerDir, source),
+      readFileSync(path.resolve(packageRoot, 'test/private-populate-read-policy.types.fixture.ts'), 'utf8'),
+    );
+    const config = `tsconfig-ppr01-${extension}.json`;
+    writeFileSync(
+      path.resolve(consumerDir, config),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: extension === 'ts' ? 'ESNext' : 'NodeNext',
+          moduleResolution: extension === 'ts' ? 'Bundler' : 'NodeNext',
+          strict: true,
+          noUnusedLocals: true,
+          noUnusedParameters: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: ['node'],
+          lib: ['ES2022', 'DOM'],
+        },
+        files: [source],
+      }),
+    );
+    const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+    expect(result.stdout + result.stderr).toBe('');
+    expect(result.status).toBe(0);
+  });
+
   it.each([
     ['Bundler', 'ts', 'ESNext'],
     ['NodeNext', 'mts', 'NodeNext'],

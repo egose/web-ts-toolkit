@@ -171,6 +171,27 @@ const assembleAllBlocks = (): CompiledBlock[] => {
       });
     });
   }
+  // PPR-03: compile the actual installed-hover example through each public
+  // declaration entry/condition, following aliases into tsup's shared graph.
+  const entries = ['index.d.ts', 'index.d.mts', 'advanced.d.ts', 'advanced.d.mts'];
+  const declarationProgram = ts.createProgram(
+    entries.map((entry) => path.resolve(packageRoot, 'dist', entry)),
+    { module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, skipLibCheck: true, types: [] },
+  );
+  const checker = declarationProgram.getTypeChecker();
+  for (const entry of entries) {
+    const source = declarationProgram.getSourceFile(path.resolve(packageRoot, 'dist', entry))!;
+    const module = checker.getSymbolAtLocation(source)!;
+    let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === 'GlobalOptions')!;
+    if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+    const property = checker
+      .getDeclaredTypeOfSymbol(symbol)
+      .getProperty('requireReadOperationAccessForPopulateDependencies')!;
+    const example = property.getJsDocTags(checker).find((tag) => tag.name === 'example');
+    const snippet = ts.displayPartsToString(example?.text).match(/```ts\n([\s\S]*?)```/)?.[1];
+    if (!snippet) throw new Error(`${entry} is missing the installed GlobalOptions private-read policy example`);
+    blocks.push({ name: `GlobalOptions-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
+  }
   return blocks;
 };
 

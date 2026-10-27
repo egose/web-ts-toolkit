@@ -39,6 +39,8 @@ interface Occurrence {
   address: VirtualPopulateAddress;
   plan: VirtualProjectionPlan;
   refs: Map<string, OriginalReference>;
+  /** Active declarations own reference visibility even when private rows are unavailable. */
+  referenceTargets: Map<string, VirtualPopulateTarget>;
   dependencies: Map<string, { dependency: CapturedVirtualPopulateDependency; request: FetchRequest }[]>;
 }
 interface FetchBinding {
@@ -85,6 +87,7 @@ interface BatchRecord {
   pending?: Promise<void>;
   completed?: boolean;
   rowCache: Cache<string, unknown>;
+  readGuards: Map<object, Promise<boolean>>;
 }
 const batches = new WeakMap<VirtualPopulateBatch, BatchRecord>();
 const rows = new WeakMap<VirtualPopulateRow, RowRecord>();
@@ -199,6 +202,8 @@ const compatible = (a: FetchRequest, b: FetchRequest) =>
   a.binding.schema === b.binding.schema &&
   a.access === b.access &&
   a.requestRead === b.requestRead &&
+  a.binding.configuration.requireReadOperationAccessForPopulateDependencies ===
+    b.binding.configuration.requireReadOperationAccessForPopulateDependencies &&
   // Different captures may share only an equivalent terminal persisted binding/policy.
   equivalentVirtualPopulatePredicate(
     a.binding.configuration.catalog.persistedPaths,
@@ -217,6 +222,7 @@ export function createVirtualPopulateBatch(owner: BatchRecord['owner']): Virtual
     rows: [],
     requests: [],
     rowCache: (owner.core && getRequestRowCache(owner.core)) || new Cache(),
+    readGuards: new Map(),
   });
   return batch;
 }
@@ -281,12 +287,19 @@ export function captureVirtualPopulateRows(
       }
       const record = storage(value);
       if (!record) return;
-      const occurrence: Occurrence = { address, plan: currentPlan, refs: new Map(), dependencies: new Map() };
+      const occurrence: Occurrence = {
+        address,
+        plan: currentPlan,
+        refs: new Map(),
+        referenceTargets: new Map(),
+        dependencies: new Map(),
+      };
       row.occurrences.set(addressKey(address), occurrence);
       for (const candidate of currentPlan.candidates) {
         const dependencies = (candidate.populateDependencies ?? []).map((dependency) => {
           if (!occurrence.refs.has(dependency.path))
             occurrence.refs.set(dependency.path, originalRef(value, dependency.path));
+          occurrence.referenceTargets.set(dependency.path, dependency.target);
           const request: FetchRequest = {
             binding: dependency.target,
             target: dependency.target,
@@ -354,6 +367,31 @@ const idKey = (id: unknown) => String(id);
 const logUnavailable = (request: FetchRequest, category: 'policy' | 'query') =>
   warn('Virtual populated dependency unavailable', { modelName: request.binding.model.modelName, category });
 
+/** Caller-context BASE read only. No public related grant or ambient Core admission. */
+function targetReadAllowed(state: BatchRecord, target: VirtualPopulateTarget): Promise<boolean> {
+  let pending = state.readGuards.get(target.identity);
+  if (!pending) {
+    const { owner } = state;
+    pending = getRequestWorkState(owner.request, owner.runtime)
+      .hookGate.run(() =>
+        evaluateRouteGuard(
+          owner.request,
+          owner.permissions,
+          getCapturedAuthorizationOption(target.configuration, 'operationAccess.read') as Validation,
+        ),
+      )
+      .then(
+        (allowed) => !!allowed,
+        () => {
+          warn('Virtual populated dependency unavailable', { modelName: target.modelName, category: 'policy' });
+          return false;
+        },
+      );
+    state.readGuards.set(target.identity, pending);
+  }
+  return pending;
+}
+
 /** Collect first, then dispatch each compatible ID/projection union once. Safe at concurrency one. */
 export function executeVirtualPopulateBatch(batch: VirtualPopulateBatch): Promise<void> {
   const state = batches.get(batch);
@@ -372,14 +410,11 @@ async function execute(state: BatchRecord): Promise<void> {
     if (!pending) {
       pending = (async () => {
         try {
-          const allowed = await work.hookGate.run(() =>
-            evaluateRouteGuard(
-              owner.request,
-              owner.permissions,
-              getCapturedAuthorizationOption(target.configuration, 'operationAccess.read') as Validation,
-            ),
-          );
-          if (!allowed) return undefined;
+          if (
+            target.configuration.requireReadOperationAccessForPopulateDependencies !== false &&
+            !(await targetReadAllowed(state, target))
+          )
+            return undefined;
           const parts = await work.hookGate.run(() =>
             resolveAccessFilterParts({
               req: owner.request,
@@ -500,6 +535,22 @@ export function hasVirtualPopulatePublicReference(
   return !!rows
     .get(row)
     ?.publicRequests.some((request) => addressKey(request.address!) === addressKey([...address, path]));
+}
+
+/**
+ * Only call after source selection/field authorization. Bypass-mode private fetches
+ * never cause an operation check by themselves; strict admission is reused even
+ * after row denial/query failure. No occurrence means ordinary behavior is intact.
+ */
+export function isVirtualPopulateReferenceVisible(
+  row: VirtualPopulateRow,
+  address: VirtualPopulateAddress,
+  path: string,
+): Promise<boolean> {
+  const record = rows.get(row);
+  const occurrence = record?.occurrences.get(addressKey(address));
+  const target = occurrence?.refs.get(path)?.present ? occurrence.referenceTargets.get(path) : undefined;
+  return record && target ? targetReadAllowed(record.batch, target) : Promise.resolve(true);
 }
 
 /** Fresh, declaration-only private values per call/getter/slot. No finalized DTO is input authority. */

@@ -1,7 +1,7 @@
 /** Package-only related descriptor capture and target derivation. */
 import type { AccessRuntime } from '../runtime';
 import type { SchemaType } from 'mongoose';
-import type { Defaults, Include, Populate } from '../interfaces';
+import type { Defaults, GlobalOptions, Include, Populate } from '../interfaces';
 import type { Service } from '../services/service';
 import { getModelRef } from '../meta';
 import { assertPublicAdmission, forwardPublicOptions } from '../validation/public-admission';
@@ -51,6 +51,10 @@ export function captureRelatedTargets(
   modelName: string,
   args: { populate?: unknown; include?: unknown } = {},
   depth = 0,
+  globalOptions: Pick<
+    GlobalOptions,
+    'requireRegisteredPopulateModels' | 'requireReadOperationAccessForPopulateDependencies'
+  > = runtime.getGlobalOptions(),
 ): AuthorizationRelatedTarget[] {
   if (depth > 32) authorizationError('related descriptor depth exceeded');
   assertPublicAdmission(args.populate, 'populate');
@@ -65,10 +69,15 @@ export function captureRelatedTargets(
       targets.push({
         path,
         modelName: model,
-        configuration: captureModelAuthorizationConfiguration(runtime, model),
+        configuration: captureModelAuthorizationConfiguration(runtime, model, undefined, globalOptions),
         staticObjectIdReference: staticObjectIdReference(runtime, modelName, path, model),
       });
-    else if (model && !runtime.getGlobalOption('requireRegisteredPopulateModels', true)) {
+    else if (
+      model &&
+      !(globalOptions.requireRegisteredPopulateModels === undefined
+        ? true
+        : globalOptions.requireRegisteredPopulateModels)
+    ) {
       // Capture the existing explicit opt-out at the requested path. No target
       // policy or document handle can be issued for an unregistered model.
       targets.push({ path, modelName: model, kind: 'passthrough', configuration: { catalog: { paths: [] } } });
@@ -76,7 +85,7 @@ export function captureRelatedTargets(
   }
   for (const entry of entries<Include>(args.include)) {
     if (!runtime.hasModel(entry.model)) authorizationError(`Model ${entry.model} not found`);
-    const configuration = captureModelAuthorizationConfiguration(runtime, entry.model);
+    const configuration = captureModelAuthorizationConfiguration(runtime, entry.model, undefined, globalOptions);
     const queryIntent =
       entry.op === 'count'
         ? undefined
@@ -105,7 +114,13 @@ export function captureRelatedTargets(
       configuration,
       queryIntent,
       operationGuard: runtime.getModelOption(entry.model, `operationAccess.${entry.op}`),
-      relatedTargets: captureRelatedTargets(runtime, entry.model, queryIntent?.args ?? entry.args ?? {}, depth + 1),
+      relatedTargets: captureRelatedTargets(
+        runtime,
+        entry.model,
+        queryIntent?.args ?? entry.args ?? {},
+        depth + 1,
+        globalOptions,
+      ),
     });
   }
   if (new Set(targets.map((target) => target.path)).size !== targets.length)

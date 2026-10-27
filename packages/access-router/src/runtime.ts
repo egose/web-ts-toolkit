@@ -517,6 +517,7 @@ export class AccessRuntime {
       requestPermissionField: '_permissions',
       globalPermissions: () => ({}),
       requireRegisteredPopulateModels: true,
+      requireReadOperationAccessForPopulateDependencies: true,
       logger: defaultLogger,
       requestComplexity: defaultRequestComplexity,
     },
@@ -737,10 +738,18 @@ export class AccessRuntime {
 
   /** Shallowly replace supplied global values; nested objects such as requestComplexity are not deep-merged. */
   setGlobalOptions(options: GlobalOptions) {
-    this.globalOptions.assign(options);
+    const next = { ...options };
+    if ('requireReadOperationAccessForPopulateDependencies' in next)
+      next.requireReadOperationAccessForPopulateDependencies =
+        next.requireReadOperationAccessForPopulateDependencies !== false;
+    this.globalOptions.assign(next);
   }
 
   setGlobalOption<K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]) {
+    if (key === 'requireReadOperationAccessForPopulateDependencies') {
+      this.globalOptions.set('requireReadOperationAccessForPopulateDependencies', value !== false);
+      return;
+    }
     this.globalOptions.set(key, value);
   }
 

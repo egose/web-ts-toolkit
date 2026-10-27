@@ -45,6 +45,8 @@ async function runInstalledArrayDependencies() {
     for (const hydration of ['lean', 'hydrated'] as const) {
       const api = createAccessRuntime();
       api.setGlobalOptions({ globalPermissions: () => [] });
+      const defaultGlobals = api.getGlobalOptions();
+      assert.equal(defaultGlobals.requireReadOperationAccessForPopulateDependencies, true);
       const targets = api.createRouter(TargetModel, {
         operationAccess: { read: true },
         baseFilter: { read: () => ({ tenantId: 'a' }) },
@@ -105,6 +107,53 @@ async function runInstalledArrayDependencies() {
       targets.setOption('operationAccess.read', false);
       assert.deepEqual(await read({ select, populate: [] }), {});
       assert.equal(calls, 4);
+      // PPR-03: exercise the target denial with a selected AND permitted source ref.
+      sources.permissionSchema('accounts', true);
+      assert.deepEqual(await read({ select, populate: [] }), {});
+      assert.equal(calls, 4); // strict private admission blocks computation too
+      api.setGlobalOptions({ requireReadOperationAccessForPopulateDependencies: false });
+      assert.equal(api.getGlobalOption('requireReadOperationAccessForPopulateDependencies'), false);
+      assert.equal(defaultGlobals.requireReadOperationAccessForPopulateDependencies, true);
+      assert.equal(createAccessRuntime().getGlobalOption('requireReadOperationAccessForPopulateDependencies'), true);
+      assert.deepEqual(await read({ select, populate: [] }), { eligibleCount: 2 });
+      assert.deepEqual(await read({ select }), { eligibleCount: 2 }); // denied default populate cannot retain IDs
+      // Ordinary list access/match can succeed while private inputs retain request READ scope.
+      targets.setOption('operationAccess.list', true);
+      assert.deepEqual(
+        await read({
+          select,
+          populate: [{ path: 'accounts', select: 'name -_id', access: 'list', match: { tenantId: 'b' } }],
+        }),
+        { eligibleCount: 2 },
+      );
+      assert.equal(calls, 7);
+      // Malformed dynamic JS is conservative: the string does not enable bypass.
+      Reflect.apply(api.setGlobalOption, undefined, ['requireReadOperationAccessForPopulateDependencies', 'false']);
+      assert.equal(api.getGlobalOption('requireReadOperationAccessForPopulateDependencies'), true);
+      assert.deepEqual(await read({ select, populate: [] }), {});
+      api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', true);
+      assert.deepEqual(await read({ select, populate: [] }), {});
+      assert.equal(calls, 7);
+      // Both modes preserve authorized public unions and exact original arrays, in
+      // BOTH hydration modes, including out-of-scope/missing IDs, nulls and duplicates.
+      targets.setOption('operationAccess.read', true);
+      for (const strict of [true, false]) {
+        api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', strict);
+        const before: number = calls;
+        assert.deepEqual(await read({ select }), {
+          accounts: [{ name: 'Main' }, { name: 'Main' }],
+          eligibleCount: 2,
+        });
+        assert.deepEqual(await read({ select, populate: [] }), {
+          accounts: originals.map((id) => (id === null ? null : String(id))),
+          eligibleCount: 2,
+        });
+        assert.deepEqual(await read({ select: ['eligibleCount', '-_id'], populate: [] }), { eligibleCount: 2 });
+        sources.permissionSchema('accounts', false);
+        assert.deepEqual(await read({ select, populate: [] }), { eligibleCount: 2 });
+        sources.permissionSchema('accounts', true);
+        assert.equal(calls, before + 4);
+      }
       assert.deepEqual((await SourceModel.findById(source._id).lean())?.accounts, originals);
       await new Promise<void>((resolve, reject) => server!.close((error) => (error ? reject(error) : resolve())));
       server = undefined;

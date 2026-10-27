@@ -83,6 +83,7 @@ import { matchesCatalogPattern } from '../acl/field-catalog';
 import {
   getVirtualPopulateRow,
   hasVirtualPopulatePublicReference,
+  isVirtualPopulateReferenceVisible,
   readVirtualPopulateInputs,
   readVirtualPopulateOriginalReference,
   type VirtualPopulateAddress,
@@ -719,6 +720,10 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
 
   const trimmed: Record<string, unknown> = {};
   for (const key of keep) {
+    // Active private declarations impose a separate caller-base-read visibility
+    // gate, including IDs and ordinary list/granted target projections. Fetch
+    // availability and getter outcomes never confer reference output authority.
+    if (privateRow && !(await isVirtualPopulateReferenceVisible(privateRow, privateAddress, key))) continue;
     // Reconstruction is independent of every getter outcome. Private-only work
     // cannot implicitly populate output; a getter's deliberate return is separate.
     // Exact originals are never inferred from targets.

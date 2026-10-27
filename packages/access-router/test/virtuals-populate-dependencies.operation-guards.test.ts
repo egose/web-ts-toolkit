@@ -22,12 +22,13 @@ function latch() {
   return { promise, resolve };
 }
 
-async function fixture(hydration: 'lean' | 'hydrated', enabled: boolean) {
+async function fixture(hydration: 'lean' | 'hydrated', enabled: boolean, strict = true) {
   const api = createAccessRuntime();
   runtimes.push(api);
   api.setGlobalOptions({
     requestPermissionField: '_permissions',
     globalPermissions: () => ['canRead'],
+    requireReadOperationAccessForPopulateDependencies: strict,
     requestComplexity: { maxBulkConcurrency: 1, maxHookConcurrency: 1 },
   } as never);
   const n = ++serial;
@@ -186,9 +187,13 @@ const guardCases: GuardCase[] = [
 ];
 
 describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (%s)', (hydration) => {
-  describe.each([false, true])('private dependency=%s', (enabled) => {
+  describe.each([
+    { enabled: false, strict: true },
+    { enabled: true, strict: true },
+    { enabled: true, strict: false },
+  ])('private dependency=$enabled, strict=$strict', ({ enabled, strict }) => {
     it.each(guardCases)('$name preserves ordinary Core admission and private read independence', async (entry) => {
-      const f = await fixture(hydration, enabled);
+      const f = await fixture(hydration, enabled, strict);
       f.api.setDefaultModelOption('operationAccess', entry.defaults as never);
       f.targetRouter.setOption('operationAccess', entry.stored as never);
       const access = entry.access ?? 'read';
@@ -198,19 +203,23 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
       });
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.code);
-      expect(result.data.account).toEqual(entry.allowed ? { name: 'public name' } : f.target._id);
-      const computed = enabled && (entry.privateAllowed ?? entry.allowed);
+      // PPR-02 tightens only ACTIVE dependency references. No-feature ID fallback stays intact.
+      if (enabled && !(entry.privateAllowed ?? entry.allowed)) expect(result.data).not.toHaveProperty('account');
+      else expect(result.data.account).toEqual(entry.allowed ? { name: 'public name' } : f.target._id);
+      const computed = enabled && (!strict || (entry.privateAllowed ?? entry.allowed));
       if (computed) expect(result.data).toHaveProperty('eligible', 7);
       else expect(result.data).not.toHaveProperty('eligible');
       expect(f.getter).toHaveBeenCalledTimes(computed ? 1 : 0);
-      expect(f.finds.mock.calls.length).toBe(entry.allowed || computed ? 1 : 0);
+      expect(f.finds.mock.calls.length).toBe(
+        entry.allowed && computed && access !== 'read' ? 2 : entry.allowed || computed ? 1 : 0,
+      );
       expect(result.data).not.toHaveProperty('account.balance');
     });
 
     it.each(['exact', 'default', 'bare', 'runtime-exact'] as const)(
       'retains a %s function guard with the captured actor/permissions and no route variants',
       async (placement) => {
-        const f = await fixture(hydration, enabled);
+        const f = await fixture(hydration, enabled, strict);
         const variant = vi.fn(() => false);
         const guard = vi.fn<GuardHook>(async function (permissions) {
           await Promise.resolve();
@@ -256,7 +265,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
       ['target-option', true],
       ['target-option', false],
     ] as const)('%s replacement from %s only affects later calls on the same service', async (replacement, initial) => {
-      const f = await fixture(hydration, enabled);
+      const f = await fixture(hydration, enabled, strict);
       f.api.setDefaultModelOption('operationAccess.read', initial);
       f.targetRouter.setOption(
         'operationAccess',
@@ -280,17 +289,18 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
         const allowed = index === 0 ? initial : !initial;
         expect(result.success).toBe(true);
         if (!result.success) throw new Error(result.code);
-        expect(result.data.account).toEqual(allowed ? { name: 'public name' } : f.target._id);
-        if (enabled && allowed) expect(result.data).toHaveProperty('eligible', 7);
+        if (enabled && !allowed) expect(result.data).not.toHaveProperty('account');
+        else expect(result.data.account).toEqual(allowed ? { name: 'public name' } : f.target._id);
+        if (enabled && (allowed || !strict)) expect(result.data).toHaveProperty('eligible', 7);
         else expect(result.data).not.toHaveProperty('eligible');
       }
-      expect(f.getter).toHaveBeenCalledTimes(enabled ? 1 : 0);
-      expect(f.finds).toHaveBeenCalledTimes(1);
+      expect(f.getter).toHaveBeenCalledTimes(enabled ? (strict ? 1 : 2) : 0);
+      expect(f.finds).toHaveBeenCalledTimes(enabled && !strict ? 2 : 1);
     });
   });
 
   it.each(['request', 'scope', 'unrestricted'] as const)(
-    'a related operation grant retains %s public rows without admitting private read',
+    'PPR-02 base read visibility overrides related operation grants with %s rows',
     async (mode) => {
       const f = await fixture(hydration, true);
       f.api.setDefaultModelOption('operationAccess.read', true);
@@ -310,7 +320,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
       );
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.code);
-      expect(result.data.account).toEqual(mode === 'request' ? f.target._id : { name: 'public name' });
+      expect(result.data).not.toHaveProperty('account');
       expect(result.data).not.toHaveProperty('eligible');
       expect(f.getter).not.toHaveBeenCalled();
       expect(base).toHaveBeenCalledTimes(mode === 'request' ? 1 : 0);
@@ -330,7 +340,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
     );
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.code);
-    expect(result.data.account).toEqual(f.target._id);
+    expect(result.data).not.toHaveProperty('account');
     expect(result.data).not.toHaveProperty('eligible');
     expect(f.getter).not.toHaveBeenCalled();
     expect(f.finds).not.toHaveBeenCalled();

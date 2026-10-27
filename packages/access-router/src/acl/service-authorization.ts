@@ -58,6 +58,10 @@ export interface AuthorizationConfiguration {
   readonly catalog: AuthorizationFieldCatalog;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
+  /** Runtime-owned private input admission mode, not public output/related authority. */
+  readonly requireReadOperationAccessForPopulateDependencies?: boolean;
+  /** Independent ordinary-populate registration posture from the same global snapshot. */
+  readonly requireRegisteredPopulateModels?: boolean;
   readonly documentPermissionField?: string;
   /** Captured permission schema, virtual descriptors, always-select and metadata posture. */
   readonly [key: string]: unknown;

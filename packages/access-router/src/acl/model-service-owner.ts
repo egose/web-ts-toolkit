@@ -1,6 +1,6 @@
 /** Private model-core/service dispatch ownership. Never carried on request/output DTOs. */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { ModelRequest } from '../interfaces';
+import type { GlobalOptions, ModelRequest } from '../interfaces';
 import { defaultRuntime, type AccessRuntime } from '../runtime';
 import { getActiveRuntime, runWithRuntime } from '../runtime-context';
 import type { AccessRouterPermissions } from '../permission';
@@ -12,7 +12,7 @@ interface Owner {
 }
 const cores = new WeakMap<object, Owner>();
 const construction = new AsyncLocalStorage<Owner>();
-const dispatch = new AsyncLocalStorage<{ receiver: object; options?: unknown }>();
+const dispatch = new AsyncLocalStorage<{ receiver: object; options?: unknown; globalOptions?: GlobalOptions }>();
 interface CapturedModelOperationGuard {
   core: object;
   modelName: string;
@@ -101,4 +101,11 @@ export function modelServiceOptions<T>(receiver: object, read: () => T): T {
   const call = dispatch.getStore();
   if (call?.receiver !== receiver) return read();
   return (call.options ??= read()) as T;
+}
+
+/** One owner snapshot for source, private targets and ordinary related capture, before awaits. */
+export function modelServiceGlobalOptions(receiver: object, runtime: AccessRuntime): GlobalOptions {
+  const call = dispatch.getStore();
+  if (call?.receiver !== receiver) return runtime.getGlobalOptions();
+  return (call.globalOptions ??= runtime.getGlobalOptions());
 }

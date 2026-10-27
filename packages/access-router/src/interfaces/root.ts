@@ -168,7 +168,7 @@ export interface AccessRouterLogger {
 }
 
 /**
- * Runtime-wide request initialization and resource settings, configured with
+ * Runtime-wide request initialization, private-input policy and resource settings, configured with
  * api.setGlobalOptions / api.setGlobalOption. These are not model options or wire
  * options. Object assignment is shallow; nested requestComplexity replaces as a unit.
  */
@@ -186,6 +186,39 @@ export interface GlobalOptions {
   globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
   /** Require populate target models to be registered in the active runtime. Defaults to `true`. */
   requireRegisteredPopulateModels?: boolean;
+  /**
+   * Require the original caller's target base `operationAccess.read` before loading
+   * declared private `dependsOnPopulate` inputs (default `true`). Only literal boolean
+   * `false` bypasses that operation gate; undefined/malformed JS values normalize to
+   * `true`. Source/target input-field permissions are already bypassed by the server
+   * declaration; the virtual's own output authorization still applies. Target request-mode
+   * `baseFilter.read`, `overrideFilter.read` and retained reference IDs always constrain rows.
+   * Captured with source/target policy and query intent before the first await, including
+   * nested output scopes. In-flight calls retain their mode; later calls see updates.
+   * Runtime-isolated server configuration only: no caller/query or per-model override.
+   *
+   * In BOTH modes, references in an active selected/applicable dependency plan require
+   * source selection/field permission AND the captured caller-context target base read
+   * grant. Denied/failed read visibility omits the entire reference, including its ID,
+   * even with ordinary list/custom populate access or a public related-operation grant.
+   * Allowed read keeps the original authorized public populate mask, or exact original
+   * refs without population. No active dependency plan leaves ordinary behavior intact.
+   * False-mode private-only loading adds no operation check solely for that fetch.
+   * This never grants public fields, row/write authority or query controls. Registration
+   * and static input declarations remain required, independently of requireRegisteredPopulateModels.
+   *
+   * @example
+   * ```ts
+   * import { createAccessRuntime, type GlobalOptions } from '@web-ts-toolkit/access-router';
+   * const api = createAccessRuntime();
+   * const policy = { requireReadOperationAccessForPopulateDependencies: false } satisfies GlobalOptions;
+   * api.setGlobalOptions(policy); // privileged computation inputs; no public target-read grant
+   * const snapshot: GlobalOptions = api.getGlobalOptions();
+   * api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', true);
+   * void snapshot; // stored snapshot; read again to observe the setter
+   * ```
+   */
+  requireReadOperationAccessForPopulateDependencies?: boolean;
   logger?: AccessRouterLogger;
   /** Request budgets and separate hook/persistence pools; concurrency limits are captured on first owner use. */
   requestComplexity?: RequestComplexityOptions;
@@ -505,8 +538,12 @@ export interface ModelRouterOptions<
    * that getter's fourth argument. Annotate ModelVirtualDescriptor<Source, Value,
    * { ref: Target }> separately, then assign here; persisted/write/public types
    * stay unchanged. Register target models/options first in this runtime. Source
-   * refs are retained automatically; target base read/tenant gates still apply.
-   * The original public selection/population is preserved, including ID restoration.
+   * refs are retained automatically. GlobalOptions.requireReadOperationAccessForPopulateDependencies
+   * defaults to true; false bypasses only private target-operation admission, never
+   * request read-row filters/retained IDs. In both modes an active dependency ref's
+   * denied caller-context target base read omits the entire ref, including its ID.
+   * Allowed refs keep the original authorized populate mask or exact original IDs;
+   * unselected/denied source fields remain hidden. No active plan keeps ordinary behavior.
    *
    * @example Shortest typed happy-path (persisted model lacks `fullAddress`):
    * ```ts
