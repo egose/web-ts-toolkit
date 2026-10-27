@@ -224,10 +224,25 @@ function _createMdxContent(props) {
       }), " require strings; ", (0,jsx_runtime.jsx)(_components.code, {
         children: "listHardLimit"
       }), " requires a finite\nnumber; ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "requireRegisteredPopulateModels"
-      }), " requires a boolean. Optional ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireOperationAccessForPopulateQueries"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireOperationAccessForPopulateDependencies"
+      }), " require booleans. Optional ", (0,jsx_runtime.jsx)(_components.code, {
         children: "undefined"
       }), "\nremains allowed. Invalid values throw and package-controlled writes roll back.\nUnknown extension/typo keys remain allowed; this is not exhaustive validation of\nstructured policies or hooks, and decorators cannot type-check property values."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Both populate flags are global/module options, default true, and only literal false\nbypasses their independent target-operation gates. Actual registered targets and an\neffective object ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissionSchema"
+      }), " remain mandatory. Denied population/private work\npreserves selected/permitted parent IDs. See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./access-router/configuration#populate-operation-policies",
+        children: "the server policy matrix"
+      }), ".\n", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Removed:"
+      }), " ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireRegisteredPopulateModels"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireReadOperationAccessForPopulateDependencies"
+      }), " have no aliases or raw-mode mapping."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Module ", (0,jsx_runtime.jsx)(_components.code, {
         children: "options.basePath"

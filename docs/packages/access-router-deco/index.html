@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">@web-ts-toolkit/access-router-deco | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="@web-ts-toolkit/access-router-deco | web-ts-toolkit"><meta data-rh="true" name="description" content="Decorator-based configuration for @web-ts-toolkit/access-router."><meta data-rh="true" property="og:description" content="Decorator-based configuration for @web-ts-toolkit/access-router."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router Deco","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco"}]}</script><link rel="stylesheet" href="/assets/css/styles.b781c440.css">
-<script src="/assets/js/runtime~main.42d7242d.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.4425671b.js" defer="defer"></script>
 <script src="/assets/js/main.2e6e20df.js" defer="defer"></script>
 </head>
 <body>
@@ -25,10 +25,17 @@ the same property (including symbols) or the same option key.</p>
 <code>requestPermissionField</code>, <code>documentPermissionField</code>, <code>idParam</code>, <code>idField</code>,
 <code>parentPath</code>, <code>queryRouteSegment</code>, <code>mutationRouteSegment</code>, <code>modelPermissionPrefix</code>,
 <code>modelName</code>, and <code>basePath</code> require strings; <code>listHardLimit</code> requires a finite
-number; <code>requireRegisteredPopulateModels</code> requires a boolean. Optional <code>undefined</code>
+number; <code>requireOperationAccessForPopulateQueries</code> and
+<code>requireOperationAccessForPopulateDependencies</code> require booleans. Optional <code>undefined</code>
 remains allowed. Invalid values throw and package-controlled writes roll back.
 Unknown extension/typo keys remain allowed; this is not exhaustive validation of
 structured policies or hooks, and decorators cannot type-check property values.</p>
+<p>Both populate flags are global/module options, default true, and only literal false
+bypasses their independent target-operation gates. Actual registered targets and an
+effective object <code>permissionSchema</code> remain mandatory. Denied population/private work
+preserves selected/permitted parent IDs. See <a class="" href="/docs/packages/access-router/configuration#populate-operation-policies">the server policy matrix</a>.
+<strong>Removed:</strong> <code>requireRegisteredPopulateModels</code> and
+<code>requireReadOperationAccessForPopulateDependencies</code> have no aliases or raw-mode mapping.</p>
 <p>Module <code>options.basePath</code> now prefixes generated OpenAPI paths before collision
 checks as well as mounting Express. Module <code>/api</code> plus model <code>/users</code> produces
 <code>/api/users</code>; root <code>/batch</code> produces <code>/api/batch</code>. Shared-runtime prior entries

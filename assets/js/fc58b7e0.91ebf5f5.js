@@ -339,26 +339,26 @@ function _createMdxContent(props) {
       children: "Only the resolved declaration's paths/mask reach each getter, independently of public\nmatch/select/access. Missing/undefined source refs skip invocation. Present null/empty\narrays invoke with null/[] when private admission/row policy permits; deleted/out-of-scope rows\nbecome null/null slots in original order, preserving duplicates. Missing target fields\nremain absent/undefined; present null/false/zero/empty-string survive. The getter chooses\nwhat to return for partial inputs."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The runtime flag ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "requireReadOperationAccessForPopulateDependencies"
+        children: "requireOperationAccessForPopulateDependencies"
       }), " defaults to true.\nOnly literal false bypasses target base ", (0,jsx_runtime.jsx)(_components.code, {
         children: "operationAccess.read"
       }), " for private loading;\nundefined/malformed JavaScript values stay conservative true. Source/target input-field\npermissions are already bypassed, but virtual output authorization still governs its result.\nRequest-mode ", (0,jsx_runtime.jsx)(_components.code, {
         children: "overrideFilter.read"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "baseFilter.read"
-      }), " and original source IDs remain mandatory.\nFalse-mode virtual-only output adds no operation check solely for its private fetch.\nThis server/runtime option is captured before awaits with source/target/query configuration,\nincluding nested output; later calls see changes and runtimes remain isolated. It is not a\ncaller/query option or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "requireRegisteredPopulateModels"
-      }), " registration opt-out."]
+      }), " and original source IDs remain mandatory.\nFalse-mode virtual-only output adds no operation check solely for its private fetch.\nThis server/runtime option is captured before awaits with source/target/query configuration,\nincluding nested output; later calls see changes and runtimes remain isolated. It is not a\ncaller/query or model option. It is independent of\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireOperationAccessForPopulateQueries"
+      }), "; actual model registration and an effective\nobject ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissionSchema"
+      }), " remain mandatory for every target in all four modes."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "In true mode target base-read denial, and in both modes terminal false read-row policy,\nmakes dependencies unavailable and skips affected getters, even for null/empty refs. Dependency-only hook/query/cast errors\nomit the virtual with structural-only logs, without raw fallback/retry/new retryable\nwrite errors. Shared ordinary-public query failures keep the ordinary error path.\nInvalid configuration fails preflight. Getter undefined/throw and later authorization\ndenial still reach unconditional public reconstruction/cleanup."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["In ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "both modes"
-      }), ", active selected/applicable dependency refs have an independent captured\ncaller-context target base-read visibility gate after source field authorization. Unselected/\ndenied source fields are omitted; denied/failed target read omits the ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "entire ref including\nIDs"
-      }), ", even when private computation succeeds, a getter fails/is denied, or ordinary list/\ncustom populate access or a public related-operation grant permits population. Strict private\nadmission is reused; false mode checks output only when the source could be returned.\nAllowed target read keeps only the original authorized public populate mask, or exact\noriginal refs/arrays (nulls, misses, ordering, duplicates and presence) without ordinary\npopulation. No active dependency plan leaves ordinary behavior unchanged. This intentionally\nsupersedes the prior D1 denied-ID fallback even in default mode; see\n", (0,jsx_runtime.jsx)(_components.a, {
-        href: "./configuration#private-populated-virtual-dependencies",
-        children: "release compatibility"
+        children: "all four modes"
+      }), ", private work leaves ordinary ref shape unchanged. The extra\ntarget-base-read reference-visibility gate is removed. Unselected/field-denied source refs\nare omitted; otherwise no admitted ordinary population means exact original IDs/arrays\n(nulls, missing IDs, ordering, duplicates and presence), including when strict private\nadmission fails, private rows/queries fail, a getter throws/omits or deferred output\nauthorization denies it. Admitted ordinary population keeps only its original authorized\nmask; admitted misses return scalar null/filtered arrays, not IDs. Query bypass or\nlist/custom/public related-operation grants cannot be undone by selecting a virtual.\nSee the ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./configuration#populate-operation-policies",
+        children: "independent policy matrix and migration"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["There is ", (0,jsx_runtime.jsx)(_components.strong, {

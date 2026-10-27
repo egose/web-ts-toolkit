@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Hooks | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Hooks | web-ts-toolkit"><meta data-rh="true" name="description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><meta data-rh="true" property="og:description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Hooks","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"}]}</script><link rel="stylesheet" href="/assets/css/styles.b781c440.css">
-<script src="/assets/js/runtime~main.42d7242d.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.4425671b.js" defer="defer"></script>
 <script src="/assets/js/main.2e6e20df.js" defer="defer"></script>
 </head>
 <body>
@@ -106,7 +106,7 @@ arrays invoke with null/[] when private admission/row policy permits; deleted/ou
 become null/null slots in original order, preserving duplicates. Missing target fields
 remain absent/undefined; present null/false/zero/empty-string survive. The getter chooses
 what to return for partial inputs.</p>
-<p>The runtime flag <code>requireReadOperationAccessForPopulateDependencies</code> defaults to true.
+<p>The runtime flag <code>requireOperationAccessForPopulateDependencies</code> defaults to true.
 Only literal false bypasses target base <code>operationAccess.read</code> for private loading;
 undefined/malformed JavaScript values stay conservative true. Source/target input-field
 permissions are already bypassed, but virtual output authorization still governs its result.
@@ -114,24 +114,24 @@ Request-mode <code>overrideFilter.read</code>, <code>baseFilter.read</code> and 
 False-mode virtual-only output adds no operation check solely for its private fetch.
 This server/runtime option is captured before awaits with source/target/query configuration,
 including nested output; later calls see changes and runtimes remain isolated. It is not a
-caller/query option or <code>requireRegisteredPopulateModels</code> registration opt-out.</p>
+caller/query or model option. It is independent of
+<code>requireOperationAccessForPopulateQueries</code>; actual model registration and an effective
+object <code>permissionSchema</code> remain mandatory for every target in all four modes.</p>
 <p>In true mode target base-read denial, and in both modes terminal false read-row policy,
 makes dependencies unavailable and skips affected getters, even for null/empty refs. Dependency-only hook/query/cast errors
 omit the virtual with structural-only logs, without raw fallback/retry/new retryable
 write errors. Shared ordinary-public query failures keep the ordinary error path.
 Invalid configuration fails preflight. Getter undefined/throw and later authorization
 denial still reach unconditional public reconstruction/cleanup.</p>
-<p>In <strong>both modes</strong>, active selected/applicable dependency refs have an independent captured
-caller-context target base-read visibility gate after source field authorization. Unselected/
-denied source fields are omitted; denied/failed target read omits the <strong>entire ref including
-IDs</strong>, even when private computation succeeds, a getter fails/is denied, or ordinary list/
-custom populate access or a public related-operation grant permits population. Strict private
-admission is reused; false mode checks output only when the source could be returned.
-Allowed target read keeps only the original authorized public populate mask, or exact
-original refs/arrays (nulls, misses, ordering, duplicates and presence) without ordinary
-population. No active dependency plan leaves ordinary behavior unchanged. This intentionally
-supersedes the prior D1 denied-ID fallback even in default mode; see
-<a class="" href="/docs/packages/access-router/configuration#private-populated-virtual-dependencies">release compatibility</a>.</p>
+<p>In <strong>all four modes</strong>, private work leaves ordinary ref shape unchanged. The extra
+target-base-read reference-visibility gate is removed. Unselected/field-denied source refs
+are omitted; otherwise no admitted ordinary population means exact original IDs/arrays
+(nulls, missing IDs, ordering, duplicates and presence), including when strict private
+admission fails, private rows/queries fail, a getter throws/omits or deferred output
+authorization denies it. Admitted ordinary population keeps only its original authorized
+mask; admitted misses return scalar null/filtered arrays, not IDs. Query bypass or
+list/custom/public related-operation grants cannot be undone by selecting a virtual.
+See the <a class="" href="/docs/packages/access-router/configuration#populate-operation-policies">independent policy matrix and migration</a>.</p>
 <p>There is <strong>no implicit transport</strong> of private maps/raw targets to DTOs, lifecycle
 snapshots, public permission hooks/metadata, document handles, or decorate/task input.
 Only an authorized getter&#x27;s deliberate returned value becomes computed output;
