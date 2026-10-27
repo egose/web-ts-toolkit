@@ -91,6 +91,8 @@ export function prepareSubdocumentOutput<T, V extends object>(
       getServiceExecutors(service).binding().runtime as import('../runtime').AccessRuntime,
       service.getServiceModelName(),
       { populate },
+      0,
+      configuration,
     ),
     undefined,
     configuration,

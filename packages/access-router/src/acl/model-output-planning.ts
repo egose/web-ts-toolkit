@@ -1,5 +1,5 @@
 import type { AccessRuntime } from '../runtime';
-import type { ModelRequest, ModelRouterOptions, Projection } from '../interfaces';
+import type { GlobalOptions, ModelRequest, ModelRouterOptions, Projection } from '../interfaces';
 import type { AccessRouterPermissions } from '../permission';
 import { get } from '@web-ts-toolkit/utils';
 import { resolveNestedOption } from '../options/manager';
@@ -23,6 +23,7 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
   runtime: AccessRuntime,
   modelName: string,
   options: ModelRouterOptions<T, V> = runtime.getModelOptions<T, V>(modelName),
+  globalOptions: GlobalOptions = runtime.getGlobalOptions(),
 ): AuthorizationConfiguration {
   const model = runtime.getModelInstance(modelName);
   if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
@@ -30,7 +31,15 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
   return copyAuthorizationValue(
     {
       catalog: captureAuthorizationFieldCatalog(model.schema, virtuals, options.documentPermissionField),
-      virtualPopulateSnapshot: captureVirtualPopulateSnapshot(runtime, modelName, options as ModelRouterOptions),
+      virtualPopulateSnapshot: captureVirtualPopulateSnapshot(
+        runtime,
+        modelName,
+        options as ModelRouterOptions,
+        globalOptions,
+      ),
+      requireReadOperationAccessForPopulateDependencies:
+        globalOptions.requireReadOperationAccessForPopulateDependencies !== false,
+      requireRegisteredPopulateModels: globalOptions.requireRegisteredPopulateModels,
       permissionSchema: options.permissionSchema,
       virtuals,
       alwaysSelectFields: options.alwaysSelectFields,

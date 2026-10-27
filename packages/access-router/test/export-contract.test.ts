@@ -437,7 +437,7 @@ describe('AR-14 published export contract', () => {
       }
     });
 
-    it.each(['d.ts', 'd.mts'])('DPV-05 exports private input types and editor hover in %s', (extension) => {
+    it.each(['d.ts', 'd.mts'])('PPR-03 exports private input policy/types and editor hover in %s', (extension) => {
       const ts = require('typescript') as typeof import('typescript');
       const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));
       const program = ts.createProgram(entries, {
@@ -446,6 +446,7 @@ describe('AR-14 published export contract', () => {
         moduleResolution: ts.ModuleResolutionKind.Bundler,
         noEmit: true,
         skipLibCheck: true,
+        strictNullChecks: true,
         types: [],
       });
       const checker = program.getTypeChecker();
@@ -464,6 +465,37 @@ describe('AR-14 published export contract', () => {
           .map((p) => p.name)
           .sort();
       for (const entry of entries) {
+        const flag = 'requireReadOperationAccessForPopulateDependencies';
+        const globals = exported(entry, 'GlobalOptions');
+        const mode = globals.type.getProperty(flag)!;
+        expect(mode, `${path.basename(entry)} exposes the runtime policy`).toBeDefined();
+        expect(mode.flags & ts.SymbolFlags.Optional).not.toBe(0);
+        expect(checker.typeToString(checker.getTypeOfSymbolAtLocation(mode, mode.valueDeclaration!))).toBe(
+          'boolean | undefined',
+        );
+        for (const phrase of [
+          'default `true`',
+          'literal boolean',
+          'malformed JS',
+          'before the first await',
+          'Runtime-isolated server configuration',
+          'baseFilter.read',
+          'overrideFilter.read',
+          'BOTH modes',
+          'including its ID',
+          'list/custom',
+          'related-operation grant',
+          'exact original',
+          'No active dependency plan',
+          'requireRegisteredPopulateModels',
+        ])
+          expect(hover(mode)).toContain(phrase);
+        expect(mode.getJsDocTags(checker).find((tag) => tag.name === 'example')).toBeDefined();
+        for (const name of ['ModelRouterOptions', 'RootRouterOptions', 'SubdocumentReadOptions'])
+          expect(
+            exported(entry, name).type.getProperty(flag),
+            `${name} cannot configure the runtime mode`,
+          ).toBeUndefined();
         const dependency = exported(entry, 'ModelVirtualPopulateDependency');
         expect(names(dependency.type)).toEqual(['path', 'select']);
         for (const phrase of [
@@ -472,6 +504,8 @@ describe('AR-14 published export contract', () => {
           'eager/atomic',
           'operationAccess.read',
           'authorization.related',
+          'requireReadOperationAccessForPopulateDependencies',
+          'including IDs',
         ])
           expect(hover(dependency.symbol)).toContain(phrase);
         expect(hover(dependency.type.getProperty('path')!)).toContain('Retained automatically');

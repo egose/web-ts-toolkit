@@ -975,3 +975,308 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 alternate entry points (%s)
     }
   });
 });
+
+describe.each(['lean', 'hydrated'] as const)('PPR-02 denied-read output parity (%s)', (hydration) => {
+  describe.each([true, false])('requireReadOperationAccessForPopulateDependencies=%s', (strict) => {
+    const policyFixture = async () => {
+      const f = await fixture(hydration, {
+        account: { operationAccess: { read: false, list: true } },
+        parent: { docPermissions: () => ({ owns: true }) },
+      });
+      f.api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', strict);
+      return f;
+    };
+    const assertRow = (row: Row, access: string, balance = 10) => {
+      expect(row).not.toHaveProperty('account');
+      if (strict) expect(row).not.toHaveProperty('total');
+      else expect(row).toHaveProperty('total', `${access}:${balance}`);
+    };
+
+    it.each(['list', 'read', 'readFilter', 'subList', 'subRead'] as const)(
+      '%s direct/root/trusted returns no reference ID',
+      async (op) => {
+        const f = await policyFixture();
+        const id = String(f.parent._id);
+        const subId = String(f.parent.children[0]._id);
+        const args = { select: ['name', 'account', 'total'] };
+        const direct = await request(f.app)
+          .post(
+            op === 'list'
+              ? `${f.base}/__query`
+              : op === 'read' || op === 'readFilter'
+                ? `${f.base}/__query/${id}`
+                : `${f.base}/${id}/children${op === 'subRead' ? `/${subId}` : ''}/__query`,
+          )
+          .send(args)
+          .expect(200);
+        const root = await request(f.app)
+          .post(f.rootBase)
+          .send([
+            {
+              target: 'model',
+              name: f.Parent.modelName,
+              op: op === 'readFilter' ? 'read' : op,
+              ...(op === 'readFilter' ? { filter: { _id: id } } : { id }),
+              ...(op.startsWith('sub') ? { sub: 'children', subId } : {}),
+              args,
+            },
+          ])
+          .expect(200);
+        expect(root.body[0].statusCode).toBe(200);
+        const trusted = await f.execute((req) => {
+          const service = req.macl.getService(f.Parent.modelName);
+          if (op === 'list') return service.find({ _id: id }, args, quiet);
+          if (op === 'readFilter') return service.findOne({ _id: id }, args, quiet);
+          if (op === 'read') return service.findById(id, args, quiet);
+          if (op === 'subList') return service.listSub(id, 'children', args);
+          return service.readSub(id, 'children', subId, args);
+        });
+        expect(trusted).toMatchObject({ success: true });
+        if (!trusted.success) throw new Error(trusted.code);
+        const directData = op === 'list' ? direct.body.data : direct.body;
+        expect(plain(trusted.data)).toEqual(directData);
+        expect(root.body[0].result.data).toEqual(directData);
+        assertRow(
+          Array.isArray(directData) ? directData[0] : directData,
+          op.endsWith('List') || op === 'list' ? 'list' : 'read',
+        );
+        f.assertTargetRowsUnchanged();
+      },
+    );
+
+    it.each([
+      'create',
+      'update',
+      'upsert-create',
+      'upsert-update',
+      'new',
+      'subCreate',
+      'subUpdate',
+      'subBulkUpdate',
+    ] as const)('root %s keeps computation authority separate from reference output', async (operation) => {
+      const f = await policyFixture();
+      f.Parent.schema.path('account').default(f.b._id);
+      const id = String(f.parent._id);
+      const subId = String(f.parent.children[0]._id);
+      const sub = operation.startsWith('sub');
+      const create = ['create', 'upsert-create', 'new', 'subCreate'].includes(operation);
+      const data = { name: 'ppr-write', account: String(f.b._id) };
+      const response = await request(f.app)
+        .post(f.rootBase)
+        .send([
+          {
+            target: 'model',
+            name: f.Parent.modelName,
+            op: operation.startsWith('upsert') ? 'upsert' : operation,
+            ...(['update', 'upsert-update'].includes(operation) || sub ? { id } : {}),
+            ...(sub ? { sub: 'children', subId } : {}),
+            ...(operation === 'new'
+              ? {}
+              : {
+                  data:
+                    operation === 'subBulkUpdate'
+                      ? [{ ...data, _id: subId }]
+                      : operation === 'upsert-update'
+                        ? { ...data, _id: id }
+                        : data,
+                }),
+          },
+        ])
+        .expect(200);
+      expect(response.body[0].statusCode).toBe(create && operation !== 'new' ? 201 : 200);
+      const rows = Array.isArray(response.body[0].result.data)
+        ? response.body[0].result.data
+        : [response.body[0].result.data];
+      const row = sub && operation === 'subCreate' ? rows.find((value: Row) => value.name === 'ppr-write') : rows[0];
+      assertRow(row, create ? 'create' : 'update', 20);
+      const stored = sub ? await f.Parent.findById(id).lean() : await f.Parent.findOne({ name: 'ppr-write' }).lean();
+      if (stored) {
+        expect(stored).not.toHaveProperty('total');
+        expect(sub ? stored.children.find((child) => child.name === 'ppr-write')!.account : stored.account).toEqual(
+          f.b._id,
+        );
+      }
+      f.assertTargetRowsUnchanged();
+    });
+
+    it('trusted create/update/upsert/new retain local snapshots and perform persistence once', async () => {
+      const f = await policyFixture();
+      f.Parent.schema.path('account').default(f.b._id);
+      await f.execute(async (req) => {
+        const service = req.macl.getService(f.Parent.modelName);
+        const args = { select: ['name', 'account', 'total'] };
+        const data = { name: 'trusted-ppr', account: f.b._id };
+        const results = [
+          await service.create(data, args, quiet),
+          await service.updateOne({ _id: f.parent._id }, data, args, quiet),
+          await service.updateById(String(f.parent._id), data, args, quiet),
+          await service.upsert({ name: 'missing' }, { ...data, name: 'upsert-ppr' }, args, quiet),
+          await service.new({}, quiet),
+        ];
+        for (const [index, result] of results.entries()) {
+          expect(result).toMatchObject({ success: true });
+          if (!result.success) throw new Error(result.code);
+          const row = Array.isArray(result.data) ? result.data[0] : result.data;
+          assertRow(row, index === 1 || index === 2 ? 'update' : 'create', 20);
+          if ('contexts' in result) expect(result.contexts[0].finalDocumentSnapshot.account).toEqual(f.b._id);
+          else if (index !== 4) expect(result.context.finalDocumentSnapshot.account).toEqual(f.b._id);
+        }
+      });
+      expect(await f.Parent.countDocuments()).toBe(3);
+      f.assertTargetRowsUnchanged();
+    });
+
+    it('embedded arrays/plain nested/single scopes retain occurrence visibility under field grants', async () => {
+      const f = await policyFixture();
+      const result = await f.execute((req) =>
+        req.macl.getService(f.Parent.modelName).findOne(
+          { _id: f.parent._id },
+          {
+            select: [
+              'children.account',
+              'children.total',
+              'children.notes.account',
+              'children.notes.total',
+              'profile.account',
+              'profile.total',
+              'nested.inner.account',
+              'nested.inner.total',
+            ],
+          },
+          { ...quiet, authorization: { outputFields: { mode: 'grant', paths: ['children', 'profile', 'nested'] } } },
+        ),
+      );
+      expect(result).toMatchObject({ success: true });
+      if (!result.success) throw new Error(result.code);
+      assertRow(result.data.children[0], 'read');
+      assertRow(result.data.children[0].notes[0], 'read', 20);
+      assertRow(result.data.profile, 'read', 20);
+      assertRow(result.data.nested.inner, 'read');
+      f.assertTargetRowsUnchanged();
+    });
+
+    it('duplicate populated target DTOs keep their own mask and captured visibility through output-cache copies', async () => {
+      const f = await policyFixture();
+      const find = vi.spyOn(f.Account.collection, 'find');
+      const result = await f.execute((req) =>
+        req.macl
+          .getService(f.Parent.modelName)
+          .findOne(
+            { _id: f.parent._id },
+            { select: ['members'], populate: [{ path: 'members', select: ['name', 'account', 'total'] }] },
+            quiet,
+          ),
+      );
+      expect(result).toMatchObject({ success: true });
+      if (!result.success) throw new Error(result.code);
+      const rows = result.data.members;
+      for (const row of rows) expect(row).not.toHaveProperty('account');
+      assertRow(rows[0], 'read');
+      expect(rows[1]).not.toHaveProperty('total');
+      expect(rows[2]).toEqual(rows[0]);
+      expect(rows[2]).not.toBe(rows[0]);
+      expect(f.targetTotal).toHaveBeenCalledTimes(strict ? 0 : 1);
+      expect(find).toHaveBeenCalledTimes(strict ? 0 : 1);
+    });
+
+    it.each(['legacy', 'correlated'] as const)(
+      '%s include output uses captured target base-read visibility',
+      async (mode) => {
+        const f = await policyFixture();
+        const result = await f.execute((req) =>
+          req.macl.getService(f.Parent.modelName).findOne(
+            { _id: f.parent._id },
+            {
+              select: ['name'],
+              include: [
+                {
+                  model: f.Member.modelName,
+                  op: 'list',
+                  path: 'joined',
+                  args: { select: ['name', 'account', 'total'] },
+                  ...(mode === 'correlated'
+                    ? { mode, filter: { key: { $parent: 'key' } } }
+                    : { localField: 'key', foreignField: 'key' }),
+                },
+              ],
+            } as never,
+            quiet,
+          ),
+        );
+        expect(result).toMatchObject({ success: true });
+        if (!result.success) throw new Error(result.code);
+        assertRow(result.data.joined[0], 'list');
+      },
+    );
+
+    it.each(['embedded', 'child', 'populated', 'include'] as const)(
+      '%s stages keep their initial mode through an awaited parent hook',
+      async (stage) => {
+        const f = await policyFixture();
+        let entered!: () => void;
+        let release!: () => void;
+        const ready = new Promise<void>((resolve) => (entered = resolve));
+        const held = new Promise<void>((resolve) => (release = resolve));
+        let first = true;
+        f.api.setModelOption(f.Parent.modelName, 'baseFilter.read', async () => {
+          if (first) {
+            first = false;
+            entered();
+            await held;
+          }
+          return {};
+        });
+        const results = await f.execute(async (req) => {
+          const service = req.macl.getService(f.Parent.modelName);
+          const read = () =>
+            stage === 'child'
+              ? service.readSub(String(f.parent._id), 'children', String(f.parent.children[0]._id), {
+                  select: ['account', 'total'],
+                })
+              : service.findOne(
+                  { _id: f.parent._id },
+                  stage === 'embedded'
+                    ? { select: ['children.account', 'children.total'] }
+                    : stage === 'populated'
+                      ? { select: ['members'], populate: [{ path: 'members', select: ['account', 'total'] }] }
+                      : {
+                          select: ['name'],
+                          include: [
+                            {
+                              model: f.Member.modelName,
+                              op: 'read',
+                              path: 'joined',
+                              localField: 'key',
+                              foreignField: 'key',
+                              args: { select: ['account', 'total'] },
+                            },
+                          ],
+                        },
+                  quiet,
+                );
+          const pending = read();
+          await ready;
+          f.api.setGlobalOption('requireReadOperationAccessForPopulateDependencies', !strict);
+          release();
+          return [await pending, await read()];
+        });
+        for (const [index, result] of results.entries()) {
+          expect(result).toMatchObject({ success: true });
+          if (!result.success) throw new Error(result.code);
+          const data = result.data as Row;
+          const row =
+            stage === 'embedded'
+              ? data.children[0]
+              : stage === 'populated'
+                ? data.members[0]
+                : stage === 'include'
+                  ? data.joined
+                  : data;
+          expect(row).not.toHaveProperty('account');
+          if (index === 0 ? strict : !strict) expect(row).not.toHaveProperty('total');
+          else expect(row).toHaveProperty('total', 'read:10');
+        }
+      },
+    );
+  });
+});

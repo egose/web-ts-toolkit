@@ -2,7 +2,7 @@
 import type { Model, Schema, SchemaType } from 'mongoose';
 import { get, isPlainObject } from '@web-ts-toolkit/utils';
 import type { AccessRuntime } from '../runtime';
-import type { ModelRouterOptions, Projection } from '../interfaces';
+import type { GlobalOptions, ModelRouterOptions, Projection } from '../interfaces';
 import { normalizeSelect } from '../helpers/query';
 import { resolveNestedOption } from '../options/manager';
 import { copyAuthorizationValue } from './authorization-snapshot';
@@ -182,7 +182,11 @@ export function captureVirtualPopulateDependencies(
   runtime: AccessRuntime,
   modelName: string,
   options: ModelRouterOptions,
+  globalOptions: GlobalOptions = runtime.getGlobalOptions(),
 ): VirtualPopulateSnapshot {
+  // Normalize once for every target/scope. Only an explicit false is an opt-in.
+  const requireReadOperationAccessForPopulateDependencies =
+    globalOptions.requireReadOperationAccessForPopulateDependencies !== false;
   const model = runtime.getModelInstance(modelName);
   const targets = new Map<
     string,
@@ -257,6 +261,7 @@ export function captureVirtualPopulateDependencies(
               {
                 catalog,
                 documentPermissionField,
+                requireReadOperationAccessForPopulateDependencies,
                 operationAccess: { read: readOption('operationAccess.read') },
                 baseFilter: { read: readOption('baseFilter.read') },
                 overrideFilter: { read: readOption('overrideFilter.read') },
@@ -349,8 +354,9 @@ export function captureVirtualPopulateSnapshot(
   runtime: AccessRuntime,
   modelName: string,
   options: ModelRouterOptions,
+  globalOptions: GlobalOptions = runtime.getGlobalOptions(),
 ): VirtualPopulateSnapshotToken {
-  const snapshot = captureVirtualPopulateDependencies(runtime, modelName, options);
+  const snapshot = captureVirtualPopulateDependencies(runtime, modelName, options, globalOptions);
   const token = () => {};
   snapshots.set(token, snapshot);
   return token;

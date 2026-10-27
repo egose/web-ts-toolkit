@@ -587,7 +587,7 @@ describe('DPV-03 isolated getters and unconditional reconstruction', () => {
   });
 
   it.each(['undefined', 'throw', 'late-denial', 'operation', 'scope', 'query', 'missing-source'])(
-    'reconstructs selected IDs and omits the virtual on %s',
+    'reconstructs allowed IDs (PPR-02 omits operation-denied refs) and omits the virtual on %s',
     async (outcome) => {
       const getter = vi.fn(() => {
         if (outcome === 'throw') throw new Error('SECRET getter input');
@@ -623,7 +623,7 @@ describe('DPV-03 isolated getters and unconditional reconstruction', () => {
         expect(result.success).toBe(true);
         if (!result.success) throw new Error(result.code);
         expect(result.data).not.toHaveProperty('eligible');
-        if (outcome === 'missing-source') expect(result.data).not.toHaveProperty('account');
+        if (outcome === 'missing-source' || outcome === 'operation') expect(result.data).not.toHaveProperty('account');
         else expect(result.data.account).toEqual(f.missing);
         expect(getter).toHaveBeenCalledTimes(['undefined', 'throw'].includes(outcome) ? 1 : 0);
         expect(JSON.stringify(warning.mock.calls)).not.toContain('SECRET');
@@ -668,7 +668,7 @@ describe('DPV-03 isolated getters and unconditional reconstruction', () => {
     expect(f.calls).toHaveLength(0);
   });
 
-  it('preserves public related grants/denial separately from private request-read authority', async () => {
+  it('PPR-02 caller base read visibility outranks public related grants on active dependency refs', async () => {
     const getter = vi.fn((_doc, _permissions, _context, populated) => populated.account.balance);
     const f = await fixture(
       { operationAccess: { read: false, list: true } },
@@ -686,7 +686,8 @@ describe('DPV-03 isolated getters and unconditional reconstruction', () => {
         },
       ),
     );
-    expect(result).toMatchObject({ success: true, data: { account: { name: 'a' } } });
+    expect(result).toMatchObject({ success: true });
+    expect(result).not.toHaveProperty('data.account');
     expect(result).not.toHaveProperty('data.eligible');
     expect(getter).not.toHaveBeenCalled();
     expect(f.calls).toHaveLength(1);
@@ -699,7 +700,8 @@ describe('DPV-03 isolated getters and unconditional reconstruction', () => {
           quiet,
         ),
     );
-    expect(denied).toMatchObject({ success: true, data: { account: f.a._id } });
+    expect(denied).toMatchObject({ success: true });
+    expect(denied).not.toHaveProperty('data.account');
     expect(f.calls).toHaveLength(1);
   });
 
@@ -1065,7 +1067,7 @@ describe('DPV-03 detached mutations and templates', () => {
       expect(result.data).toHaveProperty('_id');
       if (mode === 'present' || mode === 'null') expect(result.data.eligible).toBe(mode === 'present' ? 10 : 'null');
       else expect(result.data).not.toHaveProperty('eligible');
-      if (mode === 'absent') expect(result.data).not.toHaveProperty('account');
+      if (mode === 'absent' || mode === 'denied') expect(result.data).not.toHaveProperty('account');
       else expect(result.data.account).toEqual(mode === 'null' ? null : f.a._id);
       expect(save).not.toHaveBeenCalled();
       save.mockRestore();
