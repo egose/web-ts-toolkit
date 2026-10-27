@@ -57,7 +57,8 @@ function createOptionDecorator(
  *
  * @param optionKey - option key to set (defaults to property name). Be aware build-time keys like `basePath`, `parentPath`, `idParam` must be set before route construction.
  * @remarks Bootstrap rejects invalid values for built-in string options, non-finite
- * `listHardLimit`, and non-boolean `requireRegisteredPopulateModels`. `undefined`
+ * `listHardLimit`, and non-boolean `requireOperationAccessForPopulateQueries` /
+ * `requireOperationAccessForPopulateDependencies`. `undefined`
  * remains allowed. Extension keys and structured policies are not exhaustively
  * validated. Child remapping replaces an inherited mapping for the same property.
  */
@@ -70,6 +71,11 @@ export function Option(optionKey?: string): PropertyDecorator {
  * Valid class role: `@Module`-decorated module class (applied via `runtime.setGlobalOption` before any router construction). Not valid on `@Router` or `@RouterOptions` for model-specific keys. Use the generic `K` to get typed option keys (`requestPermissionField`, etc.). Explicit — undecorated properties are ignored.
  *
  * @param optionKey - global option key (defaults to property name).
+ * @remarks `requireOperationAccessForPopulateQueries` and
+ * `requireOperationAccessForPopulateDependencies` each default to true. Only literal
+ * false bypasses the corresponding target operation gate; registration/effective
+ * permissionSchema and field/row policies remain mandatory. Both properties must be
+ * boolean or undefined at bootstrap; invalid values throw before setters apply.
  * @throws {TypeError} At bootstrap for wrong class scope or an invalid known scalar value.
  */
 export function GlobalOption<K extends Extract<keyof GlobalOptions, string | symbol>>(

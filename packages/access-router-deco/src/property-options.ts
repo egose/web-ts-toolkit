@@ -22,7 +22,7 @@ export function validatePropertyOptionValue(option: OptionMetadata, value: unkno
     ? 'string'
     : key === 'listHardLimit'
       ? 'finite number'
-      : key === 'requireRegisteredPopulateModels'
+      : key === 'requireOperationAccessForPopulateQueries' || key === 'requireOperationAccessForPopulateDependencies'
         ? 'boolean'
         : undefined;
   if (!expected) return;

@@ -48,7 +48,22 @@ class ThingRouter {
 }
 
 @Module({ routers: [ThingRouter], routerOptions: [ThingOptions, StartingDefaults] })
-class AppModule {}
+class AppModule {
+  @GlobalOption('requireOperationAccessForPopulateQueries')
+  requireQueryOperation = false;
+
+  @GlobalOption('requireOperationAccessForPopulateDependencies')
+  requirePrivateOperation = false;
+}
+
+// @ts-expect-error removed registration capability has no typed decorator alias
+GlobalOption('requireRegisteredPopulateModels');
+// @ts-expect-error removed private flag has no typed decorator alias
+GlobalOption('requireReadOperationAccessForPopulateDependencies');
+// @ts-expect-error populate operation policies belong to the runtime, not a model
+ModelOption('requireOperationAccessForPopulateQueries');
+// @ts-expect-error populate operation policies are not model defaults
+DefaultModelOption('requireOperationAccessForPopulateDependencies');
 
 for (const method of ['publicList', 'publicRead', 'find', 'findOne', 'findById'] as const) {
   ModelOption(`hydration.${method}`);

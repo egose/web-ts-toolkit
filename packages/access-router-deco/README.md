@@ -221,7 +221,8 @@ All four property decorators validate these known values before their setters:
   `modelPermissionPrefix`, `modelName`, `basePath`.
 - Finite number: `listHardLimit` (including zero; this is a type check, not a new
   limit policy).
-- Boolean: `requireRegisteredPopulateModels`.
+- Booleans: `requireOperationAccessForPopulateQueries` and
+  `requireOperationAccessForPopulateDependencies` (global/module options).
 
 Optional `undefined` is allowed. Invalid known values throw `TypeError` naming
 the key/property, and bootstrap rolls back package-controlled writes. This is
@@ -230,6 +231,19 @@ accepted by legacy `Option`, and structured policies, functions and objects are
 governed by their existing runtime contracts. TypeScript property decorators do
 not type-check property values; the runtime checks above also apply when an
 inferred key or legacy `Option` bypasses explicit-key typing.
+
+Both populate flags default to true; only literal false bypasses the corresponding
+target operation gate. Query bypass preserves source access, target field/document
+grants, rows, selection, match and reference IDs. Dependency bypass skips only private
+base-read admission; declared fourth-argument inputs and virtual output authorization
+stay separate. Targets always need an actual registered model and effective object
+`permissionSchema` (defaults may supply it; `{}` closes business fields). Denied
+population/private work retains selected/permitted parent IDs. See the server README's
+populate policy matrix and runnable configuration-only Document example.
+
+**Removed:** `requireRegisteredPopulateModels` and
+`requireReadOperationAccessForPopulateDependencies` have no aliases. Register/configure
+targets and explicitly choose the new operation flags; the former raw mode is gone.
 
 ### Module mounts and OpenAPI migration
 
