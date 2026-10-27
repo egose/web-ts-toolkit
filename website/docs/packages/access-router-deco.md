@@ -22,10 +22,18 @@ All property decorators, including legacy `Option`, validate known scalar values
 `requestPermissionField`, `documentPermissionField`, `idParam`, `idField`,
 `parentPath`, `queryRouteSegment`, `mutationRouteSegment`, `modelPermissionPrefix`,
 `modelName`, and `basePath` require strings; `listHardLimit` requires a finite
-number; `requireRegisteredPopulateModels` requires a boolean. Optional `undefined`
+number; `requireOperationAccessForPopulateQueries` and
+`requireOperationAccessForPopulateDependencies` require booleans. Optional `undefined`
 remains allowed. Invalid values throw and package-controlled writes roll back.
 Unknown extension/typo keys remain allowed; this is not exhaustive validation of
 structured policies or hooks, and decorators cannot type-check property values.
+
+Both populate flags are global/module options, default true, and only literal false
+bypasses their independent target-operation gates. Actual registered targets and an
+effective object `permissionSchema` remain mandatory. Denied population/private work
+preserves selected/permitted parent IDs. See [the server policy matrix](./access-router/configuration#populate-operation-policies).
+**Removed:** `requireRegisteredPopulateModels` and
+`requireReadOperationAccessForPopulateDependencies` have no aliases or raw-mode mapping.
 
 Module `options.basePath` now prefixes generated OpenAPI paths before collision
 checks as well as mounting Express. Module `/api` plus model `/users` produces

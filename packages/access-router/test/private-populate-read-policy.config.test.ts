@@ -10,7 +10,8 @@ import { createServiceExecution, deriveServiceExecution, readServiceExecution } 
 import { readServiceAuthorization } from '../src/acl/service-authorization';
 import { prepareSubdocumentOutput } from '../src/acl/subdocument-output';
 
-const flag = 'requireReadOperationAccessForPopulateDependencies';
+const flag = 'requireOperationAccessForPopulateDependencies';
+const queryFlag = 'requireOperationAccessForPopulateQueries';
 const access = { operation: 'read', virtualAccess: 'read', outputAccess: 'read', docPermissionsAccess: 'read' };
 let serial = 0;
 afterEach(() => {
@@ -119,11 +120,25 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
     assertMode(captured, false);
   });
 
-  it.each([true, false])(
-    'retains mode and terminal read policy in detached/derived/nested copies (%s)',
-    async (initial) => {
+  it.each([
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false],
+  ])(
+    'retains both modes and terminal read policy in detached/derived/nested copies (%s/%s)',
+    async (initial, queryInitial) => {
       const f = fixture();
       f.api.setGlobalOption(flag, initial);
+      f.api.setGlobalOption(queryFlag, queryInitial);
+      const assertCaptured = (configuration: ReturnType<typeof f.capture>) => {
+        assertMode(configuration, initial);
+        expect(configuration[queryFlag]).toBe(queryInitial);
+        for (const scope of [[], ['child', 'sub'], ['children', 'sub']]) {
+          const [dependency] = resolveVirtualPopulateDependencies(configuration, scope, 'eligible', 'read');
+          expect(dependency.target.configuration[queryFlag]).toBe(queryInitial);
+        }
+      };
       const { service } = await serviceFor(f);
       const related = captureRelatedTargets(f.api.runtime, f.source.modelName, {
         include: [
@@ -151,30 +166,33 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
         [{ path: 'children.account' }],
       );
       f.api.setGlobalOption(flag, !initial);
+      f.api.setGlobalOption(queryFlag, !queryInitial);
       f.api.setModelOption(f.target.modelName, 'operationAccess.read', false);
       await Promise.resolve();
       const copied = readServiceAuthorization(state.authorization, state.binding);
-      assertMode(copied.configuration, initial);
+      assertCaptured(copied.configuration);
       const derived = readServiceExecution(
         service,
         deriveServiceExecution(service, execution, { ...access, operation: 'list' }),
       );
-      assertMode(readServiceAuthorization(derived.authorization, derived.binding).configuration, initial);
+      assertCaptured(readServiceAuthorization(derived.authorization, derived.binding).configuration);
       const childView = readServiceAuthorization(child.state.authorization, child.state.binding);
-      assertMode(childView.configuration, initial);
+      assertCaptured(childView.configuration);
       expect(childView.relatedTargets[0].configuration[flag]).toBe(initial);
+      expect(childView.relatedTargets[0].configuration[queryFlag]).toBe(queryInitial);
       expect(
         planning.getCapturedAuthorizationOption(childView.relatedTargets[0].configuration, 'operationAccess.read'),
       ).toBe(true);
       const nested = createRelatedExecution(service, access, state.authorization, state.binding, 'joined');
       const nestedState = readServiceExecution(service, nested);
       const nestedConfig = readServiceAuthorization(nestedState.authorization, nestedState.binding).configuration;
-      assertMode(nestedConfig, initial);
+      assertCaptured(nestedConfig);
       const [dependency] = resolveVirtualPopulateDependencies(nestedConfig, [], 'eligible', 'read');
       expect(planning.getCapturedAuthorizationOption(dependency.target.configuration, 'operationAccess.read')).toBe(
         true,
       );
       assertMode(f.capture(), !initial);
+      expect(f.capture()[queryFlag]).toBe(!queryInitial);
     },
   );
 
@@ -299,10 +317,10 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
 
   it('keeps same-spelled persisted data ordinary and private registration validation strict in bypass mode', () => {
     const f = fixture();
-    f.api.setGlobalOptions({ [flag]: false, requireRegisteredPopulateModels: false });
+    f.api.setGlobalOptions({ [flag]: false, requireOperationAccessForPopulateQueries: false });
     expect(f.capture().catalog.persistedPaths).toContain(flag);
     const other = createAccessRuntime();
-    other.setGlobalOptions({ [flag]: false, requireRegisteredPopulateModels: false });
+    other.setGlobalOptions({ [flag]: false, requireOperationAccessForPopulateQueries: false });
     other.registerModelInstance(f.target.modelName, f.target);
     expect(() => other.createRouter(f.source, f.api.getModelOptions(f.source.modelName))).toThrow(/configured first/);
     f.target.schema.remove('balance');

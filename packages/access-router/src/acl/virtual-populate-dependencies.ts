@@ -9,6 +9,7 @@ import { copyAuthorizationValue } from './authorization-snapshot';
 import { captureAuthorizationFieldCatalog, isSafeInputPath } from './field-catalog';
 import type { AuthorizationConfiguration } from './service-authorization';
 import { isVirtualContainerValue, resolveSnapshotDescriptor } from './virtual-descriptor';
+import { capturePopulateTargetConfiguration } from './populate-target-configuration';
 
 type StoredType = SchemaType & {
   schema?: Schema;
@@ -185,8 +186,9 @@ export function captureVirtualPopulateDependencies(
   globalOptions: GlobalOptions = runtime.getGlobalOptions(),
 ): VirtualPopulateSnapshot {
   // Normalize once for every target/scope. Only an explicit false is an opt-in.
-  const requireReadOperationAccessForPopulateDependencies =
-    globalOptions.requireReadOperationAccessForPopulateDependencies !== false;
+  const requireOperationAccessForPopulateDependencies =
+    globalOptions.requireOperationAccessForPopulateDependencies !== false;
+  const requireOperationAccessForPopulateQueries = globalOptions.requireOperationAccessForPopulateQueries !== false;
   const model = runtime.getModelInstance(modelName);
   const targets = new Map<
     string,
@@ -251,7 +253,12 @@ export function captureVirtualPopulateDependencies(
                 label,
                 `target "${ref}" requires a registered same-connection non-discriminator ObjectId model bound to the source ref`,
               );
-            const targetOptions = ref === modelName ? options : runtime.getModelOptions(ref);
+            const { options: targetOptions } = capturePopulateTargetConfiguration(
+              runtime,
+              ref,
+              `dependsOnPopulate virtual "${label}"`,
+              ref === modelName ? options : undefined,
+            );
             const defaults = runtime.getDefaultModelOptions();
             const readOption = (key: string) =>
               resolveNestedOption((path, fallback) => get(targetOptions, path, fallback), key, get(defaults, key));
@@ -261,7 +268,9 @@ export function captureVirtualPopulateDependencies(
               {
                 catalog,
                 documentPermissionField,
-                requireReadOperationAccessForPopulateDependencies,
+                requireOperationAccessForPopulateDependencies,
+                requireOperationAccessForPopulateQueries,
+                permissionSchema: targetOptions.permissionSchema,
                 operationAccess: { read: readOption('operationAccess.read') },
                 baseFilter: { read: readOption('baseFilter.read') },
                 overrideFilter: { read: readOption('overrideFilter.read') },

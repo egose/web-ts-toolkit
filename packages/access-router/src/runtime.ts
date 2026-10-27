@@ -516,8 +516,8 @@ export class AccessRuntime {
     {
       requestPermissionField: '_permissions',
       globalPermissions: () => ({}),
-      requireRegisteredPopulateModels: true,
-      requireReadOperationAccessForPopulateDependencies: true,
+      requireOperationAccessForPopulateQueries: true,
+      requireOperationAccessForPopulateDependencies: true,
       logger: defaultLogger,
       requestComplexity: defaultRequestComplexity,
     },
@@ -739,15 +739,18 @@ export class AccessRuntime {
   /** Shallowly replace supplied global values; nested objects such as requestComplexity are not deep-merged. */
   setGlobalOptions(options: GlobalOptions) {
     const next = { ...options };
-    if ('requireReadOperationAccessForPopulateDependencies' in next)
-      next.requireReadOperationAccessForPopulateDependencies =
-        next.requireReadOperationAccessForPopulateDependencies !== false;
+    if ('requireOperationAccessForPopulateQueries' in next)
+      next.requireOperationAccessForPopulateQueries = next.requireOperationAccessForPopulateQueries !== false;
+    if ('requireOperationAccessForPopulateDependencies' in next)
+      next.requireOperationAccessForPopulateDependencies = next.requireOperationAccessForPopulateDependencies !== false;
     this.globalOptions.assign(next);
   }
 
   setGlobalOption<K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]) {
-    if (key === 'requireReadOperationAccessForPopulateDependencies') {
-      this.globalOptions.set('requireReadOperationAccessForPopulateDependencies', value !== false);
+    if (key === 'requireOperationAccessForPopulateQueries' || key === 'requireOperationAccessForPopulateDependencies') {
+      this.globalOptions.set<
+        'requireOperationAccessForPopulateQueries' | 'requireOperationAccessForPopulateDependencies'
+      >(key, value !== false);
       return;
     }
     this.globalOptions.set(key, value);

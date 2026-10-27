@@ -437,136 +437,166 @@ describe('AR-14 published export contract', () => {
       }
     });
 
-    it.each(['d.ts', 'd.mts'])('PPR-03 exports private input policy/types and editor hover in %s', (extension) => {
-      const ts = require('typescript') as typeof import('typescript');
-      const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));
-      const program = ts.createProgram(entries, {
-        target: ts.ScriptTarget.ESNext,
-        module: ts.ModuleKind.ESNext,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        noEmit: true,
-        skipLibCheck: true,
-        strictNullChecks: true,
-        types: [],
-      });
-      const checker = program.getTypeChecker();
-      const exported = (entry: string, name: string) => {
-        const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
-        let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === name)!;
-        expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
-        if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
-        return { symbol, type: checker.getDeclaredTypeOfSymbol(symbol) };
-      };
-      const hover = (symbol: import('typescript').Symbol) =>
-        ts.displayPartsToString(symbol.getDocumentationComment(checker));
-      const names = (type: import('typescript').Type) =>
-        type
-          .getProperties()
-          .map((p) => p.name)
-          .sort();
-      for (const entry of entries) {
-        const flag = 'requireReadOperationAccessForPopulateDependencies';
-        const globals = exported(entry, 'GlobalOptions');
-        const mode = globals.type.getProperty(flag)!;
-        expect(mode, `${path.basename(entry)} exposes the runtime policy`).toBeDefined();
-        expect(mode.flags & ts.SymbolFlags.Optional).not.toBe(0);
-        expect(checker.typeToString(checker.getTypeOfSymbolAtLocation(mode, mode.valueDeclaration!))).toBe(
-          'boolean | undefined',
+    it.each(['d.ts', 'd.mts'])(
+      'POP-04 exports independent populate policies/types and editor hover in %s',
+      (extension) => {
+        const ts = require('typescript') as typeof import('typescript');
+        const entries = ['index', 'advanced'].map((entry) =>
+          path.resolve(packageRoot, 'dist', `${entry}.${extension}`),
         );
-        for (const phrase of [
-          'default `true`',
-          'literal boolean',
-          'malformed JS',
-          'before the first await',
-          'Runtime-isolated server configuration',
-          'baseFilter.read',
-          'overrideFilter.read',
-          'BOTH modes',
-          'including its ID',
-          'list/custom',
-          'related-operation grant',
-          'exact original',
-          'No active dependency plan',
-          'requireRegisteredPopulateModels',
-        ])
-          expect(hover(mode)).toContain(phrase);
-        expect(mode.getJsDocTags(checker).find((tag) => tag.name === 'example')).toBeDefined();
-        for (const name of ['ModelRouterOptions', 'RootRouterOptions', 'SubdocumentReadOptions'])
-          expect(
-            exported(entry, name).type.getProperty(flag),
-            `${name} cannot configure the runtime mode`,
-          ).toBeUndefined();
-        const dependency = exported(entry, 'ModelVirtualPopulateDependency');
-        expect(names(dependency.type)).toEqual(['path', 'select']);
-        for (const phrase of [
-          'one-hop',
-          'same-connection',
-          'eager/atomic',
-          'operationAccess.read',
-          'authorization.related',
-          'requireReadOperationAccessForPopulateDependencies',
-          'including IDs',
-        ])
-          expect(hover(dependency.symbol)).toContain(phrase);
-        expect(hover(dependency.type.getProperty('path')!)).toContain('Retained automatically');
-        expect(hover(dependency.type.getProperty('select')!)).toContain('1/-1');
-        const descriptor = exported(entry, 'ModelVirtualDescriptor');
-        expect(names(descriptor.type)).toEqual(['dependsOn', 'dependsOnPopulate', 'get']);
-        expect(hover(descriptor.symbol)).toContain('populated = {}');
-        const example = descriptor.symbol.getJsDocTags(checker).find((tag) => tag.name === 'example');
-        expect(example).toBeDefined();
-        expect(ts.displayPartsToString(example!.text)).toContain('populated = {}');
-        expect(hover(descriptor.type.getProperty('dependsOnPopulate')!)).toContain('fourth-argument');
-        expect(hover(descriptor.type.getProperty('get')!)).toContain('not implicitly transported');
-        for (const name of [
-          'ModelVirtualGetter',
-          'ModelVirtualDescriptor',
-          'ModelVirtualAccessRecord',
-          'ModelVirtualLeaf',
-        ]) {
-          const declaration = exported(entry, name).symbol.declarations!.find(
-            (node): node is import('typescript').InterfaceDeclaration | import('typescript').TypeAliasDeclaration =>
-              ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node),
-          )!;
-          expect(declaration.typeParameters).toHaveLength(3);
-          expect(declaration.typeParameters![2].name.text).toBe('TPopulated');
-          const emptyDefault = declaration.typeParameters![2].default!;
-          expect(emptyDefault).toBeDefined();
-          expect(checker.getTypeAtLocation(emptyDefault).getProperties()).toHaveLength(0);
-        }
-        const getter = exported(entry, 'ModelVirtualGetter');
-        const parameters = getter.type.getCallSignatures()[0].getParameters();
-        expect(parameters.map((p) => p.name)).toEqual(['doc', 'permissions', 'context', 'populated']);
-        expect(
-          (parameters[3].valueDeclaration as import('typescript').ParameterDeclaration).questionToken,
-        ).toBeDefined();
-        expect(hover(getter.symbol)).toContain('three-argument direct calls');
-        expect(hover(exported(entry, 'ModelVirtualDoc').symbol)).toContain('does not');
-        expect(hover(exported(entry, 'ModelVirtualPopulateInputs').symbol)).toContain(
-          'Native methods are not made immutable',
-        );
-        expect(exported(entry, 'ModelVirtualContext').type.getProperty('populated')).toBeUndefined();
-        expect(hover(exported(entry, 'ModelRouterOptions').type.getProperty('virtuals')!)).toContain(
-          'ModelVirtualDescriptor',
-        );
-        for (const name of [
-          'VirtualPopulateSnapshotToken',
-          'CapturedVirtualPopulateDependency',
-          'loadVirtualPopulateOutputRows',
-        ]) {
+        const program = ts.createProgram(entries, {
+          target: ts.ScriptTarget.ESNext,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          noEmit: true,
+          skipLibCheck: true,
+          strictNullChecks: true,
+          types: [],
+        });
+        const checker = program.getTypeChecker();
+        const exported = (entry: string, name: string) => {
           const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
-          expect(checker.getExportsOfModule(module).some((symbol) => symbol.name === name)).toBe(false);
+          let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === name)!;
+          expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
+          if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+          return { symbol, type: checker.getDeclaredTypeOfSymbol(symbol) };
+        };
+        const hover = (symbol: import('typescript').Symbol) =>
+          ts.displayPartsToString(symbol.getDocumentationComment(checker));
+        const names = (type: import('typescript').Type) =>
+          type
+            .getProperties()
+            .map((p) => p.name)
+            .sort();
+        for (const entry of entries) {
+          const flag = 'requireOperationAccessForPopulateDependencies';
+          const globals = exported(entry, 'GlobalOptions');
+          const mode = globals.type.getProperty(flag)!;
+          expect(mode, `${path.basename(entry)} exposes the runtime policy`).toBeDefined();
+          expect(mode.flags & ts.SymbolFlags.Optional).not.toBe(0);
+          expect(checker.typeToString(checker.getTypeOfSymbolAtLocation(mode, mode.valueDeclaration!))).toBe(
+            'boolean | undefined',
+          );
+          for (const phrase of [
+            'default `true`',
+            'literal boolean',
+            'malformed JS',
+            'before the first await',
+            'Runtime-isolated server configuration',
+            'baseFilter.read',
+            'overrideFilter.read',
+            'Neither mode changes ordinary reference shape',
+            'missing IDs and nulls',
+            'row/query/getter failure',
+            'exact original',
+            'no additional target-base-read reference-visibility gate',
+            'fourth-argument inputs',
+            'requireOperationAccessForPopulateQueries',
+          ])
+            expect(hover(mode)).toContain(phrase);
+          for (const old of ['requireRegisteredPopulateModels', 'requireReadOperationAccessForPopulateDependencies'])
+            expect(globals.type.getProperty(old)).toBeUndefined();
+          const queries = globals.type.getProperty('requireOperationAccessForPopulateQueries')!;
+          expect(queries).toBeDefined();
+          expect(checker.typeToString(checker.getTypeOfSymbolAtLocation(queries, queries.valueDeclaration!))).toBe(
+            'boolean | undefined',
+          );
+          for (const phrase of [
+            'default `true`',
+            'literal `false`',
+            'source entry/field authorization',
+            'target field/document',
+            'match and mandatory reference',
+            'admitted population misses',
+            'effective object permissionSchema',
+            'configuration-only Document',
+            'direct/root',
+          ])
+            expect(hover(queries)).toContain(phrase);
+          expect(mode.getJsDocTags(checker).find((tag) => tag.name === 'example')).toBeDefined();
+          for (const name of [
+            'ModelRouterOptions',
+            'DefaultModelRouterOptions',
+            'RootRouterOptions',
+            'SubdocumentReadOptions',
+          ]) {
+            for (const key of [flag, 'requireOperationAccessForPopulateQueries'])
+              expect(exported(entry, name).type.getProperty(key), `${name} cannot configure ${key}`).toBeUndefined();
+          }
+          const dependency = exported(entry, 'ModelVirtualPopulateDependency');
+          expect(names(dependency.type)).toEqual(['path', 'select']);
+          for (const phrase of [
+            'one-hop',
+            'same-connection',
+            'eager/atomic',
+            'operationAccess.read',
+            'authorization.related',
+            'requireOperationAccessForPopulateDependencies',
+            'missing IDs/nulls',
+            'no extra target',
+            'requireOperationAccessForPopulateQueries',
+          ])
+            expect(hover(dependency.symbol)).toContain(phrase);
+          expect(hover(dependency.type.getProperty('path')!)).toContain('Retained automatically');
+          expect(hover(dependency.type.getProperty('select')!)).toContain('1/-1');
+          const descriptor = exported(entry, 'ModelVirtualDescriptor');
+          expect(names(descriptor.type)).toEqual(['dependsOn', 'dependsOnPopulate', 'get']);
+          expect(hover(descriptor.symbol)).toContain('populated = {}');
+          const example = descriptor.symbol.getJsDocTags(checker).find((tag) => tag.name === 'example');
+          expect(example).toBeDefined();
+          expect(ts.displayPartsToString(example!.text)).toContain('populated = {}');
+          expect(hover(descriptor.type.getProperty('dependsOnPopulate')!)).toContain('fourth-argument');
+          expect(hover(descriptor.type.getProperty('get')!)).toContain('not implicitly transported');
+          for (const name of [
+            'ModelVirtualGetter',
+            'ModelVirtualDescriptor',
+            'ModelVirtualAccessRecord',
+            'ModelVirtualLeaf',
+          ]) {
+            const declaration = exported(entry, name).symbol.declarations!.find(
+              (node): node is import('typescript').InterfaceDeclaration | import('typescript').TypeAliasDeclaration =>
+                ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node),
+            )!;
+            expect(declaration.typeParameters).toHaveLength(3);
+            expect(declaration.typeParameters![2].name.text).toBe('TPopulated');
+            const emptyDefault = declaration.typeParameters![2].default!;
+            expect(emptyDefault).toBeDefined();
+            expect(checker.getTypeAtLocation(emptyDefault).getProperties()).toHaveLength(0);
+          }
+          const getter = exported(entry, 'ModelVirtualGetter');
+          const parameters = getter.type.getCallSignatures()[0].getParameters();
+          expect(parameters.map((p) => p.name)).toEqual(['doc', 'permissions', 'context', 'populated']);
+          expect(
+            (parameters[3].valueDeclaration as import('typescript').ParameterDeclaration).questionToken,
+          ).toBeDefined();
+          expect(hover(getter.symbol)).toContain('three-argument direct calls');
+          expect(hover(exported(entry, 'ModelVirtualDoc').symbol)).toContain('does not');
+          expect(hover(exported(entry, 'ModelVirtualPopulateInputs').symbol)).toContain(
+            'Native methods are not made immutable',
+          );
+          expect(exported(entry, 'ModelVirtualContext').type.getProperty('populated')).toBeUndefined();
+          expect(hover(exported(entry, 'ModelRouterOptions').type.getProperty('virtuals')!)).toContain(
+            'ModelVirtualDescriptor',
+          );
+          for (const name of [
+            'VirtualPopulateSnapshotToken',
+            'CapturedVirtualPopulateDependency',
+            'loadVirtualPopulateOutputRows',
+          ]) {
+            const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
+            expect(checker.getExportsOfModule(module).some((symbol) => symbol.name === name)).toBe(false);
+          }
         }
-      }
-      for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
-        for (const name of [
-          'ModelVirtualPopulateDependency',
-          'ModelVirtualPopulateInputs',
-          'loadVirtualPopulateOutputRows',
-        ])
-          expect(runtime).not.toHaveProperty(name);
-      }
-    });
+        for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
+          for (const name of [
+            'ModelVirtualPopulateDependency',
+            'ModelVirtualPopulateInputs',
+            'loadVirtualPopulateOutputRows',
+          ])
+            expect(runtime).not.toHaveProperty(name);
+        }
+      },
+    );
 
     it.each(['d.ts', 'd.mts'])('SVA-10 exports consumer policy/handle types with editor JSDoc in %s', (extension) => {
       const ts = require('typescript') as typeof import('typescript');

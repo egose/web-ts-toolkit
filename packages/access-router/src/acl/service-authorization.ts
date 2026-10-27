@@ -59,9 +59,9 @@ export interface AuthorizationConfiguration {
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   /** Runtime-owned private input admission mode, not public output/related authority. */
-  readonly requireReadOperationAccessForPopulateDependencies?: boolean;
-  /** Independent ordinary-populate registration posture from the same global snapshot. */
-  readonly requireRegisteredPopulateModels?: boolean;
+  readonly requireOperationAccessForPopulateDependencies?: boolean;
+  /** Independent ordinary-populate operation admission from the same global snapshot. */
+  readonly requireOperationAccessForPopulateQueries?: boolean;
   readonly documentPermissionField?: string;
   /** Captured permission schema, virtual descriptors, always-select and metadata posture. */
   readonly [key: string]: unknown;
@@ -76,8 +76,7 @@ export interface AuthorizationRelatedTarget {
   readonly queryIntent?: import('../services/model-service-intent').ModelServiceIntent;
   /** Existing include operation gate, resolved synchronously with its target. */
   readonly operationGuard?: unknown;
-  /** Passthrough is the existing global unregistered-populate opt-out, not a caller policy. */
-  readonly kind?: 'output' | 'count' | 'passthrough';
+  readonly kind?: 'output' | 'count';
   readonly relatedTargets?: readonly AuthorizationRelatedTarget[];
   /** Captured supported raw-ref transport shape; exotic ordinary populates keep their adapter path. */
   readonly staticObjectIdReference?: boolean;
@@ -252,7 +251,6 @@ function normalizePolicy(
       const matches = targets.filter((target) => target.path === path);
       if (matches.length !== 1) authorizationError(`unused or ambiguous related path: ${path}`);
       const target = matches[0];
-      if (target.kind === 'passthrough') authorizationError(`related policy requires a registered target: ${path}`);
       const child = authorizationRecord(entry, `related.${path}`);
       assertAuthorizationKeys(
         child,

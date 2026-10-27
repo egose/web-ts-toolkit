@@ -73,7 +73,10 @@ describe('property option contracts', () => {
     ['listHardLimit', '10'],
     ['listHardLimit', NaN],
     ['listHardLimit', Infinity],
-    ['requireRegisteredPopulateModels', 'false'],
+    ['requireOperationAccessForPopulateQueries', 'false'],
+    ['requireOperationAccessForPopulateQueries', null],
+    ['requireOperationAccessForPopulateDependencies', 'false'],
+    ['requireOperationAccessForPopulateDependencies', 0],
   ])('legacy Option rejects %s = %s and rolls back earlier writes', (key, value) => {
     class Provider {
       first = 'changed';
@@ -88,25 +91,28 @@ describe('property option contracts', () => {
     expect(app.router.stack).toHaveLength(0);
   });
 
-  it('preserves extension keys, optional undefined, and valid false/zero values', () => {
-    class Provider {
-      flag = false;
-      limit = 0;
-      unset = undefined;
-      extension = { custom: true };
-    }
-    Option('requireRegisteredPopulateModels')(Provider.prototype, 'flag');
-    Option('listHardLimit')(Provider.prototype, 'limit');
-    Option('requestPermissionField')(Provider.prototype, 'unset');
-    Option('custom.extension')(Provider.prototype, 'extension');
-    const { factory, run } = fixture(Provider, 'global');
-    run();
-    expect(factory.runtime.getGlobalOption('requireRegisteredPopulateModels')).toBe(false);
-    expect(factory.runtime.getGlobalOptions()).toMatchObject({
-      listHardLimit: 0,
-      custom: { extension: { custom: true } },
-    });
-  });
+  it.each(['requireOperationAccessForPopulateQueries', 'requireOperationAccessForPopulateDependencies'] as const)(
+    'preserves extension keys, optional undefined, and valid false/zero values (%s)',
+    (flag) => {
+      class Provider {
+        flag = false;
+        limit = 0;
+        unset = undefined;
+        extension = { custom: true };
+      }
+      Option(flag)(Provider.prototype, 'flag');
+      Option('listHardLimit')(Provider.prototype, 'limit');
+      Option('requestPermissionField')(Provider.prototype, 'unset');
+      Option('custom.extension')(Provider.prototype, 'extension');
+      const { factory, run } = fixture(Provider, 'global');
+      run();
+      expect(factory.runtime.getGlobalOption(flag)).toBe(false);
+      expect(factory.runtime.getGlobalOptions()).toMatchObject({
+        listHardLimit: 0,
+        custom: { extension: { custom: true } },
+      });
+    },
+  );
 
   it('remaps a symbol property through three levels without stale writes', () => {
     const property = Symbol('option');

@@ -39,8 +39,6 @@ interface Occurrence {
   address: VirtualPopulateAddress;
   plan: VirtualProjectionPlan;
   refs: Map<string, OriginalReference>;
-  /** Active declarations own reference visibility even when private rows are unavailable. */
-  referenceTargets: Map<string, VirtualPopulateTarget>;
   dependencies: Map<string, { dependency: CapturedVirtualPopulateDependency; request: FetchRequest }[]>;
 }
 interface FetchBinding {
@@ -202,8 +200,8 @@ const compatible = (a: FetchRequest, b: FetchRequest) =>
   a.binding.schema === b.binding.schema &&
   a.access === b.access &&
   a.requestRead === b.requestRead &&
-  a.binding.configuration.requireReadOperationAccessForPopulateDependencies ===
-    b.binding.configuration.requireReadOperationAccessForPopulateDependencies &&
+  a.binding.configuration.requireOperationAccessForPopulateDependencies ===
+    b.binding.configuration.requireOperationAccessForPopulateDependencies &&
   // Different captures may share only an equivalent terminal persisted binding/policy.
   equivalentVirtualPopulatePredicate(
     a.binding.configuration.catalog.persistedPaths,
@@ -291,7 +289,6 @@ export function captureVirtualPopulateRows(
         address,
         plan: currentPlan,
         refs: new Map(),
-        referenceTargets: new Map(),
         dependencies: new Map(),
       };
       row.occurrences.set(addressKey(address), occurrence);
@@ -299,7 +296,6 @@ export function captureVirtualPopulateRows(
         const dependencies = (candidate.populateDependencies ?? []).map((dependency) => {
           if (!occurrence.refs.has(dependency.path))
             occurrence.refs.set(dependency.path, originalRef(value, dependency.path));
-          occurrence.referenceTargets.set(dependency.path, dependency.target);
           const request: FetchRequest = {
             binding: dependency.target,
             target: dependency.target,
@@ -411,7 +407,7 @@ async function execute(state: BatchRecord): Promise<void> {
       pending = (async () => {
         try {
           if (
-            target.configuration.requireReadOperationAccessForPopulateDependencies !== false &&
+            target.configuration.requireOperationAccessForPopulateDependencies !== false &&
             !(await targetReadAllowed(state, target))
           )
             return undefined;
@@ -535,22 +531,6 @@ export function hasVirtualPopulatePublicReference(
   return !!rows
     .get(row)
     ?.publicRequests.some((request) => addressKey(request.address!) === addressKey([...address, path]));
-}
-
-/**
- * Only call after source selection/field authorization. Bypass-mode private fetches
- * never cause an operation check by themselves; strict admission is reused even
- * after row denial/query failure. No occurrence means ordinary behavior is intact.
- */
-export function isVirtualPopulateReferenceVisible(
-  row: VirtualPopulateRow,
-  address: VirtualPopulateAddress,
-  path: string,
-): Promise<boolean> {
-  const record = rows.get(row);
-  const occurrence = record?.occurrences.get(addressKey(address));
-  const target = occurrence?.refs.get(path)?.present ? occurrence.referenceTargets.get(path) : undefined;
-  return record && target ? targetReadAllowed(record.batch, target) : Promise.resolve(true);
 }
 
 /** Fresh, declaration-only private values per call/getter/slot. No finalized DTO is input authority. */

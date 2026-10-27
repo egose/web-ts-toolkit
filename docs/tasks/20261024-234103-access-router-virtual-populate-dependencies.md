@@ -11,6 +11,10 @@ Subsequent phase: [configurable private read admission and reference visibility]
 adds an explicit runtime opt-in and revises denied dependency-reference output.
 This completed record preserves the original contract and its verification history.
 
+Current breaking contract: [registered targets and independent populate operation policies](20261026-225914-access-router-populate-operation-policy.md)
+supersedes both phases' option names/registration opt-out and PPR's whole-reference
+omission rule. This record's earlier claims remain historical evidence.
+
 ## Objective and purpose
 
 Add server-configured `dependsOnPopulate` alongside virtuals' existing `dependsOn`.

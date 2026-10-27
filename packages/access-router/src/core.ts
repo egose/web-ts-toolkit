@@ -19,8 +19,7 @@ import {
   set,
   uniq,
 } from '@web-ts-toolkit/utils';
-import { getGlobalOption, getModelOption, getExactModelOption } from './options';
-import { getModelRef } from './meta';
+import { getModelOption, getExactModelOption } from './options';
 import {
   Populate,
   PopulatePlanningOptions,
@@ -69,9 +68,9 @@ import { assertFieldHelperCall, requestFieldScope } from './acl/field-helper-opt
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
-import { callHookChain, evaluateRouteGuard } from './core-shared';
+import { callHookChain, evaluateRouteGuard, intersectFilters } from './core-shared';
 import { resolveRouteOperationAccess } from './operation-access';
-import { planVirtualProjection } from './acl/virtual-projection';
+import { planVirtualProjection, resolveAlwaysSelectForAccess } from './acl/virtual-projection';
 import { setPopulateTargetMeta, type PopulateTargetAccess } from './acl/populate-target';
 import { assertPopulateAccess } from './acl/populate-access';
 import type {
@@ -79,13 +78,23 @@ import type {
   OutputFieldOptions,
   OutputPlanningOptions,
 } from './interfaces/service-authorization';
-import { planModelOutputForHelper } from './acl/model-output-planning';
+import {
+  captureModelAuthorizationConfiguration,
+  getCapturedAuthorizationOption,
+  planModelOutputForHelper,
+} from './acl/model-output-planning';
+import { captureRelatedTargets } from './acl/related-execution';
+import { copyAuthorizationValue } from './acl/authorization-snapshot';
+import { deepIsolateValue } from './helpers/document';
+import type { AuthorizationConfiguration } from './acl/service-authorization';
 import { filterModelOutputForHelper } from './acl/output-field-filter';
 import { getRequestWorkState } from './helpers/request-work';
 import {
   constructOwnedModelService,
   consumeCapturedModelOperationGuard,
+  modelServiceGlobalOptions,
   registerModelCoreOwner,
+  withCapturedModelOperationGuard,
 } from './acl/model-service-owner';
 
 type InternalModelHookContext = ModelHookContext & {
@@ -272,29 +281,26 @@ export class Core {
 
   /** Persisted request-only populate admission; fetch planning is not field authority. */
   private async requestPopulateSelect(
-    modelName: string,
+    configuration: AuthorizationConfiguration,
+    permissions: Permission,
     access: SelectAccess,
     targetFields: Projection = null,
     scopePath: readonly string[] = [],
   ) {
     const subPaths = scopePath.flatMap((part) => [part, 'sub']);
-    const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.')) as
+    const permissionSchema = get(configuration, ['permissionSchema', ...subPaths]) as
       | Record<string, unknown>
       | null
       | undefined;
 
-    const permissions = this.getGlobalPermissions();
-
     // Registered virtuals never become persisted request fields. Private target
     // hook inputs are added separately after source admission in genPopulate.
     // Inapplicable names stay stripped via the full registry.
-    let virtualNames: string[];
-    try {
-      const runtime = getActiveRuntime() ?? defaultRuntime;
-      virtualNames = runtime.getVirtualNames(modelName, subPaths);
-    } catch {
-      virtualNames = [];
-    }
+    const prefix = scopePath.length ? `${scopePath.join('.')}.` : '';
+    const virtualNames = (configuration.catalog.virtualPaths ?? [])
+      .filter((path) => path.startsWith(prefix))
+      .map((path) => path.slice(prefix.length))
+      .filter((path) => !path.includes('.'));
     return resolveSelectForRequest({
       req: this.req,
       permissionSchema,
@@ -320,15 +326,23 @@ export class Core {
     assertPopulateAccess(access);
     if (!_populate) return [];
 
-    let populate = Array.isArray(_populate) ? _populate : [_populate];
+    const descriptors = copyAuthorizationValue(Array.isArray(_populate) ? _populate : [_populate], true);
     // Preflight every descriptor before concurrent admission, including a reserved
     // option hidden by a valid override. No route key may select target data policy.
-    for (const p of populate) {
+    for (const p of descriptors) {
       if (!isString(p)) assertPopulateAccess(p.access);
     }
-    populate = compact(
+    const runtime = this.requestRuntime;
+    const globalOptions = modelServiceGlobalOptions(this, runtime);
+    const relatedTargets = captureRelatedTargets(runtime, modelName, { populate: descriptors }, 0, globalOptions);
+    const sourceConfiguration = captureModelAuthorizationConfiguration(runtime, modelName, undefined, globalOptions);
+    const originalPermissions = this.getGlobalPermissions();
+    const permissions = new Permission(
+      Object.fromEntries(originalPermissions.keys.map((key) => [key, originalPermissions.has(key)])),
+    );
+    const populate = compact(
       await Promise.all(
-        populate.map(async (p: Populate | string) => {
+        descriptors.map(async (p: Populate | string) => {
           const populateAccess = !isString(p) && p.access ? p.access : access;
           assertPopulateAccess(populateAccess);
           const originalSelect: unknown = isString(p) ? undefined : (p as Populate).select;
@@ -346,38 +360,63 @@ export class Core {
             ? pathForSourcePermission.split('.')[0]
             : pathForSourcePermission;
           const allowedParentPaths = await this.requestPopulateSelect(
-            modelName,
+            sourceConfiguration,
+            permissions,
             populateAccess as SelectAccess,
             [parentPath],
             scopePath,
           );
           if (!allowedParentPaths.includes(parentPath)) return null;
 
-          const refModelName = getModelRef(modelName, ret.path);
-          if (!refModelName) return null;
-
-          const runtime = getActiveRuntime();
-          if (!runtime) return null;
-
-          const requireRegisteredPopulateModels = getGlobalOption('requireRegisteredPopulateModels', true);
-
-          if (!runtime.hasModel(refModelName)) {
-            return requireRegisteredPopulateModels ? null : ret;
-          }
-
-          const allowedTargetOperation = await this.isAllowed(refModelName, populateAccess);
-          if (!allowedTargetOperation) {
+          const target = relatedTargets.find((entry) => entry.path === ret.path);
+          if (!target) return null;
+          const refModelName = target.modelName;
+          const targetConfiguration = target.configuration;
+          if (
+            targetConfiguration.requireOperationAccessForPopulateQueries !== false &&
+            !(await withCapturedModelOperationGuard(
+              this,
+              refModelName,
+              populateAccess,
+              getCapturedAuthorizationOption(targetConfiguration, `operationAccess.${populateAccess}`),
+              permissions,
+              () => this.isAllowed(refModelName, populateAccess),
+            ))
+          ) {
             return null;
           }
 
-          ret.select = await this.requestPopulateSelect(refModelName, populateAccess as SelectAccess, ret.select);
+          ret.select = await this.requestPopulateSelect(
+            targetConfiguration,
+            permissions,
+            populateAccess as SelectAccess,
+            ret.select,
+          );
           // Fetch-only target hook inputs have no role in source-field admission.
-          const hookInputs = getModelOption(refModelName, `alwaysSelectFields.${populateAccess}`, []) as string[];
-          ret.select = uniq([...ret.select, ...stripVirtuals(hookInputs, runtime.getVirtualNames(refModelName))]);
-          const filter = await this.genFilter(refModelName, populateAccess as BaseFilterAccess, null);
+          const hookInputs = resolveAlwaysSelectForAccess(
+            targetConfiguration.alwaysSelectFields as import('./acl/virtual-projection').VirtualProjectionSnapshot['alwaysSelectFields'],
+            populateAccess,
+          );
+          ret.select = uniq([
+            ...ret.select,
+            ...stripVirtuals(hookInputs, [...(targetConfiguration.catalog.virtualPaths ?? [])]),
+          ]);
+          const match = (isString(p) ? {} : (p.match ?? {})) as Filter;
+          // Hooks may rewrite ordinary input in place; the captured required
+          // relationship match (including native leaves) must remain independent.
+          const filter = await resolveAccessFilterForRequest({
+            req: this.req,
+            permissions,
+            cache: this.caches.baseFilter,
+            cacheKey: `${refModelName}_baseFilter_${populateAccess}`,
+            access: populateAccess,
+            filter: deepIsolateValue(match),
+            getOption: (key) => getCapturedAuthorizationOption(targetConfiguration, key),
+          });
           if (filter === false) return null;
 
-          ret.match = filter;
+          // Detach the result from the capture, hook-returned values and row cache.
+          ret.match = deepIsolateValue(intersectFilters(match, filter));
           // VIRT-05: retain per-entry target plans (original selection,
           // captured descriptors, dependency fetch, effective accesses).
           // Mongoose descriptors stay enumerable `{ path, select, match }`;
@@ -385,87 +424,53 @@ export class Core {
           // construction, invisible to Mongoose/JSON). Dotted paths through
           // embedded arrays (e.g. `contacts.friend`) are supported as single
           // entries; no recursive populate API is invented. Parent-path /
-          // target-operation / terminal-filter denial and
-          // `requireRegisteredPopulateModels` above are preserved unchanged;
+          // target-operation / terminal-filter denial are independent of required target configuration;
           // global-only virtual denial is NOT reinterpreted here — deferred
           // candidates stay in the plan for post-fetch evaluation.
-          try {
-            // Target finalization must retain the same trusted data policy used
-            // for admission/selection, including non-reserved custom accesses.
-            const planAccess: PopulateTargetAccess = populateAccess;
-            const targetSnapshot = {
-              permissionSchema:
-                (getModelOption(refModelName, 'permissionSchema', null) as Record<string, unknown> | null) ?? null,
-              virtuals: (getModelOption(refModelName, 'virtuals', null) as Record<string, unknown> | null) ?? null,
-              alwaysSelectFields:
-                (getModelOption(refModelName, 'alwaysSelectFields', null) as
-                  | string[]
-                  | Record<string, string[]>
-                  | null) ?? null,
-              modelPermissionPrefix: (getModelOption(refModelName, 'modelPermissionPrefix', '') as string) ?? '',
-              requireExplicitSelect: (getModelOption(refModelName, 'requireExplicitSelect', false) as boolean) ?? false,
-              documentPermissionField:
-                (getModelOption(refModelName, 'documentPermissionField', '_permissions') as string) ?? '_permissions',
-              exposedDocPermissionKeys: getModelOption(refModelName, 'exposedDocPermissionKeys', undefined) as
-                | string[]
-                | undefined,
-              stripPermissionsField: (getModelOption(refModelName, 'stripPermissionsField', false) as boolean) ?? false,
-              disableFieldPermissions:
-                (getModelOption(refModelName, 'disableFieldPermissions', false) as boolean) ?? false,
-            };
-            const perms = this.getPermissions() as unknown as {
-              has: (k: string) => boolean;
-              hasKey: (k: string) => boolean;
-            };
-            const globalForPlan =
-              perms && typeof perms.has === 'function' && typeof perms.hasKey === 'function'
-                ? perms
-                : { has: () => false, hasKey: () => false };
-            const targetPlan = planVirtualProjection({
-              receivingModelName: refModelName,
-              snapshot: {
-                permissionSchema: targetSnapshot.permissionSchema,
-                virtuals: targetSnapshot.virtuals,
-                alwaysSelectFields: targetSnapshot.alwaysSelectFields,
-                modelPermissionPrefix: targetSnapshot.modelPermissionPrefix,
-                requireExplicitSelect: targetSnapshot.requireExplicitSelect,
-                documentPermissionField: targetSnapshot.documentPermissionField,
-              },
-              virtualAccess: planAccess,
-              outputAccess: planAccess,
-              docPermissionsAccess: planAccess,
-              requestedSelect: originalSelect as never,
-              internalFetch: { baseFields: ['_id'] },
-              globalPermissions: globalForPlan,
-            });
-            // Merge virtual dependency fetch requirements into the Mongoose
-            // query projection (fetch-only, never an output grant). Only
-            // `virtualOnlyDeps` (+ `_id`) are added to the authorized
-            // request-only selection: denied output fields stay query-restricted
-            // (no leak on paths without target finalization, e.g. legacy
-            // subdocument populate owned by VIRT-06), while virtual deps are
-            // fetched internally and stripped by the target finalizer. Strip
-            // `-_id` for DB fetches: fetch always retains `_id` for policy
-            // work; output `-_id` is honored independently by the finalizer.
-            const merged = uniq([...normalizeSelect(ret.select), ...(targetPlan.virtualOnlyDeps ?? [])]).filter(
-              (t) => t !== '-_id' && !t.includes('.sub.'),
-            );
-            if (!merged.includes('_id')) merged.push('_id');
-            ret.select = merged;
-            setPopulateTargetMeta(ret, {
-              targetModelName: refModelName,
-              virtualAccess: planAccess,
-              outputAccess: planAccess,
-              docPermissionsAccess: planAccess,
-              requestedSelect: originalSelect,
-              plan: targetPlan,
-              snapshot: targetSnapshot,
-            });
-          } catch {
-            // Planning must never break admission: on snapshot/planner
-            // failure keep the Mongoose descriptor without internal metadata.
-            // The service layer falls back to building a target plan on demand.
-          }
+          // Target finalization must retain the same trusted data policy used
+          // for admission/selection, including non-reserved custom accesses.
+          const planAccess: PopulateTargetAccess = populateAccess;
+          const targetSnapshot = targetConfiguration as import('./output/finalize-model-output').FinalizeSnapshot;
+          const targetPlan = planVirtualProjection({
+            receivingModelName: refModelName,
+            snapshot: {
+              permissionSchema: targetSnapshot.permissionSchema,
+              virtuals: targetSnapshot.virtuals,
+              alwaysSelectFields: targetSnapshot.alwaysSelectFields,
+              modelPermissionPrefix: targetSnapshot.modelPermissionPrefix,
+              requireExplicitSelect: targetSnapshot.requireExplicitSelect,
+              documentPermissionField: targetSnapshot.documentPermissionField,
+            },
+            virtualAccess: planAccess,
+            outputAccess: planAccess,
+            docPermissionsAccess: planAccess,
+            requestedSelect: originalSelect as never,
+            internalFetch: { baseFields: ['_id'] },
+            globalPermissions: permissions,
+          });
+          // Merge virtual dependency fetch requirements into the Mongoose
+          // query projection (fetch-only, never an output grant). Only
+          // `virtualOnlyDeps` (+ `_id`) are added to the authorized
+          // request-only selection: denied output fields stay query-restricted
+          // (no leak on paths without target finalization, e.g. legacy
+          // subdocument populate owned by VIRT-06), while virtual deps are
+          // fetched internally and stripped by the target finalizer. Strip
+          // `-_id` for DB fetches: fetch always retains `_id` for policy
+          // work; output `-_id` is honored independently by the finalizer.
+          const merged = uniq([...normalizeSelect(ret.select), ...(targetPlan.virtualOnlyDeps ?? [])]).filter(
+            (t) => t !== '-_id' && !t.includes('.sub.'),
+          );
+          if (!merged.includes('_id')) merged.push('_id');
+          ret.select = merged;
+          setPopulateTargetMeta(ret, {
+            targetModelName: refModelName,
+            virtualAccess: planAccess,
+            outputAccess: planAccess,
+            docPermissionsAccess: planAccess,
+            requestedSelect: originalSelect,
+            plan: targetPlan,
+            snapshot: targetSnapshot,
+          });
           return ret;
         }),
       ),
