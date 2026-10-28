@@ -58,14 +58,20 @@ import type { AccessRouterBaseRequest, ModelHookContext } from '../interfaces';
 import type { ModelVirtualContext } from '../interfaces/router-hooks';
 import type { Permissions } from '../permission';
 import type { DocumentAuthorization, ServiceOutputContext } from '../interfaces/service-authorization';
-import type { AuthorizationBinding } from '../acl/service-authorization';
-import { getAuthorizationPermissions, readServiceAuthorization } from '../acl/service-authorization';
-import { authorizationError } from '../acl/authorization-snapshot';
+import type { AuthorizationBinding, ResolvedServiceAuthorization } from '../acl/service-authorization';
+import {
+  assertAuthorizationBinding,
+  getAuthorizationPermissions,
+  readServiceFinalizerConfiguration,
+  readServiceOutputPolicy,
+} from '../acl/service-authorization';
+import { authorizationError, copyAuthorizationValue } from '../acl/authorization-snapshot';
 import {
   associateDocumentAuthorization,
   createServiceOutputContext,
   isKnownAuthorizationOutput,
   readDocumentAuthorization,
+  readDocumentAuthorizationAccess,
   transferDocumentAuthorizationGraph,
 } from '../acl/document-authorization';
 import type { DocumentAuthorizationStage } from '../acl/document-authorization';
@@ -75,7 +81,7 @@ import {
   copyOutputValue,
   evaluateAuthorizedOutputField,
   hasWholeOutputValueGrant,
-  resolveOutputDocumentAuthorization,
+  prepareOutputDocumentAuthorization,
   retainOutputMetadata,
 } from '../acl/output-field-filter';
 import { evaluateEffectiveFieldAuthorization, extractScopedOutputRule } from '../acl/field-authorization';
@@ -189,6 +195,21 @@ type InternalFinalizeArgs = FinalizeModelOutputArgs & {
   owningBinding?: AuthorizationBinding;
 };
 
+/** Private to this invocation/scope. Never put preparation on traversal args or
+ * hook contexts: even a detached frozen configuration can contain mutable natives.
+ */
+interface FinalizerPreparation {
+  authorization: ResolvedServiceAuthorization | undefined;
+  policy: ReturnType<typeof readServiceOutputPolicy> | undefined;
+  snapshot: FinalizeSnapshot;
+  baseContext: ModelHookContext;
+  sharedContext: boolean;
+  scopeVirtualNames: string[];
+  scopedSchema: Record<string, unknown> | null;
+  permissions: ReturnType<typeof getAuthorizationPermissions> | undefined;
+  resolveDocument: ReturnType<typeof prepareOutputDocumentAuthorization> | undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Scope helpers (mirror VIRT-01/VIRT-02 snapshot traversal, captured only).
 // ---------------------------------------------------------------------------
@@ -265,7 +286,7 @@ const resolveDocPermissions = async (
   scopeContext: ModelHookContext,
 ): Promise<Record<string, unknown>> => {
   if (args.docPermissions != null && typeof args.docPermissions === 'object' && !Array.isArray(args.docPermissions)) {
-    const grants = args.docPermissions as Record<string, unknown>;
+    const grants = deepIsolateValue(args.docPermissions);
     (scopeContext as ModelHookContext).docPermissions = grants;
     return grants;
   }
@@ -342,24 +363,64 @@ const isAbsentDependency = (stableView: Record<string, unknown>, dep: string): b
 // Single-document finalization.
 // ---------------------------------------------------------------------------
 
-async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Promise<Record<string, unknown>> {
-  const scopePath = args.scopePath;
+function assertFinalizerCall(
+  args: InternalFinalizeArgs,
+  prepared: Pick<FinalizerPreparation, 'authorization' | 'policy'>,
+): void {
   const plan = args.plan;
   const binding = plan.authorizationBinding;
-  const captured = plan.authorization && binding ? readServiceAuthorization(plan.authorization, binding) : undefined;
+  if (plan.authorization !== prepared.authorization) authorizationError('finalizer call changed during pass');
+  if (plan.authorization && binding) assertAuthorizationBinding(plan.authorization, binding);
+  const access = prepared.policy?.access;
   if (
     plan.authorization &&
     (!binding ||
       binding.request !== args.request ||
       binding.modelName !== args.receivingModelName ||
-      captured?.access.virtualAccess !== args.virtualAccess ||
-      captured.access.outputAccess !== args.outputAccess ||
-      captured.access.docPermissionsAccess !== args.docPermissionsAccess ||
-      (binding.scopePath ?? []).join('.') !== scopePath.filter((p) => p !== 'sub').join('.'))
+      access?.virtualAccess !== args.virtualAccess ||
+      access.outputAccess !== args.outputAccess ||
+      access.docPermissionsAccess !== args.docPermissionsAccess ||
+      (binding.scopePath ?? []).join('.') !== args.scopePath.filter((p) => p !== 'sub').join('.'))
   ) {
     authorizationError('finalizer call/model/scope/access mismatch');
   }
-  const snapshot = captured ? (captured.configuration as FinalizeSnapshot) : args.snapshot;
+}
+
+function prepareFinalizer(args: InternalFinalizeArgs, sharedContext = false): FinalizerPreparation {
+  const { authorization, authorizationBinding: binding } = args.plan;
+  const policy = authorization && binding ? readServiceOutputPolicy(authorization, binding) : undefined;
+  assertFinalizerCall(args, { authorization, policy });
+  const configuration = authorization ? readServiceFinalizerConfiguration(authorization, binding!) : undefined;
+  const snapshot = configuration ? (configuration as FinalizeSnapshot) : deepIsolateValue(args.snapshot);
+  return {
+    authorization,
+    policy,
+    snapshot,
+    baseContext: deepIsolateValue(args.context ?? ({} as ModelHookContext)),
+    sharedContext,
+    scopeVirtualNames: getScopeVirtualNames(snapshot, args.scopePath),
+    scopedSchema: configuration
+      ? null // Authenticated field decisions own their separate call-scoped rule preparation.
+      : getScopedPermissionSchema(snapshot.permissionSchema as Record<string, unknown> | null, args.scopePath),
+    permissions: authorization ? getAuthorizationPermissions(authorization, binding!) : undefined,
+    resolveDocument: authorization
+      ? prepareOutputDocumentAuthorization(authorization, binding!, configuration!)
+      : undefined,
+  };
+}
+
+async function finalizeSingleDoc(
+  args: InternalFinalizeArgs,
+  input: unknown,
+  prepared: FinalizerPreparation,
+): Promise<Record<string, unknown>> {
+  // Revalidate each row/scope even though invariant preparation is shared.
+  assertFinalizerCall(args, prepared);
+  const scopePath = args.scopePath;
+  const plan = args.plan;
+  const binding = plan.authorizationBinding;
+  const captured = prepared.policy;
+  const snapshot = prepared.snapshot;
   const limit = args.resolvedLimit;
   const gate = args.sharedGate;
   const original = getIncludeOriginal(input);
@@ -378,7 +439,9 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
     }
 
   // Scope-aware context (operation stays initiating; three accesses effective).
-  const baseContext = (args.context ?? {}) as ModelHookContext;
+  // A single-row pass already owns this snapshot. Only reusable preparation
+  // needs a second copy to keep later rows independent of this row's hooks.
+  const baseContext = prepared.sharedContext ? deepIsolateValue(prepared.baseContext) : prepared.baseContext;
   const operation = captured?.access.operation ?? baseContext.operation ?? args.operation ?? args.virtualAccess;
   const scopeContext = {
     ...baseContext,
@@ -398,7 +461,7 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   if (captured) {
     const projected = args.documentAuthorizationStage ? (input as Record<string, unknown>) : deepIsolateValue(output);
     metadataSource = deepIsolateValue(output);
-    documentAuthorization = await resolveOutputDocumentAuthorization({
+    documentAuthorization = await prepared.resolveDocument!({
       authorization: plan.authorization!,
       binding: binding!,
       snapshot: projected,
@@ -414,15 +477,12 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
     ? readDocumentAuthorization(documentAuthorization, binding!).grants
     : await resolveDocPermissions(args, output, scopeContext);
   scopeContext.docPermissions = deepIsolateValue(docGrants);
-  const globalPerms = captured
-    ? getAuthorizationPermissions(plan.authorization!, binding!)
-    : resolveGlobalPermissions(args);
-  const modelPermissionPrefix = snapshot.modelPermissionPrefix ?? '';
-  const documentPermissionField = snapshot.documentPermissionField ?? '_permissions';
-  const scopedSchema = getScopedPermissionSchema(
-    (snapshot.permissionSchema ?? null) as Record<string, unknown> | null,
-    scopePath,
-  );
+  const globalPerms = prepared.permissions ?? resolveGlobalPermissions(args);
+  const modelPermissionPrefix = captured ? '' : deepIsolateValue(snapshot.modelPermissionPrefix ?? '');
+  const documentPermissionField = captured
+    ? '_permissions'
+    : deepIsolateValue(snapshot.documentPermissionField ?? '_permissions');
+  const scopedSchema = deepIsolateValue(prepared.scopedSchema);
 
   // 3. Finalize related/embedded children through the same boundary BEFORE
   //    parent getters. Raw association values retained privately; only
@@ -452,12 +512,13 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       continue;
     }
     retainRawAssociation(output, containerName, rawContainer);
-    const childSnapshot = snapshot;
     const childBase: InternalFinalizeArgs = {
       ...args,
       scopePath: [...(childPlan.scopePath ?? [...scopePath, containerName, 'sub'])],
       plan: captured ? authorizeEmbeddedOutputPlan(plan, childPlan) : childPlan,
-      snapshot: childSnapshot,
+      // Authenticated preparation reads its own authority. Do not clone an
+      // otherwise unused public configuration graph on default traversal.
+      snapshot: args.snapshot,
       // Embedded reuses the owning parent's grants + accesses (VIRT-00A D2).
       docPermissions: docGrants,
       context: scopeContext as unknown as ModelHookContext,
@@ -468,6 +529,7 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
       related: [],
       virtualPopulateRow: privateRow,
     };
+    let childPreparation: FinalizerPreparation | undefined;
     const finalizeOneChild = async (rawChild: unknown, address: VirtualPopulateAddress): Promise<unknown> => {
       if (captured && Array.isArray(rawChild))
         return mapWithConcurrencyLimit(rawChild, limit, (entry, index) => finalizeOneChild(entry, [...address, index]));
@@ -490,7 +552,14 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
             : { ...args, virtualPopulateRow: privateRow, virtualPopulateAddress: address },
         });
       }
-      return finalizeSingleDoc({ ...childBase, virtualPopulateAddress: address }, rawChild);
+      return finalizeSingleDoc(
+        { ...childBase, virtualPopulateAddress: address },
+        rawChild,
+        (childPreparation ??= prepareFinalizer(
+          childBase,
+          Array.isArray(rawContainer) && (rawContainer.length > 1 || Array.isArray(rawContainer[0])),
+        )),
+      );
     };
     if (Array.isArray(rawContainer)) {
       const finalized = await mapWithConcurrencyLimit(rawContainer, limit, (entry, index) =>
@@ -547,6 +616,7 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
         ? (args.related ?? []).filter((entry) => entry.path.startsWith(`${target.path}.`))
         : [],
     };
+    let relatedPreparation: FinalizerPreparation | undefined;
     const finalizeOneRelated = async (rawChild: unknown, originalChild: unknown = rawChild): Promise<unknown> => {
       if (!isPlainObject(rawChild) && !Array.isArray(rawChild)) return rawChild;
       if (typeof (rawChild as Record<string, unknown>)?._bsontype === 'string') return rawChild;
@@ -561,7 +631,11 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
           parentArgs: { ...args, virtualPopulateRow: childRow, virtualPopulateAddress: [] },
         });
       }
-      return finalizeSingleDoc({ ...relatedBase, virtualPopulateRow: childRow }, rawChild);
+      return finalizeSingleDoc(
+        { ...relatedBase, virtualPopulateRow: childRow },
+        rawChild,
+        (relatedPreparation ??= prepareFinalizer(relatedBase, Array.isArray(rawRelated) && rawRelated.length > 1)),
+      );
     };
     let finalized: unknown;
     if (Array.isArray(rawRelated)) {
@@ -582,18 +656,24 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   }
 
   // 4. Stable view for getters: strip stale virtual keys (no fallback), then
-  //    isolate once. Every getter receives its own isolated copy so input
-  //    mutation cannot leak across siblings/output/snapshots.
-  const scopeVirtualNames = getScopeVirtualNames(snapshot, scopePath);
-  for (const virtualName of scopeVirtualNames) {
+  //    isolate only if a getter can run. Establish the view BEFORE candidate
+  //    permission callbacks, preserving its ordering/isolation contract.
+  for (const virtualName of prepared.scopeVirtualNames) {
     if (virtualName in output) delete (output as Record<string, unknown>)[virtualName];
   }
-  const stableBase = deepIsolateValue(output);
+  const candidates = plan.candidates ?? [];
+  const needsGetterView = candidates.some((candidate) => {
+    const descriptor = candidate.descriptor;
+    if (typeof descriptor?.get !== 'function') return false;
+    if (!privateRow && descriptor.dependsOnPopulate?.length) return false;
+    const dependsOn = Array.isArray(descriptor.dependsOn) ? descriptor.dependsOn : [];
+    return dependsOn.every((dep) => typeof dep === 'string' && !isAbsentDependency(output, dep));
+  });
+  let stableBase = needsGetterView ? deepIsolateValue(output) : undefined;
   const scopeLabel = scopePath.length > 0 ? scopePath.join('.') : '';
 
   // 5. Resolve candidate auth (captured scoped schema + actual grants + global)
   //    before invoking getters; evaluate against the stable view only.
-  const candidates = plan.candidates ?? [];
   const staged = new Map<string, unknown>();
   const runCandidate = async (candidate: {
     name: string;
@@ -601,7 +681,7 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
   }): Promise<void> => {
     const dependsOn = Array.isArray(candidate.descriptor?.dependsOn) ? candidate.descriptor.dependsOn : [];
     for (const dep of dependsOn) {
-      if (typeof dep !== 'string' || isAbsentDependency(stableBase as Record<string, unknown>, dep)) return;
+      if (typeof dep !== 'string' || isAbsentDependency(stableBase ?? output, dep)) return;
     }
     const allowed = documentAuthorization
       ? await evaluateAuthorizedOutputField(documentAuthorization, binding!, candidate.name)
@@ -622,9 +702,9 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
         ? { available: false as const }
         : { available: true as const, populated: {} };
     if (!privateInputs.available) return;
-    const isolatedView = deepIsolateValue(stableBase);
+    const isolatedView = deepIsolateValue((stableBase ??= deepIsolateValue(output)));
     const virtualContext = {
-      ...scopeContext,
+      ...deepIsolateValue(scopeContext),
       docPermissions: deepIsolateValue(docGrants),
     } as unknown as ModelVirtualContext;
     // A getter may await a service: its descendant hooks reuse a bounded chain.
@@ -734,14 +814,29 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
     if (!(key in output)) continue;
     if (captured && !plan.childPlans[key]) {
       const path = [...(binding!.scopePath ?? []), key].join('.');
-      trimmed[key] = captured.configuration.catalog.referencePaths?.some((p) => matchesCatalogPattern(p, path))
+      trimmed[key] = captured.catalog.referencePaths?.some((p) => matchesCatalogPattern(p, path))
         ? copyAuthorizedReference(output[key], plan, path)
         : copyOutputValue(output[key], plan, path);
       if (trimmed[key] === undefined) delete trimmed[key];
     } else trimmed[key] = output[key];
   }
   if (documentAuthorization) {
-    retainOutputMetadata(trimmed, metadataSource, captured!.configuration, binding!.scopePath ?? []);
+    // Only the small metadata slice needs a row-owned copy. Open configuration
+    // can contain coercible native leaves; never let them mutate the pass's copy.
+    retainOutputMetadata(
+      trimmed,
+      metadataSource,
+      copyAuthorizationValue(
+        {
+          documentPermissionField: snapshot.documentPermissionField,
+          stripPermissionsField: snapshot.stripPermissionsField,
+          exposedDocPermissionKeys: snapshot.exposedDocPermissionKeys,
+          disableFieldPermissions: snapshot.disableFieldPermissions,
+        },
+        true,
+      ),
+      binding!.scopePath ?? [],
+    );
     associateDocumentAuthorization(documentAuthorization, binding!, trimmed);
     args.onFinalized?.(
       trimmed,
@@ -750,7 +845,7 @@ async function finalizeSingleDoc(args: InternalFinalizeArgs, input: unknown): Pr
         output: trimmed,
         outputAccess: args.outputAccess,
         authorization: plan.authorization,
-        stage: readDocumentAuthorization(documentAuthorization, binding!).stage,
+        stage: readDocumentAuthorizationAccess(documentAuthorization, binding!).stage,
       }),
     );
   }
@@ -779,7 +874,7 @@ export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promis
     sharedGate: gate,
     resolvedLimit: limit,
   };
-  return finalizeSingleDoc(internal, args.input);
+  return finalizeSingleDoc(internal, args.input, prepareFinalizer(internal));
 }
 
 /**
@@ -800,16 +895,24 @@ export async function finalizeModelOutputs(args: FinalizeModelOutputsArgs): Prom
   ) {
     authorizationError('list finalization requires a distinct document stage per row');
   }
+  if (!inputs.length) return [];
+  const internal: InternalFinalizeArgs = {
+    ...(rest as FinalizeModelOutputArgs),
+    scopePath: [...(rest.scopePath ?? rest.plan.scopePath ?? [])],
+    sharedGate: gate,
+    resolvedLimit: limit,
+  };
+  const prepared = prepareFinalizer(internal, inputs.length > 1);
   return mapWithConcurrencyLimit(inputs, limit, (input, index) => {
-    const internal: InternalFinalizeArgs = {
-      ...(rest as FinalizeModelOutputArgs),
-      scopePath: [...(rest.scopePath ?? rest.plan.scopePath ?? [])],
-      onFinalized: rest.onFinalized ? (output, context) => rest.onFinalized!(output, context, index) : undefined,
-      documentAuthorizationStage: documentAuthorizationStages?.[index],
-      sharedGate: gate,
-      resolvedLimit: limit,
-    };
-    return finalizeSingleDoc(internal, input);
+    return finalizeSingleDoc(
+      {
+        ...internal,
+        onFinalized: rest.onFinalized ? (output, context) => rest.onFinalized!(output, context, index) : undefined,
+        documentAuthorizationStage: documentAuthorizationStages?.[index],
+      },
+      input,
+      prepared,
+    );
   });
 }
 

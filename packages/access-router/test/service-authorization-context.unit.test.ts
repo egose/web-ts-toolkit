@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -27,6 +27,9 @@ import {
 } from '../src/acl/document-authorization';
 import * as rootExports from '../dist/index.mjs';
 import * as advancedExports from '../dist/advanced.mjs';
+import * as processorExports from '../dist/processors.mjs';
+
+afterEach(() => vi.restoreAllMocks());
 
 function fixture(): ResolveServiceAuthorizationInput {
   const permissions = new Permission({ reader: true, admin: false });
@@ -181,6 +184,55 @@ describe('SVA-01 private call-policy capture', () => {
     expect(getAuthorizationPermissions(first, input.binding).has('admin')).toBe(false);
     expect(getAuthorizationPermissions(next, input.binding).hasKey('admin')).toBe(true);
     expect(Object.isFrozen(getAuthorizationPermissions(next, input.binding).keys)).toBe(true);
+  });
+
+  it('detaches canonical BSON authority/configuration on every full read through wire round-trips', () => {
+    const input = fixture();
+    const hex = '0123456789abcdef01234567';
+    const native = {
+      id: new mongo.BSON.ObjectId(hex),
+      decimal: mongo.BSON.Decimal128.fromString('1.20'),
+      long: new mongo.BSON.Long(-1, 0x7fffffff, false),
+    };
+    // BSON's namespace is frozen; retain every constructor/function and observe
+    // serialization through the driver's configurable namespace getter instead.
+    vi.spyOn(mongo, 'BSON', 'get').mockReturnValue({ ...mongo.BSON });
+    const serialize = vi.spyOn(mongo.BSON, 'serialize');
+    const call = resolveServiceAuthorization({
+      ...input,
+      configuration: { ...input.configuration, native },
+      authorization: { rows: { mode: 'scope', filter: native } },
+    });
+    expect(serialize).toHaveBeenCalled();
+    serialize.mockClear();
+    native.id.id = Buffer.alloc(12);
+    native.decimal.bytes.fill(0);
+    native.long.low = 0;
+    const held = readServiceAuthorization(call, input.binding);
+    const heldFilter = (held.authorization.rows as { filter: typeof native }).filter;
+    for (let repeat = 0; repeat < 3; repeat++) {
+      const read = readServiceAuthorization(call, input.binding);
+      const policy = (read.authorization.rows as { filter: typeof native }).filter;
+      const config = read.configuration.native as typeof native;
+      for (const leaves of [policy, config, heldFilter]) {
+        expect(leaves.id.equals(hex)).toBe(true);
+        expect(leaves.decimal.toString()).toBe('1.20');
+        expect(leaves.long.low).toBe(-1);
+        expect(leaves.long.high).toBe(0x7fffffff);
+        expect(leaves.long.unsigned).toBe(false);
+      }
+      expect(policy.id).not.toBe(config.id);
+      expect(policy.id).not.toBe(heldFilter.id);
+      expect(policy.decimal.bytes).not.toBe(config.decimal.bytes);
+      expect(policy.long).not.toBe(config.long);
+      policy.id.id = Buffer.alloc(12);
+      policy.decimal.bytes.fill(0);
+      policy.long.high = 0;
+      config.id.id = Buffer.alloc(12);
+      config.decimal.bytes.fill(0);
+      config.long.low = 0;
+    }
+    expect(serialize).toHaveBeenCalledTimes(24); // Six detached BSON leaves in each of four full reads.
   });
 
   it.each([
@@ -551,7 +603,36 @@ describe('SVA-01 per-document owners and same-stage handles', () => {
     expect(hook).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['date', 'buffer', 'bson', 'decimal', 'nested', 'replacement'] as const)(
+  it.each(['id', 'decimal', 'long'] as const)(
+    'rejects stale canonical BSON document changes before cached decisions: %s',
+    async (kind) => {
+      const input = fixture();
+      const call = resolveServiceAuthorization(input);
+      const snapshot = {
+        id: new mongo.BSON.ObjectId('0123456789abcdef01234567'),
+        decimal: mongo.BSON.Decimal128.fromString('1.20'),
+        long: new mongo.BSON.Long(-1, 0x7fffffff),
+      };
+      const stage = createDocumentAuthorizationStage(call, input.binding, snapshot);
+      const hook = vi.fn(() => ({ owner: true }));
+      const handle = await resolveDocumentAuthorization(stage, hook);
+      const decision = vi.fn(() => true);
+      expect(await memoizeDocumentFieldDecision(handle, input.binding, 'warm', decision)).toBe(true);
+      const output = { status: 'open' };
+      associateDocumentAuthorization(handle, input.binding, output);
+      const use = { binding: input.binding, output, outputAccess: 'read' };
+      if (kind === 'id') snapshot.id.id = Buffer.alloc(12);
+      if (kind === 'decimal') snapshot.decimal.bytes[0] ^= 255;
+      if (kind === 'long') snapshot.long.low ^= 1;
+      badRequest(() => readDocumentAuthorization(handle, input.binding));
+      badRequest(() => assertDocumentAuthorization(handle, use));
+      badRequest(() => memoizeDocumentFieldDecision(handle, input.binding, 'warm', decision));
+      expect(hook).toHaveBeenCalledTimes(1);
+      expect(decision).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['date', 'buffer', 'bson', 'decimal', 'long', 'nested', 'replacement'] as const)(
     'rejects stale output mutation/replacement: %s',
     async (kind) => {
       const { handle, input } = await document();
@@ -560,6 +641,7 @@ describe('SVA-01 per-document owners and same-stage handles', () => {
         buffer: Buffer.from([1]),
         bson: new mongo.BSON.ObjectId(),
         decimal: mongo.BSON.Decimal128.fromString('1.2'),
+        long: new mongo.BSON.Long(-1, 0x7fffffff),
         nested: { value: true },
       };
       associateDocumentAuthorization(handle, input.binding, output);
@@ -569,6 +651,7 @@ describe('SVA-01 per-document owners and same-stage handles', () => {
       if (kind === 'buffer') output.buffer[0] = 2;
       if (kind === 'bson') output.bson.id = Buffer.alloc(12, 1);
       if (kind === 'decimal') output.decimal.bytes[0] ^= 255;
+      if (kind === 'long') output.long.low ^= 1;
       if (kind === 'nested') output.nested.value = false;
       if (kind === 'replacement') output.nested = { value: true };
       badRequest(() => assertDocumentAuthorization(handle, use));
@@ -701,7 +784,7 @@ describe('SVA-01 named-option admission and export gate', () => {
   });
 
   it('does not publish runtime context issuers or private execution types as values', () => {
-    for (const entry of [rootExports, advancedExports]) {
+    for (const entry of [rootExports, advancedExports, processorExports]) {
       for (const name of [
         'resolveServiceAuthorization',
         'createDocumentAuthorizationStage',
@@ -709,6 +792,10 @@ describe('SVA-01 named-option admission and export gate', () => {
         'DocumentAuthorization',
         'ResolvedServiceAuthorization',
         'ServiceExecutionContext',
+        'unchangedBsonPrototype',
+        'canonicalBsonFields',
+        'canonicalBsonBytes',
+        'copyCanonicalBsonValue',
       ]) {
         expect(entry).not.toHaveProperty(name);
       }

@@ -42,7 +42,12 @@ import {
   planVirtualPopulateQuery,
 } from '../acl/virtual-populate-execution';
 import { resolveAuthorizedAccessFilter } from '../acl/filter-resolution';
-import { getAuthorizationPermissions, readServiceAuthorization } from '../acl/service-authorization';
+import {
+  getAuthorizationPermissions,
+  readServiceAuthorization,
+  readServiceAuthorizationAccess,
+  readServiceOutputMetadata,
+} from '../acl/service-authorization';
 import {
   createServiceOutputContext,
   readDocumentAuthorization,
@@ -465,7 +470,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }): Promise<{ data: Record<string, unknown>; context: ServiceOutputContext }> {
     const { plan, context } = args;
     const { authorization, authorizationBinding: binding } = plan;
-    const { access, configuration } = readServiceAuthorization(authorization!, binding!);
+    const access = readServiceAuthorizationAccess(authorization!, binding!);
+    const configuration = readServiceOutputMetadata(authorization!, binding!);
     const source = getIncludeSource(args.doc);
     const snapshot = isolateDocForOutput(source) as Record<string, unknown>;
     // Hydrated parents can contain package-finalized target DTOs. Transfer each

@@ -61,6 +61,9 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
       }
       if (input instanceof mongo.BSON.BSONValue) {
         try {
+          // Even canonical-looking BSON leaves may have wire hooks overridden
+          // before this module loads. Import-time prototype identities are not a
+          // trusted baseline for bypassing serialization's normalization/validation.
           return mongo.BSON.deserialize(mongo.BSON.serialize({ value: input }), {
             promoteValues: false,
             bsonRegExp: true,

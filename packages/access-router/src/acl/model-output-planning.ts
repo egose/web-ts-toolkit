@@ -18,7 +18,11 @@ export function getCapturedAuthorizationOption(configuration: AuthorizationConfi
   return resolveNestedOption((path, fallback) => get(configuration, path, fallback), key, defaultValue);
 }
 
-/** Capture at operation entry, before awaiting hooks. Also used by SVA-05's call resolver. */
+/**
+ * Capture at operation entry, before awaiting hooks. Also used by SVA-05's call resolver.
+ * Frozen option containers can still hold live native leaves, and model schemas
+ * mutate independently of option setters. Neither identity is a cross-call cache key.
+ */
 export function captureModelAuthorizationConfiguration<T = unknown, V extends object = Record<never, never>>(
   runtime: AccessRuntime,
   modelName: string,
