@@ -9,7 +9,7 @@ import {
   assertAuthorizationKeys,
   getAuthorizationPermissions,
   getAuthorizationProvenance,
-  readServiceAuthorization,
+  readServiceAuthorizationAccess,
   resolveServiceAuthorization,
 } from './service-authorization';
 import type {
@@ -104,7 +104,7 @@ export function normalizeOutputAuthorizationOptions(
     // owner, while still checking the service's request/runtime/model identities.
     const binding = Object.freeze({ ...input.binding, scopePath: stage.binding.scopePath });
     assertAuthorizationBinding(stage.call, binding);
-    const access = readServiceAuthorization(stage.call, binding).access;
+    const access = readServiceAuthorizationAccess(stage.call, binding);
     if (input.access.outputAccess !== access.outputAccess) authorizationError('document access mismatch');
     return Object.freeze({ kind: 'document', documentAuthorization: handle, binding });
   }
@@ -208,7 +208,18 @@ export function readDocumentAuthorization(handle: DocumentAuthorization, binding
     authorization: stage.call,
     stage: record.stage,
     grants: copyAuthorizationValue(record.grants),
-    ...readServiceAuthorization(stage.call, binding).access,
+    ...readServiceAuthorizationAccess(stage.call, binding),
+  });
+}
+
+/** Identity/access-only consumers must still validate the document snapshot and call binding. */
+export function readDocumentAuthorizationAccess(handle: DocumentAuthorization, binding: AuthorizationBinding) {
+  const record = documentRecord(handle);
+  const stage = stageRecord(record.stage);
+  return Object.freeze({
+    authorization: stage.call,
+    stage: record.stage,
+    ...readServiceAuthorizationAccess(stage.call, binding),
   });
 }
 
@@ -223,15 +234,25 @@ export function memoizeDocumentFieldDecision(
   const stage = stageRecord(record.stage);
   assertAuthorizationBinding(stage.call, binding);
   let decision = record.decisions.get(field);
-  if (!decision) {
+  if (decision) {
+    // A settled/pending hit must not outlive mutation between lookup and use.
+    // Keep the immediate checks above as well as this asynchronous boundary.
+    return decision.then((result) => {
+      stageRecord(record.stage);
+      assertAuthorizationBinding(stage.call, binding);
+      return result;
+    });
+  } else {
     decision = Promise.resolve().then(async () => {
       stageRecord(record.stage);
+      assertAuthorizationBinding(stage.call, binding);
       const result = await evaluate.call(
         stage.binding.request,
         getAuthorizationPermissions(stage.call, binding),
         copyAuthorizationValue(record.grants),
       );
       stageRecord(record.stage);
+      assertAuthorizationBinding(stage.call, binding);
       if (typeof result !== 'boolean') authorizationError('field decision must be boolean');
       return result;
     });
@@ -265,7 +286,7 @@ export function assertDocumentAuthorization(handle: DocumentAuthorization, use: 
   if (
     (use.authorization !== undefined && stage.call !== use.authorization) ||
     (use.stage !== undefined && record.stage !== use.stage) ||
-    readServiceAuthorization(stage.call, use.binding).access.outputAccess !== use.outputAccess
+    readServiceAuthorizationAccess(stage.call, use.binding).outputAccess !== use.outputAccess
   ) {
     authorizationError('document call/access/stage mismatch');
   }
@@ -349,7 +370,7 @@ export function transferDocumentAuthorizationGraph(
         {
           binding: stage.binding,
           output: original!,
-          outputAccess: readServiceAuthorization(stage.call, stage.binding).access.outputAccess,
+          outputAccess: readServiceAuthorizationAccess(stage.call, stage.binding).outputAccess,
           authorization: stage.call,
           stage: documentRecord(association.handle).stage,
         },

@@ -131,10 +131,69 @@ interface CallRecord {
   configuration: AuthorizationConfiguration;
   policy: NormalizedServiceAuthorization;
   relatedTargets: readonly AuthorizationRelatedTarget[];
-  permissions: Readonly<Record<string, boolean>>;
+  output: Readonly<{
+    access: AuthorizationAccess;
+    catalog: AuthorizationFieldCatalog;
+    outputFields: FieldAuthorization;
+  }>;
+  reusableFieldConfiguration?: boolean;
+  permissions: AccessRouterPermissions;
   provenance: ResolvedServiceAuthorization;
 }
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
+
+/** A detached native may normalize differently on its next copy (notably BSON
+ * wire hooks). Prove reuse from the stored source, before a read can turn that
+ * native into a seemingly immutable primitive. Functions retain identity on
+ * copies; mutable function-backed lookup slots are handled by the field reader.
+ */
+function hasStableConfigurationCopies(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return true;
+  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype) return false;
+  return Object.values(value).every(hasStableConfigurationCopies);
+}
+
+/** Project only proven primitive fields, never arbitrary configuration/catalog extensions. */
+function captureAuthorizationAccess(value: AuthorizationAccess): AuthorizationAccess {
+  const input = authorizationRecord(value, 'access');
+  const access: Record<string, string> = {};
+  for (const key of ['operation', 'rowAccess', 'virtualAccess', 'outputAccess', 'docPermissionsAccess']) {
+    if (key === 'rowAccess' && input[key] === undefined) continue;
+    if (typeof input[key] !== 'string') authorizationError(`invalid access.${key}`);
+    access[key] = input[key] as string;
+  }
+  return Object.freeze(access) as unknown as AuthorizationAccess;
+}
+
+function captureAuthorizationCatalog(value: AuthorizationFieldCatalog): AuthorizationFieldCatalog {
+  const input = authorizationRecord(value, 'catalog');
+  const catalog: Record<string, readonly string[]> = {};
+  for (const key of [
+    'paths',
+    'persistedPaths',
+    'arrayPaths',
+    'schemaVirtualPaths',
+    'metadataPaths',
+    'dynamicPaths',
+    'containerPaths',
+    'virtualPaths',
+    'virtualScopePaths',
+    'opaquePaths',
+    'referencePaths',
+    'protectedPaths',
+  ]) {
+    const paths = input[key];
+    if (key !== 'paths' && paths === undefined) continue;
+    if (!Array.isArray(paths) || Array.from(paths).some((path) => typeof path !== 'string')) {
+      authorizationError(`invalid catalog.${key}`);
+    }
+    // The snapshot copier already owns/freezes these arrays; validation proves
+    // that sharing them cannot expose a mutable native leaf (including holes).
+    catalog[key] = paths as readonly string[];
+  }
+  return Object.freeze(catalog) as unknown as AuthorizationFieldCatalog;
+}
+
 export function assertAuthorizationPath(path: unknown): asserts path is string {
   if (typeof path !== 'string' || !isSafeOutputPath(path)) {
     authorizationError(`invalid response path: ${String(path)}`);
@@ -322,6 +381,9 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
   const raw = copyAuthorizationValue(input.authorization);
   const configuration = copyAuthorizationValue(input.configuration, true);
   const targets = copyAuthorizationValue(input.relatedTargets ?? [], true);
+  const access = copyAuthorizationValue(input.access);
+  const outputAccess = captureAuthorizationAccess(access);
+  const catalog = captureAuthorizationCatalog(configuration.catalog);
   const policy = copyAuthorizationValue(normalizePolicy(raw, input.applicability ?? 'service', configuration, targets));
   const scopePath = Array.from(scope(input.binding));
   for (const part of scopePath) {
@@ -334,17 +396,23 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
       authorizationError('derived call request/runtime mismatch');
     }
   }
-  const permissions = Object.fromEntries(
-    input.requestPermissions.keys.map((key) => [key, input.requestPermissions.has(key)]),
+  const permissions = new Permission(
+    Object.fromEntries(input.requestPermissions.keys.map((key) => [key, input.requestPermissions.has(key) === true])),
   );
+  // Permission owns only a boolean record and a string-key array. Freeze both
+  // implementation fields as well as the view before any callback can see it.
+  for (const value of Object.values(permissions)) if (value && typeof value === 'object') Object.freeze(value);
+  Object.freeze(permissions);
   const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
   calls.set(call, {
     binding: Object.freeze({ ...input.binding, scopePath: Object.freeze(scopePath) }),
-    access: copyAuthorizationValue(input.access),
+    access,
     configuration,
     policy,
     relatedTargets: targets,
-    permissions: Object.freeze(permissions),
+    // normalizeFields constructs only mode strings and validated string paths.
+    output: Object.freeze({ access: outputAccess, catalog, outputFields: policy.outputFields }),
+    permissions,
     provenance: input.parent ? callRecord(input.parent).provenance : call,
   });
   return call;
@@ -365,16 +433,98 @@ export function readServiceAuthorization(call: ResolvedServiceAuthorization, bin
   );
 }
 
+/** Private access-only read; no policy/configuration/related graph traversal. */
+export function readServiceAuthorizationAccess(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).output.access;
+}
+
+/** Hydration is open configuration: detach this slice, never the unrelated call graph. */
+export function readServiceAuthorizationHydration(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  return copyAuthorizationValue({ hydration: callRecord(call).configuration.hydration }, true);
+}
+
+function outputMetadata(configuration: AuthorizationConfiguration) {
+  return {
+    documentPermissionField: configuration.documentPermissionField,
+    exposedDocPermissionKeys: configuration.exposedDocPermissionKeys,
+    stripPermissionsField: configuration.stripPermissionsField,
+    disableFieldPermissions: configuration.disableFieldPermissions,
+  };
+}
+
+/** Row presentation needs only metadata posture, never query/default/related policy. */
+export function readServiceOutputMetadata(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  return copyAuthorizationValue(outputMetadata(callRecord(call).configuration), true);
+}
+
+/** Hook lookup is open configuration: keep native/function-backed parents resolution-local. */
+export function readServiceDocumentPermissions(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  const record = callRecord(call);
+  return Object.freeze({
+    catalog: record.output.catalog,
+    ...copyAuthorizationValue({ docPermissions: record.configuration.docPermissions }, true),
+  });
+}
+
+/** Finalization owns detached virtual/metadata/hook slices. Field rules have their
+ * own call-scoped reader; filters, defaults and related targets are not row work.
+ */
+export function readServiceFinalizerConfiguration(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  const record = callRecord(call);
+  return Object.freeze({
+    catalog: record.output.catalog,
+    ...copyAuthorizationValue(
+      {
+        ...outputMetadata(record.configuration),
+        virtuals: record.configuration.virtuals,
+        docPermissions: record.configuration.docPermissions,
+      },
+      true,
+    ),
+  });
+}
+
+/** Private recursively immutable projection, authenticated even on repeated reads. */
+export function readServiceOutputPolicy(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).output;
+}
+
+/** Rules are open configuration, not proven immutable: detach just this slice on every read. */
+export function readServiceOutputFieldAuthorization(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  const record = callRecord(call);
+  const reusable = (record.reusableFieldConfiguration ??=
+    hasStableConfigurationCopies(record.configuration.permissionSchema) &&
+    // Coercion methods can observe an object's identity even without native
+    // leaves. Keep those receivers local to the original resolution boundary.
+    (record.configuration.modelPermissionPrefix === null ||
+      typeof record.configuration.modelPermissionPrefix !== 'object'));
+  return Object.freeze({
+    access: record.output.access,
+    outputFields: record.output.outputFields,
+    reusable,
+    ...copyAuthorizationValue(
+      {
+        permissionSchema: record.configuration.permissionSchema,
+        modelPermissionPrefix: record.configuration.modelPermissionPrefix,
+      },
+      true,
+    ),
+  });
+}
+
 export function getAuthorizationPermissions(
   call: ResolvedServiceAuthorization,
   binding: AuthorizationBinding,
 ): AccessRouterPermissions {
   assertAuthorizationBinding(call, binding);
-  const permission = new Permission({ ...callRecord(call).permissions });
-  // Freeze both the public view and its implementation-owned arrays/record.
-  for (const value of Object.values(permission)) if (value && typeof value === 'object') Object.freeze(value);
-  Object.freeze(permission);
-  return permission;
+  return callRecord(call).permissions;
 }
 
 export function getAuthorizationProvenance(call: ResolvedServiceAuthorization): ResolvedServiceAuthorization {

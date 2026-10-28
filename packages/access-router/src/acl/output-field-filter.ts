@@ -2,13 +2,13 @@
 import { isPlainObject } from '@web-ts-toolkit/utils';
 import { attachPermissionsAlias } from '../output/permissions-alias';
 import type { ModelHookContext, ModelRequest } from '../interfaces';
-import type { DocumentAuthorization } from '../interfaces/service-authorization';
+import type { DocumentAuthorization, FieldAuthorization } from '../interfaces/service-authorization';
 import type { AccessRuntime } from '../runtime';
 import type { AccessRouterPermissions } from '../permission';
 import { deepIsolateValue, isolateDocForOutput } from '../helpers/document';
 import { getRequestWorkState } from '../helpers/request-work';
 import { warn as warnLog } from '../logger-helpers';
-import { authorizationError } from './authorization-snapshot';
+import { authorizationError, copyAuthorizationValue } from './authorization-snapshot';
 import {
   assertDocumentAuthorization,
   assertDocumentAuthorizationStage,
@@ -19,27 +19,39 @@ import {
   memoizeDocumentFieldDecision,
   normalizeOutputAuthorizationOptions,
   readDocumentAuthorization,
+  readDocumentAuthorizationAccess,
   resolveDocumentAuthorization,
   transferDocumentAuthorization,
   transferDocumentAuthorizationGraph,
 } from './document-authorization';
 import type { DocumentAuthorizationStage } from './document-authorization';
 import {
+  assertAuthorizationBinding,
   getAuthorizationPermissions,
   getAuthorizationProvenance,
   readServiceAuthorization,
+  readServiceAuthorizationAccess,
+  readServiceDocumentPermissions,
+  readServiceOutputFieldAuthorization,
+  readServiceOutputPolicy,
   resolveServiceAuthorization,
   serviceAuthorizationInput,
 } from './service-authorization';
-import type { AuthorizationBinding, ResolvedServiceAuthorization } from './service-authorization';
+import type {
+  AuthorizationBinding,
+  AuthorizationConfiguration,
+  ResolvedServiceAuthorization,
+} from './service-authorization';
 import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption } from './model-output-planning';
 import {
   classifyEffectiveFieldAuthorization,
-  evaluateEffectiveFieldAuthorization,
+  combineFieldAuthorizationStates,
   evaluateScopedAccessRule,
   extractOutputFieldRuleEntries,
   hasExplicitFieldGrant,
+  prepareRequestFieldRule,
 } from './field-authorization';
+import type { FieldAuthorizationState } from './field-authorization';
 import { isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
 import { planCatalogProjection } from './output-projection';
 import type { VirtualProjectionPlan, VirtualProjectionSnapshot } from './virtual-projection';
@@ -51,7 +63,139 @@ const owningDocuments = new WeakMap<
   { handle: DocumentAuthorization; binding: AuthorizationBinding }
 >();
 
-export async function resolveOutputDocumentAuthorization(args: {
+type RequestRuleClassification = ReturnType<typeof prepareRequestFieldRule>;
+interface PreparedRequestRule {
+  readonly path: string;
+  /** Private owned configuration only; detach again before runtime evaluation. */
+  readonly rule: unknown;
+  readonly classifications: WeakMap<ResolvedServiceAuthorization, RequestRuleClassification>;
+}
+interface PreparedOutputPath {
+  readonly entries: readonly PreparedRequestRule[];
+  readonly state: FieldAuthorizationState | undefined;
+  readonly backendGrant: boolean;
+}
+interface CallFieldPolicy {
+  readonly schema: Record<string, unknown> | undefined;
+  readonly requestPaths: readonly string[] | undefined;
+  readonly prefix: unknown;
+  readonly outputFields: FieldAuthorization;
+  readonly accesses: Map<string, Map<string, PreparedOutputPath>>;
+}
+const fieldPolicies = new WeakMap<ResolvedServiceAuthorization, CallFieldPolicy>();
+
+function callFieldPolicy(authorization: ResolvedServiceAuthorization, binding: AuthorizationBinding): CallFieldPolicy {
+  assertAuthorizationBinding(authorization, binding);
+  let policy = fieldPolicies.get(authorization);
+  if (!policy) {
+    // This detached slice stays private. Full/narrow readers keep returning fresh
+    // mutable native leaves; no application-visible view becomes cache authority.
+    const view = readServiceOutputFieldAuthorization(authorization, binding);
+    policy = {
+      schema: view.permissionSchema as Record<string, unknown> | undefined,
+      requestPaths:
+        view.permissionSchema == null ||
+        (isPlainObject(view.permissionSchema) && Object.isFrozen(view.permissionSchema))
+          ? Object.freeze(Object.keys(view.permissionSchema ?? {}))
+          : undefined,
+      prefix: view.modelPermissionPrefix ?? '',
+      outputFields: view.outputFields,
+      accesses: new Map(),
+    };
+    // This is an authenticated property of the stored source, not a caller's
+    // plan flag or a guess based on the already-normalized detached view.
+    if (view.reusable) fieldPolicies.set(authorization, policy);
+  }
+  return policy;
+}
+
+function requestRuleClassification(
+  entry: PreparedRequestRule,
+  authorization: ResolvedServiceAuthorization,
+  permissions: AccessRouterPermissions,
+  prefix: unknown,
+): RequestRuleClassification | undefined {
+  // Open configuration can contain native/coercible prefix values. Do not cache
+  // their coercion or expose a retained native leaf to that evaluation.
+  if (typeof prefix !== 'string') return undefined;
+  let classification = entry.classifications.get(authorization);
+  if (!classification) {
+    classification = prepareRequestFieldRule(entry.rule, permissions, prefix);
+    entry.classifications.set(authorization, classification);
+  }
+  return classification;
+}
+
+/** Functions are retained configuration identities, not immutable schema containers.
+ * Only cache a lookup whose traversed slots belong to our frozen plain snapshots.
+ * Inspect descriptors here so an unusual function-backed getter runs only in the
+ * actual legacy extraction, not once more during cache eligibility checks.
+ */
+function invariantRuleLookup(schema: unknown, path: string): boolean {
+  if (schema == null) return true;
+  if (!isPlainObject(schema) || !Object.isFrozen(schema)) return false;
+  const exact = Object.getOwnPropertyDescriptor(schema, path);
+  if (exact) {
+    const raw = exact.value;
+    return !raw || typeof raw !== 'object' || Array.isArray(raw) || (isPlainObject(raw) && Object.isFrozen(raw));
+  }
+  const [head, ...rest] = path.split('.');
+  const raw = Object.getOwnPropertyDescriptor(schema, head)?.value;
+  if (raw == null) return true;
+  if (!isPlainObject(raw) || !Object.isFrozen(raw)) return false;
+  const sub = Object.getOwnPropertyDescriptor(raw, 'sub');
+  return !rest.length || !sub || invariantRuleLookup(sub.value, rest.join('.'));
+}
+
+function prepareOutputPath(
+  policy: CallFieldPolicy,
+  authorization: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+  path: string,
+  access: string,
+): PreparedOutputPath {
+  let cache = policy.accesses.get(access);
+  if (!cache) {
+    cache = new Map();
+    policy.accesses.set(access, cache);
+  }
+  let prepared = cache.get(path);
+  if (!prepared) {
+    const invariant = invariantRuleLookup(policy.schema, path);
+    const permissions = getAuthorizationPermissions(authorization, binding);
+    // Keep the complete lookup route: exact dotted rules and nested `sub` rules
+    // can yield different ancestors with the same path for different lookups.
+    const entries: PreparedRequestRule[] = extractOutputFieldRuleEntries(policy.schema, path, access).map((entry) => ({
+      ...entry,
+      classifications: new WeakMap(),
+    }));
+    const classifications = entries.map((entry) =>
+      requestRuleClassification(entry, authorization, permissions, policy.prefix),
+    );
+    const backendGrant = hasExplicitFieldGrant(policy.outputFields, path);
+    prepared = {
+      entries,
+      backendGrant,
+      state: backendGrant
+        ? 'granted'
+        : classifications.every((value) => value !== undefined)
+          ? combineFieldAuthorizationStates(classifications.map((value) => value.state))
+          : undefined,
+    };
+    if (invariant) cache.set(path, prepared);
+  }
+  return prepared;
+}
+
+function assertOwningOutputDocuments(handle: DocumentAuthorization): void {
+  const owner = owningDocuments.get(handle);
+  if (owner) {
+    readDocumentAuthorizationAccess(owner.handle, owner.binding);
+    assertOwningOutputDocuments(owner.handle);
+  }
+}
+
+interface ResolveOutputDocumentAuthorizationArgs {
   authorization: ResolvedServiceAuthorization;
   binding: AuthorizationBinding;
   snapshot: Record<string, unknown>;
@@ -60,16 +204,63 @@ export async function resolveOutputDocumentAuthorization(args: {
   owningDocument?: DocumentAuthorization;
   owningBinding?: AuthorizationBinding;
   knownOutput?: boolean;
-}): Promise<DocumentAuthorization> {
+}
+
+/** Per-finalizer-pass preparation. Share only the hook identity and validated
+ * primitive access tuple, never mutable configuration leaves with row callbacks.
+ * The supplied configuration is a package-owned detached read, not a public plan.
+ */
+export function prepareOutputDocumentAuthorization(
+  authorization: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+  configuration: AuthorizationConfiguration,
+): (args: ResolveOutputDocumentAuthorizationArgs) => Promise<DocumentAuthorization> {
+  const access = readServiceAuthorizationAccess(authorization, binding);
+  const key = `docPermissions.${access.docPermissionsAccess}`;
+  const docPermissions = configuration.docPermissions;
+  // Captured plain records have immutable own slots. A bare function can have
+  // mutable access/default properties (including getters); native parents can
+  // also execute application methods. Compound access paths can traverse those
+  // parents too. Keep such lookups per resolution, with a fresh copy of just
+  // this slice, rather than caching a mutable authority.
+  const invariant =
+    /^[A-Za-z0-9_-]+$/.test(access.docPermissionsAccess) && (docPermissions == null || isPlainObject(docPermissions));
+  const option = invariant ? getCapturedAuthorizationOption(configuration, key) : undefined;
+  const hook = typeof option === 'function' ? option : undefined;
+  const resolveHook = invariant
+    ? () => hook
+    : () => {
+        const slice = { catalog: configuration.catalog, ...copyAuthorizationValue({ docPermissions }, true) };
+        const option = getCapturedAuthorizationOption(slice, key);
+        return typeof option === 'function' ? option : undefined;
+      };
+  return async (args) => {
+    if (args.authorization !== authorization) authorizationError('document resolver call mismatch');
+    assertAuthorizationBinding(authorization, args.binding);
+    return resolveOutputDocumentAuthorizationWithHook(args, access, resolveHook);
+  };
+}
+
+export async function resolveOutputDocumentAuthorization(
+  args: ResolveOutputDocumentAuthorizationArgs,
+): Promise<DocumentAuthorization> {
+  const configuration = readServiceDocumentPermissions(args.authorization, args.binding);
+  return prepareOutputDocumentAuthorization(args.authorization, args.binding, configuration)(args);
+}
+
+async function resolveOutputDocumentAuthorizationWithHook(
+  args: ResolveOutputDocumentAuthorizationArgs,
+  access: ReturnType<typeof readServiceAuthorizationAccess>,
+  resolveHook: () => Function | undefined,
+): Promise<DocumentAuthorization> {
   const { authorization, binding } = args;
-  const { configuration, access } = readServiceAuthorization(authorization, binding);
   const stage = args.stage ?? createDocumentAuthorizationStage(authorization, binding, args.snapshot);
   if (args.stage) assertDocumentAuthorizationStage(stage, authorization, binding, args.snapshot);
   const handle = await resolveDocumentAuthorization(stage, async function (doc, permissions) {
     if (args.owningDocument) return readDocumentAuthorization(args.owningDocument, args.owningBinding!).grants;
     if (args.knownOutput) return {};
-    const hook = getCapturedAuthorizationOption(configuration, `docPermissions.${access.docPermissionsAccess}`);
-    if (typeof hook !== 'function') return {};
+    const hook = resolveHook();
+    if (!hook) return {};
     try {
       const run = () => hook.call(this, doc, permissions, args.context);
       const grants = await getRequestWorkState(binding.request, binding.runtime as AccessRuntime).hookGate.run(run);
@@ -93,10 +284,11 @@ export async function resolveOutputDocumentAuthorization(args: {
 function evaluateRequestRule(
   handle: DocumentAuthorization,
   binding: AuthorizationBinding,
-  entry: { path: string; rule: unknown },
-  prefix: string,
+  entry: PreparedRequestRule,
+  prefix: unknown,
   access: string,
 ): Promise<boolean> {
+  assertOwningOutputDocuments(handle);
   const owner = owningDocuments.get(handle);
   if (owner && !entry.path.startsWith(`${(binding.scopePath ?? []).join('.')}.`)) {
     return evaluateRequestRule(owner.handle, owner.binding, entry, prefix, access);
@@ -105,14 +297,25 @@ function evaluateRequestRule(
     handle,
     binding,
     `request:${access}:${entry.path}`,
-    function (permissions, grants) {
-      return evaluateScopedAccessRule({
-        req: this,
-        rule: entry.rule,
-        globalPermissions: permissions,
-        docPermissions: grants,
-        modelPermissionPrefix: prefix,
-      });
+    async function (permissions, grants) {
+      const { authorization } = readDocumentAuthorizationAccess(handle, binding);
+      const classification = requestRuleClassification(entry, authorization, permissions, prefix);
+      let allowed = classification?.decision;
+      if (allowed === undefined) {
+        // Rules already come from an owned read (or a retained function's live
+        // slots). Copying again can normalize an invalid BSON rule into a grant.
+        // Object/native prefixes are resolution-local, never retained in the
+        // call cache, so their coercion receiver also keeps legacy semantics.
+        allowed = await evaluateScopedAccessRule({
+          req: this,
+          rule: entry.rule,
+          globalPermissions: permissions,
+          docPermissions: grants,
+          modelPermissionPrefix: prefix as string,
+        });
+      }
+      assertOwningOutputDocuments(handle);
+      return allowed;
     },
   );
 }
@@ -123,31 +326,50 @@ export function evaluateAuthorizedOutputField(
   binding: AuthorizationBinding,
   field: string,
 ): Promise<boolean> {
-  const { authorization } = readDocumentAuthorization(handle, binding);
-  const { configuration, authorization: policy, access } = readServiceAuthorization(authorization, binding);
+  const { authorization } = readDocumentAuthorizationAccess(handle, binding);
+  assertOwningOutputDocuments(handle);
   const path = [...(binding.scopePath ?? []), field].join('.');
-  const entries = extractOutputFieldRuleEntries(
-    configuration.permissionSchema as Record<string, unknown>,
-    path,
-    access.outputAccess,
-  );
-  return memoizeDocumentFieldDecision(handle, binding, `output:${path}`, function (permissions, grants) {
-    const args = {
-      path,
-      rules: entries.map((entry) => entry.rule),
-      outputFields: policy.outputFields,
-      globalPermissions: permissions,
-      modelPermissionPrefix: (configuration.modelPermissionPrefix as string) ?? '',
-    };
-    if (unresolvedDocuments.has(handle) && classifyEffectiveFieldAuthorization(args) !== 'granted') return false;
-    return evaluateEffectiveFieldAuthorization({
-      ...args,
-      req: this,
-      docPermissions: grants,
-      evaluateRule: (_rule, index) =>
-        evaluateRequestRule(handle, binding, entries[index], args.modelPermissionPrefix, access.outputAccess),
-    });
+  // Hits still validate the stage/binding, but do not read/copy configuration or
+  // extract rules. A mutable public plan's fieldStates is never consulted.
+  const decision = memoizeDocumentFieldDecision(handle, binding, `output:${path}`, async function (permissions) {
+    const policy = callFieldPolicy(authorization, binding);
+    const { outputAccess } = readDocumentAuthorizationAccess(handle, binding);
+    const prepared = prepareOutputPath(policy, authorization, binding, path, outputAccess);
+    const unresolved = unresolvedDocuments.has(handle);
+    const state = unresolved
+      ? (prepared.state ??
+        classifyEffectiveFieldAuthorization({
+          path,
+          rules: prepared.entries.map((entry) => entry.rule),
+          modelPermissionPrefix: policy.prefix as string,
+          outputFields: policy.outputFields,
+          globalPermissions: permissions,
+        }))
+      : undefined;
+    let allowed: boolean;
+    if (unresolved && state !== 'granted') allowed = false;
+    else if (prepared.backendGrant) allowed = true;
+    else {
+      // Even static entries must consult/populate their stage's request memo in
+      // order. Skipping to a later denial drops earlier stateful callbacks;
+      // bypassing the memo also changes exact/nested ancestor decision reuse.
+      allowed = true;
+      for (const entry of prepared.entries) {
+        if (!(await evaluateRequestRule(handle, binding, entry, policy.prefix, outputAccess))) {
+          allowed = false;
+          break;
+        }
+      }
+    }
+    assertOwningOutputDocuments(handle);
+    return allowed;
   });
+  return owningDocuments.has(handle)
+    ? decision.then((allowed) => {
+        assertOwningOutputDocuments(handle);
+        return allowed;
+      })
+    : decision;
 }
 
 /** Request-user metadata only; shares request decisions, never includes backend field grants. */
@@ -156,29 +378,23 @@ export async function requestOutputFieldPaths(
   binding: AuthorizationBinding,
   access: string,
 ): Promise<string[]> {
-  const { authorization } = readDocumentAuthorization(handle, binding);
-  const { configuration } = readServiceAuthorization(authorization, binding);
-  const schema = configuration.permissionSchema as Record<string, unknown> | undefined;
+  const { authorization } = readDocumentAuthorizationAccess(handle, binding);
+  assertOwningOutputDocuments(handle);
+  const policy = callFieldPolicy(authorization, binding);
   const fields: string[] = [];
-  for (const path of Object.keys(schema ?? {})) {
-    const entries = extractOutputFieldRuleEntries(schema, path, access);
+  for (const path of policy.requestPaths ?? Object.keys(policy.schema ?? {})) {
+    const { entries } = prepareOutputPath(policy, authorization, binding, path, access);
     let allowed = true;
     for (const entry of entries) {
-      if (
-        !(await evaluateRequestRule(
-          handle,
-          binding,
-          entry,
-          (configuration.modelPermissionPrefix as string) ?? '',
-          access,
-        ))
-      ) {
+      if (!(await evaluateRequestRule(handle, binding, entry, policy.prefix, access))) {
         allowed = false;
         break;
       }
     }
     if (allowed && entries.length) fields.push(path);
   }
+  assertOwningOutputDocuments(handle);
+  readDocumentAuthorizationAccess(handle, binding);
   return fields;
 }
 
@@ -208,15 +424,15 @@ export function authorizeEmbeddedOutputPlan(
 export function hasWholeOutputValueGrant(plan: VirtualProjectionPlan, field: string): boolean {
   if (plan.fieldStates?.[field] !== 'granted') return false;
   const binding = plan.authorizationBinding!;
-  const { authorization } = readServiceAuthorization(plan.authorization!, binding);
-  return hasExplicitFieldGrant(authorization.outputFields, [...(binding.scopePath ?? []), field].join('.'));
+  const { outputFields } = readServiceOutputPolicy(plan.authorization!, binding);
+  return hasExplicitFieldGrant(outputFields, [...(binding.scopePath ?? []), field].join('.'));
 }
 
 /** Safe value copy for scalar/opaque roots and computed values; metadata is a separate channel. */
 export function copyOutputValue(value: unknown, plan: VirtualProjectionPlan, path: string): unknown {
-  const { configuration } = readServiceAuthorization(plan.authorization!, plan.authorizationBinding!);
-  const virtualValue = configuration.catalog.virtualPaths?.some((p) => matchesCatalogPattern(p, path));
-  const opaque = configuration.catalog.opaquePaths?.some((p) => matchesCatalogPattern(p, path));
+  const { catalog } = readServiceOutputPolicy(plan.authorization!, plan.authorizationBinding!);
+  const virtualValue = catalog.virtualPaths?.some((p) => matchesCatalogPattern(p, path));
+  const opaque = catalog.opaquePaths?.some((p) => matchesCatalogPattern(p, path));
   const excluded = plan.effectiveSelectNorm
     .filter((token) => token.startsWith('-'))
     .map((token) => [...(plan.authorizationBinding!.scopePath ?? []), token.slice(1)].join('.'));
@@ -233,8 +449,8 @@ export function copyOutputValue(value: unknown, plan: VirtualProjectionPlan, pat
       const safeValueKey = !['__proto__', 'constructor', 'prototype', '_doc', '$__', '__v'].includes(key);
       if (
         !(opaque ? safeValueKey : isSafeOutputPath(key)) ||
-        configuration.catalog.protectedPaths?.some((p) => matchesCatalogPattern(p, child, true)) ||
-        (!opaque && !virtualValue && !isCatalogOutputPath(configuration.catalog, child))
+        catalog.protectedPaths?.some((p) => matchesCatalogPattern(p, child, true)) ||
+        (!opaque && !virtualValue && !isCatalogOutputPath(catalog, child))
       )
         continue;
       output[key] = visit(entry, child);
@@ -337,7 +553,7 @@ async function filterExistingOutput(
         const childHandle = associated ? getAssociatedDocumentAuthorization(value) : undefined;
         let child = scoped;
         if (childHandle) {
-          const state = readDocumentAuthorization(childHandle, scoped.authorizationBinding!);
+          const state = readDocumentAuthorizationAccess(childHandle, scoped.authorizationBinding!);
           if (getAuthorizationProvenance(state.authorization) !== getAuthorizationProvenance(plan.authorization!))
             authorizationError('child call mismatch');
           child = helperPlan(state.authorization, scoped.authorizationBinding!);
@@ -416,7 +632,7 @@ export async function filterModelOutputForHelper(args: {
   if (normalized.kind === 'document') {
     const { documentAuthorization: handle, binding } = normalized;
     assertDocumentAuthorization(handle, { binding, output: args.doc as object, outputAccess: access });
-    const state = readDocumentAuthorization(handle, binding);
+    const state = readDocumentAuthorizationAccess(handle, binding);
     return filterExistingOutput(
       args.doc as Record<string, unknown>,
       helperPlan(state.authorization, binding),

@@ -81,6 +81,24 @@ export function classifyRequestFieldRule(
     : 'denied';
 }
 
+/** Classification retains the planner's prefix semantics. A runtime denial must
+ * also account for the legacy evaluator's unprefixed document-grant fallback.
+ * Neither pass invokes functions or exposes configuration values to callbacks.
+ */
+export function prepareRequestFieldRule(
+  rule: unknown,
+  permissions: FieldPermissions,
+  modelPermissionPrefix = '',
+): { readonly state: FieldAuthorizationState; readonly decision: boolean | undefined } {
+  const state = classifyRequestFieldRule(rule, permissions, modelPermissionPrefix);
+  const invariant = state === 'denied' && modelPermissionPrefix ? classifyRequestFieldRule(rule, permissions) : state;
+  return Object.freeze({ state, decision: invariant === 'deferred' ? undefined : invariant === 'granted' });
+}
+
+export function combineFieldAuthorizationStates(states: readonly FieldAuthorizationState[]): FieldAuthorizationState {
+  return states.includes('denied') ? 'denied' : states.includes('deferred') ? 'deferred' : 'granted';
+}
+
 export function classifyEffectiveFieldAuthorization(args: {
   path: string;
   rules: readonly unknown[];
@@ -92,7 +110,7 @@ export function classifyEffectiveFieldAuthorization(args: {
   const states = args.rules.map((rule) =>
     classifyRequestFieldRule(rule, args.globalPermissions, args.modelPermissionPrefix),
   );
-  return states.includes('denied') ? 'denied' : states.includes('deferred') ? 'deferred' : 'granted';
+  return combineFieldAuthorizationStates(states);
 }
 
 /** Final request decision; functions receive the original actor and full document grants. */

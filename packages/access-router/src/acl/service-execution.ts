@@ -12,6 +12,8 @@ import {
   assertAuthorizationBinding,
   getAuthorizationPermissions,
   readServiceAuthorization,
+  readServiceAuthorizationAccess,
+  readServiceAuthorizationHydration,
   resolveServiceAuthorization,
   serviceAuthorizationInput,
 } from './service-authorization';
@@ -175,16 +177,16 @@ export function createServiceExecution<T, V extends object>(
       receiver,
       binding,
       authorization: call,
-      access: readServiceAuthorization(call, binding).access,
+      access: readServiceAuthorizationAccess(call, binding),
       family: execution,
-      hydration: resolveHydration(readServiceAuthorization(call, binding).configuration, hydration),
+      hydration: resolveHydration(readServiceAuthorizationHydration(call, binding), hydration),
     }),
   );
   return execution;
 }
 
 function resolveHydration(
-  configuration: AuthorizationConfiguration,
+  configuration: Pick<AuthorizationConfiguration, 'hydration'>,
   source: keyof ModelHydrationOptions | HydrationMode,
 ): HydrationMode {
   if (source === 'lean' || source === 'hydrated') return source;
@@ -201,7 +203,7 @@ export function withExecutionHydration<T, V extends object>(
   source: keyof ModelHydrationOptions | HydrationMode,
 ): ServiceExecutionContext {
   const record = readServiceExecution(receiver, parent);
-  const { configuration } = readServiceAuthorization(record.authorization, record.binding);
+  const configuration = readServiceAuthorizationHydration(record.authorization, record.binding);
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   executions.set(execution, Object.freeze({ ...record, hydration: resolveHydration(configuration, source) }));
   return execution;
@@ -264,7 +266,7 @@ export function deriveServiceExecution<T, V extends object>(
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   executions.set(
     execution,
-    Object.freeze({ ...record, authorization: call, access: readServiceAuthorization(call, record.binding).access }),
+    Object.freeze({ ...record, authorization: call, access: readServiceAuthorizationAccess(call, record.binding) }),
   );
   return execution;
 }
