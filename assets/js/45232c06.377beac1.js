@@ -97,6 +97,10 @@ const toc = [{
   "id": "default-model-options-and-per-model-overrides",
   "level": 3
 }, {
+  "value": "Target-owned populate policies and migration",
+  "id": "target-owned-populate-policies-and-migration",
+  "level": 3
+}, {
   "value": "Property-based options with <code>@Option(...)</code>",
   "id": "property-based-options-with-option",
   "level": 3
@@ -231,7 +235,15 @@ function _createMdxContent(props) {
         children: "undefined"
       }), "\nremains allowed. Invalid values throw and package-controlled writes roll back.\nUnknown extension/typo keys remain allowed; this is not exhaustive validation of\nstructured policies or hooks, and decorators cannot type-check property values."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Both populate flags are global/module options, default true, and only literal false\nbypasses their independent target-operation gates. Actual registered targets and an\neffective object ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Both optional populate flags are target-model/default-model options. Resolve explicit\ntarget override → captured runtime model default → built-in true. Explicit undefined\nrestores inheritance; omission preserves an override. Only primitive false bypasses\ntheir independent target-operation gates. Global/module placements reject with\nactionable scope migration diagnostics before malformed-value diagnostics, including\nlegacy/inferred properties. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelOption"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DefaultModelOption"
+      }), " or model/default\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RouterOptions"
+      }), " / model ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Router"
+      }), "; no alias/broadcast is provided. Actual registered targets and an\neffective object ", (0,jsx_runtime.jsx)(_components.code, {
         children: "permissionSchema"
       }), " remain mandatory. Denied population/private work\npreserves selected/permitted parent IDs. See ", (0,jsx_runtime.jsx)(_components.a, {
         href: "./access-router/configuration#populate-operation-policies",
@@ -819,6 +831,38 @@ function _createMdxContent(props) {
       }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "mutationRouteSegment"
       }), " must be present before Express routes are created."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "target-owned-populate-policies-and-migration",
+      children: "Target-owned populate policies and migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Register/configure actual targets with an effective object ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissionSchema"
+      }), ", even\nwithout mounted target HTTP routes. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " is closed business fields. Document's Q/D\ngoverns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Project.documentIds"
+      }), "; a Document virtual using User inputs uses User's D.\nSource or sibling bypasses cannot relax another target. Direct/root guards remain\nindependent. This module uses different targets in the same runtime/request:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import 'reflect-metadata';\nimport { Schema, type Connection } from 'mongoose';\nimport { DefaultModelOption, ModelOption, Module, Router, RouterOptions } from '@web-ts-toolkit/access-router-deco';\n\nexport function createPopulateModule(connection: Connection) {\n  const Document = connection.model('Document', new Schema({ name: String }));\n  const User = connection.model('User', new Schema({ name: String }));\n  const Project = connection.model(\n    'Project',\n    new Schema({\n      documentIds: [{ type: Schema.Types.ObjectId, ref: Document.modelName }],\n      userIds: [{ type: Schema.Types.ObjectId, ref: User.modelName }],\n    }),\n  );\n\n  @RouterOptions({\n    requireOperationAccessForPopulateQueries: true,\n    requireOperationAccessForPopulateDependencies: true,\n  })\n  class PopulateDefaults {\n    @DefaultModelOption('requireOperationAccessForPopulateDependencies')\n    dependencies: boolean | undefined = true;\n  }\n\n  @RouterOptions(Document, {\n    operationAccess: { read: false, list: false },\n    permissionSchema: { name: true },\n    requireOperationAccessForPopulateDependencies: false,\n  })\n  class DocumentOptions {\n    @ModelOption('requireOperationAccessForPopulateQueries')\n    queries: boolean | undefined = false;\n  }\n\n  @RouterOptions(User, {\n    operationAccess: { read: false, list: false },\n    permissionSchema: {},\n    requireOperationAccessForPopulateQueries: true,\n    requireOperationAccessForPopulateDependencies: true,\n  })\n  class UserOptions {}\n\n  @Router(Project, {\n    basePath: '/projects',\n    operationAccess: { read: true },\n    permissionSchema: { documentIds: true, userIds: true },\n    requireOperationAccessForPopulateQueries: false,\n    requireOperationAccessForPopulateDependencies: false,\n    stripPermissionsField: true,\n  })\n  class ProjectRouter {}\n\n  @Module({ routers: [ProjectRouter], routerOptions: [UserOptions, DocumentOptions, PopulateDefaults] })\n  class PopulateModule {}\n  return PopulateModule; // EgoseFactoryStatic.create().bootstrap(PopulateModule, app)\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Default providers run first; exact properties follow their class options. Repeated\nempty router setup retains explicit overrides and live inheritance. Other model options\nalso inherit live defaults, with shallow replacement of nested objects.\nSet a model flag to undefined to inherit again. Later default changes affect existing\nunoverridden models/services; in-flight/nested stages retain captured defaults and\ntarget options. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getModelOptions()"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.options"
+      }), " retain raw flag overrides;\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getModelOption()"
+      }), " reads the live default."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Migrate stale ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GlobalOption"
+      }), ", module ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "options"
+      }), " and global setters to the model/default\nforms above. Decorators accept boolean/undefined; failed bootstrap restores prior\ninherited/explicit state. Query, method-default, HTTP/client/root options gain no\ncapability; same-spelled business fields remain data."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Ordinary string refs resolve on the source connection and must match the exact\nruntime-configured instance; missing/mismatched targets fail before reads/writes and\nvalidated targets stay pinned in flight. Explicit same-runtime registered Model-valued\nordinary refs may cross connections. Private declarations remain one-hop static-string\nObjectId/1D arrays on the same connection.\nDynamic callback/refPath ordinary refs reject when no static target can be bound before I/O."
     }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
       id: "property-based-options-with-option",
       children: ["Property-based options with ", (0,jsx_runtime.jsx)(_components.code, {

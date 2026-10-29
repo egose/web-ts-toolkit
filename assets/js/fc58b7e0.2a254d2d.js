@@ -338,15 +338,15 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Only the resolved declaration's paths/mask reach each getter, independently of public\nmatch/select/access. Missing/undefined source refs skip invocation. Present null/empty\narrays invoke with null/[] when private admission/row policy permits; deleted/out-of-scope rows\nbecome null/null slots in original order, preserving duplicates. Missing target fields\nremain absent/undefined; present null/false/zero/empty-string survive. The getter chooses\nwhat to return for partial inputs."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The runtime flag ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["The actual target's model/default ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireOperationAccessForPopulateDependencies"
-      }), " defaults to true.\nOnly literal false bypasses target base ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "\nresolves explicit target override → captured runtime model default → built-in true.\nExplicit undefined restores inheritance; omission retains an override. Only primitive\nfalse bypasses target base ", (0,jsx_runtime.jsx)(_components.code, {
         children: "operationAccess.read"
-      }), " for private loading;\nundefined/malformed JavaScript values stay conservative true. Source/target input-field\npermissions are already bypassed, but virtual output authorization still governs its result.\nRequest-mode ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "; malformed non-undefined JavaScript\nvalues stay conservative true. Source/target input-field\npermissions are already bypassed, but virtual output authorization still governs its result.\nRequest-mode ", (0,jsx_runtime.jsx)(_components.code, {
         children: "overrideFilter.read"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "baseFilter.read"
-      }), " and original source IDs remain mandatory.\nFalse-mode virtual-only output adds no operation check solely for its private fetch.\nThis server/runtime option is captured before awaits with source/target/query configuration,\nincluding nested output; later calls see changes and runtimes remain isolated. It is not a\ncaller/query or model option. It is independent of\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), " and original source IDs remain mandatory.\nFalse-mode virtual-only output adds no operation check solely for its private fetch.\nDefaults are captured before source/target option reads and awaits; targets contribute\ntheir own captured options. Nested output retains that capture; later top-level calls\non existing unoverridden models/services see changed defaults. A Document virtual's\nUser dependency uses User's D, never a source/sibling bypass. These server model/default\nsettings reject global placements and are not caller/query controls. D is independent of\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireOperationAccessForPopulateQueries"
       }), "; actual model registration and an effective\nobject ", (0,jsx_runtime.jsx)(_components.code, {
         children: "permissionSchema"

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Hooks | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Hooks | web-ts-toolkit"><meta data-rh="true" name="description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><meta data-rh="true" property="og:description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Hooks","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"}]}</script><link rel="stylesheet" href="/assets/css/styles.b781c440.css">
-<script src="/assets/js/runtime~main.564f3100.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f30718ae.js" defer="defer"></script>
 <script src="/assets/js/main.2e6e20df.js" defer="defer"></script>
 </head>
 <body>
@@ -106,15 +106,19 @@ arrays invoke with null/[] when private admission/row policy permits; deleted/ou
 become null/null slots in original order, preserving duplicates. Missing target fields
 remain absent/undefined; present null/false/zero/empty-string survive. The getter chooses
 what to return for partial inputs.</p>
-<p>The runtime flag <code>requireOperationAccessForPopulateDependencies</code> defaults to true.
-Only literal false bypasses target base <code>operationAccess.read</code> for private loading;
-undefined/malformed JavaScript values stay conservative true. Source/target input-field
+<p>The actual target&#x27;s model/default <code>requireOperationAccessForPopulateDependencies</code>
+resolves explicit target override → captured runtime model default → built-in true.
+Explicit undefined restores inheritance; omission retains an override. Only primitive
+false bypasses target base <code>operationAccess.read</code>; malformed non-undefined JavaScript
+values stay conservative true. Source/target input-field
 permissions are already bypassed, but virtual output authorization still governs its result.
 Request-mode <code>overrideFilter.read</code>, <code>baseFilter.read</code> and original source IDs remain mandatory.
 False-mode virtual-only output adds no operation check solely for its private fetch.
-This server/runtime option is captured before awaits with source/target/query configuration,
-including nested output; later calls see changes and runtimes remain isolated. It is not a
-caller/query or model option. It is independent of
+Defaults are captured before source/target option reads and awaits; targets contribute
+their own captured options. Nested output retains that capture; later top-level calls
+on existing unoverridden models/services see changed defaults. A Document virtual&#x27;s
+User dependency uses User&#x27;s D, never a source/sibling bypass. These server model/default
+settings reject global placements and are not caller/query controls. D is independent of
 <code>requireOperationAccessForPopulateQueries</code>; actual model registration and an effective
 object <code>permissionSchema</code> remain mandatory for every target in all four modes.</p>
 <p>In true mode target base-read denial, and in both modes terminal false read-row policy,

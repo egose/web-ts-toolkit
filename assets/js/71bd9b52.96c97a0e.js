@@ -171,22 +171,6 @@ function _createMdxContent(props) {
         }), " returns the permission set for the current request"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "requireOperationAccessForPopulateQueries"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "true"
-        }), "; only literal ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "false"
-        }), "\nbypasses ordinary target effective read/list/custom operation admission"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "requireOperationAccessForPopulateDependencies"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "true"
-        }), "; only literal\n", (0,jsx_runtime.jsx)(_components.code, {
-          children: "false"
-        }), " bypasses target base-read admission for declared private virtual inputs"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "logger"
         }), " receives ", (0,jsx_runtime.jsx)(_components.code, {
           children: "debug"
@@ -271,7 +255,25 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "modelPermissionPrefix"
         }), " defaults to an empty string"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "requireOperationAccessForPopulateQueries"
+        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "true"
+        }), "; only primitive ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "false"
+        }), "\nbypasses the actual target's ordinary effective read/list/trusted custom admission"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "requireOperationAccessForPopulateDependencies"
+        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "true"
+        }), "; only primitive\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "false"
+        }), " bypasses the actual target's private base-read operation gate"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Model options inherit live defaults without being copied into permanent model overrides.\nEach populate flag resolves explicit target override → captured runtime model default →\ntrue. Explicit undefined restores inheritance; omission retains an override. Nested\noption objects replace shallowly."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Include output cannot equal, descend from, or contain ", (0,jsx_runtime.jsx)(_components.code, {
         children: "documentPermissionField"
@@ -361,6 +363,8 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "defaults"
         })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "the two target-owned populate operation flags (also available on model defaults)"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Live property helpers include:"
@@ -539,7 +543,33 @@ function _createMdxContent(props) {
       id: "populate-operation-policies",
       children: "Populate operation policies"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Both global flags default true. Only literal false bypasses each operation gate;\nundefined/malformed JavaScript values normalize to true, and omitted setter keys\npreserve current settings. They are server/runtime-owned, captured with source/target\npolicy and query intent before awaits (including nested output). Later calls see\nsetters; runtimes remain isolated. No model/default, query, HTTP/root/client override\nexists. Same-spelled business fields remain ordinary data."
+      children: "Both optional model/default booleans have built-in true. Each actual target resolves\nexplicit override → captured runtime model default → true. Explicit undefined clears\nan override to inherit; omission preserves it. Only primitive false disables a gate;\nmalformed non-undefined JavaScript values normalize conservatively to true."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Project.documentIds → Document"
+      }), ", use ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Document's"
+      }), " Q/D, regardless of Project's\nsettings. A Document virtual referencing User uses ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "User's D"
+      }), ". Different pairs can\ncoexist for Document/User/Report in one runtime/request. Defaults are captured before\nsource/target option reads and the first await; each target contributes its captured\noptions. In-flight nested/include/embedded/dedicated-child stages retain that capture;\nlater calls on existing services refresh and see live defaults without an override.\nUnrelated updates/router construction/repeated decorator setup do not freeze inherited\ndefaults. Nested option objects replace shallowly."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use model/default bulk/exact setters and model-router setters. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GlobalOptions"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "api.setGlobal*"
+      }), " and global ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "api.set"
+      }), " reject stale placements with actionable\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "setModelOptions"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "setDefaultModelOptions"
+      }), " migration diagnostics, without aliases\nor broadcasting. Query, method-default, HTTP/root/client options gain no capability.\nSame-spelled business fields remain ordinary data. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getModelOptions()"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.options"
+      }), " retain raw flag overrides; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getModelOption()"
+      }), " reads the live default.\nAn unset undefined can still resolve strictly to true during operation capture."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Every requested ordinary target and declared private target needs the actual Mongoose\nmodel and ACL configuration in its owning runtime, with an ", (0,jsx_runtime.jsxs)(_components.strong, {
         children: ["effective object\n", (0,jsx_runtime.jsx)(_components.code, {
@@ -559,14 +589,14 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import mongoose from 'mongoose';\nimport { createAccessRuntime } from '@web-ts-toolkit/access-router';\n\nconst api = createAccessRuntime();\nconst Document = mongoose.model('Document', new mongoose.Schema({ name: String, internalNote: String }));\napi.registerModelInstance(Document.modelName, Document);\napi.setModelOptions(Document.modelName, {\n  operationAccess: { read: false, list: false },\n  permissionSchema: { name: true, internalNote: false },\n});\napi.setGlobalOptions({ requireOperationAccessForPopulateQueries: false });\n// A source router can populate selected/authorized Document fields. No Document router\n// is constructed or mounted; standalone guarded/root Document reads/lists still deny.\n"
+        children: "import mongoose from 'mongoose';\nimport { createAccessRuntime } from '@web-ts-toolkit/access-router';\n\nconst api = createAccessRuntime();\nconst Document = mongoose.model('Document', new mongoose.Schema({ name: String, internalNote: String }));\nconst User = mongoose.model('User', new mongoose.Schema({ name: String }));\napi.registerModelInstance(Document.modelName, Document);\napi.registerModelInstance(User.modelName, User);\napi.setDefaultModelOptions({\n  requireOperationAccessForPopulateQueries: true,\n  requireOperationAccessForPopulateDependencies: true,\n});\napi.setModelOptions(Document.modelName, {\n  operationAccess: { read: false, list: false },\n  permissionSchema: { name: true, internalNote: false },\n  requireOperationAccessForPopulateQueries: false,\n  requireOperationAccessForPopulateDependencies: false,\n});\napi.setModelOptions(User.modelName, {\n  operationAccess: { read: false, list: false },\n  permissionSchema: {}, // explicitly closed business fields\n  requireOperationAccessForPopulateQueries: true,\n  requireOperationAccessForPopulateDependencies: true,\n});\n// One source request can populate permitted Document fields while User stays strict.\n// Neither target needs HTTP routes; standalone guarded/root target reads/lists deny.\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Q is ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Q is the target's ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireOperationAccessForPopulateQueries"
-      }), "; D is\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), "; D is its\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireOperationAccessForPopulateDependencies"
-      }), ". With target public/read operations\ndenied, selected/permitted source refs and otherwise eligible rows/fields:"]
+      }), ". Independently for each target, with public/read operations\ndenied, selected/permitted source refs and otherwise eligible rows/fields:"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
       children: [(0,jsx_runtime.jsx)(_components.thead, {
         children: (0,jsx_runtime.jsxs)(_components.tr, {
@@ -628,13 +658,21 @@ function _createMdxContent(props) {
         children: "_id"
       }), "\nexclusions, requested match and mandatory reference IDs remain. Direct/generated/root\ntarget operations still enforce their own guards. Required ordinary guard errors\npropagate; bypass does not call the guard. False guards deny population and leave\npermitted parent IDs; actual admitted match/missing-row population yields null/filtered\narrays, not IDs. Scoped trusted related operation grants retain their separate authority."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Ordinary static string refs resolve on the source model's Mongoose connection and\nmust be the exact instance registered/configured in the owning runtime. Missing or\nsame-named mismatched models fail preflight before target reads or initiating writes.\nExplicit Model-valued schema refs can cross connections when that exact target is\nregistered/configured in the same runtime. The validated model stays pinned with its\ncaptured policy through in-flight work; late ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "db.models"
+      }), " substitution cannot replace\nit. The public ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Populate"
+      }), " wire gains no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "model"
+      }), "/authority property. Private declarations\nretain their narrower static-string, same-connection limit below.\nDynamic callback/refPath refs reject with a controlled diagnostic because they cannot\nbe statically bound before I/O."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.strong, {
         children: "Removed:"
       }), " ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireRegisteredPopulateModels"
       }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireReadOperationAccessForPopulateDependencies"
-      }), ", with no aliases/raw-mode mapping.\nRegister/configure targets, then choose Q/D independently; migrate an intentional\nprivate bypass to the new dependency name. The former PPR whole-reference omission\nrule is superseded: deny the source field if its IDs must be hidden. See the\n", (0,jsx_runtime.jsx)(_components.a, {
+      }), ", with no aliases/raw-mode mapping.\nRegister/configure targets, then choose Q/D independently; migrate an intentional\nprivate bypass to the new dependency name at model/default scope. Previous global\nplacements must move to model/default setters or scoped decorators; they are rejected,\nnot broadcast. The former PPR whole-reference omission\nrule is superseded: deny the source field if its IDs must be hidden. See the\n", (0,jsx_runtime.jsx)(_components.a, {
         href: "https://www.npmjs.com/package/@web-ts-toolkit/access-router#runnable-private-dependency-example",
         children: "installed README's runnable Document example"
       }), "."]
@@ -656,28 +694,30 @@ function _createMdxContent(props) {
         children: "and its options first"
       }), ", in the source's runtime\nand Mongoose connection. Validation is eager/atomic for construction, bulk and dotted\nsetters, regardless of either operation flag. Operation capture\nrechecks bindings before hooks/writes; in-flight calls retain coherent getter/masks/policies."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "GlobalOptions.requireOperationAccessForPopulateDependencies"
-      }), " defaults to ", (0,jsx_runtime.jsx)(_components.strong, {
+      children: ["The actual target's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelRouterOptions.requireOperationAccessForPopulateDependencies"
+      }), "\ninherits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DefaultModelRouterOptions"
+      }), " and then built-in ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "true"
       }), ":\nprivate loading requires the captured original caller's target base ", (0,jsx_runtime.jsx)(_components.code, {
         children: "operationAccess.read"
-      }), ".\nOnly literal boolean ", (0,jsx_runtime.jsx)(_components.strong, {
+      }), ".\nOnly primitive boolean ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "false"
-      }), " bypasses that operation gate. Missing/undefined/malformed\nJavaScript values normalize conservatively to true; an omitted key in a shallow setter\npreserves the current value. Configure it on the owning runtime:"]
+      }), " bypasses that operation gate. Explicit undefined\nrestores inheritance, omission retains an override, and other malformed JavaScript\nvalues are conservatively true. Configure model defaults on the owning runtime:"]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createAccessRuntime, type GlobalOptions } from '@web-ts-toolkit/access-router';\n\nconst api = createAccessRuntime();\napi.setGlobalOptions({\n  requireOperationAccessForPopulateQueries: true,\n  requireOperationAccessForPopulateDependencies: false,\n});\napi.setGlobalOption('requireOperationAccessForPopulateDependencies', false);\nconst snapshot: GlobalOptions = api.getGlobalOptions();\nvoid snapshot;\n"
+        children: "import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';\n\nconst api = createAccessRuntime();\napi.setDefaultModelOptions({\n  requireOperationAccessForPopulateQueries: true,\n  requireOperationAccessForPopulateDependencies: false,\n});\napi.setDefaultModelOption('requireOperationAccessForPopulateDependencies', false);\nconst snapshot: DefaultModelRouterOptions = api.getDefaultModelOptions();\nvoid snapshot;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "api.set"
-      }), " supports the same object/exact forms. This is not a model/default, HTTP/root,\nservice query or client option; same-spelled business fields remain ordinary data.\nThe flag, source/target policy and query intent are captured together before the first\nawait. Nested related/embedded/child output retains that call's mode; later calls see\nsetters and separate runtimes remain isolated. It is independent of\n", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Model setters provide explicit target overrides; set a target flag to undefined to\ninherit again. Later top-level calls on existing unoverridden models/services see\nupdated defaults; nested related/embedded/child stages retain their owning capture.\nThis is independent of the same target's ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requireOperationAccessForPopulateQueries"
-      }), "; target registration/effective object schema\nand static declarations stay mandatory. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "getGlobalOptions()"
-      }), " returns a frozen snapshot;\nread it again for later changes. Named root getters use the shared default runtime."]
+      }), ";\nregistration/effective object schema and static declarations stay mandatory.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getDefaultModelOptions()"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getModelOptions()"
+      }), " return frozen raw snapshots, not\nresolved effective policy; read them again for later storage changes. Named root\ngetters/setters use the active runtime, falling back to the shared default runtime."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
