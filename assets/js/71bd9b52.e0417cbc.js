@@ -466,9 +466,53 @@ function _createMdxContent(props) {
         children: "findOne"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "findById"
-      }), ",\npublic identifier/filter reads and root reads. Read-to-list retries follow the read\nflag, not the list flag. Both default to ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ",\npublic identifier/filter reads and root reads."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Four further independent flags are available:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "LIST"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "READ"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Skips"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "unsafeSkipListOutputSnapshotChecks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "unsafeSkipReadOutputSnapshotChecks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Output-value comparisons for root and embedded/populated/included outputs"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "unsafeSkipListNestedDocumentSnapshotChecks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "unsafeSkipReadNestedDocumentSnapshotChecks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Source comparisons on embedded/populated/included document stages"
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Read-to-list retries follow all three ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "READ"
+      }), " settings, not LIST settings. All six\ndefault to ", (0,jsx_runtime.jsx)(_components.code, {
         children: "false"
-      }), ", are captured before awaits, and\nwarn independently on enablement. Configure either with ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", are captured before awaits, and warn independently on enablement.\nConfigure them with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "api.setModelOption"
       }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "api.setDefaultModelOptions"
@@ -478,11 +522,13 @@ function _createMdxContent(props) {
         children: "false"
       }), " for new calls as soon as possible. Never\nderive these flags from request input."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["This does ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "not"
-      }), " disable permission rules, ownership, output-mutation checks or\ndetached copies. Writes, dedicated subdocument operations, embedded/related stages\nand fresh helpers remain strict. List/read-origin handles and captured retries keep\ntheir original mode; operations without their own opt-out stay protected.\n", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "Source mutation can now leave stale grants/decisions and expose incorrectly\nauthorized output."
-      }), " Use only as a temporary, measured workaround with trusted\nnon-mutating hooks, not as a security-equivalent fast path. Per-call/wire/defaults\ncontrols cannot enable it. See the shipped README for the full contract."]
+      children: ["Output/nested settings propagate recursively from the ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "initiating model"
+      }), ", not the\ntarget model's flags. Root-source, nested-source and output-value checks are independent;\nnested flags do not prune child values from still-strict parent comparisons."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Permission rules, exact associations/bindings, output graph identities and initial\nsnapshots/detached copies remain. Writes, dedicated subdocument operations and fresh\nhelpers stay strict. Originating handles, captured retries and later descendants\nretain their original mode after rollback. ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Source mutation can leave stale grants/\ndecisions; output flags additionally allow changed values with unchanged identities\nto reuse authorization and expose incorrectly authorized data."
+      }), " Use only as a\ntemporary, measured workaround, not as a security-equivalent fast path. Per-call,\nwire and method-default controls cannot enable it. See the shipped README for the contract."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "populate-operation-policies",
       children: "Populate operation policies"

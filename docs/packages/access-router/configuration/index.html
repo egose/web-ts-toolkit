@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Configuration | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Configuration | web-ts-toolkit"><meta data-rh="true" name="description" content="Configuration has separate layers: runtime GlobalOptions, shared model starting"><meta data-rh="true" property="og:description" content="Configuration has separate layers: runtime GlobalOptions, shared model starting"><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Configuration","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"}]}</script><link rel="stylesheet" href="/assets/css/styles.b781c440.css">
-<script src="/assets/js/runtime~main.b2e5b122.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.f461efaa.js" defer="defer"></script>
 <script src="/assets/js/main.2e6e20df.js" defer="defer"></script>
 </head>
 <body>
@@ -120,20 +120,26 @@ Request base-filter caches remain owned by their request/runtime/access.</p>
 <p>Model-only <code>unsafeSkipListDocumentSnapshotChecks: true</code> skips repeated source snapshot
 comparisons on top-level <code>find</code>, generated lists and root-list entries. Independent
 <code>unsafeSkipReadDocumentSnapshotChecks: true</code> does the same for <code>findOne</code>, <code>findById</code>,
-public identifier/filter reads and root reads. Read-to-list retries follow the read
-flag, not the list flag. Both default to <code>false</code>, are captured before awaits, and
-warn independently on enablement. Configure either with <code>api.setModelOption</code> or
+public identifier/filter reads and root reads.</p>
+<p>Four further independent flags are available:</p>
+<table><thead><tr><th>LIST</th><th>READ</th><th>Skips</th></tr></thead><tbody><tr><td><code>unsafeSkipListOutputSnapshotChecks</code></td><td><code>unsafeSkipReadOutputSnapshotChecks</code></td><td>Output-value comparisons for root and embedded/populated/included outputs</td></tr><tr><td><code>unsafeSkipListNestedDocumentSnapshotChecks</code></td><td><code>unsafeSkipReadNestedDocumentSnapshotChecks</code></td><td>Source comparisons on embedded/populated/included document stages</td></tr></tbody></table>
+<p>Read-to-list retries follow all three <strong>READ</strong> settings, not LIST settings. All six
+default to <code>false</code>, are captured before awaits, and warn independently on enablement.
+Configure them with <code>api.setModelOption</code> or
 <code>api.setDefaultModelOptions</code> before router creation; explicit per-model <code>false</code> wins
 over starting defaults. Restore <code>false</code> for new calls as soon as possible. Never
 derive these flags from request input.</p>
-<p>This does <strong>not</strong> disable permission rules, ownership, output-mutation checks or
-detached copies. Writes, dedicated subdocument operations, embedded/related stages
-and fresh helpers remain strict. List/read-origin handles and captured retries keep
-their original mode; operations without their own opt-out stay protected.
-<strong>Source mutation can now leave stale grants/decisions and expose incorrectly
-authorized output.</strong> Use only as a temporary, measured workaround with trusted
-non-mutating hooks, not as a security-equivalent fast path. Per-call/wire/defaults
-controls cannot enable it. See the shipped README for the full contract.</p>
+<p>Output/nested settings propagate recursively from the <strong>initiating model</strong>, not the
+target model&#x27;s flags. Root-source, nested-source and output-value checks are independent;
+nested flags do not prune child values from still-strict parent comparisons.</p>
+<p>Permission rules, exact associations/bindings, output graph identities and initial
+snapshots/detached copies remain. Writes, dedicated subdocument operations and fresh
+helpers stay strict. Originating handles, captured retries and later descendants
+retain their original mode after rollback. <strong>Source mutation can leave stale grants/
+decisions; output flags additionally allow changed values with unchanged identities
+to reuse authorization and expose incorrectly authorized data.</strong> Use only as a
+temporary, measured workaround, not as a security-equivalent fast path. Per-call,
+wire and method-default controls cannot enable it. See the shipped README for the contract.</p>
 <h3 class="anchor anchorTargetStickyNavbar_I1eS" id="populate-operation-policies">Populate operation policies<a href="#populate-operation-policies" class="hash-link" aria-label="Direct link to Populate operation policies" title="Direct link to Populate operation policies" translate="no">​</a></h3>
 <p>Both global flags default true. Only literal false bypasses each operation gate;
 undefined/malformed JavaScript values normalize to true, and omitted setter keys
