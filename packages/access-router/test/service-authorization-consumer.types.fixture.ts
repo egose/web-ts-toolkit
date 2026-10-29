@@ -138,6 +138,42 @@ void [
 ];
 type Assert<T extends true> = T;
 type Equal<A, B> = [A, B] extends [B, A] ? true : false;
+type QuerySnapshotFlags =
+  | 'unsafeSkipListOutputSnapshotChecks'
+  | 'unsafeSkipReadOutputSnapshotChecks'
+  | 'unsafeSkipListNestedDocumentSnapshotChecks'
+  | 'unsafeSkipReadNestedDocumentSnapshotChecks';
+const querySnapshotWorkaround = {
+  unsafeSkipListOutputSnapshotChecks: false,
+  unsafeSkipReadOutputSnapshotChecks: true,
+  unsafeSkipListNestedDocumentSnapshotChecks: false,
+  unsafeSkipReadNestedDocumentSnapshotChecks: true,
+} satisfies ModelRouterOptions<Order>;
+const querySnapshotDefaults = querySnapshotWorkaround satisfies DefaultModelRouterOptions<Order>;
+export type QuerySnapshotBooleanOptions = Assert<
+  Equal<Pick<ModelRouterOptions<Order>, QuerySnapshotFlags>, { [K in QuerySnapshotFlags]?: boolean }>
+>;
+export type NoPerCallSnapshotOptions = Assert<
+  Equal<Extract<QuerySnapshotFlags, keyof (FindOptions<Order> & FindOneOptions<Order> & FindByIdOptions<Order>)>, never>
+>;
+export type NoPublicSnapshotOptions = Assert<
+  Equal<Extract<QuerySnapshotFlags, keyof (PublicListOptions & PublicReadOptions)>, never>
+>;
+export type NoDefaultSnapshotOptions = Assert<
+  Equal<
+    Extract<
+      QuerySnapshotFlags,
+      keyof (Defaults<Order> &
+        NonNullable<Defaults<Order>['findOptions']> &
+        NonNullable<Defaults<Order>['publicReadOptions']>)
+    >,
+    never
+  >
+>;
+export type NoPolicySnapshotOptions = Assert<
+  Equal<Extract<QuerySnapshotFlags, keyof (ServiceAuthorization<Order> & OutputAuthorization<Order>)>, never>
+>;
+void [querySnapshotWorkaround, querySnapshotDefaults];
 export type EntryParity = Assert<
   Equal<ServiceAuthorization<Order, Virtuals>, AdvancedServiceAuthorization<Order, Virtuals>>
 >;

@@ -242,8 +242,13 @@ declare const documentAuthorizationBrand: unique symbol;
  * row/call/access or pre-/post-write stages cannot establish validity and reject.
  * A list/read handle with its server unsafeSkipListDocumentSnapshotChecks or
  * unsafeSkipReadDocumentSnapshotChecks flag enabled retains that weakened source-
- * mutation policy; output mutation/ownership checks still apply. Turning a setting
+ * mutation policy; independent output-value/ownership checks still apply. Turning a setting
  * off affects new calls, not an existing handle or captured read-to-list retry.
+ * Independent unsafeSkipListOutputSnapshotChecks / unsafeSkipReadOutputSnapshotChecks
+ * can also retain weakened output-value checks (graph identities still checked).
+ * unsafeSkipListNestedDocumentSnapshotChecks / unsafeSkipReadNestedDocumentSnapshotChecks
+ * retain weakened source checks on query descendants, using the initiating model's
+ * mode. In-place value mutations can therefore reuse stale grants/decisions.
  */
 export interface DocumentAuthorization {
   readonly [documentAuthorizationBrand]: true;

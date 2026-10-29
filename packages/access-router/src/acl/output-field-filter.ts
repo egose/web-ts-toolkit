@@ -295,6 +295,7 @@ export function authorizeEmbeddedOutputPlan(
     requestPermissions: getAuthorizationPermissions(parent.authorization!, parent.authorizationBinding!),
     authorization: serviceAuthorizationInput(view.authorization, view.relatedTargets),
     parent: parent.authorization,
+    snapshotDerivation: { kind: 'embedded', parentBinding: parent.authorizationBinding! },
   });
   return { ...child, authorization, authorizationBinding: binding };
 }

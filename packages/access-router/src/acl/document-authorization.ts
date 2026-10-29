@@ -12,6 +12,7 @@ import {
   getAuthorizationProvenance,
   readServiceAuthorizationAccess,
   requiresDocumentSnapshotChecks,
+  requiresOutputSnapshotChecks,
   resolveServiceAuthorization,
 } from './service-authorization';
 import type {
@@ -69,6 +70,7 @@ interface OutputRecord {
   handle: DocumentAuthorization;
   snapshot: unknown;
   identities: readonly object[];
+  readonly validateSnapshot: boolean;
 }
 const stages = new WeakMap<DocumentAuthorizationStage, StageRecord>();
 const documents = new WeakMap<DocumentAuthorization, DocumentRecord>();
@@ -178,7 +180,7 @@ function lookupDocumentOwner(handle: DocumentAuthorization): DocumentRecord {
 
 function validateStageOwner(record: StageRecord): void {
   // TEMPORARY UNSAFE read/list escape hatches. TODO: remove/revisit when query validation
-  // CPU is addressed. Keep identity/binding, permissions and output checks intact;
+  // CPU is addressed. Keep identity/binding, permissions and independent output mode;
   // never replace the detached snapshot with application data or use an ambient flag.
   if (!record.validateSnapshot) return;
   if (!matchesAuthorizationSnapshot(record.input, record.snapshot)) authorizationError('changed document snapshot');
@@ -527,7 +529,9 @@ export interface DocumentAuthorizationUse {
 }
 
 function unchangedOutput(output: object, record: OutputRecord): boolean {
-  if (!matchesAuthorizationSnapshot(output, record.snapshot)) return false;
+  // TEMPORARY UNSAFE output-value opt-out. TODO: revisit after CPU remediation.
+  // Even opted-out outputs must retain their exact associated root/descendant identities.
+  if (record.validateSnapshot && !matchesAuthorizationSnapshot(output, record.snapshot)) return false;
   const identities = outputIdentities(output);
   return (
     identities.length === record.identities.length &&
@@ -571,6 +575,7 @@ export function associateDocumentAuthorization(
     handle,
     snapshot: copyAuthorizationValue(output, 'document'),
     identities: outputIdentities(output),
+    validateSnapshot: requiresOutputSnapshotChecks(stage.call, binding),
   });
 }
 

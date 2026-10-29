@@ -1,6 +1,7 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { isPlainObject } from '@web-ts-toolkit/utils';
 import { Codes } from '../enums';
+import { unsafeSnapshotOptions } from '../acl/unsafe-snapshot-options';
 import type {
   ErrorResult,
   FindOneOptions,
@@ -21,6 +22,7 @@ const privateControls = [
   'execution',
   'executionContext',
   'serviceExecutionContext',
+  'snapshotDerivation',
   'resolvedAuthorization',
   'preparedQuery',
   'preparedFilter',
@@ -29,8 +31,7 @@ const privateControls = [
   'skipParsing',
   'skipAuthorization',
   'alreadyAuthorized',
-  'unsafeSkipListDocumentSnapshotChecks',
-  'unsafeSkipReadDocumentSnapshotChecks',
+  ...unsafeSnapshotOptions,
   'operation',
 ] as const;
 
@@ -69,7 +70,7 @@ export function assertPublicAdmission(input: unknown, kind: PublicAdmissionKind 
         // Presence includes undefined, non-enumerable and inherited JS controls.
         if (key in record) {
           throw new PublicAdmissionError(
-            key === 'unsafeSkipListDocumentSnapshotChecks' || key === 'unsafeSkipReadDocumentSnapshotChecks'
+            key.startsWith('unsafeSkip')
               ? `Unsupported public control ${path}.${key}; this unsafe flag is server model configuration only`
               : `Unsupported public control ${path}.${key}; use explicit per-call internal service options for backend authorization`,
           );

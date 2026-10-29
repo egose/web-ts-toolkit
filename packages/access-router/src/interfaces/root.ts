@@ -485,9 +485,10 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * skips repeated projected-document snapshot comparisons for this model's top-level
    * `find`/public/root list responses. Captured before awaits; list-origin handles keep
    * that mode. Single reads use the independent unsafeSkipReadDocumentSnapshotChecks
-   * setting. Writes, embedded/related stages and fresh standalone helpers stay strict.
+   * setting. Embedded/related source stages and output values have separate flags.
+   * Writes and fresh standalone helpers stay strict.
    *
-   * Row/field permissions, exact ownership/binding, output provenance/mutation checks
+   * Row/field permissions, exact ownership/binding, independent output-value checks
    * and detached callback/grant copies still run. However, source changes during a
    * callback/await are no longer detected: stale grants/decisions may authorize output.
    * Use only with trusted non-mutating application hooks, measure before rollout, and
@@ -502,15 +503,63 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * this setting, not unsafeSkipListDocumentSnapshotChecks. Captured before awaits;
    * read-origin handles and retries keep that mode. List operations use their own flag.
    *
-   * Permission rules, exact ownership/binding, output-mutation/provenance checks and
+   * Permission rules, exact ownership/binding, independent output-value checks and
    * detached callback/grant copies still run. Source changes during callbacks/awaits
    * can leave stale grants/decisions and incorrectly authorized output. Use only with
    * trusted non-mutating hooks, measure before rollout and restore `false` promptly.
-   * Writes (including read-like output), embedded/related stages and fresh helpers
-   * remain strict. Enabling warns once per model/flag transition. Server model or
-   * model-starting-default configuration only; never method defaults or wire options.
+   * Embedded/related source stages use separate nested flags. Writes (including
+   * read-like output) and fresh helpers stay strict. Warns per model/flag transition.
+   * Server model or model-starting-default configuration only; never method defaults
+   * or wire options.
    */
   unsafeSkipReadDocumentSnapshotChecks?: boolean;
+  /**
+   * TEMPORARY UNSAFE (default `false`): skip output VALUE snapshot comparisons in
+   * top-level LIST responses and their embedded/populated/included descendants.
+   * Exact output associations, graph identities, bindings and permission rules remain;
+   * scalar/native in-place mutations can now reuse stale decisions and expose data.
+   * Source checks are independent. Initial snapshots and detached copies remain.
+   * Captured before awaits; handles keep this mode after rollback. Only literal `true`
+   * in server model/starting-default configuration enables it and warns on transition.
+   * READ/retries use unsafeSkipReadOutputSnapshotChecks; writes and fresh helpers stay
+   * strict. Never set from request/per-call/method defaults. Revisit/remove promptly.
+   */
+  unsafeSkipListOutputSnapshotChecks?: boolean;
+  /**
+   * TEMPORARY UNSAFE (default `false`): READ equivalent of unsafeSkipListOutputSnapshotChecks,
+   * including findOne/findById, public/root reads, read-to-list retries and their
+   * embedded/populated/included outputs. Uses the initiating READ model's captured
+   * setting, not LIST or target-model settings. Value mutations may reuse stale
+   * decisions; exact ownership/graph identities and permissions still run. Server
+   * model/starting-default literal `true` only; warns on enablement. Retained handles
+   * keep their mode. Writes/fresh helpers stay strict. Revisit/remove promptly.
+   */
+  unsafeSkipReadOutputSnapshotChecks?: boolean;
+  /**
+   * TEMPORARY UNSAFE (default `false`): skip repeated SOURCE snapshot comparisons for
+   * embedded/populated/included document stages reached from a top-level LIST.
+   * The initiating model's captured setting applies recursively, not target-model
+   * flags. Parent source and all output-value checks remain independently configured;
+   * parent snapshots still include nested values. Permission rules, exact binding,
+   * initial snapshots and detached copies remain. Child mutation can leave stale
+   * grants/decisions and expose data. Only server model/starting-default literal `true`
+   * enables it; warns on transition. Rollback affects new calls, not captured descendants
+   * or handles. READ uses its own flag; writes, dedicated subdocument operations and
+   * fresh helpers stay strict. Never derive from requests. Revisit/remove promptly.
+   */
+  unsafeSkipListNestedDocumentSnapshotChecks?: boolean;
+  /**
+   * TEMPORARY UNSAFE (default `false`): READ equivalent of
+   * unsafeSkipListNestedDocumentSnapshotChecks, including read-to-list retries.
+   * Recursively skips embedded/populated/included SOURCE comparisons using the
+   * initiating READ model's captured setting, independently of LIST, root source
+   * and output-value flags. Parent comparisons may still observe child mutation.
+   * Stale grants/decisions can expose data; permissions, identities and detached copies
+   * remain. Server model/starting-default literal `true` only; warns on enablement.
+   * Writes/dedicated subdocument operations/fresh helpers stay strict; retained handles
+   * keep their mode after rollback. Never set from requests. Revisit/remove promptly.
+   */
+  unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {

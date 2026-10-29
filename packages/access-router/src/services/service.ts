@@ -56,6 +56,7 @@ import {
 import { requestOutputFieldPaths, resolveOutputDocumentAuthorization } from '../acl/output-field-filter';
 import { classifyEffectiveFieldAuthorization, extractOutputFieldRules } from '../acl/field-authorization';
 import { authorizationError } from '../acl/authorization-snapshot';
+import { unsafeSnapshotOptions } from '../acl/unsafe-snapshot-options';
 import { assertHydrationDefaults, assertPublicDefaults } from '../validation/public-admission';
 import {
   createServiceExecution,
@@ -318,7 +319,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       ['options', options],
     ] as const) {
       if (value !== null && (typeof value === 'object' || typeof value === 'function')) {
-        for (const key of ['unsafeSkipListDocumentSnapshotChecks', 'unsafeSkipReadDocumentSnapshotChecks']) {
+        for (const key of unsafeSnapshotOptions) {
           if (key in value) authorizationError(`${slot}.${key} is server model configuration only`);
         }
       }

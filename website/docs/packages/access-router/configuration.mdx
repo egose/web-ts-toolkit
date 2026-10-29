@@ -145,21 +145,34 @@ Request base-filter caches remain owned by their request/runtime/access.
 Model-only `unsafeSkipListDocumentSnapshotChecks: true` skips repeated source snapshot
 comparisons on top-level `find`, generated lists and root-list entries. Independent
 `unsafeSkipReadDocumentSnapshotChecks: true` does the same for `findOne`, `findById`,
-public identifier/filter reads and root reads. Read-to-list retries follow the read
-flag, not the list flag. Both default to `false`, are captured before awaits, and
-warn independently on enablement. Configure either with `api.setModelOption` or
+public identifier/filter reads and root reads.
+
+Four further independent flags are available:
+
+| LIST                                         | READ                                         | Skips                                                                     |
+| -------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------- |
+| `unsafeSkipListOutputSnapshotChecks`         | `unsafeSkipReadOutputSnapshotChecks`         | Output-value comparisons for root and embedded/populated/included outputs |
+| `unsafeSkipListNestedDocumentSnapshotChecks` | `unsafeSkipReadNestedDocumentSnapshotChecks` | Source comparisons on embedded/populated/included document stages         |
+
+Read-to-list retries follow all three **READ** settings, not LIST settings. All six
+default to `false`, are captured before awaits, and warn independently on enablement.
+Configure them with `api.setModelOption` or
 `api.setDefaultModelOptions` before router creation; explicit per-model `false` wins
 over starting defaults. Restore `false` for new calls as soon as possible. Never
 derive these flags from request input.
 
-This does **not** disable permission rules, ownership, output-mutation checks or
-detached copies. Writes, dedicated subdocument operations, embedded/related stages
-and fresh helpers remain strict. List/read-origin handles and captured retries keep
-their original mode; operations without their own opt-out stay protected.
-**Source mutation can now leave stale grants/decisions and expose incorrectly
-authorized output.** Use only as a temporary, measured workaround with trusted
-non-mutating hooks, not as a security-equivalent fast path. Per-call/wire/defaults
-controls cannot enable it. See the shipped README for the full contract.
+Output/nested settings propagate recursively from the **initiating model**, not the
+target model's flags. Root-source, nested-source and output-value checks are independent;
+nested flags do not prune child values from still-strict parent comparisons.
+
+Permission rules, exact associations/bindings, output graph identities and initial
+snapshots/detached copies remain. Writes, dedicated subdocument operations and fresh
+helpers stay strict. Originating handles, captured retries and later descendants
+retain their original mode after rollback. **Source mutation can leave stale grants/
+decisions; output flags additionally allow changed values with unchanged identities
+to reuse authorization and expose incorrectly authorized data.** Use only as a
+temporary, measured workaround, not as a security-equivalent fast path. Per-call,
+wire and method-default controls cannot enable it. See the shipped README for the contract.
 
 ### Populate operation policies
 

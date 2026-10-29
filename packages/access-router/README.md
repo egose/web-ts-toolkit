@@ -239,16 +239,20 @@ behavior rather than route shape.
 
 ### Temporary unsafe read/list-performance switches
 
-**Both default to off (snapshot checks enabled).** These independent server-only
-settings temporarily skip repeated source snapshot comparisons on one registered model:
+**All default to off (snapshot checks enabled).** Six independent server-only
+settings temporarily skip specific comparisons on one registered model:
 
-| Flag                                   | Applies to                                                                                                     |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `unsafeSkipListDocumentSnapshotChecks` | Top-level `find`, generated public lists and root-list responses                                               |
-| `unsafeSkipReadDocumentSnapshotChecks` | Top-level `findOne`, `findById`, public identifier/filter reads and root reads, including read-to-list retries |
+| LIST flag                                    | READ flag                                    | Comparisons skipped                                                               |
+| -------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------- |
+| `unsafeSkipListDocumentSnapshotChecks`       | `unsafeSkipReadDocumentSnapshotChecks`       | Repeated source comparisons for the top-level document stage                      |
+| `unsafeSkipListOutputSnapshotChecks`         | `unsafeSkipReadOutputSnapshotChecks`         | Output-value comparisons for the root and its embedded/populated/included outputs |
+| `unsafeSkipListNestedDocumentSnapshotChecks` | `unsafeSkipReadNestedDocumentSnapshotChecks` | Repeated source comparisons for embedded/populated/included document stages       |
 
-A read-to-list retry follows the **read flag**, because the initiating operation
-is still a single read. Changing one flag does not change the other.
+LIST means top-level `find`, generated public lists and root-list entries. READ
+means `findOne`, `findById`, public identifier/filter reads and root-read entries.
+A read-to-list retry follows the **read flags**, because the initiating operation
+is still a single read, even when its effective field access is `list`. Changing
+one flag does not change any other flag.
 
 <!-- doc-example: partial -->
 
@@ -259,38 +263,52 @@ import acl from '@web-ts-toolkit/access-router';
 // TODO: revisit/remove this temporary workaround after query-performance remediation.
 acl.setModelOptions('User', {
   unsafeSkipReadDocumentSnapshotChecks: true,
-  unsafeSkipListDocumentSnapshotChecks: false, // lists stay protected
+  unsafeSkipReadOutputSnapshotChecks: true,
+  unsafeSkipReadNestedDocumentSnapshotChecks: true,
+  // All three LIST flags remain false unless separately enabled.
 });
 ```
 
-Set either flag to `false` with `setModelOption` to roll back for new calls.
-Both flags can be set in `createRouter(Model, { ... })` or `setDefaultModelOptions`
+Set any flag to `false` with `setModelOption` to roll back for new calls.
+All flags can be set in `createRouter(Model, { ... })` or `setDefaultModelOptions`
 before model-router creation. Starting defaults do not overwrite existing models'
 stored settings; a per-model `false` overrides a starting default of `true`.
 Prefer per-model opt-in rather than enabling it for every model. Use the owning
 `createAccessRuntime()` API instead of default `acl` for an isolated runtime.
 Only literal boolean `true` enables each flag. Enabling emits a logger warning once
-per model/flag transition, not per row/request. Neither is a global, per-call, HTTP/root
+per model/flag transition, not per row/request. None is a global, per-call, HTTP/root
 entry, `options.authorization`, or `service.defaults` option.
 
-- **Skipped:** repeated comparisons of the retained projected document with its
-  authorization snapshot on the enabled operation. List/read-origin handles and
-  captured read-to-list retries retain their mode in later work and helper picks.
+- **Independent scopes:** root-source flags do not relax descendant source checks;
+  nested-source flags do not relax root source or output checks; output flags do
+  not relax source checks. Nested flags do **not** prune child values from parent
+  snapshots: a still-strict parent comparison can detect child mutation.
+- **Propagation:** output/nested flags use the **initiating model's captured mode**
+  recursively through embedded scopes, ordinary public population and includes
+  (including correlated includes). A target model's own flags cannot relax a
+  strict parent or override that captured mode. Independent service calls made
+  inside hooks use their own settings, not ambient parent authority.
 - **Still enforced:** row filters, document/field rules, operation gates, exact
-  request/runtime/model/stage ownership, output-mutation/provenance checks and bounds.
-  Initial snapshots and detached callback/grant/output copies (including native values)
-  remain. Writes (including read-like output), dedicated subdocument operations,
-  embedded/related stages and fresh standalone output helpers stay strict. An
-  operation without its own opt-out stays protected.
-- **Risk:** source changes during callbacks or awaits will no longer invalidate
-  cached grants/decisions. Output may be authorized using stale data even though
-  normal permission rules run. This is a deliberate weakening of mutation protection,
-  **not a security-equivalent fast mode**. Use only with trusted, non-mutating hooks;
-  review your application and measure a staged rollout before production opt-in.
+  request/runtime/model/scope/access/stage binding, handle/output associations,
+  output graph identities and structural bounds on initial snapshots. Initial
+  source/output snapshots and detached callback/grant/output copies remain. Equal
+  replacement objects, forged handles and unrelated rows/calls still reject;
+  package-created output-copy transfers still authenticate their source.
+- **Strict boundaries:** writes (including read-like output), dedicated subdocument
+  operations and fresh standalone output helpers remain strict. Helpers using an
+  originating handle retain that handle's captured mode.
+- **Risk:** source mutation during callbacks/awaits can leave stale grants/decisions.
+  Output flags additionally allow changed scalar values, in-place Date/Buffer/BSON
+  mutations and other value changes that graph-identity checks cannot detect to
+  reuse earlier decisions. This can expose incorrectly authorized output, even
+  though permission rules still run. This is **not a security-equivalent fast mode**.
+  Use only with trusted, non-mutating hooks and output consumers; review your
+  application and measure a staged rollout before production opt-in.
 
 Each call captures the setting before awaits. Turning it off protects new calls,
-not in-flight calls, retries or existing handles. These switches do not eliminate
-all cloning or promise v0.51.0 performance. Restore `false` as soon as possible.
+not in-flight calls, later descendants of captured calls, retries or existing
+handles. These switches do not eliminate all cloning or promise v0.51.0 performance.
+Measure each separately on your workload; restore `false` as soon as possible.
 
 ### Wire placement and option names
 
