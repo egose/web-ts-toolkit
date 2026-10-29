@@ -107,12 +107,12 @@ MongoDB binary. Replace placeholders before execution.
 - **V6 lint:** `pnpm exec eslint packages/access-router/src packages/access-router/test`
 - **V7 harness:** `node --test scripts/benchmarks/access-router.test.mjs`
 - **V8 timing:** `pnpm bench:access-router` fetches tags and prompts interactively.
-  For agent execution, SNAPCPU-01 may create an ignored deterministic driver using
-  the same `prepareTarget`, worker, and report helpers with already available local
-  tag commits. Record this distinction; do not change remotes or SSH configuration.
+  See `scripts/benchmarks/README.md` for setup and prompts. The original phase used
+  a separate, untracked deterministic driver with already available local tag
+  commits; its raw reports and driver are not committed. Use the tracked interactive
+  harness to run a new comparison, not to reproduce the original run exactly.
   Use separate archived tag trees, fresh Node workers/owned Mongo databases and
-  serial jobs. Save raw before/after reports and logs under a unique repo-relative
-  `.wip/benchmarks/` directory, not in the task document.
+  serial jobs; do not change remotes or SSH configuration.
 
 Timing matrix for this phase: current, v0.51.0, v0.52.0; plain-narrow/plain-wide/
 hydrated/document-rules/large-config; 10/100 rows; 24 fields; 32 payload bytes;
@@ -187,12 +187,10 @@ Completion evidence:
 - Nine focused suites: **340 tests passed**, including sixteen new characterization
   cases. V1 current/historical builds, V7 (**12 passed**), changed-test lint/format,
   driver syntax and `git diff --check` passed. Coordinator inspected tests/audit.
-- Detailed ownership/boundary design and raw before reports are under
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/`; reusable after command:
-  `node .wip/benchmarks/snapshot-phase2-20261028-121550/run.mjs after`.
-  The ignored `prepared.json` identifies runner-owned tag trees to preserve until
-  final verification/cleanup. Driver verifies original harness and historical
-  dependency/dist hashes and rebuilds only current.
+- The phase-specific driver verified original harness and historical dependency/
+  dist hashes and rebuilt only current for the after comparison. Its design notes,
+  raw reports and prepared tag trees are not committed; the measured results and
+  approved boundary design are summarized below.
 - All thirty before jobs passed output equality/fingerprints, with one DB read/
   request and zero getters. One-hundred-row medians (current/v0.51.0/v0.52.0):
   narrow **41.17/3.80/167.85**, wide **309.08/5.99/682.24**, hydrated
@@ -456,9 +454,8 @@ Reopened after resumed independent review:
 - Narrow the fast path: materialize the already normalized tape and delegate
   numeric-non-index arrays to Node. Preserve ordering without normalizing source
   twice, resetting budgets or weakening the unchanged reviewer assertions.
-- Raw finding/verification artifacts:
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/review-nP0u9Lr7/`.
-  Focused run: **30 passed, 4 failed**; focused lint/format/diff checks passed.
+- Focused run: **30 passed, 4 failed**; focused lint/format/diff checks passed.
+  Raw review logs are not committed.
 
 Repair completion evidence:
 
@@ -515,9 +512,8 @@ gates and showed static 100-row wide/hydrated/large-config improvements of
 **5.06/4.80/4.60 times**, but document-rules median **318.67 to 378.08 ms** and CPU
 **21.08% higher**. Mixed function/string policy deliberately retains per-field
 validation. Secondary profiles show substantial matcher work, but do not establish
-the exact cause of the regression. Evidence:
-`.wip/benchmarks/snapshot-phase2-20261028-121550/review-WvHOqfmd/` and
-`.wip/benchmarks/snapshot-phase2-20261028-121550/after-9eR2QI/`.
+the exact cause of the regression. The first after-run results are summarized under
+SNAPCPU-05; raw reports and profiles are not committed.
 
 Requirements:
 
@@ -552,9 +548,8 @@ Completion evidence:
 
 - SNAPCPU-06 isolated exact built variants differing only in matcher body, with
   batching/dependencies/settings unchanged. Sixteen AB/BA pairs all favored the
-  old oracle. Document-rules tape overhead: **17.67% median/21.94% CPU**. Exact
-  variant prefix/suffix hashes, jobs and raw results:
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/snapcpu06-K7r0QaFQ/`.
+  old oracle. Document-rules tape overhead: **17.67% median/21.94% CPU**. Raw
+  variant hashes, jobs and results are not committed.
 - Removed the tape/passive-equality machinery globally rather than add a shape
   selector or unsafe validity cache. `matchesAuthorizationSnapshot` again uses
   the unchanged copier plus Node equality; both owner observations, wire cloning,
@@ -569,8 +564,8 @@ Completion evidence:
   expectations/descriptions; all 190 differential cases/512 generated graphs and
   unchanged reviewer regressions remain. Serial V1/focused run: **1,014 tests in
   25 files** passed, including forty-nine batch cases. Direct TypeScript,
-  changed-file ESLint/Prettier and diff checks passed. Exact commands/results are
-  in `verification-final.json` under the evidence directory above.
+  changed-file ESLint/Prettier and diff checks passed. Detailed verification logs
+  are not committed.
 - Dynamic validation still performs per-field work and remains far from v0.51.0.
   Full package/downstream/packed gates and final thirty-job timing must rerun on
   this changed implementation before final completion.
@@ -624,9 +619,8 @@ Review blocker and handoff:
 
 - Independent SNAPCPU-05 review reproduced the two SNAPCPU-02 mutation regressions
   above. Focused regression run: **2 failed / 2 total**, missing expected
-  `ServiceAuthorizationError`. Focused ESLint/Prettier and diff checks passed.
-  Finding and raw logs:
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/review-L6pPiwBV/`.
+  `ServiceAuthorizationError`. Focused ESLint/Prettier and diff checks passed;
+  raw review logs are not committed.
 - Owner: SNAPCPU-02 repair session, followed by the independent reviewer. Package,
   type, downstream, full lint, packed-consumer and after-benchmark gates have not
   run; preserve historical trees/workload until repair and review pass. No after
@@ -644,23 +638,21 @@ First complete verification and timing evidence:
 - Independent reviewer found no remaining in-scope correctness defect after the
   separate repairs. Serial V3: **4,745 tests/151 files**; V4 passed; V5:
   **650 tests/20 files**; V6 passed; V7: **12 tests**. Fourteen changed source/test
-  files passed formatting, and diff checks passed. Raw commands/results:
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/review-WvHOqfmd/verification.json`.
+  files passed formatting, and diff checks passed. Detailed logs are not committed.
 - Packed consumer verified six CJS/ESM root/advanced/processors loads, twelve deep
   import denials, actual runtime/declaration export graphs and both TypeScript
   conditions. All eight declarations equal phase before; no private capability
   or trust option is exposed. Packed dist equals the measured current build.
 - Preserved after driver passed **30/30 jobs**, all fingerprints equal, one DB
-  read/request, zero virtual getters. Raw first after:
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/after-9eR2QI/report.json`.
-  Comparison/report/profile evidence is under `review-WvHOqfmd/` above. Current
-  lock and non-access-router workspace builds match before; historical hashes
-  match the preserved manifest. Node/Mongo/selected dependency versions unchanged.
+  read/request, zero virtual getters. Raw reports and profiles are not committed.
+  Current lock and non-access-router workspace builds match before; historical
+  hashes matched the prepared manifest. Node/Mongo/selected dependency versions
+  were unchanged.
 - One-hundred-row before to after medians: narrow **41.17 to 38.17**, wide
   **309.08 to 61.02**, hydrated **309.07 to 64.38**, document-rules **318.67 to
   378.08**, large-config **300.93 to 65.48 ms**. Same-run v0.51.0 gaps remain
-  **10.84/9.97/8.31/55.53/10.16 times**, respectively. Ten-row cases and p95/CPU
-  are in the raw comparison. These are partial gains, not historical parity.
+  **10.84/9.97/8.31/55.53/10.16 times**, respectively. These were partial gains,
+  not historical parity; detailed raw comparisons are not committed.
 - The dynamic case regressed **18.64% median/21.08% CPU**. A bounded follow-up,
   SNAPCPU-06, now owns paired causal comparison and a conservative repair if
   supported. Final integration is blocked on that task, not on correctness gate
@@ -682,12 +674,10 @@ Final completion evidence after tape withdrawal:
   batch/capability or trust option is exposed. Packed dist equals final measured
   dist. The snapshot module equals starting HEAD except explanatory comments:
   full original normalization/Node equality, not tape allocation reduction.
-- Fresh raw report:
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/after-aV3Ah2/report.json`.
-  Exact commands/results, packed proof, comparison and hashes:
-  `.wip/benchmarks/snapshot-phase2-20261028-121550/review-nII9Y8Jq/`.
-  All **30 final jobs** pass with one DB read/request and zero virtual getters;
-  per-case output fingerprints agree across **90** before/first-after/final jobs.
+- The raw final report, packed-consumer logs and detailed comparison are not
+  committed. All **30 final jobs** pass with one DB read/request and zero virtual
+  getters; per-case output fingerprints agree across **90** before/first-after/
+  final jobs.
 - Final medians, p95 and process CPU in milliseconds/request below. Speedup is
   before/final median; v51 ratio is final/same-final-run historical median.
 
@@ -704,8 +694,7 @@ Final completion evidence after tape withdrawal:
 | large-config   |   10 |         34.55 |        11.44 |     15.89 |     15.49 |    3.02 |      4.47 |
 | large-config   |  100 |        300.93 |        56.32 |     61.92 |     63.89 |    5.34 |      8.75 |
 
-- Full v0.52.0 and before/first-after/final p95/CPU comparisons remain in the raw
-  comparison. Dynamic 100-row CPU is **332.83 to 320.36 ms**; ten-row dynamic p95
+- Dynamic 100-row CPU is **332.83 to 320.36 ms**; ten-row dynamic p95
   worsened **40.62 to 50.70 ms**, CPU **39.96 to 41.37 ms**. No uniform tail win
   or completed dynamic-policy fix is claimed; callbacks/string-policy fallback
   still incurs per-field validation, and mandatory full/native copies remain.
@@ -718,9 +707,9 @@ Final completion evidence after tape withdrawal:
   differences prevent source-only attribution. No supported-Node version matrix
   or real-user-application verification was performed.
 - Coordinator reconciled implementation, final audit and verification artifacts.
-  Prepared historical trees are retained for reproducible reruns; the earlier
-  unused empty runner root was removed. Existing user work is preserved; no
-  commits or release/dependency changes were made by this phase.
+  Historical trees were retained for the phase's reruns; they are not part of the
+  repository. Existing user work is preserved; no commits or release/dependency
+  changes were made by this phase.
 
 ## Definition of done / execution evidence
 
