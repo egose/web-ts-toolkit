@@ -191,7 +191,7 @@ describe('DPV-04 explicit package traversal ownership', () => {
       expect(find).toHaveBeenCalledTimes(6);
       await loadVirtualPopulateOutputRows(owner, [raw[0]], plan(['value'], capture()));
       expect(find).toHaveBeenCalledTimes(7);
-      api.setGlobalOptions({
+      api.setDefaultModelOptions({
         requireOperationAccessForPopulateQueries: false,
         requireOperationAccessForPopulateDependencies: false,
       });
@@ -209,7 +209,7 @@ describe('DPV-04 explicit package traversal ownership', () => {
         available: true,
         populated: { account: null },
       });
-      api.setGlobalOption('requireOperationAccessForPopulateDependencies', true);
+      api.setDefaultModelOption('requireOperationAccessForPopulateDependencies', true);
       const [denied] = await loadVirtualPopulateOutputRows(owner, [raw[0]], plan(['value'], capture()));
       expect(readVirtualPopulateInputs(getVirtualPopulateRow(denied)!, [], 'value')).toEqual({ available: false });
       expect(find).toHaveBeenCalledTimes(9);

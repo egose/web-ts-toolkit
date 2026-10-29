@@ -983,7 +983,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 / POP-03 denied-read ID ret
         account: { operationAccess: { read: false, list: true } },
         parent: { docPermissions: () => ({ owns: true }) },
       });
-      f.api.setGlobalOption('requireOperationAccessForPopulateDependencies', strict);
+      f.api.setDefaultModelOption('requireOperationAccessForPopulateDependencies', strict);
       return f;
     };
     const assertRow = (row: Row, access: string, account: unknown, balance = 10) => {
@@ -1258,7 +1258,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 / POP-03 denied-read ID ret
                 );
           const pending = read();
           await ready;
-          f.api.setGlobalOption('requireOperationAccessForPopulateDependencies', !strict);
+          f.api.setDefaultModelOption('requireOperationAccessForPopulateDependencies', !strict);
           release();
           return [await pending, await read()];
         });

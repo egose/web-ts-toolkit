@@ -328,9 +328,9 @@ type CreateDataRouter = {
 type CreateRuntimeOpenApiRouter = (options?: OpenApiRouterOptions) => ExpressRouter;
 
 type WttSet = {
-  /** Set one global option on this API's runtime, not a model option or method default. */
+  /** Set one global option. Populate flags use setModelOption/setDefaultModelOption; stale global placement throws migration guidance. */
   <K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]): void;
-  /** Shallowly replace supplied global option values; equivalent to setGlobalOptions(options). */
+  /** Shallowly replace supplied globals; populate flags belong to setModelOptions/setDefaultModelOptions. */
   (options: { [K in keyof GlobalOptions]: GlobalOptions[K] }): void;
 };
 

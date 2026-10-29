@@ -289,6 +289,21 @@ export type Include = LegacyInclude | CorrelatedInclude;
 export type FindAccess = 'list' | 'read';
 export type PopulateAccess = 'list' | 'read';
 
+/**
+ * Ordinary public population intent, not model/authorization configuration.
+ * Static string refs resolve on the source model's connection and must match the
+ * exact target registered/configured in the owning runtime with an effective object
+ * permissionSchema. Explicit Model-valued schema refs can cross connections when
+ * that exact instance is configured in the same runtime. Missing/mismatched targets
+ * fail before target I/O or initiating writes; the validated model is pinned in flight.
+ * Dynamic callback/refPath refs cannot be statically bound before I/O and reject
+ * with a controlled configuration diagnostic.
+ * The actual target's requireOperationAccessForPopulateQueries controls only operation
+ * admission. Fields, document grants, rows, original selection, match and reference IDs
+ * remain enforced; direct/root target guards stay independent. Callers cannot supply
+ * a model or either populate policy flag here. Private dependsOnPopulate declarations
+ * have a narrower one-hop static-string ObjectId/same-connection contract.
+ */
 export interface Populate {
   path: string;
   select?: Projection;

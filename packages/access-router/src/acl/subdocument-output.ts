@@ -21,6 +21,7 @@ import type { OutputAuthorization } from '../interfaces';
 import { getPopulateTargetMeta, setPopulateTargetMeta } from './populate-target';
 import { loadVirtualPopulateOutputRows, planVirtualPopulateQuery } from './virtual-populate-execution';
 import { getRequestWorkState } from '../helpers/request-work';
+import { getCapturedPopulatePolicyDefaults } from './populate-policy';
 
 interface SubdocumentOutputPlan {
   sub: string;
@@ -92,7 +93,7 @@ export function prepareSubdocumentOutput<T, V extends object>(
       service.getServiceModelName(),
       { populate },
       0,
-      configuration,
+      getCapturedPopulatePolicyDefaults(configuration),
     ),
     undefined,
     configuration,

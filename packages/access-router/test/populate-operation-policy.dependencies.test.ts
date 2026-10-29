@@ -31,9 +31,11 @@ const latch = () => {
 async function fixture(hydration: 'lean' | 'hydrated', mode: (typeof modes)[number]) {
   const api = createAccessRuntime();
   runtimes.push(api);
-  api.setGlobalOptions({
+  api.setDefaultModelOptions({
     requireOperationAccessForPopulateQueries: mode.queries,
     requireOperationAccessForPopulateDependencies: mode.dependencies,
+  });
+  api.setGlobalOptions({
     globalPermissions: () => ['actor'],
     requestPermissionField: '_permissions',
     requestComplexity: { maxBulkConcurrency: 1, maxHookConcurrency: 1 },
@@ -492,7 +494,7 @@ describe.each(['lean', 'hydrated'] as const)('POP-03 independent private/public 
           );
         const pending = read();
         await ready.promise;
-        f.api.setGlobalOptions({
+        f.api.setDefaultModelOptions({
           requireOperationAccessForPopulateQueries: !mode.queries,
           requireOperationAccessForPopulateDependencies: !mode.dependencies,
         });

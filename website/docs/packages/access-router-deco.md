@@ -28,8 +28,13 @@ remains allowed. Invalid values throw and package-controlled writes roll back.
 Unknown extension/typo keys remain allowed; this is not exhaustive validation of
 structured policies or hooks, and decorators cannot type-check property values.
 
-Both populate flags are global/module options, default true, and only literal false
-bypasses their independent target-operation gates. Actual registered targets and an
+Both optional populate flags are target-model/default-model options. Resolve explicit
+target override → captured runtime model default → built-in true. Explicit undefined
+restores inheritance; omission preserves an override. Only primitive false bypasses
+their independent target-operation gates. Global/module placements reject with
+actionable scope migration diagnostics before malformed-value diagnostics, including
+legacy/inferred properties. Use `ModelOption` / `DefaultModelOption` or model/default
+`RouterOptions` / model `Router`; no alias/broadcast is provided. Actual registered targets and an
 effective object `permissionSchema` remain mandatory. Denied population/private work
 preserves selected/permitted parent IDs. See [the server policy matrix](./access-router/configuration#populate-operation-policies).
 **Removed:** `requireRegisteredPopulateModels` and
@@ -322,6 +327,93 @@ Use the one-argument form for shared defaults and the two-argument form when one
 During bootstrap, model route-construction options are applied before routes are created. Precedence is deterministic: default `@RouterOptions(...)`, then model-specific `@RouterOptions('Model', ...)`, then `@Router('Model', ...)` options, then `@Option(...)` properties and decorated hooks on the same class. Later layers override earlier layers for the same option key.
 
 Avoid setting build-time route options after bootstrap. Options such as `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and `mutationRouteSegment` must be present before Express routes are created.
+
+### Target-owned populate policies and migration
+
+Register/configure actual targets with an effective object `permissionSchema`, even
+without mounted target HTTP routes. `{}` is closed business fields. Document's Q/D
+governs `Project.documentIds`; a Document virtual using User inputs uses User's D.
+Source or sibling bypasses cannot relax another target. Direct/root guards remain
+independent. This module uses different targets in the same runtime/request:
+
+```ts
+import 'reflect-metadata';
+import { Schema, type Connection } from 'mongoose';
+import { DefaultModelOption, ModelOption, Module, Router, RouterOptions } from '@web-ts-toolkit/access-router-deco';
+
+export function createPopulateModule(connection: Connection) {
+  const Document = connection.model('Document', new Schema({ name: String }));
+  const User = connection.model('User', new Schema({ name: String }));
+  const Project = connection.model(
+    'Project',
+    new Schema({
+      documentIds: [{ type: Schema.Types.ObjectId, ref: Document.modelName }],
+      userIds: [{ type: Schema.Types.ObjectId, ref: User.modelName }],
+    }),
+  );
+
+  @RouterOptions({
+    requireOperationAccessForPopulateQueries: true,
+    requireOperationAccessForPopulateDependencies: true,
+  })
+  class PopulateDefaults {
+    @DefaultModelOption('requireOperationAccessForPopulateDependencies')
+    dependencies: boolean | undefined = true;
+  }
+
+  @RouterOptions(Document, {
+    operationAccess: { read: false, list: false },
+    permissionSchema: { name: true },
+    requireOperationAccessForPopulateDependencies: false,
+  })
+  class DocumentOptions {
+    @ModelOption('requireOperationAccessForPopulateQueries')
+    queries: boolean | undefined = false;
+  }
+
+  @RouterOptions(User, {
+    operationAccess: { read: false, list: false },
+    permissionSchema: {},
+    requireOperationAccessForPopulateQueries: true,
+    requireOperationAccessForPopulateDependencies: true,
+  })
+  class UserOptions {}
+
+  @Router(Project, {
+    basePath: '/projects',
+    operationAccess: { read: true },
+    permissionSchema: { documentIds: true, userIds: true },
+    requireOperationAccessForPopulateQueries: false,
+    requireOperationAccessForPopulateDependencies: false,
+    stripPermissionsField: true,
+  })
+  class ProjectRouter {}
+
+  @Module({ routers: [ProjectRouter], routerOptions: [UserOptions, DocumentOptions, PopulateDefaults] })
+  class PopulateModule {}
+  return PopulateModule; // EgoseFactoryStatic.create().bootstrap(PopulateModule, app)
+}
+```
+
+Default providers run first; exact properties follow their class options. Repeated
+empty router setup retains explicit overrides and live inheritance. Other model options
+also inherit live defaults, with shallow replacement of nested objects.
+Set a model flag to undefined to inherit again. Later default changes affect existing
+unoverridden models/services; in-flight/nested stages retain captured defaults and
+target options. `getModelOptions()` and `router.options` retain raw flag overrides;
+`getModelOption()` reads the live default.
+
+Migrate stale `GlobalOption`, module `options` and global setters to the model/default
+forms above. Decorators accept boolean/undefined; failed bootstrap restores prior
+inherited/explicit state. Query, method-default, HTTP/client/root options gain no
+capability; same-spelled business fields remain data.
+
+Ordinary string refs resolve on the source connection and must match the exact
+runtime-configured instance; missing/mismatched targets fail before reads/writes and
+validated targets stay pinned in flight. Explicit same-runtime registered Model-valued
+ordinary refs may cross connections. Private declarations remain one-hop static-string
+ObjectId/1D arrays on the same connection.
+Dynamic callback/refPath ordinary refs reject when no static target can be bound before I/O.
 
 ### Property-based options with `@Option(...)`
 

@@ -2,7 +2,7 @@
 import type { Model, Schema, SchemaType } from 'mongoose';
 import { get, isPlainObject } from '@web-ts-toolkit/utils';
 import type { AccessRuntime } from '../runtime';
-import type { DefaultModelRouterOptions, GlobalOptions, ModelRouterOptions, Projection } from '../interfaces';
+import type { DefaultModelRouterOptions, ModelRouterOptions, Projection } from '../interfaces';
 import { normalizeSelect } from '../helpers/query';
 import { resolveNestedOption } from '../options/manager';
 import { copyAuthorizationValue } from './authorization-snapshot';
@@ -10,6 +10,11 @@ import { captureAuthorizationFieldCatalog, isSafeInputPath } from './field-catal
 import type { AuthorizationConfiguration } from './service-authorization';
 import { isVirtualContainerValue, resolveSnapshotDescriptor } from './virtual-descriptor';
 import { capturePopulateTargetConfiguration } from './populate-target-configuration';
+import {
+  capturePopulatePolicyDefaults,
+  resolvePopulatePolicy,
+  type PopulatePolicyDefaultsToken,
+} from './populate-policy';
 
 type StoredType = SchemaType & {
   schema?: Schema;
@@ -183,13 +188,9 @@ export function captureVirtualPopulateDependencies(
   runtime: AccessRuntime,
   modelName: string,
   options: ModelRouterOptions,
-  globalOptions: GlobalOptions = runtime.getGlobalOptions(),
+  populatePolicyDefaults: PopulatePolicyDefaultsToken = capturePopulatePolicyDefaults(runtime),
   proposed?: { defaults: DefaultModelRouterOptions; models: ReadonlyMap<string, ModelRouterOptions> },
 ): VirtualPopulateSnapshot {
-  // Normalize once for every target/scope. Only an explicit false is an opt-in.
-  const requireOperationAccessForPopulateDependencies =
-    globalOptions.requireOperationAccessForPopulateDependencies !== false;
-  const requireOperationAccessForPopulateQueries = globalOptions.requireOperationAccessForPopulateQueries !== false;
   const model = runtime.getModelInstance(modelName);
   const targets = new Map<
     string,
@@ -270,8 +271,8 @@ export function captureVirtualPopulateDependencies(
               {
                 catalog,
                 documentPermissionField,
-                requireOperationAccessForPopulateDependencies,
-                requireOperationAccessForPopulateQueries,
+                populatePolicyDefaults,
+                ...resolvePopulatePolicy(targetOptions, populatePolicyDefaults),
                 permissionSchema: targetOptions.permissionSchema,
                 operationAccess: { read: readOption('operationAccess.read') },
                 baseFilter: { read: readOption('baseFilter.read') },
@@ -365,9 +366,9 @@ export function captureVirtualPopulateSnapshot(
   runtime: AccessRuntime,
   modelName: string,
   options: ModelRouterOptions,
-  globalOptions: GlobalOptions = runtime.getGlobalOptions(),
+  populatePolicyDefaults: PopulatePolicyDefaultsToken = capturePopulatePolicyDefaults(runtime),
 ): VirtualPopulateSnapshotToken {
-  const snapshot = captureVirtualPopulateDependencies(runtime, modelName, options, globalOptions);
+  const snapshot = captureVirtualPopulateDependencies(runtime, modelName, options, populatePolicyDefaults);
   const token = () => {};
   snapshots.set(token, snapshot);
   return token;

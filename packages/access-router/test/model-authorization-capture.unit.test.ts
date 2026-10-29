@@ -14,6 +14,7 @@ import {
   getCapturedAuthorizationOption,
 } from '../src/acl/model-output-planning';
 import { resolveVirtualPopulateDependencies } from '../src/acl/virtual-populate-dependencies';
+import { capturePopulatePolicyDefaults } from '../src/acl/populate-policy';
 
 let serial = 0;
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
@@ -128,8 +129,8 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
         expect(initial.relatedTargets).toHaveLength(2);
         f.runtime.setDefaultModelOption('permissionSchema.status' as never, false as never);
         f.runtime.setDefaultModelOptions({ operationAccess: { read: false } });
-        f.runtime.setGlobalOption('requireOperationAccessForPopulateQueries', false);
-        f.runtime.setGlobalOptions({ requireOperationAccessForPopulateDependencies: false });
+        f.runtime.setDefaultModelOption('requireOperationAccessForPopulateQueries', false);
+        f.runtime.setDefaultModelOptions({ requireOperationAccessForPopulateDependencies: false });
         f.runtime.setModelOptions(f.model.modelName, { alwaysSelectFields: ['name'] });
         f.runtime.setModelOption(f.model.modelName, 'hydration.findOne', 'hydrated');
         f.runtime.setModelOption(f.model.modelName, 'hydration.publicRead', 'lean');
@@ -150,6 +151,8 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
       expect(retained.configuration.requireOperationAccessForPopulateQueries).toBe(true);
       expect(retained.configuration.requireOperationAccessForPopulateDependencies).toBe(true);
       for (const target of retained.relatedTargets) {
+        expect(target.configuration.requireOperationAccessForPopulateQueries).toBe(true);
+        expect(target.configuration.requireOperationAccessForPopulateDependencies).toBe(true);
         expect(target.configuration.permissionSchema).toEqual({ balance: true });
         expect(target.configuration.defaults).toEqual({ findOneArgs: { select: ['balance'] } });
         expect((target.configuration.baseFilter as { read: { when: Date } }).read.when.getTime()).toBe(10);
@@ -159,6 +162,7 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
       const [oldDependency] = resolveVirtualPopulateDependencies(retained.configuration, [], 'eligible', 'read');
       expect(oldDependency.target.configuration.permissionSchema).toEqual({ balance: true });
       expect(getCapturedAuthorizationOption(oldDependency.target.configuration, 'operationAccess.read')).toBe(true);
+      expect(oldDependency.target.configuration.requireOperationAccessForPopulateDependencies).toBe(true);
       // Even a hydration derivation performed after mutation reads only this call's captured configuration.
       const hydration = executions.withExecutionHydration(f.service, issued.mock.results[0].value, 'publicRead');
       expect(executions.readServiceExecution(f.service, hydration).hydration).toBe('hydrated');
@@ -172,6 +176,8 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
       expect(next.configuration.requireOperationAccessForPopulateQueries).toBe(false);
       expect(next.configuration.requireOperationAccessForPopulateDependencies).toBe(false);
       for (const target of next.relatedTargets) {
+        expect(target.configuration.requireOperationAccessForPopulateQueries).toBe(false);
+        expect(target.configuration.requireOperationAccessForPopulateDependencies).toBe(false);
         expect(target.configuration.permissionSchema).toEqual({ balance: false });
         expect(target.configuration.defaults).toEqual({ findOneArgs: { select: ['name'] } });
         expect((target.configuration.baseFilter as { read: { when: Date } }).read.when.getTime()).toBe(99);
@@ -218,14 +224,24 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
       expect(next).toMatchObject({ success: true, data: { name: 'named' } });
       if (next.success) expect(next.data).not.toHaveProperty('status');
       expect(f.adapter.findOne.mock.calls[1][0].lean).toBe(entry === 'public');
-      // The explicit capture API must also honor the supplied options/global bag, not live runtime values.
-      const explicit = captureModelAuthorizationConfiguration(f.runtime, f.model.modelName, options, {
+      // The explicit capture API honors supplied options and the originating model-default
+      // token even after live defaults change; a source-resolved/global bag is not that token.
+      f.runtime.setDefaultModelOptions({
         requireOperationAccessForPopulateQueries: false,
+        requireOperationAccessForPopulateDependencies: false,
       });
+      const defaults = capturePopulatePolicyDefaults(f.runtime);
+      f.runtime.setDefaultModelOptions({
+        requireOperationAccessForPopulateQueries: true,
+        requireOperationAccessForPopulateDependencies: true,
+      });
+      const explicit = captureModelAuthorizationConfiguration(f.runtime, f.model.modelName, options, defaults);
       expect(explicit.permissionSchema).toEqual({ status: true, name: false });
       expect(explicit.hydration).toEqual(options.hydration);
       expect(explicit.requireOperationAccessForPopulateQueries).toBe(false);
+      expect(explicit.requireOperationAccessForPopulateDependencies).toBe(false);
       expect(f.capture().permissionSchema).toEqual({ status: false, name: true });
+      expect(f.capture().requireOperationAccessForPopulateQueries).toBe(true);
     },
   );
 
@@ -275,7 +291,7 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
     delete f.model.schema.path('account').options.ref;
     f.runtime.setModelOption(f.model.modelName, 'permissionSchema.status' as never, false as never);
     f.runtime.setDefaultModelOption('operationAccess.read', true);
-    f.runtime.setGlobalOption('requireOperationAccessForPopulateQueries', false);
+    f.runtime.setDefaultModelOption('requireOperationAccessForPopulateQueries', false);
     f.runtime.setModelOption(f.target.modelName, 'permissionSchema.balance' as never, false as never);
     const late = mongoose.model(`ArcpuCaptureLate${++serial}`, new mongoose.Schema({ added: String }));
     f.runtime.registerModelInstance(late.modelName, late);

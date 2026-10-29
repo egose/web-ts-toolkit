@@ -438,7 +438,7 @@ describe('AR-14 published export contract', () => {
     });
 
     it.each(['d.ts', 'd.mts'])(
-      'POP-04 exports independent populate policies/types and editor hover in %s',
+      'MPO-03 exports precise target/default populate policies and editor hover in %s',
       (extension) => {
         const ts = require('typescript') as typeof import('typescript');
         const entries = ['index', 'advanced'].map((entry) =>
@@ -471,8 +471,9 @@ describe('AR-14 published export contract', () => {
         for (const entry of entries) {
           const flag = 'requireOperationAccessForPopulateDependencies';
           const globals = exported(entry, 'GlobalOptions');
-          const mode = globals.type.getProperty(flag)!;
-          expect(mode, `${path.basename(entry)} exposes the runtime policy`).toBeDefined();
+          const models = exported(entry, 'DefaultModelRouterOptions');
+          const mode = models.type.getProperty(flag)!;
+          expect(mode, `${path.basename(entry)} exposes the target model policy`).toBeDefined();
           expect(mode.flags & ts.SymbolFlags.Optional).not.toBe(0);
           expect(checker.typeToString(checker.getTypeOfSymbolAtLocation(mode, mode.valueDeclaration!))).toBe(
             'boolean | undefined',
@@ -492,11 +493,16 @@ describe('AR-14 published export contract', () => {
             'no additional target-base-read reference-visibility gate',
             'fourth-argument inputs',
             'requireOperationAccessForPopulateQueries',
+            'override → captured',
+            'undefined clears',
+            "User's dependency flag",
           ])
             expect(hover(mode)).toContain(phrase);
           for (const old of ['requireRegisteredPopulateModels', 'requireReadOperationAccessForPopulateDependencies'])
             expect(globals.type.getProperty(old)).toBeUndefined();
-          const queries = globals.type.getProperty('requireOperationAccessForPopulateQueries')!;
+          for (const key of [flag, 'requireOperationAccessForPopulateQueries'])
+            expect(globals.type.getProperty(key)).toBeUndefined();
+          const queries = models.type.getProperty('requireOperationAccessForPopulateQueries')!;
           expect(queries).toBeDefined();
           expect(checker.typeToString(checker.getTypeOfSymbolAtLocation(queries, queries.valueDeclaration!))).toBe(
             'boolean | undefined',
@@ -511,15 +517,29 @@ describe('AR-14 published export contract', () => {
             'effective object permissionSchema',
             'configuration-only Document',
             'direct/root',
+            'Target override → captured runtime model default → true',
+            'Source/sibling flags cannot relax',
+            'Model-valued ordinary refs can cross connections',
+            'pinned through in-flight population',
           ])
             expect(hover(queries)).toContain(phrase);
           expect(mode.getJsDocTags(checker).find((tag) => tag.name === 'example')).toBeDefined();
           for (const name of [
             'ModelRouterOptions',
             'DefaultModelRouterOptions',
-            'RootRouterOptions',
-            'SubdocumentReadOptions',
+            'ExtendedModelRouterOptions',
+            'ExtendedDefaultModelRouterOptions',
           ]) {
+            for (const key of [flag, 'requireOperationAccessForPopulateQueries']) {
+              const property = exported(entry, name).type.getProperty(key)!;
+              expect(property, `${name} configures ${key}`).toBeDefined();
+              expect(property.flags & ts.SymbolFlags.Optional).not.toBe(0);
+              expect(
+                checker.typeToString(checker.getTypeOfSymbolAtLocation(property, property.valueDeclaration!)),
+              ).toBe('boolean | undefined');
+            }
+          }
+          for (const name of ['GlobalOptions', 'RootRouterOptions', 'DataRouterOptions', 'SubdocumentReadOptions']) {
             for (const key of [flag, 'requireOperationAccessForPopulateQueries'])
               expect(exported(entry, name).type.getProperty(key), `${name} cannot configure ${key}`).toBeUndefined();
           }
@@ -539,6 +559,19 @@ describe('AR-14 published export contract', () => {
             expect(hover(dependency.symbol)).toContain(phrase);
           expect(hover(dependency.type.getProperty('path')!)).toContain('Retained automatically');
           expect(hover(dependency.type.getProperty('select')!)).toContain('1/-1');
+          if (path.basename(entry).startsWith('advanced.')) {
+            const populate = exported(entry, 'Populate');
+            expect(names(populate.type)).toEqual(['access', 'match', 'path', 'select']);
+            for (const phrase of [
+              "source model's connection",
+              'Model-valued schema refs can cross connections',
+              'before target I/O or initiating writes',
+              'pinned in flight',
+              'Callers cannot supply',
+              'narrower one-hop static-string ObjectId/same-connection',
+            ])
+              expect(hover(populate.symbol)).toContain(phrase);
+          }
           const descriptor = exported(entry, 'ModelVirtualDescriptor');
           expect(names(descriptor.type)).toEqual(['dependsOn', 'dependsOnPopulate', 'get']);
           expect(hover(descriptor.symbol)).toContain('populated = {}');
@@ -582,6 +615,14 @@ describe('AR-14 published export contract', () => {
             'VirtualPopulateSnapshotToken',
             'CapturedVirtualPopulateDependency',
             'loadVirtualPopulateOutputRows',
+            'PopulatePolicyDefaultsToken',
+            'capturePopulatePolicyDefaults',
+            'getCapturedPopulatePolicyDefaults',
+            'resolvePopulatePolicy',
+            'modelServicePopulatePolicyDefaults',
+            'capturePopulateTargetBinding',
+            'setPopulateTargetMeta',
+            'withCapturedPopulateModel',
           ]) {
             const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
             expect(checker.getExportsOfModule(module).some((symbol) => symbol.name === name)).toBe(false);
@@ -592,6 +633,13 @@ describe('AR-14 published export contract', () => {
             'ModelVirtualPopulateDependency',
             'ModelVirtualPopulateInputs',
             'loadVirtualPopulateOutputRows',
+            'capturePopulatePolicyDefaults',
+            'getCapturedPopulatePolicyDefaults',
+            'resolvePopulatePolicy',
+            'modelServicePopulatePolicyDefaults',
+            'capturePopulateTargetBinding',
+            'setPopulateTargetMeta',
+            'withCapturedPopulateModel',
           ])
             expect(runtime).not.toHaveProperty(name);
         }

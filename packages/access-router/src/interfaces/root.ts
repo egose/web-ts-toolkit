@@ -168,9 +168,12 @@ export interface AccessRouterLogger {
 }
 
 /**
- * Runtime-wide request initialization, populate operation policies and resource settings, configured with
+ * Runtime-wide request initialization and resource settings, configured with
  * api.setGlobalOptions / api.setGlobalOption. These are not model options or wire
  * options. Object assignment is shallow; nested requestComplexity replaces as a unit.
+ * Populate operation flags belong to the actual target's ModelRouterOptions or
+ * DefaultModelRouterOptions. Stale global setters (including api.set) reject them
+ * with migration guidance to setModelOptions / setDefaultModelOptions.
  */
 export interface GlobalOptions {
   /** Request grant-storage property (default `_permissions`), distinct from documentPermissionField. */
@@ -184,57 +187,6 @@ export interface GlobalOptions {
    * context. Generated routers do not authenticate client claims for this hook.
    */
   globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
-  /**
-   * Require the caller's effective target operation (`read`, supported `list` or trusted
-   * custom access) for ordinary query population (default `true`). Only literal `false`
-   * skips that admission gate; source entry/field authorization, target field/document
-   * grants, row/base/transform policies, original selection, match and mandatory reference
-   * IDs still constrain output. Denied population retains selected/permitted original
-   * source IDs; admitted population misses return null/filtered arrays, not restored IDs.
-   * Targets always require an actual Mongoose model and ACL configuration with an
-   * effective object permissionSchema in this runtime; `{}` closes business fields.
-   * Runtime-owned and captured before awaits, independently of private dependency
-   * admission. A configuration-only Document needs no HTTP routes. Its denied direct/root
-   * read/list operations stay denied. No per-model/query/client override.
-   */
-  requireOperationAccessForPopulateQueries?: boolean;
-  /**
-   * Require the original caller's target base `operationAccess.read` before loading
-   * declared private `dependsOnPopulate` inputs (default `true`). Only literal boolean
-   * `false` bypasses that operation gate; undefined/malformed JS values normalize to
-   * `true`. Source/target input-field permissions are already bypassed by the server
-   * declaration; the virtual's own output authorization still applies. Target request-mode
-   * `baseFilter.read`, `overrideFilter.read` and retained reference IDs always constrain rows.
-   * Captured with source/target policy and query intent before the first await, including
-   * nested output scopes. In-flight calls retain their mode; later calls see updates.
-   * Runtime-isolated server configuration only: no caller/query or per-model override.
-   *
-   * Neither mode changes ordinary reference shape: selected/permitted parent fields keep
-   * exact original IDs (including array order, duplicates, missing IDs and nulls) when no
-   * admitted ordinary population owns them. Private denial, row/query/getter failure or
-   * deferred virtual denial cannot hide those IDs. Omit only for parent unselection/field
-   * denial; admitted public DTO/null/filtered-array results retain their original masks.
-   * There is no additional target-base-read reference-visibility gate. False-mode loading
-   * adds no operation check solely for its private fetch. Private fourth-argument inputs
-   * never implicitly enter DTOs, hooks, handles, snapshots or permission metadata.
-   * An actual registered model, effective object permissionSchema and static declarations
-   * remain mandatory, independently of requireOperationAccessForPopulateQueries.
-   *
-   * @example
-   * ```ts
-   * import { createAccessRuntime, type GlobalOptions } from '@web-ts-toolkit/access-router';
-   * const api = createAccessRuntime();
-   * const policy = {
-   *   requireOperationAccessForPopulateQueries: true,
-   *   requireOperationAccessForPopulateDependencies: false,
-   * } satisfies GlobalOptions;
-   * api.setGlobalOptions(policy); // private computation; denied public population retains permitted IDs
-   * const snapshot: GlobalOptions = api.getGlobalOptions();
-   * api.setGlobalOption('requireOperationAccessForPopulateDependencies', true);
-   * void snapshot; // stored snapshot; read again to observe the setter
-   * ```
-   */
-  requireOperationAccessForPopulateDependencies?: boolean;
   logger?: AccessRouterLogger;
   /** Request budgets and separate hook/persistence pools; concurrency limits are captured on first owner use. */
   requestComplexity?: RequestComplexityOptions;
@@ -404,6 +356,8 @@ export interface ModelHydrationOptions {
  * a runtime catch-all/default guard is not an exact fallback in that mode.
  * Nested objects replace shallowly. Existing calls/handles and router.options keep their
  * captured snapshots; changing defaults does not rebuild already-mounted route paths.
+ * The two populate operation flags retain raw override values in model snapshots;
+ * their effective policy is resolved separately against the captured model defaults.
  */
 export interface DefaultModelRouterOptions<TModel = unknown> {
   /**
@@ -414,6 +368,85 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
   /** Server-owned fetch choices, captured per call. Not a per-call or method-default option. */
   hydration?: ModelHydrationOptions;
+  /**
+   * This target model requires the caller's effective operation (`read`, supported
+   * `list` or trusted custom access) for ordinary query population (built-in default `true`).
+   * Only literal `false` skips that admission gate; source entry/field authorization,
+   * target field/document grants, row/base/transform policies, original selection,
+   * match and mandatory reference IDs still constrain output. Denied population retains
+   * permitted original IDs; admitted population misses return null/filtered arrays.
+   * Targets always require an actual registered Mongoose model and an effective object permissionSchema;
+   * `{}` closes business fields. A configuration-only Document needs no HTTP routes;
+   * denied direct/root read/list operations stay denied.
+   * Static string refs resolve on the source connection and must match that runtime's
+   * configured instance. Explicit Model-valued ordinary refs can cross connections
+   * when that exact model is registered/configured in the same runtime. The validated
+   * model stays pinned through in-flight population; callers cannot supply a model.
+   *
+   * Target override → captured runtime model default → true. Explicit undefined clears
+   * the override and restores inheritance; omission preserves it. Malformed non-undefined
+   * JavaScript values become true. Defaults are captured before source/target option
+   * reads and the first await; later top-level calls observe changes. getModelOptions and
+   * router.options retain raw flag overrides; getModelOption reads the live default.
+   * Source/sibling flags cannot relax
+   * this target. Configure with setModelOptions/setDefaultModelOptions, never global,
+   * per-query, service.defaults or client controls. Independent of private dependencies.
+   */
+  requireOperationAccessForPopulateQueries?: boolean;
+  /**
+   * This target model requires the original caller's base `operationAccess.read` before
+   * loading declared private `dependsOnPopulate` inputs (built-in default `true`). Only
+   * literal boolean `false` bypasses that operation gate. Target override → captured
+   * runtime model default → true; explicit undefined clears the override to inherit,
+   * omission preserves it, and malformed JS values other than undefined normalize true.
+   * Runtime-isolated server configuration on the actual target, not the source model;
+   * set runtime defaults with setDefaultModelOptions. Global setters reject these keys.
+   * Captured with source/target policy before the first await; nested stages retain the
+   * capture and later top-level calls refresh. No caller/query or service.defaults control.
+   * Project refs to Document use Document's flags; Document's own private User ref
+   * uses User's dependency flag, never Project's or Document's bypass.
+   * Source/target input-field permissions are bypassed only by the declaration; the
+   * virtual's output authorization still applies. Target request-mode `baseFilter.read`,
+   * `overrideFilter.read` and retained reference IDs always constrain rows.
+   *
+   * Neither mode changes ordinary reference shape: selected/permitted parent fields keep
+   * exact original IDs (including order, duplicates, missing IDs and nulls) when no admitted
+   * ordinary population owns them. Private denial, row/query/getter failure or deferred
+   * virtual denial cannot hide those IDs. There is no additional target-base-read reference-visibility gate.
+   * Private fourth-argument inputs never implicitly enter DTOs, hooks, handles or metadata.
+   * An actual registered model, effective object permissionSchema and static declarations
+   * remain mandatory, independently of requireOperationAccessForPopulateQueries.
+   *
+   * @example
+   * ```ts
+   * import mongoose from 'mongoose';
+   * import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';
+   * const api = createAccessRuntime();
+   * const defaults = {
+   *   requireOperationAccessForPopulateQueries: true,
+   *   requireOperationAccessForPopulateDependencies: true,
+   * } satisfies DefaultModelRouterOptions;
+   * api.setDefaultModelOptions(defaults);
+   * const Document = mongoose.model('Document', new mongoose.Schema({ name: String }));
+   * const User = mongoose.model('User', new mongoose.Schema({ name: String }));
+   * api.registerModelInstance(Document.modelName, Document);
+   * api.registerModelInstance(User.modelName, User);
+   * api.setModelOptions(Document.modelName, {
+   *   operationAccess: { read: false, list: false }, permissionSchema: { name: true },
+   *   requireOperationAccessForPopulateQueries: false,
+   *   requireOperationAccessForPopulateDependencies: false,
+   * });
+   * api.setModelOptions(User.modelName, {
+   *   operationAccess: { read: false, list: false }, permissionSchema: {},
+   *   requireOperationAccessForPopulateQueries: true,
+   *   requireOperationAccessForPopulateDependencies: true,
+   * });
+   * api.setModelOption(Document.modelName, 'requireOperationAccessForPopulateDependencies', undefined); // inherit again
+   * // Administrative default changes apply to later calls on existing unoverridden models.
+   * api.setDefaultModelOption('requireOperationAccessForPopulateDependencies', false);
+   * ```
+   */
+  requireOperationAccessForPopulateDependencies?: boolean;
   /** Maximum returned list rows (default 1000), independent of exact match/count totals. */
   listHardLimit?: number;
   /**
@@ -610,6 +643,8 @@ export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends Def
  * named method query/presentation defaults. Trusted service authorization is per-call.
  * Router setters update live behavior shallowly; router.options retains its frozen
  * construction-time snapshot. Route-shape options require constructing a new router.
+ * Populate flags govern this model when it is the actual target, not refs leaving it.
+ * Their model snapshots retain raw overrides; operation capture resolves live defaults.
  */
 export interface ModelRouterOptions<
   TModel = unknown,
@@ -651,13 +686,13 @@ export interface ModelRouterOptions<
    * that getter's fourth argument. Annotate ModelVirtualDescriptor<Source, Value,
    * { ref: Target }> separately, then assign here; persisted/write/public types
    * stay unchanged. Register target models/options first in this runtime. Source
-   * refs are retained automatically. GlobalOptions.requireOperationAccessForPopulateDependencies
+   * refs are retained automatically. The actual target's requireOperationAccessForPopulateDependencies
    * defaults to true; false bypasses only private target-operation admission, never
    * request read-row filters/retained IDs. Neither mode changes ordinary reference
    * shape: admitted population keeps its original authorized mask/miss; otherwise
    * selected/permitted parent fields keep exact original IDs, even on private failure.
    * Only unselected/field-denied source refs are omitted. Query operation admission is
-   * independently controlled by GlobalOptions.requireOperationAccessForPopulateQueries.
+   * independently controlled by that target's requireOperationAccessForPopulateQueries.
    *
    * @example Shortest typed happy-path (persisted model lacks `fullAddress`):
    * ```ts

@@ -6,11 +6,12 @@
  * effective target accesses) while keeping Mongoose descriptors separate from
  * package internal plan metadata.
  *
- * - Mongoose descriptors are the enumerable `{ path, select, match }` keys
+ * - Mongoose descriptors are the enumerable `{ path, select, match, model }` keys
  *   passed to `Model.find/populate` and `populateDoc`. They never contain
  *   virtual names (stripped via `genSelect`), never contain `-_id` for DB
  *   fetches (fetch always retains `_id`; output `-_id` is honored by the
- *   target finalizer independently), and never contain internal metadata.
+ *   target finalizer independently). `model` is always the server-validated
+ *   actual target, never a caller option. Plans remain separate internal metadata.
  * - Internal metadata is stored non-enumerably under {@link POPULATE_TARGET_PLAN}
  *   (a `Symbol`, invisible to Mongoose and to JSON serializers). It carries
  *   the target's `VirtualProjectionPlan` + coherent `FinalizeSnapshot` for the
@@ -71,6 +72,16 @@ export interface PopulateTargetMeta {
 export const POPULATE_TARGET_PLAN: unique symbol = Symbol('accessRouter.populateTargetPlan');
 
 export function setPopulateTargetMeta(entry: Populate, meta: PopulateTargetMeta): void {
+  // Mongoose copies enumerable string keys before resolving population. Bind the
+  // admitted instance explicitly so later connection/ref lookups cannot replace it.
+  // Public admission/planners construct fresh descriptors and never forward model.
+  if (meta.fetchBinding)
+    Object.defineProperty(entry, 'model', {
+      value: meta.fetchBinding.model,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    });
   Object.defineProperty(entry, POPULATE_TARGET_PLAN, {
     value: meta,
     enumerable: false,

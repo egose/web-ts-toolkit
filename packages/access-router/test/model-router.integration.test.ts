@@ -937,7 +937,7 @@ describe('model router integration', () => {
     const deniedByDefault = await request(app).get('/optional-populate-users/custom/populate-query').expect(400);
     expect(deniedByDefault.body.errors[0].detail).toContain(`Populate target "${orgModelName}"`);
 
-    runtime.setGlobalOptions({
+    runtime.setDefaultModelOptions({
       requireOperationAccessForPopulateQueries: false,
       requireOperationAccessForPopulateDependencies: false,
     });

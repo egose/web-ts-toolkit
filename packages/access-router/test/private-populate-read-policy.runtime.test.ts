@@ -27,11 +27,11 @@ async function fixture(hydration: 'lean' | 'hydrated', strict: boolean, allowed 
   const api = createAccessRuntime();
   runtimes.push(api);
   api.setGlobalOptions({
-    [flag]: strict,
     requestPermissionField: '_permissions',
     globalPermissions: () => ['original'],
     requestComplexity: { maxBulkConcurrency: 1, maxHookConcurrency: 1 },
   } as never);
+  api.setDefaultModelOptions({ [flag]: strict });
   const n = ++serial;
   const Target = mongoose.model(
     `PprRuntimeTarget${n}`,
@@ -338,7 +338,7 @@ describe.each(['lean', 'hydrated'] as const)(
           const read = () => service.findOne({ _id: f.source._id }, { select: ['account', 'total'] }, quiet);
           const pending = read();
           await pause.entered;
-          f.api.setGlobalOption(flag, !initial);
+          f.api.setDefaultModelOption(flag, !initial);
           pause.release();
           return [await pending, await read()];
         });

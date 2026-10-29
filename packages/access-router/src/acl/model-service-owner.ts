@@ -1,9 +1,10 @@
 /** Private model-core/service dispatch ownership. Never carried on request/output DTOs. */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { GlobalOptions, ModelRequest } from '../interfaces';
+import type { ModelRequest } from '../interfaces';
 import { defaultRuntime, type AccessRuntime } from '../runtime';
 import { getActiveRuntime, runWithRuntime } from '../runtime-context';
 import type { AccessRouterPermissions } from '../permission';
+import { capturePopulatePolicyDefaults, type PopulatePolicyDefaultsToken } from './populate-policy';
 
 interface Owner {
   readonly request: ModelRequest;
@@ -12,7 +13,11 @@ interface Owner {
 }
 const cores = new WeakMap<object, Owner>();
 const construction = new AsyncLocalStorage<Owner>();
-const dispatch = new AsyncLocalStorage<{ receiver: object; options?: unknown; globalOptions?: GlobalOptions }>();
+const dispatch = new AsyncLocalStorage<{
+  receiver: object;
+  options?: unknown;
+  populatePolicyDefaults?: PopulatePolicyDefaultsToken;
+}>();
 interface CapturedModelOperationGuard {
   core: object;
   modelName: string;
@@ -97,15 +102,19 @@ export function bindModelOwnerMethods(receiver: object, runtime: AccessRuntime):
 }
 
 /** Fresh top-level dispatch reads live owner options once; nested stages retain that capture. */
-export function modelServiceOptions<T>(receiver: object, read: () => T): T {
+export function modelServiceOptions<T>(receiver: object, runtime: AccessRuntime, read: () => T): T {
+  modelServicePopulatePolicyDefaults(receiver, runtime);
   const call = dispatch.getStore();
   if (call?.receiver !== receiver) return read();
   return (call.options ??= read()) as T;
 }
 
 /** One owner snapshot for source, private targets and ordinary related capture, before awaits. */
-export function modelServiceGlobalOptions(receiver: object, runtime: AccessRuntime): GlobalOptions {
+export function modelServicePopulatePolicyDefaults(
+  receiver: object,
+  runtime: AccessRuntime,
+): PopulatePolicyDefaultsToken {
   const call = dispatch.getStore();
-  if (call?.receiver !== receiver) return runtime.getGlobalOptions();
-  return (call.globalOptions ??= runtime.getGlobalOptions());
+  if (call?.receiver !== receiver) return capturePopulatePolicyDefaults(runtime);
+  return (call.populatePolicyDefaults ??= capturePopulatePolicyDefaults(runtime));
 }

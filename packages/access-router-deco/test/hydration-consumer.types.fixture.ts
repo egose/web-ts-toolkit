@@ -17,8 +17,18 @@ declare const req: ModelRequest;
 const mode: HydrationMode = 'lean';
 const hydration: AdvancedHydration = { publicList: 'hydrated', publicRead: mode, findById: 'lean' };
 
-@RouterOptions({ hydration })
+@RouterOptions({
+  hydration,
+  requireOperationAccessForPopulateQueries: false,
+  requireOperationAccessForPopulateDependencies: undefined,
+})
 class StartingDefaults {
+  @DefaultModelOption('requireOperationAccessForPopulateQueries')
+  requireQueryOperation = false;
+
+  @DefaultModelOption('requireOperationAccessForPopulateDependencies')
+  requirePrivateOperation: boolean | undefined = undefined;
+
   @DefaultModelOption('hydration')
   hydration: ModelHydrationOptions = { publicRead: 'lean' };
 
@@ -28,9 +38,17 @@ class StartingDefaults {
 
 @RouterOptions(ThingModel, {
   hydration: { publicRead: 'hydrated', findOne: 'lean' },
+  requireOperationAccessForPopulateQueries: undefined,
+  requireOperationAccessForPopulateDependencies: true,
   defaults: { publicListOptions: { includeCount: true } },
 })
 class ThingOptions {
+  @ModelOption('requireOperationAccessForPopulateQueries')
+  requireQueryOperation: boolean | undefined = undefined;
+
+  @ModelOption('requireOperationAccessForPopulateDependencies')
+  requirePrivateOperation = true;
+
   @ModelOption('hydration.find')
   find: HydrationMode = 'lean';
 }
@@ -49,21 +67,35 @@ class ThingRouter {
 
 @Module({ routers: [ThingRouter], routerOptions: [ThingOptions, StartingDefaults] })
 class AppModule {
-  @GlobalOption('requireOperationAccessForPopulateQueries')
-  requireQueryOperation = false;
-
-  @GlobalOption('requireOperationAccessForPopulateDependencies')
-  requirePrivateOperation = false;
+  @GlobalOption('requestPermissionField')
+  permissions = '_permissions';
 }
 
 // @ts-expect-error removed registration capability has no typed decorator alias
 GlobalOption('requireRegisteredPopulateModels');
 // @ts-expect-error removed private flag has no typed decorator alias
 GlobalOption('requireReadOperationAccessForPopulateDependencies');
-// @ts-expect-error populate operation policies belong to the runtime, not a model
-ModelOption('requireOperationAccessForPopulateQueries');
-// @ts-expect-error populate operation policies are not model defaults
-DefaultModelOption('requireOperationAccessForPopulateDependencies');
+for (const flag of [
+  'requireOperationAccessForPopulateQueries',
+  'requireOperationAccessForPopulateDependencies',
+] as const) {
+  ModelOption(flag);
+  DefaultModelOption(flag);
+  // @ts-expect-error populate operation policies belong to actual targets/model defaults, not globals
+  GlobalOption(flag);
+}
+
+// @ts-expect-error model keys remain bounded after moving the two flags
+ModelOption('requireOperationAccessForPopulateQuery');
+// @ts-expect-error default keys remain bounded after moving the two flags
+DefaultModelOption('requireOperationAccessForPopulateDependency');
+
+// @ts-expect-error class-level model policies remain optional booleans
+Router(ThingModel, { requireOperationAccessForPopulateQueries: 'false' });
+// @ts-expect-error class-level model-default policies remain optional booleans
+RouterOptions({ requireOperationAccessForPopulateDependencies: null });
+// @ts-expect-error module/global bulk placement cannot configure target-model policy
+Module({ routers: [], options: { requireOperationAccessForPopulateQueries: false } });
 
 for (const method of ['publicList', 'publicRead', 'find', 'findOne', 'findById'] as const) {
   ModelOption(`hydration.${method}`);

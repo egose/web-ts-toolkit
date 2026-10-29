@@ -166,8 +166,10 @@ export type ModelVirtualDoc<TModel = unknown> =
  * and traversal through target refs are rejected. `_id` is included unless excluded.
  * Static string refs must bind the actual same-connection ObjectId model; register
  * its model instance AND options first. Validation is eager/atomic, including setters.
+ * Model-valued/cross-connection refs supported by ordinary population are outside
+ * this private declaration's static-string, same-connection limit.
  * This bypasses source/target input-field permissions, not the virtual's own output
- * authorization. GlobalOptions.requireOperationAccessForPopulateDependencies defaults
+ * authorization. The target model's requireOperationAccessForPopulateDependencies defaults
  * to true, requiring the captured caller's target base operationAccess.read for private
  * loading. Only literal false bypasses that gate; private-only loading then adds no
  * operation check solely for the fetch. Target overrideFilter.read/baseFilter.read and
@@ -178,9 +180,11 @@ export type ModelVirtualDoc<TModel = unknown> =
  * admitted ordinary population owns the slot (then its original public mask/miss applies).
  * Strict private denial, row/query/getter failure and deferred virtual denial cannot hide
  * permitted IDs. Only source unselection/field denial omits them; there is no extra target
- * base-read visibility gate. GlobalOptions.requireOperationAccessForPopulateQueries
- * independently controls ordinary target operation admission. Both flags and source/target
- * policy are captured before awaits; registration and an effective object permissionSchema
+ * base-read visibility gate. The target model's requireOperationAccessForPopulateQueries
+ * independently controls ordinary target operation admission. Each target resolves its
+ * override → captured runtime model default → true; undefined restores inheritance.
+ * Source flags do not propagate: Document's private User ref uses User's dependency flag.
+ * Both flags and source/target policy are captured before awaits; registration and an effective object permissionSchema
  * remain mandatory. Private inputs never implicitly enter hooks, handles or metadata.
  */
 export interface ModelVirtualPopulateDependency<TModel = unknown> {

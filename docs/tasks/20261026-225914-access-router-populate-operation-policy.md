@@ -2,7 +2,13 @@
 
 Created: 2026-10-26 22:59:14 local (`20261026-225914`, generated with `date +%Y%m%d-%H%M%S`).
 
-Status: blocked — a subsequent completion re-review reproduced required P1 model-binding finding POP-07. POP-01 and final POP-05 signoff are reopened; prior passing checks and approval are historical evidence, not current completion.
+Status: completed — the same independent MPO-04 reviewer accepted POP-07 and MPO-05 after corrected-source final gates, and requalified POP-01/POP-05 under the newer target-model/default-model scope. Historical checks, failed probes, approval and reopening remain preserved.
+
+Execution continuation: [target-model populate policy](20261027-120942-access-router-target-model-populate-policy.md)
+owns the user-approved per-target option scope and executes this record's existing
+POP-07 correction first. The newer phase supersedes the global option placement;
+its independent final review accepted the binding correction and reconciled the
+reopened requirements. No duplicate binding implementation was introduced.
 
 ## Objective and execution authorization
 
@@ -11,7 +17,8 @@ this file first, then execute each task with a fresh sub-agent, strictly sequent
 The coordinator reviews each handoff; POP-05 uses an independent reviewer rather
 than an implementer. No nested agents or concurrent shared-output builds.
 
-Final runtime API:
+Historical runtime API delivered by this phase, superseded by the
+[target-model/default-model surface](20261027-120942-access-router-target-model-populate-policy.md#c1--the-actual-target-owns-both-flags):
 
 ```ts
 api.setGlobalOptions({
@@ -29,6 +36,14 @@ evidence; update current shipped behavior/types/docs/tests together.
 ## Fixed contract
 
 ### C1 — Mandatory target configuration, two runtime flags
+
+Scope reconciliation: this historical C1's global setter/alias and no-per-model
+placement clauses are superseded by the later approved **actual target-model and
+runtime model-default** API. The current pair resolves target override → captured
+model default → built-in true; explicit undefined restores inheritance, omission
+keeps an override and malformed non-undefined values are strictly true. Globals
+reject the pair with migration diagnostics. Its registration/schema, admission,
+isolation, business-data and all remaining authorization requirements still apply.
 
 - Every requested ordinary population target and declared private dependency target
   must have an actual Mongoose model and ACL configuration in the owning runtime,
@@ -219,7 +234,7 @@ owners rather than racing shared output or stopping their workers.
 
 ### Task POP-01: Establish mandatory target policy and replace legacy configuration
 
-Status: blocked — reopened by POP-07: actual source-connection target ownership and pre-write admission are not fully enforced.
+Status: completed — independently requalified by MPO-04 after POP-07/MPO-05 correction and corrected-source gates; target-model/default-model options supersede the historical typed-global criterion.
 
 Kind: improvement
 
@@ -247,6 +262,9 @@ Requirements:
 
 Acceptance criteria:
 
+- Current scope: model/default and their extended setters expose the pair; stale
+  global setters/aliases reject it. The following original global-only criterion is
+  preserved as historical evidence and is not the current API.
 - Typed globals/aliases expose only the new pair; strict default and explicit false,
   malformed runtime inputs, isolation/await changes and missing-schema/target cases pass.
 - No supported entry can obtain an unregistered raw target by setting either flag.
@@ -1090,7 +1108,7 @@ the example's admission probe and actual generated/root denial controls reflect 
 
 ### Task POP-05: Independently verify the complete breaking policy
 
-Status: blocked — reopened pending POP-07 correction, independent acceptance and refreshed affected verification.
+Status: completed — the same independent MPO-04 reviewer accepted POP-07 and corrected MPO-05, refreshed affected gates and reconciled current target-model scope; no required finding remains.
 
 Kind: investigation
 
@@ -1625,7 +1643,7 @@ generated-output edits were performed.
 
 ### Task POP-07: Bind ordinary population to its validated actual Mongoose target
 
-Status: pending — required P1 completion re-review correction; no production correction has been made.
+Status: completed — actual ordinary Model binding, pre-write failures and captured-instance transport independently accepted by MPO-04; corrected include ownership and final V2/V3/V4 also passed.
 
 Kind: defect
 
@@ -1731,6 +1749,110 @@ seams and reopened POP-01, POP-05 and overall completion. Other completed task
 entries retain their historical implementation evidence. A corrective implementation
 has not been started by this review-only request.
 
+#### POP-07 corrective implementation handoff (executed as MPO-00)
+
+The fresh sequential MPO-00 corrective owner set both execution records to
+`in_progress` before code and implemented this **same existing POP-07**, preserving
+the coordinator's cross-link and new plan. The single detailed change/command/
+failure/control/handoff record is
+[MPO-00 implementation and MPO-01 handoff](20261027-120942-access-router-target-model-populate-policy.md#mpo-00-implementation-and-mpo-01-handoff).
+
+Actual source-ref resolution now requires the owning runtime's configured **exact
+model instance** before initiating writes or target queries. Both canonical and
+helper descriptors bind that captured instance for Mongoose, including post-save,
+dedicated-child and explicit cross-connection fallback; target service construction
+and finalization retain the same model/policy across awaits and registry changes.
+No caller Model option or unconfigured-target admission was added.
+
+Retained actual-Mongo before-fix binding probes: **80 failed / 8 passed**. Initial
+correction passed 88/88; an expanded runtime-registry probe then exposed **4 failed /
+112 passed** target document-grant contexts, corrected by private captured-model
+construction. Final new suite: **136/136**, both query flags/hydration modes,
+zero-write/no-unintended-query negatives, correctly bound/explicit cross-connection
+positives, late registry/schema replacements and later-call revalidation. Affected
+existing suites: **1,017/1,017 across 25 files**; total final scoped evidence:
+**1,153 distinct passing cases / 26 files**. The detailed record preserves initial
+fixture corrections and the later native multidimensional-array oracle correction;
+the earlier mixed-result invocation is not labeled all-green.
+
+Fresh server closure/source typecheck, focused ESLint/Prettier and code/new-test
+whitespace passed. Both flags still use this phase's current global API; per-target
+scope migration starts with MPO-01. **POP-07 remains in_progress** for current
+consumer/integration gates and independent MPO-04 acceptance. POP-01 and POP-05
+remain blocked; their historical approval is not re-completed by this implementation
+handoff. No complete server/pack or full-root test claim is made by MPO-00.
+
+#### MPO-04 independent re-review and required corrective return
+
+Historical corrective return; final independent acceptance below supersedes its
+blocking disposition while preserving the original reproduced failure.
+
+The fresh independent MPO-04 reviewer read this full record and the target-model
+phase's C1-C4/requirements/evidence, reviewed actual delivered source/tests/types/
+docs against `49699bb` and current external HEAD `f6c7112`, and verified the saved
+recovery reports/fingerprints and current emitted/artifact bytes. Detailed current
+commands/results and the reproduced finding are recorded in
+[MPO-04 independent review and corrective return](20261027-120942-access-router-target-model-populate-policy.md#mpo-04-independent-review-and-corrective-return).
+
+- The original POP-07 ordinary string/explicit-Model binding correction is verified
+  by the retained **136 real-Mongo binding cases**, the fresh **347-case / 5-file**
+  focused run and eight additional actual ESM/CJS cross-connection/default/native
+  probes. Missing/mismatched targets fail before writes/target I/O; valid ordinary
+  cross-connection refs and in-flight pinning retain their current controls.
+- Audited source-fresh complete server evidence is **5,072 / 154 files**, including
+  **139 current consumers (29/45/55/10)**. Fresh MPO-04 V4 finished: root build/lint,
+  runtime **135 / 12 files**, decorator **681 / 21 files**; no skipped/todo/failing
+  case in those invocations. Those passes do not cover the new failing include
+  regression as an all-green final tree.
+- Required new **MPO-05** reproduces C2's include receiver mismatch: after capture
+  on A, a same-named runtime receiver replacement reads B's include row while
+  retaining A's private target graph and computed `private-A` value. Both legacy/
+  correlated includes and both source hydration modes fail; retained reviewer
+  regression is **4 failed / 4 unchanged-model controls passed / 1 file**. This
+  blocks final acceptance despite the ordinary correction's scoped success.
+
+Reopened POP-01/POP-05 criteria explicitly use the newer target-owned **model and
+default-model** API. The earlier `GlobalOptions` pair, setter/alias positives and
+global-only type promises are historical/superseded; current globals reject the
+pair with migration diagnostics. Mandatory actual target configuration/schema,
+pre-write admission, no raw passthrough/old aliases, independent operation-only
+gates, exact permitted IDs, field/row/match/private isolation and coherent nested
+ownership remain required. POP-01/POP-05 and linked POP-07 are **not re-completed**
+until a fresh MPO-05 owner corrects the include seam, refreshes affected V2/V3/V4
+and obtains independent MPO-04 acceptance. Preserve all earlier failed probes,
+approval and reopening evidence.
+
+#### MPO-04 resumed independent final acceptance and scope reconciliation
+
+After fresh MPO-05 correction and coordinator handoff, the same independent reviewer
+inspected the actual corrected include capture, held-service construction and
+authenticated source/receiver binding; re-ran the byte-unchanged eight-case reviewer
+regression and two corrective suites (**33/33 / 3 files**) and four additional
+independent ESM/CJS cross-request/runtime probes. All passed. Model/policy/private
+input ownership is now held across ordinary and include execution, without lending
+the held Model to independent calls. The linked original POP-07 string/explicit-Model
+binding and pre-write controls remain intact, including **136 current binding cases**.
+
+Corrected-source server closure/typecheck passed; the complete server script passed
+**5,105 / 157 files**, including **139** current consumers (strict 29, export 45,
+documentation 55, packed/artifact 10). Fresh serialized V4 root build and lint
+passed; runtime **135 / 12 files** and decorator **681 / 21 files** passed, with
+zero failed/skipped/todo cases. Actual JSON/log/status records, **362** unchanged
+handoff fingerprints and current generated/artifact byte equality were verified.
+The full exact commands, timings, peer/declaration bounds and applicable reused
+website/17-file inventory evidence are recorded in
+[MPO-04 resumed independent final acceptance](20261027-120942-access-router-target-model-populate-policy.md#mpo-04-resumed-independent-final-acceptance-of-mpo-05-and-pop-07).
+
+**Requalification:** POP-01's old global-placement/alias and no-model-override
+criteria are explicitly superseded by the approved target-model/default-model
+contract. The two strict built-in flags, their undefined inheritance/malformed-value
+behavior, registered actual instance/effective schema, no raw passthrough/old aliases,
+operation-only bypass, field/row/match/ID constraints, private isolation and
+pre-write failures all pass current verification. POP-05's integrated requirements
+also pass with the corrected include Model binding and independent evidence.
+POP-01, POP-05 and POP-07 are completed; no required linked finding or gate remains.
+Historical failed probes, former approval and subsequent reopening remain above.
+
 ## Definition of done and creation evidence
 
 POP-01..05 and required follow-ups must be completed with actual evidence. C1-C4,
@@ -1738,14 +1860,14 @@ full server/current installed consumer checks, affected integrations, build/lint
 source typecheck, docs/pack and independent acceptance must pass. No silent scope
 reduction, stale compatibility alias or unverified completion.
 
-Current independent disposition: **changes required; not complete**. The earlier
-POP-01..06 approval and V2/V3 **4,244 tests / 138 files** including **139 consumer
-checks**, V4 root build/lint, runtime **135/12** and decorator **650/20** results are
-historical passing evidence. The later POP-07 reproduction establishes an uncovered
-C1/C4 failure, so those results cannot support current final completion. POP-07,
-requalification of POP-01, refreshed affected checks and independent POP-05 acceptance
-remain required. Historical failed attempts and both approval/reopening evidence are
-retained. No full-workspace test or unbounded performance claim is made.
+Current independent disposition: **completed**. POP-01..07 and the required MPO-05
+follow-up are independently accepted with corrected-source V2/V3/V4 and the newer
+target-model/default-model scope. No required finding, gate or follow-up remains.
+The earlier POP-01..06 approval and V2/V3 **4,244 tests / 138 files** including
+**139 consumers**, root build/lint, runtime **135/12** and decorator **650/20**
+remain historical evidence. Historical failed attempts, later reopening and the
+four-case MPO-05 pre-correction failure remain preserved. No full-workspace test or
+unbounded performance claim is made.
 
 Creation baseline: `git status --short` was clean and `git log -1 --oneline` reported
 `4f544d5`. Inspected instructions/source/related task contracts as described above;

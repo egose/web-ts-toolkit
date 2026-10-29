@@ -61,6 +61,8 @@ function createOptionDecorator(
  * `requireOperationAccessForPopulateDependencies`. `undefined`
  * remains allowed. Extension keys and structured policies are not exhaustively
  * validated. Child remapping replaces an inherited mapping for the same property.
+ * Both populate flags belong to target-model/default-model providers; stale use
+ * on a global `@Module` fails with migration instructions, including undefined.
  */
 export function Option(optionKey?: string): PropertyDecorator {
   return createOptionDecorator(optionKey);
@@ -71,11 +73,10 @@ export function Option(optionKey?: string): PropertyDecorator {
  * Valid class role: `@Module`-decorated module class (applied via `runtime.setGlobalOption` before any router construction). Not valid on `@Router` or `@RouterOptions` for model-specific keys. Use the generic `K` to get typed option keys (`requestPermissionField`, etc.). Explicit — undecorated properties are ignored.
  *
  * @param optionKey - global option key (defaults to property name).
- * @remarks `requireOperationAccessForPopulateQueries` and
- * `requireOperationAccessForPopulateDependencies` each default to true. Only literal
- * false bypasses the corresponding target operation gate; registration/effective
- * permissionSchema and field/row policies remain mandatory. Both properties must be
- * boolean or undefined at bootstrap; invalid values throw before setters apply.
+ * @remarks Populate operation requirements are target-model options. Configure
+ * `requireOperationAccessForPopulateQueries` / `requireOperationAccessForPopulateDependencies`
+ * via `ModelOption` or `DefaultModelOption`; explicit, inferred and legacy global
+ * property placements fail with migration instructions at bootstrap.
  * @throws {TypeError} At bootstrap for wrong class scope or an invalid known scalar value.
  */
 export function GlobalOption<K extends Extract<keyof GlobalOptions, string | symbol>>(
@@ -89,6 +90,13 @@ export function GlobalOption<K extends Extract<keyof GlobalOptions, string | sym
  * Valid class roles: `@Router(Model)` and `@RouterOptions(Model)` model-specific classes (applied via `runtime.setModelOption`). Not valid on default options or `@Module` for global keys. Precedence after default/model decorator options. Explicit.
  *
  * @param optionKey - model router option key (defaults to property name), e.g., `basePath`, `idParam`, `queryRouteSegment`.
+ * @remarks `requireOperationAccessForPopulateQueries` and
+ * `requireOperationAccessForPopulateDependencies` belong to the actual population
+ * target. Each accepts boolean or undefined; undefined clears an earlier override
+ * and inherits live runtime model defaults (built-in true). Omission preserves an
+ * override. Repeated router setup does not freeze inheritance. False skips only
+ * the corresponding populate operation gate, retaining target registration,
+ * permissionSchema, fields and rows; direct/root operation guards still apply.
  * @throws {TypeError} At bootstrap for wrong class scope or an invalid known scalar value.
  */
 export function ModelOption<K extends Extract<keyof ExtendedModelRouterOptions, string | symbol>>(
@@ -102,6 +110,11 @@ export function ModelOption<K extends Extract<keyof ExtendedModelRouterOptions, 
  * Valid class role: `@RouterOptions` with default (one-arg) options only (applied via `runtime.setDefaultModelOption`). Not valid on `@Router` or per-model providers. Explicit.
  *
  * @param optionKey - default model option key (defaults to property name).
+ * @remarks Both `requireOperationAccessForPopulateQueries` and
+ * `requireOperationAccessForPopulateDependencies` accept boolean or undefined.
+ * They default independently to true; undefined restores that strict built-in.
+ * Unoverridden target models observe later default updates, including models
+ * already bootstrapped; in-flight operations retain their initial capture.
  * @throws {TypeError} At bootstrap for wrong class scope or an invalid known scalar value.
  */
 export function DefaultModelOption<K extends Extract<keyof ExtendedDefaultModelRouterOptions, string | symbol>>(

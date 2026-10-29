@@ -59,6 +59,7 @@ const correlated = {
 // No new authority is evaluated here; SVA-08 owns integrated grant controls.
 // Remaining lean inputs are intentional obsolete-JavaScript forwarding fixtures.
 function fixture() {
+  const runtime = createAccessRuntime().runtime;
   const req = { macl: { isAllowed: vi.fn().mockResolvedValue(true) } };
   const service = Object.assign(Object.create(PublicService.prototype), {
     defaults: {},
@@ -68,6 +69,7 @@ function fixture() {
     baseFields: ['_id'],
     req,
     requestCore: req.macl,
+    requestRuntime: runtime,
     find: vi.fn().mockResolvedValue(list),
     findOne: vi.fn().mockResolvedValue(single),
     findById: vi.fn().mockResolvedValue(single),
@@ -94,7 +96,6 @@ function fixture() {
     _read: vi.fn().mockResolvedValue(single),
     _readFilter: vi.fn().mockResolvedValue(single),
   };
-  const runtime = {};
   registerServiceExecutors(service, {
     binding: () => ({ request: service.req, runtime, model: service.model.mongooseModel, modelName: 'Source' }),
     configuration: () => ({ catalog: { paths: [] } }),

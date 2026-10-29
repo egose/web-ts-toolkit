@@ -1,9 +1,26 @@
 import mongoose from 'mongoose';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { cloneDeep } from '@web-ts-toolkit/utils';
 import { Sort, Filter, Projection, Populate } from './interfaces';
 import { getActiveRuntime } from './runtime-context';
 import { defaultRuntime, type AccessRuntime } from './runtime';
 import type { RequestConcurrencyScheduler } from './helpers/concurrency';
+
+// Private synchronous service construction only. Related policy and adapter
+// identity must use the same pre-await target, even after runtime replacement.
+const capturedModelConstruction = new AsyncLocalStorage<{
+  runtime: AccessRuntime;
+  modelName: string;
+  model: mongoose.Model<unknown>;
+}>();
+export function withCapturedPopulateModel<T>(
+  runtime: AccessRuntime,
+  modelName: string,
+  model: mongoose.Model<unknown>,
+  construct: () => T,
+): T {
+  return capturedModelConstruction.run({ runtime, modelName, model }, construct);
+}
 
 export interface FindProps {
   filter: Filter;
@@ -74,7 +91,11 @@ class Model {
     this.modelName = modelName;
     this.runtime = runtime ?? null;
     const resolvedRuntime = runtime ?? getActiveRuntime() ?? defaultRuntime;
-    const registered = resolvedRuntime.getModelInstance(modelName);
+    const captured = capturedModelConstruction.getStore();
+    const registered =
+      captured?.runtime === resolvedRuntime && captured.modelName === modelName
+        ? captured.model
+        : resolvedRuntime.getModelInstance(modelName);
     if (!registered) {
       throw new Error(
         `Runtime model registry missing model "${modelName}". Pass a mongoose.Model instance to createRouter() or register it with registerModelInstance() before using this runtime.`,

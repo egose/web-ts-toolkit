@@ -323,6 +323,14 @@ function writeConsumerFiles(consumerDir: string): void {
     ?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
   if (!migration) throw new Error('Missing shipped hydration migration example');
   writeFileSync(path.join(consumerDir, 'hydration-migration.ts'), migration);
+  const populatePolicy = readFileSync(
+    path.join(consumerDir, 'node_modules/@web-ts-toolkit/access-router-deco/README.md'),
+    'utf8',
+  )
+    .split('### Target-owned populate policies and migration')[1]
+    ?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!populatePolicy) throw new Error('Missing packed target-owned populate example');
+  writeFileSync(path.join(consumerDir, 'populate-policy.ts'), populatePolicy);
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
     `import {
@@ -578,7 +586,13 @@ void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, reg
           types: ['node'],
           lib: ['ES2022', 'DOM'],
         },
-        include: ['consumer.nodenext.mts', 'consumer.nodenext.cts', 'hydration.ts', 'hydration-migration.ts'],
+        include: [
+          'consumer.nodenext.mts',
+          'consumer.nodenext.cts',
+          'hydration.ts',
+          'hydration-migration.ts',
+          'populate-policy.ts',
+        ],
       },
       null,
       2,
@@ -601,7 +615,7 @@ void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, reg
           types: ['node'],
           lib: ['ES2022', 'DOM'],
         },
-        include: ['consumer.bundler.ts', 'hydration.ts', 'hydration-migration.ts'],
+        include: ['consumer.bundler.ts', 'hydration.ts', 'hydration-migration.ts', 'populate-policy.ts'],
       },
       null,
       2,

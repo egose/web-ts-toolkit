@@ -28,9 +28,9 @@ async function fixture(hydration: 'lean' | 'hydrated', enabled: boolean, strict 
   api.setGlobalOptions({
     requestPermissionField: '_permissions',
     globalPermissions: () => ['canRead'],
-    requireOperationAccessForPopulateDependencies: strict,
     requestComplexity: { maxBulkConcurrency: 1, maxHookConcurrency: 1 },
   } as never);
+  api.setDefaultModelOption('requireOperationAccessForPopulateDependencies', strict);
   const n = ++serial;
   const Target = mongoose.model(
     `DpvGuardTarget${n}`,
