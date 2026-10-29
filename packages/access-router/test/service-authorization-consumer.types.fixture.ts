@@ -78,6 +78,27 @@ interface Virtuals {
   summary: string;
   contacts: readonly (VirtualSubModel<Order, 'contacts'> & { badge: string })[];
 }
+
+const temporaryListWorkaround = { unsafeSkipListDocumentSnapshotChecks: true } satisfies ModelRouterOptions<Order>;
+const invalidListWorkaround: ModelRouterOptions<Order> = {
+  // @ts-expect-error only a server boolean is supported
+  unsafeSkipListDocumentSnapshotChecks: 'true',
+};
+const perCallListWorkaround: FindOptions<Order> = {
+  // @ts-expect-error the unsafe switch is not a per-call service option
+  unsafeSkipListDocumentSnapshotChecks: true,
+};
+const wireListWorkaround: PublicListOptions = {
+  // @ts-expect-error clients cannot configure the unsafe switch
+  unsafeSkipListDocumentSnapshotChecks: true,
+};
+const defaultListWorkaround: Defaults<Order> = {
+  findOptions: {
+    // @ts-expect-error method defaults are query/presentation only
+    unsafeSkipListDocumentSnapshotChecks: true,
+  },
+};
+void [temporaryListWorkaround, invalidListWorkaround, perCallListWorkaround, wireListWorkaround, defaultListWorkaround];
 type Assert<T extends true> = T;
 type Equal<A, B> = [A, B] extends [B, A] ? true : false;
 export type EntryParity = Assert<

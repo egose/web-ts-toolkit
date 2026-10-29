@@ -169,6 +169,7 @@ export function createServiceExecution<T, V extends object>(
     parent,
     configuration: configuration ?? registered.configuration(),
     requestPermissions: requestPermissions ?? registered.permissions(),
+    listResponse: access.operation === 'list' && parent === undefined,
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   executions.set(

@@ -11,6 +11,7 @@ import {
   getAuthorizationPermissions,
   getAuthorizationProvenance,
   readServiceAuthorizationAccess,
+  requiresDocumentSnapshotChecks,
   resolveServiceAuthorization,
 } from './service-authorization';
 import type {
@@ -51,6 +52,7 @@ interface StageRecord {
   readonly binding: AuthorizationBinding;
   readonly input: object;
   readonly snapshot: Readonly<Record<string, unknown>>;
+  readonly validateSnapshot: boolean;
   result?: Promise<DocumentAuthorization>;
 }
 interface DocumentRecord {
@@ -175,10 +177,14 @@ function lookupDocumentOwner(handle: DocumentAuthorization): DocumentRecord {
 }
 
 function validateStageOwner(record: StageRecord): void {
+  // TEMPORARY UNSAFE list-only escape hatch. TODO: remove/revisit when list validation
+  // CPU is addressed. Keep identity/binding, permissions and output checks intact;
+  // never replace the detached snapshot with application data or use an ambient flag.
+  if (!record.validateSnapshot) return;
   if (!matchesAuthorizationSnapshot(record.input, record.snapshot)) authorizationError('changed document snapshot');
 }
 
-/** Retain both legacy observations: even an ordinary own-data graph can execute
+/** Strict mode retains both legacy observations: even an ordinary own-data graph can execute
  * application code during normalization (e.g. Symbol.hasInstance) or Node equality
  * (e.g. an inherited Symbol.toStringTag getter). The first match may itself
  * change an earlier source value; ordinary shape does not prove passivity.
@@ -209,6 +215,7 @@ export function createDocumentAuthorizationStage(
     binding: ownedBinding,
     input: projectedSnapshot,
     snapshot,
+    validateSnapshot: requiresDocumentSnapshotChecks(call, binding),
   });
   return stage;
 }
@@ -226,7 +233,7 @@ export function assertDocumentAuthorizationStage(
   if (
     record.call !== call ||
     record.input !== projectedSnapshot ||
-    !matchesAuthorizationSnapshot(projectedSnapshot, record.snapshot)
+    (record.validateSnapshot && !matchesAuthorizationSnapshot(projectedSnapshot, record.snapshot))
   ) {
     authorizationError('document call/stage/snapshot mismatch');
   }
@@ -270,7 +277,7 @@ export function readDocumentAuthorization(handle: DocumentAuthorization, binding
   });
 }
 
-/** Identity/access-only consumers must still validate the document snapshot and call binding. */
+/** Identity/access-only consumers honor the captured snapshot mode and always check the call binding. */
 export function readDocumentAuthorizationAccess(handle: DocumentAuthorization, binding: AuthorizationBinding) {
   const { document: record, stage } = validateDocumentOwner(handle);
   return Object.freeze({

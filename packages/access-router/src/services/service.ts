@@ -320,6 +320,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       if (
         value !== null &&
         (typeof value === 'object' || typeof value === 'function') &&
+        'unsafeSkipListDocumentSnapshotChecks' in value
+      ) {
+        authorizationError(`${slot}.unsafeSkipListDocumentSnapshotChecks is server model configuration only`);
+      }
+      if (
+        value !== null &&
+        (typeof value === 'object' || typeof value === 'function') &&
         'authorization' in value &&
         (slot === 'args' || !authorizationOptions)
       ) {

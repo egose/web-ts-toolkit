@@ -56,6 +56,8 @@ export interface AuthorizationFieldCatalog {
 
 export interface AuthorizationConfiguration {
   readonly catalog: AuthorizationFieldCatalog;
+  /** Captured server model option; alone it never issues relaxed document authority. */
+  readonly unsafeSkipListDocumentSnapshotChecks?: boolean;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   /** Runtime-owned private input admission mode, not public output/related authority. */
@@ -139,6 +141,7 @@ interface CallRecord {
   reusableFieldConfiguration?: boolean;
   permissions: AccessRouterPermissions;
   provenance: ResolvedServiceAuthorization;
+  readonly validateDocumentSnapshots: boolean;
 }
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
 
@@ -374,6 +377,8 @@ export interface ResolveServiceAuthorizationInput {
   readonly relatedTargets?: readonly AuthorizationRelatedTarget[];
   /** Explicit package-derived branch/target; supplies provenance only, never implicit authority. */
   readonly parent?: ResolvedServiceAuthorization;
+  /** Package-only admission from a top-level list execution, never a helper/wire option. */
+  readonly listResponse?: boolean;
 }
 
 /** Synchronous capture must occur before any operation hook/await. Omitted policy is request-only. */
@@ -414,6 +419,16 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
     output: Object.freeze({ access: outputAccess, catalog, outputFields: policy.outputFields }),
     permissions,
     provenance: input.parent ? callRecord(input.parent).provenance : call,
+    validateDocumentSnapshots: !(
+      input.listResponse === true &&
+      input.parent === undefined &&
+      (input.applicability ?? 'service') === 'service' &&
+      outputAccess.operation === 'list' &&
+      outputAccess.rowAccess === 'list' &&
+      outputAccess.outputAccess === 'list' &&
+      scopePath.length === 0 &&
+      configuration.unsafeSkipListDocumentSnapshotChecks === true
+    ),
   });
   return call;
 }
@@ -437,6 +452,12 @@ export function readServiceAuthorization(call: ResolvedServiceAuthorization, bin
 export function readServiceAuthorizationAccess(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   return callRecord(call).output.access;
+}
+
+/** Private captured mode, not a live runtime switch or caller-provided certificate. */
+export function requiresDocumentSnapshotChecks(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).validateDocumentSnapshots;
 }
 
 /** Hydration is open configuration: detach this slice, never the unrelated call graph. */

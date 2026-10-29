@@ -237,6 +237,49 @@ Express routes. `parentPath` supplies the external prefix for route metadata/log
 mount that prefix in Express yourself. Live `idField`/`resolveIdFilter` change lookup
 behavior rather than route shape.
 
+### Temporary unsafe list-performance switch
+
+**Default: off (snapshot checks enabled).** For an emergency CPU workaround on one
+registered model, server code can enable `unsafeSkipListDocumentSnapshotChecks`:
+
+<!-- doc-example: partial -->
+
+```ts
+import acl from '@web-ts-toolkit/access-router';
+
+// User must already be registered on this runtime. Never take this value from a request.
+// TODO: revisit/remove this temporary workaround after list-performance remediation.
+acl.setModelOption('User', 'unsafeSkipListDocumentSnapshotChecks', true);
+
+// Roll back for new calls when the workaround is no longer needed.
+acl.setModelOption('User', 'unsafeSkipListDocumentSnapshotChecks', false);
+```
+
+The same flag can be set in `createRouter(Model, { ... })` or model starting defaults;
+prefer per-model opt-in rather than enabling it for every model. Use the owning
+`createAccessRuntime()` API instead of default `acl` for an isolated runtime.
+Only literal boolean `true` enables it. Enabling emits a logger warning once per
+model transition, not per row/request. It is **not** a global, per-call, HTTP/root
+entry, `options.authorization`, or `service.defaults` option.
+
+- **Skipped:** repeated comparisons of the retained projected document with its
+  authorization snapshot in top-level internal `find`, generated public lists and
+  root-list responses. List-origin handles retain that captured mode in later picks.
+- **Still enforced:** row filters, document/field rules, operation gates, exact
+  request/runtime/model/stage ownership, output-mutation/provenance checks and bounds.
+  Initial snapshots and detached callback/grant/output copies (including native values)
+  remain. Reads, read-to-list retries, writes, dedicated subdocument operations,
+  embedded/related stages and fresh standalone output helpers stay strict.
+- **Risk:** source changes during callbacks or awaits will no longer invalidate
+  cached grants/decisions. Output may be authorized using stale data even though
+  normal permission rules run. This is a deliberate weakening of mutation protection,
+  **not a security-equivalent fast mode**. Use only with trusted, non-mutating hooks;
+  review your application and measure a staged rollout before production opt-in.
+
+Each call captures the setting before awaits. Turning it off protects new calls,
+not in-flight calls or existing list handles. It does not eliminate all cloning or
+promise v0.51.0 performance. Restore `false` as soon as possible.
+
 ### Wire placement and option names
 
 | Intent                   | Basic GET query                                    | Advanced body                                                   | Root entry                          |

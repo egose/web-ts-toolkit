@@ -537,6 +537,7 @@ export class AccessRuntime {
     mutationRouteSegment: '__mutation',
     operationAccess: false,
     modelPermissionPrefix: '',
+    unsafeSkipListDocumentSnapshotChecks: false,
   }).build();
 
   private readonly modelOptions: Record<string, OptionsManager<any, any>> = {};
@@ -823,6 +824,19 @@ export class AccessRuntime {
       })
       .onchange('modelPermissionPrefix', function (_newval, _key, target) {
         refreshPermissionMetadata(target);
+      })
+      .onchange('unsafeSkipListDocumentSnapshotChecks', (newValue, key, target, oldValue) => {
+        // Only an explicit server boolean opts out; truthy JS values are not authority.
+        (target as Record<string, unknown>)[key] = newValue === true;
+        if (newValue !== true || oldValue === true) return;
+        try {
+          this.getGlobalOption('logger')?.warn?.(
+            'UNSAFE: list document snapshot checks disabled; source mutation can leave stale authorization decisions. Restore unsafeSkipListDocumentSnapshotChecks=false after the temporary workaround.',
+            { modelName },
+          );
+        } catch {
+          // Logging must not change publication of an explicitly selected server mode.
+        }
       })
       .onchange('basePath', function (newval, key, target) {
         (target as Record<string, unknown>)[key] = normalizeBasePath(

@@ -140,6 +140,22 @@ connection and related registry across a same-request runtime handoff. Base-filt
 entries are reused only for the same model/access and policy function.
 Request base-filter caches remain owned by their request/runtime/access.
 
+### Temporary unsafe list-performance switch
+
+Model-only `unsafeSkipListDocumentSnapshotChecks: true` skips repeated source snapshot
+comparisons on top-level `find`, generated lists and root-list entries. It defaults to
+`false`, is captured before awaits, and emits a warning on enablement. Set it with
+`api.setModelOption(modelName, 'unsafeSkipListDocumentSnapshotChecks', true)`; restore
+`false` for new calls as soon as possible. Never derive the flag from request input.
+
+This does **not** disable permission rules, ownership, output-mutation checks or
+detached copies. Reads, writes, read-to-list retries, embedded/related stages and
+fresh helpers remain strict. List-origin handles keep their original mode.
+**Source mutation can now leave stale grants/decisions and expose incorrectly
+authorized output.** Use only as a temporary, measured workaround with trusted
+non-mutating hooks, not as a security-equivalent fast path. Per-call/wire/defaults
+controls cannot enable it. See the shipped README for the full contract.
+
 ### Populate operation policies
 
 Both global flags default true. Only literal false bypasses each operation gate;

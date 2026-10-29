@@ -480,6 +480,21 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * `includePermissions`. Defaults to `false`.
    */
   disableFieldPermissions?: boolean;
+  /**
+   * TEMPORARY UNSAFE performance escape hatch (default `false`). Only literal `true`
+   * skips repeated projected-document snapshot comparisons for this model's top-level
+   * `find`/public/root list responses. Captured before awaits; list-origin handles keep
+   * that mode. Reads (including list-access retries), writes, embedded/related stages
+   * and fresh standalone output helpers retain their checks.
+   *
+   * Row/field permissions, exact ownership/binding, output provenance/mutation checks
+   * and detached callback/grant copies still run. However, source changes during a
+   * callback/await are no longer detected: stale grants/decisions may authorize output.
+   * Use only with trusted non-mutating application hooks, measure before rollout, and
+   * restore `false` as soon as possible. Enabling logs a warning once per model transition.
+   * Server model configuration only, never service.defaults, per-call or wire options.
+   */
+  unsafeSkipListDocumentSnapshotChecks?: boolean;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
