@@ -21,7 +21,13 @@ const quiet = { includePermissions: false, includeFieldPermissions: false, inclu
 const entries = ['direct', 'public'] as const;
 let serial = 0;
 
-function fixture(width: number, nativeLeaves: number, count: number, unsafeSkipListDocumentSnapshotChecks = false) {
+function fixture(
+  width: number,
+  nativeLeaves: number,
+  count: number,
+  unsafeSkipListDocumentSnapshotChecks = false,
+  unsafeSkipReadDocumentSnapshotChecks = false,
+) {
   const fields = Array.from({ length: width }, (_, index) => `field${index}`);
   const model = mongoose.model(
     `Snapcpu01${++serial}`,
@@ -42,6 +48,7 @@ function fixture(width: number, nativeLeaves: number, count: number, unsafeSkipL
     stripPermissionsField: true,
     alwaysSelectFields: ['native'],
     unsafeSkipListDocumentSnapshotChecks,
+    unsafeSkipReadDocumentSnapshotChecks,
   });
   // String fields match the ordinary benchmark payload. This extra fetch-only
   // native array makes each *whole-stage* wire-copy observable independently of
@@ -54,7 +61,12 @@ function fixture(width: number, nativeLeaves: number, count: number, unsafeSkipL
       (_, index) => new mongo.BSON.ObjectId((index + 1).toString(16).padStart(24, '0')),
     ),
   }));
-  const adapter = { mongooseModel: model, find: vi.fn().mockResolvedValue(rows), countDocuments: vi.fn() };
+  const adapter = {
+    mongooseModel: model,
+    find: vi.fn().mockResolvedValue(rows),
+    findOne: vi.fn().mockResolvedValue(rows[0]),
+    countDocuments: vi.fn(),
+  };
   const req = { [PERMISSIONS]: new Permission({ reader: true }) } as unknown as ModelRequest;
   const { service, publicService } = runWithRuntime(runtime, () => {
     req.macl = new Core(req);
@@ -235,4 +247,41 @@ describe('real-list snapshot validation work (no virtuals)', () => {
       },
     );
   }
+});
+
+describe('real single-read snapshot validation work', () => {
+  it.each(
+    ['findOne', 'findById', '_read', '_readFilter'].flatMap((method) =>
+      [4, 24].flatMap((width) => [false, true].map((listFlag) => ({ method, width, listFlag }))),
+    ),
+  )('$method / $width fields / independent list flag=$listFlag', async ({ method, width, listFlag }) => {
+    const observed = counters();
+    const work = [];
+    for (const readFlag of [false, true]) {
+      const f = fixture(width, 1, 1, listFlag, readFlag);
+      observed.reset();
+      const args = { select: [...f.fields, 'hidden', '-_id'] };
+      const id = '000000000000000000000001';
+      const result =
+        method === 'findOne'
+          ? await f.service.findOne({}, args, quiet)
+          : method === 'findById'
+            ? await f.service.findById(id, args, quiet)
+            : method === '_read'
+              ? await f.publicService._read(id, args, quiet)
+              : await f.publicService._readFilter({}, args, quiet);
+      expect(result).toMatchObject({
+        success: true,
+        data: Object.fromEntries(f.fields.map((field) => [field, f.rows[0][field]])),
+      });
+      expect(f.adapter.findOne).toHaveBeenCalledTimes(1);
+      work.push({ ...observed.work });
+    }
+    expect(work[0].stageValidations).toBeGreaterThan(0);
+    expect(work[1].stageValidations).toBe(0);
+    expect(work[1].validationNativeClones).toBe(0);
+    expect(work[1].outputValidations).toBe(work[0].outputValidations);
+    expect(work[1].outputValidations).toBeGreaterThan(0);
+    expect(work[1].totalNativeClones).toBeGreaterThan(0); // detached snapshots/callback copies remain
+  });
 });

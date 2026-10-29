@@ -240,9 +240,10 @@ declare const documentAuthorizationBrand: unique symbol;
  * and permission metadata are trimmed. Use the original unchanged output or a
  * package-created helper subset; caller spreads, matching IDs, changed values, another
  * row/call/access or pre-/post-write stages cannot establish validity and reject.
- * A handle from a list with server unsafeSkipListDocumentSnapshotChecks enabled
- * retains that weakened source-mutation policy; output mutation/ownership checks
- * still apply. Turning the setting off affects new calls, not an existing handle.
+ * A list/read handle with its server unsafeSkipListDocumentSnapshotChecks or
+ * unsafeSkipReadDocumentSnapshotChecks flag enabled retains that weakened source-
+ * mutation policy; output mutation/ownership checks still apply. Turning a setting
+ * off affects new calls, not an existing handle or captured read-to-list retry.
  */
 export interface DocumentAuthorization {
   readonly [documentAuthorizationBrand]: true;

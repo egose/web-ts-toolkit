@@ -30,6 +30,7 @@ const privateControls = [
   'skipAuthorization',
   'alreadyAuthorized',
   'unsafeSkipListDocumentSnapshotChecks',
+  'unsafeSkipReadDocumentSnapshotChecks',
   'operation',
 ] as const;
 
@@ -68,7 +69,7 @@ export function assertPublicAdmission(input: unknown, kind: PublicAdmissionKind 
         // Presence includes undefined, non-enumerable and inherited JS controls.
         if (key in record) {
           throw new PublicAdmissionError(
-            key === 'unsafeSkipListDocumentSnapshotChecks'
+            key === 'unsafeSkipListDocumentSnapshotChecks' || key === 'unsafeSkipReadDocumentSnapshotChecks'
               ? `Unsupported public control ${path}.${key}; this unsafe flag is server model configuration only`
               : `Unsupported public control ${path}.${key}; use explicit per-call internal service options for backend authorization`,
           );

@@ -58,6 +58,7 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
       stripPermissionsField: options.stripPermissionsField,
       disableFieldPermissions: options.disableFieldPermissions,
       unsafeSkipListDocumentSnapshotChecks: options.unsafeSkipListDocumentSnapshotChecks === true,
+      unsafeSkipReadDocumentSnapshotChecks: options.unsafeSkipReadDocumentSnapshotChecks === true,
       overrideFilter: options.overrideFilter,
       baseFilter: options.baseFilter,
       idField: options.idField,

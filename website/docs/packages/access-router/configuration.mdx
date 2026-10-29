@@ -140,17 +140,22 @@ connection and related registry across a same-request runtime handoff. Base-filt
 entries are reused only for the same model/access and policy function.
 Request base-filter caches remain owned by their request/runtime/access.
 
-### Temporary unsafe list-performance switch
+### Temporary unsafe read/list-performance switches
 
 Model-only `unsafeSkipListDocumentSnapshotChecks: true` skips repeated source snapshot
-comparisons on top-level `find`, generated lists and root-list entries. It defaults to
-`false`, is captured before awaits, and emits a warning on enablement. Set it with
-`api.setModelOption(modelName, 'unsafeSkipListDocumentSnapshotChecks', true)`; restore
-`false` for new calls as soon as possible. Never derive the flag from request input.
+comparisons on top-level `find`, generated lists and root-list entries. Independent
+`unsafeSkipReadDocumentSnapshotChecks: true` does the same for `findOne`, `findById`,
+public identifier/filter reads and root reads. Read-to-list retries follow the read
+flag, not the list flag. Both default to `false`, are captured before awaits, and
+warn independently on enablement. Configure either with `api.setModelOption` or
+`api.setDefaultModelOptions` before router creation; explicit per-model `false` wins
+over starting defaults. Restore `false` for new calls as soon as possible. Never
+derive these flags from request input.
 
 This does **not** disable permission rules, ownership, output-mutation checks or
-detached copies. Reads, writes, read-to-list retries, embedded/related stages and
-fresh helpers remain strict. List-origin handles keep their original mode.
+detached copies. Writes, dedicated subdocument operations, embedded/related stages
+and fresh helpers remain strict. List/read-origin handles and captured retries keep
+their original mode; operations without their own opt-out stay protected.
 **Source mutation can now leave stale grants/decisions and expose incorrectly
 authorized output.** Use only as a temporary, measured workaround with trusted
 non-mutating hooks, not as a security-equivalent fast path. Per-call/wire/defaults

@@ -170,6 +170,7 @@ export function createServiceExecution<T, V extends object>(
     configuration: configuration ?? registered.configuration(),
     requestPermissions: requestPermissions ?? registered.permissions(),
     listResponse: access.operation === 'list' && parent === undefined,
+    readResponse: access.operation === 'read' && parent === undefined,
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   executions.set(
@@ -263,6 +264,9 @@ export function deriveServiceExecution<T, V extends object>(
     configuration: captured.configuration,
     requestPermissions: getAuthorizationPermissions(record.authorization, record.binding),
     parent: record.authorization,
+    // The resolver authenticates root-read provenance and the unchanged owner tuple.
+    // Effective list access is still a read; write branches cannot inherit this marker.
+    readResponse: record.access.operation === 'read' && access.operation === 'read',
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   executions.set(

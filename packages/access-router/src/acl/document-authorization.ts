@@ -177,7 +177,7 @@ function lookupDocumentOwner(handle: DocumentAuthorization): DocumentRecord {
 }
 
 function validateStageOwner(record: StageRecord): void {
-  // TEMPORARY UNSAFE list-only escape hatch. TODO: remove/revisit when list validation
+  // TEMPORARY UNSAFE read/list escape hatches. TODO: remove/revisit when query validation
   // CPU is addressed. Keep identity/binding, permissions and output checks intact;
   // never replace the detached snapshot with application data or use an ambient flag.
   if (!record.validateSnapshot) return;

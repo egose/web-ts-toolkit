@@ -484,8 +484,8 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * TEMPORARY UNSAFE performance escape hatch (default `false`). Only literal `true`
    * skips repeated projected-document snapshot comparisons for this model's top-level
    * `find`/public/root list responses. Captured before awaits; list-origin handles keep
-   * that mode. Reads (including list-access retries), writes, embedded/related stages
-   * and fresh standalone output helpers retain their checks.
+   * that mode. Single reads use the independent unsafeSkipReadDocumentSnapshotChecks
+   * setting. Writes, embedded/related stages and fresh standalone helpers stay strict.
    *
    * Row/field permissions, exact ownership/binding, output provenance/mutation checks
    * and detached callback/grant copies still run. However, source changes during a
@@ -495,6 +495,22 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * Server model configuration only, never service.defaults, per-call or wire options.
    */
   unsafeSkipListDocumentSnapshotChecks?: boolean;
+  /**
+   * TEMPORARY UNSAFE single-read escape hatch (default `false`). Only literal `true`
+   * skips repeated projected-document snapshot comparisons in top-level findOne,
+   * findById, public identifier/filter reads and root reads. Read-to-list retries use
+   * this setting, not unsafeSkipListDocumentSnapshotChecks. Captured before awaits;
+   * read-origin handles and retries keep that mode. List operations use their own flag.
+   *
+   * Permission rules, exact ownership/binding, output-mutation/provenance checks and
+   * detached callback/grant copies still run. Source changes during callbacks/awaits
+   * can leave stale grants/decisions and incorrectly authorized output. Use only with
+   * trusted non-mutating hooks, measure before rollout and restore `false` promptly.
+   * Writes (including read-like output), embedded/related stages and fresh helpers
+   * remain strict. Enabling warns once per model/flag transition. Server model or
+   * model-starting-default configuration only; never method defaults or wire options.
+   */
+  unsafeSkipReadDocumentSnapshotChecks?: boolean;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
