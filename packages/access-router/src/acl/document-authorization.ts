@@ -197,6 +197,9 @@ function validateDocumentOwner(handle: DocumentAuthorization) {
   const document = lookupDocumentOwner(handle);
   const stage = lookupStageOwner(document.stage);
   validateStageOwner(stage);
+  // Preserve the second observation for mutations triggered during the first check.
+  // This is not a stability guarantee: application hooks can also mutate the input
+  // during this second check, and no fixed number of checks eliminates that risk.
   validateStageOwner(stage);
   return { document, stage };
 }
