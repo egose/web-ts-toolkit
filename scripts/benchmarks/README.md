@@ -24,17 +24,34 @@ the prepared entrypoint hash before importing it.
    its own frozen lockfile, and built in a separate temporary directory. Install
    lifecycle scripts are disabled; explicitly selected tag build scripts still
    execute repository code, so select only trusted tags.
-3. After preparation, multiselect the ready builds to measure (**at least one**),
-   a baseline, and scenarios (**at least one**). Failed preparations retain logs
-   and are not offered as runnable builds. Old incompatible tags fail explicitly
-   instead of silently using a different workload.
-4. Choose row counts, schema width, field payload size, measured requests, warmup,
+3. Multiselect ready builds (**at least one**). For each build declaring all six
+   unsafe snapshot flags, choose **OFF** (default), **ON**, or **BOTH**. BOTH
+   measures the same build twice as separate candidates. Older/partial builds do
+   not offer ON: any supported flags are set to false, and the report identifies
+   how many are supported. For example, select BOTH for the current build and
+   include v0.51.0 to compare current OFF, current ON, and the historical build.
+4. Select a candidate as the baseline and choose scenarios (**at least one**).
+   Failed preparations retain logs and are not offered as runnable builds. Old
+   incompatible tags fail explicitly instead of silently using a different workload.
+5. Choose row counts, schema width, field payload size, measured requests, warmup,
    concurrent client counts, and request hook concurrency. Comma-separated size/
    client inputs produce a matrix. Start small: 10/100 rows, 24 fields, 25 requests.
-5. Jobs run **sequentially**, interleaving versions within each scenario/size.
+6. Jobs run **sequentially**, interleaving candidates within each scenario/size.
    Concurrent clients exist only inside the current job. Each job starts a fresh
    Node process importing that version's built `dist/index.mjs` and its own peers,
    with an independently seeded database on one disposable MongoDB server.
+
+ON explicitly sets all six `unsafeSkip{List,Read}{Document,Output,NestedDocument}SnapshotChecks`
+model options to `true` on both benchmark models; OFF sets supported options to
+`false`. The worker checks both effective model-option getters before measuring;
+missing, changed or unapplied flags fail rather than yielding misleading timings.
+The current scenarios are LIST requests, so the three READ flags are configured
+but do not affect these measurements. No flags are passed as request options.
+
+**ON is unsafe:** source/output mutations can leave stale authorization decisions
+and expose data. Matching benchmark outputs do not make ON security-equivalent to
+OFF. A historical build marked N/A may lack the newer safeguards entirely; N/A
+does not mean those checks were enforced.
 
 Scenarios include narrow/wide plain lists, hydrated lists, global string rules,
 document-dependent grants/callbacks, large unused read configuration, embedded
@@ -49,6 +66,8 @@ The document-grant scenario uses non-skim mode in every build so older versions
 actually resolve those grants; its rule callbacks tolerate the historical
 request-only planning invocation. Embedded arrays declare an empty traversal
 scope (no getter) so both generations apply the nested field rules.
+`embedded` and `document-rules` are separate scenarios; the runner does not combine
+embedded documents with document-dependent hooks in one scenario.
 
 ## Results and interpretation
 
@@ -56,7 +75,8 @@ The terminal table and `.wip/benchmarks/access-router-*/report.md` show median/p
 HTTP latency, requests/second, worker CPU milliseconds/request, Mongoose read ops/
 request, and median latency relative to the selected baseline. **Below 1.00x is
 faster.** Ratios are suppressed for failures, missing baselines or different
-validated output fingerprints. `report.json` includes raw samples, settings,
+validated output fingerprints. Each row identifies its snapshot-skip setting;
+`report.json` records the candidate's supported and applied flags alongside raw samples, settings,
 commits, dirty-worktree status, build/lock hashes, actual dependency and MongoDB
 versions, and failures. Each build/job also has a persistent log.
 
@@ -87,4 +107,13 @@ Runner checks (no benchmarks, no network or MongoDB required):
 ```sh
 node --test scripts/benchmarks/access-router.test.mjs
 pnpm exec eslint scripts/benchmarks
+```
+
+For a real worker smoke test of OFF/ON on embedded and document-hook scenarios,
+build the current access-router first, then run the integration test. This starts
+disposable MongoDB and may download its binary:
+
+```sh
+pnpm --filter @web-ts-toolkit/access-router... build
+node --test scripts/benchmarks/access-router.integration.test.mjs
 ```

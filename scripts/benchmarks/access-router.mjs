@@ -17,6 +17,8 @@ import {
   runLogged,
   saveReport,
   SCENARIOS,
+  snapshotCandidates,
+  UNSAFE_SNAPSHOT_FLAGS,
 } from './access-router-core.mjs';
 
 const exec = promisify(execFile);
@@ -72,8 +74,9 @@ async function main() {
 Interactive only (Node >=22, Git, tar and pnpm required).
   1. Fetch tags from a selected remote.
   2. Choose tags to prepare; build current dirty sources + isolated tag snapshots.
-  3. Multiselect prepared versions (at least one), baseline and scenarios.
-  4. Enter row sizes, schema width, payload size, samples, warmup and client counts.
+  3. Multiselect prepared versions (at least one); choose unsafe snapshot skips OFF,
+     ON, or BOTH independently for each supported version.
+  4. Choose the baseline, scenarios, row sizes, samples and concurrency.
   5. Run all jobs sequentially against disposable MongoDB; show/save JSON + Markdown.
 
 No checkout/reset/worktree changes. Installs historical frozen lockfiles with
@@ -104,6 +107,7 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
     platform: `${process.platform}/${process.arch}`,
     remote,
     gitStatus: await git(['status', '--porcelain=v1']),
+    preparedTargets: [],
     targets: [],
     preparationFailures: [],
     results: [],
@@ -178,21 +182,21 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
             signal: controller.signal,
           }),
         );
-        report.targets.push({ ...target, ...prepared });
+        report.preparedTargets.push({ ...target, ...prepared });
       } catch (error) {
         controller.signal.throwIfAborted();
         report.preparationFailures.push({ label: target.label, error: error.message, logFile });
         prompts.log.warn(`Could not prepare ${target.label}; see ${logFile}`);
       }
     }
-    if (!report.targets.length) throw new Error('No usable builds. See preparation logs.');
+    if (!report.preparedTargets.length) throw new Error('No usable builds. See preparation logs.');
     const selectedIds = requireSelection(
       await ask(
         prompts.multiselect({
           message: 'Prepared builds to benchmark (select at least one)',
           required: true,
-          initialValues: report.targets.map((target) => target.id),
-          options: report.targets.map((target) => ({
+          initialValues: report.preparedTargets.map((target) => target.id),
+          options: report.preparedTargets.map((target) => ({
             value: target.id,
             label: target.label,
             hint: `${target.version} · ${target.commit.slice(0, 9)}`,
@@ -200,7 +204,33 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
         }),
       ),
     );
-    const targets = report.targets.filter((target) => selectedIds.includes(target.id));
+    const selectedBuilds = report.preparedTargets.filter((target) => selectedIds.includes(target.id));
+    const targets = [];
+    for (const target of selectedBuilds) {
+      const count = target.supportedSnapshotFlags.length;
+      let setting = 'off';
+      if (count < UNSAFE_SNAPSHOT_FLAGS.length) {
+        prompts.log.info(
+          `${target.label}: ${count}/${UNSAFE_SNAPSHOT_FLAGS.length} unsafe snapshot flags declared. ON is unavailable; supported flags stay OFF.`,
+        );
+      } else {
+        setting = await ask(
+          prompts.select({
+            message: `Unsafe snapshot skips for ${target.label}`,
+            initialValue: 'off',
+            options: [
+              { value: 'off', label: 'OFF', hint: 'all six false' },
+              { value: 'on', label: 'ON', hint: 'all six true; weakens mutation checks' },
+              { value: 'both', label: 'BOTH', hint: 'measure OFF and ON as separate candidates' },
+            ],
+          }),
+        );
+      }
+      targets.push(...snapshotCandidates(target, setting));
+    }
+    report.targets = targets;
+    if (targets.some((target) => target.snapshotSkips === 'on'))
+      prompts.log.warn('Unsafe snapshot skips weaken mutation protection; ON and OFF are not security-equivalent.');
     report.baseline =
       targets.length === 1
         ? targets[0].id
@@ -234,7 +264,12 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
       throw new Error('Fixture exceeds 64 MiB. Choose fewer rows/fields or a smaller payload.');
     if (config.samples < Math.max(...config.concurrencies))
       throw new Error('Measured request count must be at least the largest concurrent-client count.');
-    report.config = { ...config, scenarios: scenarioIds, selectedTargets: selectedIds };
+    report.config = {
+      ...config,
+      scenarios: scenarioIds,
+      selectedBuilds: selectedIds,
+      selectedTargets: targets.map((target) => target.id),
+    };
     const total = targets.length * scenarioIds.length * config.rows.length * config.concurrencies.length;
     if (
       !(await ask(
