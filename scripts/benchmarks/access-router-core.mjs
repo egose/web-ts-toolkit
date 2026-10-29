@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { finished } from 'node:stream/promises';
 
@@ -16,6 +16,132 @@ export const SCENARIOS = Object.freeze([
   { id: 'populate', label: 'Public populate (eight shared targets)', populate: true },
   { id: 'virtuals', label: 'Two synchronous virtual getters / lean', virtuals: true },
 ]);
+
+/** Keep this list independent of the candidate: historical builds have their own sources. */
+export const UNSAFE_SNAPSHOT_FLAGS = Object.freeze([
+  'unsafeSkipListDocumentSnapshotChecks',
+  'unsafeSkipReadDocumentSnapshotChecks',
+  'unsafeSkipListOutputSnapshotChecks',
+  'unsafeSkipReadOutputSnapshotChecks',
+  'unsafeSkipListNestedDocumentSnapshotChecks',
+  'unsafeSkipReadNestedDocumentSnapshotChecks',
+]);
+
+/** Inspect actual model-option declarations, not comments or similarly named internal fields. */
+export async function supportedSnapshotFlags(declarations) {
+  // Only preparation parses types. Benchmark workers must not load the compiler
+  // into the measured process and alter its heap/GC behavior.
+  const { default: ts } = await import('typescript');
+  const found = new Set();
+  const hasBoolean = (type) =>
+    type && (type.kind === ts.SyntaxKind.BooleanKeyword || (ts.isUnionTypeNode(type) && type.types.some(hasBoolean)));
+  for (const [fileName, text] of declarations) {
+    const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const visit = (node) => {
+      if (
+        ts.isInterfaceDeclaration(node) &&
+        ['DefaultModelRouterOptions', 'ModelRouterOptions'].includes(node.name.text)
+      ) {
+        for (const member of node.members) {
+          if (
+            ts.isPropertySignature(member) &&
+            member.name &&
+            (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) &&
+            UNSAFE_SNAPSHOT_FLAGS.includes(member.name.text) &&
+            hasBoolean(member.type)
+          )
+            found.add(member.name.text);
+        }
+      } else if (ts.isSourceFile(node) || ts.isModuleDeclaration(node) || ts.isModuleBlock(node)) {
+        ts.forEachChild(node, visit);
+      }
+    };
+    visit(source);
+  }
+  return UNSAFE_SNAPSHOT_FLAGS.filter((flag) => found.has(flag));
+}
+
+/** tsup may put the actual options in a shared declaration chunk instead of index.d.ts. */
+async function readSnapshotDeclarations(root) {
+  const directory = resolve(root, 'packages/access-router/dist');
+  const files = (await readdir(directory)).filter((name) => name.endsWith('.d.ts')).sort();
+  if (!files.includes('index.d.ts')) throw new Error(`Build did not produce ${resolve(directory, 'index.d.ts')}`);
+  return Promise.all(files.map(async (file) => [file, await readFile(resolve(directory, file), 'utf8')]));
+}
+
+function hashSnapshotDeclarations(declarations) {
+  const hash = createHash('sha256');
+  for (const [name, text] of declarations) {
+    hash
+      .update(`${Buffer.byteLength(name)}:`)
+      .update(name)
+      .update(`${Buffer.byteLength(text)}:`)
+      .update(text);
+  }
+  return hash.digest('hex');
+}
+
+export async function inspectSnapshotDeclarations(root) {
+  const declarations = await readSnapshotDeclarations(root);
+  return {
+    supportedSnapshotFlags: await supportedSnapshotFlags(declarations),
+    snapshotDeclarationsSha256: hashSnapshotDeclarations(declarations),
+  };
+}
+
+/** Workers recheck the preparation manifest without importing/parsing TypeScript. */
+export async function snapshotDeclarationHash(root) {
+  return hashSnapshotDeclarations(await readSnapshotDeclarations(root));
+}
+
+function normalizeSupportedSnapshotFlags(flags) {
+  if (
+    !Array.isArray(flags) ||
+    new Set(flags).size !== flags.length ||
+    flags.some((flag) => !UNSAFE_SNAPSHOT_FLAGS.includes(flag))
+  )
+    throw new Error('Invalid supported unsafe snapshot flags.');
+  return UNSAFE_SNAPSHOT_FLAGS.filter((flag) => flags.includes(flag));
+}
+
+/** Set only declared flags, and never pretend a partial/old build enabled all six. */
+export function snapshotFlagOptions(mode, supported) {
+  if (mode !== 'on' && mode !== 'off') throw new Error(`Invalid unsafe snapshot mode: ${String(mode)}`);
+  const flags = normalizeSupportedSnapshotFlags(supported);
+  if (mode === 'on' && flags.length !== UNSAFE_SNAPSHOT_FLAGS.length) {
+    const missing = UNSAFE_SNAPSHOT_FLAGS.filter((flag) => !flags.includes(flag));
+    throw new Error(`Cannot enable all unsafe snapshot flags; this build does not declare: ${missing.join(', ')}`);
+  }
+  return Object.fromEntries(flags.map((flag) => [flag, mode === 'on']));
+}
+
+export function snapshotModeLabel(target) {
+  if (!target?.snapshotSkips) return '-';
+  const count = target.supportedSnapshotFlags.length;
+  if (count === 0) return 'N/A (0/6 supported)';
+  const mode = target.snapshotSkips.toUpperCase();
+  return count === UNSAFE_SNAPSHOT_FLAGS.length ? mode : `${mode} (${count}/6 supported)`;
+}
+
+/** A prepared build can be measured twice, with distinct candidate and baseline identities. */
+export function snapshotCandidates(target, setting) {
+  const flags = normalizeSupportedSnapshotFlags(target.supportedSnapshotFlags);
+  if (!['off', 'on', 'both'].includes(setting)) throw new Error(`Invalid candidate setting: ${String(setting)}`);
+  const modes = setting === 'both' ? ['off', 'on'] : [setting];
+  return modes.map((mode) => {
+    snapshotFlagOptions(mode, flags);
+    const candidate = {
+      ...target,
+      id: `${target.id}-snapshot-${mode}`,
+      buildId: target.id,
+      buildLabel: target.label,
+      snapshotSkips: mode,
+      supportedSnapshotFlags: flags,
+    };
+    candidate.label = `${target.label} · snapshot skips ${snapshotModeLabel(candidate)}`;
+    return candidate;
+  });
+}
 
 export function integer(value, min, max) {
   if (!/^\d+$/.test(String(value).trim())) throw new Error(`Enter an integer between ${min} and ${max}.`);
@@ -212,6 +338,7 @@ export async function prepareTarget({
     commit,
     version: (await readFile(resolve(root, 'VERSION'), 'utf8')).trim(),
     entry,
+    ...(await inspectSnapshotDeclarations(root)),
     distSha256: createHash('sha256')
       .update(await readFile(entry))
       .digest('hex'),
@@ -233,11 +360,13 @@ export function reportRows(report) {
   );
   return report.results.map((row) => {
     const reference = baseline.get(caseKey(row));
+    const target = report.targets.find((target) => target.id === row.targetId);
     const comparable = row.status === 'ok' && reference && reference.outputFingerprint === row.outputFingerprint;
     const ratio =
       comparable && reference.stats.medianMs > 0 ? row.stats.medianMs / reference.stats.medianMs : undefined;
     return {
-      version: report.targets.find((target) => target.id === row.targetId)?.label ?? row.targetId,
+      version: target?.buildLabel ?? target?.label ?? row.targetId,
+      'snapshot skips': snapshotModeLabel(target),
       scenario: row.scenario,
       rows: row.rows,
       clients: row.concurrency,
@@ -264,6 +393,7 @@ export async function saveReport(directory, report) {
     `Baseline: ${report.targets.find((target) => target.id === report.baseline)?.label ?? 'not selected'}`,
     '',
     'Latency ratios are target / baseline; lower is faster. Ratios require identical validated outputs.',
+    'Snapshot skips ON is UNSAFE and not security-equivalent to OFF. N/A means the build does not declare these options.',
     'HTTP timing includes loopback transport, response serialization and parsing. Setup, seeding and warmup are excluded.',
     'CPU is the Node worker (HTTP server + client), not the separate MongoDB process. Read counts use Mongoose debug operations.',
     'Each tag uses its own frozen lockfile: dependency-version changes can affect results. Sequential ordering and JIT/OS noise can bias small runs.',

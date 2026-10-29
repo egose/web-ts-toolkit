@@ -5,10 +5,11 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { after, test } from 'node:test';
-import { benchmark } from './access-router-worker.mjs';
+import { benchmark, verifySnapshotFlagOptions } from './access-router-worker.mjs';
 import {
   canonicalJson,
   fingerprint,
+  inspectSnapshotDeclarations,
   integer,
   integerList,
   mapBounded,
@@ -19,7 +20,12 @@ import {
   runLogged,
   saveReport,
   SCENARIOS,
+  snapshotCandidates,
+  snapshotFlagOptions,
+  snapshotModeLabel,
+  supportedSnapshotFlags,
   summarize,
+  UNSAFE_SNAPSHOT_FLAGS,
 } from './access-router-core.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -53,6 +59,103 @@ test('all advertised scenarios are uniquely selectable and include no-virtual pa
     'virtuals',
   ])
     assert.ok(SCENARIOS.some((scenario) => scenario.id === id));
+});
+
+test('snapshot support comes from boolean model-option declarations, including shared chunks', async () => {
+  const [first, second, third, fourth] = UNSAFE_SNAPSHOT_FLAGS;
+  const declarations = [
+    [
+      'index.d.ts',
+      `// ${fourth}?: boolean;
+       interface AuthorizationConfiguration { ${fourth}?: boolean; }
+       interface DefaultModelRouterOptions {
+         ${first}?: boolean;
+         ${third}?: boolean | undefined;
+         ${fourth}?: string;
+       }`,
+    ],
+    ['chunk.d.ts', `interface ModelRouterOptions { readonly '${second}'?: boolean; }`],
+  ];
+  assert.deepEqual(await supportedSnapshotFlags(declarations), [first, second, third]);
+  const fakeRoot = resolve(temporary, 'flag-support');
+  const directory = resolve(fakeRoot, 'packages/access-router/dist');
+  await mkdir(directory, { recursive: true });
+  for (const [name, text] of declarations) await writeFile(resolve(directory, name), text);
+  const inspected = await inspectSnapshotDeclarations(fakeRoot);
+  assert.deepEqual(inspected.supportedSnapshotFlags, [first, second, third]);
+  assert.match(inspected.snapshotDeclarationsSha256, /^[a-f0-9]{64}$/);
+  const implemented = await readFile(
+    resolve(root, 'packages/access-router/src/acl/unsafe-snapshot-options.ts'),
+    'utf8',
+  );
+  assert.deepEqual(
+    [...implemented.matchAll(/'(unsafeSkip\w+SnapshotChecks)'/g)].map((match) => match[1]),
+    UNSAFE_SNAPSHOT_FLAGS,
+  );
+});
+
+test('per-build off/on/both selections become distinct candidates with explicit options', () => {
+  const build = {
+    id: 'current',
+    label: 'Current',
+    entry: '/built/index.mjs',
+    supportedSnapshotFlags: UNSAFE_SNAPSHOT_FLAGS,
+  };
+  const [off, on] = snapshotCandidates(build, 'both');
+  assert.deepEqual([off.id, on.id], ['current-snapshot-off', 'current-snapshot-on']);
+  assert.equal(off.buildId, on.buildId);
+  assert.equal(off.entry, on.entry);
+  assert.deepEqual([snapshotModeLabel(off), snapshotModeLabel(on)], ['OFF', 'ON']);
+  assert.deepEqual(
+    snapshotFlagOptions(off.snapshotSkips, off.supportedSnapshotFlags),
+    Object.fromEntries(UNSAFE_SNAPSHOT_FLAGS.map((flag) => [flag, false])),
+  );
+  assert.deepEqual(
+    snapshotFlagOptions(on.snapshotSkips, on.supportedSnapshotFlags),
+    Object.fromEntries(UNSAFE_SNAPSHOT_FLAGS.map((flag) => [flag, true])),
+  );
+  assert.deepEqual(
+    snapshotCandidates(build, 'on').map((target) => target.id),
+    ['current-snapshot-on'],
+  );
+  assert.throws(() => snapshotCandidates(build, 'unexpected'), /Invalid candidate setting/);
+  assert.throws(() => snapshotFlagOptions('on', ['notAFlag']), /Invalid supported/);
+  assert.throws(
+    () => snapshotFlagOptions('on', [UNSAFE_SNAPSHOT_FLAGS[0], UNSAFE_SNAPSHOT_FLAGS[0]]),
+    /Invalid supported/,
+  );
+});
+
+test('older and partially supported builds cannot silently enable missing flags', () => {
+  const old = { id: 'old', label: 'v0.51.0', supportedSnapshotFlags: [] };
+  const [off] = snapshotCandidates(old, 'off');
+  assert.equal(snapshotModeLabel(off), 'N/A (0/6 supported)');
+  assert.deepEqual(snapshotFlagOptions('off', []), {});
+  assert.throws(() => snapshotCandidates(old, 'on'), /does not declare/);
+  assert.throws(() => snapshotCandidates(old, 'both'), /does not declare/);
+  const partial = { ...old, supportedSnapshotFlags: UNSAFE_SNAPSHOT_FLAGS.slice(0, 2) };
+  assert.equal(snapshotModeLabel(snapshotCandidates(partial, 'off')[0]), 'OFF (2/6 supported)');
+  assert.deepEqual(snapshotFlagOptions('off', partial.supportedSnapshotFlags), {
+    [UNSAFE_SNAPSHOT_FLAGS[0]]: false,
+    [UNSAFE_SNAPSHOT_FLAGS[1]]: false,
+  });
+  assert.throws(() => snapshotCandidates(partial, 'on'), /does not declare/);
+});
+
+test('effective flag verification rejects ignored settings on either getter path', () => {
+  const expected = snapshotFlagOptions('on', UNSAFE_SNAPSHOT_FLAGS);
+  const api = { getModelOption: (_name, key) => expected[key], getModelOptions: () => ({ ...expected }) };
+  assert.doesNotThrow(() => verifySnapshotFlagOptions(api, 'Source', expected));
+  assert.doesNotThrow(() => verifySnapshotFlagOptions({}, 'OldSource', {}));
+  assert.throws(() => verifySnapshotFlagOptions({}, 'Source', expected), /Cannot verify/);
+  assert.throws(
+    () => verifySnapshotFlagOptions({ ...api, getModelOption: () => false }, 'Source', expected),
+    /did not apply.*Source/,
+  );
+  assert.throws(
+    () => verifySnapshotFlagOptions({ ...api, getModelOptions: () => ({}) }, 'Target', expected),
+    /did not apply.*Target/,
+  );
 });
 
 test('statistics include correct even median, nearest-rank p95, throughput and CPU', () => {
@@ -108,6 +211,7 @@ test('preparation builds current sources without checkout/install; tags use inde
   await writeFile(resolve(fakeRoot, 'VERSION'), '0.51.0\n');
   await writeFile(resolve(fakeRoot, 'pnpm-lock.yaml'), 'fixture');
   await writeFile(resolve(fakeRoot, 'packages/access-router/dist/index.mjs'), 'export {};');
+  await writeFile(resolve(fakeRoot, 'packages/access-router/dist/index.d.ts'), 'interface ModelRouterOptions {}');
   const options = {
     root: fakeRoot,
     repository: root,
@@ -124,6 +228,8 @@ test('preparation builds current sources without checkout/install; tags use inde
   assert.ok(calls[0].args.includes('build'));
   assert.ok(calls[0].args.includes('--workspace-concurrency=1'));
   assert.match(current.distSha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(current.supportedSnapshotFlags, []);
+  assert.match(current.snapshotDeclarationsSha256, /^[a-f0-9]{64}$/);
   calls.length = 0;
   await prepareTarget(options);
   assert.deepEqual(
@@ -136,6 +242,44 @@ test('preparation builds current sources without checkout/install; tags use inde
   assert.equal(calls[2].config.cwd, fakeRoot);
   assert.deepEqual(calls[2].config.env, pnpmEnvironment);
   assert.ok(!calls.some((call) => call.args.some((arg) => /checkout|reset|clean|worktree/.test(arg))));
+});
+
+test('reports compare both modes of one build as separate baselines', async () => {
+  const build = { id: 'current', label: 'Current', supportedSnapshotFlags: UNSAFE_SNAPSHOT_FLAGS };
+  const targets = snapshotCandidates(build, 'both');
+  const base = {
+    scenario: 'embedded',
+    rows: 10,
+    concurrency: 1,
+    status: 'ok',
+    outputFingerprint: 'same',
+    readsPerRequest: 1,
+  };
+  const report = {
+    startedAt: 'test',
+    node: process.version,
+    platform: process.platform,
+    preparationFailures: [],
+    targets,
+    baseline: targets[0].id,
+    results: [
+      { ...base, targetId: targets[0].id, stats: summarize([10], 10, 1000) },
+      { ...base, targetId: targets[1].id, stats: summarize([5], 5, 1000) },
+    ],
+  };
+  const rows = reportRows(report);
+  assert.deepEqual(
+    rows.map((row) => row['snapshot skips']),
+    ['OFF', 'ON'],
+  );
+  assert.equal(rows[1]['vs baseline'], '0.50x');
+  const directory = resolve(temporary, 'modes-report');
+  await saveReport(directory, report);
+  const markdown = await readFile(resolve(directory, 'report.md'), 'utf8');
+  assert.match(markdown, /Baseline: Current · snapshot skips OFF/);
+  assert.match(markdown, /UNSAFE and not security-equivalent/);
+  assert.match(markdown, /\| Current \| ON \| embedded/);
+  assert.equal(JSON.parse(await readFile(resolve(directory, 'report.json'), 'utf8')).targets[1].snapshotSkips, 'on');
 });
 
 test('commands use argv, log failures and terminate on timeout/cancellation', async () => {
@@ -273,6 +417,7 @@ test('CLI help is noninteractive and does not start builds or fetches', async ()
   ]);
   assert.match(stdout, /Fetch tags/);
   assert.match(stdout, /at least one/);
+  assert.match(stdout, /unsafe snapshot skips OFF/);
 });
 
 test('worker refuses oversized fixtures, foreign databases and modified builds before opening MongoDB', async () => {
@@ -293,4 +438,38 @@ test('worker refuses oversized fixtures, foreign databases and modified builds b
   await assert.rejects(benchmark({ ...job, rows: 10000, fields: 128, bytes: 4096 }), /safety budget/);
   await assert.rejects(benchmark({ ...job, database: 'production' }), /owned benchmark database/);
   await assert.rejects(benchmark(job), /Prepared dist changed/);
+});
+
+test('worker rejects unavailable or changed snapshot flags before loading peers or opening MongoDB', async () => {
+  const fakeRoot = resolve(temporary, 'worker-flag-support');
+  const directory = resolve(fakeRoot, 'packages/access-router/dist');
+  await mkdir(directory, { recursive: true });
+  await writeFile(
+    resolve(directory, 'index.d.ts'),
+    `interface ModelRouterOptions { ${UNSAFE_SNAPSHOT_FLAGS[0]}?: boolean }`,
+  );
+  const manifest = await inspectSnapshotDeclarations(fakeRoot);
+  const job = {
+    scenario: 'embedded',
+    rows: 1,
+    fields: 4,
+    bytes: 1,
+    samples: 1,
+    warmup: 0,
+    concurrency: 1,
+    hookConcurrency: 1,
+    database: 'access_router_bench_abcdef012345_1',
+    target: { root: fakeRoot, entry: resolve(directory, 'not-loaded.mjs'), snapshotSkips: 'on', ...manifest },
+  };
+  await assert.rejects(benchmark(job), /this build does not declare/);
+  await assert.rejects(
+    benchmark({ ...job, target: { ...job.target, snapshotDeclarationsSha256: undefined } }),
+    /requires a prepared declaration manifest/,
+  );
+  await assert.rejects(
+    benchmark({ ...job, target: { ...job.target, snapshotSkips: 'invalid' } }),
+    /Invalid unsafe snapshot mode/,
+  );
+  await writeFile(resolve(directory, 'index.d.ts'), 'interface ModelRouterOptions {}');
+  await assert.rejects(benchmark(job), /declarations changed/);
 });

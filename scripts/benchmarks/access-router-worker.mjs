@@ -5,7 +5,15 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Agent, request } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { fingerprint, integer, mapBounded, SCENARIOS, summarize } from './access-router-core.mjs';
+import {
+  fingerprint,
+  integer,
+  mapBounded,
+  SCENARIOS,
+  snapshotDeclarationHash,
+  snapshotFlagOptions,
+  summarize,
+} from './access-router-core.mjs';
 
 async function dependencyVersion(require, name) {
   let directory = dirname(require.resolve(name));
@@ -55,6 +63,19 @@ function post(port, agent, body) {
   });
 }
 
+/** Verify both getter paths after router creation; unknown/ignored flags must not produce timings. */
+export function verifySnapshotFlagOptions(api, modelName, expected) {
+  const entries = Object.entries(expected);
+  if (!entries.length) return;
+  if (typeof api.getModelOption !== 'function' || typeof api.getModelOptions !== 'function')
+    throw new Error('Cannot verify unsafe snapshot options on this candidate.');
+  const options = api.getModelOptions(modelName);
+  for (const [key, value] of entries) {
+    if (api.getModelOption(modelName, key) !== value || options?.[key] !== value)
+      throw new Error(`Candidate did not apply ${key}=${value} to model ${modelName}.`);
+  }
+}
+
 export async function benchmark(job) {
   const scenario = SCENARIOS.find((entry) => entry.id === job.scenario);
   if (!scenario) throw new Error(`Unknown scenario: ${job.scenario}`);
@@ -79,6 +100,22 @@ export async function benchmark(job) {
       .digest('hex') !== job.target.distSha256
   )
     throw new Error('Prepared dist changed. Do not run other builds during the benchmark.');
+
+  const snapshotSkips = job.target.snapshotSkips ?? 'off';
+  const hasSnapshotConfig =
+    job.target.snapshotSkips !== undefined ||
+    job.target.supportedSnapshotFlags !== undefined ||
+    job.target.snapshotDeclarationsSha256 !== undefined;
+  if (
+    hasSnapshotConfig &&
+    (!Array.isArray(job.target.supportedSnapshotFlags) ||
+      !/^[a-f0-9]{64}$/.test(job.target.snapshotDeclarationsSha256 ?? ''))
+  )
+    throw new Error('Unsafe snapshot configuration requires a prepared declaration manifest.');
+  if (hasSnapshotConfig && (await snapshotDeclarationHash(job.target.root)) !== job.target.snapshotDeclarationsSha256)
+    throw new Error('Prepared unsafe snapshot flag declarations changed. Rebuild and select candidates again.');
+  const supportedFlags = hasSnapshotConfig ? job.target.supportedSnapshotFlags : [];
+  const snapshotFlags = snapshotFlagOptions(snapshotSkips, supportedFlags);
 
   // Resolve peers beside the selected build, NOT beside this runner. Otherwise a
   // tagged build could accidentally use the current checkout's Mongoose instance.
@@ -134,7 +171,9 @@ export async function benchmark(job) {
       operationAccess: { list: true, read: true },
       permissionSchema: { name: true, secret: false },
       stripPermissionsField: true,
+      ...snapshotFlags,
     });
+    verifySnapshotFlagOptions(api, Target.modelName, snapshotFlags);
     const permissionSchema = {
       ordinal: true,
       hidden: false,
@@ -161,6 +200,7 @@ export async function benchmark(job) {
       defaults: {
         publicListOptions: { includePermissions: false, includeFieldPermissions: false, includeCount: false },
       },
+      ...snapshotFlags,
     };
     if (modernHydration) options.hydration = { publicList: scenario.hydrated ? 'hydrated' : 'lean' };
     else options.defaults.publicListOptions.lean = !scenario.hydrated;
@@ -212,6 +252,7 @@ export async function benchmark(job) {
       };
     }
     const router = api.createRouter(Source, options);
+    verifySnapshotFlagOptions(api, Source.modelName, snapshotFlags);
     const targets = Array.from({ length: 8 }, (_, index) => ({
       _id: new mongoose.Types.ObjectId((index + 1).toString(16).padStart(24, '0')),
       name: `target:${index}`,
@@ -299,6 +340,8 @@ export async function benchmark(job) {
       scenario: job.scenario,
       rows: job.rows,
       concurrency: job.concurrency,
+      snapshotSkips,
+      snapshotFlags,
       stats: summarize(samples, elapsed, cpu.user + cpu.system),
       samplesMs: samples,
       ...measured,
