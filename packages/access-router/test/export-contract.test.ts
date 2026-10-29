@@ -730,6 +730,8 @@ describe('AR-14 published export contract', () => {
         expect(hover(context.getProperty('getDocumentAuthorization')!)).toContain('cannot issue new authority');
       }
       const router = type(entries[0], 'ModelRouter').value;
+      expect(hover(type(entries[0], 'setDefaultModelOptions').symbol)).toContain('explicit model values');
+      expect(hover(type(entries[0], 'DefaultModelRouterOptions').symbol)).toContain('follow later default updates');
       for (const option of [
         'unsafeSkipListOutputSnapshotChecks',
         'unsafeSkipReadOutputSnapshotChecks',

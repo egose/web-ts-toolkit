@@ -328,20 +328,17 @@ describe('server-only configuration and captured transitions', () => {
       expect(f.runtime.getModelOption(f.models[0].modelName, other)).toBe(false);
   });
 
-  it.each(newFlags)(
-    '%s supports starting defaults with explicit false overrides and preserves existing models',
-    (key) => {
-      const f = fixture();
-      f.runtime.setDefaultModelOption(key, true);
-      for (const explicit of [undefined, false]) {
-        const model = mongoose.model(`QuerySnapshotsDefault${++serial}`, new mongoose.Schema({ value: String }));
-        f.runtime.registerModelInstance(model.modelName, model);
-        f.runtime.setModelOptions(model.modelName, explicit === undefined ? {} : { [key]: explicit });
-        expect(f.runtime.getModelOption(model.modelName, key)).toBe(explicit ?? true);
-      }
-      expect(f.runtime.getModelOption(f.models[0].modelName, key)).toBe(false);
-    },
-  );
+  it.each(newFlags)('%s inherits defaults on existing/new models while preserving explicit false overrides', (key) => {
+    const f = fixture();
+    f.runtime.setDefaultModelOption(key, true);
+    for (const explicit of [undefined, false]) {
+      const model = mongoose.model(`QuerySnapshotsDefault${++serial}`, new mongoose.Schema({ value: String }));
+      f.runtime.registerModelInstance(model.modelName, model);
+      f.runtime.setModelOptions(model.modelName, explicit === undefined ? {} : { [key]: explicit });
+      expect(f.runtime.getModelOption(model.modelName, key)).toBe(explicit ?? true);
+    }
+    expect(f.runtime.getModelOption(f.models[0].modelName, key)).toBe(true);
+  });
 
   it.each(['read', 'list'])(
     'captures %s mode before awaits, later descendants, handles and retries',
