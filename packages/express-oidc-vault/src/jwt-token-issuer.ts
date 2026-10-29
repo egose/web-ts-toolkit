@@ -155,6 +155,7 @@ export function createOidcVaultJwtAccessTokenIssuer(
   )
     throw new TypeError('JWT clock and mappers must be functions.');
   const key = signingKey(options.key, algorithm);
+  // Validate clock/lifetime before returning the issuer.
   tokenTimes(now, lifetimeSeconds);
   return Object.freeze({
     async issue(input: IssueTokenInput): Promise<OidcVaultTokenIssueResult> {
