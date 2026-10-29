@@ -116,7 +116,7 @@ describe('independent server read snapshot flag', () => {
     expect(f.runtime.getModelOption(f.model.modelName, listFlag)).toBe(true);
   });
 
-  it('supports model starting defaults without relaxing existing models or their list flag', async () => {
+  it('inherits read defaults without relaxing an explicitly strict model or its list flag', async () => {
     const f = fixture();
     f.runtime.setDefaultModelOption(readFlag, true);
     const model = mongoose.model(`ReadSnapshot${++serial}`, new mongoose.Schema({ value: String }));

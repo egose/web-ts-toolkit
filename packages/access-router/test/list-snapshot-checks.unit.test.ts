@@ -112,7 +112,7 @@ describe('temporary server-only list snapshot setting', () => {
     expect(() => readDocumentAuthorizationAccess(strict.handle, strict.binding)).toThrow(ServiceAuthorizationError);
   });
 
-  it('applies starting defaults only to a new model, without relaxing an existing model', async () => {
+  it('inherits defaults on a new model without relaxing an explicitly strict existing model', async () => {
     const f = fixture(false);
     f.runtime.setDefaultModelOptions({ [flag]: true });
     const other = mongoose.model(`ListSnapshot${++serial}`, new mongoose.Schema({ value: String }));

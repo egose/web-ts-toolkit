@@ -238,13 +238,15 @@ describe('OAV-00 retained operation-access resolution', () => {
     expect(response.body).toEqual({ list: false });
   });
 
-  it('copies defaults on assignment, then uses live exact defaults when the model parent is undefined', async () => {
+  it('inherits live defaults unless a model parent is explicitly configured, retaining old snapshots', async () => {
     const { app, runtime, modelName } = createPermissionApp({}, ['list', 'read'], { list: true, read: false });
     const snapshot = runtime.getModelOptions(modelName);
     runtime.setDefaultModelOption('operationAccess.list', false);
     runtime.setDefaultModelOption('operationAccess.read', true);
-    const copied = await request(app).get('/check').expect(200);
-    expect(copied.body).toEqual({ list: true, read: false });
+    const inherited = await request(app).get('/check').expect(200);
+    expect(inherited.body).toEqual({ list: false, read: true });
+    runtime.setModelOption(modelName, 'operationAccess', { list: true, read: false });
+    expect((await request(app).get('/check').expect(200)).body).toEqual({ list: true, read: false });
 
     runtime.setModelOption(modelName, 'operationAccess', undefined);
     const fallback = await request(app).get('/check').expect(200);

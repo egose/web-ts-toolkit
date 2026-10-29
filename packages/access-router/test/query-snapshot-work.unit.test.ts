@@ -13,7 +13,13 @@ import * as snapshots from '../src/acl/authorization-snapshot';
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
 let serial = 0;
 
-function fixture(operation: 'read' | 'list', root: boolean, nested: boolean, output: boolean) {
+function fixture(
+  operation: 'read' | 'list',
+  root: boolean,
+  nested: boolean,
+  output: boolean,
+  placement: 'model' | 'default-before' | 'default-after',
+) {
   const childSchema = new mongoose.Schema({ value: String, hidden: String, childNative: Date }, { _id: false });
   const model = mongoose.model(
     `QuerySnapshotWork${++serial}`,
@@ -30,6 +36,12 @@ function fixture(operation: 'read' | 'list', root: boolean, nested: boolean, out
   const mode = operation === 'read' ? 'Read' : 'List';
   const runtime = new AccessRuntime();
   runtime.setGlobalOptions({ logger: { warn: vi.fn() } });
+  const flags = {
+    [`unsafeSkip${mode}DocumentSnapshotChecks`]: root,
+    [`unsafeSkip${mode}NestedDocumentSnapshotChecks`]: nested,
+    [`unsafeSkip${mode}OutputSnapshotChecks`]: output,
+  };
+  if (placement === 'default-before') runtime.setDefaultModelOptions(flags);
   runtime.registerModelInstance(model.modelName, model);
   const hook = vi.fn(() => ({ reader: true }));
   runtime.setModelOptions(model.modelName, {
@@ -43,9 +55,7 @@ function fixture(operation: 'read' | 'list', root: boolean, nested: boolean, out
     docPermissions: { read: hook, list: hook },
     stripPermissionsField: true,
     alwaysSelectFields: ['rootNative', 'children.childNative'],
-    [`unsafeSkip${mode}DocumentSnapshotChecks`]: root,
-    [`unsafeSkip${mode}NestedDocumentSnapshotChecks`]: nested,
-    [`unsafeSkip${mode}OutputSnapshotChecks`]: output,
+    ...(placement === 'model' ? flags : {}),
   });
   const rows = [
     {
@@ -80,6 +90,7 @@ function fixture(operation: 'read' | 'list', root: boolean, nested: boolean, out
       })(req, model.modelName),
     };
   });
+  if (placement === 'default-after') runtime.setDefaultModelOptions(flags);
   return { ...services, adapter, hook };
 }
 
@@ -92,19 +103,22 @@ describe('real query/finalizer/helper snapshot comparisons', () => {
   it.each(
     ['read', 'list'].flatMap((operation) =>
       ['direct', 'public'].flatMap((entry) =>
-        Array.from({ length: 8 }, (_, mask) => ({
-          operation: operation as 'read' | 'list',
-          entry,
-          root: !!(mask & 1),
-          nested: !!(mask & 2),
-          output: !!(mask & 4),
-        })),
+        ['model', 'default-before', 'default-after'].flatMap((placement) =>
+          Array.from({ length: 8 }, (_, mask) => ({
+            operation: operation as 'read' | 'list',
+            entry,
+            placement: placement as 'model' | 'default-before' | 'default-after',
+            root: !!(mask & 1),
+            nested: !!(mask & 2),
+            output: !!(mask & 4),
+          })),
+        ),
       ),
     ),
   )(
-    '$operation/$entry: root=$root nested=$nested output=$output',
-    async ({ operation, entry, root, nested, output }) => {
-      const f = fixture(operation, root, nested, output);
+    '$operation/$entry/$placement: root=$root nested=$nested output=$output',
+    async ({ operation, entry, root, nested, output, placement }) => {
+      const f = fixture(operation, root, nested, output, placement);
       const counts = { root: 0, nested: 0, output: 0 };
       const matches = snapshots.matchesAuthorizationSnapshot;
       vi.spyOn(snapshots, 'matchesAuthorizationSnapshot').mockImplementation((value, snapshot) => {

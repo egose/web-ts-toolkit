@@ -264,20 +264,25 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
       };
       const pending = service.findOne({}, args as never);
       await entered;
+      let setterReads: number;
       try {
         expect(globals).toHaveBeenCalledTimes(1);
         expect(snapshots.length).toBe(2);
         snapshots.forEach((configuration) => assertMode(configuration, initial));
         f.api.setGlobalOption(flag, !initial);
+        const beforeSetter = globals.mock.calls.length;
         f.api.setModelOption(f.target.modelName, 'operationAccess.read', false);
+        // Configuration validation owns a separate synchronous globals read;
+        // the suspended call itself must still never recapture them.
+        setterReads = globals.mock.calls.length - beforeSetter;
       } finally {
         release();
       }
       await expect(pending).resolves.toMatchObject({ success: false, code: 'forbidden' });
-      expect(globals).toHaveBeenCalledTimes(1);
+      expect(globals).toHaveBeenCalledTimes(1 + setterReads);
       snapshots.forEach((configuration) => assertMode(configuration, initial));
       await expect(service.findOne({}, args as never)).resolves.toMatchObject({ success: false, code: 'forbidden' });
-      expect(globals).toHaveBeenCalledTimes(2);
+      expect(globals).toHaveBeenCalledTimes(2 + setterReads);
       expect(snapshots.length).toBe(4);
       snapshots.slice(2).forEach((configuration) => {
         assertMode(configuration, !initial);

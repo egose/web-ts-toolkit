@@ -18,7 +18,8 @@ describe('hydration configuration admission and shallow ownership', () => {
     api.createRouter(model);
     const initial = api.getModelOptions(name);
     api.setDefaultModelOption('hydration.publicRead', 'lean');
-    expect(api.getModelOptions(name).hydration).toEqual(initial.hydration);
+    expect(api.getModelOptions(name).hydration).toEqual({ ...initial.hydration, publicRead: 'lean' });
+    expect(initial.hydration).toEqual({ publicList: 'hydrated', find: 'lean' });
     api.setModelOptions(name, { hydration: { findOne: 'lean' } });
     expect(api.getModelOptions(name).hydration).toEqual({ findOne: 'lean' });
     api.setModelOption(name, 'hydration.findById', 'hydrated');
@@ -28,7 +29,7 @@ describe('hydration configuration admission and shallow ownership', () => {
     expect(api.getModelOptions(name).hydration).toEqual({ findOne: undefined, findById: 'hydrated' });
     expect(captured.hydration).toEqual({ findOne: 'lean', findById: 'hydrated' });
     api.setModelOption(name, 'hydration', undefined);
-    expect(api.getModelOptions(name).hydration).toBeUndefined();
+    expect(api.getModelOptions(name).hydration).toEqual({ publicList: 'hydrated', find: 'lean', publicRead: 'lean' });
     api.runtime.restoreBootstrapSnapshot(snapshot);
     expect(api.getModelOptions(name).hydration).toEqual(captured.hydration);
     const input = Object.assign(Object.create(null), { publicRead: 'lean' });

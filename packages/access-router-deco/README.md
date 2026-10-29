@@ -339,9 +339,10 @@ Within each class, option properties follow its class options. Records replace
 model record is `{ publicList: 'hydrated', publicRead: 'lean' }`; `find` uses its
 built-in hydrated mode, not the starting default. `@ModelOption('hydration')` and
 `@DefaultModelOption('hydration')` accept whole records; their five
-`hydration.<entry>` keys update just one stored member. Whole-record `undefined`
-clears the setting, and a member `undefined` clears that override. Later starting
-default changes do not broadcast into existing model records. Fresh service calls
+`hydration.<entry>` keys update just one stored member. Whole-model-record `undefined`
+restores default-model inheritance; whole-default-record `undefined` clears that default,
+and a member `undefined` clears that member override. Later default changes apply to
+inherited records, but never overwrite explicit model records. Fresh service calls
 capture the owning runtime's current configuration; in-flight calls retain theirs.
 
 The factory uses the server's canonical validation: only plain records, these

@@ -67,14 +67,18 @@ describe('HYD-05 decorator hydration configuration', () => {
         { findOne: 'lean', publicRead: 'lean' },
         { publicRead: 'lean' },
         { findOne: 'lean', publicList: 'hydrated' },
-        undefined,
+        { find: 'lean', findOne: 'lean', publicRead: 'lean' },
       ];
       expect(models.map((m) => factory.runtime.getModelOptions(m.modelName).hydration)).toEqual(expected);
       expect(factory.runtime.getDefaultModelOptions().hydration).toEqual(expected[0]);
 
-      // Starting defaults are not a second per-member inheritance layer or a broadcast.
+      // Inherited records follow defaults; explicit records are not a per-member inheritance layer.
       factory.runtime.setDefaultModelOption('hydration', { findById: 'lean' });
-      expect(models.map((m) => factory.runtime.getModelOptions(m.modelName).hydration)).toEqual(expected);
+      expect(models.map((m) => factory.runtime.getModelOptions(m.modelName).hydration)).toEqual([
+        { findById: 'lean' },
+        ...expected.slice(1, 4),
+        { findById: 'lean' },
+      ]);
       const later = model('HydDecoLater');
       factory.runtime.registerModelInstance(later.modelName, later);
       factory.runtime.setModelOptions(later.modelName, {});

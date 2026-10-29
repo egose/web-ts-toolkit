@@ -2,7 +2,7 @@
 import type { Model, Schema, SchemaType } from 'mongoose';
 import { get, isPlainObject } from '@web-ts-toolkit/utils';
 import type { AccessRuntime } from '../runtime';
-import type { GlobalOptions, ModelRouterOptions, Projection } from '../interfaces';
+import type { DefaultModelRouterOptions, GlobalOptions, ModelRouterOptions, Projection } from '../interfaces';
 import { normalizeSelect } from '../helpers/query';
 import { resolveNestedOption } from '../options/manager';
 import { copyAuthorizationValue } from './authorization-snapshot';
@@ -184,6 +184,7 @@ export function captureVirtualPopulateDependencies(
   modelName: string,
   options: ModelRouterOptions,
   globalOptions: GlobalOptions = runtime.getGlobalOptions(),
+  proposed?: { defaults: DefaultModelRouterOptions; models: ReadonlyMap<string, ModelRouterOptions> },
 ): VirtualPopulateSnapshot {
   // Normalize once for every target/scope. Only an explicit false is an opt-in.
   const requireOperationAccessForPopulateDependencies =
@@ -257,9 +258,10 @@ export function captureVirtualPopulateDependencies(
               runtime,
               ref,
               `dependsOnPopulate virtual "${label}"`,
-              ref === modelName ? options : undefined,
+              ref === modelName ? options : proposed?.models.get(ref),
+              proposed?.defaults,
             );
-            const defaults = runtime.getDefaultModelOptions();
+            const defaults = proposed?.defaults ?? runtime.getDefaultModelOptions();
             const readOption = (key: string) =>
               resolveNestedOption((path, fallback) => get(targetOptions, path, fallback), key, get(defaults, key));
             const documentPermissionField = targetOptions.documentPermissionField ?? defaults.documentPermissionField;

@@ -157,9 +157,15 @@ Four further independent flags are available:
 Read-to-list retries follow all three **READ** settings, not LIST settings. All six
 default to `false`, are captured before awaits, and warn independently on enablement.
 Configure them with `api.setModelOption` or
-`api.setDefaultModelOptions` before router creation; explicit per-model `false` wins
-over starting defaults. Restore `false` for new calls as soon as possible. Never
+`api.setDefaultModelOptions`; unspecified model flags inherit later default updates,
+including after router creation. Explicit per-model `false` wins over default `true`;
+model `undefined` restores inheritance. This precedence applies to all model-default
+options; object/array overrides replace shallowly. Restore `false` for new calls as soon as possible. Never
 derive these flags from request input.
+
+Inherited enablement warns once per effective model/flag transition, just like an
+explicit model setter. Defaults configured before model setup warn when applied to
+that model. Existing call/handle snapshots and mounted route paths do not change.
 
 Output/nested settings propagate recursively from the **initiating model**, not the
 target model's flags. Root-source, nested-source and output-value checks are independent;

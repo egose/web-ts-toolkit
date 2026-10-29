@@ -203,12 +203,23 @@ const options = {
 ```
 
 `router.options` is a frozen **construction-time snapshot**. Runtime option getters
-return frozen stored snapshots; read them again for current values. Ordinary plain
+return frozen effective snapshots; read them again for current values. Ordinary plain
 option containers are copied/frozen; hook functions, Mongoose models and other
 non-plain handles keep their identities, and the logger is retained by reference.
 Data has the stronger
 [data-specific ownership contract](#in-memory-data-ownership), including detached
 native-valued getter copies.
+
+Model options inherit `setDefaultModelOptions()` values unless explicitly overridden.
+Later default changes apply to unspecified model options for new work, including on
+already-created models. Explicit `false`, `null`, empty arrays and empty objects win;
+model `undefined` restores inheritance. Nested objects replace shallowly. For example,
+model `hydration: { find: 'lean' }` replaces the default hydration object rather than
+inheriting its other method keys. Default changes are validated before publication.
+Authorization exception: explicitly setting model `operationAccess: undefined`
+retains its existing **exact-key-only** runtime-default fallback; it does not inherit
+a runtime bare or `.default` catch-all guard. An omitted model `operationAccess`
+inherits normally. Existing route guard specificity rules otherwise remain unchanged.
 
 Route guards and request-schema lookups read live policy. A retained model service
 reads its originating runtime's current presentation options/defaults on each call;
@@ -270,13 +281,18 @@ acl.setModelOptions('User', {
 ```
 
 Set any flag to `false` with `setModelOption` to roll back for new calls.
-All flags can be set in `createRouter(Model, { ... })` or `setDefaultModelOptions`
-before model-router creation. Starting defaults do not overwrite existing models'
-stored settings; a per-model `false` overrides a starting default of `true`.
+All flags can be set in `createRouter(Model, { ... })` or `setDefaultModelOptions`.
+An unspecified model flag inherits the current default, even when defaults change
+after router/model setup. Explicit per-model `false` overrides default `true`;
+setting a model flag to `undefined` restores inheritance. This precedence applies
+to all default-model options, not only unsafe flags. Object/array options replace
+shallowly rather than deep-merging. Retained call/handle snapshots do not change.
 Prefer per-model opt-in rather than enabling it for every model. Use the owning
 `createAccessRuntime()` API instead of default `acl` for an isolated runtime.
 Only literal boolean `true` enables each flag. Enabling emits a logger warning once
-per model/flag transition, not per row/request. None is a global, per-call, HTTP/root
+per effective model/flag transition, including inherited enablement on an existing
+model. Setting defaults before model setup warns when applied to that model, not
+when the defaults alone are stored. No warning repeats per row/request. None is a global, per-call, HTTP/root
 entry, `options.authorization`, or `service.defaults` option.
 
 - **Independent scopes:** root-source flags do not relax descendant source checks;
@@ -414,7 +430,7 @@ export async function findThings(req: ModelRequest) {
 ```
 
 Supported writers are model construction/router setters,
-`api.runtime.setModelOptions` / `setModelOption`, and starting defaults through
+`api.runtime.setModelOptions` / `setModelOption`, and inherited defaults through
 `api.setDefaultModelOptions` / `setDefaultModelOption` (also on `api.runtime`).
 `GlobalOptions`, data/root router options, method `defaults`, `service.defaults`
 and client defaults are not hydration scopes. Decorator applications use the same
@@ -423,16 +439,17 @@ record through `@Router`, per-model/default `@RouterOptions`, `@ModelOption` and
 for its compiling configuration example.
 No dedicated hydration decorator is needed.
 
-Assignment follows `{ ...runtimeStartingDefaults, ...storedModelOptions,
-...incomingModelOptions }`: a supplied hydration record **replaces** the previous
-record, not individual members. Omitted/undefined entries use the matrix's
+An unspecified model hydration record inherits current runtime model defaults.
+A supplied model record **replaces** the inherited/previous record, not individual
+members. Omitted/undefined entries within that record use the matrix's
 built-ins, never an older record's members or generic nested `.default` lookup.
 For example, replacing `{ publicList: 'hydrated' }` with `{ find: 'lean' }`
 restores public lists to their built-in lean mode. The five exact
 `hydration.<entry>` setters change one stored member; member `undefined` clears
-that override and whole-record `undefined` clears the setting. Starting-default
-changes do not broadcast over an existing stored record. Default providers obey
-the same shallow semantics and existing decorator precedence.
+that member override. Whole-model-record `undefined` restores default-model
+inheritance; whole-default-record `undefined` clears the default. Later default
+updates apply to inherited records, but never overwrite explicit model records.
+Default providers obey the same shallow semantics and existing decorator precedence.
 
 Only plain records with those five keys and mode strings (or `undefined`) are
 valid; scalars, null, arrays, unknown keys and invalid modes throw a path-bearing

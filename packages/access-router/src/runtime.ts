@@ -29,7 +29,7 @@ import type {
   ModelRouterOptions,
 } from './interfaces';
 import { defaultLogger } from './logger-default';
-import { OptionsManager, getNestedOption } from './options/manager';
+import { OptionsManager, cloneOptionsSnapshot, getNestedOption } from './options/manager';
 import { DataOptionsManager } from './options/data-manager';
 import { emptyDataSnapshot } from './options/data-values';
 import { defaultRequestComplexity } from './request-complexity';
@@ -39,6 +39,7 @@ import {
   type ResolvedVirtualDescriptor,
 } from './acl/virtual-descriptor';
 import { captureVirtualPopulateDependencies } from './acl/virtual-populate-dependencies';
+import { unsafeSnapshotOptions } from './acl/unsafe-snapshot-options';
 
 type ModelReferenceMap = {
   [key: string]: string | ModelReferenceMap;
@@ -65,6 +66,15 @@ const FIELD_ACCESS_KEYS = ['list', 'create', 'read', 'update'] as const;
 const defaultModelOptions: ModelRouterOptions = {
   basePath: null,
   alwaysSelectFields: [],
+};
+
+/** Keep inherited values out of overrides. Cleared operationAccess retains its legacy exact-key fallback. */
+const modelOverrides = (options: ModelRouterOptions): ModelRouterOptions => {
+  const result = Object.fromEntries(
+    Object.entries(options).filter(([key, value]) => value !== undefined || key === 'operationAccess'),
+  );
+  for (const key of unsafeSnapshotOptions) if (key in result) result[key] = result[key] === true;
+  return cloneOptionsSnapshot(result) as ModelRouterOptions;
 };
 
 const defaultDataOptions: DataRouterOptions = {
@@ -248,12 +258,12 @@ const getNestedChildFields = (parentSchema: mongoose.Schema | null | undefined, 
   return fields;
 };
 
-const cloneVirtualsForValidation = <T>(value: T): T => {
-  if (Array.isArray(value)) return value.map((item) => cloneVirtualsForValidation(item)) as T;
+const cloneModelOptionForUpdate = <T>(value: T): T => {
+  if (Array.isArray(value)) return value.map((item) => cloneModelOptionForUpdate(item)) as T;
   if (!value || typeof value !== 'object') return value;
   if (Object.getPrototypeOf(value) !== Object.prototype) return value;
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, cloneVirtualsForValidation(v)]),
+    Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, cloneModelOptionForUpdate(v)]),
   ) as T;
 };
 
@@ -546,6 +556,8 @@ export class AccessRuntime {
   }).build();
 
   private readonly modelOptions: Record<string, OptionsManager<any, any>> = {};
+  private readonly modelOptionOverrides: Record<string, ModelRouterOptions> = {};
+  private pendingSnapshotWarnings?: Array<{ modelName: string; key: string }>;
   private readonly modelJsonSchemas: Record<string, Record<string, unknown>> = {};
   private readonly dataOptions: Record<string, OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>> = {};
   private readonly modelRefs: Record<string, ModelReferenceMap> = {};
@@ -634,6 +646,7 @@ export class AccessRuntime {
     globalOptions: GlobalOptions;
     defaultModelOptions: DefaultModelRouterOptions;
     modelOptions: Record<string, ModelRouterOptions>;
+    modelOptionOverrides: Record<string, ModelRouterOptions>;
     dataOptions: Record<string, DataRouterOptions>;
     modelInstances: Record<string, mongoose.Model<unknown>>;
     modelJsonSchemas: Record<string, Record<string, unknown>>;
@@ -654,6 +667,7 @@ export class AccessRuntime {
       globalOptions: this.globalOptions.snapshot() as GlobalOptions,
       defaultModelOptions: this.defaultModelOptions.snapshot() as DefaultModelRouterOptions,
       modelOptions: modelOptionsSnap,
+      modelOptionOverrides: { ...this.modelOptionOverrides },
       dataOptions: dataOptionsSnap,
       modelInstances: { ...this.modelInstances },
       modelJsonSchemas: { ...this.modelJsonSchemas },
@@ -675,6 +689,10 @@ export class AccessRuntime {
   restoreBootstrapSnapshot(snapshot: ReturnType<AccessRuntime['createBootstrapSnapshot']>): void {
     this.globalOptions.restore(snapshot.globalOptions as any);
     this.defaultModelOptions.restore(snapshot.defaultModelOptions as any);
+    for (const name of Object.keys(this.modelOptionOverrides)) delete this.modelOptionOverrides[name];
+    for (const [name, options] of Object.entries(snapshot.modelOptionOverrides)) {
+      this.modelOptionOverrides[name] = modelOverrides(options);
+    }
 
     // Restore or delete model managers to match snapshot keys exactly.
     for (const name of Object.keys(this.modelOptions)) {
@@ -689,8 +707,7 @@ export class AccessRuntime {
       } else {
         // Recreate manager for names that were removed (should not happen normally
         // because createModelOptions requires a registered model, but handles edge case).
-        const mgr = this.createModelOptions(name);
-        mgr.restore(opts as any);
+        const mgr = this.createModelOptions(name, opts);
         this.modelOptions[name] = mgr;
       }
     }
@@ -770,11 +787,15 @@ export class AccessRuntime {
     return this.globalOptions.get(key, defaultValue);
   }
 
-  /** Update model starting defaults shallowly; already-stored model values are not broadcast-replaced. */
+  /** Update inherited model defaults shallowly. Explicit model values and captured calls are unchanged. */
   setDefaultModelOptions(options: DefaultModelRouterOptions) {
     assertPublicDefaults((options as ModelRouterOptions).defaults);
     if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
-    this.defaultModelOptions.assign(options);
+    const draft = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>(
+      this.getDefaultModelOptions(),
+    ).build();
+    draft.assign(options);
+    this.publishDefaultModelOptions(draft.fetch());
   }
 
   setDefaultModelOption<K extends keyof ExtendedDefaultModelRouterOptions>(
@@ -782,20 +803,16 @@ export class AccessRuntime {
     value: ExtendedDefaultModelRouterOptions[K],
   ) {
     const keyStr = String(key);
+    const draft = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>(
+      this.getDefaultModelOptions(),
+    ).build();
     if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
-      this.defaultModelOptions.set(
-        'hydration',
-        normalizeHydrationUpdate(this.getDefaultModelOptions().hydration, keyStr, value),
-      );
-      return;
+      draft.set('hydration', normalizeHydrationUpdate(this.getDefaultModelOptions().hydration, keyStr, value));
+    } else {
+      draft.set(key, value);
     }
-    if (keyStr === 'defaults') assertPublicDefaults(value);
-    else if (keyStr.startsWith('defaults.')) {
-      const proposed = {};
-      set(proposed, keyStr.slice('defaults.'.length), value);
-      assertPublicDefaults(proposed);
-    }
-    this.defaultModelOptions.set(key, value);
+    assertPublicDefaults((draft.fetch() as ModelRouterOptions).defaults);
+    this.publishDefaultModelOptions(draft.fetch());
   }
 
   getDefaultModelOptions() {
@@ -809,7 +826,84 @@ export class AccessRuntime {
     return this.defaultModelOptions.get(key, defaultValue);
   }
 
-  private createModelOptions(modelName: string) {
+  private resolveModelOptions(
+    modelName: string,
+    overrides: ModelRouterOptions = this.modelOptionOverrides[modelName] ?? {},
+    defaults: DefaultModelRouterOptions = this.getDefaultModelOptions(),
+  ): ModelRouterOptions {
+    const effective = { ...defaultModelOptions, ...defaults, ...overrides, modelName };
+    effective.basePath = normalizeBasePath(modelName, effective.basePath);
+    for (const key of unsafeSnapshotOptions) effective[key] = effective[key] === true;
+    refreshPermissionMetadata(effective);
+    return cloneOptionsSnapshot(effective);
+  }
+
+  private validateModelOptions(
+    modelName: string,
+    options: ModelRouterOptions,
+    proposed?: Parameters<typeof captureVirtualPopulateDependencies>[4],
+  ): void {
+    validateVirtualsTree(
+      this.getModelInstance(modelName),
+      options.virtuals,
+      options.documentPermissionField ?? '_permissions',
+      modelName,
+    );
+    captureVirtualPopulateDependencies(this, modelName, options, this.getGlobalOptions(), proposed);
+  }
+
+  private publishDefaultModelOptions(options: DefaultModelRouterOptions): void {
+    const next = { ...options };
+    for (const key of unsafeSnapshotOptions) if (key in next) next[key] = next[key] === true;
+    const defaults = cloneOptionsSnapshot(next);
+    const models = new Map(
+      Object.keys(this.modelOptions).map((name) => [name, this.resolveModelOptions(name, undefined, defaults)]),
+    );
+    // Validate the entire proposed graph without making provisional policy visible to callbacks.
+    for (const [name, options] of models) this.validateModelOptions(name, options, { defaults, models });
+    this.deferSnapshotWarnings(() => {
+      this.defaultModelOptions.restore(defaults);
+      for (const [name, options] of models) this.modelOptions[name].restore(options);
+    });
+  }
+
+  private warnSnapshotFlag(modelName: string, key: string): void {
+    if (this.pendingSnapshotWarnings) {
+      this.pendingSnapshotWarnings.push({ modelName, key });
+      return;
+    }
+    const operation = key.startsWith('unsafeSkipRead') ? 'read' : 'list';
+    const category = key.includes('NestedDocument')
+      ? 'nested-document'
+      : key.includes('Output')
+        ? 'output'
+        : 'document';
+    const risk = category === 'output' ? 'output mutation' : 'source mutation';
+    try {
+      this.getGlobalOption('logger')?.warn?.(
+        `UNSAFE: ${operation} ${category} snapshot checks disabled; ${risk} can leave stale authorization decisions. Restore ${key}=false after the temporary workaround.`,
+        { modelName },
+      );
+    } catch {
+      // Logging must not change publication of an explicitly selected server mode.
+    }
+  }
+
+  private deferSnapshotWarnings<T>(publish: () => T): T {
+    if (this.pendingSnapshotWarnings) return publish();
+    const pending: Array<{ modelName: string; key: string }> = [];
+    this.pendingSnapshotWarnings = pending;
+    let result: T;
+    try {
+      result = publish();
+    } finally {
+      this.pendingSnapshotWarnings = undefined;
+    }
+    for (const { modelName, key } of pending) this.warnSnapshotFlag(modelName, key);
+    return result;
+  }
+
+  private createModelOptions(modelName: string, options = this.resolveModelOptions(modelName)) {
     const model = this.getModelInstance(modelName) as ExtendedModel | null;
 
     if (!model) {
@@ -818,30 +912,13 @@ export class AccessRuntime {
       );
     }
 
-    const manager = new OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>({
-      ...defaultModelOptions,
-      modelName,
-    });
+    const manager = new OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>(options);
 
     const snapshotFlagChanged = (newValue: unknown, key: string, target: ModelRouterOptions, oldValue: unknown) => {
       // Only an explicit server boolean opts out; truthy JS values are not authority.
       (target as Record<string, unknown>)[key] = newValue === true;
       if (newValue !== true || oldValue === true) return;
-      const operation = key.startsWith('unsafeSkipRead') ? 'read' : 'list';
-      const category = key.includes('NestedDocument')
-        ? 'nested-document'
-        : key.includes('Output')
-          ? 'output'
-          : 'document';
-      const risk = category === 'output' ? 'output mutation' : 'source mutation';
-      try {
-        this.getGlobalOption('logger')?.warn?.(
-          `UNSAFE: ${operation} ${category} snapshot checks disabled; ${risk} can leave stale authorization decisions. Restore ${key}=false after the temporary workaround.`,
-          { modelName },
-        );
-      } catch {
-        // Logging must not change publication of an explicitly selected server mode.
-      }
+      this.warnSnapshotFlag(modelName, key);
     };
 
     manager
@@ -874,8 +951,11 @@ export class AccessRuntime {
   ) {
     let manager = this.modelOptions[modelName];
     if (!manager) {
-      manager = this.createModelOptions(modelName);
-      this.modelOptions[modelName] = manager;
+      manager = this.deferSnapshotWarnings(() => {
+        const created = this.createModelOptions(modelName);
+        this.modelOptions[modelName] = created;
+        return created;
+      });
     }
 
     return manager as OptionsManager<
@@ -885,7 +965,8 @@ export class AccessRuntime {
   }
 
   /**
-   * Assign `{ ...modelDefaults, ...storedOptions, ...options }` shallowly. A supplied
+   * Update explicit model overrides shallowly; undefined restores default inheritance
+   * (operationAccess preserves its existing exact-key-only default fallback). A supplied
    * operationAccess/defaults object replaces that whole value. Defaults accept only
    * query/presentation settings; virtual configuration is validated before assignment.
    * Existing router.options remains its construction-time snapshot. Fresh model-service
@@ -897,22 +978,15 @@ export class AccessRuntime {
   ) {
     assertPublicDefaults(options.defaults);
     if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
-    const defaultOptions = this.getDefaultModelOptions() as ModelRouterOptions<TModel, TVirtuals>;
-    const currentModelOptions = this.modelOptions[modelName]?.fetch() ?? { ...defaultModelOptions, modelName };
-
-    const merged = { ...defaultOptions, ...currentModelOptions, ...options } as Record<string, unknown>;
-    const model = this.getModelInstance(modelName) as mongoose.Model<unknown> | null;
-    const permissionField =
-      (merged.documentPermissionField as string | undefined) ??
-      (currentModelOptions.documentPermissionField as string | undefined) ??
-      (this.getDefaultModelOption('documentPermissionField') as string | undefined) ??
-      '_permissions';
-    // Validate before commit; rejected mutations preserve the previous valid config.
-    validateVirtualsTree(model, merged.virtuals, permissionField, modelName);
-    captureVirtualPopulateDependencies(this, modelName, merged as ModelRouterOptions);
-
-    const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
-    manager.assign({ ...defaultOptions, ...currentModelOptions, ...options });
+    const overrides = modelOverrides({ ...this.modelOptionOverrides[modelName], ...options } as ModelRouterOptions);
+    const effective = this.resolveModelOptions(modelName, overrides);
+    this.validateModelOptions(modelName, effective);
+    this.deferSnapshotWarnings(() => {
+      const manager = this.modelOptions[modelName];
+      if (manager) manager.restore(effective);
+      else this.modelOptions[modelName] = this.createModelOptions(modelName, effective);
+      this.modelOptionOverrides[modelName] = overrides;
+    });
   }
 
   setModelOption<
@@ -923,8 +997,8 @@ export class AccessRuntime {
     const keyStr = String(key);
 
     if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
-      const hydration = normalizeHydrationUpdate(this.modelOptions[modelName]?.get('hydration'), keyStr, value);
-      this.getOrCreateModelOptions<TModel, TVirtuals>(modelName).set('hydration', hydration);
+      const hydration = normalizeHydrationUpdate(this.resolveModelOptions(modelName).hydration, keyStr, value);
+      this.setModelOptions(modelName, { hydration });
       return;
     }
 
@@ -935,57 +1009,21 @@ export class AccessRuntime {
       assertPublicDefaults(proposed);
     }
 
-    const manager = this.modelOptions[modelName];
-
-    if (keyStr === 'virtuals' || keyStr.startsWith('virtuals.') || keyStr === 'documentPermissionField') {
-      const model = this.getModelInstance(modelName) as mongoose.Model<unknown> | null;
-      const currentVirtuals = manager?.get('virtuals' as K) as unknown;
-      const currentPermissionField =
-        (manager?.get('documentPermissionField' as K) as string | undefined) ??
-        (this.getDefaultModelOption('documentPermissionField' as never) as string | undefined) ??
-        '_permissions';
-
-      let proposedVirtuals: unknown = currentVirtuals;
-      let proposedPermissionField = currentPermissionField;
-
-      if (keyStr === 'documentPermissionField') {
-        proposedPermissionField = value as string;
-      } else if (keyStr === 'virtuals') {
-        proposedVirtuals = value as unknown;
-      } else {
-        const cloned = cloneVirtualsForValidation(currentVirtuals ?? {});
-        const nestedPath = keyStr.slice('virtuals.'.length);
-        if (value === undefined) {
-          // Removal: delete the nested key so validation sees the remainder.
-          const segments = nestedPath.split('.');
-          let cursor: unknown = cloned;
-          for (let i = 0; i < segments.length - 1; i++) {
-            if (!isPlainObject(cursor)) break;
-            cursor = (cursor as Record<string, unknown>)[segments[i]];
-          }
-          if (isPlainObject(cursor)) {
-            delete (cursor as Record<string, unknown>)[segments[segments.length - 1]];
-          }
-          proposedVirtuals = cloned;
-        } else {
-          set(cloned as object, nestedPath, value as unknown);
-          proposedVirtuals = cloned;
-        }
-      }
-
-      validateVirtualsTree(model, proposedVirtuals, proposedPermissionField, modelName);
-      captureVirtualPopulateDependencies(this, modelName, {
-        ...this.getDefaultModelOptions(),
-        ...manager?.fetch(),
-        virtuals: proposedVirtuals,
-        documentPermissionField: proposedPermissionField,
-      } as ModelRouterOptions);
+    const [root, ...path] = keyStr.split('.');
+    if (!path.length) {
+      this.setModelOptions(modelName, { [root]: value } as ModelRouterOptions<TModel, TVirtuals>);
+      return;
     }
-
-    this.getOrCreateModelOptions<TModel, TVirtuals>(modelName).set(key, value);
+    const current = this.resolveModelOptions(modelName) as Record<string, unknown>;
+    const nested = cloneModelOptionForUpdate(isPlainObject(current[root]) ? current[root] : {});
+    if (root === 'virtuals' && value === undefined) {
+      const parent = path.length === 1 ? nested : get(nested, path.slice(0, -1));
+      if (isPlainObject(parent)) delete (parent as Record<string, unknown>)[path[path.length - 1]];
+    } else set(nested as object, path, value);
+    this.setModelOptions(modelName, { [root]: nested } as ModelRouterOptions<TModel, TVirtuals>);
   }
 
-  /** Frozen stored snapshot, not fully resolved per-path defaults. Read again for current configuration. */
+  /** Frozen effective model/default snapshot. Nested objects replace shallowly; read again for current policy. */
   getModelOptions<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     return manager.fetch() as ModelRouterOptions<TModel, TVirtuals>;

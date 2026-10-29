@@ -530,7 +530,7 @@ describe('OAV-02 model-default specificity and data independence', () => {
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({ base, basic, advanced });
   });
 
-  it('preserves copied model variant defaults and uses live exact defaults once the model value is undefined', async () => {
+  it('inherits live variant defaults, preserves explicit model rules, and retains router snapshots', async () => {
     const fixture = createFixture('model', topChecks('list'), {
       defaults: { list: false, basicList: true, advancedList: false },
     });
@@ -538,6 +538,16 @@ describe('OAV-02 model-default specificity and data independence', () => {
     fixture.runtime.setDefaultModelOption('operationAccess.list', true);
     fixture.runtime.setDefaultModelOption('operationAccess.basicList', false);
     fixture.runtime.setDefaultModelOption('operationAccess.advancedList', true);
+    expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
+      base: true,
+      basic: false,
+      advanced: true,
+    });
+    fixture.runtime.setModelOption(fixture.name, 'operationAccess', {
+      list: false,
+      basicList: true,
+      advancedList: false,
+    });
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
       base: false,
       basic: true,

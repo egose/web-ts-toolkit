@@ -371,8 +371,9 @@ export type HydrationMode = 'lean' | 'hydrated';
  * Set through ModelRouterOptions/DefaultModelRouterOptions and their whole-record
  * or exact hydration.<method> setters (including existing model/default decorators).
  * A supplied record replaces the previous record shallowly; omitted/undefined
- * members use built-ins, not an older/default record. Whole-record undefined clears
- * it. Invalid records/keys/modes throw before publication. Fresh calls observe owner
+ * members use built-ins, not an older/default record. Whole-model-record undefined
+ * restores default-model inheritance; default-record undefined clears that default.
+ * Invalid records/keys/modes throw before publication. Fresh calls observe owner
  * updates; in-flight calls retain their captured configuration.
  * Includes stay fixed lean; raw parents/lifecycle stages stay hydrated; subdocument
  * post-save visibility stays lean. Populate inherits its parent query; $$sq uses
@@ -395,7 +396,15 @@ export interface ModelHydrationOptions {
   findById?: HydrationMode;
 }
 
-/** Model starting defaults; data/root routers do not inherit these. Nested values assign shallowly. */
+/**
+ * Inherited model defaults; data/root routers do not inherit these. Unspecified model
+ * options follow later default updates for new calls. Explicit values (including false,
+ * null, empty objects/arrays) win; setting a model option to undefined restores inheritance.
+ * Exception: explicitly cleared operationAccess retains its exact-key-only default fallback;
+ * a runtime catch-all/default guard is not an exact fallback in that mode.
+ * Nested objects replace shallowly. Existing calls/handles and router.options keep their
+ * captured snapshots; changing defaults does not rebuild already-mounted route paths.
+ */
 export interface DefaultModelRouterOptions<TModel = unknown> {
   /**
    * Default business-field policy when a model's permissionSchema is undefined.
@@ -509,7 +518,7 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * trusted non-mutating hooks, measure before rollout and restore `false` promptly.
    * Embedded/related source stages use separate nested flags. Writes (including
    * read-like output) and fresh helpers stay strict. Warns per model/flag transition.
-   * Server model or model-starting-default configuration only; never method defaults
+   * Server model or inherited model-default configuration only; never method defaults
    * or wire options.
    */
   unsafeSkipReadDocumentSnapshotChecks?: boolean;
@@ -520,7 +529,7 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * scalar/native in-place mutations can now reuse stale decisions and expose data.
    * Source checks are independent. Initial snapshots and detached copies remain.
    * Captured before awaits; handles keep this mode after rollback. Only literal `true`
-   * in server model/starting-default configuration enables it and warns on transition.
+   * in server model/default configuration enables it and warns on effective transition.
    * READ/retries use unsafeSkipReadOutputSnapshotChecks; writes and fresh helpers stay
    * strict. Never set from request/per-call/method defaults. Revisit/remove promptly.
    */
@@ -531,7 +540,7 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * embedded/populated/included outputs. Uses the initiating READ model's captured
    * setting, not LIST or target-model settings. Value mutations may reuse stale
    * decisions; exact ownership/graph identities and permissions still run. Server
-   * model/starting-default literal `true` only; warns on enablement. Retained handles
+   * model/default literal `true` only; warns on effective enablement. Retained handles
    * keep their mode. Writes/fresh helpers stay strict. Revisit/remove promptly.
    */
   unsafeSkipReadOutputSnapshotChecks?: boolean;
@@ -542,7 +551,7 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * flags. Parent source and all output-value checks remain independently configured;
    * parent snapshots still include nested values. Permission rules, exact binding,
    * initial snapshots and detached copies remain. Child mutation can leave stale
-   * grants/decisions and expose data. Only server model/starting-default literal `true`
+   * grants/decisions and expose data. Only server model/default literal `true`
    * enables it; warns on transition. Rollback affects new calls, not captured descendants
    * or handles. READ uses its own flag; writes, dedicated subdocument operations and
    * fresh helpers stay strict. Never derive from requests. Revisit/remove promptly.
@@ -555,7 +564,7 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * initiating READ model's captured setting, independently of LIST, root source
    * and output-value flags. Parent comparisons may still observe child mutation.
    * Stale grants/decisions can expose data; permissions, identities and detached copies
-   * remain. Server model/starting-default literal `true` only; warns on enablement.
+   * remain. Server model/default literal `true` only; warns on effective enablement.
    * Writes/dedicated subdocument operations/fresh helpers stay strict; retained handles
    * keep their mode after rollback. Never set from requests. Revisit/remove promptly.
    */
