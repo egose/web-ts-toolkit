@@ -196,7 +196,7 @@ importers:
         version: 8.0.4
       jose:
         specifier: ^6.1.0
-        version: 6.2.10
+        version: 6.2.14
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -684,7 +684,7 @@ importers:
     dependencies:
       jose:
         specifier: ^6.1.0
-        version: 6.2.10
+        version: 6.2.14
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -902,7 +902,7 @@ importers:
         version: 8.0.4
       jose:
         specifier: ^6.1.0
-        version: 6.2.10
+        version: 6.2.14
     devDependencies:
       '@types/node':
         specifier: ^26.2.0
@@ -7491,8 +7491,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jose@6.2.10:
-    resolution: {integrity: sha512-iiW7J9qRFlGxvCOIBDBDxFePQSn7ZMAnrYGhrrOo6siO/MIqwfyilLR27pkfDgUk+raLuzADS8A3S/KLBisc0g==}
+  jose@6.2.14:
+    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -17482,7 +17482,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jose@6.2.10: {}
+  jose@6.2.14: {}
 
   joycon@3.1.1: {}
 
