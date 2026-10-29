@@ -1,4 +1,5 @@
 /** Private document/stage owners; independent of the shared immutable call policy. */
+import { types } from 'node:util';
 import type { AccessRouterRequest } from '../interfaces/request';
 import type { ModelHookContext } from '../interfaces/base';
 import type { AccessRouterPermissions } from '../permission';
@@ -24,6 +25,9 @@ import {
   matchesAuthorizationSnapshot,
   outputIdentities,
 } from './authorization-snapshot';
+import type { VirtualProjectionPlan } from './virtual-projection';
+import { copyOutputDecisionFields, readStaticOutputPlanFields } from './output-projection';
+import { staticFieldPolicy, prepareStaticOutputPaths, type StaticOutputPath } from './output-field-policy';
 
 declare const documentStageBrand: unique symbol;
 export interface DocumentAuthorizationStage {
@@ -43,16 +47,21 @@ export type DocumentFieldDecision = (
 ) => boolean | Promise<boolean>;
 
 interface StageRecord {
-  call: ResolvedServiceAuthorization;
-  binding: AuthorizationBinding;
-  input: object;
-  snapshot: Readonly<Record<string, unknown>>;
+  readonly call: ResolvedServiceAuthorization;
+  readonly binding: AuthorizationBinding;
+  readonly input: object;
+  readonly snapshot: Readonly<Record<string, unknown>>;
   result?: Promise<DocumentAuthorization>;
 }
 interface DocumentRecord {
   stage: DocumentAuthorizationStage;
   grants: Grants;
-  decisions: Map<string, Promise<boolean>>;
+  decisions: Map<string, FieldDecisionRecord>;
+}
+interface FieldDecisionRecord {
+  readonly promise: Promise<boolean>;
+  state: 'pending' | 'fulfilled' | 'rejected';
+  value?: boolean;
 }
 interface OutputRecord {
   handle: DocumentAuthorization;
@@ -62,6 +71,34 @@ interface OutputRecord {
 const stages = new WeakMap<DocumentAuthorizationStage, StageRecord>();
 const documents = new WeakMap<DocumentAuthorization, DocumentRecord>();
 const outputs = new WeakMap<object, OutputRecord>();
+const unresolvedDocuments = new WeakSet<DocumentAuthorization>();
+const owningDocuments = new WeakMap<
+  DocumentAuthorization,
+  { handle: DocumentAuthorization; binding: AuthorizationBinding }
+>();
+
+/** Private resolution handoff; no authority is attached to the output or public plan. */
+export function bindOutputDocumentOwner(
+  handle: DocumentAuthorization,
+  knownOutput?: boolean,
+  owner?: DocumentAuthorization,
+  binding?: AuthorizationBinding,
+): void {
+  lookupDocumentOwner(handle);
+  if (knownOutput || (owner && unresolvedDocuments.has(owner))) unresolvedDocuments.add(handle);
+  if (owner) {
+    lookupDocumentOwner(owner);
+    owningDocuments.set(handle, { handle: owner, binding: binding! });
+  }
+}
+
+export function readOutputDocumentOwner(handle: DocumentAuthorization) {
+  return owningDocuments.get(handle);
+}
+
+export function isUnresolvedOutputDocument(handle: DocumentAuthorization): boolean {
+  return unresolvedDocuments.has(handle);
+}
 
 /** Callable private admission seam for the later named helper overloads. No field evaluation. */
 export function normalizeOutputAuthorizationOptions(
@@ -99,7 +136,7 @@ export function normalizeOutputAuthorizationOptions(
       authorizationError('document handle cannot be mixed with raw policy/scope');
     }
     const handle = value.documentAuthorization as DocumentAuthorization;
-    const stage = stageRecord(documentRecord(handle).stage);
+    const { stage } = validateDocumentOwner(handle);
     // Public handle overloads have no scope option: derive it from the authenticated
     // owner, while still checking the service's request/runtime/model identities.
     const binding = Object.freeze({ ...input.binding, scopePath: stage.binding.scopePath });
@@ -124,18 +161,36 @@ export function normalizeOutputAuthorizationOptions(
   });
 }
 
-function stageRecord(stage: DocumentAuthorizationStage): StageRecord {
+/** Owner lookup authenticates identity only, never the current document values. */
+function lookupStageOwner(stage: DocumentAuthorizationStage): StageRecord {
   const record = stages.get(stage);
   if (!record) authorizationError('invalid document stage');
-  if (!matchesAuthorizationSnapshot(record.input, record.snapshot)) authorizationError('changed document snapshot');
   return record;
 }
 
-function documentRecord(handle: DocumentAuthorization): DocumentRecord {
+function lookupDocumentOwner(handle: DocumentAuthorization): DocumentRecord {
   const record = documents.get(handle);
   if (!record) authorizationError('invalid document handle');
-  stageRecord(record.stage);
   return record;
+}
+
+function validateStageOwner(record: StageRecord): void {
+  if (!matchesAuthorizationSnapshot(record.input, record.snapshot)) authorizationError('changed document snapshot');
+}
+
+/** Retain both legacy observations: even an ordinary own-data graph can execute
+ * application code during normalization (e.g. Symbol.hasInstance) or Node equality
+ * (e.g. an inherited Symbol.toStringTag getter). The first match may itself
+ * change an earlier source value; ordinary shape does not prove passivity.
+ * A returned owner is not a validation certificate across binding reads,
+ * native/grant copies, callbacks or microtasks; their later checks stay separate.
+ */
+function validateDocumentOwner(handle: DocumentAuthorization) {
+  const document = lookupDocumentOwner(handle);
+  const stage = lookupStageOwner(document.stage);
+  validateStageOwner(stage);
+  validateStageOwner(stage);
+  return { document, stage };
 }
 
 /** Accept the untrimmed projected plain snapshot, not a hydrated persistence document. */
@@ -147,11 +202,13 @@ export function createDocumentAuthorizationStage(
   assertAuthorizationBinding(call, binding);
   authorizationRecord(projectedSnapshot, 'projected document snapshot');
   const stage = Object.freeze(Object.create(null)) as DocumentAuthorizationStage;
+  const ownedBinding = Object.freeze({ ...binding, scopePath: Object.freeze([...(binding.scopePath ?? [])]) });
+  const snapshot = copyAuthorizationValue(projectedSnapshot, 'document');
   stages.set(stage, {
     call,
-    binding: Object.freeze({ ...binding, scopePath: Object.freeze([...(binding.scopePath ?? [])]) }),
+    binding: ownedBinding,
     input: projectedSnapshot,
-    snapshot: copyAuthorizationValue(projectedSnapshot, 'document'),
+    snapshot,
   });
   return stage;
 }
@@ -163,7 +220,8 @@ export function assertDocumentAuthorizationStage(
   binding: AuthorizationBinding,
   projectedSnapshot: object,
 ): void {
-  const record = stageRecord(stage);
+  const record = lookupStageOwner(stage);
+  validateStageOwner(record);
   assertAuthorizationBinding(record.call, binding);
   if (
     record.call !== call ||
@@ -179,10 +237,11 @@ export function resolveDocumentAuthorization(
   stage: DocumentAuthorizationStage,
   resolveGrants: DocumentGrantResolver,
 ): Promise<DocumentAuthorization> {
-  const record = stageRecord(stage);
+  const record = lookupStageOwner(stage);
+  validateStageOwner(record);
   if (!record.result) {
     record.result = Promise.resolve().then(async () => {
-      stageRecord(stage);
+      validateStageOwner(record);
       const result = resolveGrants.call(
         record.binding.request,
         copyAuthorizationValue(record.snapshot, 'document'),
@@ -190,7 +249,7 @@ export function resolveDocumentAuthorization(
       );
       // Synchronous hook results are owned before yielding to another microtask.
       const grants = result && typeof (result as Promise<Grants>).then === 'function' ? await result : result;
-      stageRecord(stage);
+      validateStageOwner(record);
       const ownedGrants = copyAuthorizationValue(authorizationRecord(grants, 'document grants'));
       const handle = Object.freeze(Object.create(null)) as DocumentAuthorization;
       documents.set(handle, { stage, grants: ownedGrants, decisions: new Map() });
@@ -201,8 +260,7 @@ export function resolveDocumentAuthorization(
 }
 
 export function readDocumentAuthorization(handle: DocumentAuthorization, binding: AuthorizationBinding) {
-  const record = documentRecord(handle);
-  const stage = stageRecord(record.stage);
+  const { document: record, stage } = validateDocumentOwner(handle);
   assertAuthorizationBinding(stage.call, binding);
   return Object.freeze({
     authorization: stage.call,
@@ -214,8 +272,7 @@ export function readDocumentAuthorization(handle: DocumentAuthorization, binding
 
 /** Identity/access-only consumers must still validate the document snapshot and call binding. */
 export function readDocumentAuthorizationAccess(handle: DocumentAuthorization, binding: AuthorizationBinding) {
-  const record = documentRecord(handle);
-  const stage = stageRecord(record.stage);
+  const { document: record, stage } = validateDocumentOwner(handle);
   return Object.freeze({
     authorization: stage.call,
     stage: record.stage,
@@ -230,35 +287,227 @@ export function memoizeDocumentFieldDecision(
   field: string,
   evaluate: DocumentFieldDecision,
 ): Promise<boolean> {
-  const record = documentRecord(handle);
-  const stage = stageRecord(record.stage);
+  const { document: record, stage } = validateDocumentOwner(handle);
   assertAuthorizationBinding(stage.call, binding);
   let decision = record.decisions.get(field);
   if (decision) {
     // A settled/pending hit must not outlive mutation between lookup and use.
     // Keep the immediate checks above as well as this asynchronous boundary.
-    return decision.then((result) => {
-      stageRecord(record.stage);
+    return decision.promise.then((result) => {
+      validateStageOwner(stage);
       assertAuthorizationBinding(stage.call, binding);
       return result;
     });
   } else {
-    decision = Promise.resolve().then(async () => {
-      stageRecord(record.stage);
-      assertAuthorizationBinding(stage.call, binding);
-      const result = await evaluate.call(
-        stage.binding.request,
-        getAuthorizationPermissions(stage.call, binding),
-        copyAuthorizationValue(record.grants),
-      );
-      stageRecord(record.stage);
-      assertAuthorizationBinding(stage.call, binding);
-      if (typeof result !== 'boolean') authorizationError('field decision must be boolean');
-      return result;
-    });
+    const created: FieldDecisionRecord = {
+      state: 'pending',
+      promise: Promise.resolve().then(async () => {
+        validateStageOwner(stage);
+        assertAuthorizationBinding(stage.call, binding);
+        const result = await evaluate.call(
+          stage.binding.request,
+          getAuthorizationPermissions(stage.call, binding),
+          copyAuthorizationValue(record.grants),
+        );
+        validateStageOwner(stage);
+        assertAuthorizationBinding(stage.call, binding);
+        if (typeof result !== 'boolean') authorizationError('field decision must be boolean');
+        return result;
+      }),
+    };
+    // Track the retained promise itself, not the async evaluator's return: its
+    // promise-adoption microtasks are still a pending/ordering boundary.
+    void created.promise.then(
+      (value) => {
+        created.value = value;
+        created.state = 'fulfilled';
+      },
+      () => {
+        created.state = 'rejected';
+      },
+    );
+    decision = created;
     record.decisions.set(field, decision);
   }
-  return decision;
+  return decision.promise;
+}
+
+/** A batch cannot retain caller accessors/proxies/iterators as part of its owner tuple. */
+function ordinaryDecisionBinding(binding: AuthorizationBinding): boolean {
+  if (types.isProxy(binding) || Object.getPrototypeOf(binding) !== Object.prototype) return false;
+  for (const key of ['request', 'runtime', 'model', 'modelName', 'scopePath']) {
+    const slot = Object.getOwnPropertyDescriptor(binding, key);
+    if (slot && !('value' in slot)) return false;
+    if (!slot && key !== 'scopePath') return false;
+    if (!slot && key in binding) return false;
+  }
+  const scope = Object.getOwnPropertyDescriptor(binding, 'scopePath')?.value;
+  return scope === undefined || copyOutputDecisionFields(scope) !== undefined;
+}
+
+interface StaticDecisionPath {
+  readonly field: string;
+  readonly outputKey?: string;
+  readonly policy?: StaticOutputPath;
+}
+
+/** CLOSED synchronous decision-only operation, not a callback/token/bypass scope.
+ * The body sees only local primitive descriptors and package-owned memo records.
+ * Validation (including native wire execution/reentry) is entirely outside it.
+ * A speculative journal makes whole-batch fallback atomic: pending/rejected or
+ * dynamic routes never prepopulate later fields or overwrite an earlier memo.
+ */
+function settleStaticFieldBatch(
+  handle: DocumentAuthorization,
+  binding: AuthorizationBinding,
+  paths: readonly StaticDecisionPath[],
+): Map<string, boolean> | undefined {
+  const { document, stage } = validateDocumentOwner(handle);
+  // Validation itself can replace caller binding slots with getters/proxies.
+  // Re-prove descriptor-only admission before reading that tuple again.
+  if (!ordinaryDecisionBinding(binding)) {
+    validateDocumentOwner(handle);
+    return;
+  }
+  assertAuthorizationBinding(stage.call, binding);
+  const expected = new Map<string, FieldDecisionRecord | undefined>();
+  const journal = new Map<string, boolean>();
+  const result = new Map<string, boolean>();
+  const unresolved = unresolvedDocuments.has(handle);
+  let available = !owningDocuments.has(handle);
+
+  // BEGIN pure body: no document values, schema/plan/binding reads, actor
+  // methods, grant copies, application callbacks, native methods, .then or await.
+  const read = (key: string): boolean | undefined => {
+    const memo = document.decisions.get(key);
+    expected.set(key, memo);
+    if (memo) {
+      if (memo.state !== 'fulfilled') available = false;
+      return memo.value;
+    }
+    return journal.get(key);
+  };
+  for (const path of paths) {
+    if (!available) break;
+    let allowed = path.outputKey ? read(path.outputKey) : undefined;
+    if (!available) break;
+    if (allowed === undefined) {
+      const policy = path.policy;
+      if (!policy) {
+        available = false;
+        break;
+      }
+      if (path.outputKey && unresolved && !policy.granted) allowed = false;
+      else if (path.outputKey && policy.backendGrant) allowed = true;
+      else {
+        allowed = true;
+        for (const entry of policy.entries) {
+          let decision = read(entry.key);
+          if (!available) break;
+          if (decision === undefined) {
+            decision = entry.allowed;
+            journal.set(entry.key, decision);
+          }
+          if (!decision) {
+            allowed = false;
+            break;
+          }
+        }
+      }
+      if (!available) break;
+      if (path.outputKey) journal.set(path.outputKey, allowed);
+    }
+    result.set(path.field, allowed);
+  }
+  // END pure body. No validity is ambient, even during the checks below.
+
+  validateDocumentOwner(handle);
+  if (!ordinaryDecisionBinding(binding)) return;
+  assertAuthorizationBinding(stage.call, binding);
+  // A serializer may have reentered and created a conflicting pending memo.
+  // Never replace it, even if it appeared during the post-body validation.
+  if (
+    !available ||
+    owningDocuments.has(handle) ||
+    unresolvedDocuments.has(handle) !== unresolved ||
+    [...expected].some(([key, memo]) => document.decisions.get(key) !== memo)
+  )
+    return;
+  for (const [key, value] of journal) {
+    document.decisions.set(key, { promise: Promise.resolve(value), state: 'fulfilled', value });
+  }
+  return result;
+}
+
+/** Internal finalizer/helper entry. No caller-supplied classifications/capabilities.
+ * Every invocation reauthenticates the handle/call and the planner's exact ordered
+ * primitive field set, then derives rules/catalog eligibility from private policy.
+ * Embedded ownership and mixed/string/coercible policy conservatively fall back.
+ */
+export function tryStaticOutputFieldDecisions(
+  handle: DocumentAuthorization,
+  binding: AuthorizationBinding,
+  plan: VirtualProjectionPlan,
+  fields: readonly string[],
+): Map<string, boolean> | undefined {
+  const document = lookupDocumentOwner(handle);
+  const stage = lookupStageOwner(document.stage);
+  if (!ordinaryDecisionBinding(binding) || owningDocuments.has(handle)) return;
+  assertAuthorizationBinding(stage.call, binding);
+  const canonical = readStaticOutputPlanFields(plan, stage.call);
+  const ownedFields = copyOutputDecisionFields(fields);
+  if (!canonical || !ownedFields) return;
+  let index = 0;
+  for (const field of ownedFields) {
+    const next = canonical.indexOf(field, index);
+    if (next < 0) return;
+    index = next + 1;
+  }
+  const prefix = (binding.scopePath ?? []).join('.');
+  const paths = ownedFields.map((field) => {
+    const path = prefix ? `${prefix}.${field}` : field;
+    return { field, path, outputKey: `output:${path}` };
+  });
+  const missing: string[] = [];
+  // Output memo precedes even configuration preparation. A failure/pending result
+  // must be awaited by the legacy path, never recomputed from current policy.
+  for (const path of paths) {
+    const memo = document.decisions.get(path.outputKey);
+    if (memo && memo.state !== 'fulfilled') return;
+    if (!memo) missing.push(path.path);
+  }
+  const access = readServiceAuthorizationAccess(stage.call, binding).outputAccess;
+  const prepared = missing.length ? prepareStaticOutputPaths(stage.call, binding, missing, access) : [];
+  if (!prepared) return;
+  const policies = new Map(prepared.map((policy) => [policy.path, policy]));
+  const decisions = settleStaticFieldBatch(
+    handle,
+    binding,
+    paths.map((path) => ({ ...path, policy: policies.get(path.path) })),
+  );
+  if (decisions && !readStaticOutputPlanFields(plan, stage.call)) authorizationError('changed static output plan');
+  return decisions;
+}
+
+/** Request-only metadata uses the same ordered request keys, never backend grants. */
+export function tryStaticRequestFieldPaths(
+  handle: DocumentAuthorization,
+  binding: AuthorizationBinding,
+  access: string,
+): string[] | undefined {
+  const document = lookupDocumentOwner(handle);
+  const stage = lookupStageOwner(document.stage);
+  if (!ordinaryDecisionBinding(binding) || owningDocuments.has(handle) || typeof access !== 'string') return;
+  const policy = staticFieldPolicy(stage.call, binding);
+  if (!policy?.reusable || !policy.requestPaths) return;
+  const prepared = prepareStaticOutputPaths(stage.call, binding, policy.requestPaths, access, true);
+  if (!prepared) return;
+  const decisions = settleStaticFieldBatch(
+    handle,
+    binding,
+    prepared.map((policy) => ({ field: policy.path, policy })),
+  );
+  return decisions && [...decisions].filter(([, allowed]) => allowed).map(([field]) => field);
 }
 
 export interface DocumentAuthorizationUse {
@@ -280,8 +529,7 @@ function unchangedOutput(output: object, record: OutputRecord): boolean {
 }
 
 export function assertDocumentAuthorization(handle: DocumentAuthorization, use: DocumentAuthorizationUse): void {
-  const record = documentRecord(handle);
-  const stage = stageRecord(record.stage);
+  const { document: record, stage } = validateDocumentOwner(handle);
   assertAuthorizationBinding(stage.call, use.binding);
   if (
     (use.authorization !== undefined && stage.call !== use.authorization) ||
@@ -302,8 +550,8 @@ export function associateDocumentAuthorization(
   binding: AuthorizationBinding,
   output: object,
 ): void {
-  const record = documentRecord(handle);
-  assertAuthorizationBinding(stageRecord(record.stage).call, binding);
+  const { stage } = validateDocumentOwner(handle);
+  assertAuthorizationBinding(stage.call, binding);
   if (!output || typeof output !== 'object') authorizationError('output must be an object');
   // An existing association cannot be refreshed to legitimize a mutation or change owners.
   if (outputs.has(output)) {
@@ -341,7 +589,7 @@ export function getAssociatedDocumentAuthorization(
 ): DocumentAuthorization | undefined {
   const record = outputs.get(output);
   if (!record || !unchangedOutput(output, record)) return undefined;
-  const stage = stageRecord(documentRecord(record.handle).stage);
+  const { stage } = validateDocumentOwner(record.handle);
   if (call && getAuthorizationProvenance(stage.call) !== getAuthorizationProvenance(call)) return undefined;
   return record.handle;
 }
@@ -364,15 +612,19 @@ export function transferDocumentAuthorizationGraph(
     if (!original && !copyOrigins) return;
     const association = original && outputs.get(original);
     if (association) {
-      const stage = stageRecord(documentRecord(association.handle).stage);
+      const { document, stage } = validateDocumentOwner(association.handle);
+      const outputAccess = readServiceAuthorizationAccess(stage.call, stage.binding).outputAccess;
+      // Keep the later check after access validation, independently of the
+      // adjacent owner reads above (native matching may itself execute code).
+      validateStageOwner(stage);
       transferDocumentAuthorization(
         association.handle,
         {
           binding: stage.binding,
           output: original!,
-          outputAccess: readServiceAuthorizationAccess(stage.call, stage.binding).outputAccess,
+          outputAccess,
           authorization: stage.call,
-          stage: documentRecord(association.handle).stage,
+          stage: document.stage,
         },
         copy,
       );
@@ -400,7 +652,8 @@ export function createServiceOutputContext(
   const rootOutput = use.output;
   const root = outputs.get(rootOutput)!;
   const graph = new Set(root.identities);
-  const call = stageRecord(documentRecord(handle).stage).call;
+  const { stage } = validateDocumentOwner(handle);
+  const call = stage.call;
   const context = { ...diagnostic } as ServiceOutputContext;
   Object.defineProperties(context, {
     documentAuthorization: { value: handle, enumerable: false, writable: false, configurable: false },
@@ -413,8 +666,8 @@ export function createServiceOutputContext(
         const association = outputs.get(output);
         if (!association || !unchangedOutput(output, association)) return undefined;
         try {
-          documentRecord(handle);
-          const child = stageRecord(documentRecord(association.handle).stage);
+          validateStageOwner(lookupStageOwner(lookupDocumentOwner(handle).stage));
+          const { stage: child } = validateDocumentOwner(association.handle);
           if (getAuthorizationProvenance(child.call) !== getAuthorizationProvenance(call)) return undefined;
           return association.handle;
         } catch {

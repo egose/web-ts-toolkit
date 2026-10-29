@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@clack/prompts':
+        specifier: 1.7.0
+        version: 1.7.0
       '@commitlint/cli':
         specifier: ^21.2.3
         version: 21.2.4(conventional-commits-parser@6.4.0)(typescript@6.0.3)

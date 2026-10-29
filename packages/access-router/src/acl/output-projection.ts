@@ -1,4 +1,5 @@
 /** Canonical, schema-backed output planning. Retain this plan through finalization. */
+import { types } from 'node:util';
 import type { Projection } from '../interfaces';
 import type { FieldAuthorization } from '../interfaces/service-authorization';
 import { normalizeSelect } from '../helpers/query';
@@ -23,6 +24,55 @@ import {
   type VirtualProjectionPlan,
   type VirtualProjectionSnapshot,
 } from './virtual-projection';
+
+// Only this authenticated planner issues field-set ownership. Public mutable
+// arrays/flags, copied plans and caller-provided rule descriptors cannot issue it.
+const staticPlanFields = new WeakMap<
+  VirtualProjectionPlan,
+  {
+    authorization: ResolvedServiceAuthorization;
+    binding: AuthorizationBinding;
+    persisted: readonly string[];
+    virtuals: readonly string[];
+    children: VirtualProjectionPlan['childPlans'];
+  }
+>();
+
+/** Descriptor-only admission: copy exact ordered primitive strings, never an iterator/getter. */
+export function copyOutputDecisionFields(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value) || types.isProxy(value) || Object.getPrototypeOf(value) !== Array.prototype) return;
+  const length = Object.getOwnPropertyDescriptor(value, 'length')!.value as number;
+  if (length > 20000) return;
+  const fields: string[] = [];
+  for (let index = 0; index < length; index++) {
+    const slot = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!slot || !('value' in slot) || typeof slot.value !== 'string') return;
+    fields.push(slot.value);
+  }
+  return Object.freeze(fields);
+}
+
+export function readStaticOutputPlanFields(
+  plan: VirtualProjectionPlan,
+  authorization: ResolvedServiceAuthorization,
+): readonly string[] | undefined {
+  const record = staticPlanFields.get(plan);
+  if (!record || record.authorization !== authorization || types.isProxy(plan)) return;
+  const ownValue = (key: string) => {
+    const slot = Object.getOwnPropertyDescriptor(plan, key);
+    return slot && 'value' in slot ? slot.value : undefined;
+  };
+  if (ownValue('authorization') !== authorization || ownValue('authorizationBinding') !== record.binding) return;
+  // Traversal is a dynamic boundary. Initial implementation falls back as a whole.
+  const children = ownValue('childPlans');
+  if (children !== record.children || types.isProxy(children) || Reflect.ownKeys(children).length) return;
+  const persisted = copyOutputDecisionFields(ownValue('outputPersistedFields'));
+  const virtuals = copyOutputDecisionFields(ownValue('outputVirtualNames'));
+  const same = (a: readonly string[] | undefined, b: readonly string[]) =>
+    a?.length === b.length && a.every((field, index) => field === b[index]);
+  if (!same(persisted, record.persisted) || !same(virtuals, record.virtuals)) return;
+  return Object.freeze([...new Set([...record.persisted, ...record.virtuals])]);
+}
 
 /** Positive Mongo projection with deterministic ordering and no ancestor/descendant collisions. */
 export function compactPersistedProjection(paths: readonly string[]): string[] {
@@ -65,6 +115,13 @@ export function planAuthorizedModelProjection(args: {
   // this plan with live options/permissions after an asynchronous hook.
   plan.authorization = args.authorization;
   plan.authorizationBinding = Object.freeze({ ...args.binding, scopePath: Object.freeze(scope) });
+  staticPlanFields.set(plan, {
+    authorization: args.authorization,
+    binding: plan.authorizationBinding,
+    persisted: Object.freeze([...plan.outputPersistedFields]),
+    virtuals: Object.freeze([...plan.outputVirtualNames]),
+    children: plan.childPlans,
+  });
   return plan;
 }
 

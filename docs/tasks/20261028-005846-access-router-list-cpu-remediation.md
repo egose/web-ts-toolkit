@@ -8,6 +8,15 @@ incompatible implementation was withdrawn. Cross-request config/catalog caching
 was also rejected by ARCPU-04's bounded investigation. All final package, type,
 decorator-consumer, lint and packaging checks passed; application latency is unmeasured.
 
+Follow-up: user-supplied benchmarks subsequently confirmed a large remaining
+v0.51.0 gap. The next measured phase targets repeated document snapshot validation:
+[`20261028-121231-access-router-snapshot-validation-cpu.md`](20261028-121231-access-router-snapshot-validation-cpu.md).
+The earlier completion evidence establishes correctness/config-copy reductions,
+not resolution of end-to-end performance.
+The follow-up measured phase now reports **5.59 times faster** 100-row wide lists,
+with dynamic-policy performance still near its before baseline; its final evidence
+and remaining historical gaps are recorded in the linked task.
+
 ## Objective and scope
 
 Reduce avoidable authorization/configuration copying and repeated work in model list

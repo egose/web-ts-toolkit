@@ -499,14 +499,10 @@ export function readServiceOutputPolicy(call: ResolvedServiceAuthorization, bind
 export function readServiceOutputFieldAuthorization(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
-  const reusable = (record.reusableFieldConfiguration ??=
-    hasStableConfigurationCopies(record.configuration.permissionSchema) &&
-    // Coercion methods can observe an object's identity even without native
-    // leaves. Keep those receivers local to the original resolution boundary.
-    (record.configuration.modelPermissionPrefix === null ||
-      typeof record.configuration.modelPermissionPrefix !== 'object'));
+  const reusable = reusableOutputFieldConfiguration(record);
   return Object.freeze({
     access: record.output.access,
+    catalog: record.output.catalog,
     outputFields: record.output.outputFields,
     reusable,
     ...copyAuthorizationValue(
@@ -517,6 +513,30 @@ export function readServiceOutputFieldAuthorization(call: ResolvedServiceAuthori
       true,
     ),
   });
+}
+
+function reusableOutputFieldConfiguration(record: CallRecord): boolean {
+  return (record.reusableFieldConfiguration ??=
+    hasStableConfigurationCopies(record.configuration.permissionSchema) &&
+    // Coercion methods can observe an object's identity even without native
+    // leaves. Keep those receivers local to the original resolution boundary.
+    (record.configuration.modelPermissionPrefix === null ||
+      typeof record.configuration.modelPermissionPrefix !== 'object'));
+}
+
+/** Same stored-source eligibility as the field reader, without an observable
+ * speculative native copy before falling back to the legacy field evaluator.
+ * Necessary, not sufficient: the field module must also prove each lookup route.
+ */
+export function canPrepareStaticOutputPolicy(
+  call: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+): boolean {
+  assertAuthorizationBinding(call, binding);
+  const record = callRecord(call);
+  return (
+    reusableOutputFieldConfiguration(record) && typeof (record.configuration.modelPermissionPrefix ?? '') === 'string'
+  );
 }
 
 export function getAuthorizationPermissions(
