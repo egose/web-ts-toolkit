@@ -536,12 +536,13 @@ const assert = require('node:assert/strict');
     for (const name of ['Service', 'DocumentAuthorization', 'ServiceAuthorization', 'resolveServiceAuthorization',
        'createServiceExecution', 'createDocumentAuthorizationStage', 'createServiceOutputContext',
        'prepareModelQuery', 'executePreparedFind', 'executeCreate', 'registerServiceExecutors',
-       'withExecutionHydration', 'normalizeHydration', 'normalizeHydrationUpdate', 'attachPermissionsAlias']) {
+       'withExecutionHydration', 'normalizeHydration', 'normalizeHydrationUpdate', 'attachPermissionsAlias',
+       'requiresDocumentSnapshotChecks', 'requiresOutputSnapshotChecks', 'unsafeSnapshotOptions']) {
       assert.equal(Object.hasOwn(entry, name), false, name + ' must not be a runtime escape hatch');
     }
   }
   for (const subpath of ['src/acl/service-authorization', 'src/acl/document-authorization',
-    'src/acl/service-execution', 'src/acl/prepared-query', 'dist/index.js']) {
+     'src/acl/service-execution', 'src/acl/prepared-query', 'src/acl/unsafe-snapshot-options', 'dist/index.js']) {
     assert.throws(() => require.resolve('@web-ts-toolkit/access-router/' + subpath),
       { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
   }

@@ -7,6 +7,7 @@ import type {
   AuthorizationApplicability,
   AuthorizationRelatedTarget,
   ResolvedServiceAuthorization,
+  ResolveServiceAuthorizationInput,
 } from './service-authorization';
 import {
   assertAuthorizationBinding,
@@ -156,6 +157,7 @@ export function createServiceExecution<T, V extends object>(
   configuration?: AuthorizationConfiguration,
   requestPermissions?: AccessRouterPermissions,
   hydration: keyof ModelHydrationOptions | HydrationMode = access.operation === 'list' ? 'find' : 'findOne',
+  snapshotDerivation?: ResolveServiceAuthorizationInput['snapshotDerivation'],
 ): ServiceExecutionContext {
   const registered = getServiceExecutors(receiver);
   const receiving = registered.binding();
@@ -171,6 +173,7 @@ export function createServiceExecution<T, V extends object>(
     requestPermissions: requestPermissions ?? registered.permissions(),
     listResponse: access.operation === 'list' && parent === undefined,
     readResponse: access.operation === 'read' && parent === undefined,
+    snapshotDerivation,
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   executions.set(
@@ -267,6 +270,7 @@ export function deriveServiceExecution<T, V extends object>(
     // The resolver authenticates root-read provenance and the unchanged owner tuple.
     // Effective list access is still a read; write branches cannot inherit this marker.
     readResponse: record.access.operation === 'read' && access.operation === 'read',
+    snapshotDerivation: { kind: 'retry', parentBinding: record.binding },
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   executions.set(

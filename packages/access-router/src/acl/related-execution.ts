@@ -141,7 +141,7 @@ export function createRelatedExecution<T, V extends object>(
   const captured = readServiceAuthorization(parent, binding);
   const target = captured.relatedTargets.find((entry) => entry.path === path);
   const policy = captured.authorization.related[path];
-  if (policy && (!target || target.modelName !== getServiceExecutors(receiver).binding().modelName))
+  if ((target || policy) && (!target || target.modelName !== getServiceExecutors(receiver).binding().modelName))
     authorizationError(`related model mismatch: ${path}`);
   const execution = createServiceExecution(
     receiver,
@@ -152,6 +152,8 @@ export function createRelatedExecution<T, V extends object>(
     parent,
     target?.configuration,
     getAuthorizationPermissions(parent, binding),
+    access.operation === 'list' ? 'find' : 'findOne',
+    { kind: 'related', parentBinding: binding, path },
   );
   return target?.queryIntent ? withExecutionQueryIntent(receiver, execution, target.queryIntent) : execution;
 }

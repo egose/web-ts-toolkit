@@ -59,6 +59,10 @@ export interface AuthorizationConfiguration {
   /** Captured server model option; alone it never issues relaxed document authority. */
   readonly unsafeSkipListDocumentSnapshotChecks?: boolean;
   readonly unsafeSkipReadDocumentSnapshotChecks?: boolean;
+  readonly unsafeSkipListOutputSnapshotChecks?: boolean;
+  readonly unsafeSkipReadOutputSnapshotChecks?: boolean;
+  readonly unsafeSkipListNestedDocumentSnapshotChecks?: boolean;
+  readonly unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   /** Runtime-owned private input admission mode, not public output/related authority. */
@@ -145,6 +149,10 @@ interface CallRecord {
   readonly validateDocumentSnapshots: boolean;
   /** Root-read origin, retained only by explicitly authenticated same-binding retries. */
   readonly readResponse: boolean;
+  readonly nestedResponse: boolean;
+  /** Only authenticated query descendants/retries inherit the initiating model's settings. */
+  readonly responseSnapshots?: Readonly<{ skipOutput: boolean; skipNested: boolean }>;
+  readonly validateOutputSnapshots: boolean;
 }
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
 
@@ -384,6 +392,64 @@ export interface ResolveServiceAuthorizationInput {
   readonly listResponse?: boolean;
   /** Package-only root-read/retry admission, not related/embedded or standalone helper authority. */
   readonly readResponse?: boolean;
+  /** Explicit package traversal, never inferred from a shared parent/provenance alone. */
+  readonly snapshotDerivation?: {
+    readonly kind: 'embedded' | 'related' | 'retry';
+    readonly parentBinding: AuthorizationBinding;
+    readonly path?: string;
+  };
+}
+
+function queryOutputAccess(access: AuthorizationAccess): boolean {
+  return (
+    (access.operation === 'read' || access.operation === 'list') &&
+    (access.rowAccess === 'read' || access.rowAccess === 'list') &&
+    access.outputAccess === access.rowAccess &&
+    access.virtualAccess === access.rowAccess &&
+    access.docPermissionsAccess === access.rowAccess
+  );
+}
+
+/** Authenticate the selected traversal edge; ordinary parent calls must remain strict. */
+function nestedQueryResponse(input: ResolveServiceAuthorizationInput, access: AuthorizationAccess): boolean {
+  const edge = input.snapshotDerivation;
+  if (!edge || !input.parent) return false;
+  assertAuthorizationBinding(input.parent, edge.parentBinding);
+  const parent = callRecord(input.parent);
+  if (
+    !parent.responseSnapshots ||
+    (input.applicability ?? 'service') !== 'service' ||
+    !queryOutputAccess(access) ||
+    !queryOutputAccess(parent.output.access)
+  )
+    return false;
+  if (edge.kind === 'retry') {
+    if (!parent.nestedResponse || access.operation !== 'read' || parent.output.access.operation !== 'read')
+      return false;
+    assertAuthorizationBinding(input.parent, input.binding);
+    return true;
+  }
+  if (edge.kind === 'related') {
+    const target = parent.relatedTargets.find((target) => target.path === edge.path);
+    return (
+      !!target &&
+      target.kind !== 'count' &&
+      target.modelName === input.binding.modelName &&
+      scope(input.binding).length === 0
+    );
+  }
+  if (edge.kind !== 'embedded') return false;
+  // Embedded scopes keep the exact owning model/access, and extend its response scope.
+  assertAuthorizationBinding(input.parent, { ...input.binding, scopePath: parent.binding.scopePath });
+  const childScope = scope(input.binding),
+    parentScope = scope(parent.binding);
+  return (
+    childScope.length > parentScope.length &&
+    parentScope.every((part, index) => childScope[index] === part) &&
+    Object.keys(parent.output.access).every(
+      (key) => access[key as keyof AuthorizationAccess] === parent.output.access[key as keyof AuthorizationAccess],
+    )
+  );
 }
 
 /** Synchronous capture must occur before any operation hook/await. Omitted policy is request-only. */
@@ -427,6 +493,32 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
   // A retry may retain its originating read mode, but a parent/callback alone must
   // not relax related models, child scopes or write-derived read-like output.
   if (readResponse && input.parent) assertAuthorizationBinding(input.parent, input.binding);
+  const nestedResponse = nestedQueryResponse(input, outputAccess);
+  const listResponse =
+    input.listResponse === true &&
+    input.parent === undefined &&
+    (input.applicability ?? 'service') === 'service' &&
+    scopePath.length === 0 &&
+    outputAccess.operation === 'list' &&
+    outputAccess.rowAccess === 'list' &&
+    queryOutputAccess(outputAccess);
+  // TEMPORARY UNSAFE: keep separate root-source, descendant-source and output-value modes.
+  // TODO: revisit/remove after measured query validation remediation. Never inherit from
+  // target model flags or an ambient request context (including service calls inside hooks).
+  const responseSnapshots =
+    input.parent && (nestedResponse || readResponse)
+      ? callRecord(input.parent).responseSnapshots
+      : listResponse
+        ? Object.freeze({
+            skipOutput: configuration.unsafeSkipListOutputSnapshotChecks === true,
+            skipNested: configuration.unsafeSkipListNestedDocumentSnapshotChecks === true,
+          })
+        : readResponse
+          ? Object.freeze({
+              skipOutput: configuration.unsafeSkipReadOutputSnapshotChecks === true,
+              skipNested: configuration.unsafeSkipReadNestedDocumentSnapshotChecks === true,
+            })
+          : undefined;
   const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
   calls.set(call, {
     binding: Object.freeze({ ...input.binding, scopePath: Object.freeze(scopePath) }),
@@ -439,6 +531,9 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
     permissions,
     provenance: input.parent ? callRecord(input.parent).provenance : call,
     readResponse,
+    nestedResponse,
+    responseSnapshots,
+    validateOutputSnapshots: responseSnapshots?.skipOutput !== true,
     validateDocumentSnapshots: !(
       (input.listResponse === true &&
         input.parent === undefined &&
@@ -448,7 +543,8 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
         outputAccess.outputAccess === 'list' &&
         scopePath.length === 0 &&
         configuration.unsafeSkipListDocumentSnapshotChecks === true) ||
-      (readResponse && configuration.unsafeSkipReadDocumentSnapshotChecks === true)
+      (readResponse && configuration.unsafeSkipReadDocumentSnapshotChecks === true) ||
+      (nestedResponse && responseSnapshots?.skipNested === true)
     ),
   });
   return call;
@@ -479,6 +575,12 @@ export function readServiceAuthorizationAccess(call: ResolvedServiceAuthorizatio
 export function requiresDocumentSnapshotChecks(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   return callRecord(call).validateDocumentSnapshots;
+}
+
+/** Output value comparisons only. Exact object associations and graph identities always run. */
+export function requiresOutputSnapshotChecks(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).validateOutputSnapshots;
 }
 
 /** Hydration is open configuration: detach this slice, never the unrelated call graph. */

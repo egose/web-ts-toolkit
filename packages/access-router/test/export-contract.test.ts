@@ -682,6 +682,9 @@ describe('AR-14 published export contract', () => {
         'DocumentAuthorizationStage',
         'resolveServiceAuthorization',
         'readServiceAuthorization',
+        'requiresDocumentSnapshotChecks',
+        'requiresOutputSnapshotChecks',
+        'unsafeSnapshotOptions',
         'serviceAuthorizationInput',
         'createDocumentAuthorizationStage',
         'resolveDocumentAuthorization',
@@ -727,6 +730,19 @@ describe('AR-14 published export contract', () => {
         expect(hover(context.getProperty('getDocumentAuthorization')!)).toContain('cannot issue new authority');
       }
       const router = type(entries[0], 'ModelRouter').value;
+      for (const option of [
+        'unsafeSkipListOutputSnapshotChecks',
+        'unsafeSkipReadOutputSnapshotChecks',
+        'unsafeSkipListNestedDocumentSnapshotChecks',
+        'unsafeSkipReadNestedDocumentSnapshotChecks',
+      ]) {
+        for (const name of ['ModelRouterOptions', 'DefaultModelRouterOptions']) {
+          const property = type(entries[0], name).value.getProperty(option)!;
+          expect(property, `${name}.${option} ships`).toBeDefined();
+          expect(hover(property)).toContain('TEMPORARY UNSAFE');
+          expect(hover(property)).toContain('default `false`');
+        }
+      }
       expect(hover(type(entries[0], 'ModelRouterOptions').value.getProperty('alwaysSelectFields')!)).toContain(
         'per-access record',
       );
