@@ -516,11 +516,17 @@ function _createMdxContent(props) {
         children: "api.setModelOption"
       }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "api.setDefaultModelOptions"
-      }), " before router creation; explicit per-model ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "; unspecified model flags inherit later default updates,\nincluding after router creation. Explicit per-model ", (0,jsx_runtime.jsx)(_components.code, {
         children: "false"
-      }), " wins\nover starting defaults. Restore ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " wins over default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), ";\nmodel ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " restores inheritance. This precedence applies to all model-default\noptions; object/array overrides replace shallowly. Restore ", (0,jsx_runtime.jsx)(_components.code, {
         children: "false"
       }), " for new calls as soon as possible. Never\nderive these flags from request input."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Inherited enablement warns once per effective model/flag transition, just like an\nexplicit model setter. Defaults configured before model setup warn when applied to\nthat model. Existing call/handle snapshots and mounted route paths do not change."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Output/nested settings propagate recursively from the ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "initiating model"
