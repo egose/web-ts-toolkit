@@ -105,6 +105,9 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
 
 export function matchesAuthorizationSnapshot(value: unknown, snapshot: unknown): boolean {
   try {
+    // The allocation-reduced tape regressed paired real-list CPU/latency, including
+    // dynamic policy. Keep the original normalizer/Node equality without a shape
+    // selector: normalization can run application hooks and must finish first.
     return isDeepStrictEqual(copyAuthorizationValue(value, 'document'), snapshot);
   } catch {
     return false;

@@ -453,9 +453,11 @@ describe('ARCPU-05 BSON wire compatibility', () => {
         if (kind === 'BSON version') {
           expect(() => roundTrip(source)).toThrow();
           expect(() => isolated.copyAuthorizationValue(source)).toThrow(isolated.ServiceAuthorizationError);
+          expect(isolated.matchesAuthorizationSnapshot(source, source)).toBe(false);
         } else {
           const expected = roundTrip(source);
           expect(isDeepStrictEqual(isolated.copyAuthorizationValue(source), expected)).toBe(true);
+          expect(isolated.matchesAuthorizationSnapshot({ source }, { source: expected })).toBe(true);
         }
       } finally {
         Object.defineProperty(prototype, key, descriptor);

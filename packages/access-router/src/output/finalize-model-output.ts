@@ -73,6 +73,7 @@ import {
   readDocumentAuthorization,
   readDocumentAuthorizationAccess,
   transferDocumentAuthorizationGraph,
+  tryStaticOutputFieldDecisions,
 } from '../acl/document-authorization';
 import type { DocumentAuthorizationStage } from '../acl/document-authorization';
 import {
@@ -86,6 +87,7 @@ import {
 } from '../acl/output-field-filter';
 import { evaluateEffectiveFieldAuthorization, extractScopedOutputRule } from '../acl/field-authorization';
 import { matchesCatalogPattern } from '../acl/field-catalog';
+import { readStaticOutputPlanFields } from '../acl/output-projection';
 import {
   getVirtualPopulateRow,
   hasVirtualPopulatePublicReference,
@@ -753,12 +755,28 @@ async function finalizeSingleDoc(
   //    membership. Metadata serialization stays at the caller boundary.
   const eligiblePersisted = new Set(plan.outputPersistedFields ?? []);
   const eligibleVirtuals = new Set(plan.outputVirtualNames ?? []);
+  const staticDecisions = documentAuthorization
+    ? tryStaticOutputFieldDecisions(documentAuthorization, binding!, plan, [...eligiblePersisted])
+    : undefined;
+  if (staticDecisions) {
+    // Preserve a scheduled/resume mutation boundary, amortized over the row.
+    // The synchronous batch has already closed; no capability crosses this await.
+    await Promise.resolve();
+    assertFinalizerCall(args, prepared);
+    readDocumentAuthorizationAccess(documentAuthorization!, binding!);
+    if (!readStaticOutputPlanFields(plan, prepared.authorization!)) authorizationError('changed static output plan');
+  }
   const allowedPersisted: string[] = [];
   for (const field of eligiblePersisted) {
     if (documentAuthorization) {
       // Child plans already apply full-path rules. A denied ancestor cannot
       // suppress the minimal structure of an authorized descendant.
-      if (plan.childPlans[field] || (await evaluateAuthorizedOutputField(documentAuthorization, binding!, field)))
+      if (
+        plan.childPlans[field] ||
+        (staticDecisions
+          ? staticDecisions.get(field) === true
+          : await evaluateAuthorizedOutputField(documentAuthorization, binding!, field))
+      )
         allowedPersisted.push(field);
       continue;
     }
@@ -848,6 +866,10 @@ async function finalizeSingleDoc(
         stage: readDocumentAuthorizationAccess(documentAuthorization, binding!).stage,
       }),
     );
+    if (staticDecisions) {
+      assertFinalizerCall(args, prepared);
+      readDocumentAuthorizationAccess(documentAuthorization, binding!);
+    }
   }
   // Retain private associations for VIRT-05/06 without attaching to output.
   void getRetainedAssociations;
