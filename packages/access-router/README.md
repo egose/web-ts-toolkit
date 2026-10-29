@@ -237,6 +237,61 @@ Express routes. `parentPath` supplies the external prefix for route metadata/log
 mount that prefix in Express yourself. Live `idField`/`resolveIdFilter` change lookup
 behavior rather than route shape.
 
+### Temporary unsafe read/list-performance switches
+
+**Both default to off (snapshot checks enabled).** These independent server-only
+settings temporarily skip repeated source snapshot comparisons on one registered model:
+
+| Flag                                   | Applies to                                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `unsafeSkipListDocumentSnapshotChecks` | Top-level `find`, generated public lists and root-list responses                                               |
+| `unsafeSkipReadDocumentSnapshotChecks` | Top-level `findOne`, `findById`, public identifier/filter reads and root reads, including read-to-list retries |
+
+A read-to-list retry follows the **read flag**, because the initiating operation
+is still a single read. Changing one flag does not change the other.
+
+<!-- doc-example: partial -->
+
+```ts
+import acl from '@web-ts-toolkit/access-router';
+
+// User must already be registered on this runtime. Never take this value from a request.
+// TODO: revisit/remove this temporary workaround after query-performance remediation.
+acl.setModelOptions('User', {
+  unsafeSkipReadDocumentSnapshotChecks: true,
+  unsafeSkipListDocumentSnapshotChecks: false, // lists stay protected
+});
+```
+
+Set either flag to `false` with `setModelOption` to roll back for new calls.
+Both flags can be set in `createRouter(Model, { ... })` or `setDefaultModelOptions`
+before model-router creation. Starting defaults do not overwrite existing models'
+stored settings; a per-model `false` overrides a starting default of `true`.
+Prefer per-model opt-in rather than enabling it for every model. Use the owning
+`createAccessRuntime()` API instead of default `acl` for an isolated runtime.
+Only literal boolean `true` enables each flag. Enabling emits a logger warning once
+per model/flag transition, not per row/request. Neither is a global, per-call, HTTP/root
+entry, `options.authorization`, or `service.defaults` option.
+
+- **Skipped:** repeated comparisons of the retained projected document with its
+  authorization snapshot on the enabled operation. List/read-origin handles and
+  captured read-to-list retries retain their mode in later work and helper picks.
+- **Still enforced:** row filters, document/field rules, operation gates, exact
+  request/runtime/model/stage ownership, output-mutation/provenance checks and bounds.
+  Initial snapshots and detached callback/grant/output copies (including native values)
+  remain. Writes (including read-like output), dedicated subdocument operations,
+  embedded/related stages and fresh standalone output helpers stay strict. An
+  operation without its own opt-out stays protected.
+- **Risk:** source changes during callbacks or awaits will no longer invalidate
+  cached grants/decisions. Output may be authorized using stale data even though
+  normal permission rules run. This is a deliberate weakening of mutation protection,
+  **not a security-equivalent fast mode**. Use only with trusted, non-mutating hooks;
+  review your application and measure a staged rollout before production opt-in.
+
+Each call captures the setting before awaits. Turning it off protects new calls,
+not in-flight calls, retries or existing handles. These switches do not eliminate
+all cloning or promise v0.51.0 performance. Restore `false` as soon as possible.
+
 ### Wire placement and option names
 
 | Intent                   | Basic GET query                                    | Advanced body                                                   | Root entry                          |

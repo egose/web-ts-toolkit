@@ -787,6 +787,7 @@ describe('SVA-01 named-option admission and export gate', () => {
     for (const entry of [rootExports, advancedExports, processorExports]) {
       for (const name of [
         'resolveServiceAuthorization',
+        'requiresDocumentSnapshotChecks',
         'createDocumentAuthorizationStage',
         'associateDocumentAuthorization',
         'DocumentAuthorization',

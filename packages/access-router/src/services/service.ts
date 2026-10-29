@@ -317,6 +317,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       ['args', args],
       ['options', options],
     ] as const) {
+      if (value !== null && (typeof value === 'object' || typeof value === 'function')) {
+        for (const key of ['unsafeSkipListDocumentSnapshotChecks', 'unsafeSkipReadDocumentSnapshotChecks']) {
+          if (key in value) authorizationError(`${slot}.${key} is server model configuration only`);
+        }
+      }
       if (
         value !== null &&
         (typeof value === 'object' || typeof value === 'function') &&

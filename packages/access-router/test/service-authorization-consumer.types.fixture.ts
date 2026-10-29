@@ -11,6 +11,7 @@ import type {
   MutationAuthorization,
   ModelRouter,
   ModelRouterOptions,
+  DefaultModelRouterOptions,
   NewOptions,
   OperationAuthorization,
   OutputAuthorization,
@@ -78,6 +79,63 @@ interface Virtuals {
   summary: string;
   contacts: readonly (VirtualSubModel<Order, 'contacts'> & { badge: string })[];
 }
+
+const temporaryListWorkaround = { unsafeSkipListDocumentSnapshotChecks: true } satisfies ModelRouterOptions<Order>;
+const invalidListWorkaround: ModelRouterOptions<Order> = {
+  // @ts-expect-error only a server boolean is supported
+  unsafeSkipListDocumentSnapshotChecks: 'true',
+};
+const perCallListWorkaround: FindOptions<Order> = {
+  // @ts-expect-error the unsafe switch is not a per-call service option
+  unsafeSkipListDocumentSnapshotChecks: true,
+};
+const wireListWorkaround: PublicListOptions = {
+  // @ts-expect-error clients cannot configure the unsafe switch
+  unsafeSkipListDocumentSnapshotChecks: true,
+};
+const defaultListWorkaround: Defaults<Order> = {
+  findOptions: {
+    // @ts-expect-error method defaults are query/presentation only
+    unsafeSkipListDocumentSnapshotChecks: true,
+  },
+};
+void [temporaryListWorkaround, invalidListWorkaround, perCallListWorkaround, wireListWorkaround, defaultListWorkaround];
+const temporaryReadWorkaround = {
+  unsafeSkipReadDocumentSnapshotChecks: true,
+  unsafeSkipListDocumentSnapshotChecks: false,
+} satisfies ModelRouterOptions<Order>;
+const readStartingDefaults = { unsafeSkipReadDocumentSnapshotChecks: true } satisfies DefaultModelRouterOptions<Order>;
+const invalidReadWorkaround: ModelRouterOptions<Order> = {
+  // @ts-expect-error only an explicit server boolean is supported
+  unsafeSkipReadDocumentSnapshotChecks: 'true',
+};
+const perCallReadWorkaround: FindOneOptions<Order> = {
+  // @ts-expect-error not a per-call single-read option
+  unsafeSkipReadDocumentSnapshotChecks: true,
+};
+const perCallByIdWorkaround: FindByIdOptions<Order> = {
+  // @ts-expect-error not a per-call identifier-read option
+  unsafeSkipReadDocumentSnapshotChecks: true,
+};
+const wireReadWorkaround: PublicReadOptions = {
+  // @ts-expect-error clients cannot configure the read switch
+  unsafeSkipReadDocumentSnapshotChecks: true,
+};
+const defaultReadWorkaround: Defaults<Order> = {
+  publicReadOptions: {
+    // @ts-expect-error method defaults cannot carry this unsafe setting
+    unsafeSkipReadDocumentSnapshotChecks: true,
+  },
+};
+void [
+  temporaryReadWorkaround,
+  readStartingDefaults,
+  invalidReadWorkaround,
+  perCallReadWorkaround,
+  perCallByIdWorkaround,
+  wireReadWorkaround,
+  defaultReadWorkaround,
+];
 type Assert<T extends true> = T;
 type Equal<A, B> = [A, B] extends [B, A] ? true : false;
 export type EntryParity = Assert<

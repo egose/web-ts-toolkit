@@ -56,6 +56,9 @@ export interface AuthorizationFieldCatalog {
 
 export interface AuthorizationConfiguration {
   readonly catalog: AuthorizationFieldCatalog;
+  /** Captured server model option; alone it never issues relaxed document authority. */
+  readonly unsafeSkipListDocumentSnapshotChecks?: boolean;
+  readonly unsafeSkipReadDocumentSnapshotChecks?: boolean;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   /** Runtime-owned private input admission mode, not public output/related authority. */
@@ -139,6 +142,9 @@ interface CallRecord {
   reusableFieldConfiguration?: boolean;
   permissions: AccessRouterPermissions;
   provenance: ResolvedServiceAuthorization;
+  readonly validateDocumentSnapshots: boolean;
+  /** Root-read origin, retained only by explicitly authenticated same-binding retries. */
+  readonly readResponse: boolean;
 }
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
 
@@ -374,6 +380,10 @@ export interface ResolveServiceAuthorizationInput {
   readonly relatedTargets?: readonly AuthorizationRelatedTarget[];
   /** Explicit package-derived branch/target; supplies provenance only, never implicit authority. */
   readonly parent?: ResolvedServiceAuthorization;
+  /** Package-only admission from a top-level list execution, never a helper/wire option. */
+  readonly listResponse?: boolean;
+  /** Package-only root-read/retry admission, not related/embedded or standalone helper authority. */
+  readonly readResponse?: boolean;
 }
 
 /** Synchronous capture must occur before any operation hook/await. Omitted policy is request-only. */
@@ -403,6 +413,20 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
   // implementation fields as well as the view before any callback can see it.
   for (const value of Object.values(permissions)) if (value && typeof value === 'object') Object.freeze(value);
   Object.freeze(permissions);
+  const readAccess = outputAccess.rowAccess;
+  const readResponse =
+    input.readResponse === true &&
+    (input.applicability ?? 'service') === 'service' &&
+    scopePath.length === 0 &&
+    outputAccess.operation === 'read' &&
+    (readAccess === 'read' || readAccess === 'list') &&
+    outputAccess.outputAccess === readAccess &&
+    outputAccess.virtualAccess === readAccess &&
+    outputAccess.docPermissionsAccess === readAccess &&
+    (input.parent === undefined || callRecord(input.parent).readResponse);
+  // A retry may retain its originating read mode, but a parent/callback alone must
+  // not relax related models, child scopes or write-derived read-like output.
+  if (readResponse && input.parent) assertAuthorizationBinding(input.parent, input.binding);
   const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
   calls.set(call, {
     binding: Object.freeze({ ...input.binding, scopePath: Object.freeze(scopePath) }),
@@ -414,6 +438,18 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
     output: Object.freeze({ access: outputAccess, catalog, outputFields: policy.outputFields }),
     permissions,
     provenance: input.parent ? callRecord(input.parent).provenance : call,
+    readResponse,
+    validateDocumentSnapshots: !(
+      (input.listResponse === true &&
+        input.parent === undefined &&
+        (input.applicability ?? 'service') === 'service' &&
+        outputAccess.operation === 'list' &&
+        outputAccess.rowAccess === 'list' &&
+        outputAccess.outputAccess === 'list' &&
+        scopePath.length === 0 &&
+        configuration.unsafeSkipListDocumentSnapshotChecks === true) ||
+      (readResponse && configuration.unsafeSkipReadDocumentSnapshotChecks === true)
+    ),
   });
   return call;
 }
@@ -437,6 +473,12 @@ export function readServiceAuthorization(call: ResolvedServiceAuthorization, bin
 export function readServiceAuthorizationAccess(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   return callRecord(call).output.access;
+}
+
+/** Private captured mode, not a live runtime switch or caller-provided certificate. */
+export function requiresDocumentSnapshotChecks(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).validateDocumentSnapshots;
 }
 
 /** Hydration is open configuration: detach this slice, never the unrelated call graph. */

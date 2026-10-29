@@ -21,7 +21,13 @@ const quiet = { includePermissions: false, includeFieldPermissions: false, inclu
 const entries = ['direct', 'public'] as const;
 let serial = 0;
 
-function fixture(width: number, nativeLeaves: number, count: number) {
+function fixture(
+  width: number,
+  nativeLeaves: number,
+  count: number,
+  unsafeSkipListDocumentSnapshotChecks = false,
+  unsafeSkipReadDocumentSnapshotChecks = false,
+) {
   const fields = Array.from({ length: width }, (_, index) => `field${index}`);
   const model = mongoose.model(
     `Snapcpu01${++serial}`,
@@ -35,12 +41,14 @@ function fixture(width: number, nativeLeaves: number, count: number) {
     ),
   );
   const runtime = new AccessRuntime();
-  runtime.setGlobalOptions({ requestComplexity: { maxHookConcurrency: 10 } });
+  runtime.setGlobalOptions({ logger: { warn: vi.fn() }, requestComplexity: { maxHookConcurrency: 10 } });
   runtime.registerModelInstance(model.modelName, model);
   runtime.setModelOptions(model.modelName, {
     permissionSchema: { ...Object.fromEntries(fields.map((field) => [field, true])), hidden: false },
     stripPermissionsField: true,
     alwaysSelectFields: ['native'],
+    unsafeSkipListDocumentSnapshotChecks,
+    unsafeSkipReadDocumentSnapshotChecks,
   });
   // String fields match the ordinary benchmark payload. This extra fetch-only
   // native array makes each *whole-stage* wire-copy observable independently of
@@ -53,7 +61,12 @@ function fixture(width: number, nativeLeaves: number, count: number) {
       (_, index) => new mongo.BSON.ObjectId((index + 1).toString(16).padStart(24, '0')),
     ),
   }));
-  const adapter = { mongooseModel: model, find: vi.fn().mockResolvedValue(rows), countDocuments: vi.fn() };
+  const adapter = {
+    mongooseModel: model,
+    find: vi.fn().mockResolvedValue(rows),
+    findOne: vi.fn().mockResolvedValue(rows[0]),
+    countDocuments: vi.fn(),
+  };
   const req = { [PERMISSIONS]: new Permission({ reader: true }) } as unknown as ModelRequest;
   const { service, publicService } = runWithRuntime(runtime, () => {
     req.macl = new Core(req);
@@ -127,13 +140,15 @@ afterEach(() => {
 describe('real-list snapshot validation work (no virtuals)', () => {
   for (const entry of entries) {
     it.each(
-      [1, 10].flatMap((count) =>
-        [4, 24].flatMap((width) => [0, 1, 24].map((nativeLeaves) => ({ count, width, nativeLeaves }))),
+      [false, true].flatMap((unsafe) =>
+        [1, 10].flatMap((count) =>
+          [4, 24].flatMap((width) => [0, 1, 24].map((nativeLeaves) => ({ count, width, nativeLeaves, unsafe }))),
+        ),
       ),
     )(
-      `${entry}: $count rows / $width selected fields / $nativeLeaves fetch-only BSON leaves`,
-      async ({ count, width, nativeLeaves }) => {
-        const f = fixture(width, nativeLeaves, count);
+      `${entry}: $count rows / $width selected fields / $nativeLeaves fetch-only BSON leaves / unsafe=$unsafe`,
+      async ({ count, width, nativeLeaves, unsafe }) => {
+        const f = fixture(width, nativeLeaves, count, unsafe);
         const observed = counters();
         const args = { select: [...f.fields, 'hidden', '-_id'] };
         const result =
@@ -146,11 +161,11 @@ describe('real-list snapshot validation work (no virtuals)', () => {
         expect(f.adapter.find).toHaveBeenCalledTimes(1);
         expect(f.adapter.countDocuments).not.toHaveBeenCalled();
         // Closed static decisions amortize the walks across a whole row, including
-        // native-bearing stages. Every owner read retains both observations:
-        // ordinary shape does not prove normalization/equality passive.
-        const perField = 14;
-        const hit = 5;
-        const stageWalks = 37;
+        // native-bearing stages. Strict owner reads retain both observations.
+        // The server opt-out skips stage comparisons, never output provenance.
+        const perField = unsafe ? 0 : 14;
+        const hit = unsafe ? 0 : 5;
+        const stageWalks = unsafe ? 0 : 37;
         expect(observed.work).toEqual({
           fullValidations: count * (stageWalks + 3),
           stageValidations: count * stageWalks,
@@ -168,8 +183,8 @@ describe('real-list snapshot validation work (no virtuals)', () => {
           fullValidations: 2 * hit,
           stageValidations: 2 * hit,
           outputValidations: 0,
-          validationNativeClones: 10 * nativeLeaves,
-          totalNativeClones: 10 * nativeLeaves,
+          validationNativeClones: 2 * hit * nativeLeaves,
+          totalNativeClones: 2 * hit * nativeLeaves,
         });
         observed.reset();
         // A denied, non-selected field has no output memo yet. Its first cold
@@ -179,8 +194,8 @@ describe('real-list snapshot validation work (no virtuals)', () => {
           fullValidations: perField,
           stageValidations: perField,
           outputValidations: 0,
-          validationNativeClones: 14 * nativeLeaves,
-          totalNativeClones: 14 * nativeLeaves,
+          validationNativeClones: perField * nativeLeaves,
+          totalNativeClones: perField * nativeLeaves,
         });
         observed.reset();
         expect(await evaluateAuthorizedOutputField(handle, f.binding, 'hidden')).toBe(false);
@@ -188,8 +203,8 @@ describe('real-list snapshot validation work (no virtuals)', () => {
           fullValidations: hit,
           stageValidations: hit,
           outputValidations: 0,
-          validationNativeClones: 5 * nativeLeaves,
-          totalNativeClones: 5 * nativeLeaves,
+          validationNativeClones: hit * nativeLeaves,
+          totalNativeClones: hit * nativeLeaves,
         });
         for (const helper of ['pickAllowedFields', 'trimOutputFields', 'genAllowedFields'] as const) {
           for (const cold of [false, true]) {
@@ -209,7 +224,7 @@ describe('real-list snapshot validation work (no virtuals)', () => {
                 ? await f.service.genAllowedFields(source, 'list', options)
                 : await f.service[helper](source, 'list', { documentAuthorization: helperHandle });
             expect(picked).toEqual(helper === 'genAllowedFields' ? f.fields : source);
-            const helperWalks = 16;
+            const helperWalks = unsafe ? 0 : 16;
             expect(observed.work).toEqual({
               fullValidations: helperWalks + 3,
               stageValidations: helperWalks,
@@ -221,7 +236,7 @@ describe('real-list snapshot validation work (no virtuals)', () => {
         }
         observed.reset();
         expect(await requestOutputFieldPaths(handle, f.binding, 'read')).toEqual(f.fields);
-        const metadataWalks = 6;
+        const metadataWalks = unsafe ? 0 : 6;
         expect(observed.work).toEqual({
           fullValidations: metadataWalks,
           stageValidations: metadataWalks,
@@ -232,4 +247,41 @@ describe('real-list snapshot validation work (no virtuals)', () => {
       },
     );
   }
+});
+
+describe('real single-read snapshot validation work', () => {
+  it.each(
+    ['findOne', 'findById', '_read', '_readFilter'].flatMap((method) =>
+      [4, 24].flatMap((width) => [false, true].map((listFlag) => ({ method, width, listFlag }))),
+    ),
+  )('$method / $width fields / independent list flag=$listFlag', async ({ method, width, listFlag }) => {
+    const observed = counters();
+    const work = [];
+    for (const readFlag of [false, true]) {
+      const f = fixture(width, 1, 1, listFlag, readFlag);
+      observed.reset();
+      const args = { select: [...f.fields, 'hidden', '-_id'] };
+      const id = '000000000000000000000001';
+      const result =
+        method === 'findOne'
+          ? await f.service.findOne({}, args, quiet)
+          : method === 'findById'
+            ? await f.service.findById(id, args, quiet)
+            : method === '_read'
+              ? await f.publicService._read(id, args, quiet)
+              : await f.publicService._readFilter({}, args, quiet);
+      expect(result).toMatchObject({
+        success: true,
+        data: Object.fromEntries(f.fields.map((field) => [field, f.rows[0][field]])),
+      });
+      expect(f.adapter.findOne).toHaveBeenCalledTimes(1);
+      work.push({ ...observed.work });
+    }
+    expect(work[0].stageValidations).toBeGreaterThan(0);
+    expect(work[1].stageValidations).toBe(0);
+    expect(work[1].validationNativeClones).toBe(0);
+    expect(work[1].outputValidations).toBe(work[0].outputValidations);
+    expect(work[1].outputValidations).toBeGreaterThan(0);
+    expect(work[1].totalNativeClones).toBeGreaterThan(0); // detached snapshots/callback copies remain
+  });
 });
