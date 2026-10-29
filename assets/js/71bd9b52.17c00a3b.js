@@ -55,6 +55,10 @@ const toc = [{
   "id": "authority-hook-inputs-and-metadata",
   "level": 3
 }, {
+  "value": "Temporary unsafe read/list-performance switches",
+  "id": "temporary-unsafe-readlist-performance-switches",
+  "level": 3
+}, {
   "value": "Populate operation policies",
   "id": "populate-operation-policies",
   "level": 3
@@ -448,6 +452,37 @@ function _createMdxContent(props) {
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "public*Options"
       }), " before internal\nmethods; already-resolved flags take precedence over internal defaults. Public upsert\nuses its create/update branch's public bucket. A model service captures current presentation\ndefaults from its originating runtime per call; per-call model authority captures current\npolicy before awaiting hooks. Retained services keep their original core, actor, model\nconnection and related registry across a same-request runtime handoff. Base-filter cache\nentries are reused only for the same model/access and policy function.\nRequest base-filter caches remain owned by their request/runtime/access."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "temporary-unsafe-readlist-performance-switches",
+      children: "Temporary unsafe read/list-performance switches"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Model-only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeSkipListDocumentSnapshotChecks: true"
+      }), " skips repeated source snapshot\ncomparisons on top-level ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "find"
+      }), ", generated lists and root-list entries. Independent\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeSkipReadDocumentSnapshotChecks: true"
+      }), " does the same for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOne"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findById"
+      }), ",\npublic identifier/filter reads and root reads. Read-to-list retries follow the read\nflag, not the list flag. Both default to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), ", are captured before awaits, and\nwarn independently on enablement. Configure either with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "api.setModelOption"
+      }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "api.setDefaultModelOptions"
+      }), " before router creation; explicit per-model ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " wins\nover starting defaults. Restore ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " for new calls as soon as possible. Never\nderive these flags from request input."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This does ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "not"
+      }), " disable permission rules, ownership, output-mutation checks or\ndetached copies. Writes, dedicated subdocument operations, embedded/related stages\nand fresh helpers remain strict. List/read-origin handles and captured retries keep\ntheir original mode; operations without their own opt-out stay protected.\n", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Source mutation can now leave stale grants/decisions and expose incorrectly\nauthorized output."
+      }), " Use only as a temporary, measured workaround with trusted\nnon-mutating hooks, not as a security-equivalent fast path. Per-call/wire/defaults\ncontrols cannot enable it. See the shipped README for the full contract."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "populate-operation-policies",
       children: "Populate operation policies"
