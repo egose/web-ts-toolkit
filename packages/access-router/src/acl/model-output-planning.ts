@@ -1,5 +1,5 @@
 import type { AccessRuntime } from '../runtime';
-import type { GlobalOptions, ModelRequest, ModelRouterOptions, Projection } from '../interfaces';
+import type { ModelRequest, ModelRouterOptions, Projection } from '../interfaces';
 import type { AccessRouterPermissions } from '../permission';
 import { get } from '@web-ts-toolkit/utils';
 import { resolveNestedOption } from '../options/manager';
@@ -9,6 +9,11 @@ import { captureVirtualPopulateSnapshot } from './virtual-populate-dependencies'
 import { normalizeOutputAuthorizationOptions } from './document-authorization';
 import { planAuthorizedModelProjection } from './output-projection';
 import type { AuthorizationConfiguration } from './service-authorization';
+import {
+  capturePopulatePolicyDefaults,
+  resolvePopulatePolicy,
+  type PopulatePolicyDefaultsToken,
+} from './populate-policy';
 
 /** Exact → default → bare, with the exact runtime fallback for operation guards only. */
 export function getCapturedAuthorizationOption(configuration: AuthorizationConfiguration, key: string): unknown {
@@ -26,9 +31,10 @@ export function getCapturedAuthorizationOption(configuration: AuthorizationConfi
 export function captureModelAuthorizationConfiguration<T = unknown, V extends object = Record<never, never>>(
   runtime: AccessRuntime,
   modelName: string,
-  options: ModelRouterOptions<T, V> = runtime.getModelOptions<T, V>(modelName),
-  globalOptions: GlobalOptions = runtime.getGlobalOptions(),
+  options?: ModelRouterOptions<T, V>,
+  populatePolicyDefaults: PopulatePolicyDefaultsToken = capturePopulatePolicyDefaults(runtime),
 ): AuthorizationConfiguration {
+  options ??= runtime.getModelOptions<T, V>(modelName);
   const model = runtime.getModelInstance(modelName);
   if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
   const virtuals = options.virtuals as Record<string, unknown> | undefined;
@@ -39,11 +45,10 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
         runtime,
         modelName,
         options as ModelRouterOptions,
-        globalOptions,
+        populatePolicyDefaults,
       ),
-      requireOperationAccessForPopulateDependencies:
-        globalOptions.requireOperationAccessForPopulateDependencies !== false,
-      requireOperationAccessForPopulateQueries: globalOptions.requireOperationAccessForPopulateQueries !== false,
+      populatePolicyDefaults,
+      ...resolvePopulatePolicy(options as ModelRouterOptions, populatePolicyDefaults),
       permissionSchema:
         options.permissionSchema === undefined
           ? runtime.getDefaultModelOption('permissionSchema')

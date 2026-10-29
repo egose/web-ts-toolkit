@@ -34,7 +34,7 @@ function mutateNatives(filter: NativeMatch) {
 async function fixture(required: boolean) {
   const api = createAccessRuntime();
   runtimes.push(api);
-  api.setGlobalOption('requireOperationAccessForPopulateQueries', required);
+  api.setDefaultModelOption('requireOperationAccessForPopulateQueries', required);
   const Target = mongoose.model(
     `PopHelperIsolationTarget${++sequence}`,
     new mongoose.Schema({
@@ -142,7 +142,8 @@ describe.each([true, false])('POP-06 scoped helper isolation (Q=%s)', (required)
         // A hook may retain its returned input. Later native mutations must not
         // change the prepared descriptor, even before Mongoose starts target I/O.
         retained.since.$gte.setUTCFullYear(2099);
-        expect(Object.keys(plan[0]).sort()).toEqual(['match', 'path', 'select']);
+        expect(Object.keys(plan[0]).sort()).toEqual(['match', 'model', 'path', 'select']);
+        expect((plan[0] as mongoose.PopulateOptions).model).toBe(f.Target);
         const symbols = Object.getOwnPropertySymbols(plan[0]);
         expect(symbols).toHaveLength(1);
         const metadata = Object.getOwnPropertyDescriptor(plan[0], symbols[0])!;

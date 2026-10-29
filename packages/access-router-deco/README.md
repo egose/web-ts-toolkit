@@ -222,7 +222,7 @@ All four property decorators validate these known values before their setters:
 - Finite number: `listHardLimit` (including zero; this is a type check, not a new
   limit policy).
 - Booleans: `requireOperationAccessForPopulateQueries` and
-  `requireOperationAccessForPopulateDependencies` (global/module options).
+  `requireOperationAccessForPopulateDependencies` (target-model/default-model options).
 
 Optional `undefined` is allowed. Invalid known values throw `TypeError` naming
 the key/property, and bootstrap rolls back package-controlled writes. This is
@@ -232,7 +232,9 @@ governed by their existing runtime contracts. TypeScript property decorators do
 not type-check property values; the runtime checks above also apply when an
 inferred key or legacy `Option` bypasses explicit-key typing.
 
-Both populate flags default to true; only literal false bypasses the corresponding
+Both optional populate flags belong to the **actual target model** and inherit live
+runtime model defaults, then built-in true. Explicit undefined restores inheritance;
+omission retains an override. Only primitive false bypasses the corresponding
 target operation gate. Query bypass preserves source access, target field/document
 grants, rows, selection, match and reference IDs. Dependency bypass skips only private
 base-read admission; declared fourth-argument inputs and virtual output authorization
@@ -240,6 +242,11 @@ stay separate. Targets always need an actual registered model and effective obje
 `permissionSchema` (defaults may supply it; `{}` closes business fields). Denied
 population/private work retains selected/permitted parent IDs. See the server README's
 populate policy matrix and runnable configuration-only Document example.
+
+Global/module placement is rejected with migration guidance before boolean-value
+diagnostics, including inferred properties and legacy `Option`. Move the pair to
+`ModelOption` / `DefaultModelOption` or model/default `RouterOptions` / model `Router`.
+There is no global alias/broadcast; source flags cannot relax another target.
 
 **Removed:** `requireRegisteredPopulateModels` and
 `requireReadOperationAccessForPopulateDependencies` have no aliases. Register/configure
@@ -279,6 +286,97 @@ describe `/api/ext/users`. Live Express URLs are unchanged by this migration.
 `EgoseFactory.bootstrap(...)` applies model route-construction options before creating Express routes. Precedence is default `@RouterOptions(...)`, model-specific `@RouterOptions('Model', ...)`, `@Router('Model', ...)` options, then `@Option(...)` properties and decorated hooks on the same class. Later layers override earlier layers for the same key.
 
 Use `DefaultModelOption(...)` for default model options, `ModelOption(...)` for model-specific route options, and `GlobalOption(...)` for module-level global options. Avoid setting build-time route options after bootstrap; options such as `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and `mutationRouteSegment` must be available before routes are created.
+
+### Target-owned populate policies and migration
+
+Register/configure each actual target even when its HTTP routes are not mounted.
+An effective object `permissionSchema` is mandatory; `{}` closes business fields.
+For `Project.documentIds → Document`, Document's Q/D applies. A Document virtual
+using User inputs uses User's D. Direct/generated/root target guards remain enforced.
+This module configures different Document/User policies for the same Project request:
+
+```ts
+import 'reflect-metadata';
+import { Schema, type Connection } from 'mongoose';
+import { DefaultModelOption, ModelOption, Module, Router, RouterOptions } from '@web-ts-toolkit/access-router-deco';
+
+export function createPopulateModule(connection: Connection) {
+  const Document = connection.model('Document', new Schema({ name: String }));
+  const User = connection.model('User', new Schema({ name: String }));
+  const Project = connection.model(
+    'Project',
+    new Schema({
+      documentIds: [{ type: Schema.Types.ObjectId, ref: Document.modelName }],
+      userIds: [{ type: Schema.Types.ObjectId, ref: User.modelName }],
+    }),
+  );
+
+  @RouterOptions({
+    requireOperationAccessForPopulateQueries: true,
+    requireOperationAccessForPopulateDependencies: true,
+  })
+  class PopulateDefaults {
+    @DefaultModelOption('requireOperationAccessForPopulateDependencies')
+    dependencies: boolean | undefined = true;
+  }
+
+  @RouterOptions(Document, {
+    operationAccess: { read: false, list: false },
+    permissionSchema: { name: true },
+    requireOperationAccessForPopulateDependencies: false,
+  })
+  class DocumentOptions {
+    @ModelOption('requireOperationAccessForPopulateQueries')
+    queries: boolean | undefined = false;
+  }
+
+  @RouterOptions(User, {
+    operationAccess: { read: false, list: false },
+    permissionSchema: {},
+    requireOperationAccessForPopulateQueries: true,
+    requireOperationAccessForPopulateDependencies: true,
+  })
+  class UserOptions {}
+
+  @Router(Project, {
+    basePath: '/projects',
+    operationAccess: { read: true },
+    permissionSchema: { documentIds: true, userIds: true },
+    requireOperationAccessForPopulateQueries: false,
+    requireOperationAccessForPopulateDependencies: false,
+    stripPermissionsField: true,
+  })
+  class ProjectRouter {}
+
+  @Module({ routers: [ProjectRouter], routerOptions: [UserOptions, DocumentOptions, PopulateDefaults] })
+  class PopulateModule {}
+  return PopulateModule; // EgoseFactoryStatic.create().bootstrap(PopulateModule, app)
+}
+```
+
+Default providers run first. Exact properties follow their class's bulk options;
+the factory's later empty router setup preserves explicit overrides and live
+inheritance. Other model options also inherit live defaults, with shallow replacement
+of nested objects. Set a model flag to undefined through the returned runtime
+to inherit again; later administrative default updates affect existing unoverridden
+models/services. In-flight/nested work retains captured defaults and target options.
+`getModelOptions()` and `router.options` retain raw flag overrides;
+`getModelOption()` resolves the current default.
+
+Move stale `GlobalOption`, module `options` or global API setters to the scoped
+forms above. Decorators accept boolean/undefined and reject malformed known values;
+the server's dynamic-JavaScript setters conservatively normalize every non-undefined,
+non-false value to true. Failed bootstrap restores the previous inherited/explicit
+state. Query, method-default, HTTP/client and root options gain no capability;
+same-spelled business fields remain data.
+
+Ordinary string refs resolve on the source's connection and must match the exact
+runtime-configured model. Missing/mismatched models fail before target I/O or writes;
+the validated instance stays pinned in flight. Explicit same-runtime registered
+Model-valued ordinary refs may cross connections. Private declarations remain
+one-hop static-string ObjectId/1D arrays on the same connection; those ordinary
+cross-connection refs do not expand the private limit.
+Dynamic callback/refPath ordinary refs reject when no static target can be bound before I/O.
 
 ### Server-owned hydration and migration
 

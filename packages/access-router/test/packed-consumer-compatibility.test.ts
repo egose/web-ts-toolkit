@@ -537,12 +537,16 @@ const assert = require('node:assert/strict');
        'createServiceExecution', 'createDocumentAuthorizationStage', 'createServiceOutputContext',
        'prepareModelQuery', 'executePreparedFind', 'executeCreate', 'registerServiceExecutors',
        'withExecutionHydration', 'normalizeHydration', 'normalizeHydrationUpdate', 'attachPermissionsAlias',
-       'requiresDocumentSnapshotChecks', 'requiresOutputSnapshotChecks', 'unsafeSnapshotOptions']) {
+       'requiresDocumentSnapshotChecks', 'requiresOutputSnapshotChecks', 'unsafeSnapshotOptions',
+       'PopulatePolicyDefaultsToken', 'capturePopulatePolicyDefaults', 'getCapturedPopulatePolicyDefaults',
+       'resolvePopulatePolicy', 'modelServicePopulatePolicyDefaults', 'capturePopulateTargetBinding',
+       'setPopulateTargetMeta', 'withCapturedPopulateModel']) {
       assert.equal(Object.hasOwn(entry, name), false, name + ' must not be a runtime escape hatch');
     }
   }
   for (const subpath of ['src/acl/service-authorization', 'src/acl/document-authorization',
-     'src/acl/service-execution', 'src/acl/prepared-query', 'src/acl/unsafe-snapshot-options', 'dist/index.js']) {
+     'src/acl/service-execution', 'src/acl/prepared-query', 'src/acl/populate-policy',
+     'src/options/populate-policy', 'src/acl/unsafe-snapshot-options', 'dist/index.js']) {
     assert.throws(() => require.resolve('@web-ts-toolkit/access-router/' + subpath),
       { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
   }
@@ -998,8 +1002,8 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   run('node', ['authorization-out/field-helper.runtime.cjs'], consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
-  // POP-04: exact shipped four-mode/configuration-only Document workflow plus
-  // both-hydration array/default/authorized-union/exact-ID/miss controls,
+  // MPO-03: exact shipped mixed Document/User and live-default workflow plus
+  // both-hydration arrays/native/default/authorized-union/exact-ID/miss/capture controls,
   // using the real transformed packed installation and both runtime entry conditions.
   for (const file of [
     'private-populate.readme.mjs',

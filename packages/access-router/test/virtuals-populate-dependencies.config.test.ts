@@ -389,7 +389,7 @@ describe('DPV-01 populated dependency configuration', () => {
   it('requires target options and effective schema even with both operation requirements disabled', () => {
     const f = models();
     const other = createAccessRuntime();
-    other.setGlobalOptions({
+    other.setDefaultModelOptions({
       requireOperationAccessForPopulateQueries: false,
       requireOperationAccessForPopulateDependencies: false,
     });

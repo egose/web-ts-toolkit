@@ -1,6 +1,13 @@
 import mongoose from 'mongoose';
 import { assertPublicDefaults } from './validation/public-admission';
 import { normalizeHydration, normalizeHydrationUpdate } from './options/hydration';
+import {
+  assertNoGlobalPopulatePolicy,
+  isPopulatePolicyKey,
+  normalizePopulatePolicyOptions,
+  normalizePopulatePolicyValue,
+  populatePolicyKeys,
+} from './options/populate-policy';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
 import {
   addLeadingSlash,
@@ -68,10 +75,12 @@ const defaultModelOptions: ModelRouterOptions = {
   alwaysSelectFields: [],
 };
 
-/** Keep inherited values out of overrides. Cleared operationAccess retains its legacy exact-key fallback. */
+/** Keep inherited values out of overrides; retain explicit clears for guards and populate flags. */
 const modelOverrides = (options: ModelRouterOptions): ModelRouterOptions => {
   const result = Object.fromEntries(
-    Object.entries(options).filter(([key, value]) => value !== undefined || key === 'operationAccess'),
+    Object.entries(options).filter(
+      ([key, value]) => value !== undefined || key === 'operationAccess' || isPopulatePolicyKey(key),
+    ),
   );
   for (const key of unsafeSnapshotOptions) if (key in result) result[key] = result[key] === true;
   return cloneOptionsSnapshot(result) as ModelRouterOptions;
@@ -526,8 +535,6 @@ export class AccessRuntime {
     {
       requestPermissionField: '_permissions',
       globalPermissions: () => ({}),
-      requireOperationAccessForPopulateQueries: true,
-      requireOperationAccessForPopulateDependencies: true,
       logger: defaultLogger,
       requestComplexity: defaultRequestComplexity,
     },
@@ -546,6 +553,8 @@ export class AccessRuntime {
     queryRouteSegment: '__query',
     mutationRouteSegment: '__mutation',
     operationAccess: false,
+    requireOperationAccessForPopulateQueries: true,
+    requireOperationAccessForPopulateDependencies: true,
     modelPermissionPrefix: '',
     unsafeSkipListDocumentSnapshotChecks: false,
     unsafeSkipReadDocumentSnapshotChecks: false,
@@ -761,21 +770,12 @@ export class AccessRuntime {
 
   /** Shallowly replace supplied global values; nested objects such as requestComplexity are not deep-merged. */
   setGlobalOptions(options: GlobalOptions) {
-    const next = { ...options };
-    if ('requireOperationAccessForPopulateQueries' in next)
-      next.requireOperationAccessForPopulateQueries = next.requireOperationAccessForPopulateQueries !== false;
-    if ('requireOperationAccessForPopulateDependencies' in next)
-      next.requireOperationAccessForPopulateDependencies = next.requireOperationAccessForPopulateDependencies !== false;
-    this.globalOptions.assign(next);
+    for (const key of populatePolicyKeys) if (key in options) assertNoGlobalPopulatePolicy(key);
+    this.globalOptions.assign({ ...options });
   }
 
   setGlobalOption<K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]) {
-    if (key === 'requireOperationAccessForPopulateQueries' || key === 'requireOperationAccessForPopulateDependencies') {
-      this.globalOptions.set<
-        'requireOperationAccessForPopulateQueries' | 'requireOperationAccessForPopulateDependencies'
-      >(key, value !== false);
-      return;
-    }
+    assertNoGlobalPopulatePolicy(String(key));
     this.globalOptions.set(key, value);
   }
 
@@ -794,7 +794,7 @@ export class AccessRuntime {
     const draft = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>(
       this.getDefaultModelOptions(),
     ).build();
-    draft.assign(options);
+    draft.assign(normalizePopulatePolicyOptions(options));
     this.publishDefaultModelOptions(draft.fetch());
   }
 
@@ -806,7 +806,9 @@ export class AccessRuntime {
     const draft = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>(
       this.getDefaultModelOptions(),
     ).build();
-    if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
+    if (isPopulatePolicyKey(keyStr)) {
+      draft.set(keyStr, normalizePopulatePolicyValue(value));
+    } else if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
       draft.set('hydration', normalizeHydrationUpdate(this.getDefaultModelOptions().hydration, keyStr, value));
     } else {
       draft.set(key, value);
@@ -831,7 +833,11 @@ export class AccessRuntime {
     overrides: ModelRouterOptions = this.modelOptionOverrides[modelName] ?? {},
     defaults: DefaultModelRouterOptions = this.getDefaultModelOptions(),
   ): ModelRouterOptions {
-    const effective = { ...defaultModelOptions, ...defaults, ...overrides, modelName };
+    // Populate policy uses the operation's captured default token, rather than
+    // a default materialized into a model snapshot before its target is captured.
+    const inherited = { ...defaults };
+    for (const key of populatePolicyKeys) delete inherited[key];
+    const effective = { ...defaultModelOptions, ...inherited, ...overrides, modelName };
     effective.basePath = normalizeBasePath(modelName, effective.basePath);
     for (const key of unsafeSnapshotOptions) effective[key] = effective[key] === true;
     refreshPermissionMetadata(effective);
@@ -849,7 +855,7 @@ export class AccessRuntime {
       options.documentPermissionField ?? '_permissions',
       modelName,
     );
-    captureVirtualPopulateDependencies(this, modelName, options, this.getGlobalOptions(), proposed);
+    captureVirtualPopulateDependencies(this, modelName, options, undefined, proposed);
   }
 
   private publishDefaultModelOptions(options: DefaultModelRouterOptions): void {
@@ -977,6 +983,7 @@ export class AccessRuntime {
     options: ModelRouterOptions<TModel, TVirtuals>,
   ) {
     assertPublicDefaults(options.defaults);
+    options = normalizePopulatePolicyOptions(options);
     if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
     const overrides = modelOverrides({ ...this.modelOptionOverrides[modelName], ...options } as ModelRouterOptions);
     const effective = this.resolveModelOptions(modelName, overrides);
@@ -1023,7 +1030,7 @@ export class AccessRuntime {
     this.setModelOptions(modelName, { [root]: nested } as ModelRouterOptions<TModel, TVirtuals>);
   }
 
-  /** Frozen effective model/default snapshot. Nested objects replace shallowly; read again for current policy. */
+  /** Frozen model/default snapshot; populate flags remain raw overrides. Read again for current values. */
   getModelOptions<TModel = unknown, TVirtuals extends object = Record<never, never>>(modelName: string) {
     const manager = this.getOrCreateModelOptions<TModel, TVirtuals>(modelName);
     return manager.fetch() as ModelRouterOptions<TModel, TVirtuals>;

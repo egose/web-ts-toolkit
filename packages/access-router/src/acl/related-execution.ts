@@ -1,16 +1,16 @@
 /** Package-only related descriptor capture and target derivation. */
 import type { AccessRuntime } from '../runtime';
 import type { SchemaType } from 'mongoose';
-import type { Defaults, GlobalOptions, Include, Populate } from '../interfaces';
+import type { Defaults, Include, Populate } from '../interfaces';
 import type { Service } from '../services/service';
-import { getModelRef } from '../meta';
 import { assertPublicAdmission, forwardPublicOptions } from '../validation/public-admission';
 import { assertPopulateAccess } from './populate-access';
 import { captureModelAuthorizationConfiguration } from './model-output-planning';
-import { capturePopulateTargetConfiguration } from './populate-target-configuration';
+import { capturePopulateTargetBinding } from './populate-target-configuration';
 import { authorizationError } from './authorization-snapshot';
 import { createServiceExecution, getServiceExecutors, withExecutionQueryIntent } from './service-execution';
 import { captureModelServiceIntent } from '../services/model-service-intent';
+import { capturePopulatePolicyDefaults, type PopulatePolicyDefaultsToken } from './populate-policy';
 import {
   getAuthorizationPermissions,
   readServiceAuthorization,
@@ -52,10 +52,7 @@ export function captureRelatedTargets(
   modelName: string,
   args: { populate?: unknown; include?: unknown } = {},
   depth = 0,
-  globalOptions: Pick<
-    GlobalOptions,
-    'requireOperationAccessForPopulateQueries' | 'requireOperationAccessForPopulateDependencies'
-  > = runtime.getGlobalOptions(),
+  populatePolicyDefaults: PopulatePolicyDefaultsToken = capturePopulatePolicyDefaults(runtime),
 ): AuthorizationRelatedTarget[] {
   if (depth > 32) authorizationError('related descriptor depth exceeded');
   assertPublicAdmission(args.populate, 'populate');
@@ -65,20 +62,32 @@ export function captureRelatedTargets(
   for (const entry of entries<Populate | string>(args.populate)) {
     const path = typeof entry === 'string' ? entry : entry.path;
     if (typeof entry !== 'string') assertPopulateAccess(entry.access);
-    const model = getModelRef(modelName, path, runtime);
-    if (model) {
-      const target = capturePopulateTargetConfiguration(runtime, model, `${modelName}.${path}`);
+    const target = capturePopulateTargetBinding(runtime, modelName, path);
+    if (target) {
       targets.push({
         path,
-        modelName: model,
-        configuration: captureModelAuthorizationConfiguration(runtime, model, target.options, globalOptions),
-        staticObjectIdReference: staticObjectIdReference(runtime, modelName, path, model),
+        modelName: target.modelName,
+        model: target.model,
+        configuration: captureModelAuthorizationConfiguration(
+          runtime,
+          target.modelName,
+          target.options,
+          populatePolicyDefaults,
+        ),
+        staticObjectIdReference: staticObjectIdReference(runtime, modelName, path, target.modelName),
       });
     }
   }
   for (const entry of entries<Include>(args.include)) {
     if (!runtime.hasModel(entry.model)) authorizationError(`Model ${entry.model} not found`);
-    const configuration = captureModelAuthorizationConfiguration(runtime, entry.model, undefined, globalOptions);
+    const model = runtime.getModelInstance(entry.model);
+    if (!model) authorizationError(`unknown receiving model: ${entry.model}`);
+    const configuration = captureModelAuthorizationConfiguration(
+      runtime,
+      entry.model,
+      undefined,
+      populatePolicyDefaults,
+    );
     const queryIntent =
       entry.op === 'count'
         ? undefined
@@ -103,6 +112,7 @@ export function captureRelatedTargets(
     targets.push({
       path: entry.path,
       modelName: entry.model,
+      model,
       kind: entry.op === 'count' ? 'count' : 'output',
       configuration,
       queryIntent,
@@ -112,7 +122,7 @@ export function captureRelatedTargets(
         entry.model,
         queryIntent?.args ?? entry.args ?? {},
         depth + 1,
-        globalOptions,
+        populatePolicyDefaults,
       ),
     });
   }
@@ -141,7 +151,12 @@ export function createRelatedExecution<T, V extends object>(
   const captured = readServiceAuthorization(parent, binding);
   const target = captured.relatedTargets.find((entry) => entry.path === path);
   const policy = captured.authorization.related[path];
-  if ((target || policy) && (!target || target.modelName !== getServiceExecutors(receiver).binding().modelName))
+  const receiving = getServiceExecutors(receiver).binding();
+  if (
+    (policy && !target) ||
+    (target &&
+      (target.modelName !== receiving.modelName || (target.model !== undefined && target.model !== receiving.model)))
+  )
     authorizationError(`related model mismatch: ${path}`);
   const execution = createServiceExecution(
     receiver,

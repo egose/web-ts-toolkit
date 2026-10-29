@@ -40,7 +40,7 @@ import {
 } from './metadata';
 import type { BootstrapResult, RouterModel, Type } from './interfaces';
 import type { OptionMetadata, OptionScope } from './decorators/property.decorators';
-import { validatePropertyOptionValue } from './property-options';
+import { validatePropertyOptionScope, validatePropertyOptionValue } from './property-options';
 
 type HookParamMetadata = { index: number; type: HookParamtypes };
 type HookConfig = HookDefinition;
@@ -1079,6 +1079,7 @@ export class EgoseFactoryStatic {
       OPTIONS_METADATA,
       'optionKey',
     )) {
+      validatePropertyOptionScope(option, propertyScope);
       if (!propertyScope || (option.scope && option.scope !== propertyScope)) {
         throw new TypeError(
           `Invalid option scope on ${describeTarget(instance, option.propertyKey)}: ${option.scope ?? 'legacy'} option ${String(option.optionKey)} is not supported on ${HOOK_CLASS_ROLES[role].label}`,

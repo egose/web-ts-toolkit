@@ -500,7 +500,7 @@ describe('POP-01 unregistered-populate fail-closed controls (supersedes SVA-11 r
     async (mode) => {
       const f = await fixture({}, { permissionSchema: mode === 'model' ? {} : undefined });
       if (mode === 'runtime-default') f.runtime.setDefaultModelOption('permissionSchema', {});
-      f.runtime.setGlobalOptions({
+      f.runtime.setDefaultModelOptions({
         requireOperationAccessForPopulateQueries: false,
         requireOperationAccessForPopulateDependencies: false,
       });
@@ -532,7 +532,7 @@ describe('POP-01 unregistered-populate fail-closed controls (supersedes SVA-11 r
             : service._read(String(f.documents[0]._id), args, { ...quiet, tryList: false });
         f.calls.length = 0;
         expect(await query()).toMatchObject({ success: false, code: 'bad_request' });
-        f.runtime.setGlobalOptions({
+        f.runtime.setDefaultModelOptions({
           requireOperationAccessForPopulateQueries: false,
           requireOperationAccessForPopulateDependencies: false,
         });
@@ -565,7 +565,7 @@ describe('POP-01 unregistered-populate fail-closed controls (supersedes SVA-11 r
   it('both public upsert branches reject unconfigured output targets before persistence', async () => {
     const f = await fixture({}, {}, false);
     const target = await f.target.create({ slug: 'raw-target', ownerId: 'private' });
-    f.runtime.setGlobalOptions({
+    f.runtime.setDefaultModelOptions({
       requireOperationAccessForPopulateQueries: false,
       requireOperationAccessForPopulateDependencies: false,
     });

@@ -171,7 +171,7 @@ const assembleAllBlocks = (): CompiledBlock[] => {
       });
     });
   }
-  // POP-04: compile the actual two-flag installed-hover example through each public
+  // MPO-03: compile the actual target/default installed-hover example through each public
   // declaration entry/condition, following aliases into tsup's shared graph.
   const entries = ['index.d.ts', 'index.d.mts', 'advanced.d.ts', 'advanced.d.mts'];
   const declarationProgram = ts.createProgram(
@@ -182,15 +182,18 @@ const assembleAllBlocks = (): CompiledBlock[] => {
   for (const entry of entries) {
     const source = declarationProgram.getSourceFile(path.resolve(packageRoot, 'dist', entry))!;
     const module = checker.getSymbolAtLocation(source)!;
-    let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === 'GlobalOptions')!;
+    let symbol = checker
+      .getExportsOfModule(module)
+      .find((candidate) => candidate.name === 'DefaultModelRouterOptions')!;
     if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
     const property = checker
       .getDeclaredTypeOfSymbol(symbol)
       .getProperty('requireOperationAccessForPopulateDependencies')!;
     const example = property.getJsDocTags(checker).find((tag) => tag.name === 'example');
     const snippet = ts.displayPartsToString(example?.text).match(/```ts\n([\s\S]*?)```/)?.[1];
-    if (!snippet) throw new Error(`${entry} is missing the installed GlobalOptions populate-operation example`);
-    blocks.push({ name: `GlobalOptions-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
+    if (!snippet)
+      throw new Error(`${entry} is missing the installed DefaultModelRouterOptions populate-operation example`);
+    blocks.push({ name: `DefaultModelRouterOptions-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
   }
   return blocks;
 };

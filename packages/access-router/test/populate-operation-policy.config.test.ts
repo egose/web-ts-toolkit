@@ -66,7 +66,10 @@ describe('POP-01 mandatory populate configuration', () => {
 
   it('exposes only the new strict-default pair in actual runtime snapshots', () => {
     const { api } = fixture();
-    for (const flag of flags) expect(api.getGlobalOption(flag)).toBe(true);
+    for (const flag of flags) {
+      expect(api.getDefaultModelOption(flag)).toBe(true);
+      expect(api.getGlobalOptions()).not.toHaveProperty(flag);
+    }
     expect(api.getGlobalOptions()).not.toHaveProperty('requireRegisteredPopulateModels');
     expect(api.getGlobalOptions()).not.toHaveProperty('requireReadOperationAccessForPopulateDependencies');
   });
@@ -75,7 +78,7 @@ describe('POP-01 mandatory populate configuration', () => {
     'rejects %s ordinary targets before source hooks, target I/O or mutation persistence with both flags false',
     async (state) => {
       const f = fixture();
-      f.api.setGlobalOptions({ [flags[0]]: false, [flags[1]]: false });
+      f.api.setDefaultModelOptions({ [flags[0]]: false, [flags[1]]: false });
       if (state !== 'missing') f.api.registerModelInstance(f.target.modelName, f.target);
       if (state === 'missing-schema' || state === 'missing-model')
         f.api.setModelOptions(f.target.modelName, {
@@ -142,7 +145,7 @@ describe('POP-01 mandatory populate configuration', () => {
       const schema = mode === 'empty' ? {} : { name: true, secret: false };
       if (mode === 'default') f.api.setDefaultModelOptions({ permissionSchema: schema });
       else f.api.setModelOption(f.target.modelName, 'permissionSchema', schema);
-      f.api.setGlobalOptions({ [flags[0]]: false, [flags[1]]: false });
+      f.api.setDefaultModelOptions({ [flags[0]]: false, [flags[1]]: false });
       f.api.setModelOption(
         f.source.modelName,
         'virtuals.computed' as never,
@@ -187,7 +190,7 @@ describe('POP-01 mandatory populate configuration', () => {
     const f = fixture();
     f.api.registerModelInstance(f.target.modelName, f.target);
     f.api.setModelOptions(f.target.modelName, { operationAccess: true });
-    f.api.setGlobalOptions({ [flags[0]]: false, [flags[1]]: false });
+    f.api.setDefaultModelOptions({ [flags[0]]: false, [flags[1]]: false });
     const descriptor = { get: () => true, dependsOnPopulate: [{ path: 'ref', select: 'secret' }] };
     const before = f.api.getModelOptions(f.source.modelName);
     expect(() => f.api.setModelOptions(f.source.modelName, { virtuals: { computed: descriptor } } as never)).toThrow(
@@ -226,48 +229,44 @@ describe('POP-01 mandatory populate configuration', () => {
   });
 });
 
-describe.each(flags)('POP-01 runtime-owned %s', (flag) => {
+describe.each(flags)('POP-01 runtime model default %s', (flag) => {
   it('normalizes every setter, owns snapshots/bootstrap state and isolates runtimes independently', () => {
     const f = fixture();
     const other = createAccessRuntime();
     const independent = flags.find((key) => key !== flag)!;
-    const before = f.api.getGlobalOptions();
+    const before = f.api.getDefaultModelOptions();
     for (const set of [
-      (value: boolean | undefined) => f.api.setGlobalOptions({ [flag]: value }),
-      (value: boolean | undefined) => f.api.setGlobalOption(flag, value),
-      (value: boolean | undefined) => f.api.set({ [flag]: value }),
-      (value: boolean | undefined) => f.api.set(flag, value),
-      (value: boolean | undefined) => f.api.runtime.setGlobalOptions({ [flag]: value }),
-      (value: boolean | undefined) => f.api.runtime.setGlobalOption(flag, value),
+      (value: boolean | undefined) => f.api.setDefaultModelOptions({ [flag]: value }),
+      (value: boolean | undefined) => f.api.setDefaultModelOption(flag, value),
+      (value: boolean | undefined) => f.api.runtime.setDefaultModelOptions({ [flag]: value }),
+      (value: boolean | undefined) => f.api.runtime.setDefaultModelOption(flag, value),
     ]) {
       for (const value of [false, true, undefined, false]) {
         set(value);
-        expect(f.api.getGlobalOption(flag)).toBe(value !== false);
+        expect(f.api.getDefaultModelOption(flag)).toBe(value);
         expect(captureModelAuthorizationConfiguration(f.api.runtime, f.source.modelName)[flag]).toBe(value !== false);
-        expect(f.api.getGlobalOptions()[independent]).toBe(true);
-        expect(other.getGlobalOption(flag)).toBe(true);
+        expect(f.api.getDefaultModelOptions()[independent]).toBe(true);
+        expect(other.getDefaultModelOption(flag)).toBe(true);
       }
     }
     const bootstrap = f.api.runtime.createBootstrapSnapshot();
     f.api.setGlobalOptions({ logger: {} });
-    expect(f.api.getGlobalOption(flag)).toBe(false);
-    f.api.setGlobalOption(flag, true);
+    expect(f.api.getDefaultModelOption(flag)).toBe(false);
+    f.api.setDefaultModelOption(flag, true);
     f.api.runtime.restoreBootstrapSnapshot(bootstrap);
-    expect(f.api.getGlobalOption(flag)).toBe(false);
+    expect(f.api.getDefaultModelOption(flag)).toBe(false);
     expect(before[flag]).toBe(true);
     expect(Object.isFrozen(before)).toBe(true);
     for (const value of [null, 0, 1, '', 'false', [], {}, Object(false), () => false]) {
       for (const set of [
-        () => f.api.setGlobalOptions({ [flag]: value } as never),
-        () => f.api.setGlobalOption(flag, value as never),
-        () => f.api.set({ [flag]: value } as never),
-        () => f.api.set(flag, value as never),
-        () => f.api.runtime.setGlobalOptions({ [flag]: value } as never),
-        () => f.api.runtime.setGlobalOption(flag, value as never),
+        () => f.api.setDefaultModelOptions({ [flag]: value } as never),
+        () => f.api.setDefaultModelOption(flag, value as never),
+        () => f.api.runtime.setDefaultModelOptions({ [flag]: value } as never),
+        () => f.api.runtime.setDefaultModelOption(flag, value as never),
       ]) {
-        f.api.setGlobalOption(flag, false);
+        f.api.setDefaultModelOption(flag, false);
         set();
-        expect(f.api.getGlobalOption(flag)).toBe(true);
+        expect(f.api.getDefaultModelOption(flag)).toBe(true);
       }
     }
   });
@@ -284,7 +283,7 @@ describe.each(flags)('POP-01 runtime-owned %s', (flag) => {
         dependsOnPopulate: [{ path: 'ref', select: 'secret' }],
       } as never,
     );
-    f.api.setGlobalOption(flag, false);
+    f.api.setDefaultModelOption(flag, false);
     const req = await requestFor(f);
     const service = req.macl.getService(f.source.modelName);
     let enter!: () => void;
@@ -312,7 +311,7 @@ describe.each(flags)('POP-01 runtime-owned %s', (flag) => {
     try {
       expect(snapshots).toHaveLength(3);
       snapshots.forEach((configuration) => expect(configuration[flag]).toBe(false));
-      f.api.setGlobalOption(flag, true);
+      f.api.setDefaultModelOption(flag, true);
       f.api.setModelOption(f.target.modelName, 'permissionSchema', { name: true });
     } finally {
       release();
@@ -329,7 +328,7 @@ describe.each(flags)('POP-01 runtime-owned %s', (flag) => {
     snapshots.slice(3).forEach((configuration) => expect(configuration[flag]).toBe(true));
   });
 
-  it('ignores model/query controls while retaining same-spelled business fields', async () => {
+  it('keeps target model configuration separate from caller controls and same-spelled business fields', async () => {
     const f = fixture();
     f.source.schema.add({ [flag]: Boolean });
     const transform = vi.fn(() => false);
@@ -347,7 +346,7 @@ describe.each(flags)('POP-01 runtime-owned %s', (flag) => {
     ).toMatchObject({ success: false, code: 'forbidden' });
     expect(transform.mock.calls[0][0]).toEqual(filter);
     const configuration = captureModelAuthorizationConfiguration(f.api.runtime, f.source.modelName);
-    expect(configuration[flag]).toBe(true);
+    expect(configuration[flag]).toBe(false);
     expect(configuration.catalog.persistedPaths).toContain(flag);
   });
 });
@@ -356,7 +355,7 @@ it('POP-01 request-only helper captures target flags, schema, original selection
   const f = fixture();
   f.api.registerModelInstance(f.target.modelName, f.target);
   f.api.setModelOptions(f.target.modelName, { operationAccess: true, permissionSchema: { name: true, secret: false } });
-  f.api.setGlobalOptions({ [flags[0]]: false, [flags[1]]: false });
+  f.api.setDefaultModelOptions({ [flags[0]]: false, [flags[1]]: false });
   let enter!: () => void;
   let release!: () => void;
   const entered = new Promise<void>((done) => (enter = done));
@@ -371,7 +370,7 @@ it('POP-01 request-only helper captures target flags, schema, original selection
   const pending = req.macl.genPopulate(f.source.modelName, 'read', descriptor);
   await entered;
   try {
-    f.api.setGlobalOptions({ [flags[0]]: true, [flags[1]]: true });
+    f.api.setDefaultModelOptions({ [flags[0]]: true, [flags[1]]: true });
     f.api.setModelOption(f.target.modelName, 'permissionSchema', { secret: true });
     descriptor.select[0] = 'secret';
     descriptor.match.name = 'changed';

@@ -437,6 +437,8 @@ import {
 import { Codes, FilterOperator } from '../enums';
 import { resolveRequestComplexity, validateRequestComplexity } from '../request-complexity';
 import type { AccessRuntime } from '../runtime';
+import { withCapturedPopulateModel } from '../model';
+import type { Service } from './service';
 import {
   bindModelOwnerMethods,
   captureModelServiceOwner,
@@ -453,8 +455,8 @@ import {
   type AuthorizationRelatedTarget,
   type ResolvedServiceAuthorization,
 } from '../acl/service-authorization';
-import { createRelatedExecution, relatedPolicy } from '../acl/related-execution';
-import { createServiceExecution, withExecutionHydration } from '../acl/service-execution';
+import { createRelatedExecution } from '../acl/related-execution';
+import { createServiceExecution, getServiceExecutors, withExecutionHydration } from '../acl/service-execution';
 import { isExecutionRowDenied } from '../acl/prepared-query';
 import {
   prepareModelQuery,
@@ -753,17 +755,18 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     path?: string,
     parentAuthorization?: ResolvedServiceAuthorization,
   ) {
+    const binding = parentAuthorization ? this.relatedBinding() : undefined;
+    const captured = parentAuthorization ? readServiceAuthorization(parentAuthorization, binding!) : undefined;
+    const target = captured?.relatedTargets.find((entry) => entry.path === path);
+    const policy = path ? captured?.authorization.related[path] : undefined;
+    if (target && target.modelName !== modelName)
+      this.throwClientRequestError(Codes.BadRequest, `related model mismatch: ${path}`);
     // Package cores always have a registry. Keep the existing custom-core adapter
     // seam, whose target dispatch need not be backed by a Mongoose registry.
-    if (hasModelCoreOwner(this.requestCore) && !this.requestRuntime.hasModel(modelName)) {
+    if (hasModelCoreOwner(this.requestCore) && !target?.model && !this.requestRuntime.hasModel(modelName)) {
       this.throwClientRequestError(Codes.BadRequest, `Model ${modelName} not found`);
     }
 
-    const policy = path ? relatedPolicy(parentAuthorization, this.relatedBinding(), path) : undefined;
-    const captured = parentAuthorization
-      ? readServiceAuthorization(parentAuthorization, this.relatedBinding())
-      : undefined;
-    const target = captured?.relatedTargets.find((entry) => entry.path === path);
     const allowed =
       policy?.operation.mode === 'grant' ||
       (target
@@ -773,7 +776,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
               modelName,
               op,
               target.operationGuard,
-              getAuthorizationPermissions(parentAuthorization!, this.relatedBinding()),
+              getAuthorizationPermissions(parentAuthorization!, binding!),
               () => this.requestCore.isAllowed(modelName, op),
             ),
           )
@@ -782,16 +785,17 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       this.throwClientRequestError(Codes.Unauthorized, 'Unauthorized');
     }
 
-    return this.requestCore.getPublicService(modelName);
+    return target?.model
+      ? withCapturedPopulateModel(this.requestRuntime, modelName, target.model, () =>
+          this.requestCore.getPublicService(modelName),
+        )
+      : this.requestCore.getPublicService(modelName);
   }
 
   private relatedBinding() {
-    return {
-      request: this.req,
-      runtime: this.requestRuntime,
-      model: this.requestRuntime.getModelInstance(this.modelName)!,
-      modelName: this.modelName,
-    };
+    // Authenticate the actual receiver, including recursively captured targets.
+    // A live name lookup can no longer represent the source after an await.
+    return getServiceExecutors(this as unknown as Service<TModel, TVirtuals>).binding();
   }
 
   private relatedExecution(

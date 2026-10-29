@@ -92,7 +92,7 @@ import { getRequestWorkState } from './helpers/request-work';
 import {
   constructOwnedModelService,
   consumeCapturedModelOperationGuard,
-  modelServiceGlobalOptions,
+  modelServicePopulatePolicyDefaults,
   registerModelCoreOwner,
   withCapturedModelOperationGuard,
 } from './acl/model-service-owner';
@@ -333,9 +333,20 @@ export class Core {
       if (!isString(p)) assertPopulateAccess(p.access);
     }
     const runtime = this.requestRuntime;
-    const globalOptions = modelServiceGlobalOptions(this, runtime);
-    const relatedTargets = captureRelatedTargets(runtime, modelName, { populate: descriptors }, 0, globalOptions);
-    const sourceConfiguration = captureModelAuthorizationConfiguration(runtime, modelName, undefined, globalOptions);
+    const populatePolicyDefaults = modelServicePopulatePolicyDefaults(this, runtime);
+    const relatedTargets = captureRelatedTargets(
+      runtime,
+      modelName,
+      { populate: descriptors },
+      0,
+      populatePolicyDefaults,
+    );
+    const sourceConfiguration = captureModelAuthorizationConfiguration(
+      runtime,
+      modelName,
+      undefined,
+      populatePolicyDefaults,
+    );
     const originalPermissions = this.getGlobalPermissions();
     const permissions = new Permission(
       Object.fromEntries(originalPermissions.keys.map((key) => [key, originalPermissions.has(key)])),
@@ -419,7 +430,8 @@ export class Core {
           ret.match = deepIsolateValue(intersectFilters(match, filter));
           // VIRT-05: retain per-entry target plans (original selection,
           // captured descriptors, dependency fetch, effective accesses).
-          // Mongoose descriptors stay enumerable `{ path, select, match }`;
+          // Mongoose descriptors carry `{ path, select, match, model }`, where
+          // model is the server-validated instance, never forwarded caller input;
           // internal metadata is non-enumerable under a Symbol (separate by
           // construction, invisible to Mongoose/JSON). Dotted paths through
           // embedded arrays (e.g. `contacts.friend`) are supported as single
@@ -470,6 +482,14 @@ export class Core {
             requestedSelect: originalSelect,
             plan: targetPlan,
             snapshot: targetSnapshot,
+            fetchBinding: {
+              runtime,
+              model: target.model!,
+              schema: target.model!.schema,
+              configuration: targetConfiguration,
+              requestRead: populateAccess === 'read',
+              staticObjectIdReference: target.staticObjectIdReference,
+            },
           });
           return ret;
         }),

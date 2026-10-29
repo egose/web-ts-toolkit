@@ -15,6 +15,7 @@ import type {
 } from '../interfaces/service-authorization';
 import { authorizationError, authorizationRecord, copyAuthorizationValue } from './authorization-snapshot';
 import type { VirtualPopulateSnapshotToken } from './virtual-populate-dependencies';
+import type { PopulatePolicyDefaultsToken } from './populate-policy';
 export { ServiceAuthorizationError } from './authorization-snapshot';
 
 export interface AuthorizationBinding {
@@ -65,9 +66,11 @@ export interface AuthorizationConfiguration {
   readonly unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
-  /** Runtime-owned private input admission mode, not public output/related authority. */
+  /** Held runtime model defaults, distinct from this model's resolved flags. */
+  readonly populatePolicyDefaults?: PopulatePolicyDefaultsToken;
+  /** Target-owned private input admission mode, not public output/related authority. */
   readonly requireOperationAccessForPopulateDependencies?: boolean;
-  /** Independent ordinary-populate operation admission from the same global snapshot. */
+  /** Independent target-owned ordinary-populate operation admission. */
   readonly requireOperationAccessForPopulateQueries?: boolean;
   readonly documentPermissionField?: string;
   /** Captured permission schema, virtual descriptors, always-select and metadata posture. */
@@ -79,6 +82,8 @@ export interface AuthorizationRelatedTarget {
   readonly path: string;
   readonly modelName: string;
   readonly configuration: AuthorizationConfiguration;
+  /** Actual source-ref target or include receiver, captured with this runtime's configuration. */
+  readonly model?: import('mongoose').Model<unknown>;
   /** Effective include args/options, resolved with that target's captured defaults. */
   readonly queryIntent?: import('../services/model-service-intent').ModelServiceIntent;
   /** Existing include operation gate, resolved synchronously with its target. */

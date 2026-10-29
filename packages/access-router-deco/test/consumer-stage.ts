@@ -74,6 +74,7 @@ export function stageConsumerDir() {
   }
 
   for (const dependency of [
+    '@fast-csv/format',
     '@types/express',
     '@types/express-serve-static-core',
     '@types/node',

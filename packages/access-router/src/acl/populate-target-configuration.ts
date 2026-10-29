@@ -3,6 +3,7 @@ import { isPlainObject } from '@web-ts-toolkit/utils';
 import type { DefaultModelRouterOptions, ModelRouterOptions } from '../interfaces';
 import type { AccessRuntime } from '../runtime';
 import { authorizationError } from './authorization-snapshot';
+import { getModelReference } from '../meta';
 
 /** Proposed options support eager self-reference and atomic default/model graph validation. */
 export function capturePopulateTargetConfiguration(
@@ -27,4 +28,27 @@ export function capturePopulateTargetConfiguration(
       `${label} requires an effective object permissionSchema; configure the model or runtime model defaults ({} explicitly closes business fields)`,
     );
   return { model, options: { ...options, permissionSchema } as ModelRouterOptions };
+}
+
+/** Ordinary refs may name a source-connection model or explicitly hold a cross-connection Model. */
+export function capturePopulateTargetBinding(runtime: AccessRuntime, sourceModelName: string, path: string) {
+  const { ref, refPath } = getModelReference(sourceModelName, path, runtime);
+  if (refPath !== undefined || (typeof ref === 'function' && !('modelName' in ref)))
+    authorizationError(
+      `Populate target for ${sourceModelName}.${path} requires a static string or Mongoose Model-valued source ref; dynamic refs/refPath cannot be bound before I/O`,
+    );
+  const modelName = typeof ref === 'string' ? ref : ref?.modelName;
+  if (!modelName) return undefined;
+  const target = capturePopulateTargetConfiguration(runtime, modelName, `${sourceModelName}.${path}`);
+  const source = runtime.getModelInstance(sourceModelName);
+  const actual = typeof ref === 'string' ? source?.db.models[ref] : ref;
+  if (!actual)
+    authorizationError(
+      `Populate target "${modelName}" for ${sourceModelName}.${path} is missing on the source connection; configure the actual model bound to the source ref in this runtime`,
+    );
+  if (actual !== target.model)
+    authorizationError(
+      `Populate target "${modelName}" for ${sourceModelName}.${path} resolves to a different actual Mongoose model than this runtime configured; register and configure the actual source ref instance`,
+    );
+  return { ...target, modelName };
 }

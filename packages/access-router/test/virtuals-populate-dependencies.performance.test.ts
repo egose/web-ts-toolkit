@@ -111,9 +111,11 @@ describe.each([
           children: [{ account: aRef }],
         }),
       );
-      api.setGlobalOptions({
+      api.setDefaultModelOptions({
         requireOperationAccessForPopulateDependencies: strict,
         requireOperationAccessForPopulateQueries: queries,
+      });
+      api.setGlobalOptions({
         requestComplexity: { maxBulkConcurrency: limit, maxHookConcurrency: limit },
       } as never);
       const operationGuard = vi.fn(() => true);

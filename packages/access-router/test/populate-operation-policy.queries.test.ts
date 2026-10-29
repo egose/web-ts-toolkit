@@ -23,10 +23,10 @@ async function fixture(required = false, hydration: 'lean' | 'hydrated' = 'lean'
   const api = createAccessRuntime();
   runtimes.push(api);
   api.setGlobalOptions({
-    [flag]: required,
     globalPermissions: () => ({ reader: true, admin: false }),
     requestPermissionField: '_permissions',
   });
+  api.setDefaultModelOptions({ [flag]: required });
   const targetName = `PopQueryDocument${++sequence}`;
   const sourceName = `PopQueryParent${sequence}`;
   const queries: Array<{ filter: unknown; projection: unknown }> = [];
@@ -360,7 +360,7 @@ describe('POP-02 ordinary target operation admission', () => {
         expect(denied).toMatchObject({ success: true, data: [{ refs: f.parent.refs }] });
         expect(mode === 'default-read' ? read : list).toHaveBeenCalledTimes(1);
         expect(mode === 'default-read' ? list : read).not.toHaveBeenCalled();
-        f.api.setGlobalOption(flag, false);
+        f.api.setDefaultModelOption(flag, false);
         const bypass = await svc.find({}, args, options);
         expect(bypass).toMatchObject({ success: true });
         if (!bypass.success) throw new Error(bypass.code);
@@ -425,7 +425,7 @@ describe('POP-02 ordinary target operation admission', () => {
             ? req.macl.genPopulate(f.sourceName, 'read', populated())
             : req.macl.getService(f.sourceName).findOne({}, { select: ['ref'], populate: populated() }, quiet);
         await expect(call()).rejects.toThrow('ordinary-operation-sentinel');
-        f.api.setGlobalOption(flag, false);
+        f.api.setDefaultModelOption(flag, false);
         const result = await call();
         if (seam === 'helper') expect(result).toHaveLength(1);
         else expect(result).toMatchObject({ success: true, data: { ref: { name: 'visible' } } });
@@ -586,8 +586,8 @@ describe('POP-02 match, rows, helpers and server authority', () => {
       })
       .expect(200);
     expect(business.body.data[0]).toMatchObject(Object.fromEntries(fields.map((key) => [key, false])));
-    expect(f.api.getGlobalOption(flag)).toBe(true);
-    expect(f.api.getGlobalOption('requireOperationAccessForPopulateDependencies')).toBe(true);
+    expect(f.api.getDefaultModelOption(flag)).toBe(true);
+    expect(f.api.getDefaultModelOption('requireOperationAccessForPopulateDependencies')).toBe(true);
     expect(f.queries).toEqual([]);
   });
 });
@@ -653,7 +653,7 @@ describe.each(['canonical', 'helper'] as const)('POP-02 captured %s policy', (se
                 .findOne({}, { select: ['ref'], populate: populated('ref', ['name']) }, quiet);
         const pending = call();
         await ready.promise;
-        f.api.setGlobalOption(flag, !initial);
+        f.api.setDefaultModelOption(flag, !initial);
         blocked.release();
         const first = await pending;
         const later = await call();

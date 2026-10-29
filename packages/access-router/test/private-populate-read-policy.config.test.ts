@@ -9,6 +9,7 @@ import { captureRelatedTargets, createRelatedExecution } from '../src/acl/relate
 import { createServiceExecution, deriveServiceExecution, readServiceExecution } from '../src/acl/service-execution';
 import { readServiceAuthorization } from '../src/acl/service-authorization';
 import { prepareSubdocumentOutput } from '../src/acl/subdocument-output';
+import * as populatePolicy from '../src/acl/populate-policy';
 
 const flag = 'requireOperationAccessForPopulateDependencies';
 const queryFlag = 'requireOperationAccessForPopulateQueries';
@@ -59,29 +60,27 @@ async function serviceFor(f: ReturnType<typeof fixture>) {
   return { req, service: req.macl.getService(f.source.modelName) };
 }
 
-describe('PPR-01 runtime-owned private populate read mode', () => {
+describe('PPR-01 runtime model defaults for private populate read mode', () => {
   it('defaults to strict and changes only the owning runtime through every setter form', () => {
     const f = fixture();
     const other = createAccessRuntime();
-    expect(f.api.getGlobalOption(flag)).toBe(true);
-    expect(f.api.getGlobalOptions()[flag]).toBe(true);
+    expect(f.api.getDefaultModelOption(flag)).toBe(true);
+    expect(f.api.getDefaultModelOptions()[flag]).toBe(true);
     assertMode(f.capture(), true);
     const setters = [
-      (value: boolean | undefined) => f.api.setGlobalOptions({ [flag]: value }),
-      (value: boolean | undefined) => f.api.setGlobalOption(flag, value),
-      (value: boolean | undefined) => f.api.set({ [flag]: value }),
-      (value: boolean | undefined) => f.api.set(flag, value),
-      (value: boolean | undefined) => f.api.runtime.setGlobalOptions({ [flag]: value }),
-      (value: boolean | undefined) => f.api.runtime.setGlobalOption(flag, value),
+      (value: boolean | undefined) => f.api.setDefaultModelOptions({ [flag]: value }),
+      (value: boolean | undefined) => f.api.setDefaultModelOption(flag, value),
+      (value: boolean | undefined) => f.api.runtime.setDefaultModelOptions({ [flag]: value }),
+      (value: boolean | undefined) => f.api.runtime.setDefaultModelOption(flag, value),
     ];
     for (const set of setters) {
       for (const value of [false, true, false, undefined]) {
         set(value);
         const expected = value !== false;
-        expect(f.api.getGlobalOption(flag)).toBe(expected);
-        expect(f.api.getGlobalOptions()[flag]).toBe(expected);
+        expect(f.api.getDefaultModelOption(flag)).toBe(value);
+        expect(f.api.getDefaultModelOptions()[flag]).toBe(value);
         assertMode(f.capture(), expected);
-        expect(other.getGlobalOption(flag)).toBe(true);
+        expect(other.getDefaultModelOption(flag)).toBe(true);
       }
     }
   });
@@ -91,30 +90,30 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
     (value) => {
       const f = fixture();
       for (const set of [
-        () => f.api.setGlobalOptions({ [flag]: value } as never),
-        () => f.api.setGlobalOption(flag, value as never),
-        () => f.api.set({ [flag]: value } as never),
-        () => f.api.set(flag, value as never),
+        () => f.api.setDefaultModelOptions({ [flag]: value } as never),
+        () => f.api.setDefaultModelOption(flag, value as never),
+        () => f.api.runtime.setDefaultModelOptions({ [flag]: value } as never),
+        () => f.api.runtime.setDefaultModelOption(flag, value as never),
       ]) {
-        f.api.setGlobalOption(flag, false);
+        f.api.setDefaultModelOption(flag, false);
         set();
-        expect(f.api.getGlobalOptions()[flag]).toBe(true);
+        expect(f.api.getDefaultModelOptions()[flag]).toBe(true);
         assertMode(f.capture(), true);
       }
     },
   );
 
-  it('owns global snapshots, preserves shallow unrelated updates, and restores bootstrap mode', () => {
+  it('owns model-default snapshots, preserves shallow unrelated updates, and restores bootstrap mode', () => {
     const f = fixture();
-    const before = f.api.getGlobalOptions();
-    f.api.setGlobalOption(flag, false);
+    const before = f.api.getDefaultModelOptions();
+    f.api.setDefaultModelOption(flag, false);
     const snapshot = f.api.runtime.createBootstrapSnapshot();
     const captured = f.capture();
     f.api.setGlobalOptions({ logger: {} });
-    expect(f.api.getGlobalOption(flag)).toBe(false);
-    f.api.setGlobalOption(flag, true);
+    expect(f.api.getDefaultModelOption(flag)).toBe(false);
+    f.api.setDefaultModelOption(flag, true);
     f.api.runtime.restoreBootstrapSnapshot(snapshot);
-    expect(f.api.getGlobalOption(flag)).toBe(false);
+    expect(f.api.getDefaultModelOption(flag)).toBe(false);
     expect(before[flag]).toBe(true);
     expect(Object.isFrozen(before)).toBe(true);
     assertMode(captured, false);
@@ -129,8 +128,8 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
     'retains both modes and terminal read policy in detached/derived/nested copies (%s/%s)',
     async (initial, queryInitial) => {
       const f = fixture();
-      f.api.setGlobalOption(flag, initial);
-      f.api.setGlobalOption(queryFlag, queryInitial);
+      f.api.setDefaultModelOption(flag, initial);
+      f.api.setDefaultModelOption(queryFlag, queryInitial);
       const assertCaptured = (configuration: ReturnType<typeof f.capture>) => {
         assertMode(configuration, initial);
         expect(configuration[queryFlag]).toBe(queryInitial);
@@ -165,8 +164,8 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
         ['eligible'],
         [{ path: 'children.account' }],
       );
-      f.api.setGlobalOption(flag, !initial);
-      f.api.setGlobalOption(queryFlag, !queryInitial);
+      f.api.setDefaultModelOption(flag, !initial);
+      f.api.setDefaultModelOption(queryFlag, !queryInitial);
       f.api.setModelOption(f.target.modelName, 'operationAccess.read', false);
       await Promise.resolve();
       const copied = readServiceAuthorization(state.authorization, state.binding);
@@ -196,14 +195,14 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
     },
   );
 
-  it('captures globals before related target option reads can replace them', async () => {
+  it('captures model defaults before related target option reads can replace them', async () => {
     const f = fixture();
-    f.api.setGlobalOption(flag, false);
+    f.api.setDefaultModelOption(flag, false);
     const { service } = await serviceFor(f);
     f.api.setModelOption(f.source.modelName, 'overrideFilter.read', () => false);
     const original = f.api.runtime.getModelOptions.bind(f.api.runtime);
     vi.spyOn(f.api.runtime, 'getModelOptions').mockImplementation((name) => {
-      if (name === f.target.modelName) f.api.setGlobalOption(flag, true);
+      if (name === f.target.modelName) f.api.setDefaultModelOption(flag, true);
       return original(name);
     });
     const snapshots: ReturnType<typeof f.capture>[] = [];
@@ -214,7 +213,7 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
       return configuration;
     });
     await service.findOne({}, { populate: ['account'] });
-    expect(f.api.getGlobalOption(flag)).toBe(true);
+    expect(f.api.getDefaultModelOption(flag)).toBe(true);
     expect(snapshots.length).toBe(2);
     snapshots.forEach((configuration) => expect(configuration[flag]).toBe(false));
     assertMode(snapshots[1], false);
@@ -226,7 +225,7 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
     'captures once before service awaits and related capture; later same-service calls see updates (%s)',
     async (initial) => {
       const f = fixture();
-      f.api.setGlobalOption(flag, initial);
+      f.api.setDefaultModelOption(flag, initial);
       const { service } = await serviceFor(f);
       let enter!: () => void;
       let release!: () => void;
@@ -247,7 +246,7 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
         if (args[1] === f.source.modelName) snapshots.push(configuration);
         return configuration;
       });
-      const globals = vi.spyOn(f.api.runtime, 'getGlobalOptions');
+      const defaults = vi.spyOn(populatePolicy, 'capturePopulatePolicyDefaults');
       const args = {
         select: ['eligible'],
         populate: ['account'],
@@ -266,23 +265,23 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
       await entered;
       let setterReads: number;
       try {
-        expect(globals).toHaveBeenCalledTimes(1);
+        expect(defaults).toHaveBeenCalledTimes(1);
         expect(snapshots.length).toBe(2);
         snapshots.forEach((configuration) => assertMode(configuration, initial));
-        f.api.setGlobalOption(flag, !initial);
-        const beforeSetter = globals.mock.calls.length;
+        const beforeSetter = defaults.mock.calls.length;
+        f.api.setDefaultModelOption(flag, !initial);
         f.api.setModelOption(f.target.modelName, 'operationAccess.read', false);
-        // Configuration validation owns a separate synchronous globals read;
-        // the suspended call itself must still never recapture them.
-        setterReads = globals.mock.calls.length - beforeSetter;
+        // Atomic configuration validation owns separate synchronous captures;
+        // the suspended call itself must still never recapture its defaults.
+        setterReads = defaults.mock.calls.length - beforeSetter;
       } finally {
         release();
       }
       await expect(pending).resolves.toMatchObject({ success: false, code: 'forbidden' });
-      expect(globals).toHaveBeenCalledTimes(1 + setterReads);
+      expect(defaults).toHaveBeenCalledTimes(1 + setterReads);
       snapshots.forEach((configuration) => assertMode(configuration, initial));
       await expect(service.findOne({}, args as never)).resolves.toMatchObject({ success: false, code: 'forbidden' });
-      expect(globals).toHaveBeenCalledTimes(2 + setterReads);
+      expect(defaults).toHaveBeenCalledTimes(2 + setterReads);
       expect(snapshots.length).toBe(4);
       snapshots.slice(2).forEach((configuration) => {
         assertMode(configuration, !initial);
@@ -294,7 +293,7 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
     },
   );
 
-  it('ignores same-spelled model/caller controls while preserving business predicates and selection', async () => {
+  it('isolates source model configuration from caller controls, business predicates and target policy', async () => {
     const f = fixture();
     const transform = vi.fn((_filter: unknown) => false);
     f.api.setModelOptions(f.source.modelName, { [flag]: false, overrideFilter: { read: transform } } as never);
@@ -315,17 +314,19 @@ describe('PPR-01 runtime-owned private populate read mode', () => {
     expect(result).toMatchObject({ success: false, code: 'forbidden' });
     expect(transform.mock.calls[0][0]).toEqual(filter);
     expect(snapshots.length).toBe(1);
-    assertMode(snapshots[0], true);
+    expect(snapshots[0][flag]).toBe(false);
+    const [dependency] = resolveVirtualPopulateDependencies(snapshots[0], [], 'eligible', 'read');
+    expect(dependency.target.configuration[flag]).toBe(true);
     expect(snapshots[0].catalog.persistedPaths).toContain(flag);
-    expect(f.api.getGlobalOption(flag)).toBe(true);
+    expect(f.api.getDefaultModelOption(flag)).toBe(true);
   });
 
   it('keeps same-spelled persisted data ordinary and private registration validation strict in bypass mode', () => {
     const f = fixture();
-    f.api.setGlobalOptions({ [flag]: false, requireOperationAccessForPopulateQueries: false });
+    f.api.setDefaultModelOptions({ [flag]: false, requireOperationAccessForPopulateQueries: false });
     expect(f.capture().catalog.persistedPaths).toContain(flag);
     const other = createAccessRuntime();
-    other.setGlobalOptions({ [flag]: false, requireOperationAccessForPopulateQueries: false });
+    other.setDefaultModelOptions({ [flag]: false, requireOperationAccessForPopulateQueries: false });
     other.registerModelInstance(f.target.modelName, f.target);
     expect(() => other.createRouter(f.source, f.api.getModelOptions(f.source.modelName))).toThrow(/configured first/);
     f.target.schema.remove('balance');

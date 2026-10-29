@@ -3,7 +3,12 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import acl, { createAccessRuntime, permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
+import acl, {
+  createAccessRuntime,
+  permissionsPlugin,
+  setGlobalOptions,
+  setDefaultModelOption,
+} from '../dist/index.mjs';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -14,8 +19,8 @@ const resetGlobalOptions = () => {
   setGlobalOptions({
     requestPermissionField: '_permissions',
     globalPermissions: () => ({}),
-    requireOperationAccessForPopulateQueries: true,
   });
+  setDefaultModelOption('requireOperationAccessForPopulateQueries', true);
 };
 
 const createSubdocumentPopulateApp = async ({
@@ -54,8 +59,8 @@ const createSubdocumentPopulateApp = async ({
     globalPermissions(req: express.Request) {
       return req.headers.user === 'admin' ? ['isAdmin'] : [];
     },
-    requireOperationAccessForPopulateQueries: true,
   });
+  setDefaultModelOption('requireOperationAccessForPopulateQueries', true);
 
   if (registerReviewerRouter) {
     runtime.createRouter(Reviewer, {

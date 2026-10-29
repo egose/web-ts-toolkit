@@ -21,10 +21,10 @@ async function fixture(hydration: 'lean' | 'hydrated', strict: boolean, read = f
   const api = createAccessRuntime();
   runtimes.push(api);
   api.setGlobalOptions({
-    requireOperationAccessForPopulateDependencies: strict,
     globalPermissions: () => ['actor'],
     requestComplexity: { maxHookConcurrency: 1, maxBulkConcurrency: 1 },
   });
+  api.setDefaultModelOption('requireOperationAccessForPopulateDependencies', strict);
   const n = ++serial;
   const Target = mongoose.model(
     `PprIndependentTarget${n}`,
@@ -113,7 +113,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-04 adversarial output boundari
         expect(permissions.has('actor')).toBe(true);
         await Promise.resolve();
         // Deliberately replace both live policies after the operation has captured them.
-        f.api.setGlobalOption('requireOperationAccessForPopulateDependencies', true);
+        f.api.setDefaultModelOption('requireOperationAccessForPopulateDependencies', true);
         f.api.setModelOption(f.Target.modelName, 'operationAccess.read', true);
         return grant;
       });

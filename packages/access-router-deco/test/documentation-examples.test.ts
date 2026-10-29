@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import path from 'node:path';
 import express from 'express';
 import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 import { Module, Router, RouterOptions, Validate, Document, EgoseFactoryStatic } from '../src';
 import { applyMethodDecorator, applyParameterDecorator } from './helpers';
@@ -24,6 +26,7 @@ const docs = [
     path: path.join(workspaceRoot, 'website', 'docs', 'packages', 'access-router-deco.md'),
   },
 ];
+const execute = promisify(execFile);
 
 function extractFirstTypeScriptBlock(name: string, filePath: string): DocumentedExample {
   const contents = readFileSync(filePath, 'utf8');
@@ -34,12 +37,15 @@ function extractFirstTypeScriptBlock(name: string, filePath: string): Documented
 
 describe('access-router-deco documentation examples', () => {
   let consumerDir: string;
+  let mongo: MongoMemoryServer;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     consumerDir = stageConsumerDir();
-  });
+    mongo = await MongoMemoryServer.create();
+  }, 60_000);
 
-  afterAll(() => {
+  afterAll(async () => {
+    await mongo?.stop();
     cleanupConsumerDirs();
   });
 
@@ -100,6 +106,88 @@ describe('access-router-deco documentation examples', () => {
   it('keeps the shipped and website application examples identical', () => {
     const [readme, website] = docs.map((doc) => extractFirstTypeScriptBlock(doc.name, doc.path));
     expect(website.source).toBe(readme.source);
+  });
+
+  const populateExamples = docs.map((doc) => {
+    const section = readFileSync(doc.path, 'utf8').split('### Target-owned populate policies and migration')[1];
+    const source = section?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
+    if (!source) throw new Error(`Missing target-owned populate example in ${doc.path}`);
+    return { name: doc.name.replace('quick start', 'populate policy'), source };
+  });
+  it('keeps shipped and website target-owned modules identical', () => {
+    expect(populateExamples[0].source).toBe(populateExamples[1].source);
+  });
+  for (const extension of ['mts', 'cts'] as const) {
+    it.each(populateExamples)(
+      `MPO-03 strictly compiles and executes $name with mixed targets (${extension})`,
+      async ({ name, source }) => {
+        const basename = `${name.toLowerCase().replaceAll(/\W+/g, '-')}.${extension}`;
+        writeFileSync(path.join(consumerDir, basename), source);
+        const config = path.join(consumerDir, `${basename}.json`);
+        writeFileSync(
+          config,
+          JSON.stringify({
+            compilerOptions: {
+              target: 'ES2022',
+              module: 'NodeNext',
+              moduleResolution: 'NodeNext',
+              strict: true,
+              noEmitOnError: true,
+              skipLibCheck: false,
+              experimentalDecorators: true,
+              esModuleInterop: true,
+              types: ['node', 'reflect-metadata'],
+              lib: ['ES2022', 'DOM'],
+            },
+            files: [basename],
+          }),
+        );
+        const compiled = runTsc(consumerDir, config);
+        expect(compiled.stdout + compiled.stderr).toBe('');
+        expect(compiled.status).toBe(0);
+        const runner = path.join(consumerDir, 'populate-policy.documentation.runtime.mjs');
+        writeFileSync(
+          runner,
+          readFileSync(path.join(packageRoot, 'test/populate-policy.documentation.runtime.fixture.js'), 'utf8'),
+        );
+        const { stdout } = await execute(
+          process.execPath,
+          [runner, path.join(consumerDir, basename.replace(/\.[mc]ts$/, extension === 'mts' ? '.mjs' : '.cjs'))],
+          {
+            cwd: consumerDir,
+            encoding: 'utf8',
+            timeout: 60_000,
+            env: { ...process.env, MONGODB_URL: mongo.getUri() },
+          },
+        );
+        expect(JSON.parse(stdout)).toEqual({ hydrationModes: 2, strictUserReads: 0, closedUserReads: 1 });
+      },
+      90_000,
+    );
+  }
+  it.each(['NodeNext', 'Bundler'] as const)('MPO-03 compiles the scoped populate module (%s)', (resolution) => {
+    writeFileSync(path.join(consumerDir, 'populate-policy.ts'), populateExamples[0].source);
+    const config = path.join(consumerDir, `populate-policy-${resolution}.json`);
+    writeFileSync(
+      config,
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: resolution === 'NodeNext' ? 'NodeNext' : 'ESNext',
+          moduleResolution: resolution,
+          strict: true,
+          noEmit: true,
+          skipLibCheck: false,
+          experimentalDecorators: true,
+          types: ['node', 'reflect-metadata'],
+          lib: ['ES2022', 'DOM'],
+        },
+        files: ['populate-policy.ts'],
+      }),
+    );
+    const result = runTsc(consumerDir, config);
+    expect(result.stdout + result.stderr).toBe('');
+    expect(result.status).toBe(0);
   });
 
   it.each(['NodeNext', 'Bundler'] as const)(

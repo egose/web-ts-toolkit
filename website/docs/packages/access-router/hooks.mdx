@@ -152,15 +152,19 @@ become null/null slots in original order, preserving duplicates. Missing target 
 remain absent/undefined; present null/false/zero/empty-string survive. The getter chooses
 what to return for partial inputs.
 
-The runtime flag `requireOperationAccessForPopulateDependencies` defaults to true.
-Only literal false bypasses target base `operationAccess.read` for private loading;
-undefined/malformed JavaScript values stay conservative true. Source/target input-field
+The actual target's model/default `requireOperationAccessForPopulateDependencies`
+resolves explicit target override → captured runtime model default → built-in true.
+Explicit undefined restores inheritance; omission retains an override. Only primitive
+false bypasses target base `operationAccess.read`; malformed non-undefined JavaScript
+values stay conservative true. Source/target input-field
 permissions are already bypassed, but virtual output authorization still governs its result.
 Request-mode `overrideFilter.read`, `baseFilter.read` and original source IDs remain mandatory.
 False-mode virtual-only output adds no operation check solely for its private fetch.
-This server/runtime option is captured before awaits with source/target/query configuration,
-including nested output; later calls see changes and runtimes remain isolated. It is not a
-caller/query or model option. It is independent of
+Defaults are captured before source/target option reads and awaits; targets contribute
+their own captured options. Nested output retains that capture; later top-level calls
+on existing unoverridden models/services see changed defaults. A Document virtual's
+User dependency uses User's D, never a source/sibling bypass. These server model/default
+settings reject global placements and are not caller/query controls. D is independent of
 `requireOperationAccessForPopulateQueries`; actual model registration and an effective
 object `permissionSchema` remain mandatory for every target in all four modes.
 

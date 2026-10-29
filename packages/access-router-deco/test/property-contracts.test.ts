@@ -84,7 +84,10 @@ describe('property option contracts', () => {
     }
     Option('requestPermissionField')(Provider.prototype, 'first');
     Option(key as string)(Provider.prototype, 'invalid');
-    const { factory, app, run } = fixture(Provider, 'global');
+    const { factory, app, run } = fixture(
+      Provider,
+      (key as string).startsWith('requireOperationAccessForPopulate') ? 'default' : 'global',
+    );
     const before = factory.runtime.runtime.createBootstrapSnapshot();
     expect(run).toThrow(/Invalid option value/);
     expect(factory.runtime.runtime.createBootstrapSnapshot()).toEqual(before);
@@ -104,10 +107,10 @@ describe('property option contracts', () => {
       Option('listHardLimit')(Provider.prototype, 'limit');
       Option('requestPermissionField')(Provider.prototype, 'unset');
       Option('custom.extension')(Provider.prototype, 'extension');
-      const { factory, run } = fixture(Provider, 'global');
+      const { factory, run } = fixture(Provider, 'default');
       run();
-      expect(factory.runtime.getGlobalOption(flag)).toBe(false);
-      expect(factory.runtime.getGlobalOptions()).toMatchObject({
+      expect(factory.runtime.getDefaultModelOption(flag)).toBe(false);
+      expect(factory.runtime.getDefaultModelOptions()).toMatchObject({
         listHardLimit: 0,
         custom: { extension: { custom: true } },
       });

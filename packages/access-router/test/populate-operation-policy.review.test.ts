@@ -23,7 +23,7 @@ describe.each([true, false])('POP-05 mutable populate transforms (Q=%s)', (requi
     '$seam isolates an in-place $rewrite transform while retaining requested match, rows and original IDs',
     async ({ seam, rewrite }) => {
       const api = createAccessRuntime();
-      api.setGlobalOption('requireOperationAccessForPopulateQueries', required);
+      api.setDefaultModelOption('requireOperationAccessForPopulateQueries', required);
       const Target = mongoose.model(
         `PopReviewTarget${++sequence}`,
         new mongoose.Schema({ name: String, tenant: String, secret: String, since: Date }),
