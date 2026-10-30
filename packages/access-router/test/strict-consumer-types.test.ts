@@ -96,6 +96,45 @@ describe('ARF-14 strict packed-consumer types', () => {
     consumerDir = stageConsumerDir();
   });
 
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ])(
+    'FUSE-05 keeps the original eight options without unshipped fusion controls (%s / %s)',
+    (resolution, extension, module) => {
+      const source = `publication-withdrawal-${resolution}.${extension}`;
+      writeFileSync(
+        path.resolve(consumerDir, source),
+        readFileSync(path.resolve(packageRoot, 'test/output-publication-fusion-withdrawal.types.fixture.ts'), 'utf8'),
+      );
+      const config = `tsconfig-publication-withdrawal-${resolution}-${extension}.json`;
+      writeFileSync(
+        path.resolve(consumerDir, config),
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module,
+            moduleResolution: resolution,
+            strict: true,
+            noUnusedLocals: true,
+            noUnusedParameters: true,
+            noEmit: true,
+            skipLibCheck: false,
+            esModuleInterop: true,
+            types: ['node'],
+          },
+          files: [source],
+        }),
+      );
+      const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+      expect(result.stdout + result.stderr).toBe('');
+      expect(result.status).toBe(0);
+    },
+  );
+
   it.each(['ts', 'mts', 'cts'])('DPV-01 checks private populated getter inputs (%s)', (extension) => {
     const source = `virtuals-populate-dependencies.${extension}`;
     writeFileSync(

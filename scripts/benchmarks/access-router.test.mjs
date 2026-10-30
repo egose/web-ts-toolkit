@@ -94,10 +94,21 @@ test('snapshot support comes from boolean model-option declarations, including s
     resolve(root, 'packages/access-router/src/acl/unsafe-snapshot-options.ts'),
     'utf8',
   );
-  assert.deepEqual(
-    [...implemented.matchAll(/'(unsafeSkip\w+SnapshotChecks)'/g)].map((match) => match[1]),
-    UNSAFE_SNAPSHOT_FLAGS,
-  );
+  // Inspect the actual groups, not incidental quoted references elsewhere in the
+  // source. The compiler is outside the measured worker process.
+  const { default: ts } = await import('typescript');
+  const { outputText } = ts.transpileModule(implemented, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  });
+  const exported = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+  assert.deepEqual(exported.unsafeSnapshotCheckOptions, UNSAFE_SNAPSHOT_FLAGS);
+  assert.deepEqual(exported.unsafeInitialOutputCopyOptions, UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
+  assert.deepEqual(exported.unsafeSnapshotOptions, [...UNSAFE_SNAPSHOT_FLAGS, ...UNSAFE_INITIAL_OUTPUT_COPY_FLAGS]);
+  assert.deepEqual(Object.keys(exported).sort(), [
+    'unsafeInitialOutputCopyOptions',
+    'unsafeSnapshotCheckOptions',
+    'unsafeSnapshotOptions',
+  ]);
 });
 
 test('per-build off/on/both selections become distinct candidates with explicit options', () => {

@@ -443,6 +443,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'hydration-consumer.types.fixture',
     'virtuals-populate-dependencies.types.fixture',
     'private-populate-read-policy.types.fixture',
+    'output-publication-fusion-withdrawal.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -923,6 +924,8 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         'field-helper-migration.types.fixture.cts',
         'grouped-count-consumer.types.fixture.mts',
         'grouped-count-consumer.types.fixture.cts',
+        'output-publication-fusion-withdrawal.types.fixture.mts',
+        'output-publication-fusion-withdrawal.types.fixture.cts',
       ],
     }),
   );

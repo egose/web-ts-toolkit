@@ -66,6 +66,9 @@ observations, which can change permission outcomes. Bounded shape/graph checks a
 source/callback/response copies remain. Matching fixtures do not prove security
 equivalence or imply that all cloning was removed.
 
+The unshipped publication-fusion experiment was withdrawn. This runner offers only
+the existing six-comparison and two-copy groups, with no third fusion selection.
+
 **ON is unsafe:** source/output mutations can leave stale authorization decisions
 and expose data. Matching benchmark outputs do not make ON security-equivalent to
 OFF. A historical build marked N/A may lack the newer safeguards entirely; N/A
@@ -127,11 +130,12 @@ node --test scripts/benchmarks/access-router.test.mjs
 pnpm exec eslint scripts/benchmarks
 ```
 
-For a real worker smoke test of OFF/ON on embedded and document-hook scenarios,
+For a real worker smoke test of the four comparison/copy candidates on separate
+embedded and document-hook scenarios,
 build the current access-router first, then run the integration test. This starts
 disposable MongoDB and may download its binary:
 
 ```sh
-pnpm --filter @web-ts-toolkit/access-router... build
-node --test scripts/benchmarks/access-router.integration.test.mjs
+pnpm --filter @web-ts-toolkit/access-router... --workspace-concurrency=1 build
+node --test --test-concurrency=1 scripts/benchmarks/access-router.test.mjs scripts/benchmarks/access-router.integration.test.mjs
 ```

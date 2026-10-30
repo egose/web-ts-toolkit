@@ -9,6 +9,12 @@ and amortized captured primitive catalog preparation. Final package/type/downstr
 packed/export, lint/format and runner gates passed. No flags or public API changed;
 the reported application/v0.51.0 gap is not declared fixed.
 
+The separately authorized unsafe publication-fusion investigation is tracked in
+[its own task file](20261030-082847-access-router-unsafe-output-publication-fusion.md).
+Its unshipped prototype was withdrawn after the performance/guard retention gate
+failed; this completed security-preserving phase and its retained evidence remain
+unchanged.
+
 ## Objective and scope
 
 Reduce the remaining READ/LIST CPU and allocation overhead of the newer
