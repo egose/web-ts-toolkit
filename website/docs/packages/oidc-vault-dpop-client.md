@@ -190,7 +190,11 @@ until expiry unless the application adds revocation.
   the server operation has an explicit idempotency contract. Final API responses
   belong to the caller.
 - **Errors:** `requiresLogin` identifies terminal session/key/browser-binding/
-  enrolled recognition errors, not every 401. Proof/nonce/transient failures keep
+  enrolled recognition errors and confirmed current-session
+  `OIDC_VAULT_REFRESH_REJECTED`, not every 401. The latter means refresh-grant
+  rejection, not specifically expiry; stale generations are superseded rather
+  than clearing newer auth. Older servers return generic provider failures and
+  older clients treat the new unknown code as non-terminal. Proof/nonce/transient failures keep
   auth; unknown server codes become fixed `OIDC_REQUEST_FAILED`. Recognition is
   optional change detection, never proof of possession or an API sender constraint.
 
@@ -200,3 +204,67 @@ cross-site HTTPS/third-party-cookie policy need deployment-specific checks.
 See the shipped [upgrade notes](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md#upgrade-notes)
 and runnable [TypeScript SPA](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md)
 for full contracts and commands.
+
+## Observing credentials
+
+The optional top-level `onCredentialsChanged(credentials)` observes committed
+`DpopAccessToken | undefined` independently of scheduling: exchange, manual/API
+refresh, admitted cookie peers, and clearing. Prefer `session.getAccessToken()`
+as the single source; use observation for a reactive view or in-memory mirror,
+never token persistence. Delivery is asynchronous, coalesced latest state (not an
+event log), outside this instance's mutation/lock ownership. Throws/rejected
+promises are contained and never awaited. Duplicate or stale peer delivery does
+not notify. Disposal suppresses queued tokens and emits a final undefined only
+if a token was previously observed, then stops notifications.
+
+## Opt-in proactive refresh
+
+`autoRefresh` is omitted/false by default. An object enables scheduling after
+successful explicit exchange/refresh, not at construction. The root-exported
+`OidcVaultDpopAutoRefreshOptions` contains `refreshBeforeExpiryMs` (enabled
+default 60,000; integer 0..2,147,483,647) and optional `maxRefreshIntervalMs`
+(no default; integer 1,000..2,147,483,647).
+
+Expiry lead is not a periodic interval: a one-hour token/60-second lead refreshes
+around minute 59. Known acquisition time caps the lead to half the initial remaining
+lifetime, with a one-second minimum cadence; zero/nonlive results pause with
+`DPOP_ACCESS_TOKEN_EXPIRED` while preserving handles. An explicit 20-minute maximum
+can cover a 30-minute provider idle policy while the browser runs, but **either
+scheduling policy can extend an idle session**. Neither tracks user activity,
+extends absolute expiry, or guarantees execution during sleep/throttling.
+
+```ts
+import { createOidcVaultDpopSession, OidcVaultDpopClientError } from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+let recovery: 'sign-in' | 'refresh-paused' | undefined;
+export const session = createOidcVaultDpopSession({
+  backendOrigin: 'https://api.example.com',
+  autoRefresh: {
+    refreshBeforeExpiryMs: 60_000,
+    // maxRefreshIntervalMs: 20 * 60_000, // Only after choosing keep-alive policy.
+  },
+  onAutoRefreshError: (error) => {
+    recovery = error instanceof OidcVaultDpopClientError && error.requiresLogin ? 'sign-in' : 'refresh-paused';
+  },
+});
+export const readRecovery = () => recovery;
+```
+
+The scheduler rechecks deadlines after the existing FIFO/cookie Web Lock and peer
+adoption. Generation-bound non-credential `refreshedAt` metadata anchors maximum
+intervals; peer receipt/rebroadcast never resets them, and old/malformed/future
+hints make a maximum interval due. Body handles stay tab-local. Clear/reset,
+terminal errors and disposal stop scheduling; logout/login/exchange intent withdraws
+queued timer work without preventing an earlier started rotation from publishing
+before ordered logout. `visibilitychange` when visible and `pageshow` recheck one
+deadline, not missed ticks. Missing peer delivery can need a later serialized refresh.
+
+Failures pause and notify once; there is no automatic retry/backoff for uncertain
+rotations. Resume/online events and unsolicited peers cannot unpause failure;
+successful explicit local acquisition rearms. Background observer throws/rejected
+promises are contained and never awaited; manual methods retain their promise
+errors. Keep **Sign in again** and application-owned idle/logout recovery. See the
+installed README for the full timing, observer and mixed-version contracts.
+Failed manual refresh silently pauses scheduling too, preventing an implicit
+timer retry of an uncertain mutation. Superseded work without a newer admitted
+winner pauses silently until the application follows its current explicit flow.

@@ -11,6 +11,7 @@ import {
   OidcVaultDpopClientError,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 import type {
+  DpopAccessToken,
   DpopApi,
   DpopFetchContext,
   DpopFetchOptions,
@@ -18,6 +19,7 @@ import type {
   DpopKeyScope,
   DpopProofInput,
   OidcVaultDpopSession,
+  OidcVaultDpopAutoRefreshOptions,
   OidcVaultDpopSessionOptions,
   OidcVaultLogoutNavigationInput,
   OidcVaultLogoutNavigationResult,
@@ -87,6 +89,12 @@ describe('oidc-vault-dpop-client built-declaration consumer (CLIENT-06)', () => 
         sessionTransport: 'body',
         requestTimeoutMs: 15_000,
         maxResponseBytes: 1_048_576,
+        autoRefresh: {
+          refreshBeforeExpiryMs: 60_000,
+          maxRefreshIntervalMs: 20 * 60_000,
+        } satisfies OidcVaultDpopAutoRefreshOptions,
+        onAutoRefreshError: (error) => expectTypeAssignableTo<unknown>(error),
+        onCredentialsChanged: (credentials) => expectTypeAssignableTo<DpopAccessToken | undefined>(credentials),
       };
       const session = createOidcVaultDpopSession(options);
       expectTypeAssignableTo<OidcVaultDpopSession>(session);
@@ -115,6 +123,19 @@ describe('oidc-vault-dpop-client built-declaration consumer (CLIENT-06)', () => 
         // @ts-expect-error — only 'body' | 'cookie' are valid transports.
         sessionTransport: 'header',
       });
+      createOidcVaultDpopSession({
+        backendOrigin: 'https://auth.example.com',
+        // @ts-expect-error — observers are callbacks, not storage adapters.
+        onCredentialsChanged: 'localStorage',
+      });
+      createOidcVaultDpopSession({ backendOrigin: 'https://auth.example.com', autoRefresh: false });
+      createOidcVaultDpopSession({
+        backendOrigin: 'https://auth.example.com',
+        // @ts-expect-error — enabled configuration is an options object, not true.
+        autoRefresh: true,
+      });
+      // @ts-expect-error — durations are numeric milliseconds, not strings.
+      expectTypeAssignableTo<OidcVaultDpopAutoRefreshOptions>({ maxRefreshIntervalMs: '20m' });
     };
     void checkTypes;
   });

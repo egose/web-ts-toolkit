@@ -5,6 +5,7 @@ import { OidcVaultDpopClientError, serverError } from '../src/errors';
 describe('DPH-04 server error classification', () => {
   it.each([
     [401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.'],
+    [401, 'OIDC_VAULT_REFRESH_REJECTED', 'OIDC refresh was rejected. Sign in again.'],
     [400, 'OIDC_VAULT_MISSING_SESSION_ID', 'Session handle is missing.'],
     [400, 'OIDC_VAULT_MALFORMED_SESSION_COOKIE', 'Session cookie is malformed.'],
     [400, 'OIDC_VAULT_INVALID_EXCHANGE_CODE', 'Exchange code is invalid or expired.'],

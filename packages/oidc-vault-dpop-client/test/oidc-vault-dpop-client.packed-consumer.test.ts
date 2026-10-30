@@ -140,6 +140,7 @@ import type {
   FingerprintJsAgent,
   OidcVaultDpopSession,
   OidcVaultDpopSessionOptions,
+  OidcVaultDpopAutoRefreshOptions,
   OidcVaultLogoutNavigationInput,
   OidcVaultLogoutNavigationResult,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
@@ -150,8 +151,19 @@ const options: OidcVaultDpopSessionOptions = {
   sessionTransport: 'body',
   requestTimeoutMs: 15_000,
   maxResponseBytes: 1_048_576,
+  autoRefresh: { refreshBeforeExpiryMs: 60_000, maxRefreshIntervalMs: 20 * 60_000 } satisfies OidcVaultDpopAutoRefreshOptions,
+  onAutoRefreshError: (error) => { const failure: unknown = error; void failure; },
+  onCredentialsChanged: (credentials) => {
+    const snapshot: DpopAccessToken | undefined = credentials;
+    void snapshot;
+  },
 };
 const session = createOidcVaultDpopSession(options);
+createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, autoRefresh: false });
+// @ts-expect-error — no boolean-enabled shorthand.
+createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, autoRefresh: true });
+// @ts-expect-error — interval is numeric milliseconds.
+const invalidRefresh: OidcVaultDpopAutoRefreshOptions = { maxRefreshIntervalMs: '20m' };
 session satisfies OidcVaultDpopSession;
 const navigation: Promise<void> = session.logoutAndNavigate();
 const navigationInput: OidcVaultLogoutNavigationInput = { sessionId: 'opaque' };

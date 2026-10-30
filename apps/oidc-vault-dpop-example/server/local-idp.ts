@@ -222,6 +222,10 @@ export const startLocalIdp = async (
     setRefreshDelay(milliseconds: number) {
       refreshDelayMs = milliseconds;
     },
+    expireRefreshTokens() {
+      // Test-controlled expiry, without logging or exposing upstream credentials.
+      refreshTokens.clear();
+    },
     close: () => closeServer(server),
   };
 };

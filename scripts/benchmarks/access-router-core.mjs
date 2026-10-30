@@ -27,8 +27,14 @@ export const UNSAFE_SNAPSHOT_FLAGS = Object.freeze([
   'unsafeSkipReadNestedDocumentSnapshotChecks',
 ]);
 
+/** Separate opt-in group: do not expand the historical six-flag ON meaning. */
+export const UNSAFE_INITIAL_OUTPUT_COPY_FLAGS = Object.freeze([
+  'unsafeSkipListInitialOutputSnapshotCopy',
+  'unsafeSkipReadInitialOutputSnapshotCopy',
+]);
+
 /** Inspect actual model-option declarations, not comments or similarly named internal fields. */
-export async function supportedSnapshotFlags(declarations) {
+async function supportedOptionFlags(declarations, flagNames) {
   // Only preparation parses types. Benchmark workers must not load the compiler
   // into the measured process and alter its heap/GC behavior.
   const { default: ts } = await import('typescript');
@@ -47,7 +53,7 @@ export async function supportedSnapshotFlags(declarations) {
             ts.isPropertySignature(member) &&
             member.name &&
             (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) &&
-            UNSAFE_SNAPSHOT_FLAGS.includes(member.name.text) &&
+            flagNames.includes(member.name.text) &&
             hasBoolean(member.type)
           )
             found.add(member.name.text);
@@ -58,8 +64,12 @@ export async function supportedSnapshotFlags(declarations) {
     };
     visit(source);
   }
-  return UNSAFE_SNAPSHOT_FLAGS.filter((flag) => found.has(flag));
+  return flagNames.filter((flag) => found.has(flag));
 }
+
+export const supportedSnapshotFlags = (declarations) => supportedOptionFlags(declarations, UNSAFE_SNAPSHOT_FLAGS);
+export const supportedInitialOutputCopyFlags = (declarations) =>
+  supportedOptionFlags(declarations, UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
 
 /** tsup may put the actual options in a shared declaration chunk instead of index.d.ts. */
 async function readSnapshotDeclarations(root) {
@@ -85,6 +95,7 @@ export async function inspectSnapshotDeclarations(root) {
   const declarations = await readSnapshotDeclarations(root);
   return {
     supportedSnapshotFlags: await supportedSnapshotFlags(declarations),
+    supportedInitialOutputCopyFlags: await supportedInitialOutputCopyFlags(declarations),
     snapshotDeclarationsSha256: hashSnapshotDeclarations(declarations),
   };
 }
@@ -139,6 +150,60 @@ export function snapshotCandidates(target, setting) {
       supportedSnapshotFlags: flags,
     };
     candidate.label = `${target.label} · snapshot skips ${snapshotModeLabel(candidate)}`;
+    return candidate;
+  });
+}
+
+export function initialOutputCopyFlagOptions(mode, supported) {
+  if (mode !== 'on' && mode !== 'off') throw new Error(`Invalid unsafe initial output copy mode: ${String(mode)}`);
+  if (
+    !Array.isArray(supported) ||
+    new Set(supported).size !== supported.length ||
+    supported.some((flag) => !UNSAFE_INITIAL_OUTPUT_COPY_FLAGS.includes(flag))
+  )
+    throw new Error('Invalid supported unsafe initial output copy flags.');
+  if (mode === 'on' && supported.length !== UNSAFE_INITIAL_OUTPUT_COPY_FLAGS.length)
+    throw new Error('Cannot enable initial output copy skips; this build does not declare both options.');
+  return Object.fromEntries(
+    UNSAFE_INITIAL_OUTPUT_COPY_FLAGS.filter((flag) => supported.includes(flag)).map((flag) => [flag, mode === 'on']),
+  );
+}
+
+export function effectiveInitialOutputCopySkips(snapshotFlags, copyFlags) {
+  // Existing workloads initiate LIST. READ settings are verified but not timed.
+  return snapshotFlags.unsafeSkipListOutputSnapshotChecks === true &&
+    copyFlags.unsafeSkipListInitialOutputSnapshotCopy === true
+    ? 'on'
+    : 'off';
+}
+
+export function initialOutputCopyModeLabel(target) {
+  if (!target?.initialOutputCopySkips) return '-';
+  const count = target.supportedInitialOutputCopyFlags.length;
+  if (count === 0) return 'N/A (0/2 supported)';
+  const mode = target.initialOutputCopySkips.toUpperCase();
+  if (count !== UNSAFE_INITIAL_OUTPUT_COPY_FLAGS.length) return `${mode} (${count}/2 supported)`;
+  const effective = effectiveInitialOutputCopySkips(
+    snapshotFlagOptions(target.snapshotSkips, target.supportedSnapshotFlags),
+    initialOutputCopyFlagOptions(target.initialOutputCopySkips, target.supportedInitialOutputCopyFlags),
+  );
+  return mode === 'ON' && effective === 'off' ? 'ON (dormant; effective OFF)' : mode;
+}
+
+/** Cross product with already-selected comparison candidates, including dormant ON. */
+export function initialOutputCopyCandidates(target, setting) {
+  if (!['off', 'on', 'both'].includes(setting))
+    throw new Error(`Invalid initial output copy candidate setting: ${String(setting)}`);
+  return (setting === 'both' ? ['off', 'on'] : [setting]).map((mode) => {
+    const supported = target.supportedInitialOutputCopyFlags ?? [];
+    initialOutputCopyFlagOptions(mode, supported);
+    const candidate = {
+      ...target,
+      id: `${target.id}-initial-copy-${mode}`,
+      initialOutputCopySkips: mode,
+      supportedInitialOutputCopyFlags: supported,
+    };
+    candidate.label = `${target.label} · initial output copy skips ${initialOutputCopyModeLabel(candidate)}`;
     return candidate;
   });
 }
@@ -367,6 +432,9 @@ export function reportRows(report) {
     return {
       version: target?.buildLabel ?? target?.label ?? row.targetId,
       'snapshot skips': snapshotModeLabel(target),
+      ...(report.targets.some((entry) => entry.initialOutputCopySkips !== undefined)
+        ? { 'initial output copy skips': initialOutputCopyModeLabel(target) }
+        : {}),
       scenario: row.scenario,
       rows: row.rows,
       clients: row.concurrency,
@@ -394,6 +462,7 @@ export async function saveReport(directory, report) {
     '',
     'Latency ratios are target / baseline; lower is faster. Ratios require identical validated outputs.',
     'Snapshot skips ON is UNSAFE and not security-equivalent to OFF. N/A means the build does not declare these options.',
+    'Initial output copy skips are a separate UNSAFE group: ON requires the matching output-comparison skip, otherwise it is dormant. Eligible graphs still retain bounded shape admission and graph identities; other copies remain.',
     'HTTP timing includes loopback transport, response serialization and parsing. Setup, seeding and warmup are excluded.',
     'CPU is the Node worker (HTTP server + client), not the separate MongoDB process. Read counts use Mongoose debug operations.',
     'Each tag uses its own frozen lockfile: dependency-version changes can affect results. Sequential ordering and JIT/OS noise can bias small runs.',

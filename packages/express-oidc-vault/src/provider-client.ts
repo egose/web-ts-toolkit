@@ -733,7 +733,25 @@ export async function requestToken(
 
   try {
     if (!response.ok) {
-      await drainProviderErrorBody(response, signal, 'OIDC_VAULT_TOKEN_REQUEST_FAILED');
+      if (response.status === 400 && body.get('grant_type') === 'refresh_token') {
+        // Only a complete, bounded OAuth rejection identifies an unusable grant.
+        // Outages, malformed bodies and other grants retain the generic policy.
+        const text = await readBoundedResponseText(
+          response,
+          DEFAULT_PROVIDER_JSON_BODY_LIMIT,
+          'OIDC_VAULT_TOKEN_REQUEST_FAILED',
+          { signal },
+        );
+        let rejected = false;
+        try {
+          const value: unknown = JSON.parse(text);
+          rejected = isProviderJsonObject(value) && Object.hasOwn(value, 'error') && value.error === 'invalid_grant';
+        } catch {
+          // Do not expose malformed provider text or infer rejection from it.
+        }
+        if (rejected)
+          throw new OidcVaultHttpError(401, 'OIDC_VAULT_REFRESH_REJECTED', 'OIDC refresh was rejected. Sign in again.');
+      } else await drainProviderErrorBody(response, signal, 'OIDC_VAULT_TOKEN_REQUEST_FAILED');
       throw new OidcVaultHttpError(
         502,
         'OIDC_VAULT_TOKEN_REQUEST_FAILED',

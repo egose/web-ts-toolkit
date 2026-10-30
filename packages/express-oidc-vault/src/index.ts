@@ -1082,7 +1082,26 @@ const createRefreshHandler = (
         refresh_token: currentSession.refreshToken,
       },
       options,
-    );
+    ).catch(async (error: unknown) => {
+      if (error instanceof OidcVaultHttpError && error.code === 'OIDC_VAULT_REFRESH_REJECTED') {
+        // A concurrent winner can replace the submitted token without losing its
+        // own family. Rejection of that obsolete request is not current logout
+        // authority. This read is not a distributed refresh lease.
+        const latest = await options.storeProvider.getSession(sessionId);
+        let matches = false;
+        if (latest) {
+          try {
+            assertVaultSessionMatches(snapshotVaultSession(latest, sessionId, getNow(options)), currentSession);
+            matches = true;
+          } catch {
+            // An obsolete or malformed record cannot authorize terminal cleanup.
+          }
+        }
+        if (!matches)
+          throw new OidcVaultHttpError(502, 'OIDC_VAULT_TOKEN_REQUEST_FAILED', 'OIDC token request failed.');
+      }
+      throw error;
+    });
     // Refresh allows every credential field to be omitted (documented
     // retention behavior); present fields were type-checked above so a
     // malformed value cannot silently retain the old credential. No rotation

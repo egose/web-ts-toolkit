@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Page } from 'playwright';
@@ -5,6 +6,7 @@ import { createServer as createViteServer } from 'vite';
 
 import { startExampleServer, EXAMPLE_BASE_PATH } from '../../server/app';
 import { LOCAL_CLIENT_ID, startLocalIdp } from '../../server/local-idp';
+import { closeServer, listen } from '../../server/http';
 import type * as Bridge from './page-bridge';
 
 export type BrowserName = 'chromium' | 'firefox' | 'webkit';
@@ -27,18 +29,18 @@ export const startBrowserFixture = async (
 ) => {
   const root = fileURLToPath(new URL('../../', import.meta.url));
   const idp = await startLocalIdp();
-  // Vite chooses an unused loopback port. Define the runtime backend URL before
-  // the first page import; neither a proxy nor Node-side cookie emulation is used.
+  // Bind port 0 atomically in Node. Vite's port-0 helper probes then rebinds a
+  // selected port, racing other fixture/Mongo listeners on the same host.
+  // HMR is unnecessary here; the real Vite middleware still serves the SPA.
   const vite = await createViteServer({
     root,
     configFile: false,
-    server: { host: '127.0.0.1', port: 0, strictPort: true },
+    server: { middlewareMode: true, hmr: false },
     define: { 'import.meta.env.VITE_BACKEND_ORIGIN': 'globalThis.__DPOP_TEST_BACKEND__' },
   });
-  await vite.listen();
-  const address = vite.httpServer?.address();
-  if (!address || typeof address === 'string') throw new Error('Missing SPA fixture address.');
-  const frontendOrigin = `http://127.0.0.1:${address.port}`;
+  const frontend = createServer(vite.middlewares);
+  const port = await listen(frontend);
+  const frontendOrigin = `http://127.0.0.1:${port}`;
   const backend = await startExampleServer({
     frontendOrigin,
     config: { issuer: idp.issuer, clientId: LOCAL_CLIENT_ID },
@@ -61,6 +63,7 @@ export const startBrowserFixture = async (
     vite,
     async close() {
       await context.close();
+      await closeServer(frontend);
       await vite.close();
       await backend.close();
       await idp.close();

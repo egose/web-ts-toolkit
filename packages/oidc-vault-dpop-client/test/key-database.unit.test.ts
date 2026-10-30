@@ -236,6 +236,31 @@ describe('DPH-06 scoped key/metadata transaction authority', () => {
     expect(f.deleted).toEqual([]);
   });
 
+  it.each([undefined, null, -1, NaN, Infinity, '1800000000000'])(
+    'retains old metadata while omitting invalid timing hint %s',
+    async (refreshedAt) => {
+      const f = scopeFixture({ jkt: 'key' }, { jkt: 'key', generation: 'generation', active: true, refreshedAt });
+      const reading = readDpopScopeState('scope', f.authority);
+      f.done.resolve();
+      expect((await reading).version).toEqual({ jkt: 'key', generation: 'generation', active: true });
+    },
+  );
+
+  it('retains a safe generation timing hint without projecting unrelated fields', async () => {
+    const f = scopeFixture(
+      { jkt: 'key' },
+      { jkt: 'key', generation: 'generation', active: true, refreshedAt: 1_800_000_000_000, extra: 'not-coordination' },
+    );
+    const reading = readDpopScopeState('scope', f.authority);
+    f.done.resolve();
+    expect((await reading).version).toEqual({
+      jkt: 'key',
+      generation: 'generation',
+      active: true,
+      refreshedAt: 1_800_000_000_000,
+    });
+  });
+
   it.each(['invalidate', 'dispose'] as const)(
     'does not begin deletion after %s during database open',
     async (action) => {

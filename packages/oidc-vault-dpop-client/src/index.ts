@@ -21,6 +21,7 @@ export {
   type OidcVaultDpopSessionOptions,
 } from './auth-session';
 export type { DpopAccessToken } from './credentials';
+export type { OidcVaultDpopAutoRefreshOptions } from './auto-refresh';
 export { fetchWithDpop, type DpopFetchContext, type DpopFetchOptions, type DpopApi } from './auth-fetch';
 export { DpopNonceCache } from './nonce-cache';
 export {
