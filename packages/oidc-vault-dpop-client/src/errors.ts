@@ -36,6 +36,7 @@ const TERMINAL_SERVER_MESSAGES: Readonly<Record<string, string>> = Object.freeze
   OIDC_VAULT_DEVICE_BINDING_REQUIRED: 'A device-bound login is required.',
   OIDC_VAULT_INVALID_BROWSER_BINDING: 'Login browser binding validation failed.',
   OIDC_VAULT_INVALID_SESSION: 'Session is missing or expired.',
+  OIDC_VAULT_REFRESH_REJECTED: 'OIDC refresh was rejected. Sign in again.',
   OIDC_VAULT_MISSING_SESSION_ID: 'Session handle is missing.',
   OIDC_VAULT_MALFORMED_SESSION_COOKIE: 'Session cookie is malformed.',
   OIDC_VAULT_INVALID_EXCHANGE_CODE: 'Exchange code is invalid or expired.',

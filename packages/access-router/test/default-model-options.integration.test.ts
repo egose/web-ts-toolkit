@@ -3,7 +3,11 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../dist/index.mjs';
-import { unsafeSnapshotOptions } from '../src/acl/unsafe-snapshot-options';
+import {
+  unsafeSnapshotCheckOptions,
+  unsafeInitialOutputCopyOptions,
+  unsafeSnapshotOptions,
+} from '../src/acl/unsafe-snapshot-options';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -52,7 +56,13 @@ describe('effective default model flags in generated HTTP routes', () => {
       disableFieldPermissions: true,
       ...Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, true])),
     });
-    expect(warn).toHaveBeenCalledTimes(6);
+    expect(warn).toHaveBeenCalledTimes(unsafeSnapshotOptions.length);
+    expect(warn.mock.calls.filter(([message]) => message.includes('snapshot checks disabled'))).toHaveLength(
+      unsafeSnapshotCheckOptions.length,
+    );
+    expect(
+      warn.mock.calls.filter(([message]) => message.includes('initial output snapshot copying disabled')),
+    ).toHaveLength(unsafeInitialOutputCopyOptions.length);
     for (const [, metadata] of warn.mock.calls) expect(metadata).toEqual({ modelName: models[0].modelName });
     expect(routers[0].options).toEqual(initial);
     const inherited = await request(app).get('/inherited').query(metadataQuery).expect(200);
@@ -90,6 +100,6 @@ describe('effective default model flags in generated HTTP routes', () => {
     const full = await request(app).get('/inherited').query(metadataQuery).expect(200);
     expect(full.body.data[0]).toMatchObject({ name: 'visible', rank: 1 });
     expect(full.body.data[0]).not.toHaveProperty('hidden');
-    expect(warn).toHaveBeenCalledTimes(6);
+    expect(warn).toHaveBeenCalledTimes(unsafeSnapshotOptions.length);
   });
 });

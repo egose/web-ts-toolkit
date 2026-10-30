@@ -13,6 +13,7 @@ behind runtime feature asserts, never at module import time. There is no
 `express`, no `node:*`, and no default export.
 
 **Guide:** [Quickstart](#quickstart-body-transport) ·
+[Auto-refresh](#opt-in-proactive-refresh) · [Observation](#observing-credentials) ·
 [Lifecycle/cleanup](#lifecycle-concurrency-and-cleanup) ·
 [HTTP bounds](#http-bounds-and-cancellation) · [Recovery](#key-loss-and-errors) ·
 [Gateway scopes](#multiple-services-behind-a-gateway) · [Upgrade notes](#upgrade-notes)
@@ -241,6 +242,119 @@ consume/expiry/cleanup. Navigation/history/proxy logs and the IdP request still
 expose their respective URLs; avoid logging them. After upstream handoff, provider
 availability/termination/return is not guaranteed. Stateless JWTs remain valid
 until expiry unless the application adds revocation.
+
+## Observing credentials
+
+Prefer `session.getAccessToken()` as the single token source. When an application
+needs an in-memory mirror or reactive view, observe committed changes independently
+of refresh scheduling:
+
+```ts
+import { createOidcVaultDpopSession, type DpopAccessToken } from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+let applicationCredential: DpopAccessToken | undefined;
+export const session = createOidcVaultDpopSession({
+  backendOrigin: 'https://api.example.com',
+  onCredentialsChanged: (credentials) => {
+    applicationCredential = credentials; // undefined means cleared; do not persist.
+  },
+});
+export const readApplicationCredential = () => applicationCredential;
+```
+
+This covers exchange, manual/API refresh, validated cookie-peer adoption, and
+local/peer/terminal clearing. Delivery is asynchronous, coalesced **latest state**,
+not an event log: superseded intermediate values and duplicate peer messages do
+not produce events. The callback runs outside this instance's mutation/lock
+ownership; it is never awaited, and throws/returned rejected promises are contained.
+Reentrant session calls are allowed but retain their normal lifecycle semantics.
+Disposal suppresses pending token delivery and emits a final undefined only when
+a token was previously observed; there are no later notifications. No callback
+runs merely because the session was constructed. Callback failures do not undo
+credential rotation or clear auth. Tokens remain memory-only.
+
+## Opt-in proactive refresh
+
+Auto-refresh is **off by default** (`autoRefresh` omitted or `false`). An options
+object enables it after a successful explicit `exchange()` or `refresh()`; creating
+a session does not bootstrap, generate a key, refresh a stored handle, or navigate.
+
+```ts
+import { createOidcVaultDpopSession, OidcVaultDpopClientError } from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+let recovery: 'none' | 'sign-in' | 'refresh-paused' = 'none';
+export const session = createOidcVaultDpopSession({
+  backendOrigin: 'https://api.example.com',
+  autoRefresh: { refreshBeforeExpiryMs: 60_000 },
+  onAutoRefreshError: (error) => {
+    recovery = error instanceof OidcVaultDpopClientError && error.requiresLogin ? 'sign-in' : 'refresh-paused';
+    // Show recovery UI. Never automatically log in or retry an uncertain rotation.
+  },
+});
+export const readRecovery = () => recovery;
+// Bootstrap/callback still explicitly calls session.refresh()/exchange(code).
+```
+
+| Option                  | Enabled default | Meaning / valid milliseconds                                                                                                                                         |
+| ----------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `refreshBeforeExpiryMs` | 60,000          | Lead before effective `expiresAt`, not a periodic interval. Integer 0..2,147,483,647. When acquisition time is known, capped to half the initial remaining lifetime. |
+| `maxRefreshIntervalMs`  | unset           | Explicit keep-alive deadline since successful acquisition. Integer 1,000..2,147,483,647; no implicit keep-alive policy.                                              |
+
+The earlier deadline wins, with a one-second minimum scheduled cadence. A one-hour
+token with a 60-second lead refreshes around minute **59**. A 60-second token caps
+that lead to 30 seconds; extremely short credentials can expire before the cadence
+floor. Zero/nonlive results pause with non-terminal `DPOP_ACCESS_TOKEN_EXPIRED`
+while retaining rotated handles. Repeated short results never start a tight loop.
+
+A one-hour app token can outlive a 30-minute provider idle timeout. Applications
+that explicitly accept keep-alive can instead choose, for example:
+
+```ts
+import type { OidcVaultDpopAutoRefreshOptions } from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+export const keepAlivePolicy: OidcVaultDpopAutoRefreshOptions = {
+  refreshBeforeExpiryMs: 60_000,
+  maxRefreshIntervalMs: 20 * 60_000, // Explicit application policy, not the default.
+};
+```
+
+**Either scheduling policy may keep an idle upstream session active**, depending
+on token lifetimes and provider settings. Neither measures user activity or replaces
+application idle logout, nor extends provider/vault absolute session expiry.
+Timers run in hidden tabs when the browser allows, but cannot guarantee refresh
+during throttling, BFCache/device sleep or browser shutdown. Visible
+`visibilitychange` and `pageshow` recheck one deadline, never catch up missed ticks.
+Always retain a **Sign in again** action.
+
+Scheduled work uses the same refresh FIFO/single-flight and cookie Web Lock. A
+deadline is rechecked after admission and peer adoption, avoiding redundant
+rotation when a newer winner already satisfies the policy. Cookie metadata adds
+an optional generation-bound acquisition-clock hint (`refreshedAt`), never a token
+or handle. Peer receipt/rebroadcast does not reset the deadline. Missing, malformed
+or future hints from old records make an enabled maximum interval due rather than
+pretending the provider saw fresh activity. Existing keys/schema remain usable.
+Coordination is still same frontend origin/storage partition/scope, not a backend
+lease; lost peer delivery may require a later serialized refresh. Body sessions
+remain tab-local and never share handles.
+
+Login/exchange/logout/navigation-logout intent withdraws pending scheduled work;
+clear/reset/terminal invalidation stop it and disposal removes its timer/listeners.
+An already-started refresh may publish its rotation before an ordered logout uses
+it, but cannot rearm behind that logout. No scheduled callback navigates or replays
+a protected API mutation.
+
+**Failures pause scheduling and report once through `onAutoRefreshError(error)`**;
+terminal errors retain normal cleanup, others retain recovery state. The callback
+is never awaited and throws/rejected promises are contained. Resume/online events
+and unsolicited peer tokens do not unpause failure; successful explicit local
+exchange/refresh rearms. An old failure cannot pause a newer admitted winner.
+There is no blanket retry/backoff: a lost response or timeout may already have
+rotated credentials. Manual operations still reject their own promises; the
+background callback is not a replacement for their error handling.
+Failed manual refresh also pauses existing scheduling silently, so a later timer
+cannot become an implicit retry of that possibly committed mutation. Superseded
+work without an admitted newer winner pauses silently; follow the current explicit
+session flow rather than retrying an obsolete credential in a timer loop.
 
 ## Lifecycle concurrency and cleanup
 
@@ -529,14 +643,14 @@ cannot change the recovery decision while its body is awaited.
 
 ## Storage
 
-| What                                                    | Where                                                     | Lifetime / scope                                                                               |
-| ------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Access JWT                                              | Memory only (`getAccessToken()`), never persisted         | Until `expiresAt`; closing every tab discards all tokens                                       |
-| Body handle `{ sessionId, jkt }`                        | `sessionStorage`, tab-local                               | Scoped key `oidc-vault-dpop:handle:<scope>`; do not copy across tabs                           |
-| Pending-login `jkt` marker                              | `sessionStorage`, survives the IdP navigation             | Cleared at `exchange`; missing marker means fresh login required                               |
-| Cookie handle                                           | Backend `HttpOnly` session cookie, never browser-readable | Backend session TTL (example: 8h absolute); no vault `sid` in the JWT payload                  |
-| DPoP private `CryptoKey` (non-extractable) + public JWK | IndexedDB object stores                                   | Scope `[frontendOrigin, backendOrigin, normalizedBasePath]`; atomic first-key-wins across tabs |
-| Cookie coordination `{ jkt, generation, active }`       | IndexedDB, non-credential metadata only                   | Per scope; BroadcastChannel delivery is transient (≤180ms peer wait)                           |
+| What                                                            | Where                                                     | Lifetime / scope                                                                                       |
+| --------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Access JWT                                                      | Memory only (`getAccessToken()`), never persisted         | Until `expiresAt`; closing every tab discards all tokens                                               |
+| Body handle `{ sessionId, jkt }`                                | `sessionStorage`, tab-local                               | Scoped key `oidc-vault-dpop:handle:<scope>`; do not copy across tabs                                   |
+| Pending-login `jkt` marker                                      | `sessionStorage`, survives the IdP navigation             | Cleared at `exchange`; missing marker means fresh login required                                       |
+| Cookie handle                                                   | Backend `HttpOnly` session cookie, never browser-readable | Backend session TTL (example: 8h absolute); no vault `sid` in the JWT payload                          |
+| DPoP private `CryptoKey` (non-extractable) + public JWK         | IndexedDB object stores                                   | Scope `[frontendOrigin, backendOrigin, normalizedBasePath]`; atomic first-key-wins across tabs         |
+| Cookie coordination `{ jkt, generation, active, refreshedAt? }` | IndexedDB, non-credential metadata only                   | Per scope; acquisition clock hint, not user activity; BroadcastChannel is transient (≤180ms peer wait) |
 
 `sessionStorage` tab-local body handles must not be shared between tabs, and
 opener-cloned `sessionStorage` is not a shared-refresh strategy. No tokens or
@@ -610,23 +724,33 @@ Vault JSON errors use an explicit code allowlist rather than treating every
 HTTP 401 as logout. These **terminal** server codes clear local auth and
 pending login, invalidate cookie coordination metadata, and require sign-in:
 
-| Code                                     | Meaning                                                               |
-| ---------------------------------------- | --------------------------------------------------------------------- |
-| `OIDC_VAULT_INVALID_SESSION`             | Session is missing, expired, or no longer usable.                     |
-| `OIDC_VAULT_MISSING_SESSION_ID`          | The body handle or session cookie is missing (HTTP 400).              |
-| `OIDC_VAULT_MALFORMED_SESSION_COOKIE`    | The session cookie is malformed (HTTP 400).                           |
-| `OIDC_VAULT_INVALID_EXCHANGE_CODE`       | The exchange code is invalid/expired (HTTP 400); begin a fresh login. |
-| `OIDC_VAULT_INVALID_BROWSER_BINDING`     | The login transaction's browser-cookie binding failed.                |
-| `OIDC_VAULT_DEVICE_BINDING_REQUIRED`     | The session needs a device-bound login.                               |
-| `OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED` | Enrolled recognition changed or is absent.                            |
+| Code                                     | Meaning                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| `OIDC_VAULT_INVALID_SESSION`             | Session is missing, expired, or no longer usable.                         |
+| `OIDC_VAULT_REFRESH_REJECTED`            | The current upstream refresh grant was confirmed rejected; sign in again. |
+| `OIDC_VAULT_MISSING_SESSION_ID`          | The body handle or session cookie is missing (HTTP 400).                  |
+| `OIDC_VAULT_MALFORMED_SESSION_COOKIE`    | The session cookie is malformed (HTTP 400).                               |
+| `OIDC_VAULT_INVALID_EXCHANGE_CODE`       | The exchange code is invalid/expired (HTTP 400); begin a fresh login.     |
+| `OIDC_VAULT_INVALID_BROWSER_BINDING`     | The login transaction's browser-cookie binding failed.                    |
+| `OIDC_VAULT_DEVICE_BINDING_REQUIRED`     | The session needs a device-bound login.                                   |
+| `OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED` | Enrolled recognition changed or is absent.                                |
 
 Proof/nonce errors (`OIDC_VAULT_INVALID_DPOP_PROOF`,
 `OIDC_VAULT_DPOP_REQUIRED`, `OIDC_VAULT_USE_DPOP_NONCE`) are **non-terminal**,
-even on HTTP 401. Replay-store unavailability, upstream/provider failures, and
+even on HTTP 401. Replay-store unavailability, generic upstream/provider failures, and
 request/configuration failures also retain auth. An invalid recognition input
 (`OIDC_VAULT_INVALID_FINGERPRINT`) is non-terminal; it differs from a confirmed
 enrollment mismatch. Non-terminal does not promise that a retry will succeed
 or authorize one automatically; use the operation's recovery contract.
+
+`OIDC_VAULT_REFRESH_REJECTED` is the narrow provider exception: a bounded valid
+OAuth `invalid_grant` rejection during refresh, not proof that time expiry caused
+it. Newer cookie generations or local publication/login intent supersede an old
+rejection with non-terminal `DPOP_OPERATION_SUPERSEDED`; failed advisory lookup
+retains auth. The server adds no cookie clear/lineage deletion for this error.
+Older servers still return generic `OIDC_VAULT_TOKEN_REQUEST_FAILED`; older clients
+sanitize the unknown new code as non-terminal. Keep explicit sign-in recovery
+and do not reinterpret every provider failure as logout.
 
 Unknown codes, including object-prototype names, become fixed
 **`OIDC_REQUEST_FAILED` / `The OIDC request failed.`**, `requiresLogin: false`;
@@ -839,6 +963,9 @@ singleton, and no client router — the callback is the same page reading
   (`login`/`exchange`/`refresh`/`logout`/`logoutAndNavigate`/`getAccessToken`/`getKey`/`clear`/`resetKey`/`dispose`).
   Options: `backendOrigin`, `basePath` (default `/auth/oidc`),
   `sessionTransport` (`'body'` default | `'cookie'`), optional `fingerprint`,
+  optional `onCredentialsChanged` (asynchronous latest-state observer),
+  `autoRefresh` (omitted/false by default; enabled lead 60,000 ms, optional maximum interval),
+  optional `onAutoRefreshError` (paused background failure),
   `requestTimeoutMs` (default 15,000 ms), `maxResponseBytes` (default 1 MiB),
   injectable `fetch`/`navigate`/`now` for tests.
 - `fetchWithDpop({ session, apis, fetch?, nonces?, now? }, input, options?)` →
@@ -849,13 +976,22 @@ pathPrefix?, credentials? }`; longest normalized segment-prefix match wins.
   `fingerprintJsSignalSource(load)`, `OidcVaultDpopClientError`.
 - Types: `DpopKey`, `DpopKeyScope`, `DpopProofInput`, `DpopAccessToken`,
   `DpopFetchContext`, `DpopFetchOptions`, `DpopApi`,
-  `OidcVaultDpopSession`, `OidcVaultDpopSessionOptions`, `DeviceFingerprint`, `DeviceFingerprintOptions`,
+  `OidcVaultDpopSession`, `OidcVaultDpopSessionOptions`, `OidcVaultDpopAutoRefreshOptions`, `DeviceFingerprint`, `DeviceFingerprintOptions`,
   `DeviceFingerprintSignalSource`, `FingerprintJsAgent`. Wire DTOs stay
   single-sourced from the pure `@web-ts-toolkit/express-oidc-vault/wire` entry
   at build time; no backend import survives in client declarations/JavaScript.
 - Pure root DTOs: `OidcVaultLogoutNavigationInput`, `OidcVaultLogoutNavigationResult`.
 
 ## Upgrade notes
+
+Session maintenance is additive and default-off. Use top-level
+`onCredentialsChanged` for an in-memory mirror even without scheduling. Enable
+`autoRefresh` only after choosing the app's idle/keep-alive policy; handle paused
+background failures and retain explicit recovery. Cookie records add an optional
+non-credential `refreshedAt` hint without renaming the database or changing keys;
+old/missing hints remain compatible. Update both server/client for confirmed
+`OIDC_VAULT_REFRESH_REJECTED` sign-in classification; mixed versions stay
+conservatively non-terminal.
 
 Provider logout is additive: enable the paired server's `logoutNavigation` and
 replace custom logout proof/fetch/redirect handling with `session.logoutAndNavigate()`.

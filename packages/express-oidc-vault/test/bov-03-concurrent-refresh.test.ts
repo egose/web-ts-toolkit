@@ -46,6 +46,19 @@ const startServer = async (app: express.Express): Promise<StartedServer> => {
 
 type RefreshFamily = { validToken: string; revoked: boolean };
 
+const assertRefreshLosers = (responses: request.Response[]) => {
+  expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+  for (const loser of responses.filter((response) => response.status !== 200)) {
+    // Rejection can precede the winner's local commit (401) or observe its
+    // replaced record (502). Neither response clears the successor's cookie.
+    expect([401, 502]).toContain(loser.status);
+    expect(loser.body.code).toBe(
+      loser.status === 401 ? 'OIDC_VAULT_REFRESH_REJECTED' : 'OIDC_VAULT_TOKEN_REQUEST_FAILED',
+    );
+    expect(loser.headers['set-cookie']).toBeUndefined();
+  }
+};
+
 describe('BOV-03 concurrent refresh semantics', () => {
   const backendOrigin = 'https://api.example.com';
   const frontendOrigin = 'https://frontend.example.com';
@@ -304,10 +317,9 @@ describe('BOV-03 concurrent refresh semantics', () => {
     // Both overlapping requests submitted the same current refresh token.
     expect(refreshRequestTokens).toEqual(['upstream_refresh_1', 'upstream_refresh_1']);
     // The second upstream call reuses the consumed single-use token, so the
-    // loser surfaces an upstream failure (502), never reaching local
+    // loser surfaces a refresh rejection, never reaching local
     // rotation. Local issuance is still bounded to one token.
-    expect(responses.map((response) => response.status).sort()).toEqual([200, 502]);
-    expect(responses.find((response) => response.status === 502)?.body.code).toBe('OIDC_VAULT_TOKEN_REQUEST_FAILED');
+    assertRefreshLosers(responses);
     expect(issuedTokens).toHaveLength(1);
 
     // Reuse detection killed the whole family: the winner's fresh upstream
@@ -320,7 +332,8 @@ describe('BOV-03 concurrent refresh semantics', () => {
     expect(winnerSession?.refreshToken).toMatch(/^upstream_refresh_next_/);
 
     const nextRefresh = await request(app).post('/auth/oidc/refresh').send({ sessionId: winnerSessionId });
-    expect(nextRefresh.status).toBe(502);
+    expect(nextRefresh.status).toBe(401);
+    expect(nextRefresh.body.code).toBe('OIDC_VAULT_REFRESH_REJECTED');
     expect(refreshRequestTokens).toHaveLength(3);
     expect(families.get('fam1')?.revoked).toBe(true);
   });
@@ -348,7 +361,7 @@ describe('BOV-03 concurrent refresh semantics', () => {
     ]);
 
     expect(refreshRequestTokens).toEqual(['upstream_refresh_1', 'upstream_refresh_1']);
-    expect(responses.map((response) => response.status).sort()).toEqual([200, 502]);
+    assertRefreshLosers(responses);
     expect(families.get('fam1')?.revoked).toBe(false);
 
     const winnerSessionId = responses.find((r) => r.status === 200)?.body.sessionId as string;
@@ -386,7 +399,7 @@ describe('BOV-03 concurrent refresh semantics', () => {
     // Provider request bound today equals the concurrency degree.
     expect(refreshRequestTokens).toHaveLength(3);
     expect(refreshRequestTokens.every((token) => token === 'upstream_refresh_1')).toBe(true);
-    expect(responses.map((r) => r.status).sort()).toEqual([200, 502, 502]);
+    assertRefreshLosers(responses);
     expect(issuedTokens).toHaveLength(1);
   });
 

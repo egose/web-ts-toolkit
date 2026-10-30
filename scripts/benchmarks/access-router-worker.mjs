@@ -7,6 +7,8 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   fingerprint,
+  initialOutputCopyFlagOptions,
+  effectiveInitialOutputCopySkips,
   integer,
   mapBounded,
   SCENARIOS,
@@ -102,7 +104,11 @@ export async function benchmark(job) {
     throw new Error('Prepared dist changed. Do not run other builds during the benchmark.');
 
   const snapshotSkips = job.target.snapshotSkips ?? 'off';
+  const initialOutputCopySkips = job.target.initialOutputCopySkips ?? 'off';
+  const hasCopyConfig =
+    job.target.initialOutputCopySkips !== undefined || job.target.supportedInitialOutputCopyFlags !== undefined;
   const hasSnapshotConfig =
+    hasCopyConfig ||
     job.target.snapshotSkips !== undefined ||
     job.target.supportedSnapshotFlags !== undefined ||
     job.target.snapshotDeclarationsSha256 !== undefined;
@@ -116,6 +122,14 @@ export async function benchmark(job) {
     throw new Error('Prepared unsafe snapshot flag declarations changed. Rebuild and select candidates again.');
   const supportedFlags = hasSnapshotConfig ? job.target.supportedSnapshotFlags : [];
   const snapshotFlags = snapshotFlagOptions(snapshotSkips, supportedFlags);
+  if (hasCopyConfig && !Array.isArray(job.target.supportedInitialOutputCopyFlags))
+    throw new Error('Unsafe initial output copy configuration requires a prepared declaration manifest.');
+  const initialOutputCopyFlags = initialOutputCopyFlagOptions(
+    initialOutputCopySkips,
+    job.target.supportedInitialOutputCopyFlags ?? [],
+  );
+  const effectiveCopySkips = effectiveInitialOutputCopySkips(snapshotFlags, initialOutputCopyFlags);
+  const modelFlags = { ...snapshotFlags, ...initialOutputCopyFlags };
 
   // Resolve peers beside the selected build, NOT beside this runner. Otherwise a
   // tagged build could accidentally use the current checkout's Mongoose instance.
@@ -171,9 +185,9 @@ export async function benchmark(job) {
       operationAccess: { list: true, read: true },
       permissionSchema: { name: true, secret: false },
       stripPermissionsField: true,
-      ...snapshotFlags,
+      ...modelFlags,
     });
-    verifySnapshotFlagOptions(api, Target.modelName, snapshotFlags);
+    verifySnapshotFlagOptions(api, Target.modelName, modelFlags);
     const permissionSchema = {
       ordinal: true,
       hidden: false,
@@ -200,7 +214,7 @@ export async function benchmark(job) {
       defaults: {
         publicListOptions: { includePermissions: false, includeFieldPermissions: false, includeCount: false },
       },
-      ...snapshotFlags,
+      ...modelFlags,
     };
     if (modernHydration) options.hydration = { publicList: scenario.hydrated ? 'hydrated' : 'lean' };
     else options.defaults.publicListOptions.lean = !scenario.hydrated;
@@ -252,7 +266,7 @@ export async function benchmark(job) {
       };
     }
     const router = api.createRouter(Source, options);
-    verifySnapshotFlagOptions(api, Source.modelName, snapshotFlags);
+    verifySnapshotFlagOptions(api, Source.modelName, modelFlags);
     const targets = Array.from({ length: 8 }, (_, index) => ({
       _id: new mongoose.Types.ObjectId((index + 1).toString(16).padStart(24, '0')),
       name: `target:${index}`,
@@ -342,6 +356,9 @@ export async function benchmark(job) {
       concurrency: job.concurrency,
       snapshotSkips,
       snapshotFlags,
+      initialOutputCopySkips,
+      initialOutputCopyFlags,
+      effectiveInitialOutputCopySkips: effectiveCopySkips,
       stats: summarize(samples, elapsed, cpu.user + cpu.system),
       samplesMs: samples,
       ...measured,

@@ -64,6 +64,8 @@ export interface AuthorizationConfiguration {
   readonly unsafeSkipReadOutputSnapshotChecks?: boolean;
   readonly unsafeSkipListNestedDocumentSnapshotChecks?: boolean;
   readonly unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
+  readonly unsafeSkipListInitialOutputSnapshotCopy?: boolean;
+  readonly unsafeSkipReadInitialOutputSnapshotCopy?: boolean;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   /** Held runtime model defaults, distinct from this model's resolved flags. */
@@ -156,8 +158,9 @@ interface CallRecord {
   readonly readResponse: boolean;
   readonly nestedResponse: boolean;
   /** Only authenticated query descendants/retries inherit the initiating model's settings. */
-  readonly responseSnapshots?: Readonly<{ skipOutput: boolean; skipNested: boolean }>;
+  readonly responseSnapshots?: Readonly<{ skipOutput: boolean; skipNested: boolean; skipInitialOutputCopy: boolean }>;
   readonly validateOutputSnapshots: boolean;
+  readonly skipInitialOutputSnapshotCopy: boolean;
 }
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
 
@@ -517,11 +520,17 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
         ? Object.freeze({
             skipOutput: configuration.unsafeSkipListOutputSnapshotChecks === true,
             skipNested: configuration.unsafeSkipListNestedDocumentSnapshotChecks === true,
+            skipInitialOutputCopy:
+              configuration.unsafeSkipListOutputSnapshotChecks === true &&
+              configuration.unsafeSkipListInitialOutputSnapshotCopy === true,
           })
         : readResponse
           ? Object.freeze({
               skipOutput: configuration.unsafeSkipReadOutputSnapshotChecks === true,
               skipNested: configuration.unsafeSkipReadNestedDocumentSnapshotChecks === true,
+              skipInitialOutputCopy:
+                configuration.unsafeSkipReadOutputSnapshotChecks === true &&
+                configuration.unsafeSkipReadInitialOutputSnapshotCopy === true,
             })
           : undefined;
   const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
@@ -539,6 +548,7 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
     nestedResponse,
     responseSnapshots,
     validateOutputSnapshots: responseSnapshots?.skipOutput !== true,
+    skipInitialOutputSnapshotCopy: responseSnapshots?.skipInitialOutputCopy === true,
     validateDocumentSnapshots: !(
       (input.listResponse === true &&
         input.parent === undefined &&
@@ -586,6 +596,14 @@ export function requiresDocumentSnapshotChecks(call: ResolvedServiceAuthorizatio
 export function requiresOutputSnapshotChecks(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   return callRecord(call).validateOutputSnapshots;
+}
+
+/** Private mode lookup, NOT a binding/ownership certificate. Association authenticates
+ * its owner/ordinary tuple before omission; copying retains the later binding check.
+ */
+export function skipsInitialOutputSnapshotCopy(call: ResolvedServiceAuthorization) {
+  const record = callRecord(call);
+  return !record.validateOutputSnapshots && record.skipInitialOutputSnapshotCopy;
 }
 
 /** Hydration is open configuration: detach this slice, never the unrelated call graph. */

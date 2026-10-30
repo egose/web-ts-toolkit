@@ -178,13 +178,46 @@ target model's flags. Root-source, nested-source and output-value checks are ind
 nested flags do not prune child values from still-strict parent comparisons.
 
 Permission rules, exact associations/bindings, output graph identities and initial
-snapshots/detached copies remain. Writes, dedicated subdocument operations and fresh
+snapshots/detached copies remain with the new copy flags below off. Writes, dedicated subdocument operations and fresh
 helpers stay strict. Originating handles, captured retries and later descendants
 retain their original mode after rollback. **Source mutation can leave stale grants/
 decisions; output flags additionally allow changed values with unchanged identities
 to reuse authorization and expose incorrectly authorized data.** Use only as a
 temporary, measured workaround, not as a security-equivalent fast path. Per-call,
 wire and method-default controls cannot enable it. See the shipped README for the contract.
+
+#### Separate initial output-copy opt-outs
+
+`unsafeSkipListInitialOutputSnapshotCopy` and `unsafeSkipReadInitialOutputSnapshotCopy`
+are two additional server model/default booleans, **false by default**. Each requires
+its matching `unsafeSkipListOutputSnapshotChecks` / `unsafeSkipReadOutputSnapshotChecks`
+to be true. Copy true with comparisons strict is **dormant**: copying/comparisons stay
+on and a prerequisite warning is logged. Neither option silently changes another flag.
+
+When active, eligible initial output-association snapshots (including authenticated
+embedded/populated/included outputs and package-created transfers) are omitted. READ
+retries keep READ settings; targets cannot override the initiating model. Inheritance,
+literal-true enablement, server-only controls and captured-handle rollback match the
+comparison flags. Active/dormant warnings follow effective model/operation transitions,
+not rows/requests. Writes, dedicated subdocument operations and fresh helpers stay strict.
+
+**Additional risk:** this pass no longer clones/normalizes native leaves or runs BSON
+wire-validation hooks. Changed observations can alter exceptions, side effects and
+permission outcomes—even turn denial into allowance. Ordinary graph admission retains
+safe keys/descriptors, cycles, 20,000 visited-node/array-length and depth-100 limits,
+plus exact graph/binding ownership. Standard native leaves are admitted without this
+normalization; invalid/forged BSON content is not wire-validated by the omitted pass.
+Proxies, Map/Set, unproven subclasses/unsupported graphs use the original copy fallback.
+Accessor/proxy ownership bindings also fall back, rather than retaining graph admission
+across binding callbacks.
+
+Source snapshots, detached callback inputs/grants, configuration, getters, metadata
+and actual response-copy boundaries remain. This is not an all-cloning opt-out and
+does not promise historical performance. Prefer temporary per-model opt-in only after
+reviewing trusted data/hooks and measured rollout evidence. Restore the copy flag to
+false and then restore strict comparisons for new calls; retained authority keeps its
+captured mode. The [shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#temporary-unsafe-initial-output-snapshot-copy-switches)
+contains the four-combination table and server-only example.
 
 ### Populate operation policies
 

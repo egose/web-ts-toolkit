@@ -30,6 +30,10 @@ the prepared entrypoint hash before importing it.
    not offer ON: any supported flags are set to false, and the report identifies
    how many are supported. For example, select BOTH for the current build and
    include v0.51.0 to compare current OFF, current ON, and the historical build.
+   Separately select **OFF/ON/BOTH initial output copy skips** for builds declaring
+   both copy options. BOTH creates the cross-product with comparison candidates.
+   Old/partial copy support is labeled N/A or supported-OFF; ON is unavailable.
+   The original snapshot group still sets exactly its six comparison flags.
 4. Select a candidate as the baseline and choose scenarios (**at least one**).
    Failed preparations retain logs and are not offered as runnable builds. Old
    incompatible tags fail explicitly instead of silently using a different workload.
@@ -47,6 +51,20 @@ model options to `true` on both benchmark models; OFF sets supported options to
 missing, changed or unapplied flags fail rather than yielding misleading timings.
 The current scenarios are LIST requests, so the three READ flags are configured
 but do not affect these measurements. No flags are passed as request options.
+
+The independent copy group sets `unsafeSkipListInitialOutputSnapshotCopy` and
+`unsafeSkipReadInitialOutputSnapshotCopy` on the same models. Active omission
+requires the matching output-comparison skip; comparison OFF + copy ON is reported
+as **ON (dormant; effective OFF)**, never implicitly enables comparisons and still
+copies snapshots. The worker verifies both configured getter paths and reports the
+effective LIST copy mode derived from that verified pair; runtime/operation-count
+tests separately verify the actual omission. Unsupported historical flags stay N/A.
+Eligibility fallback can still copy particular graphs even with the mode active.
+
+Copy ON adds risk: it omits initial output native normalization/wire-validation
+observations, which can change permission outcomes. Bounded shape/graph checks and
+source/callback/response copies remain. Matching fixtures do not prove security
+equivalence or imply that all cloning was removed.
 
 **ON is unsafe:** source/output mutations can leave stale authorization decisions
 and expose data. Matching benchmark outputs do not make ON security-equivalent to
@@ -75,7 +93,7 @@ The terminal table and `.wip/benchmarks/access-router-*/report.md` show median/p
 HTTP latency, requests/second, worker CPU milliseconds/request, Mongoose read ops/
 request, and median latency relative to the selected baseline. **Below 1.00x is
 faster.** Ratios are suppressed for failures, missing baselines or different
-validated output fingerprints. Each row identifies its snapshot-skip setting;
+validated output fingerprints. Each row identifies its comparison and initial-copy settings;
 `report.json` records the candidate's supported and applied flags alongside raw samples, settings,
 commits, dirty-worktree status, build/lock hashes, actual dependency and MongoDB
 versions, and failures. Each build/job also has a persistent log.

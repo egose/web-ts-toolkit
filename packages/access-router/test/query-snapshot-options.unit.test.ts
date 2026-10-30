@@ -30,7 +30,7 @@ import {
 } from '../src/acl/document-authorization';
 import { authorizeEmbeddedOutputPlan } from '../src/acl/output-field-filter';
 import { planAuthorizedModelProjection } from '../src/acl/output-projection';
-import { unsafeSnapshotOptions } from '../src/acl/unsafe-snapshot-options';
+import { unsafeSnapshotCheckOptions as unsafeSnapshotOptions } from '../src/acl/unsafe-snapshot-options';
 import { assertPublicAdmission, PublicAdmissionError } from '../src/validation/public-admission';
 import * as snapshots from '../src/acl/authorization-snapshot';
 

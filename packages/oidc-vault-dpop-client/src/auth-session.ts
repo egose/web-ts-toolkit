@@ -1,5 +1,10 @@
 import { base64url } from 'jose';
 
+import {
+  createAutoRefreshScheduler,
+  resolveAutoRefreshOptions,
+  type OidcVaultDpopAutoRefreshOptions,
+} from './auto-refresh';
 import { createDpopProof } from './dpop-proof';
 import { getOrCreateDpopKey, getOrCreateLoginDpopKey, type DpopKey } from './dpop-key-store';
 import { parseDpopCredentials, readPeerToken, type DpopAccessToken } from './credentials';
@@ -30,6 +35,25 @@ export interface OidcVaultDpopSessionOptions {
   sessionTransport?: OidcVaultSessionTransport;
   /** Current signal on login/exchange/refresh only; optional recognition, never PoP. */
   fingerprint?: DeviceFingerprint;
+  /**
+   * Disabled by default (also accepts false). An options object enables
+   * expiry-driven scheduling after successful explicit exchange/refresh, with
+   * an optional explicit keep-alive interval. Failures pause until successful
+   * explicit acquisition; resume events never retry uncertain rotations.
+   * Timers may run in hidden tabs but cannot guarantee execution during sleep.
+   */
+  autoRefresh?: false | OidcVaultDpopAutoRefreshOptions;
+  /** Background scheduler failures only; not awaited, with observer exceptions contained. */
+  onAutoRefreshError?: (error: unknown) => void;
+  /**
+   * Asynchronous, coalesced latest-state observation after committed credential
+   * replacement/clear, including API refresh and cookie-peer adoption. Works
+   * without auto-refresh. Undefined means cleared; disposal delivers a final
+   * clear if a token was observed. Not an event log. Observers run outside this
+   * instance's mutation/lock ownership; throws/rejected promises are contained,
+   * never awaited and cannot veto a committed operation.
+   */
+  onCredentialsChanged?: (credentials: DpopAccessToken | undefined) => void;
   /**
    * Per-attempt vault HTTP deadline in milliseconds, including headers, streamed
    * body and JSON parsing. Default 15,000; integer 1..2,147,483,647. Starts at
@@ -156,6 +180,9 @@ interface PeerWaiter {
  * failures and explicit terminal operations retain their own failure cleanup.
  * A lost response leaves server commit/cookie application uncertain: local
  * cancellation cannot roll it back or coordinate across frontend origins.
+ * autoRefresh is default-off; enabled scheduling uses this lifecycle and pauses
+ * on failure, never implicitly retrying uncertain rotations. The optional
+ * credential observer works independently of scheduling. Dispose on teardown.
  */
 export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions): OidcVaultDpopSession => {
   const {
@@ -163,6 +190,9 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     basePath = '/auth/oidc',
     sessionTransport = 'body',
     fingerprint,
+    autoRefresh,
+    onAutoRefreshError,
+    onCredentialsChanged,
     requestTimeoutMs = 15_000,
     maxResponseBytes = 1_048_576,
     fetch: request = globalThis.fetch.bind(globalThis),
@@ -174,6 +204,11 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     throw new TypeError('requestTimeoutMs must be an integer from 1 to 2147483647 milliseconds.');
   if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1)
     throw new TypeError('maxResponseBytes must be a positive safe integer.');
+  if (onCredentialsChanged !== undefined && typeof onCredentialsChanged !== 'function')
+    throw new TypeError('onCredentialsChanged must be a function.');
+  if (onAutoRefreshError !== undefined && typeof onAutoRefreshError !== 'function')
+    throw new TypeError('onAutoRefreshError must be a function.');
+  const refreshPolicy = resolveAutoRefreshOptions(autoRefresh);
   assertDpopBrowserFeatures(sessionTransport === 'cookie');
   const scope = resolveDpopScope({ frontendOrigin: location.origin, backendOrigin, basePath });
   const storageKey = `oidc-vault-dpop:handle:${scope.id}`;
@@ -201,6 +236,27 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
   let loginIntent = 0;
   let acceptPeerTokens = true;
   const peerWaiters = new Set<PeerWaiter>();
+  let mutationOwners = 0;
+  let notificationQueued = false;
+  let observedToken: DpopAccessToken | undefined;
+  const notifyCredentials = (): void => {
+    if (!onCredentialsChanged || notificationQueued || observedToken === token) return;
+    notificationQueued = true;
+    queueMicrotask(() => {
+      notificationQueued = false;
+      // A commit can precede more asynchronous cleanup in the same operation.
+      // Its lock's settled continuation schedules delivery after ownership ends.
+      if (mutationOwners && lifecycle.isLive()) return;
+      const current = token;
+      if (observedToken === current) return;
+      observedToken = current;
+      try {
+        void Promise.resolve(onCredentialsChanged(current)).catch(() => {});
+      } catch {
+        // Application observers cannot turn committed rotation into failure.
+      }
+    });
+  };
   const withdrawNavigation = (): void => {
     navigationIntent++;
     navigationPromise = undefined;
@@ -232,12 +288,22 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
   };
   // Explicitly probe storage at construction, including cookie redirect markers.
   readStorage(pendingKey);
+  const scheduler = refreshPolicy
+    ? createAutoRefreshScheduler(refreshPolicy, {
+        now,
+        busy: () => mutationOwners > 0,
+        refresh: (intent) => refreshOperation({}, intent),
+        onError: onAutoRefreshError,
+      })
+    : undefined;
 
   const clearLocal = (clearPendingLogin = true): void => {
+    scheduler?.clear();
     token = undefined;
     tokenRecognition = undefined;
     acceptPeerTokens = false;
     publication++;
+    notifyCredentials();
     for (const waiter of peerWaiters) waiter.finish();
     nonces.clear();
     store(storageKey);
@@ -251,8 +317,23 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     clearLocal(clearPendingLogin);
     return authority;
   };
-  const withCookieLock = <T>(operation: () => Promise<T>): Promise<T> =>
-    sessionTransport === 'cookie' ? navigator.locks.request(lockName, { mode: 'exclusive' }, operation) : operation();
+  const withCookieLock = <T>(operation: () => Promise<T>): Promise<T> => {
+    const owned = async () => {
+      mutationOwners++;
+      try {
+        return await operation();
+      } finally {
+        mutationOwners--;
+      }
+    };
+    const pending =
+      sessionTransport === 'cookie' ? navigator.locks.request(lockName, { mode: 'exclusive' }, owned) : owned();
+    // navigator.locks' returned promise settles after releasing the lock.
+    return pending.finally(() => {
+      notifyCredentials();
+      scheduler?.settled();
+    });
+  };
 
   const invalidateCookie = async (
     authority: SessionAuthority,
@@ -352,6 +433,9 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
   ): Promise<{ value: unknown; recognition: string }> => {
     const url = `${scope.backendOrigin}${scope.basePath === '/' ? '' : scope.basePath}/${route}`;
     const { jkt } = key;
+    const requestPublication = publication;
+    const requestLoginIntent = loginIntent;
+    const requestBinding = cookieBindings.get(authority);
     let nonceRetried = false;
     for (;;) {
       authority.assertCurrent();
@@ -388,6 +472,38 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
         return { value, recognition: marker };
       }
       const error = serverError(status, value);
+      if (route === 'refresh' && error.code === 'OIDC_VAULT_REFRESH_REJECTED') {
+        const assertRejectionCurrent = () => {
+          authority.assertCurrent();
+          if (publication !== requestPublication || loginIntent !== requestLoginIntent)
+            throw new OidcVaultDpopClientError(
+              'DPOP_OPERATION_SUPERSEDED',
+              'This browser auth operation was superseded.',
+            );
+        };
+        assertRejectionCurrent();
+        if (channel) {
+          let current: CookieSessionVersion | undefined;
+          try {
+            current = await readCookieSessionVersion(scope.id);
+          } catch {
+            assertRejectionCurrent();
+            // An advisory lookup failure cannot prove current logout authority.
+            throw new OidcVaultDpopClientError('OIDC_REQUEST_FAILED', 'The OIDC request failed.', false, status);
+          }
+          assertRejectionCurrent();
+          if (
+            !requestBinding?.generation ||
+            !current?.active ||
+            current.jkt !== requestBinding.jkt ||
+            current.generation !== requestBinding.generation
+          )
+            throw new OidcVaultDpopClientError(
+              'DPOP_OPERATION_SUPERSEDED',
+              'This browser auth operation was superseded.',
+            );
+        }
+      }
       if (error.code === 'OIDC_VAULT_USE_DPOP_NONCE' && (status === 400 || status === 401)) {
         if (nonceRetried)
           throw new OidcVaultDpopClientError(
@@ -410,11 +526,12 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     recognition: string,
     authority: SessionAuthority,
     sessionId?: string,
+    refreshedAt?: number,
   ): Promise<DpopAccessToken> => {
     await existingKey(authority, next.jkt);
     authority.assertCurrent();
     if (channel) {
-      const version = { jkt: next.jkt, generation: next.generation, active: true };
+      const version = { jkt: next.jkt, generation: next.generation, active: true, refreshedAt };
       await writeCookieSessionVersion(scope.id, version, authority);
       authority.assertCurrent();
       cookieBindings.set(authority, version);
@@ -426,6 +543,8 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     tokenRecognition = recognition;
     acceptPeerTokens = true;
     publication++;
+    scheduler?.replace(next, refreshedAt);
+    notifyCredentials();
     channel?.postMessage({
       type: 'token',
       sender,
@@ -443,8 +562,9 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     authority: SessionAuthority,
   ): Promise<DpopAccessToken> => {
     authority.assertCurrent();
-    const parsed = parseDpopCredentials(response.value, sessionTransport, key.jkt, now());
-    return publish(parsed.token, response.recognition, authority, parsed.sessionId);
+    const refreshedAt = now();
+    const parsed = parseDpopCredentials(response.value, sessionTransport, key.jkt, refreshedAt);
+    return publish(parsed.token, response.recognition, authority, parsed.sessionId, refreshedAt);
   };
 
   const stateAuthority = (current: () => boolean = () => true): SessionAuthority => {
@@ -525,6 +645,8 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     tokenRecognition = recognition;
     acceptPeerTokens = true;
     publication++;
+    scheduler?.replace(peer, latest.refreshedAt);
+    notifyCredentials();
     return peer;
   };
 
@@ -667,7 +789,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
   };
   // Handle a credential failure while still holding the cookie lock, so a late
   // stale-context clear cannot overtake the next tab's successful rotation.
-  const operation = <T>(authority: SessionAuthority, run: () => Promise<T>): Promise<T> =>
+  const operation = <T>(authority: SessionAuthority, run: () => Promise<T>, beforeFailure?: () => void): Promise<T> =>
     lifecycle.enqueue(authority, () =>
       withCookieLock(async () => {
         authority.assertCurrent();
@@ -676,16 +798,125 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
           authority.assertCurrent();
           return result;
         } catch (error) {
+          beforeFailure?.();
           return onFailure(error, authority);
         }
       }),
     );
+
+  const refreshOperation = (
+    refreshOptions: { rejectedToken?: string } = {},
+    scheduledIntent?: number,
+  ): Promise<DpopAccessToken> => {
+    let started = false;
+    const authority = lifecycle.capture(
+      () => started || scheduledIntent === undefined || scheduler!.isCurrent(scheduledIntent),
+    );
+    const acquisitionIntent = scheduler?.capture();
+    resetPromise = undefined;
+    if (refreshPromise) return refreshPromise;
+    const { rejectedToken } = refreshOptions;
+    const hadToken = token !== undefined;
+    const baseline = token?.generation;
+    let refreshPublication = publication;
+    const stillDue = () => scheduledIntent === undefined || scheduler!.isDue(scheduledIntent);
+    const pending = operation(
+      authority,
+      async () => {
+        started = true;
+        // Timers and resume callbacks capture intent before the FIFO/Web Lock.
+        // Another publication may postpone the deadline while admission waits.
+        if (!stillDue() && token) return token;
+        const key = await authenticatedKey(authority);
+        authority.assertCurrent();
+        if (channel) {
+          const recognition = await currentRecognition(authority);
+          authority.assertCurrent();
+          const version = await readCookieSessionVersion(scope.id);
+          authority.assertCurrent();
+          if (!version?.active || version.jkt !== key.jkt) throw loginRequired();
+          cookieBindings.set(authority, { ...version });
+          const reusable = (): DpopAccessToken | undefined => {
+            const current = token;
+            if (
+              current?.jkt === key.jkt &&
+              current.accessToken !== rejectedToken &&
+              current.expiresAt > now() &&
+              current.generation === version.generation &&
+              tokenRecognition === recognition
+            )
+              return current;
+          };
+          const current = reusable();
+          if (current && !stillDue()) return current;
+          if (
+            scheduledIntent === undefined &&
+            current &&
+            (rejectedToken || !hadToken || current.generation !== baseline)
+          )
+            return current;
+          if (!hadToken || version.generation !== baseline) {
+            const peer = await requestPeer(authority, key.jkt, version.generation, recognition, rejectedToken);
+            authority.assertCurrent();
+            if (peer && (scheduledIntent === undefined || !stillDue())) return peer;
+            // A requested or earlier unsolicited winner must also satisfy the
+            // proactive policy; a merely live near-expiry token is not enough.
+            const winner = reusable();
+            if (winner && (scheduledIntent === undefined || !stillDue())) return winner;
+          }
+        }
+        if (
+          !channel &&
+          rejectedToken &&
+          token &&
+          token.accessToken !== rejectedToken &&
+          token.expiresAt > now() &&
+          tokenRecognition === (await currentRecognition(authority))
+        ) {
+          authority.assertCurrent();
+          return token;
+        }
+        authority.assertCurrent();
+        if (!stillDue() && token) return token;
+        const handle = sessionTransport === 'body' ? readStorage<Handle>(storageKey) : undefined;
+        if (sessionTransport === 'body' && (!handle?.sessionId || handle.jkt !== key.jkt)) throw loginRequired();
+        refreshPublication = publication;
+        return acceptResponse(
+          await post(authority, 'refresh', handle ? { sessionId: handle.sessionId } : {}, key),
+          key,
+          authority,
+        );
+      },
+      () => {
+        // A later timer must not silently retry an uncertain manual rotation.
+        // Manual callers still receive their own error, without a background event.
+        if (
+          scheduledIntent === undefined &&
+          acquisitionIntent !== undefined &&
+          scheduler?.isCurrent(acquisitionIntent) &&
+          publication === refreshPublication
+        )
+          scheduler.pause();
+      },
+    ).then((result) => {
+      if (scheduledIntent === undefined && acquisitionIntent !== undefined) scheduler?.activate(acquisitionIntent);
+      return result;
+    });
+    refreshPromise = pending;
+    void pending
+      .finally(() => {
+        if (refreshPromise === pending) refreshPromise = undefined;
+      })
+      .catch(() => {});
+    return pending;
+  };
 
   const session: OidcVaultDpopSession = {
     scopeId: scope.id,
     sessionTransport,
     async login(returnTo) {
       const authority = lifecycle.capture();
+      scheduler?.cancel();
       withdrawNavigation();
       // Older peer callbacks must not supersede a newer explicit login waiting
       // behind an advisory lookup/FIFO/Web Lock, before it can publish state.
@@ -741,10 +972,11 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     },
     async exchange(code) {
       const authority = lifecycle.capture();
+      const acquisitionIntent = scheduler?.cancel();
       withdrawNavigation();
       refreshPromise = undefined;
       resetPromise = undefined;
-      return operation(authority, async () => {
+      const result = await operation(authority, async () => {
         const pending = readStorage<PendingLogin>(pendingKey);
         const key = await existingKey(authority, pending?.jkt);
         authority.assertCurrent();
@@ -754,77 +986,13 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
         store(pendingKey);
         return result;
       });
+      if (acquisitionIntent !== undefined) scheduler?.activate(acquisitionIntent);
+      return result;
     },
-    refresh(refreshOptions = {}) {
-      const authority = lifecycle.capture();
-      resetPromise = undefined;
-      if (refreshPromise) return refreshPromise;
-      const { rejectedToken } = refreshOptions;
-      const hadToken = token !== undefined;
-      const baseline = token?.generation;
-      const pending = operation(authority, async () => {
-        const key = await authenticatedKey(authority);
-        authority.assertCurrent();
-        if (channel) {
-          const recognition = await currentRecognition(authority);
-          authority.assertCurrent();
-          const version = await readCookieSessionVersion(scope.id);
-          authority.assertCurrent();
-          if (!version?.active || version.jkt !== key.jkt) throw loginRequired();
-          const reusable = (): DpopAccessToken | undefined => {
-            const current = token;
-            if (
-              current?.jkt === key.jkt &&
-              current.accessToken !== rejectedToken &&
-              current.expiresAt > now() &&
-              current.generation === version.generation &&
-              tokenRecognition === recognition
-            )
-              return current;
-          };
-          const current = reusable();
-          if (current && (rejectedToken || !hadToken || current.generation !== baseline)) return current;
-          if (!hadToken || version.generation !== baseline) {
-            const peer = await requestPeer(authority, key.jkt, version.generation, recognition, rejectedToken);
-            authority.assertCurrent();
-            if (peer) return peer;
-            // An earlier unsolicited broadcast may have won during the wait,
-            // superseding the solicited adoption. Reuse it under the same lock
-            // instead of rotating the shared cookie a second time.
-            const winner = reusable();
-            if (winner) return winner;
-          }
-        }
-        if (
-          !channel &&
-          rejectedToken &&
-          token &&
-          token.accessToken !== rejectedToken &&
-          token.expiresAt > now() &&
-          tokenRecognition === (await currentRecognition(authority))
-        ) {
-          authority.assertCurrent();
-          return token;
-        }
-        authority.assertCurrent();
-        const handle = sessionTransport === 'body' ? readStorage<Handle>(storageKey) : undefined;
-        if (sessionTransport === 'body' && (!handle?.sessionId || handle.jkt !== key.jkt)) throw loginRequired();
-        return acceptResponse(
-          await post(authority, 'refresh', handle ? { sessionId: handle.sessionId } : {}, key),
-          key,
-          authority,
-        );
-      });
-      refreshPromise = pending;
-      void pending
-        .finally(() => {
-          if (refreshPromise === pending) refreshPromise = undefined;
-        })
-        .catch(() => {});
-      return pending;
-    },
+    refresh: refreshOperation,
     async logout() {
       const authority = lifecycle.capture();
+      scheduler?.cancel();
       withdrawNavigation();
       refreshPromise = undefined;
       resetPromise = undefined;
@@ -845,6 +1013,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     logoutAndNavigate() {
       const authority = lifecycle.capture();
       if (navigationPromise) return navigationPromise;
+      scheduler?.cancel();
       const intent = navigationIntent;
       const navigation = lifecycle.capture(() => navigationIntent === intent);
       refreshPromise = undefined;
@@ -929,6 +1098,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     },
     async clear() {
       const oldJkt = token?.jkt;
+      scheduler?.cancel();
       const authority = invalidateLocal();
       if (!channel) return;
       await lifecycle.enqueue(authority, () => withCookieLock(() => invalidateCookie(authority, oldJkt)));
@@ -936,6 +1106,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
     async resetKey() {
       if (resetPromise) return resetPromise;
       const oldJkt = token?.jkt;
+      scheduler?.cancel();
       const authority = invalidateLocal();
       const pending = lifecycle.enqueue(authority, () =>
         withCookieLock(async () => {
@@ -961,6 +1132,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
       await pending;
     },
     dispose() {
+      scheduler?.dispose();
       lifecycle.dispose();
       withdrawNavigation();
       publication++;
@@ -968,6 +1140,7 @@ export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions)
       resetPromise = undefined;
       token = undefined;
       tokenRecognition = undefined;
+      notifyCredentials();
       nonces.clear();
       for (const waiter of peerWaiters) waiter.finish();
       if (channel) channel.onmessage = null;

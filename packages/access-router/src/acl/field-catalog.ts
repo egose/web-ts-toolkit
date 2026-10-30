@@ -85,6 +85,11 @@ export function isInputVirtualPath(catalog: AuthorizationFieldCatalog, path: str
 
 /** `$*` exists only inside the captured catalog, never in a caller grant. */
 export function matchesCatalogPattern(pattern: string, path: string, descendants = false): boolean {
+  // Literal primitive paths need no segment arrays. Keep dot-boundary ancestry
+  // (including empty segments) and the original matcher for maps/non-primitives.
+  if (typeof pattern === 'string' && typeof path === 'string' && !pattern.includes('$*')) {
+    return pattern === path || (!!descendants && path.startsWith(pattern) && path[pattern.length] === '.');
+  }
   const expected = pattern.split('.');
   const actual = path.split('.');
   return (

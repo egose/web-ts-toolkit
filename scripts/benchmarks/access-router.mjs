@@ -11,6 +11,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import {
   integer,
   integerList,
+  initialOutputCopyCandidates,
   prepareTarget,
   reportRows,
   requireSelection,
@@ -19,6 +20,7 @@ import {
   SCENARIOS,
   snapshotCandidates,
   UNSAFE_SNAPSHOT_FLAGS,
+  UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
 } from './access-router-core.mjs';
 
 const exec = promisify(execFile);
@@ -75,7 +77,8 @@ Interactive only (Node >=22, Git, tar and pnpm required).
   1. Fetch tags from a selected remote.
   2. Choose tags to prepare; build current dirty sources + isolated tag snapshots.
   3. Multiselect prepared versions (at least one); choose unsafe snapshot skips OFF,
-     ON, or BOTH independently for each supported version.
+      ON, or BOTH independently for each supported version. Separately choose initial
+      output copy skips OFF/ON/BOTH (ON is dormant without output-comparison skips).
   4. Choose the baseline, scenarios, row sizes, samples and concurrency.
   5. Run all jobs sequentially against disposable MongoDB; show/save JSON + Markdown.
 
@@ -226,11 +229,38 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
           }),
         );
       }
-      targets.push(...snapshotCandidates(target, setting));
+      let copySetting = 'off';
+      const copyCount = target.supportedInitialOutputCopyFlags.length;
+      if (copyCount < UNSAFE_INITIAL_OUTPUT_COPY_FLAGS.length) {
+        prompts.log.info(
+          `${target.label}: ${copyCount}/2 initial output copy flags declared. Copy ON is unavailable; unsupported flags are N/A.`,
+        );
+      } else {
+        copySetting = await ask(
+          prompts.select({
+            message: `Unsafe initial output copy skips for ${target.label} (independent of comparisons)`,
+            initialValue: 'off',
+            options: [
+              { value: 'off', label: 'OFF', hint: 'retain initial output snapshots' },
+              { value: 'on', label: 'ON', hint: 'omit eligible snapshots only when output comparisons are skipped' },
+              { value: 'both', label: 'BOTH', hint: 'cross product with comparison candidates' },
+            ],
+          }),
+        );
+      }
+      targets.push(
+        ...snapshotCandidates(target, setting).flatMap((candidate) =>
+          initialOutputCopyCandidates(candidate, copySetting),
+        ),
+      );
     }
     report.targets = targets;
     if (targets.some((target) => target.snapshotSkips === 'on'))
       prompts.log.warn('Unsafe snapshot skips weaken mutation protection; ON and OFF are not security-equivalent.');
+    if (targets.some((target) => target.initialOutputCopySkips === 'on'))
+      prompts.log.warn(
+        'Initial output copy skips additionally omit native normalization/validation observations; dormant ON does not disable comparisons.',
+      );
     report.baseline =
       targets.length === 1
         ? targets[0].id

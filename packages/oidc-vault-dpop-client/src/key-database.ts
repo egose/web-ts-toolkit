@@ -31,6 +31,8 @@ export interface CookieSessionVersion {
   jkt: string;
   generation: string;
   active: boolean;
+  /** Optional non-credential acquisition-clock hint, bound to this generation; old records omit it. */
+  refreshedAt?: number;
 }
 interface DpopDatabase extends DBSchema {
   keys: { key: string; value: StoredDpopKey };
@@ -148,7 +150,14 @@ const scopeState = async (
       typeof cookie.jkt === 'string' &&
       typeof cookie.generation === 'string' &&
       typeof cookie.active === 'boolean'
-        ? { jkt: cookie.jkt, generation: cookie.generation, active: cookie.active }
+        ? {
+            jkt: cookie.jkt,
+            generation: cookie.generation,
+            active: cookie.active,
+            ...(Number.isSafeInteger(cookie.refreshedAt) && cookie.refreshedAt! >= 0
+              ? { refreshedAt: cookie.refreshedAt }
+              : {}),
+          }
         : undefined,
   };
 };

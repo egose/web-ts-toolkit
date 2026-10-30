@@ -1,5 +1,6 @@
 @web-ts-toolkit/oidc-vault-dpop-client — browser DPoP vault sessions and API fetch.
 Start with README.md: Quickstart, Recovery, Lifecycle, HTTP, Gateway, Upgrade notes.
+Session maintenance: README "Observing credentials" and "Opt-in proactive refresh".
 
 Install: pnpm add @web-ts-toolkit/oidc-vault-dpop-client
 jose + idb are dependencies. No Express/backend runtime or ambient types needed.
@@ -22,6 +23,21 @@ Bootstrap removes/exchanges a callback code once or refreshes existing storage.
 login/exchange include temporary cookies; refresh/logout body=omit+sessionId,
 cookie=include+{} (no handle in JSON). JWTs: memory; handles/pending login:
 tab-local sessionStorage; scoped keys/coordination metadata: IndexedDB.
+
+onCredentialsChanged(DpopAccessToken|undefined): asynchronous/coalesced latest
+committed state, independent of scheduling; includes API refresh/peer adoption/clear.
+Never await observers or persist tokens; callback failures cannot veto rotation.
+autoRefresh: omitted/false by default; object enables after explicit exchange/refresh.
+Root type OidcVaultDpopAutoRefreshOptions: refreshBeforeExpiryMs (enabled default60000,
+lead not interval, 0..2147483647), optional maxRefreshIntervalMs (1000..2147483647).
+Known lifetime caps lead to half; 1s minimum cadence, zero/nonlive result pauses.
+Maximum interval is explicit keep-alive policy; either scheduler can extend idle,
+neither tracks activity/extends absolute expiry/guarantees refresh during suspension.
+Cookie refreshedAt is a generation-bound non-credential clock hint; peer receipt
+does not reset it, missing/future hints make an enabled maximum deadline due.
+onAutoRefreshError(unknown): failure pauses, no blanket retry; explicit local success
+rearms, resume/online/unsolicited peers do not. Retain "Sign in again" recovery.
+Failed manual refresh pauses silently too; no implicit timer retry of uncertain work.
 
 Bound profile: exact DPoP, canonical compact signed JWT, exact cnf:{jkt}, safe
 mandatory exp seconds/millisecond arithmetic. Decoding is NOT authentication;
@@ -68,6 +84,7 @@ nonces even without retry: 64 tuples, oldest-remembered eviction, no inferred TT
 Vaults retry nonce once, then DPOP_NONCE_RETRY_EXHAUSTED; final API Responses are caller-owned.
 
 Errors: requiresLogin covers terminal session/key/browser/recognition failures,
+and confirmed current OIDC_VAULT_REFRESH_REJECTED (not specifically expiry).
 not every 401. Proof/nonce/transient errors retain auth; unknown server codes ->
 fixed OIDC_REQUEST_FAILED. Optional recognition is change detection, never PoP.
 Limits: same-origin locks are not distributed leases. Chromium/Firefox loopback

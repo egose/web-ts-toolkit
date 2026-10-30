@@ -18,14 +18,18 @@ import {
   fetchWithDpop,
   getOrCreateDpopKey,
   OidcVaultDpopClientError,
+  type DpopAccessToken,
   type DpopFetchOptions,
   type OidcVaultDpopSession,
+  type OidcVaultDpopAutoRefreshOptions,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { calculateJwkThumbprint } from 'jose';
 
 const sessions = new Map<string, OidcVaultDpopSession>();
 const signals = new Map<string, string | undefined>();
+const observedCredentials = new Map<string, Array<DpopAccessToken | undefined>>();
+const maintenanceFailures = new Map<string, Array<{ code: string; requiresLogin: boolean }>>();
 interface Scope {
   backendOrigin: string;
   basePath: string;
@@ -59,6 +63,7 @@ interface TestCookieVersion {
   jkt: string;
   generation: string;
   active: boolean;
+  refreshedAt?: number;
 }
 interface TestDatabase extends DBSchema {
   keys: { key: string; value: TestStoredKey };
@@ -212,16 +217,42 @@ export const featureDetection = async (input: { cookie: boolean }) => {
 };
 
 export const createSession = async (
-  input: Scope & { name: string; transport: 'body' | 'cookie'; signal?: string; captureNavigation?: boolean },
+  input: Scope & {
+    name: string;
+    transport: 'body' | 'cookie';
+    signal?: string;
+    captureNavigation?: boolean;
+    observeCredentials?: boolean;
+    autoRefresh?: false | OidcVaultDpopAutoRefreshOptions;
+  },
 ) => {
   sessions.get(input.name)?.dispose();
   signals.set(input.name, input.signal);
+  const observed: Array<DpopAccessToken | undefined> = [];
+  observedCredentials.set(input.name, observed);
+  const failures: Array<{ code: string; requiresLogin: boolean }> = [];
+  maintenanceFailures.set(input.name, failures);
   const fingerprint = createDeviceFingerprint(async () => signals.get(input.name));
   const session = createOidcVaultDpopSession({
     backendOrigin: input.backendOrigin,
     basePath: input.basePath,
     sessionTransport: input.transport,
     fingerprint,
+    autoRefresh: input.autoRefresh,
+    onAutoRefreshError: (error) => {
+      failures.push(
+        error instanceof OidcVaultDpopClientError
+          ? { code: error.code, requiresLogin: error.requiresLogin }
+          : { code: 'unclassified', requiresLogin: false },
+      );
+    },
+    ...(input.observeCredentials
+      ? {
+          onCredentialsChanged: (value: DpopAccessToken | undefined) => {
+            observed.push(value);
+          },
+        }
+      : {}),
     fetch: async (...args) => {
       const response = await fetch(...args);
       const held = heldResponses.get(input.name);
@@ -257,6 +288,8 @@ export const refresh = async (input: { name: string; count?: number; rejectedTok
 };
 
 export const memoryToken = async (input: { name: string }) => sessions.get(input.name)?.getAccessToken();
+export const credentialEvents = async (input: { name: string }) => observedCredentials.get(input.name) ?? [];
+export const maintenanceErrors = async (input: { name: string }) => maintenanceFailures.get(input.name) ?? [];
 
 export const apiFetch = async (input: {
   name: string;

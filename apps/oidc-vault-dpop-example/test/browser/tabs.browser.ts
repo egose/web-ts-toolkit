@@ -114,7 +114,9 @@ describe.each(browserNames)('DBJWT-10 real %s cross-tab key/refresh coordination
       });
       expect(JSON.stringify(storage)).not.toContain(winner.accessToken);
       expect(JSON.stringify(storage)).not.toContain(cookie.value);
-      expect(storage.rows).toEqual([{ jkt: winner.jkt, generation: winner.generation, active: true }]);
+      expect(storage.rows).toEqual([
+        { jkt: winner.jkt, generation: winner.generation, active: true, refreshedAt: expect.any(Number) },
+      ]);
       await first.locator('#logout').click();
       await first.waitForFunction(
         () => document.querySelector('#status')?.getAttribute('data-state') === 'login-required',

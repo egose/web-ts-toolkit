@@ -13,6 +13,7 @@ import {
   readServiceAuthorizationAccess,
   requiresDocumentSnapshotChecks,
   requiresOutputSnapshotChecks,
+  skipsInitialOutputSnapshotCopy,
   resolveServiceAuthorization,
 } from './service-authorization';
 import type {
@@ -26,6 +27,7 @@ import {
   copyAuthorizationValue,
   matchesAuthorizationSnapshot,
   outputIdentities,
+  tryOutputIdentitiesWithoutSnapshot,
 } from './authorization-snapshot';
 import type { VirtualProjectionPlan } from './virtual-projection';
 import { copyOutputDecisionFields, readStaticOutputPlanFields } from './output-projection';
@@ -66,12 +68,13 @@ interface FieldDecisionRecord {
   state: 'pending' | 'fulfilled' | 'rejected';
   value?: boolean;
 }
-interface OutputRecord {
+type OutputRecord = {
   handle: DocumentAuthorization;
-  snapshot: unknown;
   identities: readonly object[];
-  readonly validateSnapshot: boolean;
-}
+} & (
+  | { readonly snapshotState: 'copied'; readonly snapshot: unknown; readonly validateSnapshot: boolean }
+  | { readonly snapshotState: 'omitted'; readonly validateSnapshot: false }
+);
 const stages = new WeakMap<DocumentAuthorizationStage, StageRecord>();
 const documents = new WeakMap<DocumentAuthorization, DocumentRecord>();
 const outputs = new WeakMap<object, OutputRecord>();
@@ -197,6 +200,9 @@ function validateDocumentOwner(handle: DocumentAuthorization) {
   const document = lookupDocumentOwner(handle);
   const stage = lookupStageOwner(document.stage);
   validateStageOwner(stage);
+  // Preserve the second observation for mutations triggered during the first check.
+  // This is not a stability guarantee: application hooks can also mutate the input
+  // during this second check, and no fixed number of checks eliminates that risk.
   validateStageOwner(stage);
   return { document, stage };
 }
@@ -531,6 +537,7 @@ export interface DocumentAuthorizationUse {
 function unchangedOutput(output: object, record: OutputRecord): boolean {
   // TEMPORARY UNSAFE output-value opt-out. TODO: revisit after CPU remediation.
   // Even opted-out outputs must retain their exact associated root/descendant identities.
+  // The private union guarantees a copied snapshot whenever checks are enabled.
   if (record.validateSnapshot && !matchesAuthorizationSnapshot(output, record.snapshot)) return false;
   const identities = outputIdentities(output);
   return (
@@ -571,8 +578,24 @@ export function associateDocumentAuthorization(
       authorizationError('output already associated');
     return;
   }
+  // This private lookup is not an ownership certificate: owner/binding checks
+  // remain. No live output alias stands in for a snapshot, and strict/dormant/
+  // fallback paths retain their copy/identity/final binding-check order.
+  // An open binding can execute getters during authentication. Never carry the
+  // clone-free graph result across those callbacks: use ordinary tuples only,
+  // authenticate the captured mode first, then run the closed graph operation.
+  if (skipsInitialOutputSnapshotCopy(stage.call) && ordinaryDecisionBinding(binding)) {
+    if (requiresOutputSnapshotChecks(stage.call, binding))
+      authorizationError('output snapshot copy requires skipped comparisons');
+    const identities = tryOutputIdentitiesWithoutSnapshot(output);
+    if (identities) {
+      outputs.set(output, { handle, snapshotState: 'omitted', identities, validateSnapshot: false });
+      return;
+    }
+  }
   outputs.set(output, {
     handle,
+    snapshotState: 'copied',
     snapshot: copyAuthorizationValue(output, 'document'),
     identities: outputIdentities(output),
     validateSnapshot: requiresOutputSnapshotChecks(stage.call, binding),

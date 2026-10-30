@@ -26,6 +26,12 @@ import {
   supportedSnapshotFlags,
   summarize,
   UNSAFE_SNAPSHOT_FLAGS,
+  UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
+  initialOutputCopyCandidates,
+  initialOutputCopyFlagOptions,
+  initialOutputCopyModeLabel,
+  effectiveInitialOutputCopySkips,
+  supportedInitialOutputCopyFlags,
 } from './access-router-core.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -140,6 +146,82 @@ test('older and partially supported builds cannot silently enable missing flags'
     [UNSAFE_SNAPSHOT_FLAGS[1]]: false,
   });
   assert.throws(() => snapshotCandidates(partial, 'on'), /does not declare/);
+});
+
+test('initial copy support is separate and candidates retain all four requested modes', async () => {
+  const declarations = [
+    ['index.d.ts', `interface DefaultModelRouterOptions { ${UNSAFE_INITIAL_OUTPUT_COPY_FLAGS[0]}?: boolean; }`],
+    ['chunk.d.ts', `interface ModelRouterOptions { '${UNSAFE_INITIAL_OUTPUT_COPY_FLAGS[1]}'?: boolean | undefined; }`],
+  ];
+  assert.deepEqual(await supportedSnapshotFlags(declarations), []);
+  assert.deepEqual(await supportedInitialOutputCopyFlags(declarations), UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
+  const build = {
+    id: 'current',
+    label: 'Current',
+    supportedSnapshotFlags: UNSAFE_SNAPSHOT_FLAGS,
+    supportedInitialOutputCopyFlags: UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
+  };
+  const targets = snapshotCandidates(build, 'both').flatMap((target) => initialOutputCopyCandidates(target, 'both'));
+  assert.equal(new Set(targets.map((target) => target.id)).size, 4);
+  assert.deepEqual(targets.map(initialOutputCopyModeLabel), ['OFF', 'ON (dormant; effective OFF)', 'OFF', 'ON']);
+  for (const target of targets) {
+    const checks = snapshotFlagOptions(target.snapshotSkips, target.supportedSnapshotFlags);
+    const copies = initialOutputCopyFlagOptions(target.initialOutputCopySkips, target.supportedInitialOutputCopyFlags);
+    assert.equal(Object.keys(checks).length, 6);
+    assert.ok(Object.values(checks).every((value) => value === (target.snapshotSkips === 'on')));
+    assert.equal(Object.keys(copies).length, 2);
+    assert.equal(
+      effectiveInitialOutputCopySkips(checks, copies),
+      target.snapshotSkips === 'on' && target.initialOutputCopySkips === 'on' ? 'on' : 'off',
+    );
+    const expected = { ...checks, ...copies };
+    assert.doesNotThrow(() =>
+      verifySnapshotFlagOptions(
+        { getModelOption: (_name, key) => expected[key], getModelOptions: () => expected },
+        'Root',
+        expected,
+      ),
+    );
+  }
+  const base = { scenario: 'embedded', rows: 10, concurrency: 1, status: 'ok', outputFingerprint: 'same' };
+  const report = {
+    targets,
+    baseline: targets[2].id,
+    results: targets.map((target, index) => ({
+      ...base,
+      targetId: target.id,
+      stats: summarize([index + 1], 10, 1000),
+    })),
+  };
+  assert.deepEqual(
+    reportRows(report).map((row) => row['initial output copy skips']),
+    targets.map(initialOutputCopyModeLabel),
+  );
+  assert.equal(reportRows(report)[3]['vs baseline'], '1.33x');
+});
+
+test('unsupported initial copy flags are N/A or rejected, never silently enabled', () => {
+  const target = {
+    id: 'old',
+    label: 'Old',
+    snapshotSkips: 'off',
+    supportedSnapshotFlags: [],
+    supportedInitialOutputCopyFlags: [],
+  };
+  assert.equal(initialOutputCopyModeLabel(initialOutputCopyCandidates(target, 'off')[0]), 'N/A (0/2 supported)');
+  assert.throws(() => initialOutputCopyCandidates(target, 'on'), /does not declare/);
+  assert.throws(() => initialOutputCopyCandidates(target, 'both'), /does not declare/);
+  const partial = { ...target, supportedInitialOutputCopyFlags: UNSAFE_INITIAL_OUTPUT_COPY_FLAGS.slice(0, 1) };
+  assert.equal(initialOutputCopyModeLabel(initialOutputCopyCandidates(partial, 'off')[0]), 'OFF (1/2 supported)');
+  assert.throws(() => initialOutputCopyFlagOptions('on', partial.supportedInitialOutputCopyFlags), /does not declare/);
+  assert.throws(() => initialOutputCopyFlagOptions('on', ['notAFlag']), /Invalid supported/);
+  assert.throws(
+    () =>
+      initialOutputCopyFlagOptions('on', [UNSAFE_INITIAL_OUTPUT_COPY_FLAGS[0], UNSAFE_INITIAL_OUTPUT_COPY_FLAGS[0]]),
+    /Invalid supported/,
+  );
+  assert.throws(() => initialOutputCopyFlagOptions('bad', []), /Invalid unsafe/);
+  assert.throws(() => initialOutputCopyCandidates(target, 'bad'), /Invalid initial/);
 });
 
 test('effective flag verification rejects ignored settings on either getter path', () => {
@@ -462,6 +544,22 @@ test('worker rejects unavailable or changed snapshot flags before loading peers 
     target: { root: fakeRoot, entry: resolve(directory, 'not-loaded.mjs'), snapshotSkips: 'on', ...manifest },
   };
   await assert.rejects(benchmark(job), /this build does not declare/);
+  await assert.rejects(
+    benchmark({ ...job, target: { ...job.target, snapshotSkips: 'off', initialOutputCopySkips: 'on' } }),
+    /does not declare both/,
+  );
+  await assert.rejects(
+    benchmark({
+      ...job,
+      target: {
+        ...job.target,
+        snapshotSkips: 'off',
+        initialOutputCopySkips: 'on',
+        supportedInitialOutputCopyFlags: undefined,
+      },
+    }),
+    /requires a prepared declaration manifest/,
+  );
   await assert.rejects(
     benchmark({ ...job, target: { ...job.target, snapshotDeclarationsSha256: undefined } }),
     /requires a prepared declaration manifest/,

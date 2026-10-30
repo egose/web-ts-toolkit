@@ -122,9 +122,17 @@ let storage: MemoryStorage;
 let version: CookieSessionVersion | undefined;
 let persistedKey: DpopKey | undefined;
 let lockTail: Promise<unknown>;
+let activeLocks = 0;
 const locks = {
   request: vi.fn((_name: string, _options: unknown, run: () => Promise<unknown>) => {
-    const pending = lockTail.then(run);
+    const pending = lockTail.then(async () => {
+      activeLocks++;
+      try {
+        return await run();
+      } finally {
+        activeLocks--;
+      }
+    });
     lockTail = pending.catch(() => {});
     return pending;
   }),
@@ -136,6 +144,7 @@ beforeEach(() => {
   storage = new MemoryStorage();
   version = undefined;
   persistedKey = key;
+  activeLocks = 0;
   lockTail = Promise.resolve();
   TestChannel.instances = [];
   vi.stubGlobal('location', { origin: 'https://app.example.com' });
@@ -178,10 +187,10 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-const jwt = (id: string, jkt = JKT) =>
+const jwt = (id: string, jkt = JKT, exp = NOW / 1000 + 3600) =>
   [
     base64url.encode(JSON.stringify({ alg: 'ES256' })),
-    base64url.encode(JSON.stringify({ sub: id, cnf: { jkt }, exp: NOW / 1000 + 3600 })),
+    base64url.encode(JSON.stringify({ sub: id, cnf: { jkt }, exp })),
     base64url.encode('contract-only-signature'),
   ].join('.');
 
@@ -224,6 +233,605 @@ const fixture = (transport: 'body' | 'cookie', options: Partial<OidcVaultDpopSes
   };
   return { session, request, navigate, credentials, handleKey, pendingKey, seed, pendingLogin, signIn };
 };
+
+describe('OVAR-02 refresh rejection ownership', () => {
+  it.each(['body', 'cookie'] as const)(
+    'clears current %s credentials on confirmed rejection only',
+    async (transport) => {
+      const f = fixture(transport);
+      await f.signIn();
+      f.request.mockResolvedValueOnce(
+        Response.json({ code: 'OIDC_VAULT_REFRESH_REJECTED', message: 'private upstream detail' }, { status: 401 }),
+      );
+      await expect(f.session.refresh()).rejects.toMatchObject({
+        code: 'OIDC_VAULT_REFRESH_REJECTED',
+        requiresLogin: true,
+        message: 'OIDC refresh was rejected. Sign in again.',
+      });
+      expect(f.session.getAccessToken()).toBeUndefined();
+      if (transport === 'cookie') expect(version?.active).toBe(false);
+    },
+  );
+
+  it('does not clear or report sign-in when cookie metadata proves a newer winner', async () => {
+    const f = fixture('cookie');
+    const original = await f.signIn();
+    const gate = barrier();
+    f.request.mockImplementationOnce(async () => {
+      await gate.wait();
+      return Response.json({ code: 'OIDC_VAULT_REFRESH_REJECTED' }, { status: 401 });
+    });
+    const refreshing = outcome(f.session.refresh());
+    await gate.entered;
+    version = { jkt: JKT, generation: 'successor', active: true };
+    gate.release();
+    expect(await refreshing).toMatchObject({ error: { code: 'DPOP_OPERATION_SUPERSEDED', requiresLogin: false } });
+    expect(f.session.getAccessToken()).toBe(original);
+    expect(version).toMatchObject({ generation: 'successor', active: true });
+  });
+
+  it('retains auth if the rejection generation lookup fails', async () => {
+    const f = fixture('cookie');
+    const original = await f.signIn();
+    f.request.mockImplementationOnce(async () => {
+      vi.mocked(readCookieSessionVersion).mockRejectedValueOnce(new Error('coordination unavailable'));
+      return Response.json({ code: 'OIDC_VAULT_REFRESH_REJECTED' }, { status: 401 });
+    });
+    await expect(f.session.refresh()).rejects.toMatchObject({ code: 'OIDC_REQUEST_FAILED', requiresLogin: false });
+    expect(f.session.getAccessToken()).toBe(original);
+    expect(version?.active).toBe(true);
+  });
+
+  it('a later login intent prevents old rejection cleanup even while queued', async () => {
+    const f = fixture('body');
+    await f.signIn();
+    const gate = barrier();
+    f.request.mockImplementationOnce(async () => {
+      await gate.wait();
+      return Response.json({ code: 'OIDC_VAULT_REFRESH_REJECTED' }, { status: 401 });
+    });
+    const refreshing = outcome(f.session.refresh());
+    await gate.entered;
+    const login = f.session.login();
+    gate.release();
+    expect(await refreshing).toMatchObject({ error: { code: 'DPOP_OPERATION_SUPERSEDED', requiresLogin: false } });
+    await login;
+    expect(storage.getItem(f.pendingKey)).not.toBeNull();
+  });
+});
+
+describe.each(['body', 'cookie'] as const)('OVAR-04 %s proactive session refresh', (transport) => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
+  });
+  const refreshCount = (f: ReturnType<typeof fixture>) =>
+    f.request.mock.calls.filter(([url]) => String(url).endsWith('/refresh')).length;
+
+  it.each([undefined, false] as const)('does no scheduling or bootstrap with autoRefresh %s', async (autoRefresh) => {
+    const f = fixture(transport, { autoRefresh, now: Date.now });
+    f.seed();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(f.request).not.toHaveBeenCalled();
+    await f.signIn();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(refreshCount(f)).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('snapshots configuration and shares scheduled/manual/API refresh in one lifecycle batch', async () => {
+    const options = { maxRefreshIntervalMs: 1_000 };
+    const f = fixture(transport, { autoRefresh: options, now: Date.now });
+    options.maxRefreshIntervalMs = 10_000;
+    await f.signIn();
+    const gate = barrier();
+    f.request.mockImplementationOnce(async () => {
+      await gate.wait();
+      return Response.json(f.credentials('proactive-winner'));
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await gate.entered;
+    const manual = f.session.refresh();
+    expect(f.session.refresh()).toBe(manual);
+    const api = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(null, { status: 401, headers: { 'WWW-Authenticate': 'DPoP error="invalid_token"' } }),
+      )
+      .mockResolvedValueOnce(Response.json({ ok: true }));
+    const fetching = fetchWithDpop(
+      {
+        session: f.session,
+        apis: [{ origin: 'https://api.example.com', replayNamespace: 'api' }],
+        fetch: api,
+        now: Date.now,
+      },
+      'https://api.example.com/profile',
+    );
+    gate.release();
+    await manual;
+    await fetching;
+    expect(refreshCount(f)).toBe(1);
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(f.session.getAccessToken()?.accessToken).toBe(jwt('proactive-winner'));
+  });
+
+  it('keeps ordered rotation before a queued logout without rearming behind logout intent', async () => {
+    const f = fixture(transport, { autoRefresh: { maxRefreshIntervalMs: 1_000 }, now: Date.now });
+    await f.signIn();
+    const gate = barrier();
+    f.request.mockImplementationOnce(async () => {
+      await gate.wait();
+      return Response.json(f.credentials('ordered-rotation'));
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await gate.entered;
+    const loggingOut = f.session.logout();
+    gate.release();
+    await loggingOut;
+    const logoutBody = JSON.parse(String(f.request.mock.calls.at(-1)?.[1]?.body));
+    expect(logoutBody).toEqual(transport === 'body' ? { sessionId: 'ordered-rotation' } : {});
+    expect(f.session.getAccessToken()).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(refreshCount(f)).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['clear', 'resetKey', 'dispose'] as const)(
+    '%s supersedes an in-flight scheduled response and leaves no timers',
+    async (method) => {
+      const onError = vi.fn();
+      const f = fixture(transport, {
+        autoRefresh: { maxRefreshIntervalMs: 1_000 },
+        now: Date.now,
+        onAutoRefreshError: onError,
+      });
+      await f.signIn();
+      const gate = barrier();
+      f.request.mockImplementationOnce(async () => {
+        await gate.wait();
+        return Response.json(f.credentials('too-late'));
+      });
+      await vi.advanceTimersByTimeAsync(1_000);
+      await gate.entered;
+      const clearing = f.session[method]();
+      gate.release();
+      await clearing;
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(f.session.getAccessToken()).toBeUndefined();
+      expect(refreshCount(f)).toBe(1);
+      expect(onError).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.each(['logout', 'logoutAndNavigate', 'login', 'exchange'] as const)(
+    'withdraws a pending timer before explicit %s',
+    async (method) => {
+      const f = fixture(transport, { autoRefresh: { maxRefreshIntervalMs: 1_000 }, now: Date.now });
+      await f.signIn();
+      if (method === 'exchange') {
+        f.pendingLogin();
+        await f.session.exchange('new-code');
+        // Successful explicit exchange intentionally rearms; check its old timer
+        // cannot add another refresh before the new deadline.
+        await vi.advanceTimersByTimeAsync(999);
+      } else {
+        await f.session[method]();
+        await vi.advanceTimersByTimeAsync(10_000);
+      }
+      expect(refreshCount(f)).toBe(0);
+    },
+  );
+
+  it.each(['network', 'terminal', 'zero'] as const)(
+    'pauses %s outcomes, notifies once, and requires explicit success to rearm',
+    async (failure) => {
+      const failed = deferred<unknown>();
+      const callbackLocks: number[] = [];
+      const onError = vi.fn((error: unknown) => {
+        callbackLocks.push(activeLocks);
+        failed.resolve(error);
+      });
+      const resumed = deferred<void>();
+      let recovering = false;
+      const f = fixture(transport, {
+        autoRefresh: { maxRefreshIntervalMs: 1_000 },
+        now: Date.now,
+        onAutoRefreshError: onError,
+        onCredentialsChanged: (value) => {
+          if (recovering && value) resumed.resolve();
+        },
+      });
+      const original = await f.signIn();
+      if (failure === 'network') f.request.mockRejectedValueOnce(new TypeError('network unavailable'));
+      if (failure === 'terminal')
+        f.request.mockResolvedValueOnce(Response.json({ code: 'OIDC_VAULT_REFRESH_REJECTED' }, { status: 401 }));
+      if (failure === 'zero')
+        f.request.mockResolvedValueOnce(Response.json({ ...f.credentials('zero-life'), expiresIn: 0 }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      const error = await failed.promise;
+      expect(callbackLocks).toEqual([0]);
+      if (failure === 'terminal') {
+        expect(error).toMatchObject({ code: 'OIDC_VAULT_REFRESH_REJECTED', requiresLogin: true });
+        expect(f.session.getAccessToken()).toBeUndefined();
+      } else if (failure === 'network') expect(f.session.getAccessToken()).toBe(original);
+      else {
+        expect(error).toMatchObject({ code: 'DPOP_ACCESS_TOKEN_EXPIRED', requiresLogin: false });
+        expect(f.session.getAccessToken()?.accessToken).toBe(jwt('zero-life'));
+        if (transport === 'body')
+          expect(JSON.parse(storage.getItem(f.handleKey)!)).toMatchObject({ sessionId: 'zero-life' });
+      }
+      window.dispatchEvent(new Event('pageshow'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(refreshCount(f)).toBe(1);
+      expect(onError).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+      if (failure === 'terminal') await f.signIn();
+      else await f.session.refresh();
+      recovering = true;
+      await vi.advanceTimersByTimeAsync(1_000);
+      await resumed.promise;
+      expect(refreshCount(f)).toBe(failure === 'terminal' ? 2 : 3);
+    },
+  );
+
+  it('rechecks an expired deadline on pageshow with one refresh rather than catch-up ticks', async () => {
+    const changed = deferred<void>();
+    let observed = 0;
+    const f = fixture(transport, {
+      autoRefresh: {},
+      now: Date.now,
+      onCredentialsChanged: (value) => {
+        if (value && ++observed === 2) changed.resolve();
+      },
+    });
+    await f.signIn();
+    vi.setSystemTime(NOW + 70_000);
+    window.dispatchEvent(new Event('pageshow'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+    await changed.promise;
+    expect(refreshCount(f)).toBe(1);
+  });
+
+  it('pauses a timed-out rotation without automatically resubmitting its retained handle', async () => {
+    const failed = deferred<unknown>();
+    const f = fixture(transport, {
+      autoRefresh: { maxRefreshIntervalMs: 1_000 },
+      now: Date.now,
+      requestTimeoutMs: 50,
+      onAutoRefreshError: (error) => {
+        failed.resolve(error);
+      },
+    });
+    const original = await f.signIn();
+    const gate = barrier();
+    f.request.mockImplementationOnce(async () => {
+      await gate.wait();
+      return Response.json(f.credentials('uncertain'));
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await gate.entered;
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await failed.promise).toMatchObject({ code: 'DPOP_REQUEST_TIMEOUT', requiresLogin: false });
+    gate.release();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(refreshCount(f)).toBe(1);
+    expect(f.session.getAccessToken()).toBe(original);
+  });
+
+  it('does not let a later timer implicitly retry a failed manual refresh', async () => {
+    const onError = vi.fn();
+    const f = fixture(transport, {
+      autoRefresh: { maxRefreshIntervalMs: 1_000 },
+      now: Date.now,
+      onAutoRefreshError: onError,
+    });
+    const original = await f.signIn();
+    f.request.mockRejectedValueOnce(new TypeError('uncertain manual rotation'));
+    await expect(f.session.refresh()).rejects.toThrow('uncertain manual rotation');
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(refreshCount(f)).toBe(1);
+    expect(f.session.getAccessToken()).toBe(original);
+    expect(onError).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['throw', 'reject'] as const)('contains a %s background error observer and stays paused', async (mode) => {
+    const failed = deferred<void>();
+    const f = fixture(transport, {
+      autoRefresh: { maxRefreshIntervalMs: 1_000 },
+      now: Date.now,
+      onAutoRefreshError: () => {
+        failed.resolve();
+        if (mode === 'throw') throw new Error('app error observer');
+        return Promise.reject(new Error('async app error observer'));
+      },
+    });
+    await f.signIn();
+    f.request.mockRejectedValueOnce(new TypeError('network unavailable'));
+    await vi.advanceTimersByTimeAsync(1_000);
+    await failed.promise;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(refreshCount(f)).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('OVAR-04 independent local-token/provider-idle deadlines', () => {
+  it.each([false, true])(
+    'one-hour app token with 30-minute provider idle: explicit keep-alive %s',
+    async (keepAlive) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+      const events: Array<ReturnType<typeof deferred<void>>> = [deferred<void>(), deferred<void>(), deferred<void>()];
+      const failure = deferred<unknown>();
+      let published = 0;
+      let lastProviderActivity = NOW;
+      let sequence = 0;
+      const f = fixture('body', {
+        now: Date.now,
+        autoRefresh: { refreshBeforeExpiryMs: 60_000, ...(keepAlive ? { maxRefreshIntervalMs: 20 * 60_000 } : {}) },
+        onCredentialsChanged: (value) => {
+          if (value) events[published++]?.resolve();
+        },
+        onAutoRefreshError: (error) => {
+          failure.resolve(error);
+        },
+      });
+      f.request.mockImplementation(async (url) => {
+        if (String(url).endsWith('/refresh') && Date.now() - lastProviderActivity >= 30 * 60_000)
+          return Response.json({ code: 'OIDC_VAULT_REFRESH_REJECTED' }, { status: 401 });
+        lastProviderActivity = Date.now();
+        const id = `hour-${++sequence}`;
+        return Response.json({
+          tokenType: 'DPoP',
+          accessToken: jwt(id, JKT, Math.floor(Date.now() / 1000) + 3600),
+          expiresIn: 3600,
+          sessionId: id,
+        });
+      });
+      f.pendingLogin();
+      await f.session.exchange('code');
+      await events[0].promise;
+      if (keepAlive) {
+        await vi.advanceTimersByTimeAsync(20 * 60_000);
+        await events[1].promise;
+        await vi.advanceTimersByTimeAsync(20 * 60_000);
+        await events[2].promise;
+        expect(sequence).toBe(3); // exchange and two live provider refreshes
+        expect(f.session.getAccessToken()?.expiresAt).toBe(Date.now() + 60 * 60_000);
+      } else {
+        await vi.advanceTimersByTimeAsync(59 * 60_000);
+        expect(await failure.promise).toMatchObject({ code: 'OIDC_VAULT_REFRESH_REJECTED', requiresLogin: true });
+        expect(sequence).toBe(1);
+        expect(f.session.getAccessToken()).toBeUndefined();
+      }
+    },
+  );
+});
+
+describe('OVAR-04 cookie scheduler admission', () => {
+  it('rechecks a winner adopted while a due timer waits for the cookie lock', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const adopted = deferred<void>();
+    const f = fixture('cookie', {
+      autoRefresh: { maxRefreshIntervalMs: 1_000 },
+      now: Date.now,
+      onCredentialsChanged: (value) => {
+        if (value?.generation === 'new-winner') adopted.resolve();
+      },
+    });
+    const original = await f.signIn();
+    const message = TestChannel.instances[0].messages.at(-1) as { recognition: string };
+    const lock = barrier();
+    lockTail = lock.wait();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const winner = {
+      ...original,
+      generation: 'new-winner',
+      accessToken: jwt('new-winner'),
+      expiresAt: Date.now() + 60_000,
+    };
+    version = { jkt: JKT, generation: winner.generation, active: true, refreshedAt: Date.now() };
+    TestChannel.instances[0].receive({
+      type: 'token',
+      sender: 'peer',
+      jkt: JKT,
+      generation: winner.generation,
+      token: winner,
+      recognition: message.recognition,
+    });
+    await adopted.promise;
+    lock.release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.request).toHaveBeenCalledTimes(2); // only login/exchange
+    expect(f.session.getAccessToken()).toEqual(winner);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(f.request).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe.each(['body', 'cookie'] as const)('OVAR-03 %s credential observation', (transport) => {
+  it('observes exchange, manual/API refresh and clear without enabling a scheduler', async () => {
+    const values: Array<DpopAccessToken | undefined> = [];
+    const f = fixture(transport, {
+      onCredentialsChanged: (value) => {
+        expect(activeLocks).toBe(0);
+        values.push(value);
+      },
+    });
+    const first = await f.signIn();
+    await drainContinuations();
+    expect(values).toEqual([first]);
+    const second = await f.session.refresh();
+    const api = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(null, { status: 401, headers: { 'WWW-Authenticate': 'DPoP error="invalid_token"' } }),
+      )
+      .mockResolvedValueOnce(Response.json({ ok: true }));
+    await fetchWithDpop(
+      {
+        session: f.session,
+        apis: [{ origin: 'https://api.example.com', replayNamespace: 'api' }],
+        fetch: api,
+        now: () => NOW,
+      },
+      'https://api.example.com/profile',
+    );
+    await drainContinuations();
+    expect(values).toHaveLength(3);
+    expect(values[1]).toBe(second);
+    expect(values[2]).toBe(f.session.getAccessToken());
+    await f.session.clear();
+    await drainContinuations();
+    expect(values.at(-1)).toBeUndefined();
+    expect(values).toHaveLength(4);
+    await f.session.clear();
+    await drainContinuations();
+    expect(values).toHaveLength(4);
+  });
+
+  it.each(['throw', 'reject', 'pending'] as const)(
+    'contains %s observer behavior without holding rotation or logout',
+    async (mode) => {
+      let calls = 0;
+      const f = fixture(transport, {
+        onCredentialsChanged: () => {
+          calls++;
+          if (mode === 'throw') throw new Error('app observer');
+          return mode === 'reject' ? Promise.reject(new Error('async app observer')) : new Promise<void>(() => {});
+        },
+      });
+      await f.signIn();
+      const rotated = await f.session.refresh();
+      expect(f.session.getAccessToken()).toBe(rotated);
+      await f.session.logout();
+      await drainContinuations();
+      expect(calls).toBeGreaterThan(0);
+      expect(f.session.getAccessToken()).toBeUndefined();
+      expect(activeLocks).toBe(0);
+    },
+  );
+
+  it('allows reentrant clear and emits a final undefined without resurrecting credentials', async () => {
+    const values: Array<DpopAccessToken | undefined> = [];
+    let clearing: Promise<void> | undefined;
+    const f = fixture(transport, {
+      onCredentialsChanged: (value) => {
+        values.push(value);
+        if (value) clearing = f.session.clear();
+      },
+    });
+    await f.signIn();
+    await drainContinuations();
+    await clearing;
+    await drainContinuations();
+    expect(values).toHaveLength(2);
+    expect(values[0]).toBeDefined();
+    expect(values[1]).toBeUndefined();
+    expect(f.session.getAccessToken()).toBeUndefined();
+  });
+
+  it.each(['logout', 'logoutAndNavigate', 'resetKey', 'dispose'] as const)(
+    'observes %s clearing exactly once',
+    async (method) => {
+      const observer = vi.fn();
+      const f = fixture(transport, { onCredentialsChanged: observer });
+      const token = await f.signIn();
+      await drainContinuations();
+      expect(observer).toHaveBeenCalledExactlyOnceWith(token);
+      await f.session[method]();
+      await drainContinuations();
+      expect(observer.mock.calls.map(([value]) => value)).toEqual([token, undefined]);
+      f.session.dispose();
+      await drainContinuations();
+      expect(observer).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('does not notify failed non-terminal refresh and does notify terminal cleanup', async () => {
+    const observer = vi.fn();
+    const f = fixture(transport, { onCredentialsChanged: observer });
+    const token = await f.signIn();
+    f.request.mockResolvedValueOnce(Response.json({ code: 'OIDC_VAULT_TOKEN_REQUEST_FAILED' }, { status: 502 }));
+    await expect(f.session.refresh()).rejects.toMatchObject({ requiresLogin: false });
+    await drainContinuations();
+    expect(observer).toHaveBeenCalledExactlyOnceWith(token);
+    f.request.mockResolvedValueOnce(Response.json({ code: 'OIDC_VAULT_REFRESH_REJECTED' }, { status: 401 }));
+    await expect(f.session.refresh()).rejects.toMatchObject({ requiresLogin: true });
+    await drainContinuations();
+    expect(observer.mock.calls.map(([value]) => value)).toEqual([token, undefined]);
+  });
+});
+
+describe('OVAR-03 cookie observation boundaries', () => {
+  it('coalesces an immediate post-publication clear instead of notifying an obsolete intermediate token', async () => {
+    const observer = vi.fn();
+    const f = fixture('cookie', { onCredentialsChanged: observer });
+    const original = await f.signIn();
+    await drainContinuations();
+    let clearing: Promise<void> | undefined;
+    TestChannel.instances[0].onPost = (message) => {
+      if ((message as { type: string }).type === 'token') clearing = f.session.clear();
+    };
+    await expect(f.session.refresh()).rejects.toMatchObject({ code: 'DPOP_OPERATION_SUPERSEDED' });
+    await clearing;
+    await drainContinuations();
+    expect(observer.mock.calls.map(([value]) => value)).toEqual([original, undefined]);
+  });
+
+  it('observes admitted peer tokens once and peer clearing, but ignores duplicate/rejected envelopes', async () => {
+    const peerObserved = deferred<void>();
+    const clearObserved = deferred<void>();
+    const observer = vi.fn((value: DpopAccessToken | undefined) => {
+      if (value?.generation === 'peer-success') peerObserved.resolve();
+      if (value === undefined) clearObserved.resolve();
+    });
+    const f = fixture('cookie', { onCredentialsChanged: observer });
+    const original = await f.signIn();
+    const sent = TestChannel.instances[0].messages.at(-1) as { recognition: string };
+    const next = { ...original, generation: 'peer-success', accessToken: jwt('peer-success') };
+    version = { jkt: JKT, generation: next.generation, active: true };
+    const message = {
+      type: 'token',
+      sender: 'peer',
+      jkt: JKT,
+      generation: next.generation,
+      token: next,
+      recognition: sent.recognition,
+    };
+    TestChannel.instances[0].receive(message);
+    await peerObserved.promise;
+    expect(observer.mock.calls.map(([value]) => value)).toEqual([original, next]);
+    TestChannel.instances[0].receive(message);
+    TestChannel.instances[0].receive({ ...message, generation: 'obsolete' });
+    await drainContinuations();
+    expect(observer).toHaveBeenCalledTimes(2);
+    version = { jkt: JKT, generation: 'peer-clear', active: false };
+    TestChannel.instances[0].receive({ type: 'clear', sender: 'peer', ...version });
+    await clearObserved.promise;
+    expect(observer.mock.calls.at(-1)).toEqual([undefined]);
+  });
+
+  it('drops an undelivered token when disposal happens inside its publication turn', async () => {
+    const observer = vi.fn();
+    const f = fixture('cookie', { onCredentialsChanged: observer });
+    f.seed();
+    TestChannel.instances[0].onPost = (message) => {
+      if ((message as { type: string }).type === 'token') f.session.dispose();
+    };
+    await expect(f.session.refresh()).rejects.toMatchObject({ code: 'DPOP_SESSION_DISPOSED' });
+    await drainContinuations();
+    expect(observer).not.toHaveBeenCalled();
+  });
+});
 
 describe.each(['body', 'cookie'] as const)('DPH-02 %s operation authority', (transport) => {
   it.each(['login', 'refresh', 'getKey', 'logoutAndNavigate'] as const)(

@@ -142,12 +142,16 @@ type QuerySnapshotFlags =
   | 'unsafeSkipListOutputSnapshotChecks'
   | 'unsafeSkipReadOutputSnapshotChecks'
   | 'unsafeSkipListNestedDocumentSnapshotChecks'
-  | 'unsafeSkipReadNestedDocumentSnapshotChecks';
+  | 'unsafeSkipReadNestedDocumentSnapshotChecks'
+  | 'unsafeSkipListInitialOutputSnapshotCopy'
+  | 'unsafeSkipReadInitialOutputSnapshotCopy';
 const querySnapshotWorkaround = {
   unsafeSkipListOutputSnapshotChecks: false,
   unsafeSkipReadOutputSnapshotChecks: true,
   unsafeSkipListNestedDocumentSnapshotChecks: false,
   unsafeSkipReadNestedDocumentSnapshotChecks: true,
+  unsafeSkipListInitialOutputSnapshotCopy: false,
+  unsafeSkipReadInitialOutputSnapshotCopy: true,
 } satisfies ModelRouterOptions<Order>;
 const querySnapshotDefaults = querySnapshotWorkaround satisfies DefaultModelRouterOptions<Order>;
 export type QuerySnapshotBooleanOptions = Assert<

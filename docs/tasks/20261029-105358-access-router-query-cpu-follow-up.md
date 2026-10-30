@@ -3,11 +3,23 @@
 Created: 2026-10-29 10:53:58 PDT
 Status: completed
 
-Outcome: QCPU-01–06 completed as bounded investigations. No runtime optimization
+Initial outcome: QCPU-01–06 completed as bounded investigations. No runtime optimization
 was retained: the blanket cache changed authorization behavior, and smaller
 allocation experiments lacked repeatable relevant gains. The performance gap is
 **not resolved**; further work needs a new justified design or a separately approved
 contract change. Existing benchmark-runner work was preserved.
+
+Continuation outcome: QCPU-07 retained a literal primitive catalog-path fast path,
+and QCPU-06 passed the full retained-change gates. Paired 100-row wide LIST runs
+with skips ON improved about 5%; embedded and document-rule ON costs are largely
+unchanged. No flags, snapshot contracts or authorization boundaries changed. The
+larger performance gap remains unresolved; historical investigation evidence below
+is preserved separately from the continuation results.
+
+Separate security-affecting feature planning now lives in
+[`20261029-164234-access-router-initial-output-snapshot-copy-opt-outs.md`](20261029-164234-access-router-initial-output-snapshot-copy-opt-outs.md).
+It proposes new READ/LIST output-copy flags, not an expansion of the six comparison
+flags or a reopening of this completed security-preserving optimization phase.
 
 ## Objective and scope
 
@@ -365,7 +377,7 @@ Resolution: no production change retained.
 Status: completed
 Kind: investigation
 Priority: P1 — correctness and measured evidence gate retained changes.
-Dependencies: QCPU-01, QCPU-02, QCPU-03, QCPU-04, QCPU-05
+Dependencies: QCPU-01, QCPU-02, QCPU-03, QCPU-04, QCPU-05, QCPU-07
 Primary ownership: combined changes, task evidence and package tests.
 
 **Requirements:** Review completed candidates against diffs and criteria; run serial
@@ -380,7 +392,7 @@ confirm no public surface changes unless separately approved.
 
 **Verification:** B3–B8, formatting review and `git diff --check`.
 
-Completion evidence and scope revision:
+Initial investigation completion evidence and scope revision (before reopening):
 
 - No changes to `packages/access-router/` were retained. All experimental code was
   diagnostic-only; the public API, defaults, six flag meanings, copies, permissions
@@ -408,6 +420,200 @@ Completion evidence and scope revision:
   observations and per-document boundaries remain measured costs. A future task
   must preserve them or obtain explicit approval for a new unsafe contract; do not
   treat these results as authorization to skip them.
+
+Continuation completion evidence:
+
+- Retained only QCPU-07's five-line matcher fast path and its focused tests. All
+  eight generated declaration files are byte-identical before/after; the final
+  rebuilt ESM hash matches the measured after build. No public API, option,
+  snapshot, graph, document-stage or application-hook implementation changed.
+- Commands from the repository root passed serially: B1; B3
+  `pnpm --filter @web-ts-toolkit/access-router test` (**5,544 tests, 167 files**,
+  including package/consumer checks); B4
+  `pnpm --filter @web-ts-toolkit/access-router typecheck`; and B5
+  `pnpm --filter @web-ts-toolkit/access-router-deco test` (**691 tests, 22 files**,
+  including its typecheck). The existing Vite CommonJS-config warning remains.
+- B6 `pnpm exec eslint packages/access-router/src packages/access-router/test scripts/benchmarks`
+  passed. B7
+  `node --test scripts/benchmarks/access-router.test.mjs scripts/benchmarks/access-router.integration.test.mjs`
+  passed **19 tests**, including the real-worker OFF/ON integration. Formatting and
+  `git diff --check` passed. No separate full-workspace test run or independent
+  review was performed; the package and downstream gates above are the scoped gates.
+- B8 used the unchanged benchmark worker and existing workloads, with isolated
+  preserved builds, fresh processes/databases and serial paired jobs rather than
+  another interactive tag-fetching run. QCPU-07 records the complete timing matrix,
+  repeated noisy cases, deterministic work counts and limitations. No new v0.51.0
+  build was measured; the user-supplied historical numbers remain context only.
+
+### Task QCPU-07: Reduce repeated primitive catalog-path work
+
+Status: completed
+Kind: improvement
+Priority: P2 — profile samples include path matching even with snapshot comparisons skipped.
+Dependencies: QCPU-01
+Primary ownership: `src/acl/field-catalog.ts`, proven static path preparation if
+needed, focused unit tests. No changes to copying, hook evaluation or graph ownership.
+
+Finding: catalog pattern matching currently splits both primitive paths on every
+comparison, including literal protected/reference paths without map wildcards.
+This repeats across selected fields, rows and embedded scopes.
+
+Requirements:
+
+- Remove demonstrably redundant primitive parsing/allocation, not authorization
+  checks. Preserve wildcard segment, ancestor boundary, exclusion, reference and
+  protected-field behavior; retain conservative handling of non-primitive inputs.
+- Prove equivalence with a reference implementation across valid and malformed
+  strings, map patterns, Unicode and boundary cases. Do not cache open configuration
+  or document decisions or revive the rejected child-authorization cache.
+- Benchmark isolated before/after builds using unchanged workloads in both modes.
+  Retain a change only with repeatable relevant improvement and no measured
+  relevant regression beyond run noise. Expand the implementation boundary only
+  with a separately documented proof and tests.
+
+Acceptance: deterministic eliminated parsing/allocation, differential and relevant
+integration suites pass, paired CPU/latency evidence is recorded; QCPU-06 runs the
+full gates for any retained runtime change.
+
+Verification: B1/B2, paired B8; B3–B7 via QCPU-06.
+
+Progress:
+
+- Implemented a primitive literal-path fast path in `matchesCatalogPattern`; map
+  patterns and non-primitive operands still use the original segment matcher.
+  Added a reference-based differential suite plus catalog/input/output boundary
+  tests in `test/field-catalog.unit.test.ts`. Literal comparisons eliminate both
+  split arrays; wildcard and boxed-string comparisons retain both splits.
+- Built and preserved fresh before/after variants from `368b671`, not the earlier
+  investigation build. B1 and the first focused run (169 tests in three files)
+  passed; initial isolated timings are small/mixed and require repetition before
+  retention. No snapshot, callback, graph or option code has changed.
+- The first temporary timing-driver invocation was rejected before measurement by
+  the worker's owned-database-name guard. Corrected the diagnostic job name; the
+  worker and its safety guard remain unchanged. Exclude that failed job.
+
+Completion evidence:
+
+- `src/acl/field-catalog.ts` now compares literal primitive strings without parsing
+  segments, using equality or a dot-boundary descendant check. The original
+  implementation remains the fallback for every pattern containing `$*` and every
+  non-primitive operand. Empty/malformed segments retain their previous semantics;
+  this does not replace safety/catalog eligibility checks.
+- `test/field-catalog.unit.test.ts` adds **55 tests**, including **29,602**
+  deterministic reference comparisons, literal/wildcard work-count assertions,
+  Unicode/control/empty-segment cases, non-primitive split observations/errors,
+  metadata/reference/map/virtual boundaries and protected/excluded opaque copies.
+  The complete package run includes these tests. QCPU-06 records the full gates.
+- Twelve separate instrumented jobs (five samples each, 100 rows, both modes)
+  retained **18,365 / 3,365 / 4,240** catalog comparisons per wide/document/embedded
+  request, respectively. Eliminated **36,730 / 6,730 / 8,480** split arrays without
+  removing any comparison. Document rules still invoked **100 document hooks and
+  1,200 field callbacks/request** in both variants and modes. Instrumented timings
+  are excluded from performance evidence.
+
+#### Build and measurement identities
+
+- Base source: `368b67196e7f4e9842e518b350292ff71f7bbcd4` plus the recorded local
+  matcher/test changes for after. Node **26.12.1**, MongoDB **8.2.6**, Mongoose
+  **9.11.4**, Express **5.2.1**, Zod **4.4.3**; identical workspace dependencies.
+- Before ESM SHA-256:
+  `674e36e084474af01e1e641d1ca4a20bfd2bf5a2d407aaae2277e695b947b19b`.
+  After:
+  `724057ea85e7fb0a6e6ab75df350fda305357901374683af610ec2b9618e3e4e`.
+- Unchanged `pnpm-lock.yaml` SHA-256:
+  `ef86ef24726d09f81d1262656920d6215caeb0f26e345198db2d27b8ab7ab314`.
+  Unchanged worker SHA-256:
+  `1301a0ea9c9c9865cfaee542c805b1b0db15903543cd4eb0d2c6133e1beba994`.
+- **196 uninstrumented jobs**: all nine existing scenarios at 10/100 rows, both
+  OFF/ON modes, two jobs/build/case; another reversed-order ON batch for the three
+  100-row priorities; and the longer repeats below. Per-candidate effective flags,
+  declaration/build hashes, hydration and expected outputs were checked by the
+  existing worker. Outputs matched across builds/modes/repeats; reads remained
+  **1/request**, or **2/request** for populate. Virtuals retained two getters/row.
+- Common settings: **24 fields, 32 bytes, five warmups, one client, hook concurrency
+  10**. Main jobs used **25 samples**. Pairs alternated before/after/after/before or
+  the reverse, with no concurrent build or test workload. CPU includes Node HTTP
+  client/server but not MongoDB. Startup, seeding and warmup are outside timing.
+- The 100-row output fingerprints remain:
+  wide `165d378f09870e575203f9e2c8f012b0778715ecc0c2fdd9b03f4bd436536ea3`;
+  document rules `1c6e7ecaf6f8e6c2f4d6b57530734750466ff5a9a96869ed3d05641979c070ae`;
+  embedded `4a32e28713aa14dc5248f87eda344bb089958fc984d4c50598c278651f656f13`.
+
+#### Paired timing matrix
+
+Milliseconds, before → after. Values are **means of each job's median, p95 or CPU**,
+not pooled percentiles. Runs/build indicates independent jobs per candidate; do not
+interpret these small diagnostic samples as statistical confidence or application
+latency guarantees.
+
+| Rows | Scenario       | Mode | Runs/build | Median before → after | p95 before → after | CPU before → after |
+| ---: | -------------- | ---- | ---------: | --------------------: | -----------------: | -----------------: |
+|   10 | plain-narrow   | OFF  |          2 |           6.31 → 6.15 |        8.25 → 8.33 |       10.23 → 9.94 |
+|   10 | plain-narrow   | ON   |          2 |           4.57 → 4.98 |        6.86 → 8.07 |        7.17 → 8.35 |
+|   10 | plain-wide     | OFF  |          2 |         10.45 → 10.49 |      13.66 → 15.66 |      14.59 → 14.27 |
+|   10 | plain-wide     | ON   |          2 |           6.80 → 6.44 |        9.43 → 9.03 |        9.72 → 9.51 |
+|   10 | hydrated       | OFF  |          2 |          9.98 → 10.36 |      11.52 → 16.17 |      12.43 → 13.87 |
+|   10 | hydrated       | ON   |          2 |           6.43 → 6.93 |        9.81 → 9.83 |        8.97 → 9.85 |
+|   10 | document-rules | OFF  |          2 |         37.17 → 37.20 |      39.33 → 41.72 |      39.57 → 40.60 |
+|   10 | document-rules | ON   |          2 |           6.90 → 6.84 |       10.42 → 9.20 |       10.06 → 9.86 |
+|   10 | large-config   | OFF  |          2 |         10.69 → 10.35 |      14.65 → 14.01 |      14.69 → 14.01 |
+|   10 | large-config   | ON   |          2 |           7.56 → 7.14 |        9.87 → 8.91 |       10.41 → 9.34 |
+|   10 | embedded       | OFF  |          2 |         85.50 → 84.19 |      93.20 → 88.55 |      89.87 → 88.16 |
+|   10 | embedded       | ON   |          2 |         11.24 → 10.90 |      16.65 → 16.03 |      14.39 → 14.11 |
+|   10 | global-rules   | OFF  |          2 |         35.67 → 36.12 |      38.28 → 39.38 |      37.97 → 38.74 |
+|   10 | global-rules   | ON   |          2 |           6.60 → 6.96 |        9.18 → 9.50 |       9.00 → 10.07 |
+|   10 | populate       | OFF  |          2 |         13.68 → 13.76 |      19.60 → 18.52 |      18.90 → 18.20 |
+|   10 | populate       | ON   |          2 |           9.41 → 9.53 |      12.61 → 12.03 |      12.50 → 12.60 |
+|   10 | virtuals       | OFF  |          2 |         13.11 → 13.86 |      18.13 → 17.61 |      18.04 → 18.61 |
+|   10 | virtuals       | ON   |          2 |           7.91 → 7.59 |      10.55 → 10.71 |      11.46 → 10.53 |
+|  100 | plain-narrow   | OFF  |          2 |         24.28 → 24.47 |      26.22 → 26.63 |      27.33 → 27.71 |
+|  100 | plain-narrow   | ON   |          2 |         12.44 → 12.06 |      14.39 → 14.22 |      16.06 → 16.02 |
+|  100 | plain-wide     | OFF  |          2 |         50.96 → 51.30 |      54.77 → 55.41 |      57.33 → 57.07 |
+|  100 | plain-wide     | ON   |          4 |         24.44 → 23.15 |      28.41 → 25.93 |      31.50 → 30.17 |
+|  100 | hydrated       | OFF  |          2 |         57.94 → 56.39 |      62.93 → 60.29 |      65.77 → 63.39 |
+|  100 | hydrated       | ON   |          2 |         26.28 → 25.69 |      31.21 → 30.49 |      33.71 → 34.00 |
+|  100 | document-rules | OFF  |          2 |       316.39 → 303.48 |    339.84 → 315.39 |    328.91 → 314.59 |
+|  100 | document-rules | ON   |          4 |         26.97 → 26.78 |      29.92 → 29.70 |      34.26 → 34.31 |
+|  100 | large-config   | OFF  |          2 |         56.29 → 57.26 |      60.13 → 64.80 |      63.74 → 65.67 |
+|  100 | large-config   | ON   |          2 |         25.59 → 24.48 |      28.27 → 30.86 |      32.94 → 32.33 |
+|  100 | embedded       | OFF  |          2 |       786.17 → 783.53 |    820.63 → 793.72 |    821.96 → 817.05 |
+|  100 | embedded       | ON   |          4 |         68.87 → 68.74 |      76.94 → 74.35 |      85.31 → 84.86 |
+|  100 | global-rules   | OFF  |          2 |       318.99 → 307.97 |    348.92 → 316.92 |    329.86 → 317.87 |
+|  100 | global-rules   | ON   |          2 |         26.87 → 26.05 |      30.42 → 29.17 |      34.13 → 33.92 |
+|  100 | populate       | OFF  |          2 |         73.02 → 72.14 |      77.24 → 78.59 |      80.42 → 80.11 |
+|  100 | populate       | ON   |          2 |         30.26 → 30.27 |      33.79 → 37.20 |      37.76 → 38.53 |
+|  100 | virtuals       | OFF  |          2 |         85.79 → 87.42 |      90.19 → 91.26 |      93.15 → 94.41 |
+|  100 | virtuals       | ON   |          2 |         32.27 → 31.87 |      36.82 → 35.37 |      40.29 → 39.52 |
+
+#### Repeated noisy guard cases and retention decision
+
+Some short jobs regressed in the first matrix. Repeated those cases with **75
+samples**, unchanged warmups/workloads and two jobs/build/case; do not pool these
+with the 25-sample jobs because JIT/GC amortization differs.
+
+| Rows | Scenario     | Mode | Median before → after | p95 before → after | CPU before → after |
+| ---: | ------------ | ---- | --------------------: | -----------------: | -----------------: |
+|   10 | plain-narrow | OFF  |           5.03 → 5.05 |        7.18 → 6.86 |        6.70 → 6.72 |
+|   10 | plain-narrow | ON   |           3.77 → 3.78 |        5.13 → 5.31 |        4.81 → 4.79 |
+|   10 | hydrated     | OFF  |           8.82 → 8.74 |      11.94 → 11.75 |      11.20 → 11.11 |
+|   10 | hydrated     | ON   |           5.53 → 5.37 |        8.14 → 7.80 |        7.39 → 7.06 |
+|   10 | global-rules | OFF  |         35.28 → 34.11 |      38.94 → 36.29 |      37.13 → 35.78 |
+|   10 | global-rules | ON   |           5.54 → 5.59 |        8.42 → 8.25 |        7.31 → 7.14 |
+|   10 | virtuals     | OFF  |         11.94 → 11.63 |      16.14 → 15.79 |      14.46 → 13.96 |
+|   10 | virtuals     | ON   |           6.50 → 6.15 |        8.98 → 8.66 |        8.18 → 8.12 |
+|  100 | large-config | OFF  |         54.61 → 54.04 |      58.87 → 59.22 |      60.63 → 59.79 |
+|  100 | virtuals     | OFF  |         81.79 → 79.74 |      86.83 → 83.95 |      88.07 → 86.07 |
+
+- Retain the narrow change: wide ON improved in **both independent alternating
+  batches** (mean median **−4.8% / −5.7%**), with lower mean CPU in each. The
+  deterministic allocation reduction and reference tests support this bounded win.
+- Do **not** claim a material embedded or document-rule ON improvement: their two
+  batches were mixed/near-flat. Some strict jobs improved, but only the repeatable
+  wide ON benefit is attributed here. Short-job regressions did not reproduce as a
+  consistent latency/CPU penalty in the longer repeats; residual run noise remains.
+- Initial snapshot copies, native normalization, validation, graph checks and all
+  application callbacks remain. No initial-copy opt-out or other new flag was
+  introduced. Neither ON security equivalence nor v0.51.0 parity is established.
 
 ## Definition of done
 

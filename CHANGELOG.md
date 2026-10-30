@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Features
+
+* **access-router:** add default-off server model/default-model `unsafeSkipListInitialOutputSnapshotCopy` and `unsafeSkipReadInitialOutputSnapshotCopy`. Each requires the matching output-comparison skip; otherwise dormant. Eligible initial output snapshots are omitted while bounded shape/graph ownership and detached source/callback/response copies remain. This explicitly unsafe mode drops native/BSON normalization observations and can change authorization outcomes; existing flags and defaults are unchanged. See the access-router README for prerequisites, fallback and rollback.
+
 ### ⚠ BREAKING CHANGES
 
 * **access-router-runtime:** runtime config loading now rejects unsupported export forms, ambiguous model definitions, duplicate model/data names, existing-model `collection`, and invalid `dev.delay` values before runtime assembly.

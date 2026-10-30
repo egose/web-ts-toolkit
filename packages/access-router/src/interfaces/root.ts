@@ -560,7 +560,8 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * top-level LIST responses and their embedded/populated/included descendants.
    * Exact output associations, graph identities, bindings and permission rules remain;
    * scalar/native in-place mutations can now reuse stale decisions and expose data.
-   * Source checks are independent. Initial snapshots and detached copies remain.
+   * Source checks and detached callback/grant/output copies remain. Initial output
+   * snapshots also remain unless unsafeSkipListInitialOutputSnapshotCopy is active.
    * Captured before awaits; handles keep this mode after rollback. Only literal `true`
    * in server model/default configuration enables it and warns on effective transition.
    * READ/retries use unsafeSkipReadOutputSnapshotChecks; writes and fresh helpers stay
@@ -583,7 +584,7 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * The initiating model's captured setting applies recursively, not target-model
    * flags. Parent source and all output-value checks remain independently configured;
    * parent snapshots still include nested values. Permission rules, exact binding,
-   * initial snapshots and detached copies remain. Child mutation can leave stale
+   * initial source snapshots and detached copies remain. Child mutation can leave stale
    * grants/decisions and expose data. Only server model/default literal `true`
    * enables it; warns on transition. Rollback affects new calls, not captured descendants
    * or handles. READ uses its own flag; writes, dedicated subdocument operations and
@@ -602,6 +603,32 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * keep their mode after rollback. Never set from requests. Revisit/remove promptly.
    */
   unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
+  /**
+   * TEMPORARY UNSAFE (default `false`): omit the initial output-association snapshot
+   * copy for eligible LIST outputs and their authenticated descendants. Active only
+   * with unsafeSkipListOutputSnapshotChecks=true; otherwise dormant (warns).
+   * Skips this pass's native/BSON normalization and validation observations, which
+   * can change exceptions, side effects and permission outcomes. Exact ownership,
+   * bounded shape admission and graph identities remain; proxies/Map/Set and open
+   * ownership bindings use the original copy fallback. Source snapshots and detached
+   * hook/grant/response copies remain. Not a general clone bypass. Server model/default literal true
+   * only; warns on activation. Captured before awaits; retained handles keep their
+   * mode after rollback. READ/retries use their own flag; writes/fresh helpers stay
+   * strict. Restore false promptly; never select from requests or method defaults.
+   */
+  unsafeSkipListInitialOutputSnapshotCopy?: boolean;
+  /**
+   * TEMPORARY UNSAFE (default `false`): READ equivalent of
+   * unsafeSkipListInitialOutputSnapshotCopy, including READ-to-list retries and
+   * authenticated embedded/populated/included outputs. Requires the independent
+   * unsafeSkipReadOutputSnapshotChecks=true. Uses the initiating READ model's
+   * captured setting, not LIST/target flags. Omits initial native normalization
+   * observations; ownership/bounds/identities and detached callback/source copies
+   * remain. Proxies/Map/Set fall back to copying. Server model/default literal true
+   * only; warns on activation/dormancy. Writes/fresh helpers stay strict. Captured
+   * handles do not change on rollback. Never derive from requests; restore false.
+   */
+  unsafeSkipReadInitialOutputSnapshotCopy?: boolean;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
