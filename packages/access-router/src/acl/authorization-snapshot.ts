@@ -81,6 +81,7 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
       if (array && input.length > 20000) authorizationError('snapshot array exceeds structural limits');
       if (!array) authorizationRecord(input, 'snapshot');
       const result: Record<string, unknown> | unknown[] = array ? [] : {};
+      let definedProperty = false;
       for (const key of Reflect.ownKeys(input)) {
         if (array && key === 'length') continue;
         if (typeof key !== 'string' || unsafeKeys.has(key)) authorizationError('unsafe snapshot key');
@@ -88,12 +89,23 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
         const descriptor = Object.getOwnPropertyDescriptor(input, key)!;
         if (!('value' in descriptor) || (!descriptor.enumerable && configuration !== 'document'))
           authorizationError('accessor/non-enumerable input');
-        Object.defineProperty(result, key, {
-          value: copy(descriptor.value, depth + 1),
-          enumerable: true,
-          writable: true,
-          configurable: true,
-        });
+        const value = copy(descriptor.value, depth + 1);
+        // The result starts as a private ordinary object, never a proxy. Check AFTER
+        // recursively copying: native hooks can install inherited setters while
+        // normalizing the value. An absent key can then be assigned without any
+        // application execution; inherited keys retain CreateDataProperty behavior.
+        // Arrays keep their original sparse/index/length definition semantics.
+        // A replaced defineProperty could expose the target on the fallback path;
+        // only then must later keys also re-prove its unchanged ordinary prototype.
+        if (array || (definedProperty && Object.getPrototypeOf(result) !== Object.prototype) || key in result) {
+          definedProperty = true;
+          Object.defineProperty(result, key, {
+            value,
+            enumerable: true,
+            writable: true,
+            configurable: true,
+          });
+        } else (result as Record<string, unknown>)[key] = value;
       }
       if (array) (result as unknown[]).length = (input as unknown[]).length;
       return Object.freeze(result);

@@ -3,7 +3,13 @@
  * until public admission (SVA-01A) is complete. Never re-export runtime issuers.
  */
 import Permission from '../permission';
-import { isCatalogInputPath, isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
+import {
+  isCatalogInputPath,
+  isCatalogOutputPath,
+  isSafeOutputPath,
+  matchesCatalogPattern,
+  prepareCapturedOutputCatalog,
+} from './field-catalog';
 import type { AccessRouterPermissions } from '../permission';
 import type { AccessRouterRequest } from '../interfaces/request';
 import type { Filter } from '../interfaces/query-types';
@@ -213,7 +219,9 @@ function captureAuthorizationCatalog(value: AuthorizationFieldCatalog): Authoriz
     // that sharing them cannot expose a mutable native leaf (including holes).
     catalog[key] = paths as readonly string[];
   }
-  return Object.freeze(catalog) as unknown as AuthorizationFieldCatalog;
+  const captured = Object.freeze(catalog) as unknown as AuthorizationFieldCatalog;
+  prepareCapturedOutputCatalog(captured);
+  return captured;
 }
 
 export function assertAuthorizationPath(path: unknown): asserts path is string {

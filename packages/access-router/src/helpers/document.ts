@@ -197,12 +197,12 @@ export const deepIsolateValue = <T>(
     const out: Record<string, unknown> = {};
     seen.set(value as unknown as object, out);
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      Object.defineProperty(out, key, {
-        value: deepIsolateValue(entry, seen, flattenMaps),
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      });
+      const copied = deepIsolateValue(entry, seen, flattenMaps);
+      // A supplied cycle map/native callback can expose and change this target.
+      // Re-prove its ordinary prototype after recursion before using `in`; a
+      // changed/proxy prototype or inherited slot retains descriptor definition.
+      if (Object.getPrototypeOf(out) === Object.prototype && !(key in out)) out[key] = copied;
+      else Object.defineProperty(out, key, { value: copied, enumerable: true, writable: true, configurable: true });
     }
     copyPermissionsAlias(value, out);
     return out as T;

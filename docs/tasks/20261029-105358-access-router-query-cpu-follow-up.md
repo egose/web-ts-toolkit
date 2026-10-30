@@ -21,6 +21,11 @@ Separate security-affecting feature planning now lives in
 It proposes new READ/LIST output-copy flags, not an expansion of the six comparison
 flags or a reopening of this completed security-preserving optimization phase.
 
+The subsequent query-pipeline implementation phase is tracked separately in
+[`20261029-211734-access-router-query-pipeline-overhead.md`](20261029-211734-access-router-query-pipeline-overhead.md).
+It starts by proving the real service's output publication/copy boundary; earlier
+rejected caches and the unresolved historical performance gap remain relevant.
+
 ## Objective and scope
 
 Profile and reduce the remaining model-query CPU cost after the six temporary

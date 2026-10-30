@@ -10,6 +10,7 @@ import { PERMISSIONS } from '../src/symbols';
 import type { ModelRequest, ModelHookContext, ServiceOutputContext } from '../src/interfaces';
 import * as serviceAuthorization from '../src/acl/service-authorization';
 import * as fieldAuthorization from '../src/acl/field-authorization';
+import * as fieldCatalog from '../src/acl/field-catalog';
 import { readDocumentAuthorization } from '../src/acl/document-authorization';
 
 let serial = 0;
@@ -72,6 +73,54 @@ afterEach(() => {
 });
 
 describe('ARCPU-07 canonical list output preparation', () => {
+  it.each(entries)('%s amortizes captured primitive catalog work in the actual service row loop', async (entry) => {
+    const original = fieldCatalog.prepareCapturedOutputCatalog;
+    const prepare = vi.spyOn(fieldCatalog, 'prepareCapturedOutputCatalog');
+    const counts: number[][] = [];
+    try {
+      for (const enabled of [false, true]) {
+        prepare.mockImplementation(enabled ? original : () => {});
+        const work: number[] = [];
+        for (const count of [1, 100]) {
+          const f = fixture();
+          f.runtime.setModelOptions(f.model.modelName, {
+            permissionSchema: { name: true, public: true, hidden: false },
+          });
+          const rows = Array.from({ length: count }, (_, index) => ({
+            name: `row:${index}`,
+            public: 'yes',
+            hidden: 'no',
+          }));
+          f.adapter.find.mockResolvedValue(rows);
+          const split = vi.spyOn(String.prototype, 'split');
+          let result;
+          try {
+            const args = { select: ['name', 'public', 'hidden', '-_id'], limit: count };
+            result =
+              entry === 'direct' ? await f.service.find({}, args, quiet) : await f.publicService._list({}, args, quiet);
+            work.push(
+              split.mock.calls.filter(
+                ([separator], index) =>
+                  separator === '.' && ['name', 'public'].includes(split.mock.contexts[index] as string),
+              ).length,
+            );
+          } finally {
+            split.mockRestore();
+          }
+          expect(result).toMatchObject({
+            success: true,
+            data: rows.map(({ name, public: visible }) => ({ name, public: visible })),
+          });
+        }
+        counts.push(work);
+      }
+    } finally {
+      prepare.mockRestore();
+    }
+    expect(counts[0][1] - counts[0][0]).toBeGreaterThan(100);
+    expect(counts[1][1] - counts[1][0]).toBeLessThanOrEqual(32);
+  });
+
   it.each(entries)('%s list does not copy unrelated configuration once per row with zero virtuals', async (entry) => {
     const f = fixture();
     const payload = (start: number) => Array.from({ length: 32 }, (_, index) => new Date(start + index));

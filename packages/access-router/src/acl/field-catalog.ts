@@ -1,6 +1,49 @@
 /** Owned schema catalog: never discovers authority by enumerating a returned document. */
 import type { Schema, SchemaType } from 'mongoose';
+import { types } from 'node:util';
 import type { AuthorizationFieldCatalog } from './service-authorization';
+
+interface PreparedOutputCatalog {
+  readonly paths: Set<string>;
+  readonly results: Map<string, boolean>;
+}
+const preparedOutputCatalogs = new WeakMap<AuthorizationFieldCatalog, PreparedOutputCatalog | number | false>();
+
+/** Private capture seam, not authority. Prepare only closed dense own-string
+ * arrays; missing optional slots can resolve inherited application getters later.
+ * No configuration normalization, row decision or binding check is reused here.
+ */
+export function prepareCapturedOutputCatalog(catalog: AuthorizationFieldCatalog): void {
+  // Short-lived child scopes must not pay for indexes or a second density walk.
+  // Admit preparation only after enough lookups to amortize its construction.
+  preparedOutputCatalogs.set(catalog, 0);
+}
+
+function prepareOutputCatalog(catalog: AuthorizationFieldCatalog): PreparedOutputCatalog | false {
+  if (types.isProxy(catalog) || Object.getPrototypeOf(catalog) !== Object.prototype || !Object.isFrozen(catalog))
+    return false;
+  const paths = new Set<string>();
+  for (const key of ['paths', 'protectedPaths', 'referencePaths', 'virtualPaths', 'dynamicPaths', 'opaquePaths']) {
+    const slot = Object.getOwnPropertyDescriptor(catalog, key);
+    if (!slot || !('value' in slot)) return false;
+    const entries = slot.value;
+    if (
+      !Array.isArray(entries) ||
+      types.isProxy(entries) ||
+      Object.getPrototypeOf(entries) !== Array.prototype ||
+      !Object.isFrozen(entries)
+    )
+      return false;
+    const length = Object.getOwnPropertyDescriptor(entries, 'length')!.value as number;
+    if (length > 20000 || Reflect.ownKeys(entries).length !== length + 1) return false;
+    for (let index = 0; index < length; index++) {
+      const entry = Object.getOwnPropertyDescriptor(entries, String(index));
+      if (!entry || !('value' in entry) || typeof entry.value !== 'string') return false;
+      if (key === 'paths') paths.add(entry.value);
+    }
+  }
+  return { paths, results: new Map() };
+}
 
 type CatalogSchemaType = SchemaType & {
   schema?: Schema;
@@ -99,6 +142,23 @@ export function matchesCatalogPattern(pattern: string, path: string, descendants
 }
 
 export function isCatalogOutputPath(catalog: AuthorizationFieldCatalog, path: string): boolean {
+  let prepared = typeof path === 'string' ? preparedOutputCatalogs.get(catalog) : undefined;
+  if (typeof prepared === 'number') {
+    const lookups = prepared + 1;
+    prepared = lookups < 32 ? lookups : prepareOutputCatalog(catalog);
+    preparedOutputCatalogs.set(catalog, prepared);
+    if (typeof prepared === 'number') return catalogOutputPath(catalog, path);
+  }
+  const cached = prepared ? prepared.results.get(path) : undefined;
+  if (cached !== undefined) return cached;
+  const allowed = catalogOutputPath(catalog, path, prepared ? prepared.paths : undefined);
+  // Retained handles/helpers must not turn arbitrary dynamic keys into an
+  // unbounded cache. Saturation changes work only, never the eligibility result.
+  if (prepared && prepared.results.size < 20000) prepared.results.set(path, allowed);
+  return allowed;
+}
+
+function catalogOutputPath(catalog: AuthorizationFieldCatalog, path: string, paths?: ReadonlySet<string>): boolean {
   if (!isSafeOutputPath(path)) return false;
   if (catalog.protectedPaths?.some((p) => matchesCatalogPattern(p, path, true))) return false;
   if (catalog.referencePaths?.some((p) => matchesCatalogPattern(p, path, true) && !matchesCatalogPattern(p, path)))
@@ -106,7 +166,7 @@ export function isCatalogOutputPath(catalog: AuthorizationFieldCatalog, path: st
   if (catalog.virtualPaths?.some((p) => matchesCatalogPattern(p, path, true) && !matchesCatalogPattern(p, path)))
     return false;
   return (
-    catalog.paths.includes(path) ||
+    (paths ? paths.has(path) : catalog.paths.includes(path)) ||
     !!catalog.dynamicPaths?.some((p) => matchesCatalogPattern(p, path)) ||
     !!catalog.opaquePaths?.some((p) => matchesCatalogPattern(p, path, true))
   );
