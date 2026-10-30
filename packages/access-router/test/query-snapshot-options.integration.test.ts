@@ -13,6 +13,7 @@ const flags = [
   'unsafeSkipListNestedDocumentSnapshotChecks',
   'unsafeSkipReadNestedDocumentSnapshotChecks',
 ] as const;
+const copyFlags = ['unsafeSkipListInitialOutputSnapshotCopy', 'unsafeSkipReadInitialOutputSnapshotCopy'] as const;
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
 let serial = 0;
 
@@ -60,6 +61,7 @@ async function fixture(options: ModelRouterOptions = {}) {
     stripPermissionsField: true,
     // Target flags must not choose the origin's mode, including include LIST under READ.
     ...Object.fromEntries(flags.map((key) => [key, options[key] !== true])),
+    ...Object.fromEntries(copyFlags.map((key) => [key, options[key] !== true])),
   });
   const router = api.createRouter(Root, {
     basePath: '/snapshots',
@@ -236,7 +238,81 @@ describe('query snapshot switches through real read/list, population, include an
     await request(f.app).get(`/snapshots/${f.rows[0]._id}`).expect(401);
   });
 
-  it.each(flags)('rejects %s across HTTP and a root sibling preflight', async (key) => {
+  it.each(Array.from({ length: 4 }, (_, mask) => mask))(
+    'retains output-copy ownership through real READ/LIST/retry descendants (mask=%s)',
+    async (mask) => {
+      const options = {
+        ...Object.fromEntries(flags.map((key) => [key, true])),
+        ...Object.fromEntries(copyFlags.map((key, index) => [key, !!(mask & (1 << index))])),
+      };
+      const f = await fixture(options);
+      await f.execute(async (req) => {
+        const svc = req.macl.getService(f.Root.modelName),
+          pub = req.macl.getPublicService(f.Root.modelName);
+        for (const operation of ['read', 'list', 'retry'] as const) {
+          const result =
+            operation === 'list'
+              ? await svc.find({}, f.args, quiet)
+              : operation === 'read'
+                ? await svc.findById(String(f.rows[0]._id), f.args, quiet)
+                : await pub._read(String(f.rows[1]._id), f.args, quiet);
+          expect(result.success).toBe(true);
+          if (!result.success) throw new Error(result.code);
+          const output = (operation === 'list' ? (result.data as unknown[])[0] : result.data) as ReturnType<
+            typeof f.expected
+          >;
+          const context =
+            operation === 'list'
+              ? (result as unknown as { contexts: ServiceOutputContext[] }).contexts[0]
+              : (result as unknown as { context: ServiceOutputContext }).context;
+          expect(output).toEqual(f.expected(operation === 'read' ? 'read' : 'list'));
+          for (const child of [output.children[0], output.ref, ...output.items]) {
+            expect(context.getDocumentAuthorization(child)).toBeDefined();
+          }
+          const key = operation === 'list' ? copyFlags[0] : copyFlags[1];
+          expect(f.api.getModelOption(f.Target.modelName, key)).toBe(!options[key]);
+          // Rollback applies to new calls, not previously issued contexts/handles.
+          f.api.setModelOption(f.Root.modelName, key, false);
+          output.value = 'changed';
+          const picked = await svc.pickAllowedFields(output, operation === 'read' ? 'read' : 'list', {
+            documentAuthorization: context.documentAuthorization,
+          });
+          // A field helper uses the receiving model's catalog; it is not include
+          // assembly and does not invent the non-schema `items` attachment.
+          const { items: _items, ...expectedPick } = output;
+          expect(picked).toEqual(expectedPick);
+          expect(picked).not.toBe(output);
+          output.children[0] = { ...output.children[0] };
+          expect(context.getDocumentAuthorization(output.ref)).toBeUndefined();
+          await expect(
+            svc.pickAllowedFields(output, operation === 'read' ? 'read' : 'list', {
+              documentAuthorization: context.documentAuthorization,
+            }),
+          ).rejects.toThrow();
+          f.api.setModelOption(f.Root.modelName, key, options[key]);
+        }
+      });
+      const response = await request(f.app)
+        .post('/root')
+        .send([
+          {
+            target: 'model',
+            name: f.Root.modelName,
+            op: 'read',
+            id: String(f.rows[1]._id),
+            args: f.args,
+            options: quiet,
+          },
+          { target: 'model', name: f.Root.modelName, op: 'list', args: f.args, options: quiet },
+        ])
+        .expect(200);
+      expect(response.body[0].result.data).toEqual(f.expected('list'));
+      expect(response.body[1].result.data).toEqual([f.expected('list')]);
+      expect(f.docHook).toHaveBeenCalled();
+    },
+  );
+
+  it.each([...flags, ...copyFlags])('rejects %s across HTTP and a root sibling preflight', async (key) => {
     const f = await fixture();
     for (const operation of ['read', 'list']) {
       await request(f.app)

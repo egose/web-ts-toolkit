@@ -249,6 +249,12 @@ declare const documentAuthorizationBrand: unique symbol;
  * unsafeSkipListNestedDocumentSnapshotChecks / unsafeSkipReadNestedDocumentSnapshotChecks
  * retain weakened source checks on query descendants, using the initiating model's
  * mode. In-place value mutations can therefore reuse stale grants/decisions.
+ * unsafeSkipListInitialOutputSnapshotCopy / unsafeSkipReadInitialOutputSnapshotCopy
+ * additionally omit eligible initial output snapshots only when the corresponding
+ * output-value comparison skip is enabled. They retain bounded structural admission
+ * and exact graph ownership, but omit this pass's native/BSON normalization and
+ * validation observations. Source/callback/grant copies remain detached; unproven
+ * graphs or open ownership bindings fall back to copying. Retained handles keep this mode.
  */
 export interface DocumentAuthorization {
   readonly [documentAuthorizationBrand]: true;

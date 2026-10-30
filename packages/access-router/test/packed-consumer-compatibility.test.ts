@@ -537,7 +537,9 @@ const assert = require('node:assert/strict');
        'createServiceExecution', 'createDocumentAuthorizationStage', 'createServiceOutputContext',
        'prepareModelQuery', 'executePreparedFind', 'executeCreate', 'registerServiceExecutors',
        'withExecutionHydration', 'normalizeHydration', 'normalizeHydrationUpdate', 'attachPermissionsAlias',
-       'requiresDocumentSnapshotChecks', 'requiresOutputSnapshotChecks', 'unsafeSnapshotOptions',
+        'requiresDocumentSnapshotChecks', 'requiresOutputSnapshotChecks', 'unsafeSnapshotOptions',
+        'unsafeSnapshotCheckOptions', 'unsafeInitialOutputCopyOptions',
+        'skipsInitialOutputSnapshotCopy', 'tryOutputIdentitiesWithoutSnapshot',
        'PopulatePolicyDefaultsToken', 'capturePopulatePolicyDefaults', 'getCapturedPopulatePolicyDefaults',
        'resolvePopulatePolicy', 'modelServicePopulatePolicyDefaults', 'capturePopulateTargetBinding',
        'setPopulateTargetMeta', 'withCapturedPopulateModel']) {

@@ -68,6 +68,8 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
       unsafeSkipReadOutputSnapshotChecks: options.unsafeSkipReadOutputSnapshotChecks === true,
       unsafeSkipListNestedDocumentSnapshotChecks: options.unsafeSkipListNestedDocumentSnapshotChecks === true,
       unsafeSkipReadNestedDocumentSnapshotChecks: options.unsafeSkipReadNestedDocumentSnapshotChecks === true,
+      unsafeSkipListInitialOutputSnapshotCopy: options.unsafeSkipListInitialOutputSnapshotCopy === true,
+      unsafeSkipReadInitialOutputSnapshotCopy: options.unsafeSkipReadInitialOutputSnapshotCopy === true,
       overrideFilter: options.overrideFilter,
       baseFilter: options.baseFilter,
       idField: options.idField,

@@ -562,6 +562,8 @@ export class AccessRuntime {
     unsafeSkipReadOutputSnapshotChecks: false,
     unsafeSkipListNestedDocumentSnapshotChecks: false,
     unsafeSkipReadNestedDocumentSnapshotChecks: false,
+    unsafeSkipListInitialOutputSnapshotCopy: false,
+    unsafeSkipReadInitialOutputSnapshotCopy: false,
   }).build();
 
   private readonly modelOptions: Record<string, OptionsManager<any, any>> = {};
@@ -897,6 +899,9 @@ export class AccessRuntime {
 
   private deferSnapshotWarnings<T>(publish: () => T): T {
     if (this.pendingSnapshotWarnings) return publish();
+    // Compare coherent before/after model pairs, not transient per-key listener
+    // states. A dormant request can become active when its prerequisite changes.
+    const copyModes = this.initialOutputCopyModes();
     const pending: Array<{ modelName: string; key: string }> = [];
     this.pendingSnapshotWarnings = pending;
     let result: T;
@@ -905,8 +910,42 @@ export class AccessRuntime {
     } finally {
       this.pendingSnapshotWarnings = undefined;
     }
+    const nextCopyModes = this.initialOutputCopyModes();
     for (const { modelName, key } of pending) this.warnSnapshotFlag(modelName, key);
+    for (const [modelName, modes] of nextCopyModes) {
+      for (const operation of ['List', 'Read'] as const) {
+        const mode = modes[operation];
+        if (mode === 'off' || mode === copyModes.get(modelName)?.[operation]) continue;
+        const key = `unsafeSkip${operation}InitialOutputSnapshotCopy`;
+        const prerequisite = `unsafeSkip${operation}OutputSnapshotChecks`;
+        try {
+          this.getGlobalOption('logger')?.warn?.(
+            mode === 'active'
+              ? `UNSAFE: ${operation.toLowerCase()} initial output snapshot copying disabled for eligible graphs; omitted native normalization/validation can change side effects and authorization outcomes. Restore ${key}=false after the temporary workaround.`
+              : `UNSAFE: ${key} is dormant; requires ${prerequisite}=true. Initial copying and output comparisons remain enabled. Restore ${key}=false if not intended.`,
+            { modelName },
+          );
+        } catch {
+          // An unavailable logger must not undo explicitly selected server options.
+        }
+      }
+    }
     return result;
+  }
+
+  private initialOutputCopyModes() {
+    type Mode = 'off' | 'dormant' | 'active';
+    return new Map(
+      Object.entries(this.modelOptions).map(([modelName, options]) => {
+        const mode = (operation: 'List' | 'Read'): Mode =>
+          options.get(`unsafeSkip${operation}InitialOutputSnapshotCopy`) !== true
+            ? 'off'
+            : options.get(`unsafeSkip${operation}OutputSnapshotChecks`) === true
+              ? 'active'
+              : 'dormant';
+        return [modelName, { List: mode('List'), Read: mode('Read') }] as const;
+      }),
+    );
   }
 
   private createModelOptions(modelName: string, options = this.resolveModelOptions(modelName)) {

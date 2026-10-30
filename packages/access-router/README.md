@@ -317,7 +317,8 @@ entry, `options.authorization`, or `service.defaults` option.
 - **Still enforced:** row filters, document/field rules, operation gates, exact
   request/runtime/model/scope/access/stage binding, handle/output associations,
   output graph identities and structural bounds on initial snapshots. Initial
-  source/output snapshots and detached callback/grant/output copies remain. Equal
+  source snapshots and detached callback/grant/output copies remain. Initial output
+  snapshots also remain unless the separate copy flags below are active. Equal
   replacement objects, forged handles and unrelated rows/calls still reject;
   package-created output-copy transfers still authenticate their source.
 - **Strict boundaries:** writes (including read-like output), dedicated subdocument
@@ -335,6 +336,84 @@ Each call captures the setting before awaits. Turning it off protects new calls,
 not in-flight calls, later descendants of captured calls, retries or existing
 handles. These switches do not eliminate all cloning or promise v0.51.0 performance.
 Measure each separately on your workload; restore `false` as soon as possible.
+
+### Temporary unsafe initial output-snapshot copy switches
+
+Two **additional**, default-false server model/default-model options can omit the
+initial snapshot stored when finalized output is associated with its private
+authorization handle. They do not change the six comparison flags above:
+
+| Copy option                               | Required comparison option                 |
+| ----------------------------------------- | ------------------------------------------ |
+| `unsafeSkipListInitialOutputSnapshotCopy` | `unsafeSkipListOutputSnapshotChecks: true` |
+| `unsafeSkipReadInitialOutputSnapshotCopy` | `unsafeSkipReadOutputSnapshotChecks: true` |
+
+| Matching comparison skip | Copy skip | Effective behavior                                                                 |
+| ------------------------ | --------- | ---------------------------------------------------------------------------------- |
+| false                    | false     | Copy and compare output snapshots                                                  |
+| true                     | false     | Copy snapshots; skip comparisons (existing behavior)                               |
+| false                    | true      | Dormant: still copy and compare; warn about the prerequisite                       |
+| true                     | true      | Omit eligible initial output snapshots; retain structural admission and identities |
+
+Only literal boolean `true` enables either option. They follow the same server-only
+inheritance and capture rules as comparison flags: explicit model false wins, model
+undefined restores inheritance, and later default updates affect new calls. Never
+derive them from client input or put them in method defaults/per-call authorization.
+READ-to-list retries follow READ settings. Authenticated embedded/populated/included
+outputs and package-created transfers inherit the initiating model's mode; target
+flags cannot override it. Writes, dedicated subdocument operations and fresh helpers
+stay strict. An originating handle keeps its mode after runtime rollback.
+
+**This removes protection, not just an allocation.** The omitted pass no longer
+normalizes Date/RegExp/Buffer/BSON leaves or runs BSON wire validation/hooks. Lost
+observations can change exceptions, side effects and subsequent permission outcomes,
+including changing a denial into an allowance. The prerequisite already allows
+scalar/native mutation to reuse stale decisions. Do not call this security-equivalent
+to copying, or assume that matching benchmark output proves it safe for your app.
+
+Eligible ordinary records/arrays retain clone-free bounded structural admission:
+20,000 visited nodes (including repeated aliases), depth 100, array length 20,000,
+safe keys, data descriptors, supported containers and cycle rejection. Exact output
+root/descendant identities, request/runtime/model/scope/access/stage binding and
+permission evaluation remain. Standard native leaves are allowed without their copy
+normalization; invalid/forged BSON leaf contents are **not** wire-validated by this
+pass. Proxies, Map/Set graphs, unproven native subclasses and unsupported objects use
+the original copier/identity fallback and may still reject. Accessor/proxy ownership
+bindings also use that fallback; graph admission is not retained across binding
+callbacks. A requested skip does
+not guarantee zero copying for every graph.
+
+Source snapshots, detached document/field callback inputs and grants, captured
+configuration, getter isolation, metadata and actual output/response copies remain.
+This is **not a general deep-clone opt-out**. Enable only per model with trusted,
+stable data and hooks after a measured staged rollout; the remaining query costs can
+still dominate and no v0.51.0 parity is promised. Warnings distinguish active copying
+omission from dormant requests, occur on effective model/operation transitions and
+do not repeat per row/request. Failed option publication does not activate a warning.
+
+<!-- doc-example: partial -->
+
+```ts
+import mongoose from 'mongoose';
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const api = createAccessRuntime();
+const User = mongoose.model('InitialCopyUser', new mongoose.Schema({ name: String }));
+api.registerModelInstance(User.modelName, User);
+// TEMPORARY UNSAFE: separately enable only the two intended LIST settings.
+api.setModelOptions(User.modelName, {
+  unsafeSkipListOutputSnapshotChecks: true,
+  unsafeSkipListInitialOutputSnapshotCopy: true,
+});
+// Rollback for new calls; existing handles/calls retain their captured settings.
+api.setModelOption(User.modelName, 'unsafeSkipListInitialOutputSnapshotCopy', false);
+api.setModelOption(User.modelName, 'unsafeSkipListOutputSnapshotChecks', false);
+```
+
+Keep all READ, root-source and nested-source flags off unless independently selected.
+Monitor authorization failures, unexpected callback/native behavior and latency/CPU;
+restore false promptly and revisit/remove this temporary workaround. No release or
+configuration migration automatically enables it.
 
 ### Wire placement and option names
 

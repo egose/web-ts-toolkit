@@ -1,4 +1,5 @@
-import { isDeepStrictEqual } from 'node:util';
+import { isDeepStrictEqual, types } from 'node:util';
+import { Buffer as NodeBuffer } from 'node:buffer';
 import { mongo } from 'mongoose';
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { Codes } from '../enums';
@@ -141,4 +142,83 @@ export function outputIdentities(value: object): readonly object[] {
   }
   visit(value);
   return Object.freeze(result);
+}
+
+/** Explicit UNSAFE initial-copy alternative only: no native normalization or wire
+ * validation. The ordinary graph walk is closed (no accessors/proxies/iterators),
+ * bounded like document copying and captures identities without freezing inputs.
+ * Unproven containers fall back to the original copier AND identity walk. Never
+ * use this as a validation certificate across application/native work or awaits.
+ */
+export function tryOutputIdentitiesWithoutSnapshot(value: object): readonly object[] | undefined {
+  const identities: object[] = [];
+  const seen = new WeakSet<object>();
+  const active = new WeakSet<object>();
+  const fallback = {};
+  let nodes = 0;
+  function visit(input: unknown, depth: number): void {
+    if (++nodes > 20000 || depth > 100) authorizationError('snapshot exceeds structural limits');
+    if (typeof input === 'function') authorizationError('functions are not policy values');
+    if (typeof input === 'symbol') authorizationError('symbols are not policy values');
+    if (input === null || typeof input !== 'object') return;
+    if (types.isProxy(input)) throw fallback;
+    if (active.has(input)) authorizationError('cyclic input');
+    if (!seen.has(input)) {
+      seen.add(input);
+      identities.push(input);
+    }
+    // Native brand tests do not invoke application Symbol.hasInstance methods.
+    // Normalization of these leaves is precisely what this unsafe mode omits.
+    const prototype = Object.getPrototypeOf(input);
+    if (types.isDate(input)) {
+      if (prototype === Date.prototype) return;
+      throw fallback;
+    }
+    if (types.isRegExp(input)) {
+      if (prototype === RegExp.prototype) return;
+      throw fallback;
+    }
+    if (types.isUint8Array(input)) {
+      if (prototype === NodeBuffer.prototype) return;
+      throw fallback;
+    }
+    // Do not mistake a prototype-modified iterated container for a BSON leaf.
+    if (types.isMap(input) || types.isSet(input)) throw fallback;
+    const array = Array.isArray(input);
+    if (!array) {
+      if (prototype !== Object.prototype && prototype !== null) {
+        // BSON leaves have no universal private JS brand. Admit the same base
+        // prototype family without wire validation; forged/invalid BSON contents
+        // are one of the deliberately lost normalization guarantees. Never trust
+        // an application _bsontype/constructor-name tag or traverse proxy prototypes.
+        let parent = prototype;
+        for (let count = 0; parent && count < 100; count++) {
+          if (types.isProxy(parent)) throw fallback;
+          if (parent === mongo.BSON.BSONValue.prototype) return;
+          parent = Object.getPrototypeOf(parent);
+        }
+        throw fallback;
+      }
+    } else if (input.length > 20000) authorizationError('snapshot array exceeds structural limits');
+    active.add(input);
+    try {
+      for (const key of Reflect.ownKeys(input)) {
+        if (array && key === 'length') continue;
+        if (typeof key !== 'string' || unsafeKeys.has(key)) authorizationError('unsafe snapshot key');
+        if (array && !/^(0|[1-9]\d*)$/.test(key)) authorizationError('invalid array property');
+        const descriptor = Object.getOwnPropertyDescriptor(input, key)!;
+        if (!('value' in descriptor)) authorizationError('accessor/non-enumerable input');
+        visit(descriptor.value, depth + 1);
+      }
+    } finally {
+      active.delete(input);
+    }
+  }
+  try {
+    visit(value, 0);
+    return Object.freeze(identities);
+  } catch (error) {
+    if (error !== fallback) throw error;
+    return undefined;
+  }
 }
