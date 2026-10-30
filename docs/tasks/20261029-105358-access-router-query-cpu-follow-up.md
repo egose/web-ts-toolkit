@@ -16,6 +16,11 @@ unchanged. No flags, snapshot contracts or authorization boundaries changed. The
 larger performance gap remains unresolved; historical investigation evidence below
 is preserved separately from the continuation results.
 
+Separate security-affecting feature planning now lives in
+[`20261029-164234-access-router-initial-output-snapshot-copy-opt-outs.md`](20261029-164234-access-router-initial-output-snapshot-copy-opt-outs.md).
+It proposes new READ/LIST output-copy flags, not an expansion of the six comparison
+flags or a reopening of this completed security-preserving optimization phase.
+
 ## Objective and scope
 
 Profile and reduce the remaining model-query CPU cost after the six temporary
