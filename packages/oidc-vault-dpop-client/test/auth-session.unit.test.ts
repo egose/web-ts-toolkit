@@ -167,10 +167,11 @@ beforeEach(() => {
     cookiePresent: version !== undefined,
     version: version && { ...version },
   }));
-  vi.mocked(removeDpopScope).mockImplementation(async (scope, authority) => {
+  vi.mocked(removeDpopScope).mockImplementation(async (scope, authority, matches = () => true) => {
     authority.assertCurrent();
     const previous = await readDpopScopeState(scope, authority);
     authority.assertCurrent();
+    if (!matches(previous)) return undefined;
     persistedKey = undefined;
     version = undefined;
     return previous;
@@ -876,7 +877,8 @@ describe.each(['body', 'cookie'] as const)('DPH-02 %s operation authority', (tra
     expect(f.request).not.toHaveBeenCalled();
     expect(f.session.getAccessToken()).toBeUndefined();
     expect(storage.getItem(f.handleKey)).toBeNull();
-    if (transport === 'cookie') expect(version?.active).toBe(false);
+    // No prior cookie generation existed: clear must not invent metadata.
+    if (transport === 'cookie') expect(version).toBeUndefined();
   });
 
   it('clear during refresh key lookup prevents further work even if that lookup fails late', async () => {
@@ -2356,7 +2358,7 @@ describe('DPH-02 cookie peer authority and cleanup', () => {
         gate.release();
         expect(await loggingIn).toEqual({ value: undefined });
         expect(f.navigate).toHaveBeenCalledTimes(2);
-        expect(JSON.parse(storage.getItem(f.pendingKey)!)).toEqual({ jkt: JKT });
+        expect(JSON.parse(storage.getItem(f.pendingKey)!)).toMatchObject({ jkt: JKT, generation: version?.generation });
         expect(version?.generation).not.toBe(cleared.generation);
       },
     );
@@ -2379,7 +2381,7 @@ describe('DPH-02 cookie peer authority and cleanup', () => {
         lock.release();
         expect(await loggingIn).toEqual({ value: undefined });
         expect(f.navigate).toHaveBeenCalledTimes(2);
-        expect(JSON.parse(storage.getItem(f.pendingKey)!)).toEqual({ jkt: JKT });
+        expect(JSON.parse(storage.getItem(f.pendingKey)!)).toMatchObject({ jkt: JKT, generation: version?.generation });
       },
     );
 
@@ -2400,7 +2402,7 @@ describe('DPH-02 cookie peer authority and cleanup', () => {
       expect(await refreshing).toMatchObject({ error: { message: 'Transient network failure' } });
       expect(await loggingIn).toEqual({ value: undefined });
       expect(f.navigate).toHaveBeenCalledTimes(2);
-      expect(JSON.parse(storage.getItem(f.pendingKey)!)).toEqual({ jkt: JKT });
+      expect(JSON.parse(storage.getItem(f.pendingKey)!)).toMatchObject({ jkt: JKT, generation: version?.generation });
     });
 
     it('control: a successfully checked stale clear cannot erase newer auth', async () => {
@@ -2534,7 +2536,7 @@ describe('DPH-02 cookie peer authority and cleanup', () => {
         lock.release();
         expect(await loggingIn).toEqual({ value: undefined });
         expect(f.navigate).toHaveBeenCalledTimes(2);
-        expect(JSON.parse(storage.getItem(f.pendingKey)!)).toEqual({ jkt: JKT });
+        expect(JSON.parse(storage.getItem(f.pendingKey)!)).toMatchObject({ jkt: JKT, generation: version?.generation });
       },
     );
 
@@ -3108,7 +3110,7 @@ describe('DPH-06 cookie reset coordination', () => {
     const loggingIn = outcome(f.session.login());
     gate.release();
     expect(await loggingIn).toEqual({ value: undefined });
-    expect(JSON.parse(storage.getItem(f.pendingKey)!)).toEqual({ jkt: replacement.jkt });
+    expect(JSON.parse(storage.getItem(f.pendingKey)!)).toMatchObject({ jkt: replacement.jkt });
     expect(persistedKey).toBe(replacement);
   });
 

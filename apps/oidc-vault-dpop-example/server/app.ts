@@ -35,6 +35,8 @@ export interface ExampleServerOptions {
   fingerprintHeader?: string;
   /** Enables deterministic retry/redirect test endpoints; local fixture only. */
   fixture?: boolean;
+  /** Test-owned optional-binding pairing only; ignored unless fixture is true. Normal server remains required-DPoP. */
+  fixtureDeviceBindingMode?: 'optional';
 }
 
 export interface ExampleRequestEvidence {
@@ -59,7 +61,10 @@ export const startExampleServer = async (options: ExampleServerOptions) => {
     const fingerprintHeader = options.fingerprintHeader ?? 'X-Device-Fingerprint';
     const nonceSecret = options.nonceSecret === false ? undefined : (options.nonceSecret ?? randomBytes(32));
     const proofPolicy = {
-      mode: 'required' as const,
+      mode:
+        options.fixture && options.fixtureDeviceBindingMode === 'optional'
+          ? ('optional' as const)
+          : ('required' as const),
       ...(nonceSecret ? { nonce: { secret: nonceSecret, lifetimeSeconds: options.nonceLifetimeSeconds ?? 60 } } : {}),
     };
     const now = Date.now;
@@ -140,7 +145,12 @@ export const startExampleServer = async (options: ExampleServerOptions) => {
           return;
         }
         rejectedOnce = true;
-        res.setHeader('WWW-Authenticate', 'DPoP error="invalid_token", algs="ES256"');
+        res.setHeader(
+          'WWW-Authenticate',
+          req.get('Authorization')?.startsWith('Bearer ')
+            ? 'Bearer error="invalid_token"'
+            : 'DPoP error="invalid_token", algs="ES256"',
+        );
         res.setHeader('Cache-Control', 'no-store');
         res.status(401).json({ code: 'OIDC_VAULT_INVALID_ACCESS_TOKEN', message: 'Access token validation failed.' });
       });

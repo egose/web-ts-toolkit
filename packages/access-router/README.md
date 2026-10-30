@@ -415,6 +415,10 @@ Monitor authorization failures, unexpected callback/native behavior and latency/
 restore false promptly and revisit/remove this temporary workaround. No release or
 configuration migration automatically enables it.
 
+An unshipped output-publication fusion experiment was withdrawn after failing its
+performance-and-regression gate. **No publication-fusion options are available**;
+the six comparison and two initial-copy switches above are unchanged.
+
 ### Wire placement and option names
 
 | Intent                   | Basic GET query                                    | Advanced body                                                   | Root entry                          |

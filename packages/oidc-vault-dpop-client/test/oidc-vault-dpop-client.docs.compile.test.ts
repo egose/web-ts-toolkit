@@ -117,6 +117,11 @@ describe('CLIENT-06 documentation examples compile against the packed artifact',
       readFileSync(file, 'utf8').split('## Provider logout navigation\n')[1]?.split('\n## ')[0];
     expect(navigationSection(installedReadme)).toBeTruthy();
     expect(navigationSection(documents[1].file)).toBe(navigationSection(installedReadme));
+    for (const document of documents) {
+      const text = readFileSync(document.file, 'utf8');
+      expect(text, `${document.name} must teach the explicit opt-out`).toContain('dpop: false');
+      expect(text).toContain('fresh login');
+    }
 
     // Each documented block becomes one compilable example importing the
     // package root from the fresh install (no `src/` deep imports).

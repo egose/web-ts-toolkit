@@ -19,6 +19,9 @@ import {
   getOrCreateDpopKey,
   OidcVaultDpopClientError,
   type DpopAccessToken,
+  type BearerAccessToken,
+  type OidcVaultAccessToken,
+  type OidcVaultSession,
   type DpopFetchOptions,
   type OidcVaultDpopSession,
   type OidcVaultDpopAutoRefreshOptions,
@@ -26,9 +29,9 @@ import {
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { calculateJwkThumbprint } from 'jose';
 
-const sessions = new Map<string, OidcVaultDpopSession>();
+const sessions = new Map<string, OidcVaultSession>();
 const signals = new Map<string, string | undefined>();
-const observedCredentials = new Map<string, Array<DpopAccessToken | undefined>>();
+const observedCredentials = new Map<string, Array<OidcVaultAccessToken | undefined>>();
 const maintenanceFailures = new Map<string, Array<{ code: string; requiresLogin: boolean }>>();
 interface Scope {
   backendOrigin: string;
@@ -60,7 +63,8 @@ interface TestStoredKey {
   jkt: string;
 }
 interface TestCookieVersion {
-  jkt: string;
+  mode?: 'dpop' | 'bearer';
+  jkt?: string;
   generation: string;
   active: boolean;
   refreshedAt?: number;
@@ -219,6 +223,7 @@ export const featureDetection = async (input: { cookie: boolean }) => {
 export const createSession = async (
   input: Scope & {
     name: string;
+    dpop?: boolean;
     transport: 'body' | 'cookie';
     signal?: string;
     captureNavigation?: boolean;
@@ -228,7 +233,7 @@ export const createSession = async (
 ) => {
   sessions.get(input.name)?.dispose();
   signals.set(input.name, input.signal);
-  const observed: Array<DpopAccessToken | undefined> = [];
+  const observed: Array<OidcVaultAccessToken | undefined> = [];
   observedCredentials.set(input.name, observed);
   const failures: Array<{ code: string; requiresLogin: boolean }> = [];
   maintenanceFailures.set(input.name, failures);
@@ -237,6 +242,7 @@ export const createSession = async (
     backendOrigin: input.backendOrigin,
     basePath: input.basePath,
     sessionTransport: input.transport,
+    dpop: input.dpop ?? true,
     fingerprint,
     autoRefresh: input.autoRefresh,
     onAutoRefreshError: (error) => {
@@ -248,7 +254,7 @@ export const createSession = async (
     },
     ...(input.observeCredentials
       ? {
-          onCredentialsChanged: (value: DpopAccessToken | undefined) => {
+          onCredentialsChanged: (value: OidcVaultAccessToken | undefined) => {
             observed.push(value);
           },
         }
@@ -275,8 +281,16 @@ export const setSignal = async (input: { name: string; signal?: string }) => {
   signals.set(input.name, input.signal);
 };
 
-export const refresh = async (input: { name: string; count?: number; rejectedToken?: string }) => {
-  const session = sessions.get(input.name)!;
+const dpopSession = (name: string): OidcVaultDpopSession => {
+  const session = sessions.get(name)!;
+  if (!session.dpop) throw new Error('Expected the default DPoP test session.');
+  return session;
+};
+
+const refreshBatch = async <T extends OidcVaultAccessToken>(
+  session: { refresh(options?: { rejectedToken?: string }): Promise<T> },
+  input: { count?: number; rejectedToken?: string },
+) => {
   const promises = Array.from({ length: input.count ?? 1 }, () =>
     session.refresh({ rejectedToken: input.rejectedToken }),
   );
@@ -286,6 +300,21 @@ export const refresh = async (input: { name: string; count?: number; rejectedTok
     tokens: tokens.map((token) => ({ ...token })),
   };
 };
+
+// Preserve exact default-mode return types for the existing DPoP suites.
+export const refresh = async (input: { name: string; count?: number; rejectedToken?: string }) =>
+  refreshBatch<DpopAccessToken>(dpopSession(input.name), input);
+
+export const refreshBearer = async (input: { name: string; count?: number; rejectedToken?: string }) => {
+  const session = sessions.get(input.name)!;
+  if (session.dpop) throw new Error('Expected an explicit Bearer test session.');
+  return refreshBatch<BearerAccessToken>(session, input);
+};
+
+export const login = async (input: { name: string; returnTo: string }) =>
+  sessions.get(input.name)!.login(input.returnTo);
+export const exchange = async (input: { name: string; code: string }) => sessions.get(input.name)!.exchange(input.code);
+export const logout = async (input: { name: string }) => sessions.get(input.name)!.logout();
 
 export const memoryToken = async (input: { name: string }) => sessions.get(input.name)?.getAccessToken();
 export const credentialEvents = async (input: { name: string }) => observedCredentials.get(input.name) ?? [];
@@ -316,6 +345,8 @@ export const disposeSession = async (input: { name: string }) => {
 // IDB put has started, so the tests can choose interleavings without sleeps.
 interface Gate {
   ready: boolean;
+  whenReady: Promise<void>;
+  markReady(): void;
   promise: Promise<void>;
   release(): void;
 }
@@ -326,14 +357,19 @@ const navigations = new Map<string, number>();
 const operations = new Map<string, Promise<{ ok: boolean; code?: string }>>();
 const createGate = (id: string): void => {
   let release!: () => void;
+  let markReady!: () => void;
   const promise = new Promise<void>((resolve) => {
     release = resolve;
   });
-  gates.set(id, { ready: false, promise, release });
+  const whenReady = new Promise<void>((resolve) => {
+    markReady = resolve;
+  });
+  gates.set(id, { ready: false, whenReady, markReady, promise, release });
 };
 const waitAtGate = async (id: string): Promise<void> => {
   const gate = gates.get(id)!;
   gate.ready = true;
+  gate.markReady();
   await gate.promise;
 };
 const trackOperation = (id: string, run: () => unknown): void => {
@@ -355,10 +391,24 @@ export const beginSessionOperation = async (input: {
   id: string;
   operation: 'login' | 'refresh' | 'logout' | 'logoutAndNavigate' | 'clear' | 'resetKey' | 'getKey';
 }) => {
-  trackOperation(input.id, () => sessions.get(input.name)![input.operation]());
+  // Intentional runtime probing of DPoP-only stubs on a Bearer object is test-only.
+  trackOperation(input.id, () => (sessions.get(input.name)! as OidcVaultDpopSession)[input.operation]());
 };
 export const finishSessionOperation = async (input: { id: string }) => operations.get(input.id)!;
 export const gateReady = async (input: { id: string }) => gates.get(input.id)?.ready === true;
+export const waitForOperationGate = async (input: { gate: string; id: string }) => {
+  const gate = gates.get(input.gate)!;
+  // Native crypto/HTTP/Response.clone completion is not guaranteed within
+  // expect.poll's short default. Await the actual barrier, but surface an
+  // operation that settles without reaching it instead of masking a failure.
+  await Promise.race([
+    gate.whenReady,
+    operations.get(input.id)!.then((outcome) => {
+      throw new Error(`Session operation settled before its response gate: ${outcome.code ?? 'success'}`);
+    }),
+  ]);
+  return gate.ready;
+};
 export const releaseGate = async (input: { id: string }) => {
   gates.get(input.id)!.release();
 };
@@ -375,7 +425,7 @@ export const holdSessionResponse = async (input: {
 };
 
 export const beginNavigationClicks = async (input: { name: string; id: string }) => {
-  const session = sessions.get(input.name)!;
+  const session = dpopSession(input.name);
   const first = session.logoutAndNavigate();
   const second = session.logoutAndNavigate();
   trackOperation(input.id, () => first);
@@ -423,7 +473,7 @@ export const invalidateDuringCookieWrite = async (input: {
       request.addEventListener('error', () => {
         evidence.requestError = request.error?.name;
       });
-      trackOperation(input.id, () => session[input.action]());
+      trackOperation(input.id, () => (session as OidcVaultDpopSession)[input.action]());
       evidence.clearedImmediately = session.getAccessToken() === undefined;
     }
     return request;
@@ -476,7 +526,8 @@ export const cookieLockQueue = async (input: { scopeId: string }) => {
 interface TestPeerMessage {
   type: 'clear' | 'token';
   sender: string;
-  jkt: string;
+  mode?: 'dpop' | 'bearer';
+  jkt?: string;
   generation: string;
   recognition?: string;
   token?: unknown;
@@ -535,4 +586,18 @@ export const watchDatabaseOpens = async (_input: object) => {
 export const databaseOpenCount = async (_input: object) => {
   void _input;
   return databaseOpens;
+};
+
+export const keyUseAudit = async (_input: object) => {
+  void _input;
+  return (
+    globalThis as typeof globalThis & {
+      __BEARER_KEY_AUDIT__: {
+        generatedKeys: number;
+        signatures: number;
+        keyStoreAccesses: number;
+        databaseOpens: number;
+      };
+    }
+  ).__BEARER_KEY_AUDIT__;
 };

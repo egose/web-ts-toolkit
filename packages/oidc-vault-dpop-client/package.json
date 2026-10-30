@@ -1,6 +1,6 @@
 {
   "name": "@web-ts-toolkit/oidc-vault-dpop-client",
-  "description": "DPoP browser client for @web-ts-toolkit/express-oidc-vault with body+cookie transports",
+  "description": "Browser vault sessions and scoped fetch with default DPoP or explicit Bearer, body+cookie transports",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/oidc-vault-dpop-client",
   "version": "0.0.0-PLACEHOLDER",
   "license": "PLACEHOLDER",
@@ -9,6 +9,7 @@
   "keywords": [
     "oidc",
     "dpop",
+    "bearer",
     "browser",
     "authentication",
     "proof-of-possession"

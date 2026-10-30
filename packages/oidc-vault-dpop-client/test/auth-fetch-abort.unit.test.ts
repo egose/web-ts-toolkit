@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchWithDpop, type DpopFetchContext } from '../src/auth-fetch';
-import type { DpopAccessToken } from '../src/credentials';
+import { fetchWithDpop, type BearerFetchContext, type DpopFetchContext } from '../src/auth-fetch';
+import type { OidcVaultBearerSession } from '../src/auth-session';
+import type { BearerAccessToken, DpopAccessToken } from '../src/credentials';
 import type { DpopKey } from '../src/dpop-key-store';
 import { createDpopProof } from '../src/dpop-proof';
 
@@ -368,4 +369,238 @@ describe('DPH-03 API transport failures', () => {
       expect(f.refresh).not.toHaveBeenCalled();
     },
   );
+});
+
+const bearerCredential: BearerAccessToken = {
+  accessToken: 'opaque-token',
+  tokenType: 'Bearer',
+  expiresAt: NOW + 60_000,
+  generation: 'bearer-unit',
+};
+const bearerFixture = () => {
+  const refresh = vi.fn(async () => bearerCredential);
+  const getAccessToken = vi.fn<() => BearerAccessToken | undefined>(() => bearerCredential);
+  const getKey = vi.fn(async () => key);
+  const clear = vi.fn(async () => {});
+  const request = vi.fn<typeof fetch>(async () => Response.json({ ok: true }));
+  const session: OidcVaultBearerSession & { getKey: typeof getKey } = {
+    dpop: false,
+    scopeId: 'bearer-unit',
+    sessionTransport: 'body',
+    login: async () => {},
+    exchange: async () => bearerCredential,
+    logout: async () => {},
+    dispose() {},
+    refresh,
+    getAccessToken,
+    getKey,
+    clear,
+  };
+  const context: BearerFetchContext = {
+    session,
+    apis: [{ origin: 'https://api.example.com' }],
+    fetch: request,
+    now: () => NOW,
+  };
+  return { context, refresh, getAccessToken, getKey, clear, request };
+};
+const bearerChallenge = () =>
+  new Response('caller-owned', { status: 401, headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"' } });
+const expectBearerKeyless = (f: ReturnType<typeof bearerFixture>) => {
+  expect(f.getKey).not.toHaveBeenCalled();
+  expect(createDpopProof).not.toHaveBeenCalled();
+  expect(f.clear).not.toHaveBeenCalled();
+};
+
+describe('OBEAR-04 Bearer caller cancellation and response ownership', () => {
+  it.each(['missing', 'expired', 'live'] as const)(
+    'pre-aborted %s credentials do no auth/network work',
+    async (kind) => {
+      const f = bearerFixture();
+      f.getAccessToken.mockReturnValue(
+        kind === 'missing' ? undefined : { ...bearerCredential, expiresAt: kind === 'expired' ? NOW : NOW + 60_000 },
+      );
+      const controller = new AbortController();
+      const reason = new Error('caller cancelled');
+      controller.abort(reason);
+      await expect(fetchWithDpop(f.context, target, { signal: controller.signal })).rejects.toBe(reason);
+      expect(f.getAccessToken).not.toHaveBeenCalled();
+      expect(f.refresh).not.toHaveBeenCalled();
+      expect(f.request).not.toHaveBeenCalled();
+      expectBearerKeyless(f);
+    },
+  );
+
+  it('aborts only one caller waiting on shared refresh and leaves the other usable', async () => {
+    const f = bearerFixture();
+    f.getAccessToken.mockReturnValue(undefined);
+    const pending = deferred(bearerCredential);
+    f.refresh.mockReturnValue(pending.promise);
+    const controller = new AbortController();
+    const first = observe(fetchWithDpop(f.context, target, { signal: controller.signal }));
+    const second = observe(fetchWithDpop(f.context, target));
+    controller.abort();
+    await drain();
+    expect(first.result).toEqual({ error: controller.signal.reason });
+    expect(second.result).toBeUndefined();
+    expect(f.request).not.toHaveBeenCalled();
+    expect(f.refresh.mock.calls).toEqual([[], []]); // Caller signals are never passed into shared work.
+    pending.resolve(bearerCredential);
+    await drain();
+    expect(second.result).toMatchObject({ value: { status: 200 } });
+    expect(f.request).toHaveBeenCalledOnce();
+    expectBearerKeyless(f);
+  });
+
+  it('observes a late shared-refresh rejection after caller cancellation', async () => {
+    const f = bearerFixture();
+    f.getAccessToken.mockReturnValue(undefined);
+    const pending = deferred(bearerCredential);
+    f.refresh.mockReturnValueOnce(pending.promise);
+    const controller = new AbortController();
+    const running = observe(fetchWithDpop(f.context, target, { signal: controller.signal }));
+    controller.abort();
+    await drain();
+    expect(running.result).toEqual({ error: controller.signal.reason });
+    pending.reject(new Error('late shared refresh failure'));
+    await drain();
+    expect(f.request).not.toHaveBeenCalled();
+    expectBearerKeyless(f);
+  });
+
+  it('stops a challenge-triggered refresh wait without forwarding the caller signal', async () => {
+    const f = bearerFixture();
+    const pending = deferred(bearerCredential);
+    const entered = deferred<void>(undefined);
+    f.request.mockResolvedValueOnce(bearerChallenge());
+    f.refresh.mockImplementationOnce(() => {
+      entered.resolve();
+      return pending.promise;
+    });
+    const controller = new AbortController();
+    const running = observe(fetchWithDpop(f.context, target, { signal: controller.signal }));
+    await entered.promise;
+    controller.abort();
+    await drain();
+    expect(running.result).toEqual({ error: controller.signal.reason });
+    pending.resolve(bearerCredential);
+    await drain();
+    expect(f.refresh).toHaveBeenCalledExactlyOnceWith({ rejectedToken: bearerCredential.accessToken });
+    expect(f.request).toHaveBeenCalledOnce();
+    expectBearerKeyless(f);
+  });
+
+  it.each(['resolve', 'reject'] as const)(
+    'aborts noncooperative HTTP and handles its late %s without refresh',
+    async (ending) => {
+      const f = bearerFixture();
+      const response = bearerChallenge();
+      const cancel = vi.spyOn(response.body!, 'cancel').mockRejectedValue(new Error('cleanup failed'));
+      const pending = deferred(response);
+      f.request.mockReturnValueOnce(pending.promise);
+      const controller = new AbortController();
+      const added = vi.spyOn(controller.signal, 'addEventListener');
+      const removed = vi.spyOn(controller.signal, 'removeEventListener');
+      const running = observe(fetchWithDpop(f.context, target, { signal: controller.signal }));
+      expect(f.request.mock.calls[0][1]?.signal).toBe(controller.signal);
+      controller.abort();
+      await drain();
+      expect(running.result).toEqual({ error: controller.signal.reason });
+      for (const [, listener] of added.mock.calls) expect(removed).toHaveBeenCalledWith('abort', listener);
+      if (ending === 'resolve') pending.resolve(response);
+      else pending.reject(new Error('late network failure'));
+      await drain();
+      expect(cancel).toHaveBeenCalledTimes(ending === 'resolve' ? 1 : 0);
+      expect(f.refresh).not.toHaveBeenCalled();
+      expect(f.request).toHaveBeenCalledOnce();
+      expectBearerKeyless(f);
+    },
+  );
+
+  it.each(['throws', 'rejects', 'stalls'] as const)(
+    '%s from retry-response cleanup cannot replace or delay the result',
+    async (behavior) => {
+      const f = bearerFixture();
+      const response = bearerChallenge();
+      const cancellation = deferred<void>(undefined);
+      const cancel = vi.spyOn(response.body!, 'cancel').mockImplementation(() => {
+        if (behavior === 'throws') throw new Error('cleanup threw');
+        if (behavior === 'rejects') return Promise.reject(new Error('cleanup failed'));
+        return cancellation.promise;
+      });
+      const final = new Response('done');
+      f.request.mockResolvedValueOnce(response).mockResolvedValueOnce(final);
+      const running = observe(fetchWithDpop(f.context, target));
+      await drain();
+      expect(running.result).toEqual({ value: final });
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(f.request).toHaveBeenCalledTimes(2);
+      expect(f.refresh).toHaveBeenCalledOnce();
+      expectBearerKeyless(f);
+      if (behavior === 'stalls') cancellation.reject(new Error('late cleanup failure'));
+    },
+  );
+
+  it('keeps the primary refresh failure when response cleanup also rejects', async () => {
+    const f = bearerFixture();
+    const response = bearerChallenge();
+    vi.spyOn(response.body!, 'cancel').mockRejectedValue(new Error('secondary failure'));
+    f.request.mockResolvedValueOnce(response);
+    const primary = new Error('primary refresh failure');
+    f.refresh.mockRejectedValueOnce(primary);
+    await expect(fetchWithDpop(f.context, target)).rejects.toBe(primary);
+    expect(f.request).toHaveBeenCalledOnce();
+    expectBearerKeyless(f);
+  });
+
+  it('does no refresh if cleanup synchronously aborts the caller', async () => {
+    const f = bearerFixture();
+    const response = bearerChallenge();
+    const controller = new AbortController();
+    const reason = new Error('caller cancelled');
+    vi.spyOn(response.body!, 'cancel').mockImplementation(() => {
+      controller.abort(reason);
+      throw new Error('cleanup failed');
+    });
+    f.request.mockResolvedValueOnce(response);
+    await expect(fetchWithDpop(f.context, target, { signal: controller.signal })).rejects.toBe(reason);
+    expect(f.refresh).not.toHaveBeenCalled();
+    expect(f.request).toHaveBeenCalledOnce();
+    expectBearerKeyless(f);
+  });
+
+  it('discards a response arriving as its caller aborts and starts no refresh', async () => {
+    const f = bearerFixture();
+    const response = bearerChallenge();
+    const cancel = vi.spyOn(response.body!, 'cancel');
+    const controller = new AbortController();
+    f.request.mockImplementationOnce(async () => {
+      controller.abort();
+      return response;
+    });
+    await expect(fetchWithDpop(f.context, target, { signal: controller.signal })).rejects.toBe(
+      controller.signal.reason,
+    );
+    await drain();
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(f.refresh).not.toHaveBeenCalled();
+    expectBearerKeyless(f);
+  });
+
+  it('detaches listeners and leaves the final body with the caller, including at the retry limit', async () => {
+    const f = bearerFixture();
+    const last = bearerChallenge();
+    const cancel = vi.spyOn(last.body!, 'cancel');
+    f.request.mockResolvedValueOnce(bearerChallenge()).mockResolvedValueOnce(last);
+    const controller = new AbortController();
+    const added = vi.spyOn(controller.signal, 'addEventListener');
+    const removed = vi.spyOn(controller.signal, 'removeEventListener');
+    await expect(fetchWithDpop(f.context, target, { signal: controller.signal })).resolves.toBe(last);
+    for (const [, listener] of added.mock.calls) expect(removed).toHaveBeenCalledWith('abort', listener);
+    expect(cancel).not.toHaveBeenCalled();
+    expect(await last.text()).toBe('caller-owned');
+    expect(f.request).toHaveBeenCalledTimes(2);
+    expect(f.refresh).toHaveBeenCalledOnce();
+    expectBearerKeyless(f);
+  });
 });

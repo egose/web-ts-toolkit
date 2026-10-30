@@ -23,6 +23,9 @@ export const keyLost = (): OidcVaultDpopClientError =>
 export const loginRequired = (): OidcVaultDpopClientError =>
   new OidcVaultDpopClientError('LOGIN_REQUIRED', 'Sign in to continue.', true);
 
+export const dpopOperationUnsupported = (): OidcVaultDpopClientError =>
+  new OidcVaultDpopClientError('DPOP_OPERATION_UNSUPPORTED', 'This operation requires a DPoP session.');
+
 export const vaultRequestTimeout = (): OidcVaultDpopClientError =>
   new OidcVaultDpopClientError('DPOP_REQUEST_TIMEOUT', 'The vault request timed out.');
 

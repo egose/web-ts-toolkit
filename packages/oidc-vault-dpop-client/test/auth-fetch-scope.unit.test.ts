@@ -2,8 +2,16 @@ import { createServer } from 'node:http';
 import { calculateJwkThumbprint, compactVerify, decodeJwt, importJWK } from 'jose';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { fetchWithDpop, type DpopApi, type DpopFetchContext, type DpopFetchOptions } from '../src/auth-fetch';
-import type { DpopAccessToken } from '../src/credentials';
+import {
+  fetchWithDpop,
+  type BearerApi,
+  type BearerFetchContext,
+  type DpopApi,
+  type DpopFetchContext,
+  type DpopFetchOptions,
+} from '../src/auth-fetch';
+import type { OidcVaultBearerSession } from '../src/auth-session';
+import type { BearerAccessToken, DpopAccessToken } from '../src/credentials';
 import type { DpopKey } from '../src/dpop-key-store';
 import { DpopNonceCache } from '../src/nonce-cache';
 
@@ -551,3 +559,253 @@ describe.each(['key', 'initial refresh', 'challenge refresh'] as const)(
     );
   },
 );
+
+const bearerFixture = (apis: readonly BearerApi[]) => {
+  const token: BearerAccessToken = {
+    accessToken: 'opaque-api-token',
+    tokenType: 'Bearer',
+    generation: 'unit',
+    expiresAt: NOW + 60_000,
+  };
+  const getAccessToken = vi.fn<() => BearerAccessToken | undefined>(() => token);
+  const refresh = vi.fn(async () => token);
+  const getKey = vi.fn(async () => key);
+  const clear = vi.fn(async () => {});
+  const request = vi.fn<typeof fetch>(async (input, init) => {
+    new Request(input, init);
+    return success();
+  });
+  const session: OidcVaultBearerSession & { getKey: typeof getKey } = {
+    dpop: false,
+    scopeId: 'bearer-gateway',
+    sessionTransport: 'body',
+    login: async () => {},
+    exchange: async () => token,
+    logout: async () => {},
+    dispose() {},
+    getAccessToken,
+    refresh,
+    getKey,
+    clear,
+  };
+  const context: BearerFetchContext = { session, apis, fetch: request, now: () => NOW };
+  return { context, getAccessToken, refresh, getKey, clear, request };
+};
+const expectNoBearerAuthWork = (f: ReturnType<typeof bearerFixture>) => {
+  for (const helper of [f.getAccessToken, f.refresh, f.getKey, f.clear, f.request])
+    expect(helper).not.toHaveBeenCalled();
+};
+
+describe('OBEAR-04 Bearer scope validation before auth', () => {
+  it.each([
+    'https://other.example.com/orders',
+    `${ORIGIN}/orders-evil`,
+    `${ORIGIN}/orders%2Fevil`,
+    `${ORIGIN}/orders%5Cevil`,
+    `${ORIGIN}/Orders`,
+    `${ORIGIN}/orders/../billing`,
+    `${ORIGIN}/orders/%2e%2e/billing`,
+    `${ORIGIN}/%2forders`,
+    `${ORIGIN}//orders`,
+    `${ORIGIN}/billing?next=/orders#orders`,
+  ])('rejects cross-origin/path %s before credential/refresh/key/network work', async (input) => {
+    const f = bearerFixture([{ origin: ORIGIN, pathPrefix: '/orders/' }]);
+    f.getAccessToken.mockReturnValue(undefined);
+    const sign = vi.spyOn(crypto.subtle, 'sign');
+    await expect(fetchWithDpop(f.context, input)).rejects.toMatchObject({
+      code: 'DPOP_API_OUT_OF_SCOPE',
+      requiresLogin: false,
+    });
+    expectNoBearerAuthWork(f);
+    expect(sign).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['/orders', 'INVALID_DPOP_TARGET'],
+    ['//gateway.example.com/orders', 'INVALID_DPOP_TARGET'],
+    ['https://user@gateway.example.com/orders', 'INVALID_DPOP_TARGET'],
+    ['ftp://gateway.example.com/orders', 'INVALID_DPOP_TARGET'],
+    [`${ORIGIN}/orders\\..\\billing`, 'INVALID_DPOP_TARGET'],
+    [`${ORIGIN}/bad%/../orders`, 'INVALID_DPOP_TARGET'],
+    [`${ORIGIN}/orders/%zz/..`, 'INVALID_DPOP_TARGET'],
+    ['http://insecure.example.com/orders', 'DPOP_API_OUT_OF_SCOPE'],
+  ])('rejects malformed/insecure target %s before auth', async (input, code) => {
+    const f = bearerFixture([{ origin: ORIGIN, pathPrefix: '/orders' }]);
+    await expect(fetchWithDpop(f.context, input)).rejects.toMatchObject({ code, requiresLogin: false });
+    expectNoBearerAuthWork(f);
+  });
+
+  it.each([
+    { pathPrefix: '' },
+    { pathPrefix: 'orders' },
+    { pathPrefix: 'https://attacker.test/orders' },
+    { pathPrefix: '//attacker.test/orders' },
+    { pathPrefix: '/.//orders' },
+    { pathPrefix: '/orders?x' },
+    { pathPrefix: '/orders#x' },
+    { pathPrefix: '/orders\\billing' },
+    { pathPrefix: '/bad%/../orders' },
+    { pathPrefix: '/orders/ space' },
+    { pathPrefix: '/orders/\0' },
+    { pathPrefix: 42 },
+    { pathPrefix: null },
+    { origin: `${ORIGIN}/orders` },
+    { origin: `${ORIGIN}?q=1` },
+    { origin: `${ORIGIN}#fragment` },
+    { origin: `${ORIGIN}/orders/..` },
+  ])('validates every malformed origin/path even after a matching scope: %j', async (invalid) => {
+    const f = bearerFixture([
+      { origin: ORIGIN, pathPrefix: '/orders' },
+      { origin: ORIGIN, pathPrefix: '/other', ...invalid } as unknown as BearerApi,
+    ]);
+    await expect(fetchWithDpop(f.context, `${ORIGIN}/orders`)).rejects.toMatchObject({
+      code: 'INVALID_DPOP_TARGET',
+      requiresLogin: false,
+    });
+    expectNoBearerAuthWork(f);
+  });
+
+  it.each([
+    { replayNamespace: '' },
+    { replayNamespace: 'x'.repeat(129) },
+    { replayNamespace: '\n' },
+    { replayNamespace: 'trailing\n' },
+    { replayNamespace: 'trailing\r' },
+    { replayNamespace: '\t' },
+    { replayNamespace: '\x7f' },
+    { replayNamespace: 'caf\xe9' },
+    { replayNamespace: 12 },
+    { replayNamespace: null },
+    { credentials: 'same-origin' },
+    { credentials: null },
+    { credentials: false },
+    { origin: null },
+  ])('validates supplied namespaces and other policies even on an unselected scope: %j', async (invalid) => {
+    const f = bearerFixture([
+      { origin: ORIGIN, pathPrefix: '/orders' },
+      { origin: ORIGIN, pathPrefix: '/other', ...invalid } as unknown as BearerApi,
+    ]);
+    await expect(fetchWithDpop(f.context, `${ORIGIN}/orders`)).rejects.toMatchObject({
+      code: 'INVALID_DPOP_API_CONFIG',
+      requiresLogin: false,
+    });
+    expectNoBearerAuthWork(f);
+  });
+
+  it.each([undefined, ' ', '~', 'x'.repeat(128)])(
+    'accepts omission or valid unused replayNamespace=%j',
+    async (replayNamespace) => {
+      const f = bearerFixture([{ origin: ORIGIN, replayNamespace }]);
+      await fetchWithDpop(f.context, `${ORIGIN}/orders`);
+      expect(f.request).toHaveBeenCalledOnce();
+      expect(f.getKey).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [undefined, '/'],
+    ['/orders', '/ord%65rs/'],
+    ['/orders', '/discard/%2e%2e/orders'],
+    ['/orders%2farchive', '/orders%2Farchive'],
+    ['/', '/orders/..'],
+  ])('rejects duplicate normalized scopes %j / %j without namespaces', async (first, second) => {
+    const f = bearerFixture([
+      { origin: ORIGIN, pathPrefix: first },
+      { origin: 'https://GATEWAY.example.com:443/', pathPrefix: second },
+    ]);
+    await expect(fetchWithDpop(f.context, `${ORIGIN}/orders`)).rejects.toMatchObject({
+      code: 'INVALID_DPOP_API_CONFIG',
+    });
+    expectNoBearerAuthWork(f);
+  });
+
+  it('does not ignore insecure or duplicate unselected origin scopes', async () => {
+    for (const extra of [
+      [{ origin: 'http://insecure.example.com' }],
+      [{ origin: 'https://other.example.com' }, { origin: 'https://other.example.com' }],
+    ]) {
+      const f = bearerFixture([{ origin: ORIGIN }, ...extra]);
+      await expect(fetchWithDpop(f.context, `${ORIGIN}/orders`)).rejects.toMatchObject({ requiresLogin: false });
+      expectNoBearerAuthWork(f);
+    }
+  });
+
+  it.each([undefined, null, {}, [null], [false]])('rejects invalid API lists/entries %j before auth', async (apis) => {
+    const f = bearerFixture(apis as unknown as readonly BearerApi[]);
+    await expect(fetchWithDpop(f.context, `${ORIGIN}/orders`)).rejects.toMatchObject({
+      code: 'INVALID_DPOP_API_CONFIG',
+    });
+    expectNoBearerAuthWork(f);
+  });
+});
+
+describe('OBEAR-04 Bearer canonical selection and snapshots', () => {
+  it.each([
+    ['/orders', 'omit'],
+    ['/orders/42', 'omit'],
+    ['/orders/admin', 'include'],
+    ['/%6frders/%61dmin/users', 'include'],
+    ['/orders/admin-evil', 'omit'],
+    ['/orders/%2e%2e/billing', 'include'],
+    ['/orders-evil', 'omit'],
+  ])('selects longest normalized segment scope for %s independent of order', async (path, credentials) => {
+    const apis = [
+      { origin: ORIGIN },
+      { origin: ORIGIN, pathPrefix: '/orders' },
+      { origin: ORIGIN, pathPrefix: '/orders/admin/', credentials: 'include' },
+      { origin: ORIGIN, pathPrefix: '/billing', credentials: 'include' },
+    ] as const;
+    for (const order of [apis, [...apis].reverse()]) {
+      const f = bearerFixture(order);
+      await fetchWithDpop(f.context, `${ORIGIN}${path}`);
+      expect(f.request.mock.calls[0][1]).toMatchObject({ credentials, redirect: 'error', cache: 'no-store' });
+      expect(new Headers(f.request.mock.calls[0][1]?.headers).get('Authorization')).toBe('Bearer opaque-api-token');
+    }
+  });
+
+  it.each(['initial', 'challenge'] as const)(
+    'pins URL, method, headers and selected policy across %s refresh',
+    async (phase) => {
+      const selected: BearerApi = { origin: ORIGIN, pathPrefix: '/ord%65rs/', credentials: 'include' };
+      const f = bearerFixture([selected]);
+      const input = new URL(`${ORIGIN}/ord%65rs/%7eopen/a%2fb?keep=%2f+%20#part`);
+      const callerHeaders = new Headers({ 'X-Caller': 'original' });
+      const options: DpopFetchOptions = {
+        method: 'put',
+        retry: 'idempotent',
+        body: 'original-body',
+        headers: callerHeaders,
+      };
+      if (phase === 'initial') f.getAccessToken.mockReturnValue(undefined);
+      else
+        f.request.mockResolvedValueOnce(
+          new Response('retry', { status: 401, headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"' } }),
+        );
+      f.refresh.mockImplementationOnce(async () => {
+        selected.origin = 'https://attacker.test';
+        selected.pathPrefix = '/billing';
+        selected.credentials = 'omit';
+        selected.replayNamespace = 'changed';
+        input.href = 'https://attacker.test/billing';
+        options.method = 'DELETE';
+        callerHeaders.set('X-Caller', 'changed');
+        return { accessToken: 'fresh-token', tokenType: 'Bearer', generation: 'fresh', expiresAt: NOW + 60_000 };
+      });
+      await fetchWithDpop(f.context, input, options);
+      expect(f.request).toHaveBeenCalledTimes(phase === 'initial' ? 1 : 2);
+      for (const [url, init] of f.request.mock.calls) {
+        expect(url).toBe(`${ORIGIN}/orders/~open/a%2Fb?keep=%2f+%20#part`);
+        expect(init).toMatchObject({
+          method: 'PUT',
+          credentials: 'include',
+          redirect: 'error',
+          cache: 'no-store',
+          body: 'original-body',
+        });
+        expect(new Headers(init?.headers).get('X-Caller')).toBe('original');
+      }
+      expect(f.getKey).not.toHaveBeenCalled();
+      expect(f.clear).not.toHaveBeenCalled();
+    },
+  );
+});

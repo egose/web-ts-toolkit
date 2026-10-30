@@ -1,8 +1,10 @@
 import { openDB } from 'idb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { parseCookieSessionVersion, sameCookieBinding } from '../src/cookie-session';
 import {
   DPOP_DATABASE_NAME,
+  readCookieSessionVersion,
   readDpopScopeState,
   removeDpopScope,
   writeCookieSessionVersion,
@@ -306,4 +308,84 @@ describe('DPH-06 scoped key/metadata transaction authority', () => {
     await expect(readDpopScopeState('scope', f.authority)).rejects.toMatchObject({ code: 'DPOP_SESSION_DISPOSED' });
     expect(openDB).not.toHaveBeenCalled();
   });
+});
+
+describe('OBEAR-03 mode-discriminated cookie metadata', () => {
+  it.each([
+    [
+      { jkt: 'key', generation: 'legacy', active: true },
+      { jkt: 'key', generation: 'legacy', active: true },
+    ],
+    [
+      { mode: 'dpop', jkt: 'key', generation: 'bound', active: true },
+      { mode: 'dpop', jkt: 'key', generation: 'bound', active: true },
+    ],
+    [
+      {
+        mode: 'bearer',
+        generation: 'unbound',
+        active: true,
+        refreshedAt: 1_800_000_000_000,
+        sessionId: 'never-project',
+        accessToken: 'never-project',
+      },
+      { mode: 'bearer', generation: 'unbound', active: true, refreshedAt: 1_800_000_000_000 },
+    ],
+  ])('reads only validated coordination fields without accessing the key store (%j)', async (record, expected) => {
+    const get = vi.fn(async () => record);
+    const close = vi.fn();
+    vi.mocked(openDB).mockResolvedValue({ get, close } as unknown as Awaited<ReturnType<typeof openDB>>);
+    expect(await readCookieSessionVersion('scope')).toEqual(expected);
+    expect(get).toHaveBeenCalledExactlyOnceWith('cookieSessions', 'scope');
+    expect(openDB).toHaveBeenCalledWith(DPOP_DATABASE_NAME, 1, expect.any(Object));
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    undefined,
+    null,
+    [],
+    {},
+    { generation: 'missing-mode', active: true },
+    { mode: 'unknown', jkt: 'key', generation: 'g', active: true },
+    { mode: 'bearer', jkt: undefined, generation: 'g', active: true },
+    { mode: 'bearer', jkt: 'fake-binding', generation: 'g', active: true },
+    { mode: 'bearer', generation: '', active: true },
+    { mode: 'bearer', generation: 'g', active: 'true' },
+  ])('rejects ambiguous/corrupt mode records (%j)', (record) => {
+    expect(parseCookieSessionVersion(record)).toBeUndefined();
+  });
+
+  it('legacy records/messages are DPoP only, never the same binding as Bearer', () => {
+    const legacy = { jkt: 'key', generation: 'g', active: true };
+    expect(sameCookieBinding(legacy, { ...legacy, mode: 'dpop' })).toBe(true);
+    expect(sameCookieBinding(legacy, { mode: 'bearer', generation: 'g', active: true })).toBe(false);
+    expect(
+      sameCookieBinding(
+        { mode: 'bearer', generation: 'g', active: true },
+        { mode: 'bearer', generation: 'new', active: true },
+      ),
+    ).toBe(false);
+  });
+
+  it.each(['bearer', 'dpop'] as const)(
+    'rechecks the captured generation inside deletion and preserves a newer %s row and key',
+    async (mode) => {
+      const f = scopeFixture();
+      const expected = { jkt: 'old-key', generation: 'old-generation', active: true };
+      f.rows.cookieSessions.set(
+        'scope',
+        mode === 'bearer'
+          ? { mode, generation: 'replacement', active: true }
+          : { mode, jkt: 'old-key', generation: 'replacement', active: true },
+      );
+      const removing = removeDpopScope('scope', f.authority, (current) => sameCookieBinding(current.version, expected));
+      f.done.resolve();
+      expect(await removing).toBeUndefined();
+      expect(f.deleted).toEqual([]);
+      expect(f.rows.keys.has('scope')).toBe(true);
+      expect(f.rows.cookieSessions.has('scope')).toBe(true);
+      expect(f.transaction).toHaveBeenCalledWith(['keys', 'cookieSessions'], 'readwrite');
+    },
+  );
 });

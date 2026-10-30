@@ -1,12 +1,16 @@
-@web-ts-toolkit/oidc-vault-dpop-client — browser DPoP vault sessions and API fetch.
-Start with README.md: Quickstart, Recovery, Lifecycle, HTTP, Gateway, Upgrade notes.
+@web-ts-toolkit/oidc-vault-dpop-client — browser vault sessions and scoped API fetch.
+Start with README.md: Quickstart, Explicit Bearer, Backend pairing, Recovery, Upgrade notes.
+Omitted/true dpop = unchanged default DPoP; explicit false = immutable Bearer.
+No automatic fallback/negotiation. Fresh login to switch, never rebind by refresh.
+Both modes use app-local tokens, NOT IdP access/ID/refresh tokens. Bearer theft permits replay.
 Session maintenance: README "Observing credentials" and "Opt-in proactive refresh".
 
 Install: pnpm add @web-ts-toolkit/oidc-vault-dpop-client
 jose + idb are dependencies. No Express/backend runtime or ambient types needed.
 Node tooling/import/require: >=22.12.0 (CJS uses default require(esm) for jose).
-Browser sessions need secure-context Web Crypto, IndexedDB CryptoKey persistence
-and sessionStorage; cookie mode also needs Web Locks + BroadcastChannel.
+DPoP needs secure-context Web Crypto, IndexedDB CryptoKey persistence + sessionStorage.
+Body Bearer needs secure-context digest/UUID + sessionStorage, NOT IndexedDB/CryptoKey.
+Cookie Bearer needs IndexedDB metadata + Web Locks + BroadcastChannel (as does cookie DPoP).
 Named root imports only, no default export/subpaths or src/dist deep imports:
   import { createOidcVaultDpopSession, fetchWithDpop } from
     '@web-ts-toolkit/oidc-vault-dpop-client';
@@ -24,7 +28,19 @@ login/exchange include temporary cookies; refresh/logout body=omit+sessionId,
 cookie=include+{} (no handle in JSON). JWTs: memory; handles/pending login:
 tab-local sessionStorage; scoped keys/coordination metadata: IndexedDB.
 
-onCredentialsChanged(DpopAccessToken|undefined): asynchronous/coalesced latest
+Explicit Bearer: createOidcVaultDpopSession({...options,dpop:false}); same helper names,
+no aliases/default export. Pair primarily with optional vault binding + local tokenIssuer.
+Disabled binding WITH recognition can supply guarded POST login; disabled WITHOUT recognition
+is unsupported (no legacy GET fallback). Required vault binding rejects Bearer. APIs must
+independently authenticate/authorize unbound tokens; required API binding still rejects them.
+Bearer interface omits getKey/resetKey/logoutAndNavigate; runtime probes reject fixed
+nonterminal DPOP_OPERATION_UNSUPPORTED before side effects. Ordinary logout works after expiry.
+New root types: BearerAccessToken, OidcVaultAccessToken, OidcVaultBearerSessionOptions,
+OidcVaultSessionOptions, OidcVaultBearerSession, OidcVaultSession, BearerApi,
+BearerFetchContext, OidcVaultFetchContext. Existing DPoP types remain exact/required-jkt.
+Runtime-boolean options return session.dpop union; observer narrows tokenType before jkt.
+
+onCredentialsChanged(mode credential|undefined): asynchronous/coalesced latest
 committed state, independent of scheduling; includes API refresh/peer adoption/clear.
 Never await observers or persist tokens; callback failures cannot veto rotation.
 autoRefresh: omitted/false by default; object enables after explicit exchange/refresh.
@@ -43,6 +59,11 @@ Bound profile: exact DPoP, canonical compact signed JWT, exact cnf:{jkt}, safe
 mandatory exp seconds/millisecond arithmetic. Decoding is NOT authentication;
 APIs verify JWT/proof. Server unbound/opaque compatibility remains. expiresIn:0
 retains rotation handles but no live API/peer token (DPOP_ACCESS_TOKEN_EXPIRED).
+Bearer direct tokenType exact Bearer or omitted/undefined normalized; peers exact Bearer.
+Header-safe visible-ASCII opaque tokens supported; exactly3 segments reserve canonical signed
+JWT profile, malformed candidates reject, no b64:false/present cnf; optional safe exp clamps.
+INVALID_BEARER_CREDENTIAL_RESPONSE terminal; invalid peers ignored. Zero lifetime retains
+handles, nonlive use pauses/stops with nonterminal BEARER_ACCESS_TOKEN_EXPIRED, no loop.
 
 Lifecycle/recovery: FIFO mutations; refresh coalesces until an intervening call.
 Cookie mode adds same-origin/scope locks + 180ms peer wait. clear invalidates local
@@ -52,8 +73,15 @@ need this explicit recovery; no automatic reset/Bearer fallback. logout requests
 server revocation; reset leaves old sessions/JWTs until revocation/expiry.
 DPOP_OPERATION_SUPERSEDED / DPOP_SESSION_DISPOSED are non-terminal; stale work
 cannot publish/navigate/clear newer auth. See README's cleanup/recovery tables.
+Cookie mode/generation union uses SAME historical lock/channel/database; no fake jkt,
+key migration or Bearer key-store reads. Missing-mode legacy records/messages mean DPoP-only.
+Reload needs active same-mode metadata. Same mode/generation/current recognition/expiry
+plus final metadata recheck gate peer adoption; opposite modes never adopt/clear successor.
+Unmodified old tabs cannot honor mode authority: close/reload/upgrade before switching,
+then fresh login. Mixed old-version/mode tabs on one cookie authority are unsupported;
+independent modes require distinct backend cookie authorities. JWTs not instantly revoked.
 
-Provider logout: server logoutNavigation opt-in + session.logoutAndNavigate():Promise<void>.
+Provider logout (DPoP ONLY): server logoutNavigation opt-in + session.logoutAndNavigate():Promise<void>.
 Existing key/handle or active matching cookie metadata; absent/expired JWT works,
 no refresh/fingerprint/Authorization/ath. Same HTTP bounds/nonce cache, one fresh-proof retry.
 Exact pinned backend bare or canonical ticket URL only; no API token in GET/IdP URL in JSON.
@@ -82,6 +110,11 @@ only unambiguous HTTP-401 DPoP challenges qualify. Mutations default single-atte
 'idempotent' needs a server contract; 'never' forbids retries. Learn success/final
 nonces even without retry: 64 tuples, oldest-remembered eviction, no inferred TTL.
 Vaults retry nonce once, then DPOP_NONCE_RETRY_EXHAUSTED; final API Responses are caller-owned.
+Bearer API: only Authorization:Bearer, no proof/key/nonce work. Namespace optional ONLY
+definitely-Bearer contexts; supplied values validated but unused. Runtime mode needs namespaces.
+Bearer permits at most2 API attempts and one shared refresh budget incl initial acquisition;
+only valid active-scheme HTTP401 invalid_token if retry policy allows. No nonce retry.
+Other-scheme/malformed/generic errors authorize no retries; unsafe defaults/'never' unchanged.
 
 Errors: requiresLogin covers terminal session/key/browser/recognition failures,
 and confirmed current OIDC_VAULT_REFRESH_REJECTED (not specifically expiry).

@@ -1,9 +1,12 @@
 # `@web-ts-toolkit/oidc-vault-dpop-client`
 
-Browser-only DPoP client for [`@web-ts-toolkit/express-oidc-vault`](https://web-ts-toolkit.pages.dev/docs/packages/express-oidc-vault)
-vault flows, with `body` and `cookie` session transports. Framework-agnostic
-vanilla TypeScript: persistent non-extractable P-256 keys, per-attempt proofs,
-bounded nonce/refresh retries, and tab coordination for cookie sessions.
+Browser-only client for [`@web-ts-toolkit/express-oidc-vault`](https://web-ts-toolkit.pages.dev/docs/packages/express-oidc-vault)
+vault flows, with `body` and `cookie` session transports. **DPoP is on by
+default** (omitted `dpop` or `dpop: true`): persistent non-extractable P-256 keys,
+per-attempt proofs and bounded nonce/refresh retries. Explicit `dpop: false`
+selects keyless **Bearer** for the whole session, never automatic fallback.
+Both modes use app-local credentials, **not IdP access, ID or refresh tokens**.
+Bearer token theft permits replay; it does not provide DPoP's sender constraint.
 
 The package ships at an `es2022` bundle target for modern evergreen browsers
 (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+, declared via `browserslist`).
@@ -12,7 +15,7 @@ and — cookie transport only — `navigator.locks` plus `BroadcastChannel`) laz
 behind runtime feature asserts, never at module import time. There is no
 `express`, no `node:*`, and no default export.
 
-**Guide:** [Quickstart](#quickstart-body-transport) ·
+**Guide:** [Quickstart](#quickstart-body-transport) · [Explicit Bearer](#explicit-bearer-mode) ·
 [Auto-refresh](#opt-in-proactive-refresh) · [Observation](#observing-credentials) ·
 [Lifecycle/cleanup](#lifecycle-concurrency-and-cleanup) ·
 [HTTP bounds](#http-bounds-and-cancellation) · [Recovery](#key-loss-and-errors) ·
@@ -28,8 +31,11 @@ pnpm add @web-ts-toolkit/oidc-vault-dpop-client
 single install above is enough. Do not install them separately unless your own
 code imports them directly.
 
-**Requirements:** secure-context Web Crypto, IndexedDB `CryptoKey` persistence,
-and sessionStorage. Cookie transport also needs Web Locks + BroadcastChannel.
+**Requirements:** DPoP needs secure-context Web Crypto, IndexedDB `CryptoKey`
+persistence and sessionStorage. Body Bearer needs secure-context Web Crypto
+digest/UUID support and sessionStorage, **not IndexedDB or CryptoKey**. Cookie
+Bearer still needs IndexedDB for non-credential metadata, plus Web Locks and
+BroadcastChannel (also required for cookie DPoP). Keyless does not mean storage-free.
 Feature checks run when creating/using a session, so importing the module is
 safe before browser startup. Keep one lazy session per tab/vault mount.
 
@@ -66,10 +72,19 @@ import type {
   DpopFetchOptions,
   DpopKey,
   OidcVaultDpopSession,
+  BearerAccessToken,
+  BearerApi,
+  BearerFetchContext,
+  OidcVaultAccessToken,
+  OidcVaultBearerSession,
+  OidcVaultBearerSessionOptions,
+  OidcVaultSession,
+  OidcVaultSessionOptions,
+  OidcVaultFetchContext,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 export const sessionApi = { createOidcVaultDpopSession, fetchWithDpop };
-export type { DpopAccessToken, DpopKey, OidcVaultDpopSession };
+export type { DpopAccessToken, DpopKey, OidcVaultDpopSession, BearerAccessToken, OidcVaultSession };
 ```
 
 `DpopNonceCache` and the `DeviceFingerprint` family are also exported from the
@@ -180,9 +195,127 @@ fresh proof. Web Locks coordinate tabs of one frontend origin, storage
 partition, and vault scope — they are not a backend refresh lease, so other
 frontends, devices, or processes can still race upstream refresh families.
 
+## Explicit Bearer mode
+
+Use only with a [supported backend/API pairing](#backend-pairing). The names
+stay `createOidcVaultDpopSession` and `fetchWithDpop`; there is no rename or alias.
+The immutable selection is snapshotted at construction; nonboolean runtime
+values reject. Changing options later, a response or an authentication challenge
+cannot change mode. **Switching requires a fresh login**, not refreshing an
+existing bound session as Bearer. Close/reload old DPoP-only tabs first when
+replacing a shared cookie session (see [Storage](#storage)).
+
+```ts
+import {
+  createOidcVaultDpopSession,
+  fetchWithDpop,
+  OidcVaultDpopClientError,
+  type BearerAccessToken,
+  type OidcVaultBearerSessionOptions,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+const backendOrigin = 'https://api.example.com';
+let view: BearerAccessToken | undefined; // Optional memory-only mirror.
+const options: OidcVaultBearerSessionOptions = {
+  backendOrigin,
+  basePath: '/auth/oidc/body',
+  sessionTransport: 'body', // Or 'cookie' with the matching cookie mount.
+  dpop: false,
+  autoRefresh: { refreshBeforeExpiryMs: 60_000 }, // Optional; default is off.
+  onCredentialsChanged(credentials) {
+    view = credentials; // Inferred BearerAccessToken | undefined; no jkt.
+  },
+  onAutoRefreshError(error) {
+    // Report paused scheduling; never automatically retry an uncertain rotation.
+    console.error(error instanceof OidcVaultDpopClientError ? error.code : 'refresh-paused');
+  },
+};
+const session = createOidcVaultDpopSession(options);
+export const readView = () => view;
+export const signIn = (): Promise<void> => session.login('/callback');
+
+// Explicit callback/reload bootstrap, not performed by construction or autoRefresh.
+export async function bootstrap(): Promise<'ready' | 'sign-in'> {
+  try {
+    const url = new URL(location.href);
+    const code = url.searchParams.get('code');
+    if (code !== null) {
+      url.searchParams.delete('code');
+      history.replaceState(null, '', url.href);
+      await session.exchange(code);
+    } else await session.refresh();
+    return 'ready';
+  } catch (error) {
+    if (error instanceof OidcVaultDpopClientError && error.requiresLogin) return 'sign-in';
+    throw error;
+  }
+}
+
+export const refresh = (): Promise<BearerAccessToken> => session.refresh();
+export const loadProfile = (): Promise<Response> =>
+  fetchWithDpop({ session, apis: [{ origin: backendOrigin, pathPrefix: '/api' }] }, `${backendOrigin}/api/profile`); // Authorization: Bearer <app-local token>; no proof/nonce/key work.
+export const signOut = (): Promise<void> => session.logout();
+```
+
+An inline literal `dpop: false` infers the same Bearer observer/session types;
+existing `OidcVaultDpopSessionOptions` stays DPoP-only. For a **runtime boolean**,
+use the union options and narrow credentials by `tokenType`, sessions by `dpop`:
+
+```ts
+import {
+  createOidcVaultDpopSession,
+  fetchWithDpop,
+  type OidcVaultAccessToken,
+  type OidcVaultSessionOptions,
+  type OidcVaultFetchContext,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
+
+export function configureSession(dpopEnabled: boolean) {
+  let view: OidcVaultAccessToken | undefined;
+  const options: OidcVaultSessionOptions = {
+    backendOrigin: 'https://api.example.com',
+    dpop: dpopEnabled,
+    autoRefresh: { refreshBeforeExpiryMs: 60_000 },
+    onCredentialsChanged(credentials) {
+      view = credentials;
+      if (credentials?.tokenType === 'DPoP') credentials.jkt satisfies string;
+      // Bearer has no jkt; never invent one or persist the token.
+    },
+    onAutoRefreshError: () => {
+      /* Show explicit recovery UI. */
+    },
+  };
+  const session = createOidcVaultDpopSession(options);
+  // Runtime-mode contexts still need DPoP-compatible namespaces.
+  const context: OidcVaultFetchContext = {
+    session,
+    apis: [{ origin: options.backendOrigin, replayNamespace: 'app-api' }],
+  };
+  return {
+    session,
+    readView: () => view,
+    loadProfile: () => fetchWithDpop(context, `${options.backendOrigin}/api/profile`),
+  };
+}
+```
+
+Only definitely-Bearer `BearerApi`/`BearerFetchContext` may omit
+`replayNamespace`; a supplied namespace is validated but unused. Runtime-mode
+contexts require namespaces until narrowed to `!session.dpop`.
+Bearer's interface has **no `getKey`, `resetKey` or `logoutAndNavigate`**.
+Runtime probes reject fixed nonterminal `DPOP_OPERATION_UNSUPPORTED` before
+storage/key/network/navigation or lifecycle side effects. Ordinary `logout()`
+works even after app-token expiry. There is no unbound provider-navigation logout.
+
+Bearer uses the same FIFO, observers and default-off scheduler, HTTP bounds,
+scope/header restrictions, CSRF/transaction-cookie protection and credentials
+matrix. It never sends a DPoP proof, reads nonce headers or uses a nonce cache.
+An API must independently authenticate/authorize unbound credentials; choosing
+Bearer at the vault does not turn off an API's required-binding policy.
+
 ## Provider logout navigation
 
-With server `logoutNavigation` enabled, call **`logoutAndNavigate(): Promise<void>`**
+**DPoP only.** With server `logoutNavigation` enabled, call **`logoutAndNavigate(): Promise<void>`**
 from a user action. It confirms local logout, clears old frontend auth and invokes
 the synchronous `navigate(url)` adapter (default `location.assign`) inside lifecycle
 authority. `logout()` remains local-only. No return-URL/prepare API is needed.
@@ -304,6 +437,7 @@ The earlier deadline wins, with a one-second minimum scheduled cadence. A one-ho
 token with a 60-second lead refreshes around minute **59**. A 60-second token caps
 that lead to 30 seconds; extremely short credentials can expire before the cadence
 floor. Zero/nonlive results pause with non-terminal `DPOP_ACCESS_TOKEN_EXPIRED`
+(or `BEARER_ACCESS_TOKEN_EXPIRED` in Bearer mode)
 while retaining rotated handles. Repeated short results never start a tight loop.
 
 A one-hour app token can outlive a 30-minute provider idle timeout. Applications
@@ -364,6 +498,10 @@ queued behind refresh uses the rotated handle/cookie. Cookie operations also
 hold the scope's Web Lock across their HTTP work and credential publication.
 Body queues belong to the instance; they do not coordinate other instances or
 copied tab handles.
+
+The key/reset/navigation-logout details below apply only to DPoP. Bearer shares
+the common lifecycle methods, and cookie cleanup is mode/generation-guarded so
+an old context cannot invalidate another mode's replacement generation.
 
 Concurrent `refresh()` callers receive the **same Promise** until a call to
 `login`, `exchange`, `logout`, `logoutAndNavigate`, `clear`, or `resetKey` starts a new batch. The first caller's
@@ -524,8 +662,23 @@ Backend options that must agree with this client (authoritative wire contract:
 - `logoutNavigation: { fallbackRedirectUri }` enables provider navigation logout;
   configure/register `postLogoutRedirectUri` for provider return. Built-in stores
   supply ticket capabilities; custom stores need both optional ticket methods.
-- The API's `replayNamespace` must equal the `replayNamespace` configured in
+- The DPoP API's `replayNamespace` must equal the `replayNamespace` configured in
   `fetchWithDpop` `apis` entries.
+
+| Vault binding policy                           | Client pairing                                                                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `required`                                     | Omitted/true DPoP. Explicit Bearer is rejected; never downgrade.                                                             |
+| `optional`                                     | **Primary dual-mode target**: guarded POST login accepts DPoP or explicit unbound Bearer. Original binding survives refresh. |
+| Disabled + `fingerprintRecognition` configured | Existing guarded POST login can support Bearer. Recognition is optional enrollment/change detection, not PoP.                |
+| Disabled without recognition                   | **Unsupported by this client**: no guarded POST-login route. No legacy GET-login fallback; backend expansion is deferred.    |
+
+In all cases, configure a local `tokenIssuer` with the selected credential profile.
+APIs **independently** need unbound acceptance (e.g. optional API binding with
+request-aware verification, or an appropriate unbound-only validator). Required
+API binding rejects Bearer even when optional vault binding issued it. No server
+binding option re-enrolls or downgrades an existing session. Login/exchange retain
+their temporary browser-binding cookie; cookie refresh/logout retain strict
+Origin/Referer checks and trusted-origin/CORS requirements in both modes.
 
 ### Bound credential response
 
@@ -560,7 +713,28 @@ Invalid direct responses produce `INVALID_BOUND_CREDENTIAL_RESPONSE`; invalid
 or expired peer tokens are ignored. The paired server enforces the same bound
 JWT profile before claim mapping in **both** validator methods after JOSE
 verification. Generic unbound JWTs retain optional-expiry compatibility, and
-unbound issuers can still return opaque tokens; this client expects bound JWTs.
+unbound issuers can still return opaque tokens in explicit Bearer mode.
+
+### Bearer credential response
+
+Direct exchange/refresh accepts **exact `tokenType: 'Bearer'` or omission/undefined**,
+normalizing omission only in explicit Bearer mode. DPoP, lowercase and other values
+reject. Peers must already carry exact normalized `Bearer`. Tokens must be nonempty
+visible ASCII without whitespace, controls or commas. Opaque tokens are supported;
+**exactly three dot-separated segments are reserved for compact signed JWTs**.
+Malformed candidates are not reinterpreted as opaque: canonical nonempty unpadded
+base64url, a nonempty signing `alg` other than `none`, no `b64: false`, and **no
+present `cnf` claim** (even null) are required. Optional JWT `exp` must be safe,
+nonnegative integer epoch seconds and clamps the deadline when present.
+
+`expiresIn`, clock conversions/addition, user copying and body/cookie handle rules
+retain the bound profile's safe arithmetic. Zero lifetime retains a rotated handle
+but supplies no live API/peer token; nonlive use stops with nonterminal
+`BEARER_ACCESS_TOKEN_EXPIRED`, never a refresh loop. Cookie responses/peers have no
+`sessionId`, and Bearer peer envelopes have no `jkt`. Invalid direct responses are
+terminal `INVALID_BEARER_CREDENTIAL_RESPONSE`; invalid peers are advisory/ignored.
+This is **contract decoding, not authentication**. Each API must verify the token
+(JWT signature/claims or appropriate opaque validation) independently.
 
 ### CORS
 
@@ -578,6 +752,8 @@ Vault Origin/Referer checks run independently of CORS. Cookie-authenticated
 `backendOrigin` or `trustedOrigins` in every `SameSite` mode.
 
 ## Nonce retry rule
+
+This section's nonce behavior is **DPoP only**; Bearer ignores nonces entirely.
 
 When nonces are enabled, a missing/expired nonce returns fixed
 `OIDC_VAULT_USE_DPOP_NONCE`: **HTTP 400 at vault POSTs**
@@ -633,9 +809,9 @@ can likewise require a new challenge.
 
 The API `WWW-Authenticate` parser accepts auth-parameters in any order, token
 or quoted values, and other authentication schemes in the same field. Only
-**one unambiguous DPoP challenge** can trigger recovery. Bearer errors and
-quoted descriptions never supply a DPoP error. Duplicate parameter names
-(case-insensitive), multiple DPoP challenges, malformed/empty list members,
+**one unambiguous active-scheme challenge** can trigger recovery. Bearer errors
+never recover DPoP, or vice versa; quoted descriptions never supply an error.
+Duplicate parameter names (case-insensitive), multiple selected-scheme challenges, malformed/empty list members,
 or a field longer than **8,192 characters** cause no refresh/retry. A valid
 nonce header can still be learned independently of that decision. Vault
 status/nonce fields are captured before body reads, so an injected response
@@ -643,14 +819,15 @@ cannot change the recovery decision while its body is awaited.
 
 ## Storage
 
-| What                                                            | Where                                                     | Lifetime / scope                                                                                       |
-| --------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Access JWT                                                      | Memory only (`getAccessToken()`), never persisted         | Until `expiresAt`; closing every tab discards all tokens                                               |
-| Body handle `{ sessionId, jkt }`                                | `sessionStorage`, tab-local                               | Scoped key `oidc-vault-dpop:handle:<scope>`; do not copy across tabs                                   |
-| Pending-login `jkt` marker                                      | `sessionStorage`, survives the IdP navigation             | Cleared at `exchange`; missing marker means fresh login required                                       |
-| Cookie handle                                                   | Backend `HttpOnly` session cookie, never browser-readable | Backend session TTL (example: 8h absolute); no vault `sid` in the JWT payload                          |
-| DPoP private `CryptoKey` (non-extractable) + public JWK         | IndexedDB object stores                                   | Scope `[frontendOrigin, backendOrigin, normalizedBasePath]`; atomic first-key-wins across tabs         |
-| Cookie coordination `{ jkt, generation, active, refreshedAt? }` | IndexedDB, non-credential metadata only                   | Per scope; acquisition clock hint, not user activity; BroadcastChannel is transient (≤180ms peer wait) |
+| What                                                                    | Where                                                     | Lifetime / scope                                                                                       |
+| ----------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| App-local access token (DPoP JWT or Bearer JWT/opaque)                  | Memory only (`getAccessToken()`), never persisted         | Until `expiresAt`; closing every tab discards all tokens                                               |
+| Body handle `{ sessionId, jkt }`                                        | `sessionStorage`, tab-local                               | Scoped key `oidc-vault-dpop:handle:<scope>`; do not copy across tabs                                   |
+| Pending-login `jkt` marker                                              | `sessionStorage`, survives the IdP navigation             | Cleared at `exchange`; missing marker means fresh login required                                       |
+| Bearer body handle / pending marker (`mode: 'bearer'`, no jkt)          | Separate `sessionStorage` keys                            | `oidc-vault-bearer:handle:<scope>` / `oidc-vault-bearer:pending:<scope>`; no migration of DPoP markers |
+| Cookie handle                                                           | Backend `HttpOnly` session cookie, never browser-readable | Backend session TTL (example: 8h absolute); no vault `sid` in the JWT payload                          |
+| DPoP private `CryptoKey` (non-extractable) + public JWK                 | IndexedDB object stores                                   | Scope `[frontendOrigin, backendOrigin, normalizedBasePath]`; atomic first-key-wins across tabs         |
+| Cookie coordination mode union + `{ generation, active, refreshedAt? }` | IndexedDB, non-credential metadata only                   | DPoP has real `jkt`; Bearer has `mode: 'bearer'`, no jkt; transient BroadcastChannel peer wait ≤180ms  |
 
 `sessionStorage` tab-local body handles must not be shared between tabs, and
 opener-cloned `sessionStorage` is not a shared-refresh strategy. No tokens or
@@ -661,9 +838,26 @@ The historical database name `oidc-vault-dpop-example-v1` and version-1 schema
 are retained so installed keys survive upgrades. Use `resetKey()` for scoped
 recovery rather than deleting the entire origin's database.
 
+Cookie modes share **one metadata row and the same historical cookie Web Lock**,
+not separate per-mode locks. Admission checks mode, generation, expiry and current
+recognition, then rechecks metadata; only DPoP reads/verifies a key. Reload needs
+active same-mode metadata, never a blind refresh to discover cookie binding.
+Missing-mode historical metadata/messages mean **DPoP only**; unknown/corrupt modes
+are unusable. No key migration, fabricated thumbprint or Bearer key-store read occurs.
+
+Fresh login can replace a cookie mode under that lock. Updated opposite-mode
+contexts invalidate checked old local state, never adopt the other mode's token
+or clear its successor metadata. **Unmodified older tabs cannot understand this
+contract**: their clear/reset/logout may damage a replacement session. Concurrent
+mixed-version/mixed-mode use of one backend cookie authority is unsupported.
+Upgrade/close/reload old tabs before switching and log in afresh. Independent
+concurrent modes need genuinely distinct backend cookie authorities. Coordination
+is limited to one frontend origin/storage partition/scope; issued stateless JWTs
+are not instantly revoked by mode replacement, clear or logout.
+
 ## Key loss and errors
 
-Key loss or key change clears frontend auth and requires a fresh login —
+In DPoP mode, key loss or key change clears frontend auth and requires a fresh login —
 `DPOP_KEY_LOST` (`requiresLogin: true`). Only fresh `login()` may create a
 missing key; exchange/refresh/API/logout read the existing key and compare its
 binding (`cnf.jkt` decode check plus key-equality check). There is no Bearer
@@ -755,7 +949,7 @@ and do not reinterpret every provider failure as logout.
 Unknown codes, including object-prototype names, become fixed
 **`OIDC_REQUEST_FAILED` / `The OIDC request failed.`**, `requiresLogin: false`;
 server codes/messages are never copied into that fallback. The HTTP status is
-retained. Local key loss, binding/token-type violations and invalid bound
+retained. Local key loss, binding/token-type violations and invalid bound/Bearer
 credential responses remain terminal. API HTTP failures are still caller-owned
 `Response`s, with automatic recovery limited to the challenge rules above.
 
@@ -767,16 +961,17 @@ error or automatically start login for a non-terminal failure.
 
 `credentials` is owned by the helpers; callers must not set it.
 
-| Operation                | Body transport                           | Cookie transport                                                   |
-| ------------------------ | ---------------------------------------- | ------------------------------------------------------------------ |
-| `login` / `exchange`     | `include` (temporary transaction cookie) | `include` (temporary transaction cookie)                           |
-| `refresh` / `logout`     | `omit` + `{ sessionId }` JSON body       | `include` + `{}` JSON body (no `sessionId`)                        |
-| `logoutAndNavigate` POST | `omit` + `{ sessionId }` JSON body       | `include` + `{}` JSON body (no `sessionId`)                        |
-| `fetchWithDpop` API      | `omit` default                           | `omit` default (`include` only for an explicitly cookie-using API) |
+| Operation                            | Body transport                           | Cookie transport                                                   |
+| ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------ |
+| `login` / `exchange`                 | `include` (temporary transaction cookie) | `include` (temporary transaction cookie)                           |
+| `refresh` / `logout`                 | `omit` + `{ sessionId }` JSON body       | `include` + `{}` JSON body (no `sessionId`)                        |
+| `logoutAndNavigate` POST (DPoP only) | `omit` + `{ sessionId }` JSON body       | `include` + `{}` JSON body (no `sessionId`)                        |
+| `fetchWithDpop` API                  | `omit` default                           | `omit` default (`include` only for an explicitly cookie-using API) |
 
 Cookie JSON always omits `sessionId`. Every request uses `redirect: 'error'`
 and `cache: 'no-store'`. Vault POSTs present no access token; API calls send
-`Authorization: DPoP <JWT>` plus a fresh same-key proof with `ath`.
+`Authorization: DPoP <JWT>` plus a fresh same-key proof with `ath`, or only
+`Authorization: Bearer <app-local token>` for an explicitly Bearer session.
 
 ## Multiple services behind a gateway
 
@@ -848,6 +1043,9 @@ trailing slashes, equivalent unreserved escapes, and equivalent dot segments.
 Targets must already be absolute HTTP(S) URLs; configuring a prefix never
 makes a relative, userinfo-bearing, or malformed target usable.
 
+The same scopes/normalization apply to `BearerApi`; only definitely-Bearer APIs
+may omit `replayNamespace`. If supplied it has the same validation, but is unused.
+
 The target and selected origin/path/namespace/**credentials** are snapshotted
 before asynchronous auth work. All attempts and nonce learning for that
 invocation keep that snapshot, including across refresh/key waits. Caller
@@ -868,13 +1066,21 @@ nonce/refresh retry budgets and single-attempt mutation policy below intact.
 
 Scoped `fetch` for the configured API origin/path subtrees: it owns
 `Authorization`/`DPoP` (caller-set auth headers throw
-`DPOP_AUTH_HEADER_OVERRIDE`), mints a fresh proof per attempt, and accepts only
-exact origin matches with a matching `pathPrefix` and valid `replayNamespace`.
+`DPOP_AUTH_HEADER_OVERRIDE`), mints a fresh proof per DPoP attempt, and accepts only
+exact origin matches with a matching `pathPrefix` and valid mode-specific policy.
 
 | Method                                    | Default attempts                                                                                                    | Opt-in                                                                                               |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `GET` / `HEAD` / `OPTIONS`                | Retry once on nonce challenge, refresh once on `invalid_token`                                                      | `retry: 'never'` disables retries                                                                    |
 | Mutations (`POST` / `PUT` / `DELETE` / …) | **Single attempt**; a nonce challenge on an unsafe mutation is returned to the caller without implicit resubmission | `retry: 'idempotent'` only when the authorized operation owns a server-enforced idempotency contract |
+
+In **Bearer** mode, only an unambiguous HTTP-401 **Bearer** `invalid_token`
+challenge permits response-driven refresh, and only when this retry policy permits
+replay. At most **two API attempts and one shared refresh budget** (including
+initial absent/expired-token acquisition); no nonce retry/learning. Generic 401,
+DPoP errors, insufficient scope, malformed/ambiguous/oversized challenges, 403/5xx
+and network failures authorize no extra attempt. The final API response is returned
+to the caller. `retry: 'never'` and unsafe mutation defaults remain single-attempt.
 
 Retry-enabled bodies must be replayable: strings, `URLSearchParams`, `Blob`,
 `FormData`, `ArrayBuffer`, and views are snapshotted; streams throw
@@ -959,7 +1165,7 @@ singleton, and no client router — the callback is the same page reading
 
 ## API reference
 
-- `createOidcVaultDpopSession(options)` → `OidcVaultDpopSession`
+- `createOidcVaultDpopSession(options)` → default/true `OidcVaultDpopSession`
   (`login`/`exchange`/`refresh`/`logout`/`logoutAndNavigate`/`getAccessToken`/`getKey`/`clear`/`resetKey`/`dispose`).
   Options: `backendOrigin`, `basePath` (default `/auth/oidc`),
   `sessionTransport` (`'body'` default | `'cookie'`), optional `fingerprint`,
@@ -967,7 +1173,10 @@ singleton, and no client router — the callback is the same page reading
   `autoRefresh` (omitted/false by default; enabled lead 60,000 ms, optional maximum interval),
   optional `onAutoRefreshError` (paused background failure),
   `requestTimeoutMs` (default 15,000 ms), `maxResponseBytes` (default 1 MiB),
-  injectable `fetch`/`navigate`/`now` for tests.
+  injectable `fetch`/`navigate`/`now` for tests. Explicit false returns
+  `OidcVaultBearerSession` (common lifecycle only); runtime boolean returns
+  discriminated `OidcVaultSession`. Factory `dpop` is required/immutable;
+  legacy structural DPoP adapters may omit it.
 - `fetchWithDpop({ session, apis, fetch?, nonces?, now? }, input, options?)` →
   `Promise<Response>`. `apis: DpopApi[]` pins `{ origin, replayNamespace,
 pathPrefix?, credentials? }`; longest normalized segment-prefix match wins.
@@ -981,8 +1190,33 @@ pathPrefix?, credentials? }`; longest normalized segment-prefix match wins.
   single-sourced from the pure `@web-ts-toolkit/express-oidc-vault/wire` entry
   at build time; no backend import survives in client declarations/JavaScript.
 - Pure root DTOs: `OidcVaultLogoutNavigationInput`, `OidcVaultLogoutNavigationResult`.
+- Additive mode types: `BearerAccessToken`, `OidcVaultAccessToken`,
+  `OidcVaultBearerSessionOptions`, `OidcVaultSessionOptions`,
+  `OidcVaultBearerSession`, `OidcVaultSession`, `BearerApi`,
+  `BearerFetchContext`, `OidcVaultFetchContext`. Existing DPoP types keep exact
+  `tokenType: 'DPoP'` and required `jkt`; they were not widened.
 
 ## Upgrade notes
+
+**Explicit Bearer is additive; omission/true keeps DPoP unchanged.** No package
+rename, aliases, response-driven negotiation or automatic fallback. For opt-out,
+use `OidcVaultBearerSessionOptions`/literal false, or `OidcVaultSessionOptions`
+for runtime booleans and narrow the union. Existing annotated DPoP options and
+legacy structural adapters remain DPoP. Bearer requires supported guarded POST
+login, independent unbound API acceptance and a **fresh login**. It exposes no
+key/reset/provider-navigation methods. Review theft/replay risk before opting out.
+
+`ReturnType<typeof createOidcVaultDpopSession>` now reflects the final runtime-mode
+overload (the union), not a DPoP-only session. Prefer factory inference, or annotate
+a fixed-DPoP variable/adapter as `OidcVaultDpopSession`; use `OidcVaultSession` and
+narrow `dpop` for runtime mode. This matters before DPoP-only navigation/key calls.
+
+Keys/database/schema identities are retained; old metadata is DPoP-only and is
+not migrated to Bearer. Cookie metadata now records mode/generation without a fake
+binding, using the **unchanged shared lock**. Close/reload unmodified older tabs
+before switching a shared cookie authority; mixed old-client/mixed-mode coexistence
+is unsupported. No immediate stateless JWT revocation is added. See the explicit
+Bearer token profile for opaque/optional-exp compatibility and reserved JWT shape.
 
 Session maintenance is additive and default-off. Use top-level
 `onCredentialsChanged` for an in-memory mirror even without scheduling. Enable
