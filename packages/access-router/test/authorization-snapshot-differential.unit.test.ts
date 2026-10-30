@@ -6,16 +6,18 @@ import {
   matchesAuthorizationSnapshot,
   ServiceAuthorizationError,
 } from '../src/acl/authorization-snapshot';
+import { legacyCopyAuthorizationValue } from './authorization-snapshot-copy.reference';
 
 const bson = mongo.BSON;
 const hex = '0123456789abcdef01234567';
 type Matcher = typeof matchesAuthorizationSnapshot;
 
 // Retain the reference contract and all observation-order regressions even after
-// SNAPCPU-06 withdrew the slower tape. The ownership copier stays unchanged.
+// SNAPCPU-06 withdrew the slower tape. PIPE-02 now retains an independent original
+// copier so record-construction changes cannot redefine their own comparison oracle.
 const oracle: Matcher = (value, snapshot) => {
   try {
-    return isDeepStrictEqual(copyAuthorizationValue(value, 'document'), snapshot);
+    return isDeepStrictEqual(legacyCopyAuthorizationValue(value, 'document'), snapshot);
   } catch {
     return false;
   }
@@ -1169,8 +1171,8 @@ function operations(run: () => boolean) {
   }
 }
 
-describe('SNAPCPU-06 deliberately retained normalization cost', () => {
-  it('restores complete ordinary graph copying on both matches and mismatches', () => {
+describe('PIPE-02 complete normalization with fewer record definitions', () => {
+  it('keeps complete graph copies/freezes on matches and mismatches without per-record-key descriptors', () => {
     const value = {
       rows: Array.from({ length: 24 }, (_, index) => ({ label: String(index), values: [index, NaN, -0, undefined] })),
       meta: { nested: { ok: true } },
@@ -1179,13 +1181,13 @@ describe('SNAPCPU-06 deliberately retained normalization cost', () => {
     expect(operations(() => oracle(value, snapshot))).toEqual({ result: true, definitions: 172, freezes: 52 });
     expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual({
       result: true,
-      definitions: 172,
+      definitions: 120, // All array definitions remain; absent record keys use guarded assignment.
       freezes: 52,
     });
     const changed = { ...snapshot, meta: { nested: { ok: false } } };
     expect(operations(() => matchesAuthorizationSnapshot(value, changed))).toEqual({
       result: false,
-      definitions: 172,
+      definitions: 120,
       freezes: 52,
     });
   });
@@ -1193,12 +1195,12 @@ describe('SNAPCPU-06 deliberately retained normalization cost', () => {
   it.each([
     { name: 'ObjectId', create: () => new bson.ObjectId(hex) },
     { name: 'Long', create: () => new bson.Long(1, 2) },
-  ])('keeps one detached $name wire clone per occurrence with the original ordinary copy', ({ create }) => {
+  ])('keeps one detached $name wire clone per occurrence with the lower-allocation record builder', ({ create }) => {
     vi.spyOn(mongo, 'BSON', 'get').mockReturnValue({ ...bson });
     const native = create();
     const value = { ids: [native, native], nested: { id: native } };
     const snapshot = copyAuthorizationValue(value, 'document');
-    const allocation = { definitions: 5, freezes: 3 };
+    const allocation = { definitions: 2, freezes: 3 };
     const serialize = vi.spyOn(mongo.BSON, 'serialize');
     const deserialize = vi.spyOn(mongo.BSON, 'deserialize');
     expect(operations(() => oracle(value, snapshot))).toEqual({ result: true, definitions: 5, freezes: 3 });
@@ -1235,9 +1237,14 @@ describe('SNAPCPU-06 deliberately retained normalization cost', () => {
     const snapshot = copyAuthorizationValue(value, 'document');
     const serialize = vi.spyOn(mongo.BSON, 'serialize');
     const previous = operations(() => oracle(value, snapshot));
+    expect(previous).toEqual({ result: true, definitions: 5, freezes: 3 });
     expect(serialize).toHaveBeenCalledTimes(2);
     serialize.mockClear();
-    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual(previous);
+    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual({
+      result: true,
+      definitions: 1,
+      freezes: previous.freezes,
+    });
     expect(serialize).toHaveBeenCalledTimes(2);
   });
 });
