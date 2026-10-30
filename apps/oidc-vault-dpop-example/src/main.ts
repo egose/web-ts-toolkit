@@ -3,6 +3,7 @@ import {
   createOidcVaultDpopSession,
   fetchWithDpop,
   OidcVaultDpopClientError,
+  type OidcVaultDpopSession,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 import { currentExampleRecognitionSignal } from './recognition';
 import './style.css';
@@ -41,7 +42,7 @@ selection.value = transport;
 // The checked state can survive an OIDC redirect without storing the identifier.
 recognition.checked = page.searchParams.get('recognition') === '1';
 
-let session: ReturnType<typeof createOidcVaultDpopSession>;
+let session: OidcVaultDpopSession;
 const showError = (error: unknown): void => {
   status.textContent = error instanceof Error ? error.message : 'The operation failed.';
   status.dataset.state = error instanceof OidcVaultDpopClientError && error.requiresLogin ? 'login-required' : 'error';

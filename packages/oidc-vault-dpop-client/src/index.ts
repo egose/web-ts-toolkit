@@ -19,10 +19,22 @@ export {
   createOidcVaultDpopSession,
   type OidcVaultDpopSession,
   type OidcVaultDpopSessionOptions,
+  type OidcVaultBearerSession,
+  type OidcVaultBearerSessionOptions,
+  type OidcVaultSession,
+  type OidcVaultSessionOptions,
 } from './auth-session';
-export type { DpopAccessToken } from './credentials';
+export type { BearerAccessToken, DpopAccessToken, OidcVaultAccessToken } from './credentials';
 export type { OidcVaultDpopAutoRefreshOptions } from './auto-refresh';
-export { fetchWithDpop, type DpopFetchContext, type DpopFetchOptions, type DpopApi } from './auth-fetch';
+export {
+  fetchWithDpop,
+  type DpopFetchContext,
+  type DpopFetchOptions,
+  type DpopApi,
+  type BearerApi,
+  type BearerFetchContext,
+  type OidcVaultFetchContext,
+} from './auth-fetch';
 export { DpopNonceCache } from './nonce-cache';
 export {
   createDeviceFingerprint,

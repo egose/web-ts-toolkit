@@ -1,4 +1,4 @@
-import type { DpopAccessToken } from './credentials';
+import type { OidcVaultAccessToken } from './credentials';
 import { OidcVaultDpopClientError } from './errors';
 
 const MAX_DELAY = 2_147_483_647;
@@ -40,10 +40,10 @@ export const resolveAutoRefreshOptions = (value: false | OidcVaultDpopAutoRefres
 };
 
 const clockError = () => new OidcVaultDpopClientError('INVALID_DPOP_TIME', 'The proof clock is invalid.');
-const expired = () =>
+const expired = (token: OidcVaultAccessToken) =>
   new OidcVaultDpopClientError(
-    'DPOP_ACCESS_TOKEN_EXPIRED',
-    'The DPoP access token has expired. Refresh before retrying.',
+    token.tokenType === 'DPoP' ? 'DPOP_ACCESS_TOKEN_EXPIRED' : 'BEARER_ACCESS_TOKEN_EXPIRED',
+    `The ${token.tokenType} access token has expired. Refresh before retrying.`,
   );
 const addDeadline = (epoch: number, interval: number) =>
   epoch > Number.MAX_SAFE_INTEGER - interval ? Number.MAX_SAFE_INTEGER : epoch + interval;
@@ -54,11 +54,11 @@ export const createAutoRefreshScheduler = (
   hooks: {
     now(): number;
     busy(): boolean;
-    refresh(intent: number): Promise<DpopAccessToken>;
+    refresh(intent: number): Promise<OidcVaultAccessToken>;
     onError?: (error: unknown) => void;
   },
 ) => {
-  let token: DpopAccessToken | undefined;
+  let token: OidcVaultAccessToken | undefined;
   let refreshedAt: number | undefined;
   let active = false;
   let disposed = false;
@@ -125,7 +125,7 @@ export const createAutoRefreshScheduler = (
     try {
       const now = clock();
       if (token.expiresAt <= now) {
-        fail(expired());
+        fail(expired(token));
         return;
       }
       const revision = timerRevision;
@@ -191,7 +191,7 @@ export const createAutoRefreshScheduler = (
       const now = clock();
       return current(captured) && active && token !== undefined && now >= deadline(now, false);
     },
-    replace(next: DpopAccessToken, acquisitionTime?: number) {
+    replace(next: OidcVaultAccessToken, acquisitionTime?: number) {
       if (disposed) return;
       if (token?.generation !== next.generation) outcome++;
       token = next;

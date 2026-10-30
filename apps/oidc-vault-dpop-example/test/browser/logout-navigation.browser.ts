@@ -278,7 +278,7 @@ describe.each(browserNames)('OVAPP-07 real %s logout navigation', (name) => {
             id: 'logout',
             operation: 'logoutAndNavigate',
           });
-          await expect.poll(() => callBrowser(page, 'gateReady', { id: 'logout' })).toBe(true);
+          expect(await callBrowser(page, 'waitForOperationGate', { gate: 'logout', id: 'logout' })).toBe(true);
           if (action === 'dispose') await callBrowser(page, 'disposeSession', { name: scope.name });
           else await callBrowser(page, 'beginSessionOperation', { name: scope.name, id: 'next', operation: action });
           await callBrowser(page, 'releaseGate', { id: 'logout' });

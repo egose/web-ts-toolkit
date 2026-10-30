@@ -25,7 +25,13 @@ export const launchBrowser = async (name: BrowserName): Promise<Browser> => {
 
 export const startBrowserFixture = async (
   browser: Browser,
-  options: { tokenLifetimeSeconds?: number; nonceLifetimeSeconds?: number } = {},
+  options: {
+    tokenLifetimeSeconds?: number;
+    nonceLifetimeSeconds?: number;
+    fixtureDeviceBindingMode?: 'optional';
+    auditKeyUse?: boolean;
+    disableKeyStorage?: boolean;
+  } = {},
 ) => {
   const root = fileURLToPath(new URL('../../', import.meta.url));
   const idp = await startLocalIdp();
@@ -37,6 +43,18 @@ export const startBrowserFixture = async (
     configFile: false,
     server: { middlewareMode: true, hmr: false },
     define: { 'import.meta.env.VITE_BACKEND_ORIGIN': 'globalThis.__DPOP_TEST_BACKEND__' },
+    plugins: [
+      {
+        name: 'test-only-bearer-entry',
+        // Only this test-owned server understands dpop=0. The shipped SPA and
+        // its production build keep src/main.ts and required-DPoP defaults.
+        transformIndexHtml(html, context) {
+          return new URL(context.originalUrl ?? '/', 'http://fixture.test').searchParams.get('dpop') === '0'
+            ? html.replace('/src/main.ts', '/test/browser/bearer-entry.ts')
+            : html;
+        },
+      },
+    ],
   });
   const frontend = createServer(vite.middlewares);
   const port = await listen(frontend);
@@ -55,11 +73,68 @@ export const startBrowserFixture = async (
   await context.addInitScript((backendOrigin) => {
     Object.defineProperty(globalThis, '__DPOP_TEST_BACKEND__', { value: backendOrigin });
   }, backend.backendOrigin);
+  const keyUse = { generatedKeys: 0, signatures: 0, keyStoreAccesses: 0, databaseOpens: 0 };
+  if (options.auditKeyUse) {
+    // Controller-owned counts survive IdP/callback navigation and reload. Page
+    // counters below additionally distinguish production work from test inspection.
+    await context.exposeBinding('__BEARER_KEY_AUDIT_RECORD__', (_source, operation: keyof typeof keyUse) => {
+      keyUse[operation]++;
+    });
+    await context.addInitScript((disableKeyStorage) => {
+      const audit = { generatedKeys: 0, signatures: 0, keyStoreAccesses: 0, databaseOpens: 0 };
+      Object.defineProperty(globalThis, '__BEARER_KEY_AUDIT__', { value: audit });
+      const record = (operation: keyof typeof audit) => {
+        audit[operation]++;
+        void (
+          globalThis as typeof globalThis & {
+            __BEARER_KEY_AUDIT_RECORD__(operation: keyof typeof audit): Promise<void>;
+          }
+        )
+          .__BEARER_KEY_AUDIT_RECORD__(operation)
+          .catch(() => {});
+      };
+      for (const method of ['generateKey', 'sign'] as const) {
+        const original = crypto.subtle[method].bind(crypto.subtle);
+        Object.defineProperty(crypto.subtle, method, {
+          configurable: true,
+          value: (...args: unknown[]) => {
+            record(method === 'generateKey' ? 'generatedKeys' : 'signatures');
+            return Reflect.apply(original, undefined, args);
+          },
+        });
+      }
+      for (const method of ['get', 'getKey', 'getAll', 'put', 'add', 'delete'] as const) {
+        const original = IDBObjectStore.prototype[method];
+        Object.defineProperty(IDBObjectStore.prototype, method, {
+          configurable: true,
+          value: function (this: IDBObjectStore, ...args: unknown[]) {
+            if (this.name === 'keys') record('keyStoreAccesses');
+            return Reflect.apply(original, this, args);
+          },
+        });
+      }
+      const open = indexedDB.open.bind(indexedDB);
+      Object.defineProperty(indexedDB, 'open', {
+        configurable: true,
+        value: (...args: Parameters<IDBFactory['open']>) => {
+          record('databaseOpens');
+          return open(...args);
+        },
+      });
+      if (disableKeyStorage) {
+        // Same script as audit installation: no ordering assumption between
+        // separate Playwright init scripts, including on callback and reload.
+        Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: undefined });
+        Object.defineProperty(globalThis, 'CryptoKey', { configurable: true, value: undefined });
+      }
+    }, options.disableKeyStorage === true);
+  }
   return {
     backend,
     idp,
     frontendOrigin,
     context,
+    keyUse,
     vite,
     async close() {
       await context.close();
@@ -76,9 +151,10 @@ export const openApp = async (
   fixture: BrowserFixture,
   transport: 'body' | 'cookie',
   context: BrowserContext = fixture.context,
+  options: { dpop?: false } = {},
 ): Promise<Page> => {
   const page = await context.newPage();
-  await page.goto(`${fixture.frontendOrigin}/?transport=${transport}`);
+  await page.goto(`${fixture.frontendOrigin}/?transport=${transport}${options.dpop === false ? '&dpop=0' : ''}`);
   await page.waitForFunction(() => Boolean(document.querySelector('#status')?.getAttribute('data-state')));
   return page;
 };

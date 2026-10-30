@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { OidcVaultDpopSession } from '../src/auth-session';
 import { fetchWithDpop, type DpopFetchOptions } from '../src/auth-fetch';
-import type { DpopAccessToken } from '../src/credentials';
+import type { BearerAccessToken, DpopAccessToken } from '../src/credentials';
 import type { DpopKey } from '../src/dpop-key-store';
 import { DpopNonceCache } from '../src/nonce-cache';
 
@@ -503,5 +503,89 @@ describe('DPH-01 zero-lifetime API credentials', () => {
     expect(f.request).not.toHaveBeenCalled();
     expect(f.refresh).not.toHaveBeenCalled();
     expect(f.clear).not.toHaveBeenCalled();
+  });
+});
+
+describe('OBEAR-04 default DPoP compatibility', () => {
+  it.each([undefined, true] as const)('mode=%j still signs every attempt and learns nonce challenges', async (dpop) => {
+    const f = fixture([challenged('use_dpop_nonce', 'selected-nonce'), new Response('done')]);
+    Object.defineProperty(f.context.session, 'dpop', { value: dpop });
+    await fetchWithDpop(f.context, 'https://api.example.com/api/profile');
+    expect(f.attempts.map(({ authorization }) => authorization)).toEqual([
+      'DPoP old.access.token',
+      'DPoP old.access.token',
+    ]);
+    expect(f.attempts.map(({ claims }) => claims.nonce)).toEqual([undefined, 'selected-nonce']);
+    expect(f.attempts[0].claims.jti).not.toBe(f.attempts[1].claims.jti);
+    expect(f.getKey).toHaveBeenCalledTimes(2);
+    expect(f.refresh).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, true] as const)('mode=%j never permits missing API replayNamespace', async (dpop) => {
+    const f = fixture([]);
+    Object.defineProperty(f.context.session, 'dpop', { value: dpop });
+    const lookup = vi.spyOn(f.context.session, 'getAccessToken');
+    await expect(
+      fetchWithDpop(
+        { ...f.context, apis: [{ origin: 'https://api.example.com' }] } as typeof f.context,
+        'https://api.example.com/api/profile',
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_DPOP_API_CONFIG', requiresLogin: false });
+    expect(lookup).not.toHaveBeenCalled();
+    expect(f.getKey).not.toHaveBeenCalled();
+    expect(f.refresh).not.toHaveBeenCalled();
+    expect(f.request).not.toHaveBeenCalled();
+  });
+
+  it('snapshots a legacy adapter mode before key work can change it to false', async () => {
+    const f = fixture([]);
+    f.getKey.mockImplementationOnce(async () => {
+      Object.defineProperty(f.context.session, 'dpop', { value: false });
+      return key;
+    });
+    await fetchWithDpop(f.context, 'https://api.example.com/api/profile');
+    expect(f.attempts[0].authorization).toBe('DPoP old.access.token');
+    expect(f.attempts[0].proof).toBeTruthy();
+  });
+
+  it('keeps terminal wrong-mode classification without downgrading or clearing a newer credential', async () => {
+    const f = fixture([challenged('invalid_token')]);
+    const newer = credential('new-login.access.token');
+    const wrong: BearerAccessToken = {
+      accessToken: 'wrong-mode',
+      tokenType: 'Bearer',
+      generation: 'stale',
+      expiresAt: NOW + 60_000,
+    };
+    f.refresh.mockImplementationOnce(async () => {
+      vi.spyOn(f.context.session, 'getAccessToken').mockReturnValue(newer);
+      return wrong as unknown as DpopAccessToken;
+    });
+    await expect(fetchWithDpop(f.context, 'https://api.example.com/api/profile')).rejects.toMatchObject({
+      code: 'DPOP_TOKEN_TYPE_REQUIRED',
+      requiresLogin: true,
+    });
+    expect(f.clear).not.toHaveBeenCalled();
+    expect(f.context.session.getAccessToken()).toBe(newer);
+    expect(f.request).toHaveBeenCalledOnce();
+    expect(f.attempts[0].authorization).toBe('DPoP old.access.token');
+  });
+
+  it('still clears a current wrong-mode credential and rejects before key/proof/network work', async () => {
+    const wrong: BearerAccessToken = {
+      accessToken: 'unbound-token',
+      tokenType: 'Bearer',
+      generation: 'wrong',
+      expiresAt: NOW + 60_000,
+    };
+    const f = fixture([], wrong as unknown as DpopAccessToken);
+    await expect(fetchWithDpop(f.context, 'https://api.example.com/api/profile')).rejects.toMatchObject({
+      code: 'DPOP_TOKEN_TYPE_REQUIRED',
+      requiresLogin: true,
+    });
+    expect(f.clear).toHaveBeenCalledOnce();
+    expect(f.getKey).not.toHaveBeenCalled();
+    expect(f.refresh).not.toHaveBeenCalled();
+    expect(f.request).not.toHaveBeenCalled();
   });
 });

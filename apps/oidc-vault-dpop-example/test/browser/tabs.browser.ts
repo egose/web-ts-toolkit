@@ -115,7 +115,7 @@ describe.each(browserNames)('DBJWT-10 real %s cross-tab key/refresh coordination
       expect(JSON.stringify(storage)).not.toContain(winner.accessToken);
       expect(JSON.stringify(storage)).not.toContain(cookie.value);
       expect(storage.rows).toEqual([
-        { jkt: winner.jkt, generation: winner.generation, active: true, refreshedAt: expect.any(Number) },
+        { mode: 'dpop', jkt: winner.jkt, generation: winner.generation, active: true, refreshedAt: expect.any(Number) },
       ]);
       await first.locator('#logout').click();
       await first.waitForFunction(
@@ -246,10 +246,10 @@ describe.each(browserNames)('DBJWT-10 real %s cross-tab key/refresh coordination
       await callBrowser(first, 'releaseGate', { id: 'peer-lock' });
       expect(await callBrowser(second, 'finishSessionOperation', { id: 'login' })).toEqual({ ok: true });
       expect(await callBrowser(second, 'navigationCount', { name: scope.name })).toBe(1);
-      expect(await second.evaluate((id) => sessionStorage.getItem(`oidc-vault-dpop:pending:${id}`), scopeId)).toBe(
-        JSON.stringify({ jkt: old.jkt }),
-      );
       const current = await callBrowser(first, 'readCookieVersion', scope);
+      expect(
+        JSON.parse((await second.evaluate((id) => sessionStorage.getItem(`oidc-vault-dpop:pending:${id}`), scopeId))!),
+      ).toEqual({ jkt: old.jkt, generation: current?.generation });
       expect(current).toMatchObject({ active: false, jkt: old.jkt });
       expect(current?.generation).not.toBe(cleared.generation);
       expect(

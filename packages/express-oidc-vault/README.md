@@ -627,6 +627,17 @@ Omitting `sessionTtlMs` assigns no default session expiry and retains applicatio
 
 ### Browser DPoP client
 
+The companion client defaults to DPoP (omitted/true `dpop`); explicit `dpop: false`
+selects an unbound **app-local** Bearer credential, never provider-token forwarding
+or automatic fallback. Pair Bearer primarily with `deviceBinding: { mode: 'optional' }`
+and independently unbound-capable API verification. Disabled binding **with** configured
+`fingerprintRecognition` can supply the same guarded POST-login route; disabled
+binding **without** recognition is unsupported by that client (no GET-login fallback).
+Required vault/API binding rejects unbound credentials. Changing mode needs fresh
+login; close/reload unmodified older cookie tabs before switching. Bearer has ordinary
+`logout`, not `getKey`/`resetKey`/`logoutAndNavigate`; token theft permits replay.
+See the client's shipped README for browser/storage, token-profile and upgrade limits.
+
 For a bound flow, install the published browser client
 [`@web-ts-toolkit/oidc-vault-dpop-client`](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md)
 in your frontend (it brings `jose` + `idb` as runtime dependencies) and use its

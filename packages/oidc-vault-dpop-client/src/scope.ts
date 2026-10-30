@@ -110,3 +110,22 @@ export const assertDpopBrowserFeatures = (cookieTransport = false): void => {
     );
   }
 };
+
+/** Keyless does not mean storage/crypto-free: recognition uses digest, and cookie metadata uses IndexedDB. */
+export const assertBearerBrowserFeatures = (cookieTransport = false): void => {
+  if (
+    globalThis.isSecureContext !== true ||
+    typeof globalThis.crypto?.subtle?.digest !== 'function' ||
+    typeof globalThis.crypto.randomUUID !== 'function' ||
+    (cookieTransport && !globalThis.indexedDB)
+  )
+    throw new OidcVaultDpopClientError(
+      'DPOP_BROWSER_UNSUPPORTED',
+      'A secure context and Web Crypto are required; cookie sessions also require IndexedDB metadata.',
+    );
+  if (cookieTransport && (!globalThis.navigator?.locks?.request || typeof globalThis.BroadcastChannel !== 'function'))
+    throw new OidcVaultDpopClientError(
+      'DPOP_TAB_COORDINATION_UNSUPPORTED',
+      'Cookie sessions require Web Locks and BroadcastChannel.',
+    );
+};

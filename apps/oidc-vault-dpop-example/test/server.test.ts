@@ -12,6 +12,42 @@ import { LOCAL_CLIENT_ID, startLocalIdp } from '../server/local-idp';
 import { resolveOidcVaultConfigFromEnv } from '@web-ts-toolkit/express-oidc-vault';
 
 describe('DBJWT-10 fixture CORS and environment IdP contracts', () => {
+  it.each([false, true])(
+    'optional binding is available only in the test-owned fixture (fixture=%s)',
+    async (fixture) => {
+      const idp = await startLocalIdp();
+      const backend = await startExampleServer({
+        frontendOrigin: 'http://127.0.0.1:4317',
+        config: { issuer: idp.issuer, clientId: LOCAL_CLIENT_ID },
+        fixture,
+        fixtureDeviceBindingMode: 'optional',
+      });
+      try {
+        const response = await fetch(`${backend.backendOrigin}${EXAMPLE_BASE_PATH}/body/login`, {
+          method: 'POST',
+          headers: { Origin: 'http://127.0.0.1:4317', 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        expect(response.status).toBe(fixture ? 200 : 401);
+        if (fixture) {
+          const { authorizationUrl } = (await response.json()) as { authorizationUrl: string };
+          const transaction = await backend.store.getAuthorizationTransaction(
+            new URL(authorizationUrl).searchParams.get('state')!,
+          );
+          expect(transaction).toBeTruthy();
+          expect(transaction?.deviceBinding).toBeUndefined();
+          expect(response.headers.get('Set-Cookie')).toContain('HttpOnly');
+        } else {
+          expect(await response.json()).toMatchObject({ code: 'OIDC_VAULT_DEVICE_BINDING_REQUIRED' });
+          expect(response.headers.get('Set-Cookie')).toBeNull();
+        }
+      } finally {
+        await backend.close();
+        await idp.close();
+      }
+    },
+  );
+
   it('allows only explicit origins/headers/credentials and exposes the exact challenge headers', async () => {
     const app = express();
     app.use(createExampleCors(['http://127.0.0.1:4317'], 'X-App-Recognition'));

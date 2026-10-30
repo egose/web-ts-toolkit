@@ -5,6 +5,8 @@ interface VaultHttpOptions {
   signal: AbortSignal;
   requestTimeoutMs: number;
   maxResponseBytes: number;
+  /** Bearer vault attempts do not inspect DPoP nonce headers. Defaults to true. */
+  readDpopNonce?: boolean;
 }
 
 /** One HTTP attempt: the deadline includes headers, all streamed bytes and JSON parsing. */
@@ -12,7 +14,7 @@ export const requestVaultJson = async (
   request: typeof fetch,
   url: string,
   init: RequestInit,
-  { signal, requestTimeoutMs, maxResponseBytes }: VaultHttpOptions,
+  { signal, requestTimeoutMs, maxResponseBytes, readDpopNonce = true }: VaultHttpOptions,
 ): Promise<{ status: number; nonce: string | null; value: unknown }> => {
   assertNotAborted(signal);
   const controller = new AbortController();
@@ -41,7 +43,7 @@ export const requestVaultJson = async (
     // Native fetch responses are immutable, but supported injected responses
     // need not be. Body reads/cleanup must not alter the admitted recovery data.
     const status = response.status;
-    const nonce = response.headers.get('DPoP-Nonce');
+    const nonce = readDpopNonce ? response.headers.get('DPoP-Nonce') : null;
     let value: unknown;
     try {
       if (response.body) {

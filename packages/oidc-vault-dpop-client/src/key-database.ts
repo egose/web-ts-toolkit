@@ -1,7 +1,10 @@
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
+import { parseCookieSessionVersion, type CookieSessionVersion } from './cookie-session';
 import { OidcVaultDpopClientError } from './errors';
 import type { SessionAuthority } from './session-lifecycle';
+
+export type { CookieSessionVersion, DpopCookieSessionVersion } from './cookie-session';
 
 // Preserve installed keys: the historical name is a persistence contract.
 export const DPOP_DATABASE_NAME = 'oidc-vault-dpop-example-v1';
@@ -26,14 +29,7 @@ export interface StoredDpopKey extends DpopKey {
 }
 
 // Coordination metadata is not a credential. No token or cookie/session handle
-// is ever written to this store; only a key binding and opaque response version.
-export interface CookieSessionVersion {
-  jkt: string;
-  generation: string;
-  active: boolean;
-  /** Optional non-credential acquisition-clock hint, bound to this generation; old records omit it. */
-  refreshedAt?: number;
-}
+// is ever written to this store; only mode/binding and opaque response version.
 interface DpopDatabase extends DBSchema {
   keys: { key: string; value: StoredDpopKey };
   cookieSessions: { key: string; value: CookieSessionVersion };
@@ -66,7 +62,7 @@ export const withDpopDatabase = async <T>(operation: (db: IDBPDatabase<DpopDatab
 };
 
 export const readCookieSessionVersion = (scopeId: string): Promise<CookieSessionVersion | undefined> =>
-  withDpopDatabase((db) => db.get('cookieSessions', scopeId));
+  withDpopDatabase(async (db) => parseCookieSessionVersion(await db.get('cookieSessions', scopeId)));
 
 /** Internal guard shared by metadata, scoped reset, and session-owned key creation. */
 export const guardDpopTransaction = async <T>(
@@ -145,20 +141,7 @@ const scopeState = async (
     keyPresent: keyId !== undefined,
     keyJkt: typeof key?.jkt === 'string' ? key.jkt : undefined,
     cookiePresent: cookieId !== undefined,
-    version:
-      cookie &&
-      typeof cookie.jkt === 'string' &&
-      typeof cookie.generation === 'string' &&
-      typeof cookie.active === 'boolean'
-        ? {
-            jkt: cookie.jkt,
-            generation: cookie.generation,
-            active: cookie.active,
-            ...(Number.isSafeInteger(cookie.refreshedAt) && cookie.refreshedAt! >= 0
-              ? { refreshedAt: cookie.refreshedAt }
-              : {}),
-          }
-        : undefined,
+    version: parseCookieSessionVersion(cookie),
   };
 };
 
@@ -172,7 +155,11 @@ export const readDpopScopeState = async (scopeId: string, authority: SessionAuth
 };
 
 /** Explicit local recovery only: delete both scoped records, even when corrupt. */
-export const removeDpopScope = async (scopeId: string, authority: SessionAuthority): Promise<DpopScopeState> => {
+export const removeDpopScope = async (
+  scopeId: string,
+  authority: SessionAuthority,
+  matches: (previous: DpopScopeState) => boolean = () => true,
+): Promise<DpopScopeState | undefined> => {
   authority.assertCurrent();
   try {
     return await withDpopDatabase(async (db) => {
@@ -181,6 +168,8 @@ export const removeDpopScope = async (scopeId: string, authority: SessionAuthori
       return guardDpopTransaction(transaction, authority, async () => {
         const previous = await scopeState(transaction, scopeId);
         authority.assertCurrent();
+        // Recheck inside the atomic delete, not just before opening the database.
+        if (!matches(previous)) return undefined;
         const remove = async (store: 'keys' | 'cookieSessions') => {
           authority.assertCurrent();
           await transaction.objectStore(store).delete(scopeId);

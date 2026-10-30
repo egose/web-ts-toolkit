@@ -16,6 +16,7 @@ export default tseslint.config(
       '**/*.tmp.js',
       '_tmp*/**',
       '_tmp/**',
+      '.wip/**',
     ],
   },
   {

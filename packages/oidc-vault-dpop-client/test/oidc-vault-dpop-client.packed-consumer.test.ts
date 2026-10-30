@@ -64,6 +64,89 @@ async function navigationConsumer(pkg) {
 }
 `;
 
+// Installed runtime exercise, not just export/type discovery. Body Bearer uses
+// actual Web Crypto digest/UUID but deliberately has no IDB/CryptoKey support.
+const BEARER_RUNTIME = `
+async function bearerConsumer(pkg) {
+  globalThis.indexedDB = undefined;
+  globalThis.CryptoKey = undefined;
+  Object.defineProperty(crypto.subtle, 'generateKey', { configurable: true, value: () => assert.fail('Bearer key creation') });
+  Object.defineProperty(crypto.subtle, 'sign', { configurable: true, value: () => assert.fail('Bearer signing') });
+  const calls = [];
+  const events = [];
+  let navigations = 0;
+  let rotations = 0;
+  const options = {
+    backendOrigin: 'https://api.example.com', basePath: '/auth/oidc/body', dpop: false,
+    navigate: () => { navigations++; },
+    onCredentialsChanged: (token) => events.push(token),
+    fetch: async (url, init) => {
+      const route = String(url).split('/').at(-1);
+      const headers = new Headers(init.headers);
+      assert.strictEqual(headers.has('DPoP'), false);
+      assert.strictEqual(headers.has('Authorization'), false);
+      assert.strictEqual(init.redirect, 'error');
+      assert.strictEqual(init.cache, 'no-store');
+      assert.strictEqual(init.credentials, route === 'login' || route === 'exchange' ? 'include' : 'omit');
+      const body = JSON.parse(init.body);
+      calls.push({ route, body });
+      let value;
+      if (route === 'login') value = { authorizationUrl: 'https://idp.example.com/authorize' };
+      else if (route === 'logout') value = { loggedOut: true };
+      else {
+        if (route === 'refresh') { rotations++; assert.ok(body.sessionId); }
+        value = { accessToken: 'opaque-local-' + rotations, expiresIn: 60, sessionId: 'handle-' + rotations };
+      }
+      return Response.json(value); // Omitted tokenType normalizes only in explicit Bearer.
+    },
+  };
+  const first = pkg.createOidcVaultDpopSession(options);
+  assert.strictEqual(first.dpop, false);
+  await first.login('/callback');
+  assert.strictEqual(navigations, 1);
+  const exchanged = await first.exchange('one-time-code');
+  assert.strictEqual(exchanged.tokenType, 'Bearer');
+  assert.strictEqual('jkt' in exchanged, false);
+  first.dispose();
+  const session = pkg.createOidcVaultDpopSession(options);
+  const refreshed = await session.refresh(); // Same tab's committed body handle survives replacement.
+  assert.strictEqual(rotations, 1);
+  assert.strictEqual(calls.at(-1).body.sessionId, 'handle-0');
+  let attempts = 0;
+  const response = await pkg.fetchWithDpop({
+    session, apis: [{ origin: options.backendOrigin, pathPrefix: '/api' }],
+    fetch: async (_url, init) => {
+      attempts++;
+      const headers = new Headers(init.headers);
+      assert.strictEqual(headers.get('Authorization'), 'Bearer opaque-local-' + rotations);
+      assert.strictEqual(headers.has('DPoP'), false);
+      assert.strictEqual(init.credentials, 'omit');
+      assert.strictEqual(init.redirect, 'error');
+      assert.strictEqual(init.cache, 'no-store');
+      return attempts === 1
+        ? new Response(null, { status: 401, headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"', 'DPoP-Nonce': 'ignored' } })
+        : Response.json({ ok: true });
+    },
+  }, options.backendOrigin + '/api/profile');
+  assert.strictEqual(response.status, 200);
+  assert.strictEqual(attempts, 2);
+  assert.strictEqual(rotations, 2);
+  assert.notStrictEqual(session.getAccessToken().accessToken, refreshed.accessToken);
+  const before = calls.length;
+  for (const method of ['getKey', 'resetKey', 'logoutAndNavigate']) {
+    await assert.rejects(session[method](), { code: 'DPOP_OPERATION_UNSUPPORTED', requiresLogin: false });
+  }
+  assert.strictEqual(calls.length, before);
+  await session.logout();
+  assert.strictEqual(calls.at(-1).body.sessionId, 'handle-2');
+  assert.strictEqual(session.getAccessToken(), undefined);
+  assert.ok(events.some((token) => token && token.tokenType === 'Bearer'));
+  assert.strictEqual(sessionStorage.getItem('oidc-vault-bearer:handle:' + session.scopeId), null);
+  assert.strictEqual(sessionStorage.getItem('oidc-vault-bearer:pending:' + session.scopeId), null);
+  session.dispose();
+}
+`;
+
 const CONSUMER_CJS = `/* Consumer CJS entry: require() resolves the packed tarball via exports.require (no workspace mapping). */
 const assert = require('node:assert');
 
@@ -78,7 +161,9 @@ assert.strictEqual(typeof pkg.getOrCreateDpopKey, 'function');
 assert.ok(pkg.OidcVaultDpopClientError.prototype instanceof Error);
 assert.strictEqual(new pkg.OidcVaultDpopClientError('DPOP_KEY_LOST', 'x', true).name, 'OidcVaultDpopClientError');
 ${NAVIGATION_RUNTIME}
-navigationConsumer(pkg).catch((error) => { console.error(error); process.exitCode = 1; });
+${BEARER_RUNTIME}
+(async () => { await navigationConsumer(pkg); await bearerConsumer(pkg); })()
+  .catch((error) => { console.error(error); process.exitCode = 1; });
 `;
 
 const CONSUMER_MJS = `/* Consumer ESM entry: import resolves the packed tarball via exports.import (no workspace mapping). */
@@ -106,7 +191,9 @@ assert.strictEqual(typeof createDeviceFingerprint, 'function');
 assert.strictEqual(typeof fingerprintJsSignalSource, 'function');
 assert.ok(OidcVaultDpopClientError.prototype instanceof Error);
 ${NAVIGATION_RUNTIME}
+${BEARER_RUNTIME}
 await navigationConsumer({ createOidcVaultDpopSession });
+await bearerConsumer({ createOidcVaultDpopSession, fetchWithDpop });
 `;
 
 const CONSUMER_TYPES = `/**
@@ -127,6 +214,9 @@ import {
   OidcVaultDpopClientError,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
 import type {
+  BearerAccessToken,
+  BearerApi,
+  BearerFetchContext,
   DeviceFingerprint,
   DeviceFingerprintOptions,
   DeviceFingerprintSignalSource,
@@ -141,6 +231,12 @@ import type {
   OidcVaultDpopSession,
   OidcVaultDpopSessionOptions,
   OidcVaultDpopAutoRefreshOptions,
+  OidcVaultAccessToken,
+  OidcVaultBearerSession,
+  OidcVaultBearerSessionOptions,
+  OidcVaultSession,
+  OidcVaultSessionOptions,
+  OidcVaultFetchContext,
   OidcVaultLogoutNavigationInput,
   OidcVaultLogoutNavigationResult,
 } from '@web-ts-toolkit/oidc-vault-dpop-client';
@@ -165,6 +261,7 @@ createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, autoRefresh: 
 // @ts-expect-error — interval is numeric milliseconds.
 const invalidRefresh: OidcVaultDpopAutoRefreshOptions = { maxRefreshIntervalMs: '20m' };
 session satisfies OidcVaultDpopSession;
+session.dpop satisfies true;
 const navigation: Promise<void> = session.logoutAndNavigate();
 const navigationInput: OidcVaultLogoutNavigationInput = { sessionId: 'opaque' };
 const navigationResult: OidcVaultLogoutNavigationResult = {
@@ -185,6 +282,104 @@ async function recoverKey(): Promise<void> {
 }
 void recoverKey;
 
+// OBEAR-02: additive mode types resolve from installed DOM-only declarations.
+createOidcVaultDpopSession({
+  backendOrigin: options.backendOrigin,
+  dpop: true,
+  onCredentialsChanged(credentials) {
+    const bound: DpopAccessToken | undefined = credentials;
+    credentials?.tokenType satisfies 'DPoP' | undefined;
+    void bound;
+  },
+}).dpop satisfies true;
+const bearerOptions: OidcVaultBearerSessionOptions = {
+  backendOrigin: options.backendOrigin,
+  dpop: false,
+  autoRefresh: { refreshBeforeExpiryMs: 60_000 } satisfies OidcVaultDpopAutoRefreshOptions,
+  onAutoRefreshError(error) { const failure: unknown = error; void failure; },
+  onCredentialsChanged(credentials) {
+    const unbound: BearerAccessToken | undefined = credentials;
+    credentials?.tokenType satisfies 'Bearer' | undefined;
+    // @ts-expect-error — the unbound profile has no thumbprint.
+    credentials?.jkt;
+    void unbound;
+  },
+};
+const bearer = createOidcVaultDpopSession(bearerOptions);
+bearer satisfies OidcVaultBearerSession;
+bearer.dpop satisfies false;
+bearer.refresh() satisfies Promise<BearerAccessToken>;
+createOidcVaultDpopSession({
+  backendOrigin: options.backendOrigin,
+  dpop: false,
+  onCredentialsChanged(credentials) {
+    credentials?.tokenType satisfies 'Bearer' | undefined;
+    // @ts-expect-error — not an any or a bound credential.
+    credentials?.jkt;
+  },
+}) satisfies OidcVaultBearerSession;
+// @ts-expect-error — Bearer cannot satisfy the existing bound-token contract.
+const boundFromBearer: DpopAccessToken = bearer.getAccessToken()!;
+// @ts-expect-error — no key creation/read on the Bearer interface.
+bearer.getKey();
+// @ts-expect-error — no deletion of another mode's key.
+bearer.resetKey();
+// @ts-expect-error — no unbound provider-navigation logout.
+bearer.logoutAndNavigate();
+// @ts-expect-error — session mode is immutable.
+bearer.dpop = false;
+
+declare const enabled: boolean;
+const runtimeOptions: OidcVaultSessionOptions = {
+  backendOrigin: options.backendOrigin,
+  dpop: enabled,
+  autoRefresh: { refreshBeforeExpiryMs: 60_000 },
+  onCredentialsChanged(credentials) {
+    const current: OidcVaultAccessToken | undefined = credentials;
+    if (credentials?.tokenType === 'DPoP') credentials.jkt satisfies string;
+    if (credentials?.tokenType === 'Bearer') {
+      // @ts-expect-error — discriminator removes DPoP-only fields.
+      credentials.jkt;
+    }
+    void current;
+  },
+};
+const runtimeSession = createOidcVaultDpopSession(runtimeOptions);
+runtimeSession satisfies OidcVaultSession;
+runtimeSession.dpop satisfies boolean;
+const inferredRuntime = createOidcVaultDpopSession({
+  backendOrigin: options.backendOrigin,
+  dpop: enabled,
+  onCredentialsChanged(credentials) {
+    credentials satisfies OidcVaultAccessToken | undefined;
+    // @ts-expect-error — runtime callback cannot assume a DPoP binding.
+    credentials?.jkt;
+  },
+});
+inferredRuntime satisfies OidcVaultSession;
+const dpopObserver = (value: DpopAccessToken | undefined): void => { void value; };
+const bearerObserver = (value: BearerAccessToken | undefined): void => { void value; };
+// @ts-expect-error — a false session cannot deliver bound credentials.
+createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, dpop: false, onCredentialsChanged: dpopObserver });
+// @ts-expect-error — runtime booleans require an observer accepting both modes.
+createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, dpop: enabled, onCredentialsChanged: bearerObserver });
+// @ts-expect-error — explicit Bearer uses the same object-or-false scheduler policy.
+createOidcVaultDpopSession({ backendOrigin: options.backendOrigin, dpop: false, autoRefresh: true });
+if (runtimeSession.dpop) {
+  runtimeSession.refresh() satisfies Promise<DpopAccessToken>;
+  runtimeSession.getKey() satisfies Promise<DpopKey>;
+} else {
+  runtimeSession.refresh() satisfies Promise<BearerAccessToken>;
+  // @ts-expect-error — false selects the keyless interface.
+  runtimeSession.getKey();
+}
+// @ts-expect-error — false is not allowed by the existing DPoP options type.
+const invalidDpopOptions: OidcVaultDpopSessionOptions = { backendOrigin: options.backendOrigin, dpop: false };
+const { dpop: factoryMode, ...legacyAdapter } = session;
+void factoryMode;
+legacyAdapter satisfies OidcVaultDpopSession;
+fetchWithDpop({ session: legacyAdapter, apis: [{ origin: options.backendOrigin, replayNamespace: 'legacy' }] }, options.backendOrigin);
+
 const context: DpopFetchContext = {
   session,
   apis: [{ origin: 'https://api.example.com', replayNamespace: 'vault-api' }],
@@ -192,6 +387,30 @@ const context: DpopFetchContext = {
 };
 const response: Promise<Response> = fetchWithDpop(context, 'https://api.example.com/things');
 void response;
+
+// OBEAR-04: installed contexts preserve DPoP policy and allow keyless Bearer scopes.
+const bearerApi: BearerApi = { origin: options.backendOrigin, pathPrefix: '/api', credentials: 'include' };
+const bearerContext: BearerFetchContext = { session: bearer, apis: [bearerApi], nonces: new DpopNonceCache() };
+fetchWithDpop(bearerContext, options.backendOrigin + '/api') satisfies Promise<Response>;
+fetchWithDpop({ session: bearer, apis: [{ origin: options.backendOrigin }] }, options.backendOrigin) satisfies Promise<Response>;
+fetchWithDpop({ session: bearer, apis: [{ origin: options.backendOrigin, replayNamespace: 'unused' }] }, options.backendOrigin);
+const runtimeContext: OidcVaultFetchContext = { session: runtimeSession, apis: context.apis };
+fetchWithDpop(runtimeContext, options.backendOrigin) satisfies Promise<Response>;
+// @ts-expect-error — default DPoP config still requires a namespace.
+const missingNamespace: DpopApi = { origin: options.backendOrigin };
+// @ts-expect-error — namespace is an optional string, not a security-mode boolean.
+const invalidBearerApi: BearerApi = { origin: options.backendOrigin, replayNamespace: false };
+// @ts-expect-error — definite DPoP cannot use namespace-free scopes via another overload.
+fetchWithDpop({ session, apis: [{ origin: options.backendOrigin }] }, options.backendOrigin);
+// @ts-expect-error — Bearer sessions cannot satisfy the existing DPoP context type.
+const invalidDpopContext: DpopFetchContext = bearerContext;
+// @ts-expect-error — runtime-mode contexts require DPoP-compatible namespaces.
+const missingRuntimeNamespace: OidcVaultFetchContext = { session: runtimeSession, apis: [{ origin: options.backendOrigin }] };
+// @ts-expect-error — runtime mode cannot choose the namespace-free Bearer overload.
+fetchWithDpop({ session: runtimeSession, apis: [{ origin: options.backendOrigin }] }, options.backendOrigin);
+if (!runtimeSession.dpop) fetchWithDpop({ session: runtimeSession, apis: [{ origin: options.backendOrigin }] }, options.backendOrigin);
+// @ts-expect-error — no request-level authentication mode override.
+fetchWithDpop(bearerContext, options.backendOrigin, { dpop: true });
 
 // DPH-05: separate services under one public origin, using root-exported types.
 const gatewayOrigin = 'https://gateway.example.com';
@@ -313,7 +532,7 @@ afterAll(() => {
 });
 
 describe('CLIENT-06 packed-package compatibility', () => {
-  it('runs navigation API and strict DOM-only consumers through release-transformed ESM/CJS exports', () => {
+  it('runs navigation/Bearer lifecycle/fetch and strict DOM-only consumers through release-transformed ESM/CJS exports', () => {
     const unpacked = unpackTarballToDir(prepareReleaseTarball());
     const manifest = JSON.parse(readFileSync(path.resolve(unpacked, 'package.json'), 'utf8'));
     expect(manifest.module).toBe('./index.mjs');
@@ -408,6 +627,11 @@ describe('CLIENT-06 packed-package compatibility', () => {
       const declarations = text.replace(/\/\*[\s\S]*?\*\//g, '');
       expect(/express|node:|NodeJS|\bBuffer\b|OidcVaultAuthContext|declare module/.test(declarations)).toBe(false);
       expect(/from ['"]\.\.?\//.test(declarations)).toBe(false);
+      // Editor hover information must survive emission/packing in both conditions.
+      expect(text).toContain('Select unbound app-local Bearer explicitly');
+      expect(text).toContain('DPOP_OPERATION_UNSUPPORTED before side effects');
+      expect(text).toContain('exactly three segments reserve the signed');
+      expect(text).toContain('at most two API attempts');
     }
   });
 
