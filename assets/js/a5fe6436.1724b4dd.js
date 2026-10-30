@@ -47,6 +47,10 @@ const toc = [{
   "id": "session-and-gateway-example",
   "level": 2
 }, {
+  "value": "Explicit Bearer",
+  "id": "explicit-bearer",
+  "level": 2
+}, {
   "value": "Provider logout navigation",
   "id": "provider-logout-navigation",
   "level": 2
@@ -94,6 +98,18 @@ function _createMdxContent(props) {
         href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md",
         children: "README"
       }), "\nwith body/cookie quickstarts, API types, recovery tables and upgrade notes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "DPoP is enabled by default"
+      }), " (omitted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dpop"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), "). Explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dpop: false"
+      }), "\nselects immutable session-wide Bearer, never fallback/negotiation. Both modes use\n", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "local application tokens, not IdP access/ID/refresh tokens"
+      }), ". Bearer theft permits\nreplay: opting out removes the sender constraint, not authentication requirements."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "install-and-import",
       children: "Install and import"
@@ -119,7 +135,7 @@ function _createMdxContent(props) {
         children: "jose"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Sessions require a secure context, Web Crypto, sessionStorage and IndexedDB\nCryptoKey persistence. Cookie transport also needs Web Locks + BroadcastChannel.\nImporting is safe before browser startup; construct one session per tab/mount\nwhen browser features are available. Match the vault's public origin/basePath\nand the APIs' replay namespaces; configure credentialed CORS exposing\n", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["DPoP requires secure-context Web Crypto, sessionStorage and IndexedDB CryptoKey\npersistence. Body Bearer needs secure-context digest/UUID + sessionStorage, not\nIndexedDB/CryptoKey. Cookie Bearer still needs IndexedDB metadata, Web Locks and\nBroadcastChannel (also required by cookie DPoP).\nImporting is safe before browser startup; construct one session per tab/mount\nwhen browser features are available. Match the vault's public origin/basePath\nand the APIs' replay namespaces; configure credentialed CORS exposing\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "DPoP-Nonce"
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "WWW-Authenticate"
@@ -149,10 +165,83 @@ function _createMdxContent(props) {
         children: "/"
       }), " permits the entire origin. Duplicate normalized\nscopes reject before auth work. Outbound paths and proofs normalize unreserved\nescapes/dot segments, retain reserved separators, and preserve query data in\nthe request. Distinct namespaces isolate gateway services' nonces."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "explicit-bearer",
+      children: "Explicit Bearer"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Keep the existing factory/fetch names and package root imports. Pair with\n", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "optional vault binding"
+      }), " and a local issuer (primary supported deployment).\nDisabled binding ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "with recognition configured"
+      }), " can also provide guarded POST\nlogin; disabled binding ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "without recognition is unsupported"
+      }), " (no POST route,\nno legacy GET-login fallback). Required binding rejects Bearer. APIs must\nindependently accept/validate unbound tokens; required API binding still rejects.\nTrusted-origin, transaction-cookie, Origin/Referer and credentialed CORS protections\nremain required. No production example default changes to Bearer."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import {\n  createOidcVaultDpopSession,\n  fetchWithDpop,\n  OidcVaultDpopClientError,\n  type BearerAccessToken,\n} from '@web-ts-toolkit/oidc-vault-dpop-client';\n\nconst backendOrigin = 'https://api.example.com';\nlet view: BearerAccessToken | undefined;\nconst session = createOidcVaultDpopSession({\n  backendOrigin,\n  basePath: '/auth/oidc/body',\n  sessionTransport: 'body',\n  dpop: false,\n  autoRefresh: { refreshBeforeExpiryMs: 60_000 }, // Optional, off by default.\n  onCredentialsChanged: (credentials) => {\n    view = credentials;\n  }, // Bearer, no jkt.\n  onAutoRefreshError: () => {\n    /* Show paused-refresh recovery; no implicit retry. */\n  },\n});\nexport const readView = () => view; // Memory-only; prefer session.getAccessToken().\nexport const signIn = () => session.login('/callback');\nexport const signOut = () => session.logout(); // Ordinary logout; no provider navigation.\nexport const refresh = (): Promise<BearerAccessToken> => session.refresh();\nexport async function bootstrap(): Promise<'ready' | 'sign-in'> {\n  try {\n    const url = new URL(location.href);\n    const code = url.searchParams.get('code');\n    if (code !== null) {\n      url.searchParams.delete('code');\n      history.replaceState(null, '', url.href);\n      await session.exchange(code);\n    } else await session.refresh();\n    return 'ready';\n  } catch (error) {\n    if (error instanceof OidcVaultDpopClientError && error.requiresLogin) return 'sign-in';\n    throw error;\n  }\n}\nexport const loadProfile = () =>\n  fetchWithDpop({ session, apis: [{ origin: backendOrigin, pathPrefix: '/api' }] }, `${backendOrigin}/api/profile`); // Bearer Authorization only, no DPoP/key/nonce work.\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultBearerSessionOptions"
+      }), " annotates literal-false configuration. Existing\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultDpopSessionOptions"
+      }), " remains DPoP-only. For runtime booleans use the union:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import {\n  createOidcVaultDpopSession,\n  type OidcVaultAccessToken,\n  type OidcVaultSessionOptions,\n  type OidcVaultFetchContext,\n} from '@web-ts-toolkit/oidc-vault-dpop-client';\n\nexport function configure(dpopEnabled: boolean) {\n  let view: OidcVaultAccessToken | undefined;\n  const options: OidcVaultSessionOptions = {\n    backendOrigin: 'https://api.example.com',\n    dpop: dpopEnabled,\n    autoRefresh: { refreshBeforeExpiryMs: 60_000 },\n    onCredentialsChanged(credentials) {\n      view = credentials;\n      if (credentials?.tokenType === 'DPoP') credentials.jkt satisfies string;\n    },\n  };\n  const session = createOidcVaultDpopSession(options);\n  const context: OidcVaultFetchContext = {\n    session,\n    apis: [{ origin: options.backendOrigin, replayNamespace: 'app-api' }],\n  };\n  return { session, context, readView: () => view };\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only definitely-Bearer ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BearerFetchContext"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BearerApi"
+      }), " may omit replay namespaces;\nsupplied values are validated but unused. Narrow ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "session.dpop"
+      }), " before mode-only\noperations. Bearer has no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getKey"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "resetKey"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "logoutAndNavigate"
+      }), " in its type;\nruntime probes reject fixed nonterminal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DPOP_OPERATION_UNSUPPORTED"
+      }), " before any\nside effect. Ordinary logout works after app-token expiry."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Direct Bearer responses accept exact ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Bearer"
+      }), " or omitted/undefined ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "tokenType"
+      }), "\n(normalized only in this mode); peers require exact Bearer. Header-safe opaque\ntokens work, but exactly-three-segment tokens reserve the canonical compact signed\nJWT profile: malformed encoding, unsigned alg, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "b64: false"
+      }), " or ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "any present cnf"
+      }), "\nreject. Optional safe JWT ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exp"
+      }), " clamps expiry. Safe lifetime arithmetic and body/\ncookie handle rules remain; zero lifetime retains rotated handles, not live tokens.\nInvalid direct responses use terminal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "INVALID_BEARER_CREDENTIAL_RESPONSE"
+      }), "; invalid\npeers are ignored. Decoding is not API authentication."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Bearer permits at most ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "two API attempts, one shared refresh budget"
+      }), " (including\ninitial acquisition), only a valid active-scheme HTTP-401 ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "invalid_token"
+      }), " challenge\nwhen retry policy allows. No nonce retry/learning. Other-scheme/malformed/generic\nfailures and unsafe mutations gain no retries. Default DPoP behavior is unchanged."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Changing mode requires ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "fresh login"
+      }), ", not refreshing/relabeling an old token.\nCookie metadata is a real mode/generation union (DPoP has jkt, Bearer does not),\nusing the ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "same historical lock"
+      }), ", database and keys. Historical missing-mode\nrecords/messages mean DPoP-only; there is no key migration. Reload requires active\nsame-mode metadata. Peers check mode/generation/expiry/recognition and final metadata;\nopposite modes cannot adopt tokens or clear successors. Unmodified older tabs cannot\nhonor this contract: ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "upgrade/close/reload before switching"
+      }), " a shared cookie\nauthority. Mixed old-client/mixed-mode coexistence is unsupported; independent modes\nneed distinct backend cookie authorities. No immediate stateless JWT revocation."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "provider-logout-navigation",
       children: "Provider logout navigation"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["With server ", (0,jsx_runtime.jsx)(_components.code, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "DPoP only."
+      }), " With server ", (0,jsx_runtime.jsx)(_components.code, {
         children: "logoutNavigation"
       }), " enabled, call ", (0,jsx_runtime.jsx)(_components.strong, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -217,7 +306,7 @@ function _createMdxContent(props) {
           children: "cnf: { jkt }"
         }), ",\nsafe mandatory ", (0,jsx_runtime.jsx)(_components.code, {
           children: "exp"
-        }), " seconds and safe lifetime arithmetic. Browser decoding\nchecks the response contract; APIs authenticate JWTs and same-key proofs.\nGeneric server unbound/opaque compatibility remains. ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " seconds and safe lifetime arithmetic. Browser decoding\nchecks the response contract; APIs authenticate JWTs and same-key proofs.\nExplicit Bearer adds the unbound profile above. ", (0,jsx_runtime.jsx)(_components.code, {
           children: "expiresIn: 0"
         }), " retains\nrotation results but is not a live API/peer credential; API use stops with\nnon-terminal ", (0,jsx_runtime.jsx)(_components.code, {
           children: "DPOP_ACCESS_TOKEN_EXPIRED"
@@ -239,7 +328,7 @@ function _createMdxContent(props) {
           children: "dispose"
         }), " closes the context and preserves committed reload state; ", (0,jsx_runtime.jsx)(_components.code, {
           children: "resetKey"
-        }), "\ndeletes only scoped key/metadata without backend work. Await clear/reset before\nteardown when persistence must finish. ", (0,jsx_runtime.jsx)(_components.code, {
+        }), "\n(DPoP only) deletes scoped key/metadata without backend work. Await clear/reset before\nteardown when persistence must finish. ", (0,jsx_runtime.jsx)(_components.code, {
           children: "logout"
         }), " requests server revocation.\nA corrupt key needs explicit reset-then-login; no implicit replacement occurs.\nOld sessions/JWTs remain until revocation/expiry and other users of that key\nneed fresh login. The historical ", (0,jsx_runtime.jsx)(_components.code, {
           children: "oidc-vault-dpop-example-v1"
@@ -281,8 +370,14 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The optional top-level ", (0,jsx_runtime.jsx)(_components.code, {
         children: "onCredentialsChanged(credentials)"
-      }), " observes committed\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "DpopAccessToken | undefined"
+      }), " observes committed\nthe selected credential (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DpopAccessToken"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BearerAccessToken"
+      }), ", or the runtime\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultAccessToken"
+      }), " union) ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "| undefined"
       }), " independently of scheduling: exchange, manual/API\nrefresh, admitted cookie peers, and clearing. Prefer ", (0,jsx_runtime.jsx)(_components.code, {
         children: "session.getAccessToken()"
       }), "\nas the single source; use observation for a reactive view or in-memory mirror,\nnever token persistence. Delivery is asynchronous, coalesced latest state (not an\nevent log), outside this instance's mutation/lock ownership. Throws/rejected\npromises are contained and never awaited. Duplicate or stale peer delivery does\nnot notify. Disposal suppresses queued tokens and emits a final undefined only\nif a token was previously observed, then stops notifications."]
@@ -302,6 +397,8 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Expiry lead is not a periodic interval: a one-hour token/60-second lead refreshes\naround minute 59. Known acquisition time caps the lead to half the initial remaining\nlifetime, with a one-second minimum cadence; zero/nonlive results pause with\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "DPOP_ACCESS_TOKEN_EXPIRED"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BEARER_ACCESS_TOKEN_EXPIRED"
       }), " while preserving handles. An explicit 20-minute maximum\ncan cover a 30-minute provider idle policy while the browser runs, but ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "either\nscheduling policy can extend an idle session"
       }), ". Neither tracks user activity,\nextends absolute expiry, or guarantees execution during sleep/throttling."]
