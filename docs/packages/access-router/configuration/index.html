@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Configuration | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Configuration | web-ts-toolkit"><meta data-rh="true" name="description" content="Configuration has separate layers: runtime GlobalOptions, shared model starting"><meta data-rh="true" property="og:description" content="Configuration has separate layers: runtime GlobalOptions, shared model starting"><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Configuration","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"}]}</script><link rel="stylesheet" href="/assets/css/styles.b781c440.css">
-<script src="/assets/js/runtime~main.f30718ae.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.3a7c8c49.js" defer="defer"></script>
 <script src="/assets/js/main.2e6e20df.js" defer="defer"></script>
 </head>
 <body>
@@ -143,13 +143,41 @@ that model. Existing call/handle snapshots and mounted route paths do not change
 target model&#x27;s flags. Root-source, nested-source and output-value checks are independent;
 nested flags do not prune child values from still-strict parent comparisons.</p>
 <p>Permission rules, exact associations/bindings, output graph identities and initial
-snapshots/detached copies remain. Writes, dedicated subdocument operations and fresh
+snapshots/detached copies remain with the new copy flags below off. Writes, dedicated subdocument operations and fresh
 helpers stay strict. Originating handles, captured retries and later descendants
 retain their original mode after rollback. <strong>Source mutation can leave stale grants/
 decisions; output flags additionally allow changed values with unchanged identities
 to reuse authorization and expose incorrectly authorized data.</strong> Use only as a
 temporary, measured workaround, not as a security-equivalent fast path. Per-call,
 wire and method-default controls cannot enable it. See the shipped README for the contract.</p>
+<h4 class="anchor anchorTargetStickyNavbar_I1eS" id="separate-initial-output-copy-opt-outs">Separate initial output-copy opt-outs<a href="#separate-initial-output-copy-opt-outs" class="hash-link" aria-label="Direct link to Separate initial output-copy opt-outs" title="Direct link to Separate initial output-copy opt-outs" translate="no">​</a></h4>
+<p><code>unsafeSkipListInitialOutputSnapshotCopy</code> and <code>unsafeSkipReadInitialOutputSnapshotCopy</code>
+are two additional server model/default booleans, <strong>false by default</strong>. Each requires
+its matching <code>unsafeSkipListOutputSnapshotChecks</code> / <code>unsafeSkipReadOutputSnapshotChecks</code>
+to be true. Copy true with comparisons strict is <strong>dormant</strong>: copying/comparisons stay
+on and a prerequisite warning is logged. Neither option silently changes another flag.</p>
+<p>When active, eligible initial output-association snapshots (including authenticated
+embedded/populated/included outputs and package-created transfers) are omitted. READ
+retries keep READ settings; targets cannot override the initiating model. Inheritance,
+literal-true enablement, server-only controls and captured-handle rollback match the
+comparison flags. Active/dormant warnings follow effective model/operation transitions,
+not rows/requests. Writes, dedicated subdocument operations and fresh helpers stay strict.</p>
+<p><strong>Additional risk:</strong> this pass no longer clones/normalizes native leaves or runs BSON
+wire-validation hooks. Changed observations can alter exceptions, side effects and
+permission outcomes—even turn denial into allowance. Ordinary graph admission retains
+safe keys/descriptors, cycles, 20,000 visited-node/array-length and depth-100 limits,
+plus exact graph/binding ownership. Standard native leaves are admitted without this
+normalization; invalid/forged BSON content is not wire-validated by the omitted pass.
+Proxies, Map/Set, unproven subclasses/unsupported graphs use the original copy fallback.
+Accessor/proxy ownership bindings also fall back, rather than retaining graph admission
+across binding callbacks.</p>
+<p>Source snapshots, detached callback inputs/grants, configuration, getters, metadata
+and actual response-copy boundaries remain. This is not an all-cloning opt-out and
+does not promise historical performance. Prefer temporary per-model opt-in only after
+reviewing trusted data/hooks and measured rollout evidence. Restore the copy flag to
+false and then restore strict comparisons for new calls; retained authority keeps its
+captured mode. The <a href="https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#temporary-unsafe-initial-output-snapshot-copy-switches" target="_blank" rel="noopener noreferrer" class="">shipped README</a>
+contains the four-combination table and server-only example.</p>
 <h3 class="anchor anchorTargetStickyNavbar_I1eS" id="populate-operation-policies">Populate operation policies<a href="#populate-operation-policies" class="hash-link" aria-label="Direct link to Populate operation policies" title="Direct link to Populate operation policies" translate="no">​</a></h3>
 <p>Both optional model/default booleans have built-in true. Each actual target resolves
 explicit override → captured runtime model default → true. Explicit undefined clears

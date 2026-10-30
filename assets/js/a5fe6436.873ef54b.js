@@ -54,6 +54,14 @@ const toc = [{
   "value": "Recovery and limits",
   "id": "recovery-and-limits",
   "level": 2
+}, {
+  "value": "Observing credentials",
+  "id": "observing-credentials",
+  "level": 2
+}, {
+  "value": "Opt-in proactive refresh",
+  "id": "opt-in-proactive-refresh",
+  "level": 2
 }];
 function _createMdxContent(props) {
   const _components = {
@@ -253,7 +261,9 @@ function _createMdxContent(props) {
           children: "Errors:"
         }), " ", (0,jsx_runtime.jsx)(_components.code, {
           children: "requiresLogin"
-        }), " identifies terminal session/key/browser-binding/\nenrolled recognition errors, not every 401. Proof/nonce/transient failures keep\nauth; unknown server codes become fixed ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " identifies terminal session/key/browser-binding/\nenrolled recognition errors and confirmed current-session\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OIDC_VAULT_REFRESH_REJECTED"
+        }), ", not every 401. The latter means refresh-grant\nrejection, not specifically expiry; stale generations are superseded rather\nthan clearing newer auth. Older servers return generic provider failures and\nolder clients treat the new unknown code as non-terminal. Proof/nonce/transient failures keep\nauth; unknown server codes become fixed ", (0,jsx_runtime.jsx)(_components.code, {
           children: "OIDC_REQUEST_FAILED"
         }), ". Recognition is\noptional change detection, never proof of possession or an API sender constraint."]
       }), "\n"]
@@ -265,6 +275,53 @@ function _createMdxContent(props) {
         href: "https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md",
         children: "TypeScript SPA"
       }), "\nfor full contracts and commands."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "observing-credentials",
+      children: "Observing credentials"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The optional top-level ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onCredentialsChanged(credentials)"
+      }), " observes committed\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DpopAccessToken | undefined"
+      }), " independently of scheduling: exchange, manual/API\nrefresh, admitted cookie peers, and clearing. Prefer ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "session.getAccessToken()"
+      }), "\nas the single source; use observation for a reactive view or in-memory mirror,\nnever token persistence. Delivery is asynchronous, coalesced latest state (not an\nevent log), outside this instance's mutation/lock ownership. Throws/rejected\npromises are contained and never awaited. Duplicate or stale peer delivery does\nnot notify. Disposal suppresses queued tokens and emits a final undefined only\nif a token was previously observed, then stops notifications."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "opt-in-proactive-refresh",
+      children: "Opt-in proactive refresh"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "autoRefresh"
+      }), " is omitted/false by default. An object enables scheduling after\nsuccessful explicit exchange/refresh, not at construction. The root-exported\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultDpopAutoRefreshOptions"
+      }), " contains ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "refreshBeforeExpiryMs"
+      }), " (enabled\ndefault 60,000; integer 0..2,147,483,647) and optional ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxRefreshIntervalMs"
+      }), "\n(no default; integer 1,000..2,147,483,647)."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Expiry lead is not a periodic interval: a one-hour token/60-second lead refreshes\naround minute 59. Known acquisition time caps the lead to half the initial remaining\nlifetime, with a one-second minimum cadence; zero/nonlive results pause with\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DPOP_ACCESS_TOKEN_EXPIRED"
+      }), " while preserving handles. An explicit 20-minute maximum\ncan cover a 30-minute provider idle policy while the browser runs, but ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "either\nscheduling policy can extend an idle session"
+      }), ". Neither tracks user activity,\nextends absolute expiry, or guarantees execution during sleep/throttling."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { createOidcVaultDpopSession, OidcVaultDpopClientError } from '@web-ts-toolkit/oidc-vault-dpop-client';\n\nlet recovery: 'sign-in' | 'refresh-paused' | undefined;\nexport const session = createOidcVaultDpopSession({\n  backendOrigin: 'https://api.example.com',\n  autoRefresh: {\n    refreshBeforeExpiryMs: 60_000,\n    // maxRefreshIntervalMs: 20 * 60_000, // Only after choosing keep-alive policy.\n  },\n  onAutoRefreshError: (error) => {\n    recovery = error instanceof OidcVaultDpopClientError && error.requiresLogin ? 'sign-in' : 'refresh-paused';\n  },\n});\nexport const readRecovery = () => recovery;\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The scheduler rechecks deadlines after the existing FIFO/cookie Web Lock and peer\nadoption. Generation-bound non-credential ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "refreshedAt"
+      }), " metadata anchors maximum\nintervals; peer receipt/rebroadcast never resets them, and old/malformed/future\nhints make a maximum interval due. Body handles stay tab-local. Clear/reset,\nterminal errors and disposal stop scheduling; logout/login/exchange intent withdraws\nqueued timer work without preventing an earlier started rotation from publishing\nbefore ordered logout. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "visibilitychange"
+      }), " when visible and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pageshow"
+      }), " recheck one\ndeadline, not missed ticks. Missing peer delivery can need a later serialized refresh."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Failures pause and notify once; there is no automatic retry/backoff for uncertain\nrotations. Resume/online events and unsolicited peers cannot unpause failure;\nsuccessful explicit local acquisition rearms. Background observer throws/rejected\npromises are contained and never awaited; manual methods retain their promise\nerrors. Keep ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Sign in again"
+      }), " and application-owned idle/logout recovery. See the\ninstalled README for the full timing, observer and mixed-version contracts.\nFailed manual refresh silently pauses scheduling too, preventing an implicit\ntimer retry of an uncertain mutation. Superseded work without a newer admitted\nwinner pauses silently until the application follows its current explicit flow."]
     })]
   });
 }

@@ -59,6 +59,10 @@ const toc = [{
   "id": "temporary-unsafe-readlist-performance-switches",
   "level": 3
 }, {
+  "value": "Separate initial output-copy opt-outs",
+  "id": "separate-initial-output-copy-opt-outs",
+  "level": 4
+}, {
   "value": "Populate operation policies",
   "id": "populate-operation-policies",
   "level": 3
@@ -114,6 +118,7 @@ function _createMdxContent(props) {
     h1: "h1",
     h2: "h2",
     h3: "h3",
+    h4: "h4",
     header: "header",
     li: "li",
     p: "p",
@@ -536,9 +541,37 @@ function _createMdxContent(props) {
         children: "initiating model"
       }), ", not the\ntarget model's flags. Root-source, nested-source and output-value checks are independent;\nnested flags do not prune child values from still-strict parent comparisons."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Permission rules, exact associations/bindings, output graph identities and initial\nsnapshots/detached copies remain. Writes, dedicated subdocument operations and fresh\nhelpers stay strict. Originating handles, captured retries and later descendants\nretain their original mode after rollback. ", (0,jsx_runtime.jsx)(_components.strong, {
+      children: ["Permission rules, exact associations/bindings, output graph identities and initial\nsnapshots/detached copies remain with the new copy flags below off. Writes, dedicated subdocument operations and fresh\nhelpers stay strict. Originating handles, captured retries and later descendants\nretain their original mode after rollback. ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "Source mutation can leave stale grants/\ndecisions; output flags additionally allow changed values with unchanged identities\nto reuse authorization and expose incorrectly authorized data."
       }), " Use only as a\ntemporary, measured workaround, not as a security-equivalent fast path. Per-call,\nwire and method-default controls cannot enable it. See the shipped README for the contract."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h4, {
+      id: "separate-initial-output-copy-opt-outs",
+      children: "Separate initial output-copy opt-outs"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeSkipListInitialOutputSnapshotCopy"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeSkipReadInitialOutputSnapshotCopy"
+      }), "\nare two additional server model/default booleans, ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "false by default"
+      }), ". Each requires\nits matching ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeSkipListOutputSnapshotChecks"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeSkipReadOutputSnapshotChecks"
+      }), "\nto be true. Copy true with comparisons strict is ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "dormant"
+      }), ": copying/comparisons stay\non and a prerequisite warning is logged. Neither option silently changes another flag."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "When active, eligible initial output-association snapshots (including authenticated\nembedded/populated/included outputs and package-created transfers) are omitted. READ\nretries keep READ settings; targets cannot override the initiating model. Inheritance,\nliteral-true enablement, server-only controls and captured-handle rollback match the\ncomparison flags. Active/dormant warnings follow effective model/operation transitions,\nnot rows/requests. Writes, dedicated subdocument operations and fresh helpers stay strict."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Additional risk:"
+      }), " this pass no longer clones/normalizes native leaves or runs BSON\nwire-validation hooks. Changed observations can alter exceptions, side effects and\npermission outcomes—even turn denial into allowance. Ordinary graph admission retains\nsafe keys/descriptors, cycles, 20,000 visited-node/array-length and depth-100 limits,\nplus exact graph/binding ownership. Standard native leaves are admitted without this\nnormalization; invalid/forged BSON content is not wire-validated by the omitted pass.\nProxies, Map/Set, unproven subclasses/unsupported graphs use the original copy fallback.\nAccessor/proxy ownership bindings also fall back, rather than retaining graph admission\nacross binding callbacks."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Source snapshots, detached callback inputs/grants, configuration, getters, metadata\nand actual response-copy boundaries remain. This is not an all-cloning opt-out and\ndoes not promise historical performance. Prefer temporary per-model opt-in only after\nreviewing trusted data/hooks and measured rollout evidence. Restore the copy flag to\nfalse and then restore strict comparisons for new calls; retained authority keeps its\ncaptured mode. The ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#temporary-unsafe-initial-output-snapshot-copy-switches",
+        children: "shipped README"
+      }), "\ncontains the four-combination table and server-only example."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "populate-operation-policies",
       children: "Populate operation policies"

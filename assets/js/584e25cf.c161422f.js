@@ -2136,8 +2136,20 @@ function _createMdxContent(props) {
         }), ", when present, must be a finite non-negative integer."]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Discovery, token, and UserInfo JSON bodies must be non-null, non-array objects; valid non-object JSON is a controlled 502 provider error."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Non-success token/UserInfo responses normally surface sanitized 502s; rejected upstream redirects never become browser-facing 3xx. A complete bounded HTTP-400 JSON ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "error: 'invalid_grant'"
+        }), " specifically for a refresh-token grant returns ", (0,jsx_runtime.jsxs)(_components.strong, {
+          children: ["401 ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "OIDC_VAULT_REFRESH_REJECTED"
+          }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "OIDC refresh was rejected. Sign in again."
+          })]
+        }), " when its local record is still current. This indicates rejection (expiry, revocation or reuse), not proven expiry. Replaced records, other grants/statuses, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "invalid_client"
+        }), ", malformed bodies and outages retain generic non-terminal provider failures. This adds no cookie clearing or lineage deletion and is not a distributed lease."]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Non-success token/UserInfo responses always surface 502 with a stable code/message regardless of JSON versus HTML bodies, without leaking body content or the upstream status; rejected upstream redirects never become browser-facing 3xx."
+        children: "Updated browser clients recognize that new code as sign-in-required; old clients sanitize the unknown code as non-terminal, and old servers still return generic errors. Never infer logout from every provider failure or HTTP 401."
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["Present ", (0,jsx_runtime.jsx)(_components.code, {
           children: "access_token"
