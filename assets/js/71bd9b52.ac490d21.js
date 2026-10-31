@@ -63,6 +63,10 @@ const toc = [{
   "id": "separate-initial-output-copy-opt-outs",
   "level": 4
 }, {
+  "value": "Experimental unsafe READ/LIST authorization fast paths",
+  "id": "experimental-unsafe-readlist-authorization-fast-paths",
+  "level": 3
+}, {
   "value": "Populate operation policies",
   "id": "populate-operation-policies",
   "level": 3
@@ -465,6 +469,10 @@ function _createMdxContent(props) {
       id: "temporary-unsafe-readlist-performance-switches",
       children: "Temporary unsafe read/list-performance switches"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The original six comparison/two initial-copy contracts below retain their copy/graph\nguarantees only with the matching new authorization fast-path flag ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "OFF (or dormant)"
+      }), ".\nThe separately opted-in active mode described below deliberately weakens them."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Model-only ", (0,jsx_runtime.jsx)(_components.code, {
         children: "unsafeSkipListDocumentSnapshotChecks: true"
       }), " skips repeated source snapshot\ncomparisons on top-level ", (0,jsx_runtime.jsx)(_components.code, {
@@ -572,6 +580,47 @@ function _createMdxContent(props) {
         href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#temporary-unsafe-initial-output-snapshot-copy-switches",
         children: "shipped README"
       }), "\ncontains the four-combination table and server-only example."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "experimental-unsafe-readlist-authorization-fast-paths",
+      children: "Experimental unsafe READ/LIST authorization fast paths"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeUseListAuthorizationFastPath?: boolean"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeUseReadAuthorizationFastPath?: boolean"
+      }), " form a third independent default-false\nserver model/default group. Literal true requests the mode; each needs ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "all four"
+      }), "\nmatching ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unsafeSkip{List,Read}DocumentSnapshotChecks"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OutputSnapshotChecks"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "NestedDocumentSnapshotChecks"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "InitialOutputSnapshotCopy"
+      }), ". False/omitted is off;\ntrue with any missing prerequisite is dormant with original flag behavior. Never\nauto-enables prerequisites. Explicit model false overrides defaults; undefined\nrestores inheritance. Control-slot presence in requests/defaults/policy/helpers/\ninclude/populate/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$sq"
+      }), " rejects; same-named business data remains inert."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Capture precedes hooks/awaits on a genuine query origin. READ-to-list retries retain\nREAD, genuine embedded/related descendants inherit origin capture rather than live\ntarget flags, and independent calls capture their own settings. Writes/write-derived\noutput, new/create/update/delete/upsert, dedicated subdocuments and fresh raw helpers\nstay strict. Effective active/dormant/missing-prerequisite changes warn, not each call."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Active ordinary lean source/hook input and grants are borrowed; shallow contexts and\ncaptured config/scope views are reused. Actual operation/row/field rules, actor,\nmandatory once-per-root/target document hooks, getters and target admission remain.\nIndependent rows/targets do not share grants/decisions by ID. Trusted outputs have\nexact root bindings and ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "issued-document membership, not current graph walks"
+      }), ":\nremoved original children may remain discoverable, replacements get no handle, and\nroot helpers filter current values with stale memo/shared grants after replacement.\nMetadata/includes finish before one association; source/attachment lanes stay separate."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["New selected work is bounded to 20,000 visited slots/issued roots and depth 100, with\nsafe descriptor writes/cycle errors—not full unvisited source/grant/context validation.\nShallow-unproven rows may use copied compatibility before hooks, exotic grants/value\nfallbacks copy once, and mixed copied/trusted rows can coexist. Selected unsupported\nvalues reject (invalid virtual returns omit). Hydration, selected natives, getter\nstable-base/per-getter views/return staging, private argument-four isolation and JSON\nserialization still copy/normalize. Active configuration is ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "not every-row zero-copy"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Mutation/stale decisions/changed descendants/fewer native observations can turn denial\ninto allowance. Experimental performance-first, not a full ACL bypass, security-equivalent\noptimization, publication fusion, universal gain or v0.51.0 parity. Benchmark your workload.\nRollback protects new calls only; retained trusted handles keep weaker semantics,\nand original prerequisite skip flags must be restored separately. The\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#experimental-unsafe-readlist-authorization-fast-paths",
+        children: "installed README"
+      }), "\nis authoritative and includes executable LIST/READ and retained-handle warnings."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';\n\nconst api = createAccessRuntime();\nconst readDefaults = {\n  unsafeSkipReadDocumentSnapshotChecks: true,\n  unsafeSkipReadOutputSnapshotChecks: true,\n  unsafeSkipReadNestedDocumentSnapshotChecks: true,\n  unsafeSkipReadInitialOutputSnapshotCopy: true,\n  unsafeUseReadAuthorizationFastPath: true,\n} satisfies DefaultModelRouterOptions;\napi.setDefaultModelOptions(readDefaults); // LIST stays independently off\napi.setDefaultModelOption('unsafeUseReadAuthorizationFastPath', false);\n// Existing READ retries/handles keep captured semantics. Restore other skips separately.\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "populate-operation-policies",
       children: "Populate operation policies"
