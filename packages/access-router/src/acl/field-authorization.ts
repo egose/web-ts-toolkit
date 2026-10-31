@@ -121,7 +121,37 @@ export async function evaluateScopedAccessRule(args: {
   docPermissions: Record<string, unknown> | null | undefined;
   modelPermissionPrefix: string;
 }): Promise<boolean> {
-  const { req, rule, globalPermissions, docPermissions, modelPermissionPrefix } = args;
+  if (typeof args.rule !== 'function') return evaluateNonFunctionAccessRule(args);
+  try {
+    return Boolean(await args.rule.call(args.req, args.globalPermissions, args.docPermissions));
+  } catch {
+    return false;
+  }
+}
+
+type ScopedAccessRuleArgs = Parameters<typeof evaluateScopedAccessRule>[0];
+
+/** Same grammar as the legacy async wrapper; only actual async callbacks introduce an await. */
+export function evaluateScopedAccessRuleValue(args: ScopedAccessRuleArgs): boolean | Promise<boolean> {
+  if (typeof args.rule !== 'function') return evaluateNonFunctionAccessRule(args);
+  try {
+    const value = args.rule.call(args.req, args.globalPermissions, args.docPermissions);
+    if (value && typeof value.then === 'function')
+      return (async () => {
+        try {
+          return Boolean(await value);
+        } catch {
+          return false;
+        }
+      })();
+    return Boolean(value);
+  } catch {
+    return false;
+  }
+}
+
+function evaluateNonFunctionAccessRule(args: ScopedAccessRuleArgs): boolean {
+  const { rule, globalPermissions, docPermissions, modelPermissionPrefix } = args;
   if (typeof rule === 'boolean') return rule;
   const validator = createValidator((key) => {
     try {
@@ -137,13 +167,6 @@ export async function evaluateScopedAccessRule(args: {
   });
   if (typeof rule === 'string') return validator.stringHandler(rule);
   if (Array.isArray(rule)) return validator.arrayHandler(rule);
-  if (typeof rule === 'function') {
-    try {
-      return Boolean(await rule.call(req, globalPermissions, docPermissions));
-    } catch {
-      return false;
-    }
-  }
   return false;
 }
 

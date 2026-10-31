@@ -16,27 +16,36 @@ import {
   associateDocumentAuthorization,
   bindOutputDocumentOwner,
   createDocumentAuthorizationStage,
+  createTrustedOutputMemberBuilder,
   getAssociatedDocumentAuthorization,
+  getIssuedEmbeddedDocumentAuthorization,
   isKnownAuthorizationOutput,
+  isIssuedOutputMember,
+  isTrustedDocumentAuthorization,
   isUnresolvedOutputDocument,
   memoizeDocumentFieldDecision,
   normalizeOutputAuthorizationOptions,
   readDocumentAuthorization,
   readDocumentAuthorizationAccess,
   readOutputDocumentOwner,
+  prepareQueryDocumentAuthorization,
+  retainTrustedOutputMember,
+  retainTrustedOutputSpine,
   resolveDocumentAuthorization,
   transferDocumentAuthorization,
   transferDocumentAuthorizationGraph,
   tryStaticOutputFieldDecisions,
   tryStaticRequestFieldPaths,
 } from './document-authorization';
-import type { DocumentAuthorizationStage } from './document-authorization';
+import type { DocumentAuthorizationStage, TrustedOutputMemberBuilder } from './document-authorization';
 import {
   assertAuthorizationBinding,
   getAuthorizationPermissions,
   getAuthorizationProvenance,
   readServiceAuthorization,
   readServiceAuthorizationAccess,
+  readAuthorizationFastPath,
+  deriveTrustedQueryAuthorization,
   readServiceDocumentPermissions,
   readServiceOutputPolicy,
   resolveServiceAuthorization,
@@ -51,6 +60,7 @@ import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption 
 import {
   classifyEffectiveFieldAuthorization,
   evaluateScopedAccessRule,
+  evaluateScopedAccessRuleValue,
   hasExplicitFieldGrant,
 } from './field-authorization';
 import { isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
@@ -62,6 +72,16 @@ import {
   requestRuleClassification,
   type PreparedRequestRule,
 } from './output-field-policy';
+import {
+  createTrustedOutputBudget,
+  defineTrustedOutputValue,
+  materializeTrustedOutputValue,
+  setTrustedOutputPath,
+  shallowTrustedOutputArray,
+  trustedMapOutputScope,
+  visitTrustedOutput,
+  type TrustedOutputBudget,
+} from './trusted-output-materialization';
 
 function assertOwningOutputDocuments(handle: DocumentAuthorization): void {
   const owner = readOutputDocumentOwner(handle);
@@ -103,13 +123,19 @@ export function prepareOutputDocumentAuthorization(
     /^[A-Za-z0-9_-]+$/.test(access.docPermissionsAccess) && (docPermissions == null || isPlainObject(docPermissions));
   const option = invariant ? getCapturedAuthorizationOption(configuration, key) : undefined;
   const hook = typeof option === 'function' ? option : undefined;
+  const trusted = readAuthorizationFastPath(authorization, binding)?.mode === 'active';
   const resolveHook = invariant
     ? () => hook
-    : () => {
-        const slice = { catalog: configuration.catalog, ...copyAuthorizationValue({ docPermissions }, true) };
-        const option = getCapturedAuthorizationOption(slice, key);
-        return typeof option === 'function' ? option : undefined;
-      };
+    : trusted
+      ? () => {
+          const option = getCapturedAuthorizationOption(configuration, key);
+          return typeof option === 'function' ? option : undefined;
+        }
+      : () => {
+          const slice = { catalog: configuration.catalog, ...copyAuthorizationValue({ docPermissions }, true) };
+          const option = getCapturedAuthorizationOption(slice, key);
+          return typeof option === 'function' ? option : undefined;
+        };
   return async (args) => {
     if (args.authorization !== authorization) authorizationError('document resolver call mismatch');
     assertAuthorizationBinding(authorization, args.binding);
@@ -161,12 +187,40 @@ function evaluateRequestRule(
   entry: PreparedRequestRule,
   prefix: unknown,
   access: string,
-): Promise<boolean> {
+): boolean | Promise<boolean> {
   assertOwningOutputDocuments(handle);
   const owner = readOutputDocumentOwner(handle);
   if (owner && !entry.path.startsWith(`${(binding.scopePath ?? []).join('.')}.`)) {
     return evaluateRequestRule(owner.handle, owner.binding, entry, prefix, access);
   }
+  if (isTrustedDocumentAuthorization(handle, binding))
+    return memoizeDocumentFieldDecision(
+      handle,
+      binding,
+      `request:${access}:${entry.path}`,
+      function (permissions, grants) {
+        const { authorization } = readDocumentAuthorizationAccess(handle, binding);
+        const classification = requestRuleClassification(entry, authorization, permissions, prefix);
+        const allowed =
+          classification?.decision ??
+          evaluateScopedAccessRuleValue({
+            req: this,
+            rule: entry.rule,
+            globalPermissions: permissions,
+            docPermissions: grants,
+            modelPermissionPrefix: prefix as string,
+          });
+        if (typeof allowed !== 'boolean')
+          return (async () => {
+            const result = await allowed;
+            assertOwningOutputDocuments(handle);
+            readDocumentAuthorizationAccess(handle, binding);
+            return result;
+          })();
+        assertOwningOutputDocuments(handle);
+        return allowed;
+      },
+    );
   return memoizeDocumentFieldDecision(
     handle,
     binding,
@@ -199,10 +253,39 @@ export function evaluateAuthorizedOutputField(
   handle: DocumentAuthorization,
   binding: AuthorizationBinding,
   field: string,
-): Promise<boolean> {
+): boolean | Promise<boolean> {
   const { authorization } = readDocumentAuthorizationAccess(handle, binding);
   assertOwningOutputDocuments(handle);
   const path = [...(binding.scopePath ?? []), field].join('.');
+  const trusted = isTrustedDocumentAuthorization(handle, binding);
+  if (trusted)
+    return memoizeDocumentFieldDecision(handle, binding, `output:${path}`, function (permissions) {
+      const policy = callFieldPolicy(authorization, binding);
+      const { outputAccess } = readDocumentAuthorizationAccess(handle, binding);
+      const prepared = prepareOutputPath(policy, authorization, binding, path, outputAccess);
+      const unresolved = isUnresolvedOutputDocument(handle);
+      const state = unresolved
+        ? (prepared.state ??
+          classifyEffectiveFieldAuthorization({
+            path,
+            rules: prepared.entries.map((entry) => entry.rule),
+            modelPermissionPrefix: policy.prefix as string,
+            outputFields: policy.outputFields,
+            globalPermissions: permissions,
+          }))
+        : undefined;
+      if (unresolved && state !== 'granted') return false;
+      if (prepared.backendGrant) return true;
+      const finish = () => {
+        assertOwningOutputDocuments(handle);
+        readDocumentAuthorizationAccess(handle, binding);
+      };
+      return orderedRequestRules(
+        prepared.entries,
+        (entry) => evaluateRequestRule(handle, binding, entry, policy.prefix, outputAccess),
+        finish,
+      );
+    });
   // Hits still validate the stage/binding, but do not read/copy configuration or
   // extract rules. A mutable public plan's fieldStates is never consulted.
   const decision = memoizeDocumentFieldDecision(handle, binding, `output:${path}`, async function (permissions) {
@@ -239,11 +322,45 @@ export function evaluateAuthorizedOutputField(
     return allowed;
   });
   return readOutputDocumentOwner(handle)
-    ? decision.then((allowed) => {
+    ? (decision as Promise<boolean>).then((allowed) => {
         assertOwningOutputDocuments(handle);
         return allowed;
       })
     : decision;
+}
+
+/** Shared ordered extractor results; no speculative callbacks or await for a settled boolean. */
+function orderedRequestRules(
+  entries: readonly PreparedRequestRule[],
+  evaluate: (entry: PreparedRequestRule) => boolean | Promise<boolean>,
+  check: () => void,
+): boolean | Promise<boolean> {
+  for (let index = 0; index < entries.length; index++) {
+    const value = evaluate(entries[index]);
+    if (typeof value !== 'boolean')
+      return (async () => {
+        if (!(await value)) {
+          check();
+          return false;
+        }
+        check();
+        for (let next = index + 1; next < entries.length; next++) {
+          const result = evaluate(entries[next]);
+          if (!(typeof result === 'boolean' ? result : await result)) {
+            check();
+            return false;
+          }
+          check();
+        }
+        return true;
+      })();
+    if (!value) {
+      check();
+      return false;
+    }
+  }
+  check();
+  return true;
 }
 
 /** Request-user metadata only; shares request decisions, never includes backend field grants. */
@@ -255,7 +372,7 @@ export async function requestOutputFieldPaths(
   const staticFields = tryStaticRequestFieldPaths(handle, binding, access);
   if (staticFields) {
     // One resume boundary for the entire pass, never an await per scalar field.
-    await Promise.resolve();
+    if (!isTrustedDocumentAuthorization(handle, binding)) await Promise.resolve();
     readDocumentAuthorizationAccess(handle, binding);
     return staticFields;
   }
@@ -267,7 +384,8 @@ export async function requestOutputFieldPaths(
     const { entries } = prepareOutputPath(policy, authorization, binding, path, access);
     let allowed = true;
     for (const entry of entries) {
-      if (!(await evaluateRequestRule(handle, binding, entry, policy.prefix, access))) {
+      const decision = evaluateRequestRule(handle, binding, entry, policy.prefix, access);
+      if (!(typeof decision === 'boolean' ? decision : await decision)) {
         allowed = false;
         break;
       }
@@ -279,6 +397,8 @@ export async function requestOutputFieldPaths(
   return fields;
 }
 
+const embeddedPlans = new WeakMap<VirtualProjectionPlan, WeakMap<VirtualProjectionPlan, VirtualProjectionPlan>>();
+
 /** Embedded scopes inherit the owning model policy, but get per-element stage/decision owners. */
 export function authorizeEmbeddedOutputPlan(
   parent: VirtualProjectionPlan,
@@ -288,6 +408,33 @@ export function authorizeEmbeddedOutputPlan(
     ...parent.authorizationBinding!,
     scopePath: child.responseScopePath ?? child.scopePath.filter((p) => p !== 'sub'),
   };
+  assertAuthorizationBinding(parent.authorization!, parent.authorizationBinding!);
+  if (readAuthorizationFastPath(parent.authorization!, parent.authorizationBinding!)?.mode === 'active') {
+    if (!Object.values(parent.childPlans).includes(child)) authorizationError('unknown embedded output plan');
+    let scopes = embeddedPlans.get(parent);
+    if (!scopes) embeddedPlans.set(parent, (scopes = new WeakMap()));
+    const previous = scopes.get(child);
+    if (previous) {
+      assertAuthorizationBinding(previous.authorization!, binding);
+      return previous;
+    }
+    const view = readServiceAuthorization(parent.authorization!, parent.authorizationBinding!);
+    const authorization = deriveTrustedQueryAuthorization({
+      binding,
+      ...view,
+      requestPermissions: getAuthorizationPermissions(parent.authorization!, parent.authorizationBinding!),
+      parent: parent.authorization,
+      snapshotDerivation: { kind: 'embedded', parentBinding: parent.authorizationBinding! },
+    });
+    if (!authorization) authorizationError('invalid trusted embedded edge');
+    const scoped = {
+      ...child,
+      authorization,
+      authorizationBinding: Object.freeze({ ...binding, scopePath: Object.freeze([...(binding.scopePath ?? [])]) }),
+    };
+    scopes.set(child, scoped);
+    return scoped;
+  }
   const view = readServiceAuthorization(parent.authorization!, parent.authorizationBinding!);
   const authorization = resolveServiceAuthorization({
     binding,
@@ -311,13 +458,43 @@ export function hasWholeOutputValueGrant(plan: VirtualProjectionPlan, field: str
 }
 
 /** Safe value copy for scalar/opaque roots and computed values; metadata is a separate channel. */
-export function copyOutputValue(value: unknown, plan: VirtualProjectionPlan, path: string): unknown {
+export interface TrustedOutputMaterialization {
+  readonly budget: TrustedOutputBudget;
+  readonly members: TrustedOutputMemberBuilder;
+  readonly depth: number;
+  /** Retained helpers may reuse only this root's actual issued target membership. */
+  readonly rootOutput?: object;
+}
+
+export function copyOutputValue(
+  value: unknown,
+  plan: VirtualProjectionPlan,
+  path: string,
+  trusted?: TrustedOutputMaterialization,
+): unknown {
   const { catalog } = readServiceOutputPolicy(plan.authorization!, plan.authorizationBinding!);
   const virtualValue = catalog.virtualPaths?.some((p) => matchesCatalogPattern(p, path));
   const opaque = catalog.opaquePaths?.some((p) => matchesCatalogPattern(p, path));
   const excluded = plan.effectiveSelectNorm
     .filter((token) => token.startsWith('-'))
     .map((token) => [...(plan.authorizationBinding!.scopePath ?? []), token.slice(1)].join('.'));
+  if (trusted)
+    return materializeTrustedOutputValue(
+      value,
+      path,
+      trusted.budget,
+      {
+        keep(key, child) {
+          if (excluded.some((entry) => child === entry || child.startsWith(`${entry}.`))) return false;
+          return (
+            (opaque || isSafeOutputPath(key)) &&
+            !catalog.protectedPaths?.some((p) => matchesCatalogPattern(p, child, true)) &&
+            (opaque || virtualValue || isCatalogOutputPath(catalog, child))
+          );
+        },
+      },
+      trusted.depth,
+    );
   const visit = (input: unknown, current: string): unknown => {
     if (Array.isArray(input)) return input.map((entry) => visit(entry, current));
     if (input instanceof Map) return visit(Object.fromEntries(input), current);
@@ -343,7 +520,53 @@ export function copyOutputValue(value: unknown, plan: VirtualProjectionPlan, pat
 }
 
 /** A populated DTO needs its target's authenticated stage. Parent authority covers only the ref. */
-export function copyAuthorizedReference(value: unknown, plan: VirtualProjectionPlan, path: string): unknown {
+export function copyAuthorizedReference(
+  value: unknown,
+  plan: VirtualProjectionPlan,
+  path: string,
+  trusted?: TrustedOutputMaterialization,
+): unknown {
+  if (trusted) {
+    const active = new WeakSet<object>();
+    const { relatedTargets } = readServiceAuthorization(plan.authorization!, plan.authorizationBinding!);
+    const target = relatedTargets.find((entry) => entry.path === path);
+    const one = (input: unknown, depth: number): unknown => {
+      visitTrustedOutput(trusted.budget, depth);
+      if (input && typeof input === 'object' && types.isProxy(input)) authorizationError('unsupported selected proxy');
+      if (Array.isArray(input)) {
+        if (active.has(input)) authorizationError('cyclic selected output');
+        active.add(input);
+        try {
+          return shallowTrustedOutputArray(input, trusted.budget, depth).map((entry) => one(entry, depth + 1));
+        } finally {
+          active.delete(input);
+        }
+      }
+      if (isPlainObject(input)) {
+        const handle =
+          target && (!trusted.rootOutput || isIssuedOutputMember(trusted.rootOutput, input))
+            ? getAssociatedDocumentAuthorization(input, plan.authorization)
+            : undefined;
+        if (handle) {
+          const expected: AuthorizationBinding = {
+            ...plan.authorizationBinding!,
+            model: target.model!,
+            modelName: target.modelName,
+            scopePath: [],
+          };
+          readDocumentAuthorizationAccess(handle, expected);
+          retainTrustedOutputMember(trusted.members, input);
+          return input;
+        }
+        const id = Object.getOwnPropertyDescriptor(input, '_id');
+        if (!id) return undefined;
+        if (!('value' in id)) authorizationError('unsupported selected reference');
+        return materializeTrustedOutputValue(id.value, path, trusted.budget, { keep: () => true }, depth + 1);
+      }
+      return materializeTrustedOutputValue(input, path, trusted.budget, { keep: () => true }, depth);
+    };
+    return one(value, trusted.depth);
+  }
   if (Array.isArray(value)) return value.map((entry) => copyAuthorizedReference(entry, plan, path));
   if (!isPlainObject(value)) return deepIsolateValue(value);
   const handle = getAssociatedDocumentAuthorization(value, plan.authorization);
@@ -362,6 +585,7 @@ export function retainOutputMetadata(
   source: Record<string, unknown>,
   configuration: Record<string, unknown>,
   scope: readonly string[],
+  trusted?: TrustedOutputMaterialization,
 ): void {
   if (scope.length || configuration.stripPermissionsField) return;
   const parts = ((configuration.documentPermissionField as string) ?? '_permissions').split('.');
@@ -369,6 +593,20 @@ export function retainOutputMetadata(
   for (const part of parts) value = isPlainObject(value) ? value[part] : undefined;
   if (!isPlainObject(value)) return;
   const keys = configuration.exposedDocPermissionKeys as string[] | undefined;
+  if (trusted) {
+    const metadata: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) {
+      visitTrustedOutput(trusted.budget, trusted.depth + 1);
+      if (key === '_view' || key === '_edit' ? configuration.disableFieldPermissions : keys && !keys.includes(key))
+        continue;
+      defineTrustedOutputValue(metadata, key, value[key]);
+    }
+    setTrustedOutputPath(output, parts.join('.'), metadata, trusted.budget, trusted.depth, (source, copy) =>
+      retainTrustedOutputSpine(trusted.members, source, copy),
+    );
+    attachPermissionsAlias(output, parts.join('.'));
+    return;
+  }
   const metadata = Object.fromEntries(
     Object.entries(value).filter(([key]) =>
       key === '_view' || key === '_edit' ? !configuration.disableFieldPermissions : !keys || keys.includes(key),
@@ -419,15 +657,33 @@ async function filterExistingOutput(
   plan: VirtualProjectionPlan,
   handle: DocumentAuthorization,
   associated: boolean,
+  parentBudget?: TrustedOutputBudget,
+  depth = 0,
 ): Promise<{ output: Record<string, unknown>; fields: string[] }> {
   const binding = plan.authorizationBinding!;
+  const trustedStage = isTrustedDocumentAuthorization(handle, binding);
+  const budget =
+    readAuthorizationFastPath(plan.authorization!, binding)?.mode === 'active'
+      ? (parentBudget ?? createTrustedOutputBudget())
+      : undefined;
+  const members = budget ? createTrustedOutputMemberBuilder(plan.authorization!, binding, budget) : undefined;
+  const trusted: TrustedOutputMaterialization | undefined =
+    budget && trustedStage
+      ? {
+          budget,
+          members: members!,
+          depth,
+          rootOutput: associated ? source : undefined,
+        }
+      : undefined;
+  if (trusted) visitTrustedOutput(trusted.budget, depth);
   const { configuration } = readServiceAuthorization(plan.authorization!, binding);
   const output: Record<string, unknown> = {};
   const fields: string[] = [];
   const primitiveFields = primitiveHelperFields(source, plan);
   const staticDecisions = primitiveFields && tryStaticOutputFieldDecisions(handle, binding, plan, primitiveFields);
   if (staticDecisions) {
-    await Promise.resolve();
+    if (!trusted) await Promise.resolve();
     // Handle-based helpers authenticate both input stage and exact associated
     // output again after yielding, not merely their memoized field outcomes.
     if (associated) assertDocumentAuthorization(handle, { binding, output: source, outputAccess: plan.outputAccess });
@@ -440,16 +696,28 @@ async function filterExistingOutput(
     if (childPlan && !hasWholeOutputValueGrant(plan, field)) {
       const scoped = authorizeEmbeddedOutputPlan(plan, childPlan);
       const childFields = new Set<string>();
-      const one = async (value: unknown): Promise<unknown> => {
+      const arrays = new WeakSet<object>();
+      const one = async (value: unknown, childDepth = depth + 1): Promise<unknown> => {
         if (Array.isArray(value)) {
+          if (trusted && arrays.has(value)) authorizationError('cyclic selected document output');
+          const entries = trusted ? shallowTrustedOutputArray(value, trusted.budget, childDepth) : value;
+          arrays.add(value);
           const values: unknown[] = [];
-          for (const entry of value) values.push((await one(entry)) ?? null);
+          try {
+            for (const entry of entries) values.push((await one(entry, childDepth + 1)) ?? null);
+          } finally {
+            arrays.delete(value);
+          }
           return values;
         }
         // Descendant authority cannot authorize an unrelated scalar ancestor.
         // Null containers/array positions convey shape without exposing values.
         if (!isPlainObject(value)) return value === null ? null : undefined;
-        const childHandle = associated ? getAssociatedDocumentAuthorization(value) : undefined;
+        const childHandle = associated
+          ? trusted
+            ? getIssuedEmbeddedDocumentAuthorization(source, value, handle, scoped.authorizationBinding!)
+            : getAssociatedDocumentAuthorization(value)
+          : undefined;
         let child = scoped;
         if (childHandle) {
           const state = readDocumentAuthorizationAccess(childHandle, scoped.authorizationBinding!);
@@ -457,12 +725,17 @@ async function filterExistingOutput(
             authorizationError('child call mismatch');
           child = helperPlan(state.authorization, scoped.authorizationBinding!);
         }
+        const prepared =
+          !childHandle && trusted
+            ? prepareQueryDocumentAuthorization(child.authorization!, child.authorizationBinding!, value)
+            : undefined;
         const resolved =
           childHandle ??
           (await resolveOutputDocumentAuthorization({
             authorization: child.authorization!,
             binding: child.authorizationBinding!,
-            snapshot: isolateDocForOutput(value) as Record<string, unknown>,
+            snapshot: prepared?.source ?? (isolateDocForOutput(value) as Record<string, unknown>),
+            stage: prepared?.stage,
             context: {
               modelName: binding.modelName,
               mongooseModel: binding.model as ModelHookContext['mongooseModel'],
@@ -471,13 +744,28 @@ async function filterExistingOutput(
             owningDocument: handle,
             owningBinding: binding,
           }));
-        const result = await filterExistingOutput(value, child, resolved, !!childHandle);
+        const result = await filterExistingOutput(
+          prepared?.source ?? value,
+          child,
+          resolved,
+          !!childHandle,
+          budget,
+          childDepth,
+        );
+        if (members) retainTrustedOutputMember(members, result.output);
         result.fields.forEach((path) => childFields.add(`${field}.${path}`));
         return result.output;
       };
       // Serial child work does not multiply hook concurrency or share element decision caches.
-      const value = await one(source[field]);
-      if (value !== undefined) output[field] = value;
+      const value = await one(
+        trusted
+          ? trustedMapOutputScope(source[field], childPlan.outputPersistedFields, trusted.budget, depth + 1)
+          : source[field],
+      );
+      if (value !== undefined) {
+        if (trusted) defineTrustedOutputValue(output, field, value);
+        else output[field] = value;
+      }
       fields.push(...childFields);
     } else if (
       staticDecisions
@@ -485,20 +773,30 @@ async function filterExistingOutput(
         : await evaluateAuthorizedOutputField(handle, binding, field)
     ) {
       const path = [...(binding.scopePath ?? []), field].join('.');
-      output[field] = configuration.catalog.referencePaths?.some((p) => matchesCatalogPattern(p, path))
-        ? copyAuthorizedReference(source[field], plan, path)
-        : copyOutputValue(source[field], plan, path);
-      if (associated) transferDocumentAuthorizationGraph(source[field], output[field]);
+      const value = configuration.catalog.referencePaths?.some((p) => matchesCatalogPattern(p, path))
+        ? copyAuthorizedReference(source[field], plan, path, trusted)
+        : copyOutputValue(source[field], plan, path, trusted);
+      if (trusted) defineTrustedOutputValue(output, field, value);
+      else output[field] = value;
+      if (associated && !trusted) transferDocumentAuthorizationGraph(source[field], output[field]);
       if (output[field] !== undefined) fields.push(field);
       else delete output[field];
     }
   }
   if (plan.fetchIdRetained && Object.prototype.hasOwnProperty.call(source, '_id')) {
-    output._id = deepIsolateValue(source._id);
+    const id = trusted
+      ? materializeTrustedOutputValue(source._id, '_id', trusted.budget, { keep: () => true }, depth + 1)
+      : deepIsolateValue(source._id);
+    if (trusted) defineTrustedOutputValue(output, '_id', id);
+    else output._id = id;
     fields.push('_id');
   }
-  retainOutputMetadata(output, source, configuration, binding.scopePath ?? []);
-  if (associated)
+  retainOutputMetadata(output, source, configuration, binding.scopePath ?? [], trusted);
+  if (trusted) associateDocumentAuthorization(handle, binding, output, trusted.members);
+  else if (members) {
+    if (associated) assertDocumentAuthorization(handle, { binding, output: source, outputAccess: plan.outputAccess });
+    associateDocumentAuthorization(handle, binding, output, members);
+  } else if (associated)
     transferDocumentAuthorization(
       handle,
       { binding, output: source, outputAccess: plan.outputAccess, authorization: plan.authorization },
@@ -525,7 +823,7 @@ export async function filterModelOutputForHelper(args: {
   const normalized = normalizeOutputAuthorizationOptions(
     {
       binding: receiver,
-      configuration: captureModelAuthorizationConfiguration(runtime, modelName),
+      configuration: () => captureModelAuthorizationConfiguration(runtime, modelName),
       requestPermissions: args.permissions,
       access: { operation: access, virtualAccess: access, outputAccess: access, docPermissionsAccess: access },
     },

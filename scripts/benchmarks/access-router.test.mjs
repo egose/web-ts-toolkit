@@ -32,6 +32,12 @@ import {
   initialOutputCopyModeLabel,
   effectiveInitialOutputCopySkips,
   supportedInitialOutputCopyFlags,
+  UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  authorizationFastPathCandidates,
+  authorizationFastPathFlagOptions,
+  authorizationFastPathModeLabel,
+  effectiveAuthorizationFastPathModes,
+  supportedAuthorizationFastPathFlags,
 } from './access-router-core.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -74,13 +80,14 @@ test('snapshot support comes from boolean model-option declarations, including s
       'index.d.ts',
       `// ${fourth}?: boolean;
        interface AuthorizationConfiguration { ${fourth}?: boolean; }
-       interface DefaultModelRouterOptions {
+       export interface DefaultModelRouterOptions {
          ${first}?: boolean;
          ${third}?: boolean | undefined;
          ${fourth}?: string;
-       }`,
+       }
+       export { ModelRouterOptions } from './chunk.js';`,
     ],
-    ['chunk.d.ts', `interface ModelRouterOptions { readonly '${second}'?: boolean; }`],
+    ['chunk.d.ts', `export interface ModelRouterOptions { readonly '${second}'?: boolean; }`],
   ];
   assert.deepEqual(await supportedSnapshotFlags(declarations), [first, second, third]);
   const fakeRoot = resolve(temporary, 'flag-support');
@@ -104,8 +111,18 @@ test('snapshot support comes from boolean model-option declarations, including s
   assert.deepEqual(exported.unsafeSnapshotCheckOptions, UNSAFE_SNAPSHOT_FLAGS);
   assert.deepEqual(exported.unsafeInitialOutputCopyOptions, UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
   assert.deepEqual(exported.unsafeSnapshotOptions, [...UNSAFE_SNAPSHOT_FLAGS, ...UNSAFE_INITIAL_OUTPUT_COPY_FLAGS]);
+  assert.deepEqual(exported.unsafeAuthorizationFastPathOptions, UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS);
+  assert.deepEqual(exported.unsafeServerOptions, [
+    ...UNSAFE_SNAPSHOT_FLAGS,
+    ...UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
+    ...UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  ]);
   assert.deepEqual(Object.keys(exported).sort(), [
+    'authorizationFastPathPrerequisites',
+    'captureAuthorizationFastPath',
+    'unsafeAuthorizationFastPathOptions',
     'unsafeInitialOutputCopyOptions',
+    'unsafeServerOptions',
     'unsafeSnapshotCheckOptions',
     'unsafeSnapshotOptions',
   ]);
@@ -233,6 +250,350 @@ test('unsupported initial copy flags are N/A or rejected, never silently enabled
   );
   assert.throws(() => initialOutputCopyFlagOptions('bad', []), /Invalid unsafe/);
   assert.throws(() => initialOutputCopyCandidates(target, 'bad'), /Invalid initial/);
+});
+
+test('fast-path declarations are optional booleans, not comments, malformed types or duplicates', async () => {
+  assert.deepEqual(UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS, [
+    'unsafeUseListAuthorizationFastPath',
+    'unsafeUseReadAuthorizationFastPath',
+  ]);
+  const [list, read] = UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS;
+  const declarations = [
+    ['index.d.ts', `interface DefaultModelRouterOptions { ${list}?: boolean; }`],
+    ['chunk.d.ts', `interface ModelRouterOptions { readonly '${read}'?: boolean | undefined; }`],
+  ];
+  assert.deepEqual(await supportedAuthorizationFastPathFlags(declarations), UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS);
+  assert.deepEqual(await supportedSnapshotFlags(declarations), []);
+  assert.deepEqual(await supportedInitialOutputCopyFlags(declarations), []);
+  assert.deepEqual(await supportedAuthorizationFastPathFlags([]), []);
+  assert.deepEqual(
+    await supportedAuthorizationFastPathFlags([
+      ...declarations,
+      ['malformed.d.ts', 'interface Broken { value?: boolean | ; }'],
+    ]),
+    [],
+  );
+  for (const body of [
+    `// ${list}?: boolean;`,
+    `/* ${list}?: boolean; */`,
+    `${list}: boolean;`,
+    `${list}?: any;`,
+    `${list}?: unknown;`,
+    `${list}?: Boolean;`,
+    `${list}?: true;`,
+    `${list}?: boolean | string;`,
+    `${list}?: boolean | undefined | null;`,
+    `${list}?: boolean; ${list}?: boolean;`,
+    `${list}?: boolean; '${list}'?: string;`,
+    `${list}?: boolean | ;`,
+  ]) {
+    assert.deepEqual(
+      await supportedAuthorizationFastPathFlags([['index.d.ts', `interface ModelRouterOptions { ${body} }`]]),
+      [],
+      body,
+    );
+  }
+  assert.deepEqual(
+    await supportedAuthorizationFastPathFlags([
+      ['index.d.ts', `interface AuthorizationConfiguration { ${list}?: boolean; }`],
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    await supportedAuthorizationFastPathFlags([
+      ['index.d.ts', `interface DefaultModelRouterOptions { ${list}?: boolean; }`],
+      ['chunk.d.ts', `interface ModelRouterOptions { ${list}?: boolean; }`],
+    ]),
+    [],
+  );
+  await assert.rejects(
+    supportedAuthorizationFastPathFlags([declarations[0], declarations[0]]),
+    /Duplicate declaration file/,
+  );
+  // A different/missing ESM declaration cannot masquerade as dual-condition support.
+  assert.deepEqual(
+    await supportedAuthorizationFastPathFlags([
+      ...declarations,
+      ['index.d.mts', `interface DefaultModelRouterOptions { ${list}?: boolean; ${read}?: string; }`],
+    ]),
+    [list],
+  );
+});
+
+test('prepared support requires actual exported root options in each published declaration condition', async () => {
+  const fakeRoot = resolve(temporary, 'private-fast-path-declaration');
+  const directory = resolve(fakeRoot, 'packages/access-router/dist');
+  await mkdir(directory, { recursive: true });
+  const body = `interface DefaultModelRouterOptions { ${UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.map((flag) => `${flag}?: boolean;`).join(' ')} }`;
+  await writeFile(resolve(directory, 'index.d.ts'), body);
+  assert.deepEqual((await inspectSnapshotDeclarations(fakeRoot)).supportedAuthorizationFastPathFlags, []);
+  await writeFile(resolve(directory, 'index.d.ts'), `export ${body}`);
+  assert.deepEqual(
+    (await inspectSnapshotDeclarations(fakeRoot)).supportedAuthorizationFastPathFlags,
+    UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  );
+  await writeFile(resolve(directory, 'index.d.mts'), body); // comment/private names do not publish ESM support
+  assert.deepEqual((await inspectSnapshotDeclarations(fakeRoot)).supportedAuthorizationFastPathFlags, []);
+  await writeFile(resolve(directory, 'index.d.mts'), `export ${body}`);
+  assert.deepEqual(
+    (await inspectSnapshotDeclarations(fakeRoot)).supportedAuthorizationFastPathFlags,
+    UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  );
+});
+
+test('third-group off/on/both candidates are an independent eight-way cross product', () => {
+  const build = {
+    id: 'current',
+    label: 'Current',
+    entry: 'same-build.mjs',
+    supportedSnapshotFlags: UNSAFE_SNAPSHOT_FLAGS,
+    supportedInitialOutputCopyFlags: UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
+    supportedAuthorizationFastPathFlags: UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  };
+  const candidates = snapshotCandidates(build, 'both').flatMap((snapshot) =>
+    initialOutputCopyCandidates(snapshot, 'both').flatMap((copy) => authorizationFastPathCandidates(copy, 'both')),
+  );
+  assert.equal(candidates.length, 8);
+  assert.equal(new Set(candidates.map((target) => target.id)).size, 8);
+  for (const target of candidates) {
+    assert.equal(target.entry, build.entry);
+    assert.equal(target.buildId, build.id);
+    const checks = snapshotFlagOptions(target.snapshotSkips, target.supportedSnapshotFlags);
+    const copies = initialOutputCopyFlagOptions(target.initialOutputCopySkips, target.supportedInitialOutputCopyFlags);
+    const fast = authorizationFastPathFlagOptions(
+      target.authorizationFastPaths,
+      target.supportedAuthorizationFastPathFlags,
+    );
+    assert.deepEqual(Object.keys(checks), UNSAFE_SNAPSHOT_FLAGS);
+    assert.deepEqual(Object.keys(copies), UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
+    assert.deepEqual(Object.keys(fast), UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS);
+    assert.ok(Object.values(checks).every((value) => value === (target.snapshotSkips === 'on')));
+    assert.ok(Object.values(copies).every((value) => value === (target.initialOutputCopySkips === 'on')));
+    assert.ok(Object.values(fast).every((value) => value === (target.authorizationFastPaths === 'on')));
+    const mode =
+      target.authorizationFastPaths === 'off'
+        ? 'off'
+        : target.snapshotSkips === 'on' && target.initialOutputCopySkips === 'on'
+          ? 'active'
+          : 'dormant';
+    assert.deepEqual(target.configuredAuthorizationFastPathModes, { list: mode, read: mode });
+    assert.match(target.label, /configured LIST .*READ .*not timed; unverified/);
+  }
+  assert.deepEqual(candidates.map(authorizationFastPathModeLabel), [
+    'OFF',
+    'ON',
+    'OFF',
+    'ON',
+    'OFF',
+    'ON',
+    'OFF',
+    'ON',
+  ]);
+  const copy = initialOutputCopyCandidates(snapshotCandidates(build, 'off')[0], 'off')[0];
+  assert.equal(authorizationFastPathCandidates(copy, 'off')[0].authorizationFastPaths, 'off');
+});
+
+test('effective LIST/READ fast paths require all four literal prerequisites independently', () => {
+  const options = Object.fromEntries(
+    [...UNSAFE_SNAPSHOT_FLAGS, ...UNSAFE_INITIAL_OUTPUT_COPY_FLAGS].map((key) => [key, true]),
+  );
+  for (const origin of ['List', 'Read']) {
+    const flag = `unsafeUse${origin}AuthorizationFastPath`;
+    const other = origin === 'List' ? 'read' : 'list';
+    const keys = [
+      'DocumentSnapshotChecks',
+      'OutputSnapshotChecks',
+      'NestedDocumentSnapshotChecks',
+      'InitialOutputSnapshotCopy',
+    ].map((suffix) => `unsafeSkip${origin}${suffix}`);
+    for (let mask = 0; mask < 16; mask++) {
+      const prerequisites = {
+        ...options,
+        ...Object.fromEntries(keys.map((key, index) => [key, !!(mask & (1 << index))])),
+      };
+      for (const requested of [false, true, undefined, 'true', 1, new Boolean(true)]) {
+        const mode = effectiveAuthorizationFastPathModes(prerequisites, {}, { [flag]: requested });
+        assert.equal(mode[origin.toLowerCase()], requested !== true ? 'off' : mask === 15 ? 'active' : 'dormant');
+        assert.equal(mode[other], 'off');
+      }
+    }
+    for (const key of keys)
+      for (const value of [undefined, false, 'true', 1, new Boolean(true)])
+        assert.equal(
+          effectiveAuthorizationFastPathModes({ ...options, [key]: value }, {}, { [flag]: true })[origin.toLowerCase()],
+          'dormant',
+        );
+  }
+});
+
+test('old/partial fast-path support is OFF/N/A only and invalid supported sets reject', () => {
+  const target = {
+    id: 'old',
+    label: 'Old',
+    snapshotSkips: 'off',
+    initialOutputCopySkips: 'off',
+    supportedSnapshotFlags: [],
+    supportedInitialOutputCopyFlags: [],
+    supportedAuthorizationFastPathFlags: [],
+  };
+  const off = authorizationFastPathCandidates(target, 'off')[0];
+  assert.equal(authorizationFastPathModeLabel(off), 'N/A (0/2 supported)');
+  assert.deepEqual(off.configuredAuthorizationFastPathModes, { list: 'n/a', read: 'n/a' });
+  assert.deepEqual(authorizationFastPathFlagOptions('off', []), {});
+  for (const setting of ['on', 'both'])
+    assert.throws(() => authorizationFastPathCandidates(target, setting), /does not declare both/);
+  const partial = { ...target, supportedAuthorizationFastPathFlags: UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.slice(0, 1) };
+  assert.equal(
+    authorizationFastPathModeLabel(authorizationFastPathCandidates(partial, 'off')[0]),
+    'OFF (1/2 supported)',
+  );
+  assert.deepEqual(authorizationFastPathCandidates(partial, 'off')[0].configuredAuthorizationFastPathModes, {
+    list: 'off',
+    read: 'n/a',
+  });
+  assert.throws(() => authorizationFastPathCandidates(partial, 'on'), /does not declare both/);
+  for (const supported of [
+    undefined,
+    ['fake'],
+    [...UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS, UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS[0]],
+  ])
+    assert.throws(() => authorizationFastPathFlagOptions('off', supported), /Invalid supported/);
+  assert.throws(() => authorizationFastPathFlagOptions('bad', []), /Invalid authorization/);
+  assert.throws(() => authorizationFastPathCandidates(target, 'bad'), /Invalid authorization/);
+});
+
+test('all ten options must be applied on both real-model getter paths, not merely declared', () => {
+  const expected = Object.fromEntries(
+    [...UNSAFE_SNAPSHOT_FLAGS, ...UNSAFE_INITIAL_OUTPUT_COPY_FLAGS, ...UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS].map(
+      (key) => [key, true],
+    ),
+  );
+  for (const modelName of ['Source', 'Target']) {
+    const api = { getModelOption: (_name, key) => expected[key], getModelOptions: () => ({ ...expected }) };
+    const verified = verifySnapshotFlagOptions(api, modelName, expected);
+    assert.equal(verified.modelName, modelName);
+    assert.deepEqual(verified.getModelOption, expected);
+    assert.deepEqual(verified.getModelOptions, expected);
+    for (const flag of UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS) {
+      assert.throws(
+        () =>
+          verifySnapshotFlagOptions(
+            { ...api, getModelOption: (_name, key) => (key === flag ? false : expected[key]) },
+            modelName,
+            expected,
+          ),
+        /did not apply/,
+      );
+      assert.throws(
+        () =>
+          verifySnapshotFlagOptions(
+            { ...api, getModelOptions: () => ({ ...expected, [flag]: false }) },
+            modelName,
+            expected,
+          ),
+        /did not apply/,
+      );
+    }
+  }
+});
+
+test('reports distinguish requested from verified configuration and never invent active modes', async () => {
+  const build = {
+    id: 'current',
+    label: 'Current',
+    supportedSnapshotFlags: UNSAFE_SNAPSHOT_FLAGS,
+    supportedInitialOutputCopyFlags: UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
+    supportedAuthorizationFastPathFlags: UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  };
+  const targets = snapshotCandidates(build, 'both').flatMap((snapshot) =>
+    initialOutputCopyCandidates(snapshot, 'both').flatMap((copy) => authorizationFastPathCandidates(copy, 'both')),
+  );
+  const results = targets.map((target) => {
+    const flags = {
+      ...snapshotFlagOptions(target.snapshotSkips, target.supportedSnapshotFlags),
+      ...initialOutputCopyFlagOptions(target.initialOutputCopySkips, target.supportedInitialOutputCopyFlags),
+      ...authorizationFastPathFlagOptions(target.authorizationFastPaths, target.supportedAuthorizationFastPathFlags),
+    };
+    const api = { getModelOption: (_name, key) => flags[key], getModelOptions: () => flags };
+    return {
+      targetId: target.id,
+      status: 'ok',
+      scenario: 'document-rules',
+      rows: 4,
+      concurrency: 1,
+      outputFingerprint: 'same',
+      stats: summarize([1], 1, 1000),
+      measuredAuthorizationOrigin: 'list',
+      effectiveAuthorizationFastPathModes: target.configuredAuthorizationFastPathModes,
+      runtimeOmissionCounts: null,
+      authorizationFastPathVerification: {
+        kind: 'server-option-getters',
+        models: {
+          source: verifySnapshotFlagOptions(api, 'BenchSource', flags),
+          target: verifySnapshotFlagOptions(api, 'BenchTarget', flags),
+        },
+      },
+    };
+  });
+  const report = {
+    startedAt: 'test',
+    node: process.version,
+    platform: process.platform,
+    preparationFailures: [],
+    targets,
+    results,
+    baseline: targets[6].id,
+    config: {
+      modeSelections: [
+        { buildId: 'current', snapshotSkips: 'both', initialOutputCopySkips: 'both', authorizationFastPaths: 'both' },
+      ],
+      readTimed: false,
+    },
+  };
+  const rows = reportRows(report);
+  assert.deepEqual(
+    rows.map((row) => row['LIST fast path (verified config)']),
+    ['off', 'dormant', 'off', 'dormant', 'off', 'dormant', 'off', 'active'],
+  );
+  assert.deepEqual(
+    rows.map((row) => row['READ fast path (not timed; verified config)']),
+    rows.map((row) => row['LIST fast path (verified config)']),
+  );
+  assert.equal(rows[7]['authorization fast paths requested'], 'ON');
+  assert.equal(rows[7]['measured origin'], 'list');
+  for (const partial of [
+    { authorizationFastPathVerification: undefined },
+    { authorizationFastPathVerification: { kind: 'server-option-getters', models: {} } },
+    { effectiveAuthorizationFastPathModes: { list: 'dormant', read: 'dormant' } },
+    { status: 'failed' },
+  ]) {
+    const unverified = reportRows({ ...report, results: [{ ...results[7], ...partial }] })[0];
+    assert.equal(unverified['LIST fast path (verified config)'], 'unknown (unverified)');
+    assert.equal(unverified['READ fast path (not timed; verified config)'], 'unknown (unverified)');
+    assert.equal(unverified['vs baseline'], '-');
+  }
+  const missingGetter = structuredClone(results[7]);
+  delete missingGetter.authorizationFastPathVerification.models.target.getModelOption;
+  assert.equal(
+    reportRows({ ...report, results: [missingGetter] })[0]['LIST fast path (verified config)'],
+    'unknown (unverified)',
+  );
+  const unverifiedBaseline = reportRows({ ...report, baseline: targets[7].id, results: [missingGetter, results[6]] });
+  assert.equal(unverifiedBaseline[1]['vs baseline'], '-');
+  assert.equal(unverifiedBaseline[1].status, 'UNVERIFIED BASELINE');
+  const invalidTargets = [{ ...targets[7], supportedAuthorizationFastPathFlags: ['not-a-flag'] }];
+  assert.equal(
+    reportRows({ ...report, targets: invalidTargets, results: [results[7]] })[0]['LIST fast path (verified config)'],
+    'unknown (unverified)',
+  );
+  const directory = resolve(temporary, 'fast-path-report');
+  await saveReport(directory, report);
+  const markdown = await readFile(resolve(directory, 'report.md'), 'utf8');
+  assert.match(markdown, /READ fast path \(not timed; verified config\)/);
+  assert.match(markdown, /NOT per-row borrowing or runtime omission counts/);
+  assert.match(markdown, /denial into allowance/);
+  assert.match(markdown, /All current workloads time LIST only/);
+  assert.deepEqual(JSON.parse(await readFile(resolve(directory, 'report.json'), 'utf8')).config, report.config);
 });
 
 test('effective flag verification rejects ignored settings on either getter path', () => {
@@ -511,6 +872,9 @@ test('CLI help is noninteractive and does not start builds or fetches', async ()
   assert.match(stdout, /Fetch tags/);
   assert.match(stdout, /at least one/);
   assert.match(stdout, /unsafe snapshot skips OFF/);
+  assert.match(stdout, /authorization fast paths OFF\/ON\/BOTH \(default OFF\)/);
+  assert.match(stdout, /eight candidates/);
+  assert.match(stdout, /READ is verified but not timed/);
 });
 
 test('worker refuses oversized fixtures, foreign databases and modified builds before opening MongoDB', async () => {
@@ -581,4 +945,66 @@ test('worker rejects unavailable or changed snapshot flags before loading peers 
   );
   await writeFile(resolve(directory, 'index.d.ts'), 'interface ModelRouterOptions {}');
   await assert.rejects(benchmark(job), /declarations changed/);
+});
+
+test('worker rejects fabricated fast-path support and declaration/file manifests before peers or MongoDB', async () => {
+  const fakeRoot = resolve(temporary, 'worker-fast-path-support');
+  const directory = resolve(fakeRoot, 'packages/access-router/dist');
+  await mkdir(directory, { recursive: true });
+  await writeFile(resolve(directory, 'index.d.ts'), 'interface ModelRouterOptions {}');
+  const manifest = await inspectSnapshotDeclarations(fakeRoot);
+  const job = {
+    scenario: 'document-rules',
+    rows: 1,
+    fields: 4,
+    bytes: 1,
+    samples: 1,
+    warmup: 0,
+    concurrency: 1,
+    hookConcurrency: 1,
+    database: 'access_router_bench_abcdef012345_1',
+    target: {
+      root: fakeRoot,
+      entry: resolve(directory, 'must-not-load.mjs'),
+      snapshotSkips: 'off',
+      initialOutputCopySkips: 'off',
+      authorizationFastPaths: 'on',
+      ...manifest,
+    },
+  };
+  await assert.rejects(benchmark(job), /does not declare both/);
+  await assert.rejects(
+    benchmark({
+      ...job,
+      target: { ...job.target, supportedAuthorizationFastPathFlags: UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS },
+    }),
+    /fake or inconsistent supportedAuthorizationFastPathFlags/,
+  );
+  await assert.rejects(
+    benchmark({
+      ...job,
+      target: { ...job.target, authorizationFastPaths: 'off', supportedSnapshotFlags: UNSAFE_SNAPSHOT_FLAGS },
+    }),
+    /fake or inconsistent supportedSnapshotFlags/,
+  );
+  await assert.rejects(
+    benchmark({ ...job, target: { ...job.target, supportedAuthorizationFastPathFlags: undefined } }),
+    /requires a prepared declaration manifest/,
+  );
+  await assert.rejects(
+    benchmark({ ...job, target: { ...job.target, authorizationFastPaths: 'invalid' } }),
+    /Invalid authorization/,
+  );
+  await assert.rejects(
+    benchmark({ ...job, target: { ...job.target, authorizationFastPaths: 'off', snapshotDeclarationManifest: [] } }),
+    /declaration file manifest changed/,
+  );
+  await writeFile(
+    resolve(directory, 'index.d.mts'),
+    `interface DefaultModelRouterOptions { ${UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS[0]}?: boolean; }`,
+  );
+  await assert.rejects(
+    benchmark({ ...job, target: { ...job.target, authorizationFastPaths: 'off' } }),
+    /declarations changed/,
+  );
 });

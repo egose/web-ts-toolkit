@@ -12,6 +12,8 @@ import {
   inspectSnapshotDeclarations,
   snapshotCandidates,
   initialOutputCopyCandidates,
+  authorizationFastPathCandidates,
+  UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
   UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
   UNSAFE_SNAPSHOT_FLAGS,
 } from './access-router-core.mjs';
@@ -21,8 +23,8 @@ const worker = resolve(root, 'scripts/benchmarks/access-router-worker.mjs');
 const exec = promisify(execFile);
 
 test(
-  'real workers apply comparison/copy cross-product to embedded and document-hook workloads',
-  { timeout: 120_000 },
+  'real workers apply eight comparison/copy/fast-path candidates to separate embedded and document-hook workloads',
+  { timeout: 240_000 },
   async () => {
     const manifest = await inspectSnapshotDeclarations(root);
     assert.deepEqual(
@@ -31,6 +33,8 @@ test(
       'Build the current access-router sources first.',
     );
     assert.deepEqual(manifest.supportedInitialOutputCopyFlags, UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
+    assert.deepEqual(manifest.supportedAuthorizationFastPathFlags, UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS);
+    assert.equal(manifest.snapshotDeclarationManifest.filter((file) => file.name.endsWith('.d.mts')).length, 4);
     const entry = resolve(root, 'packages/access-router/dist/index.mjs');
     const build = {
       id: 'current',
@@ -43,8 +47,10 @@ test(
       ...manifest,
     };
     const candidates = snapshotCandidates(build, 'both').flatMap((candidate) =>
-      initialOutputCopyCandidates(candidate, 'both'),
+      initialOutputCopyCandidates(candidate, 'both').flatMap((copy) => authorizationFastPathCandidates(copy, 'both')),
     );
+    assert.equal(candidates.length, 8);
+    assert.equal(new Set(candidates.map((target) => target.id)).size, 8);
     let temporaryBase = process.env.WTT_BENCH_TMP ?? '/tmp/opencode';
     try {
       await access(temporaryBase);
@@ -98,9 +104,53 @@ test(
             target.snapshotSkips === 'on' && target.initialOutputCopySkips === 'on' ? 'on' : 'off',
           );
           if (scenario === 'document-rules') assert.ok(result.documentHooks > 0, 'Document grants must actually run.');
+          assert.equal(result.authorizationFastPaths, target.authorizationFastPaths);
+          assert.deepEqual(
+            result.authorizationFastPathFlags,
+            Object.fromEntries(
+              UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.map((flag) => [flag, target.authorizationFastPaths === 'on']),
+            ),
+          );
+          const mode =
+            target.authorizationFastPaths === 'off'
+              ? 'off'
+              : target.snapshotSkips === 'on' && target.initialOutputCopySkips === 'on'
+                ? 'active'
+                : 'dormant';
+          assert.deepEqual(result.configuredAuthorizationFastPathModes, { list: mode, read: mode });
+          assert.deepEqual(result.effectiveAuthorizationFastPathModes, { list: mode, read: mode });
+          assert.equal(result.measuredAuthorizationOrigin, 'list');
+          assert.equal(
+            result.runtimeOmissionCounts,
+            null,
+            'Timing workers must not pretend configuration proves omissions.',
+          );
+          assert.equal(result.snapshotDeclarationsSha256, manifest.snapshotDeclarationsSha256);
+          assert.deepEqual(result.snapshotDeclarationManifest, manifest.snapshotDeclarationManifest);
+          assert.equal(result.distSha256, build.distSha256);
+          const flags = {
+            ...result.snapshotFlags,
+            ...result.initialOutputCopyFlags,
+            ...result.authorizationFastPathFlags,
+          };
+          for (const [role, modelName] of [
+            ['source', 'BenchSource'],
+            ['target', 'BenchTarget'],
+          ]) {
+            const verified = result.authorizationFastPathVerification.models[role];
+            assert.equal(verified.modelName, modelName);
+            assert.deepEqual(verified.getModelOption, flags);
+            assert.deepEqual(verified.getModelOptions, flags);
+          }
+          assert.equal(result.documentHooks, scenario === 'document-rules' ? job.rows * job.samples : 0);
+          assert.equal(result.getters, 0);
+          assert.equal(result.readsPerRequest, 1);
+          assert.equal(result.measuredReads, job.samples);
+          assert.equal(result.hydration, 'lean');
           fingerprints.push(result.outputFingerprint);
         }
-        assert.equal(new Set(fingerprints).size, 1, `${scenario} comparison/copy output changed`);
+        assert.equal(fingerprints.length, 8);
+        assert.equal(new Set(fingerprints).size, 1, `${scenario} comparison/copy/fast-path output changed`);
       }
     } finally {
       try {

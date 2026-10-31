@@ -11,6 +11,7 @@ import type { FieldAuthorizationState } from './field-authorization';
 import {
   getAuthorizationPermissions,
   readServiceAuthorization,
+  readAuthorizationFastPath,
   type AuthorizationBinding,
   type AuthorizationConfiguration,
   type ResolvedServiceAuthorization,
@@ -110,6 +111,7 @@ export function planAuthorizedModelProjection(args: {
       globalPermissions: getAuthorizationPermissions(args.authorization, args.binding),
     },
     authorization.outputFields,
+    readAuthorizationFastPath(args.authorization, args.binding)?.mode === 'active',
   );
   // Keep the authenticated owner separate from serialized output. Never recreate
   // this plan with live options/permissions after an asynchronous hook.
@@ -129,6 +131,7 @@ export function planAuthorizedModelProjection(args: {
 export function planCatalogProjection(
   args: PlanVirtualProjectionArgs,
   outputFields: FieldAuthorization = { mode: 'request' },
+  safeDefinitions = false,
 ): VirtualProjectionPlan {
   const { snapshot, outputAccess, virtualAccess, docPermissionsAccess, receivingModelName } = args;
   const catalog = snapshot.catalog!;
@@ -196,7 +199,9 @@ export function planCatalogProjection(
       globalPermissions,
       modelPermissionPrefix: snapshot.modelPermissionPrefix,
     });
-    states[relative] = state;
+    if (safeDefinitions)
+      Object.defineProperty(states, relative, { value: state, enumerable: true, configurable: true, writable: true });
+    else states[relative] = state;
     if (state === 'denied' || relative === '_id') continue;
     if (virtual(path)) virtualLeaves.push(relative);
     else persisted.push(relative);
@@ -250,7 +255,7 @@ export function planCatalogProjection(
     const childExcludes = excludes.filter((p) => p.startsWith(`${name}.`)).map((p) => `-${p.slice(name.length + 1)}`);
     const childSelect =
       mode === 'include' && !includes.includes(name) ? [...childIncludes, ...childExcludes] : childExcludes;
-    children[name] = planCatalogProjection(
+    const child = planCatalogProjection(
       {
         ...args,
         scopePath: [...(args.scopePath ?? []), name, 'sub'],
@@ -260,7 +265,11 @@ export function planCatalogProjection(
         internalFetch: { baseFields: [] },
       },
       outputFields,
+      safeDefinitions,
     );
+    if (safeDefinitions)
+      Object.defineProperty(children, name, { value: child, enumerable: true, configurable: true, writable: true });
+    else children[name] = child;
   }
   const internal = args.internalFetch ?? {};
   const fetchIdRetained =

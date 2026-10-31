@@ -1,7 +1,7 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { isPlainObject } from '@web-ts-toolkit/utils';
 import { Codes } from '../enums';
-import { unsafeSnapshotOptions } from '../acl/unsafe-snapshot-options';
+import { unsafeServerOptions } from '../acl/unsafe-snapshot-options';
 import type {
   ErrorResult,
   FindOneOptions,
@@ -31,7 +31,7 @@ const privateControls = [
   'skipParsing',
   'skipAuthorization',
   'alreadyAuthorized',
-  ...unsafeSnapshotOptions,
+  ...unsafeServerOptions,
   'operation',
 ] as const;
 
@@ -46,50 +46,156 @@ export class PublicAdmissionError extends JsonRouter.clientErrors.BadRequestErro
 }
 
 export type PublicAdmissionKind = 'envelope' | 'include' | 'populate' | 'data';
+type ControlAdmissionKind = PublicAdmissionKind | 'policy' | 'policies' | 'defaults';
+
+const defaultControlBuckets = [
+  'findOneArgs',
+  'findOneOptions',
+  'findByIdArgs',
+  'findByIdOptions',
+  'findArgs',
+  'findOptions',
+  'createArgs',
+  'createOptions',
+  'updateOneArgs',
+  'updateOneOptions',
+  'upsertOptions',
+  'updateByIdArgs',
+  'upsertArgs',
+  'updateByIdOptions',
+  'existsOptions',
+  'publicListArgs',
+  'publicListOptions',
+  'publicCreateArgs',
+  'publicCreateOptions',
+  'publicReadArgs',
+  'publicReadOptions',
+  'publicUpdateArgs',
+  'publicUpdateOptions',
+] as const;
 
 /** Synchronous whole-tree preflight before any sibling dispatch. Does not parse
  * predicates or substituted correlated values. Only $$sq introduces control slots
  * inside business data; ordinary properties (even `options`) remain inert data.
  */
 export function assertPublicAdmission(input: unknown, kind: PublicAdmissionKind = 'envelope'): void {
-  const pending = [{ value: input, kind, path: 'request' }];
-  const seen = new WeakMap<object, Set<PublicAdmissionKind>>();
-  while (pending.length) {
-    const { value, kind: slot, path } = pending.pop()!;
-    if (!value || (typeof value !== 'object' && typeof value !== 'function')) continue;
-    const kinds = seen.get(value) ?? new Set<PublicAdmissionKind>();
-    if (kinds.has(slot)) continue;
-    kinds.add(slot);
-    seen.set(value, kinds);
-    const add = (child: unknown, childKind: PublicAdmissionKind, key: string) => {
-      pending.push({ value: child, kind: childKind, path: `${path}.${key}` });
-    };
-    const record = value as Record<string, unknown>;
-    if (slot !== 'data') {
+  assertPublicControlAdmission(input, kind);
+}
+
+function assertPublicControlAdmission(input: unknown, kind: ControlAdmissionKind): void {
+  walkControlAdmission(
+    input,
+    kind,
+    (record, path) => {
       for (const key of privateControls) {
         // Presence includes undefined, non-enumerable and inherited JS controls.
         if (key in record) {
           throw new PublicAdmissionError(
-            key.startsWith('unsafeSkip')
+            (unsafeServerOptions as readonly string[]).includes(key)
               ? `Unsupported public control ${path}.${key}; this unsafe flag is server model configuration only`
               : `Unsupported public control ${path}.${key}; use explicit per-call internal service options for backend authorization`,
           );
         }
       }
-    }
+    },
+    (detail) => {
+      throw new PublicAdmissionError(detail);
+    },
+  );
+}
+
+/** Service/helper/policy preflight uses the SAME bounded control/data lanes, but must
+ * not reject existing backend per-call authorization or other public-only controls.
+ */
+export function assertNoServerModelControls(
+  input: unknown,
+  reject: (detail: string) => never,
+  kind: ControlAdmissionKind = 'envelope',
+): void {
+  walkControlAdmission(
+    input,
+    kind,
+    (record, path) => {
+      for (const key of unsafeServerOptions)
+        if (key in record) reject(`${path}.${key} is server model configuration only`);
+    },
+    reject,
+  );
+}
+
+function walkControlAdmission(
+  input: unknown,
+  kind: ControlAdmissionKind,
+  check: (record: Record<string, unknown>, path: string) => void,
+  reject: (detail: string) => never,
+): void {
+  const pending = [{ value: input, kind, path: 'request', depth: 0 }];
+  const seen = new WeakMap<object, Set<ControlAdmissionKind>>();
+  let slots = 1;
+  while (pending.length) {
+    const { value, kind: slot, path, depth } = pending.pop()!;
+    if (!value || (typeof value !== 'object' && typeof value !== 'function')) continue;
+    const kinds = seen.get(value) ?? new Set<ControlAdmissionKind>();
+    if (kinds.has(slot)) continue;
+    kinds.add(slot);
+    seen.set(value, kinds);
+    const add = (child: unknown, childKind: ControlAdmissionKind, key: string) => {
+      if (child === undefined || child === null) return;
+      if (++slots > 20000 || depth >= 100) reject('control admission exceeds structural limits');
+      pending.push({ value: child, kind: childKind, path: `${path}.${key}`, depth: depth + 1 });
+    };
+    const record = value as Record<string, unknown>;
+    if (slot !== 'data' && slot !== 'policies') check(record, path);
+    // Preflight must not execute a policy/control accessor before the existing
+    // snapshot validator can reject it. Inherited data slots still count as controls.
+    const read = (key: string): unknown => {
+      let owner: object | null = value;
+      for (let depth = 0; owner; depth++, owner = Object.getPrototypeOf(owner)) {
+        if (depth > 100) reject('control admission prototype depth exceeded');
+        const descriptor = Object.getOwnPropertyDescriptor(owner, key);
+        if (!descriptor) continue;
+        if (!('value' in descriptor)) reject(`accessor control/data property: ${path}.${key}`);
+        return descriptor.value;
+      }
+      return undefined;
+    };
     if (Array.isArray(value)) {
-      value.forEach((child, index) => add(child, slot, String(index)));
+      if (value.length > 20000) reject('control admission array exceeds structural limits');
+      for (let index = 0; index < value.length; index++) {
+        if (index in value) add(read(String(index)), slot, String(index));
+      }
       continue;
     }
     if (slot === 'data') {
       if (!isPlainObject(value)) continue;
-      for (const [key, child] of Object.entries(value)) add(child, key === '$$sq' ? 'envelope' : 'data', key);
+      // $$sq alone introduces control slots inside business data, including JS slots.
+      add(read('$$sq'), 'envelope', '$$sq');
+      for (const key of Object.keys(value)) if (key !== '$$sq') add(read(key), 'data', key);
       continue;
     }
-    for (const key of ['args', 'options', 'sqOptions']) add(record[key], 'envelope', key);
-    add(record.include, 'include', 'include');
-    add(record.populate, 'populate', 'populate');
-    for (const key of ['filter', 'match', 'data']) add(record[key], 'data', key);
+    if (slot === 'defaults') {
+      const keys = new Set([...Object.keys(value), ...defaultControlBuckets]);
+      if (keys.size > 20000) reject('control admission defaults exceeds structural limits');
+      // Named buckets can be inherited/non-enumerable and disappear in a clone.
+      // All other enumerable default values retain the existing control preflight.
+      for (const key of keys) if (key in record) add(read(key), 'envelope', key);
+      continue;
+    }
+    if (slot === 'policies') {
+      for (const key of Object.keys(value)) add(read(key), 'policy', key);
+      continue;
+    }
+    if (slot === 'policy') {
+      for (const key of ['rows', 'outputFields', 'inputFields', 'operation']) add(read(key), 'policy', key);
+      add(read('related'), 'policies', 'related');
+      add(read('filter'), 'data', 'filter');
+      continue;
+    }
+    for (const key of ['args', 'options', 'sqOptions']) add(read(key), 'envelope', key);
+    add(read('include'), 'include', 'include');
+    add(read('populate'), 'populate', 'populate');
+    add(read('authorization'), 'policy', 'authorization');
+    for (const key of ['filter', 'match', 'data']) add(read(key), 'data', key);
   }
 }
 
@@ -129,11 +235,10 @@ export function assertHydrationDefaults(defaults: unknown): void {
 
 /** Defaults never carry per-call authority, including through dotted setters. */
 export function assertPublicDefaults(defaults: unknown): void {
+  // Descriptor admission precedes readers/cloners, including hydration's named
+  // bucket lookup. Never invoke a bucket getter to discover its unsafe controls.
+  assertPublicControlAdmission(defaults, 'defaults');
   assertHydrationDefaults(defaults);
-  assertPublicAdmission(defaults);
-  if (defaults && typeof defaults === 'object') {
-    for (const value of Object.values(defaults)) assertPublicAdmission(value);
-  }
 }
 
 const listArgs = ['select', 'populate', 'include', 'sort', 'skip', 'limit', 'page', 'pageSize', 'tasks'] as const;

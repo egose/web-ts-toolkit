@@ -57,12 +57,18 @@ declare const req: ModelRequest;
 declare const orderId: string;
 declare const tenantId: string; // resolved by trusted server code
 const service = router.getService(req);
-const output = { outputFields: { mode: 'grant', paths: ['internalNote'] } } as const satisfies OutputAuthorization<Order>;
+const output = {
+  outputFields: { mode: 'grant', paths: ['internalNote'] },
+} as const satisfies OutputAuthorization<Order>;
 const result = await service.findOne(
   { _id: orderId },
   { select: ['status', 'internalNote'] },
-  { skim: true, includePermissions: false, includeFieldPermissions: false,
-    authorization: { ...output, rows: { mode: 'scope', filter: { tenantId } } } },
+  {
+    skim: true,
+    includePermissions: false,
+    includeFieldPermissions: false,
+    authorization: { ...output, rows: { mode: 'scope', filter: { tenantId } } },
+  },
 );
 if (result.success) {
   const reuse = { documentAuthorization: result.context.documentAuthorization };
@@ -103,9 +109,15 @@ declare const orderId: string;
 const authorization = {
   inputFields: { mode: 'grant', paths: ['internalNote', 'contacts.email'] },
 } as const satisfies MutationAuthorization<Order>;
-const result = await req.macl.getService<Order>('Order').updateById(orderId, {
-  internalNote: 'server decision', contacts: [{ email: 'corrected@example.test' }],
-}, { select: ['internalNote'] }, { authorization });
+const result = await req.macl.getService<Order>('Order').updateById(
+  orderId,
+  {
+    internalNote: 'server decision',
+    contacts: [{ email: 'corrected@example.test' }],
+  },
+  { select: ['internalNote'] },
+  { authorization },
+);
 // Persisted note; no response elevation. Contact 0 keeps its denied ssn sibling.
 ```
 
@@ -168,9 +180,9 @@ const authorization = {
     child: { operation: { mode: 'grant' }, outputFields: { mode: 'grant', paths: ['email'] } },
   },
 } as const satisfies SubdocumentMutationAuthorization<Order, Order['contacts'][number]>;
-const result = await req.macl.getService<Order>('Order').updateSub(
-  orderId, 'contacts', childId, { email: 'corrected@example.test' }, { authorization },
-);
+const result = await req.macl
+  .getService<Order>('Order')
+  .updateSub(orderId, 'contacts', childId, { email: 'corrected@example.test' }, { authorization });
 ```
 
 Supplying a policy (even `{}`) opts into independent **base-operation** gates:
@@ -224,9 +236,19 @@ still describe request permissions, not backend grants.
 Successful single results expose `context.documentAuthorization`; lists/create expose one
 `contexts[index]` per row. The non-enumerable opaque handle is outside `data` and preserves
 owner-dependent `status` and a granted note after `ownerId` and `_permissions` are trimmed.
-It accepts only unchanged original or package-created same-stage copies, not caller spreads,
+Default/copied handles accept only unchanged original or package-created same-stage copies, not caller spreads,
 matching IDs, another row/call, or pre-/post-write stage reuse. `getDocumentAuthorization(child)`
 looks up an unchanged registered child in the original result graph.
+
+With an actually active unsafe READ/LIST authorization fast path, trusted handles
+instead require exact associated roots and issued-document membership, **not current
+descendant integrity**. Removed original children may remain discoverable; replacements
+get no child handle. Root helpers can filter changed descendants with stale memo/shared
+grants after rollback, while fresh raw helpers stay strict. Diagnostic context/grant
+leaves may be borrowed, not detached snapshots. See
+[configuration](./configuration.mdx#experimental-unsafe-readlist-authorization-fast-paths)
+and the shipped README before opting in; source/grant mutation or changed native
+observations can turn denial into allowance.
 
 Named `pickAllowedFields`/`trimOutputFields` and `genAllowedFields(..., { purpose: 'output', ... })`
 accept either raw **output-only** authorization or the handle, never both. Raw policy is a
@@ -270,11 +292,11 @@ and unsupported. See the shipped README's named-helper migration table and data 
 
 ### Row and related target scope
 
-| Row mode | Effective predicate |
-| --- | --- |
-| request (default) | transformed ordinary query AND request baseFilter |
-| scope | transformed ordinary query AND trusted scope, replacing baseFilter |
-| unrestricted | transformed ordinary query, without baseFilter |
+| Row mode          | Effective predicate                                                |
+| ----------------- | ------------------------------------------------------------------ |
+| request (default) | transformed ordinary query AND request baseFilter                  |
+| scope             | transformed ordinary query AND trusted scope, replacing baseFilter |
+| unrestricted      | transformed ordinary query, without baseFilter                     |
 
 Configured `overrideFilter` still runs **once in every mode**, including unrestricted;
 its restrictions/false denial remain effective. Trusted scope and mandatory reference/join
@@ -291,16 +313,26 @@ declare const req: ModelRequest;
 declare const orderId: string;
 declare const tenantId: string;
 const service = req.macl.getService<{ customer: string }>('Order');
-const result = await service.findOne({ _id: orderId }, {
-  select: ['customer'], populate: [{ path: 'customer', select: ['name', 'billingEmail'] }],
-}, { authorization: {
-  outputFields: { mode: 'grant', paths: ['customer'] },
-  related: { customer: {
-    model: 'Customer', operation: { mode: 'grant' },
-    rows: { mode: 'scope', filter: { tenantId } },
-    outputFields: { mode: 'grant', paths: ['billingEmail'] },
-  } },
-} });
+const result = await service.findOne(
+  { _id: orderId },
+  {
+    select: ['customer'],
+    populate: [{ path: 'customer', select: ['name', 'billingEmail'] }],
+  },
+  {
+    authorization: {
+      outputFields: { mode: 'grant', paths: ['customer'] },
+      related: {
+        customer: {
+          model: 'Customer',
+          operation: { mode: 'grant' },
+          rows: { mode: 'scope', filter: { tenantId } },
+          outputFields: { mode: 'grant', paths: ['billingEmail'] },
+        },
+      },
+    },
+  },
+);
 ```
 
 The parent grant permits the relationship only. Exact requested populate/include path and
@@ -533,11 +565,11 @@ allowing an advanced read route does not override a denied base response guard.
 A denied response guard, terminal false policy or no readable match hides output
 without failing the committed write:
 
-| Operation | Service/root fields (all `success: true`) | Direct HTTP; root entry status |
-| --- | --- | --- |
-| Create | `kind: 'list', code: 'created', data: [], count: 0` | `[]`, 201; 201 |
-| Bulk update | `kind: 'list', code: 'success', data: [], count: 0` | `[]`, 200; 200 |
-| Single update | `kind: 'single', code: 'success', data: null` | JSON `null`, 200; 200 |
+| Operation     | Service/root fields (all `success: true`)           | Direct HTTP; root entry status |
+| ------------- | --------------------------------------------------- | ------------------------------ |
+| Create        | `kind: 'list', code: 'created', data: [], count: 0` | `[]`, 201; 201                 |
+| Bulk update   | `kind: 'list', code: 'success', data: [], count: 0` | `[]`, 200; 200                 |
+| Single update | `kind: 'single', code: 'success', data: null`       | JSON `null`, 200; 200          |
 
 Root keeps its HTTP 200 envelope. Do not retry successful empty responses. Actual
 write denials and validation/persistence failures retain errors. Visibility adds at

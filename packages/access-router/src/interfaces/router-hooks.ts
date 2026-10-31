@@ -98,6 +98,11 @@ export type ModelValidateHook = ValidateHook<ModelRequest>;
  * with alwaysSelectFields. Integrated output resolves once per document/access stage,
  * independently of skim or metadata serialization; use the result's document handle
  * for later picks after input/metadata trim. Backend grants do not forge user metadata.
+ * With an active unsafe READ/LIST authorization fast path, ordinary lean projected
+ * input and the returned grant map are borrowed; field decisions/reads/owning embedded
+ * children share grants and context leaves. Mutation across callbacks/awaits can turn
+ * denial into allowance. Shallow-unproven inputs/grants may copy once without rerunning
+ * the hook. Off/dormant calls retain their existing copying behavior.
  */
 export type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
 export type ModelChangeHook = ChangeHook<ModelRequest>;
@@ -131,6 +136,9 @@ export type ModelVirtualRecordAccess = 'default' | ModelVirtualAccess;
  * permissions, selection, and effective access before parent getters run.
  * Declaration-scoped private inputs use the getter's fourth argument, never
  * this context or its document-authorization metadata.
+ * Active unsafe query fast paths retain separate getter document views, but diagnostic
+ * context/grant/native leaves may alias across callbacks; this context is not an
+ * immutable authority snapshot or a place to set server options.
  */
 export interface ModelVirtualContext extends ModelHookContext {
   receivingModelName: string;
@@ -254,6 +262,10 @@ export type ModelVirtualPopulateInputs<
  * present null/empty refs and missing target rows yield null/[]/null array slots.
  * Private values are not implicitly transported to output or authorization metadata;
  * an authorized getter can deliberately return a computed value using them.
+ * Even in an active unsafe authorization fast path, the stable base, separate
+ * per-getter document views, return staging and private argument-four isolation remain.
+ * Context/grant leaves can still be borrowed and mutate later decisions; document-view
+ * isolation does not restore source/grant/context or descendant-integrity guarantees.
  */
 export type ModelVirtualGetter<
   TModel = unknown,
@@ -274,13 +286,15 @@ export type ModelVirtualGetter<
  * `['contacts.sub.displayName']`). Dotted paths and virtual-to-virtual
  * dependencies are rejected at configuration time.
  *
- * The getter runs after `toObject()`/lean normalization and after internal
+ * The getter runs after hydrated `toObject()` where applicable and after internal
  * document-permissions computation, with global permissions available and
  * before `decorate`/`decorateAll`/tasks. Only the returned field value is
  * committed via document-aware helpers: `undefined` (or a throw) omits the
  * field fail-closed and computed values never persist. Getters see an
  * isolated plain-object view for both lean and hydrated results; mutating the
  * input has no implicit effect on response data or lifecycle snapshots.
+ * Off/dormant results retain whole lean-source normalization; active trusted queries
+ * omit that authorization pass, not the separate getter views/private-input isolation.
  *
  * Annotate a descriptor separately with `TPopulated` to type its private fourth
  * getter argument, then assign it to ordinary `ModelVirtuals`. The optional

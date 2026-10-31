@@ -24,10 +24,18 @@ export interface Change {
   value?: unknown;
 }
 
+/**
+ * Callback diagnostics, not a server-option or authority token. In an active unsafe
+ * READ/LIST authorization fast path, shells are shallow and source/grant/native leaves
+ * may be borrowed across callbacks/scopes. Snapshot-named properties do not promise
+ * detached immutable values in that mode. Mutations can affect later values/decisions;
+ * do not use this context to change captured operation/row authority or work limits.
+ */
 export interface ModelHookContext {
   modelName: string;
   mongooseModel: mongoose.Model<unknown>;
   operation?: string;
+  /** Diagnostic source view; active trusted queries borrow it rather than deep-snapshotting it. */
   originalDocumentSnapshot?: Record<string, unknown>;
   finalDocumentSnapshot?: Record<string, unknown>;
   currentDocument?: ModelDocument;
@@ -37,6 +45,7 @@ export interface ModelHookContext {
   allowedFields?: string[];
   modifiedPaths?: string[];
   changes?: Change[];
+  /** Full hook grants; ordinary active trusted grants are shared, not isolated per callback/read. */
   docPermissions?: KeyValue;
   resolvedQuery?: {
     filter?: Filter;

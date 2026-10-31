@@ -20,7 +20,7 @@ import { attachIncludeOutput, getIncludeSource, prepareIncludeOutput } from '../
 import { isValidFieldPath } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import { PopulateAccessError } from '../acl/populate-access';
-import { transferDocumentAuthorizationGraph } from '../acl/document-authorization';
+import { isTrustedAuthorizationOutput, transferDocumentAuthorizationGraph } from '../acl/document-authorization';
 import type {
   AllowedOutputFieldOptions,
   OutputFieldOptions,
@@ -55,7 +55,8 @@ import {
 export const VIRT_ASSOCIATION_FIELD: unique symbol = Symbol('accessRouter.virtAssociationField');
 export const VIRT_ASSOCIATION_VALUES: unique symbol = Symbol('accessRouter.virtAssociationValues');
 
-const copyAuthorizedOutput = <T>(value: T): T => {
+const copyAuthorizedOutput = <T>(value: T, call?: ResolvedServiceAuthorization): T => {
+  if (value && typeof value === 'object' && call && isTrustedAuthorizationOutput(value, call)) return value;
   const copy = deepIsolateValue(value);
   transferDocumentAuthorizationGraph(value, copy);
   return copy;
@@ -1103,7 +1104,9 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     if (includes.length === 0) return docs;
 
     const isSingle = !isArray(docs);
-    let docList = (isSingle ? [docs as TDoc] : (docs as TDoc[])).map(prepareIncludeOutput);
+    let docList = (isSingle ? [docs as TDoc] : (docs as TDoc[])).map((doc) =>
+      prepareIncludeOutput(doc, parentAuthorization, parentAuthorization ? this.relatedBinding() : undefined),
+    );
 
     for (let x = 0; x < includes.length; x++) {
       const include = includes[x];
@@ -1231,7 +1234,9 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
 
     // Materialize each returned row once. Per-parent isolation must copy stable
     // values rather than re-evaluate target presentation accessors for every match.
-    const finalizedRows = (trustedResult.data as unknown[]).map((row) => copyAuthorizedOutput(row));
+    const finalizedRows = (trustedResult.data as unknown[]).map((row) =>
+      copyAuthorizedOutput(row, parentAuthorization),
+    );
     let index: ForeignKeyIndex<unknown>;
     const paired = (trustedResult as unknown as Record<symbol, unknown>)[VIRT_ASSOCIATION_VALUES] as
       | unknown[]
@@ -1262,7 +1267,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       // Isolated copies per parent: multiple parents sharing one logical
       // target must not alias mutable output. Cloning finalized rows (never
       // raw hidden keys) preserves trim/virtuals without rerunning getters.
-      const isolated = matches.map((m) => copyAuthorizedOutput(m));
+      const isolated = matches.map((m) => copyAuthorizedOutput(m, parentAuthorization));
       attachIncludeOutput(doc, path, op === 'list' ? isolated : isolated[0]);
     }
 
@@ -1354,7 +1359,9 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     }
 
     const state = this.getCorrelatedExecState();
-    docs = docs.map(prepareIncludeOutput);
+    docs = docs.map((doc) =>
+      prepareIncludeOutput(doc, parentAuthorization, parentAuthorization ? this.relatedBinding() : undefined),
+    );
     const resolvedSnapshots: unknown[] =
       snapshots ?? docs.map((doc) => cloneDeep(toObject(getIncludeSource(doc))) as unknown);
 

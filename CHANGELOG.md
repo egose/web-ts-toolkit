@@ -2,6 +2,18 @@
 
 ### Features
 
+- **access-router:** add experimental default-false server model/default-model
+  `unsafeUseListAuthorizationFastPath` and `unsafeUseReadAuthorizationFastPath`.
+  Each requires all four matching document/output/nested comparison skips and
+  initial-output-copy skip; otherwise dormant, without enabling prerequisites.
+  Active trusted rows borrow source/grants/context and omit descendant graph
+  verification while actual rules/hooks, target gates and exact root bindings remain.
+  Mutation, stale decisions and fewer native observations can turn denial into
+  allowance; copied/value/getter fallbacks remain. Original six/two contracts apply
+  with these new flags off/dormant. Rollback affects new calls, not retained handles.
+  See the shipped README for examples, limits and risks; benchmark your workload,
+  with no universal speedup, security equivalence or v0.51.0 parity promised.
+
 * **access-router:** add default-off server model/default-model `unsafeSkipListInitialOutputSnapshotCopy` and `unsafeSkipReadInitialOutputSnapshotCopy`. Each requires the matching output-comparison skip; otherwise dormant. Eligible initial output snapshots are omitted while bounded shape/graph ownership and detached source/callback/response copies remain. This explicitly unsafe mode drops native/BSON normalization observations and can change authorization outcomes; existing flags and defaults are unchanged. See the access-router README for prerequisites, fallback and rollback.
 
 ### ⚠ BREAKING CHANGES

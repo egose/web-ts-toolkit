@@ -341,6 +341,166 @@ describe('AR-14 published export contract', () => {
   });
 
   describe('dist artifact sanity', () => {
+    it.each(['d.ts', 'd.mts'])(
+      'FP-04 ships truthful optional fast-path/handle hover without private issuers in %s',
+      (extension) => {
+        const ts = require('typescript') as typeof import('typescript');
+        const entries = ['index', 'advanced'].map((entry) =>
+          path.resolve(packageRoot, 'dist', `${entry}.${extension}`),
+        );
+        const program = ts.createProgram(entries, {
+          target: ts.ScriptTarget.ESNext,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          strictNullChecks: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: [],
+        });
+        const checker = program.getTypeChecker();
+        const exported = (entry: string, name: string) => {
+          const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
+          let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === name)!;
+          expect(symbol, `${entry} exports ${name}`).toBeDefined();
+          if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+          return { symbol, type: checker.getDeclaredTypeOfSymbol(symbol) };
+        };
+        const hover = (symbol: import('typescript').Symbol) =>
+          ts.displayPartsToString(symbol.getDocumentationComment(checker));
+        const flags = ['unsafeUseListAuthorizationFastPath', 'unsafeUseReadAuthorizationFastPath'];
+        for (const entry of entries) {
+          for (const name of [
+            'ModelRouterOptions',
+            'DefaultModelRouterOptions',
+            'ExtendedModelRouterOptions',
+            'ExtendedDefaultModelRouterOptions',
+          ]) {
+            for (const flag of flags) {
+              const property = exported(entry, name).type.getProperty(flag)!;
+              expect(property, `${name}.${flag}`).toBeDefined();
+              expect(property.flags & ts.SymbolFlags.Optional).not.toBe(0);
+              expect(
+                checker.typeToString(checker.getTypeOfSymbolAtLocation(property, property.valueDeclaration!)),
+              ).toBe('boolean | undefined');
+              for (const phrase of [
+                'EXPERIMENTAL performance-first',
+                'default `false`',
+                'ALL FOUR',
+                'dormant',
+                'undefined restores inheritance',
+                'before hooks/awaits',
+                'denial',
+                'allowance',
+                '20,000',
+                'depth 100',
+                'v0.51.0',
+                'argument-four',
+                'zero-copy',
+              ])
+                expect(hover(property), `${flag} documents ${phrase}`).toContain(phrase);
+              expect(property.getJsDocTags(checker).some((tag) => tag.name === 'example')).toBe(true);
+            }
+          }
+          for (const name of [
+            'GlobalOptions',
+            'RootRouterOptions',
+            'DataRouterOptions',
+            'SubdocumentReadOptions',
+            'ServiceAuthorization',
+          ])
+            for (const flag of flags) expect(exported(entry, name).type.getProperty(flag)).toBeUndefined();
+          const handle = exported(entry, 'DocumentAuthorization');
+          for (const phrase of [
+            'Default/copied',
+            'exact root association',
+            'issued-document membership',
+            'no stage snapshot',
+            'stale decisions/shared grants',
+            'Removed issued children',
+            'Rollback changes new calls only',
+            'denial into allowance',
+          ])
+            expect(hover(handle.symbol)).toContain(phrase);
+          const context = exported(entry, 'ServiceOutputContext');
+          expect(hover(context.symbol)).toContain('shallow diagnostic shells');
+          expect(hover(context.symbol)).toContain('not detached immutable snapshots');
+          expect(hover(context.type.getProperty('getDocumentAuthorization')!)).toContain('not current reachability');
+          expect(hover(context.type.getProperty('originalDocumentSnapshot')!)).toContain('borrow it');
+          expect(hover(exported(entry, 'ModelDocPermissionsHook').symbol)).toContain('share grants and context leaves');
+          expect(hover(exported(entry, 'ModelVirtualGetter').symbol)).toContain(
+            'private argument-four isolation remain',
+          );
+          expect(context.type.getProperty('authorizationFastPath')).toBeUndefined();
+          for (const flag of [
+            'unsafeSkipListDocumentSnapshotChecks',
+            'unsafeSkipReadDocumentSnapshotChecks',
+            'unsafeSkipListOutputSnapshotChecks',
+            'unsafeSkipReadOutputSnapshotChecks',
+            'unsafeSkipListNestedDocumentSnapshotChecks',
+            'unsafeSkipReadNestedDocumentSnapshotChecks',
+            'unsafeSkipListInitialOutputSnapshotCopy',
+            'unsafeSkipReadInitialOutputSnapshotCopy',
+          ])
+            expect(hover(exported(entry, 'DefaultModelRouterOptions').type.getProperty(flag)!)).toContain(
+              'not the active',
+            );
+        }
+        const privateNames = [
+          'AuthorizationFastPathOrigin',
+          'AuthorizationFastPathCapture',
+          'QueryAuthorizationSource',
+          'unsafeAuthorizationFastPathOptions',
+          'unsafeServerOptions',
+          'authorizationFastPathPrerequisites',
+          'captureAuthorizationFastPath',
+          'readAuthorizationFastPath',
+          'readTrustedServiceAuthorization',
+          'deriveTrustedQueryAuthorization',
+          'captureAuthorizationConfiguration',
+          'ownedAuthorizationConfiguration',
+          'isBorrowableAuthorizationRecord',
+          'prepareTrustedAuthorizationSource',
+          'TrustedOutputBudget',
+          'TrustedOutputMaterialization',
+          'TrustedOutputMemberBuilder',
+          'TrustedValuePolicy',
+          'createTrustedOutputBudget',
+          'visitTrustedOutput',
+          'defineTrustedOutputValue',
+          'shallowTrustedOutputArray',
+          'trustedMapOutputScope',
+          'shallowTrustedOutput',
+          'setTrustedOutputPath',
+          'unsetTrustedOutputPath',
+          'materializeTrustedOutputValue',
+          'isTrustedDocumentAuthorization',
+          'isTrustedDocumentAuthorizationStage',
+          'isTrustedAuthorizationOutput',
+          'createTrustedOutputMemberBuilder',
+          'retainTrustedOutputMember',
+          'retainTrustedOutputSpine',
+          'getIssuedEmbeddedDocumentAuthorization',
+          'isIssuedOutputMember',
+        ];
+        for (const file of readdirSync(path.resolve(packageRoot, 'dist')).filter((name) =>
+          /\.d\.(?:ts|mts)$/.test(name),
+        )) {
+          const declaration = readFileSync(path.resolve(packageRoot, 'dist', file), 'utf8');
+          for (const name of privateNames)
+            expect(declaration, `${file} must not ship ${name}`).not.toMatch(new RegExp(`\\b${name}\\b`));
+        }
+        for (const [esm, cjs, count] of [
+          [rootModule, aclCjs, 46],
+          [advancedModule, advancedCjs, 48],
+          [processorsModule, processorsCjs, 6],
+        ] as const) {
+          expect(Object.keys(esm).sort()).toEqual(Object.keys(cjs).sort());
+          expect(Object.keys(esm)).toHaveLength(count);
+          for (const name of privateNames) expect(esm).not.toHaveProperty(name);
+        }
+      },
+    );
+
     it('every declared dist file in exports resolves on disk', () => {
       const collectTargets = (value: unknown): string[] => {
         if (typeof value === 'string') return [value];
