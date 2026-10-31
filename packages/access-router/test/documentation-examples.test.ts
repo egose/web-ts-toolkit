@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -130,15 +130,24 @@ const run = (
   args: string[],
   cwd: string,
   env: NodeJS.ProcessEnv,
-): { status: number; stdout: string; stderr: string } => {
-  try {
-    const stdout = execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: 'pipe', env: { ...process.env, ...env } });
-    return { status: 0, stdout, stderr: '' };
-  } catch (err) {
-    const e = err as { status?: number; stdout?: string; stderr?: string; message?: string };
-    return { status: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? e.message ?? '' };
-  }
-};
+): Promise<{ status: number; stdout: string; stderr: string }> =>
+  new Promise((resolve) => {
+    // The MongoMemoryServer parent must drain mongod stdout while compilers and
+    // examples run. Synchronous child calls can fill that pipe and deadlock a
+    // real DB workflow. Await each bounded child; no concurrent test/build work.
+    execFile(
+      cmd,
+      args,
+      { cwd, encoding: 'utf8', timeout: 25_000, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, ...env } },
+      (error, stdout, stderr) => {
+        resolve({
+          status: error ? (typeof error.code === 'number' ? error.code : 1) : 0,
+          stdout,
+          stderr: stderr || error?.message || '',
+        });
+      },
+    );
+  });
 
 type CompiledBlock = { name: string; sourcePath: string; kind: DocumentationBlockKind; snippet: string };
 
@@ -194,6 +203,13 @@ const assembleAllBlocks = (): CompiledBlock[] => {
     if (!snippet)
       throw new Error(`${entry} is missing the installed DefaultModelRouterOptions populate-operation example`);
     blocks.push({ name: `DefaultModelRouterOptions-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
+    for (const option of ['unsafeUseListAuthorizationFastPath', 'unsafeUseReadAuthorizationFastPath']) {
+      const mode = checker.getDeclaredTypeOfSymbol(symbol).getProperty(option)!;
+      const example = mode.getJsDocTags(checker).find((tag) => tag.name === 'example');
+      const snippet = ts.displayPartsToString(example?.text).match(/```ts\n([\s\S]*?)```/)?.[1];
+      if (!snippet) throw new Error(`${entry} is missing the installed ${option} example`);
+      blocks.push({ name: `${option}-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
+    }
   }
   return blocks;
 };
@@ -271,9 +287,13 @@ describe('documentation examples compile and complete workflows execute against 
   const blocks = assembleAllBlocks();
 
   for (const block of blocks) {
-    it(`${block.name} satisfies full strict TS semantic compile against the packed access-router`, () => {
+    // `.d.ts`/`.d.mts` in a filename can classify a snippet as ambient and
+    // hide its statements under skipLibCheck. These are ordinary consumer sources.
+    const fixtureName = block.name.replaceAll('.', '-');
+    it(`${block.name} satisfies full strict TS semantic compile against the packed access-router`, async () => {
       const snippetWithFixture = fixturize(block.snippet);
-      const sourceFile = path.resolve(consumerDir, `${block.name}.ts`);
+      const sourceFile = path.resolve(consumerDir, `${fixtureName}.ts`);
+      expect(ts.createSourceFile(sourceFile, snippetWithFixture, ts.ScriptTarget.Latest).isDeclarationFile).toBe(false);
       writeFileSync(sourceFile, snippetWithFixture);
 
       const tsconfigPath = path.resolve(consumerDir, `tsconfig.${block.name}.json`);
@@ -296,11 +316,11 @@ describe('documentation examples compile and complete workflows execute against 
               noUnusedLocals: true,
               noUnusedParameters: true,
               noEmit: true,
-              skipLibCheck: true,
+              skipLibCheck: !block.snippet.includes('unsafeUse'),
               types: ['node'],
               lib: ['ES2022', 'DOM'],
             },
-            include: [`${block.name}.ts`],
+            include: [`${fixtureName}.ts`],
           },
           null,
           2,
@@ -308,7 +328,7 @@ describe('documentation examples compile and complete workflows execute against 
       );
 
       const tscAbsPath = path.resolve(consumerDir, ...TSC_PATH);
-      const result = run('node', [tscAbsPath, '-p', tsconfigPath, '--noEmit'], consumerDir, {});
+      const result = await run('node', [tscAbsPath, '-p', tsconfigPath, '--noEmit'], consumerDir, {});
       if (result.status !== 0) {
         throw new Error(
           `${block.name} failed ARF-10 documentation semantic compile (${block.sourcePath}):\n` +
@@ -317,15 +337,15 @@ describe('documentation examples compile and complete workflows execute against 
         );
       }
       expect(result.status).toBe(0);
-    });
+    }, 75_000);
 
     if (block.kind === 'complete-runtime') {
-      it(`${block.name} executes as a complete runtime workflow against the packed access-router`, () => {
-        const sourceFile = path.resolve(consumerDir, `${block.name}.runtime.mts`);
+      it(`${block.name} executes as a complete runtime workflow against the packed access-router`, async () => {
+        const sourceFile = path.resolve(consumerDir, `${fixtureName}.runtime.mts`);
         writeFileSync(sourceFile, block.snippet);
 
         const tsconfigPath = path.resolve(consumerDir, `tsconfig.${block.name}.runtime.json`);
-        const outDir = path.resolve(consumerDir, `runtime-${block.name}`);
+        const outDir = path.resolve(consumerDir, `runtime-${fixtureName}`);
         writeFileSync(
           tsconfigPath,
           JSON.stringify(
@@ -339,11 +359,11 @@ describe('documentation examples compile and complete workflows execute against 
                 noUnusedLocals: false,
                 noUnusedParameters: false,
                 outDir,
-                skipLibCheck: true,
+                skipLibCheck: !block.snippet.includes('unsafeUse'),
                 types: ['node'],
                 lib: ['ES2022', 'DOM'],
               },
-              include: [`${block.name}.runtime.mts`],
+              include: [`${fixtureName}.runtime.mts`],
             },
             null,
             2,
@@ -351,7 +371,7 @@ describe('documentation examples compile and complete workflows execute against 
         );
 
         const tscAbsPath = path.resolve(consumerDir, ...TSC_PATH);
-        const compile = run('node', [tscAbsPath, '-p', tsconfigPath], consumerDir, {});
+        const compile = await run('node', [tscAbsPath, '-p', tsconfigPath], consumerDir, {});
         if (compile.status !== 0) {
           throw new Error(
             `${block.name} failed runtime workflow emit (${block.sourcePath}):\n` +
@@ -360,8 +380,8 @@ describe('documentation examples compile and complete workflows execute against 
           );
         }
 
-        const runtimeFile = path.resolve(outDir, `${block.name}.runtime.mjs`);
-        const result = run('node', [runtimeFile], consumerDir, {
+        const runtimeFile = path.resolve(outDir, `${fixtureName}.runtime.mjs`);
+        const result = await run('node', [runtimeFile], consumerDir, {
           NODE_ENV: 'test',
           MONGODB_URL: documentationMongo!.getUri(),
         });
@@ -373,7 +393,7 @@ describe('documentation examples compile and complete workflows execute against 
           );
         }
         expect(result.status).toBe(0);
-      });
+      }, 75_000);
     }
   }
 

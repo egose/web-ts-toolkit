@@ -46,7 +46,11 @@ import {
   type ResolvedVirtualDescriptor,
 } from './acl/virtual-descriptor';
 import { captureVirtualPopulateDependencies } from './acl/virtual-populate-dependencies';
-import { unsafeSnapshotOptions } from './acl/unsafe-snapshot-options';
+import {
+  authorizationFastPathPrerequisites,
+  captureAuthorizationFastPath,
+  unsafeServerOptions,
+} from './acl/unsafe-snapshot-options';
 
 type ModelReferenceMap = {
   [key: string]: string | ModelReferenceMap;
@@ -82,7 +86,7 @@ const modelOverrides = (options: ModelRouterOptions): ModelRouterOptions => {
       ([key, value]) => value !== undefined || key === 'operationAccess' || isPopulatePolicyKey(key),
     ),
   );
-  for (const key of unsafeSnapshotOptions) if (key in result) result[key] = result[key] === true;
+  for (const key of unsafeServerOptions) if (key in result) result[key] = result[key] === true;
   return cloneOptionsSnapshot(result) as ModelRouterOptions;
 };
 
@@ -564,6 +568,8 @@ export class AccessRuntime {
     unsafeSkipReadNestedDocumentSnapshotChecks: false,
     unsafeSkipListInitialOutputSnapshotCopy: false,
     unsafeSkipReadInitialOutputSnapshotCopy: false,
+    unsafeUseListAuthorizationFastPath: false,
+    unsafeUseReadAuthorizationFastPath: false,
   }).build();
 
   private readonly modelOptions: Record<string, OptionsManager<any, any>> = {};
@@ -805,6 +811,15 @@ export class AccessRuntime {
     value: ExtendedDefaultModelRouterOptions[K],
   ) {
     const keyStr = String(key);
+    // Inspect the supplied defaults value before OptionsManager's clone can drop
+    // non-enumerable controls or execute a getter. Dotted setters have the same
+    // admission boundary as setDefaultModelOptions/setModelOption.
+    if (keyStr === 'defaults') assertPublicDefaults(value);
+    else if (keyStr.startsWith('defaults.')) {
+      const proposed = {};
+      set(proposed, keyStr.slice('defaults.'.length), value);
+      assertPublicDefaults(proposed);
+    }
     const draft = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>(
       this.getDefaultModelOptions(),
     ).build();
@@ -841,7 +856,7 @@ export class AccessRuntime {
     for (const key of populatePolicyKeys) delete inherited[key];
     const effective = { ...defaultModelOptions, ...inherited, ...overrides, modelName };
     effective.basePath = normalizeBasePath(modelName, effective.basePath);
-    for (const key of unsafeSnapshotOptions) effective[key] = effective[key] === true;
+    for (const key of unsafeServerOptions) effective[key] = effective[key] === true;
     refreshPermissionMetadata(effective);
     return cloneOptionsSnapshot(effective);
   }
@@ -862,7 +877,7 @@ export class AccessRuntime {
 
   private publishDefaultModelOptions(options: DefaultModelRouterOptions): void {
     const next = { ...options };
-    for (const key of unsafeSnapshotOptions) if (key in next) next[key] = next[key] === true;
+    for (const key of unsafeServerOptions) if (key in next) next[key] = next[key] === true;
     const defaults = cloneOptionsSnapshot(next);
     const models = new Map(
       Object.keys(this.modelOptions).map((name) => [name, this.resolveModelOptions(name, undefined, defaults)]),
@@ -902,6 +917,7 @@ export class AccessRuntime {
     // Compare coherent before/after model pairs, not transient per-key listener
     // states. A dormant request can become active when its prerequisite changes.
     const copyModes = this.initialOutputCopyModes();
+    const fastModes = this.authorizationFastPathModes();
     const pending: Array<{ modelName: string; key: string }> = [];
     this.pendingSnapshotWarnings = pending;
     let result: T;
@@ -911,6 +927,9 @@ export class AccessRuntime {
       this.pendingSnapshotWarnings = undefined;
     }
     const nextCopyModes = this.initialOutputCopyModes();
+    // Own the whole published signature before any logger callback can reenter
+    // setters. Loggers observe publication; they are not part of its transaction.
+    const nextFastModes = this.authorizationFastPathModes();
     for (const { modelName, key } of pending) this.warnSnapshotFlag(modelName, key);
     for (const [modelName, modes] of nextCopyModes) {
       for (const operation of ['List', 'Read'] as const) {
@@ -930,7 +949,45 @@ export class AccessRuntime {
         }
       }
     }
+    for (const [modelName, modes] of nextFastModes) {
+      for (const origin of ['list', 'read'] as const) {
+        const captured = modes[origin];
+        const previous = fastModes.get(modelName)?.[origin];
+        if (
+          captured.mode === 'off' ||
+          (captured.mode === previous?.mode &&
+            (captured.mode !== 'dormant' || captured.prerequisites === previous.prerequisites))
+        )
+          continue;
+        const key = origin === 'read' ? 'unsafeUseReadAuthorizationFastPath' : 'unsafeUseListAuthorizationFastPath';
+        const missing = authorizationFastPathPrerequisites(origin).filter(
+          (_, index) => !(captured.prerequisites & (1 << index)),
+        );
+        try {
+          this.getGlobalOption('logger')?.warn?.(
+            captured.mode === 'active'
+              ? `UNSAFE: ${origin} authorization fast path active (${key}=true); eligible query rows borrow source/grant/context leaves and omit repeated snapshots, isolation and descendant graph checks. Borrowed source/grant mutation, stale decisions, descendant replacement, lost native normalization/validation observations and loss of full unvisited source shape/bounds can change authorization outcomes, including denial becoming allowance. Actual operation/row/field rules, document hooks/getters, request/work limits and cheap exact root authority remain; shallow-unproven rows retain compatible copies and graph checks. Restore ${key}=false after the temporary workaround.`
+              : `UNSAFE: ${key} is dormant; requires ${missing.map((flag) => `${flag}=true`).join(', ')}. Original snapshot flag behavior remains unchanged. Restore ${key}=false if not intended.`,
+            { modelName },
+          );
+        } catch {
+          // Publication already succeeded. Logger failure is not a new activation.
+        }
+      }
+    }
     return result;
+  }
+
+  private authorizationFastPathModes() {
+    return new Map(
+      Object.entries(this.modelOptions).map(([modelName, manager]) => {
+        const options = manager.fetch();
+        return [
+          modelName,
+          { list: captureAuthorizationFastPath(options, 'list'), read: captureAuthorizationFastPath(options, 'read') },
+        ] as const;
+      }),
+    );
   }
 
   private initialOutputCopyModes() {

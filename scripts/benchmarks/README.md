@@ -34,6 +34,10 @@ the prepared entrypoint hash before importing it.
    both copy options. BOTH creates the cross-product with comparison candidates.
    Old/partial copy support is labeled N/A or supported-OFF; ON is unavailable.
    The original snapshot group still sets exactly its six comparison flags.
+   Independently select **OFF/ON/BOTH authorization fast paths** for builds declaring
+   both new options. All three defaults are OFF; selecting BOTH in each group makes
+   **eight distinct candidates** for one build, each selectable as its own baseline.
+   Old/partial third-group support is OFF/N/A only; ON is not offered.
 4. Select a candidate as the baseline and choose scenarios (**at least one**).
    Failed preparations retain logs and are not offered as runnable builds. Old
    incompatible tags fail explicitly instead of silently using a different workload.
@@ -49,6 +53,13 @@ ON explicitly sets all six `unsafeSkip{List,Read}{Document,Output,NestedDocument
 model options to `true` on both benchmark models; OFF sets supported options to
 `false`. The worker checks both effective model-option getters before measuring;
 missing, changed or unapplied flags fail rather than yielding misleading timings.
+Preparation requires exported root model-option types with actual optional-boolean
+declarations, including shared
+chunks and both `.d.ts`/`.d.mts` conditions. Mixed/required/malformed/duplicate/comment-only
+declarations are not support. Every worker rechecks the aggregate hash and per-file
+manifest, then reparses in a short-lived **separate compiler process**, which exits
+before peers/runtime/MongoDB load. The compiler is never loaded into the measured
+worker heap. Invented support arrays or unapplied getter values fail before timing.
 The current scenarios are LIST requests, so the three READ flags are configured
 but do not affect these measurements. No flags are passed as request options.
 
@@ -61,13 +72,38 @@ effective LIST copy mode derived from that verified pair; runtime/operation-coun
 tests separately verify the actual omission. Unsupported historical flags stay N/A.
 Eligibility fallback can still copy particular graphs even with the mode active.
 
-Copy ON adds risk: it omits initial output native normalization/wire-validation
+With the matching new authorization fast-path flag **OFF (or dormant)**, copy ON
+adds risk: it omits initial output native normalization/wire-validation
 observations, which can change permission outcomes. Bounded shape/graph checks and
 source/callback/response copies remain. Matching fixtures do not prove security
 equivalence or imply that all cloning was removed.
 
-The unshipped publication-fusion experiment was withdrawn. This runner offers only
-the existing six-comparison and two-copy groups, with no third fusion selection.
+The new independent group sets `unsafeUseListAuthorizationFastPath` and
+`unsafeUseReadAuthorizationFastPath` on both models. Requested false is **off**;
+requested true needs **all four matching** document/output/nested comparison skips
+and initial-output-copy skip to be **active**, otherwise **dormant**. It never
+enables prerequisites or changes six/two ON meanings. Requested/configured candidate
+labels are explicitly **unverified**; result tables show verified LIST/READ effective
+configuration only after both actual models and both getter paths agree. Missing or
+inconsistent verification stays **unknown (unverified)**, never pretends active.
+
+These effective modes describe **configuration**, not actual per-row borrowing or
+omission counts. Timing workers do not instrument runtime omissions
+(`runtimeOmissionCounts: null`); deterministic library work/risk tests measure those separately. Active
+ordinary rows borrow source/hook input, share grants/context leaves and captured
+scope/config views, and omit descendant graph/snapshot/native-wire/equality passes.
+Exact root/tuple checks, issued-document membership and actual rules/hooks/target
+admission remain. Removed original children can stay discoverable and root helpers
+accept descendant replacement with stale memo/shared grants. Copied rows/grants and
+selected value/native fallbacks, hydration, getter views/return staging, private
+argument-four isolation and JSON normalization remain; not every row is zero-copy.
+New selected materialization has 20,000-slot/issued-root/depth-100 budgets, not full
+unvisited source/grant/context bounds. Mutations, stale authority and changed native
+observations can turn denial into allowance. No full ACL bypass, security equivalence,
+universal gain or v0.51.0 equivalence/performance parity is promised; benchmark your workload.
+
+The unshipped publication-fusion experiment remains withdrawn. The third selection
+is the explicitly weaker authorization fast path, **not a fusion option**.
 
 **ON is unsafe:** source/output mutations can leave stale authorization decisions
 and expose data. Matching benchmark outputs do not make ON security-equivalent to
@@ -96,10 +132,14 @@ The terminal table and `.wip/benchmarks/access-router-*/report.md` show median/p
 HTTP latency, requests/second, worker CPU milliseconds/request, Mongoose read ops/
 request, and median latency relative to the selected baseline. **Below 1.00x is
 faster.** Ratios are suppressed for failures, missing baselines or different
-validated output fingerprints. Each row identifies its comparison and initial-copy settings;
+validated output fingerprints. Each row identifies comparison/copy and requested
+fast-path settings separately from verified LIST/READ effective configuration;
 `report.json` records the candidate's supported and applied flags alongside raw samples, settings,
 commits, dirty-worktree status, build/lock hashes, actual dependency and MongoDB
 versions, and failures. Each build/job also has a persistent log.
+Current workloads measure **LIST only**; READ flags/effective configuration are
+verified but **READ is not timed**. Matching fingerprints demonstrate only the
+unchanged ordinary fixture contract, never security or historical equivalence.
 
 - Build/install/startup, connection, seeding, indexes and warmup are outside timing.
 - HTTP timing includes loopback I/O, JSON serialization and client parsing. CPU
@@ -130,7 +170,7 @@ node --test scripts/benchmarks/access-router.test.mjs
 pnpm exec eslint scripts/benchmarks
 ```
 
-For a real worker smoke test of the four comparison/copy candidates on separate
+For a real worker smoke test of all eight comparison/copy/fast-path candidates on separate
 embedded and document-hook scenarios,
 build the current access-router first, then run the integration test. This starts
 disposable MongoDB and may download its binary:

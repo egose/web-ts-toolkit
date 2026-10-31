@@ -12,6 +12,7 @@ import {
   integer,
   integerList,
   initialOutputCopyCandidates,
+  authorizationFastPathCandidates,
   prepareTarget,
   reportRows,
   requireSelection,
@@ -21,6 +22,7 @@ import {
   snapshotCandidates,
   UNSAFE_SNAPSHOT_FLAGS,
   UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
+  UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
 } from './access-router-core.mjs';
 
 const exec = promisify(execFile);
@@ -79,8 +81,11 @@ Interactive only (Node >=22, Git, tar and pnpm required).
   3. Multiselect prepared versions (at least one); choose unsafe snapshot skips OFF,
       ON, or BOTH independently for each supported version. Separately choose initial
       output copy skips OFF/ON/BOTH (ON is dormant without output-comparison skips).
+      Third independent authorization fast paths OFF/ON/BOTH (default OFF); ON
+      needs all four matching prerequisites. BOTH in every group makes eight candidates.
   4. Choose the baseline, scenarios, row sizes, samples and concurrency.
   5. Run all jobs sequentially against disposable MongoDB; show/save JSON + Markdown.
+      All current workloads time LIST; READ is verified but not timed.
 
 No checkout/reset/worktree changes. Installs historical frozen lockfiles with
 install scripts disabled, then explicitly executes each selected tag's build code.
@@ -209,6 +214,7 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
     );
     const selectedBuilds = report.preparedTargets.filter((target) => selectedIds.includes(target.id));
     const targets = [];
+    const modeSelections = [];
     for (const target of selectedBuilds) {
       const count = target.supportedSnapshotFlags.length;
       let setting = 'off';
@@ -248,9 +254,40 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
           }),
         );
       }
+      let fastSetting = 'off';
+      const fastCount = target.supportedAuthorizationFastPathFlags.length;
+      if (fastCount < UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.length) {
+        prompts.log.info(
+          `${target.label}: ${fastCount}/2 authorization fast-path flags declared. Fast-path ON is unavailable; supported flags stay OFF, others N/A.`,
+        );
+      } else {
+        fastSetting = await ask(
+          prompts.select({
+            message: `Unsafe authorization fast paths for ${target.label} (independent; LIST timed, READ not timed)`,
+            initialValue: 'off',
+            options: [
+              { value: 'off', label: 'OFF', hint: 'keep existing comparison/copy behavior' },
+              {
+                value: 'on',
+                label: 'ON',
+                hint: 'borrow trusted rows only with all four matching skips; otherwise dormant',
+              },
+              { value: 'both', label: 'BOTH', hint: 'cross product with comparison/copy candidates (up to eight)' },
+            ],
+          }),
+        );
+      }
+      modeSelections.push({
+        buildId: target.id,
+        snapshotSkips: setting,
+        initialOutputCopySkips: copySetting,
+        authorizationFastPaths: fastSetting,
+      });
       targets.push(
         ...snapshotCandidates(target, setting).flatMap((candidate) =>
-          initialOutputCopyCandidates(candidate, copySetting),
+          initialOutputCopyCandidates(candidate, copySetting).flatMap((copyCandidate) =>
+            authorizationFastPathCandidates(copyCandidate, fastSetting),
+          ),
         ),
       );
     }
@@ -260,6 +297,10 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
     if (targets.some((target) => target.initialOutputCopySkips === 'on'))
       prompts.log.warn(
         'Initial output copy skips additionally omit native normalization/validation observations; dormant ON does not disable comparisons.',
+      );
+    if (targets.some((target) => target.authorizationFastPaths === 'on'))
+      prompts.log.warn(
+        'Experimental authorization fast paths borrow source/grants/context and omit descendant checks; mutation/stale decisions can turn denial into allowance. ON does not enable prerequisites. Benchmark your workload; READ is not timed.',
       );
     report.baseline =
       targets.length === 1
@@ -299,6 +340,9 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
       scenarios: scenarioIds,
       selectedBuilds: selectedIds,
       selectedTargets: targets.map((target) => target.id),
+      modeSelections,
+      measuredAuthorizationOrigin: 'list',
+      readTimed: false,
     };
     const total = targets.length * scenarioIds.length * config.rows.length * config.concurrencies.length;
     if (
@@ -365,6 +409,9 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
     );
     prompts.log.info(
       'Historical dependency versions differ; small samples and fixed run ordering can bias results. Inspect raw samples before drawing conclusions.',
+    );
+    prompts.log.info(
+      'Fast-path effective modes are verified server configuration, not per-row omission counts. All workloads time LIST only; READ is not timed.',
     );
     if (report.preparationFailures.length || rows.some((result) => result.status !== 'ok')) process.exitCode = 1;
     prompts.outro(`Reports and logs: ${reportDirectory}`);

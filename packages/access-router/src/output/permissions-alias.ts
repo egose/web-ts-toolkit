@@ -3,6 +3,11 @@ import { get } from '@web-ts-toolkit/utils';
 // Only package-generated aliases are transferable. Never inspect raw document virtuals.
 const aliases = new WeakMap<object, string>();
 
+/** Root admission can ignore ONLY a known package alias, without evaluating a path/getter. */
+export function isGeneratedPermissionsAliasSlot(output: object, key: string, slot: PropertyDescriptor): boolean {
+  return key === 'permissions' && aliases.has(output) && 'value' in slot && !slot.enumerable;
+}
+
 export function attachPermissionsAlias(output: Record<string, unknown>, field: string): void {
   if ('permissions' in output) return;
   const metadata = get(output, field);

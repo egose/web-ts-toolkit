@@ -22,6 +22,13 @@ import type {
 import { authorizationError, authorizationRecord, copyAuthorizationValue } from './authorization-snapshot';
 import type { VirtualPopulateSnapshotToken } from './virtual-populate-dependencies';
 import type { PopulatePolicyDefaultsToken } from './populate-policy';
+import { assertNoServerModelControls } from '../validation/public-admission';
+import { ownedAuthorizationConfiguration } from './captured-authorization-configuration';
+import {
+  captureAuthorizationFastPath,
+  unsafeServerOptions,
+  type AuthorizationFastPathCapture,
+} from './unsafe-snapshot-options';
 export { ServiceAuthorizationError } from './authorization-snapshot';
 
 export interface AuthorizationBinding {
@@ -72,6 +79,8 @@ export interface AuthorizationConfiguration {
   readonly unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
   readonly unsafeSkipListInitialOutputSnapshotCopy?: boolean;
   readonly unsafeSkipReadInitialOutputSnapshotCopy?: boolean;
+  readonly unsafeUseListAuthorizationFastPath?: boolean;
+  readonly unsafeUseReadAuthorizationFastPath?: boolean;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   /** Held runtime model defaults, distinct from this model's resolved flags. */
@@ -167,8 +176,47 @@ interface CallRecord {
   readonly responseSnapshots?: Readonly<{ skipOutput: boolean; skipNested: boolean; skipInitialOutputCopy: boolean }>;
   readonly validateOutputSnapshots: boolean;
   readonly skipInitialOutputSnapshotCopy: boolean;
+  /** Captured query selection. Actual source/stage state decides the row's omissions. */
+  readonly authorizationFastPath?: AuthorizationFastPathCapture;
+  readonly fieldPolicyOwner?: ResolvedServiceAuthorization;
+  trustedView?: TrustedServiceAuthorizationView;
 }
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
+
+declare const trustedViewBrand: unique symbol;
+interface TrustedServiceAuthorizationView {
+  readonly [trustedViewBrand]: true;
+  readonly authorization: NormalizedServiceAuthorization;
+  readonly configuration: AuthorizationConfiguration;
+  readonly access: AuthorizationAccess;
+  readonly relatedTargets: readonly AuthorizationRelatedTarget[];
+}
+const trustedViews = new WeakSet<TrustedServiceAuthorizationView>();
+
+/** Detached target containers reuse their already-detached, privately branded model captures. */
+function captureTrustedRelatedTargets(
+  targets: readonly AuthorizationRelatedTarget[],
+): readonly AuthorizationRelatedTarget[] {
+  let slots = 0;
+  const capture = (
+    entries: readonly AuthorizationRelatedTarget[],
+    depth: number,
+  ): readonly AuthorizationRelatedTarget[] => {
+    if (depth > 100 || (slots += entries.length) > 20000)
+      authorizationError('related capture exceeds structural limits');
+    return Object.freeze(
+      entries.map((entry) => {
+        const { configuration, relatedTargets, ...rest } = entry;
+        return Object.freeze({
+          ...copyAuthorizationValue(rest, true),
+          configuration: ownedAuthorizationConfiguration(configuration),
+          relatedTargets: relatedTargets ? capture(relatedTargets, depth + 1) : undefined,
+        });
+      }),
+    );
+  };
+  return capture(targets, 0);
+}
 
 /** A detached native may normalize differently on its next copy (notably BSON
  * wire hooks). Prove reuse from the stored source, before a read can turn that
@@ -261,6 +309,8 @@ function assertCatalogPath(path: string, configuration: AuthorizationConfigurati
 }
 
 export function assertAuthorizationKeys(value: Record<string, unknown>, keys: readonly string[], label: string): void {
+  for (const key of unsafeServerOptions)
+    if (key in value) authorizationError(`${label}.${key} is server model configuration only`);
   for (const key of Object.keys(value)) if (!keys.includes(key)) authorizationError(`unsupported ${label} key: ${key}`);
 }
 
@@ -451,6 +501,7 @@ function nestedQueryResponse(input: ResolveServiceAuthorizationInput, access: Au
       !!target &&
       target.kind !== 'count' &&
       target.modelName === input.binding.modelName &&
+      (target.model === undefined || target.model === input.binding.model) &&
       scope(input.binding).length === 0
     );
   }
@@ -468,11 +519,103 @@ function nestedQueryResponse(input: ResolveServiceAuthorizationInput, access: Au
   );
 }
 
+/** Authenticated query-only derivation. Caller policy/configuration cannot substitute for the captured edge. */
+export function deriveTrustedQueryAuthorization(
+  input: ResolveServiceAuthorizationInput,
+): ResolvedServiceAuthorization | undefined {
+  if (!input.parent || !input.snapshotDerivation) return;
+  const access = captureAuthorizationAccess(input.access);
+  const parent = callRecord(input.parent);
+  const retry =
+    input.snapshotDerivation.kind === 'retry' &&
+    parent.readResponse &&
+    access.operation === 'read' &&
+    (input.applicability ?? 'service') === 'service' &&
+    queryOutputAccess(access);
+  if (retry) {
+    assertAuthorizationBinding(input.parent, input.snapshotDerivation.parentBinding);
+    assertAuthorizationBinding(input.parent, input.binding);
+  } else if (!nestedQueryResponse(input, access)) return;
+  if (parent.authorizationFastPath?.mode !== 'active') return;
+  // Related edges may change models, never the owning request/runtime.
+  if (parent.binding.request !== input.binding.request || parent.binding.runtime !== input.binding.runtime) {
+    authorizationError('derived call request/runtime mismatch');
+  }
+  const edge = input.snapshotDerivation;
+  const target = edge.kind === 'related' ? parent.relatedTargets.find((entry) => entry.path === edge.path)! : undefined;
+  const scopePath = Array.from(scope(input.binding));
+  for (const part of scopePath) {
+    assertAuthorizationPath(part);
+    if (part.includes('.')) authorizationError('scopePath requires response segments');
+  }
+  if (edge.kind === 'embedded' && !isCatalogOutputPath(parent.output.catalog, scopePath.join('.')))
+    authorizationError('unknown output scope');
+  const configuration = target?.configuration ?? parent.configuration;
+  const relatedTargets = target?.relatedTargets ?? (target ? [] : parent.relatedTargets);
+  const policy = target
+    ? (parent.policy.related[target.path] ??
+      Object.freeze({
+        rows: Object.freeze({ mode: 'request' as const }),
+        outputFields: Object.freeze({ mode: 'request' as const }),
+        inputFields: Object.freeze({ mode: 'request' as const }),
+        related: Object.freeze({}),
+      }))
+    : parent.policy;
+  const catalog = target ? captureAuthorizationCatalog(configuration.catalog) : parent.output.catalog;
+  const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
+  calls.set(call, {
+    binding: Object.freeze({ ...input.binding, scopePath: Object.freeze(scopePath) }),
+    access,
+    configuration,
+    policy,
+    relatedTargets,
+    output: Object.freeze({ access, catalog, outputFields: policy.outputFields }),
+    permissions: parent.permissions,
+    provenance: parent.provenance,
+    readResponse: edge.kind === 'retry' && parent.readResponse,
+    nestedResponse: true,
+    responseSnapshots: parent.responseSnapshots,
+    authorizationFastPath: parent.authorizationFastPath,
+    fieldPolicyOwner: target ? call : (parent.fieldPolicyOwner ?? input.parent),
+    trustedView: undefined,
+    reusableFieldConfiguration: undefined,
+    validateDocumentSnapshots: false,
+    validateOutputSnapshots: false,
+    skipInitialOutputSnapshotCopy: true,
+  });
+  return call;
+}
+
 /** Synchronous capture must occur before any operation hook/await. Omitted policy is request-only. */
 export function resolveServiceAuthorization(input: ResolveServiceAuthorizationInput): ResolvedServiceAuthorization {
+  assertNoServerModelControls(input.authorization, authorizationError, 'policy');
+  const derived = deriveTrustedQueryAuthorization(input);
+  if (derived) return derived;
+  // Read literal origin decisions before a configuration clone can run native wire hooks.
+  // Only an authenticated origin/edge below may retain either candidate.
+  const fastPaths = {
+    list: captureAuthorizationFastPath(input.configuration, 'list'),
+    read: captureAuthorizationFastPath(input.configuration, 'read'),
+  };
+  const candidateAccess = captureAuthorizationAccess(input.access);
+  const rootQuery = !input.parent && (input.applicability ?? 'service') === 'service' && !scope(input.binding).length;
+  const trustedCapture =
+    rootQuery &&
+    ((input.listResponse === true &&
+      candidateAccess.operation === 'list' &&
+      queryOutputAccess(candidateAccess) &&
+      fastPaths.list.mode === 'active') ||
+      (input.readResponse === true &&
+        candidateAccess.operation === 'read' &&
+        queryOutputAccess(candidateAccess) &&
+        fastPaths.read.mode === 'active'));
   const raw = copyAuthorizationValue(input.authorization);
-  const configuration = copyAuthorizationValue(input.configuration, true);
-  const targets = copyAuthorizationValue(input.relatedTargets ?? [], true);
+  const configuration = trustedCapture
+    ? ownedAuthorizationConfiguration(input.configuration)
+    : copyAuthorizationValue(input.configuration, true);
+  const targets = trustedCapture
+    ? captureTrustedRelatedTargets(input.relatedTargets ?? [])
+    : copyAuthorizationValue(input.relatedTargets ?? [], true);
   const access = copyAuthorizationValue(input.access);
   const outputAccess = captureAuthorizationAccess(access);
   const catalog = captureAuthorizationCatalog(configuration.catalog);
@@ -541,6 +684,15 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
                 configuration.unsafeSkipReadInitialOutputSnapshotCopy === true,
             })
           : undefined;
+  const authorizationFastPath = input.parent
+    ? nestedResponse || (readResponse && input.snapshotDerivation?.kind === 'retry')
+      ? callRecord(input.parent).authorizationFastPath
+      : undefined
+    : listResponse
+      ? fastPaths.list
+      : readResponse
+        ? fastPaths.read
+        : undefined;
   const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
   calls.set(call, {
     binding: Object.freeze({ ...input.binding, scopePath: Object.freeze(scopePath) }),
@@ -555,6 +707,10 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
     readResponse,
     nestedResponse,
     responseSnapshots,
+    authorizationFastPath,
+    fieldPolicyOwner: undefined,
+    trustedView: undefined,
+    reusableFieldConfiguration: undefined,
     validateOutputSnapshots: responseSnapshots?.skipOutput !== true,
     skipInitialOutputSnapshotCopy: responseSnapshots?.skipInitialOutputCopy === true,
     validateDocumentSnapshots: !(
@@ -577,6 +733,7 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
 export function readServiceAuthorization(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
+  if (record.authorizationFastPath?.mode === 'active') return readTrustedServiceAuthorization(call, binding)!;
   return copyAuthorizationValue(
     {
       authorization: record.policy,
@@ -586,6 +743,34 @@ export function readServiceAuthorization(call: ResolvedServiceAuthorization, bin
     },
     true,
   );
+}
+
+/** Private branded shared view. Every read authenticates the call/tuple, not its mutable native leaves. */
+export function readTrustedServiceAuthorization(
+  call: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+): TrustedServiceAuthorizationView | undefined {
+  assertAuthorizationBinding(call, binding);
+  const record = callRecord(call);
+  if (record.authorizationFastPath?.mode !== 'active') return;
+  if (!record.trustedView) {
+    record.trustedView = Object.freeze({
+      authorization: record.policy,
+      configuration: record.configuration,
+      access: record.access,
+      relatedTargets: record.relatedTargets,
+    }) as TrustedServiceAuthorizationView;
+    trustedViews.add(record.trustedView);
+  }
+  if (!trustedViews.has(record.trustedView)) authorizationError('invalid trusted configuration view');
+  return record.trustedView;
+}
+
+/** Embedded scopes share preparation, never grants or per-stage result owners. Targets have their own key. */
+export function serviceOutputFieldPolicyOwner(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
+  const record = callRecord(call);
+  if (record.authorizationFastPath?.mode === 'active') assertAuthorizationBinding(call, binding);
+  return record.fieldPolicyOwner ?? call;
 }
 
 /** Private access-only read; no policy/configuration/related graph traversal. */
@@ -598,6 +783,19 @@ export function readServiceAuthorizationAccess(call: ResolvedServiceAuthorizatio
 export function requiresDocumentSnapshotChecks(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   return callRecord(call).validateDocumentSnapshots;
+}
+
+/**
+ * Package-private captured selection, authenticated on EVERY read (including off/dormant).
+ * Not a public selector/certificate, not a promise that an individual row is trusted.
+ * A call may contain both borrowed and compatibility-copied rows. No public row-trust certificate.
+ */
+export function readAuthorizationFastPath(
+  call: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+): AuthorizationFastPathCapture | undefined {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).authorizationFastPath;
 }
 
 /** Output value comparisons only. Exact object associations and graph identities always run. */
@@ -617,7 +815,10 @@ export function skipsInitialOutputSnapshotCopy(call: ResolvedServiceAuthorizatio
 /** Hydration is open configuration: detach this slice, never the unrelated call graph. */
 export function readServiceAuthorizationHydration(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
-  return copyAuthorizationValue({ hydration: callRecord(call).configuration.hydration }, true);
+  const record = callRecord(call);
+  if (record.authorizationFastPath?.mode === 'active')
+    return Object.freeze({ hydration: record.configuration.hydration });
+  return copyAuthorizationValue({ hydration: record.configuration.hydration }, true);
 }
 
 function outputMetadata(configuration: AuthorizationConfiguration) {
@@ -632,13 +833,20 @@ function outputMetadata(configuration: AuthorizationConfiguration) {
 /** Row presentation needs only metadata posture, never query/default/related policy. */
 export function readServiceOutputMetadata(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
-  return copyAuthorizationValue(outputMetadata(callRecord(call).configuration), true);
+  const record = callRecord(call);
+  if (record.authorizationFastPath?.mode === 'active') return Object.freeze(outputMetadata(record.configuration));
+  return copyAuthorizationValue(outputMetadata(record.configuration), true);
 }
 
 /** Hook lookup is open configuration: keep native/function-backed parents resolution-local. */
 export function readServiceDocumentPermissions(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
+  if (record.authorizationFastPath?.mode === 'active')
+    return Object.freeze({
+      catalog: record.output.catalog,
+      docPermissions: record.configuration.docPermissions,
+    });
   return Object.freeze({
     catalog: record.output.catalog,
     ...copyAuthorizationValue({ docPermissions: record.configuration.docPermissions }, true),
@@ -651,6 +859,13 @@ export function readServiceDocumentPermissions(call: ResolvedServiceAuthorizatio
 export function readServiceFinalizerConfiguration(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
+  if (record.authorizationFastPath?.mode === 'active')
+    return Object.freeze({
+      catalog: record.output.catalog,
+      ...outputMetadata(record.configuration),
+      virtuals: record.configuration.virtuals,
+      docPermissions: record.configuration.docPermissions,
+    });
   return Object.freeze({
     catalog: record.output.catalog,
     ...copyAuthorizationValue(
@@ -674,6 +889,15 @@ export function readServiceOutputPolicy(call: ResolvedServiceAuthorization, bind
 export function readServiceOutputFieldAuthorization(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
+  if (record.authorizationFastPath?.mode === 'active')
+    return Object.freeze({
+      access: record.output.access,
+      catalog: record.output.catalog,
+      outputFields: record.output.outputFields,
+      reusable: true,
+      permissionSchema: record.configuration.permissionSchema,
+      modelPermissionPrefix: record.configuration.modelPermissionPrefix,
+    });
   const reusable = reusableOutputFieldConfiguration(record);
   return Object.freeze({
     access: record.output.access,
@@ -710,7 +934,8 @@ export function canPrepareStaticOutputPolicy(
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
   return (
-    reusableOutputFieldConfiguration(record) && typeof (record.configuration.modelPermissionPrefix ?? '') === 'string'
+    (record.authorizationFastPath?.mode === 'active' || reusableOutputFieldConfiguration(record)) &&
+    typeof (record.configuration.modelPermissionPrefix ?? '') === 'string'
   );
 }
 

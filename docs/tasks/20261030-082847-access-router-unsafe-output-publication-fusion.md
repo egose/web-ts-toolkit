@@ -11,6 +11,11 @@ did not justify mixed primary results and repeated observed populate slowdowns. 
 runtime/source/declarations match the original before artifact; all eight existing
 flags are unchanged. FUSE-06 independently accepted withdrawal; no blockers remain.
 
+The subsequently authorized broader READ/LIST authorization fast path is tracked
+in [a new phase](20261030-142406-access-router-unsafe-authorization-fast-path.md).
+It intentionally permits additional isolation/graph-check omissions; it is not a
+revival or delivery of the withdrawn fusion flags.
+
 The new-flag contract and implementation evidence below are historical, **not
 available API**. FUSE-02–04 are cancelled as retained-feature deliverables, while
 their actual implementation/test history is preserved. No new speedup is delivered

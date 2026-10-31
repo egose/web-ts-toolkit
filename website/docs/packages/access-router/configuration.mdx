@@ -148,6 +148,10 @@ Request base-filter caches remain owned by their request/runtime/access.
 
 ### Temporary unsafe read/list-performance switches
 
+The original six comparison/two initial-copy contracts below retain their copy/graph
+guarantees only with the matching new authorization fast-path flag **OFF (or dormant)**.
+The separately opted-in active mode described below deliberately weakens them.
+
 Model-only `unsafeSkipListDocumentSnapshotChecks: true` skips repeated source snapshot
 comparisons on top-level `find`, generated lists and root-list entries. Independent
 `unsafeSkipReadDocumentSnapshotChecks: true` does the same for `findOne`, `findById`,
@@ -218,6 +222,67 @@ reviewing trusted data/hooks and measured rollout evidence. Restore the copy fla
 false and then restore strict comparisons for new calls; retained authority keeps its
 captured mode. The [shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#temporary-unsafe-initial-output-snapshot-copy-switches)
 contains the four-combination table and server-only example.
+
+### Experimental unsafe READ/LIST authorization fast paths
+
+`unsafeUseListAuthorizationFastPath?: boolean` and
+`unsafeUseReadAuthorizationFastPath?: boolean` form a third independent default-false
+server model/default group. Literal true requests the mode; each needs **all four**
+matching `unsafeSkip{List,Read}DocumentSnapshotChecks`, `OutputSnapshotChecks`,
+`NestedDocumentSnapshotChecks` and `InitialOutputSnapshotCopy`. False/omitted is off;
+true with any missing prerequisite is dormant with original flag behavior. Never
+auto-enables prerequisites. Explicit model false overrides defaults; undefined
+restores inheritance. Control-slot presence in requests/defaults/policy/helpers/
+include/populate/`$$sq` rejects; same-named business data remains inert.
+
+Capture precedes hooks/awaits on a genuine query origin. READ-to-list retries retain
+READ, genuine embedded/related descendants inherit origin capture rather than live
+target flags, and independent calls capture their own settings. Writes/write-derived
+output, new/create/update/delete/upsert, dedicated subdocuments and fresh raw helpers
+stay strict. Effective active/dormant/missing-prerequisite changes warn, not each call.
+
+Active ordinary lean source/hook input and grants are borrowed; shallow contexts and
+captured config/scope views are reused. Actual operation/row/field rules, actor,
+mandatory once-per-root/target document hooks, getters and target admission remain.
+Independent rows/targets do not share grants/decisions by ID. Trusted outputs have
+exact root bindings and **issued-document membership, not current graph walks**:
+removed original children may remain discoverable, replacements get no handle, and
+root helpers filter current values with stale memo/shared grants after replacement.
+Metadata/includes finish before one association; source/attachment lanes stay separate.
+
+New selected work is bounded to 20,000 visited slots/issued roots and depth 100, with
+safe descriptor writes/cycle errors—not full unvisited source/grant/context validation.
+Shallow-unproven rows may use copied compatibility before hooks, exotic grants/value
+fallbacks copy once, and mixed copied/trusted rows can coexist. Selected unsupported
+values reject (invalid virtual returns omit). Hydration, selected natives, getter
+stable-base/per-getter views/return staging, private argument-four isolation and JSON
+serialization still copy/normalize. Active configuration is **not every-row zero-copy**.
+
+Mutation/stale decisions/changed descendants/fewer native observations can turn denial
+into allowance. Experimental performance-first, not a full ACL bypass, security-equivalent
+optimization, publication fusion, universal gain or v0.51.0 parity. Benchmark your workload.
+Rollback protects new calls only; retained trusted handles keep weaker semantics,
+and original prerequisite skip flags must be restored separately. The
+[installed README](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#experimental-unsafe-readlist-authorization-fast-paths)
+is authoritative and includes executable LIST/READ and retained-handle warnings.
+
+<!-- doc-example: partial -->
+
+```ts
+import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';
+
+const api = createAccessRuntime();
+const readDefaults = {
+  unsafeSkipReadDocumentSnapshotChecks: true,
+  unsafeSkipReadOutputSnapshotChecks: true,
+  unsafeSkipReadNestedDocumentSnapshotChecks: true,
+  unsafeSkipReadInitialOutputSnapshotCopy: true,
+  unsafeUseReadAuthorizationFastPath: true,
+} satisfies DefaultModelRouterOptions;
+api.setDefaultModelOptions(readDefaults); // LIST stays independently off
+api.setDefaultModelOption('unsafeUseReadAuthorizationFastPath', false);
+// Existing READ retries/handles keep captured semantics. Restore other skips separately.
+```
 
 ### Populate operation policies
 

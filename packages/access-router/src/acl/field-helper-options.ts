@@ -1,6 +1,7 @@
 /** Finite named helper boundaries. No authority is inferred from legacy arguments. */
 import { authorizationError, authorizationRecord, ServiceAuthorizationError } from './authorization-snapshot';
 import { isSafeOutputPath } from './field-catalog';
+import { assertNoServerModelControls } from '../validation/public-admission';
 
 export function assertFieldHelperCall(
   helper: string,
@@ -23,6 +24,7 @@ export function assertFieldHelperCall(
   };
   // Check wrappers as well as cores: forwarding must not discard a trailing argument.
   if (count > maximum || options === null || typeof options !== 'object' || Array.isArray(options)) removed();
+  assertNoServerModelControls(options, authorizationError);
   const value = authorizationRecord(options, `${helper} options`);
   for (const key of ['skipChecks', 'subPaths', 'baseFields']) {
     if (key in value) removed();
@@ -31,6 +33,7 @@ export function assertFieldHelperCall(
 
 /** Scope-only request helpers have no output policy, handle, catalog or bypass. */
 export function requestFieldScope(options: unknown): readonly string[] {
+  assertNoServerModelControls(options, authorizationError);
   const value = authorizationRecord(options, 'request field options');
   for (const key of Reflect.ownKeys(value)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key)!;

@@ -9,10 +9,13 @@ import {
   fingerprint,
   initialOutputCopyFlagOptions,
   effectiveInitialOutputCopySkips,
+  authorizationFastPathFlagOptions,
+  effectiveAuthorizationFastPathModes,
   integer,
   mapBounded,
   SCENARIOS,
   snapshotDeclarationHash,
+  verifySnapshotDeclarationManifest,
   snapshotFlagOptions,
   summarize,
 } from './access-router-core.mjs';
@@ -68,14 +71,20 @@ function post(port, agent, body) {
 /** Verify both getter paths after router creation; unknown/ignored flags must not produce timings. */
 export function verifySnapshotFlagOptions(api, modelName, expected) {
   const entries = Object.entries(expected);
-  if (!entries.length) return;
+  const verified = { modelName, getModelOption: {}, getModelOptions: {} };
+  if (!entries.length) return verified;
   if (typeof api.getModelOption !== 'function' || typeof api.getModelOptions !== 'function')
     throw new Error('Cannot verify unsafe snapshot options on this candidate.');
   const options = api.getModelOptions(modelName);
   for (const [key, value] of entries) {
-    if (api.getModelOption(modelName, key) !== value || options?.[key] !== value)
+    const exact = api.getModelOption(modelName, key);
+    const bulk = options?.[key];
+    if (exact !== value || bulk !== value)
       throw new Error(`Candidate did not apply ${key}=${value} to model ${modelName}.`);
+    verified.getModelOption[key] = exact;
+    verified.getModelOptions[key] = bulk;
   }
+  return verified;
 }
 
 export async function benchmark(job) {
@@ -105,10 +114,14 @@ export async function benchmark(job) {
 
   const snapshotSkips = job.target.snapshotSkips ?? 'off';
   const initialOutputCopySkips = job.target.initialOutputCopySkips ?? 'off';
+  const authorizationFastPaths = job.target.authorizationFastPaths ?? 'off';
+  const hasFastConfig =
+    job.target.authorizationFastPaths !== undefined || job.target.supportedAuthorizationFastPathFlags !== undefined;
   const hasCopyConfig =
     job.target.initialOutputCopySkips !== undefined || job.target.supportedInitialOutputCopyFlags !== undefined;
   const hasSnapshotConfig =
     hasCopyConfig ||
+    hasFastConfig ||
     job.target.snapshotSkips !== undefined ||
     job.target.supportedSnapshotFlags !== undefined ||
     job.target.snapshotDeclarationsSha256 !== undefined;
@@ -129,7 +142,22 @@ export async function benchmark(job) {
     job.target.supportedInitialOutputCopyFlags ?? [],
   );
   const effectiveCopySkips = effectiveInitialOutputCopySkips(snapshotFlags, initialOutputCopyFlags);
-  const modelFlags = { ...snapshotFlags, ...initialOutputCopyFlags };
+  if (hasFastConfig && !Array.isArray(job.target.supportedAuthorizationFastPathFlags))
+    throw new Error('Authorization fast path configuration requires a prepared declaration manifest.');
+  const authorizationFastPathFlags = authorizationFastPathFlagOptions(
+    authorizationFastPaths,
+    job.target.supportedAuthorizationFastPathFlags ?? [],
+  );
+  const expectedFastModes = effectiveAuthorizationFastPathModes(
+    snapshotFlags,
+    initialOutputCopyFlags,
+    authorizationFastPathFlags,
+    job.target.supportedAuthorizationFastPathFlags ?? [],
+  );
+  const modelFlags = { ...snapshotFlags, ...initialOutputCopyFlags, ...authorizationFastPathFlags };
+  // Reject invented support even when a permissive old getter echoes unknown keys.
+  // This child finishes before peers, MongoDB and the measured runtime are loaded.
+  const declarationManifest = hasSnapshotConfig ? await verifySnapshotDeclarationManifest(job.target) : undefined;
 
   // Resolve peers beside the selected build, NOT beside this runner. Otherwise a
   // tagged build could accidentally use the current checkout's Mongoose instance.
@@ -187,7 +215,7 @@ export async function benchmark(job) {
       stripPermissionsField: true,
       ...modelFlags,
     });
-    verifySnapshotFlagOptions(api, Target.modelName, modelFlags);
+    const targetFlagVerification = verifySnapshotFlagOptions(api, Target.modelName, modelFlags);
     const permissionSchema = {
       ordinal: true,
       hidden: false,
@@ -266,7 +294,28 @@ export async function benchmark(job) {
       };
     }
     const router = api.createRouter(Source, options);
-    verifySnapshotFlagOptions(api, Source.modelName, modelFlags);
+    const sourceFlagVerification = verifySnapshotFlagOptions(api, Source.modelName, modelFlags);
+    const actualFastModes = effectiveAuthorizationFastPathModes(
+      sourceFlagVerification.getModelOptions,
+      {},
+      {},
+      job.target.supportedAuthorizationFastPathFlags ?? [],
+    );
+    assert.deepEqual(
+      actualFastModes,
+      expectedFastModes,
+      'Requested fast-path prerequisites were not actually applied.',
+    );
+    assert.deepEqual(
+      effectiveAuthorizationFastPathModes(
+        targetFlagVerification.getModelOptions,
+        {},
+        {},
+        job.target.supportedAuthorizationFastPathFlags ?? [],
+      ),
+      expectedFastModes,
+      'Requested target fast-path prerequisites were not actually applied.',
+    );
     const targets = Array.from({ length: 8 }, (_, index) => ({
       _id: new mongoose.Types.ObjectId((index + 1).toString(16).padStart(24, '0')),
       name: `target:${index}`,
@@ -359,6 +408,18 @@ export async function benchmark(job) {
       initialOutputCopySkips,
       initialOutputCopyFlags,
       effectiveInitialOutputCopySkips: effectiveCopySkips,
+      authorizationFastPaths,
+      authorizationFastPathFlags,
+      configuredAuthorizationFastPathModes: expectedFastModes,
+      effectiveAuthorizationFastPathModes: actualFastModes,
+      authorizationFastPathVerification: {
+        kind: 'server-option-getters',
+        models: { source: sourceFlagVerification, target: targetFlagVerification },
+      },
+      runtimeOmissionCounts: null, // Configuration is verified; actual omissions are tested separately, never inferred.
+      ...(declarationManifest ?? {}),
+      distSha256: job.target.distSha256,
+      measuredAuthorizationOrigin: 'list',
       stats: summarize(samples, elapsed, cpu.user + cpu.system),
       samplesMs: samples,
       ...measured,

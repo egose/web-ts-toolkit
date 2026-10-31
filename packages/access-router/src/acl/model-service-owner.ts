@@ -18,6 +18,10 @@ const dispatch = new AsyncLocalStorage<{
   options?: unknown;
   populatePolicyDefaults?: PopulatePolicyDefaultsToken;
 }>();
+// These are independent query origins, even when application hooks reenter the
+// same service. Genuine retries/related/embedded work uses private executions,
+// not these entries, and must retain its original capture instead.
+const queryEntries = new Set<PropertyKey>(['find', 'findOne', 'findById', '_list', '_read', '_readFilter']);
 interface CapturedModelOperationGuard {
   core: object;
   modelName: string;
@@ -94,7 +98,9 @@ export function bindModelOwnerMethods(receiver: object, runtime: AccessRuntime):
         value: (...args: unknown[]) =>
           runWithRuntime(runtime, () => {
             const invoke = () => Reflect.apply(method, receiver, args);
-            return dispatch.getStore()?.receiver === receiver ? invoke() : dispatch.run({ receiver }, invoke);
+            return dispatch.getStore()?.receiver === receiver && !queryEntries.has(key)
+              ? invoke()
+              : dispatch.run({ receiver }, invoke);
           }),
       });
     }

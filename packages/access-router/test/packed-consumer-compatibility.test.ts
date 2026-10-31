@@ -1,6 +1,17 @@
 import { execFile, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildSync } from 'esbuild';
@@ -444,6 +455,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'virtuals-populate-dependencies.types.fixture',
     'private-populate-read-policy.types.fixture',
     'output-publication-fusion-withdrawal.types.fixture',
+    'authorization-fast-path-consumer.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -481,6 +493,14 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     .map((match) => match[1])
     .find((snippet) => snippet.includes('async function runPrivatePopulateExample()'));
   if (!privatePopulateExample) throw new Error('Installed README is missing its runnable private-populate contract');
+  const fastPathExample = [...readme.matchAll(/<!--\s*doc-example:\s*complete-runtime\s*-->\s*```ts\n([\s\S]*?)```/g)]
+    .map((match) => match[1])
+    .find((snippet) => snippet.includes('async function runAuthorizationFastPathExample()'));
+  if (!fastPathExample) throw new Error('Installed README is missing its runnable LIST/READ fast-path contract');
+  authorizationFixtures.push('authorization-fast-path.readme');
+  for (const extension of ['ts', 'mts', 'cts']) {
+    writeFileSync(path.resolve(consumerDir, `authorization-fast-path.readme.${extension}`), fastPathExample);
+  }
   authorizationFixtures.push('private-populate.readme');
   for (const extension of ['ts', 'mts', 'cts']) {
     writeFileSync(path.resolve(consumerDir, `private-populate.readme.${extension}`), privatePopulateExample);
@@ -523,6 +543,8 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
         'private-populate.readme.cts',
         'private-populate.runtime.mts',
         'private-populate.runtime.cts',
+        'authorization-fast-path.readme.mts',
+        'authorization-fast-path.readme.cts',
       ],
     }),
   );
@@ -540,7 +562,16 @@ const assert = require('node:assert/strict');
        'withExecutionHydration', 'normalizeHydration', 'normalizeHydrationUpdate', 'attachPermissionsAlias',
         'requiresDocumentSnapshotChecks', 'requiresOutputSnapshotChecks', 'unsafeSnapshotOptions',
         'unsafeSnapshotCheckOptions', 'unsafeInitialOutputCopyOptions',
-        'skipsInitialOutputSnapshotCopy', 'tryOutputIdentitiesWithoutSnapshot',
+         'skipsInitialOutputSnapshotCopy', 'tryOutputIdentitiesWithoutSnapshot',
+         'AuthorizationFastPathCapture', 'AuthorizationFastPathOrigin', 'unsafeAuthorizationFastPathOptions',
+         'unsafeServerOptions', 'authorizationFastPathPrerequisites', 'captureAuthorizationFastPath',
+         'readAuthorizationFastPath', 'readTrustedServiceAuthorization', 'deriveTrustedQueryAuthorization',
+         'captureAuthorizationConfiguration', 'ownedAuthorizationConfiguration',
+         'QueryAuthorizationSource', 'TrustedOutputBudget', 'TrustedOutputMemberBuilder',
+         'isBorrowableAuthorizationRecord', 'prepareTrustedAuthorizationSource', 'createTrustedOutputBudget',
+         'createTrustedOutputMemberBuilder', 'retainTrustedOutputMember', 'retainTrustedOutputSpine',
+         'getIssuedEmbeddedDocumentAuthorization', 'isIssuedOutputMember', 'isTrustedAuthorizationOutput',
+         'materializeTrustedOutputValue',
        'PopulatePolicyDefaultsToken', 'capturePopulatePolicyDefaults', 'getCapturedPopulatePolicyDefaults',
        'resolvePopulatePolicy', 'modelServicePopulatePolicyDefaults', 'capturePopulateTargetBinding',
        'setPopulateTargetMeta', 'withCapturedPopulateModel']) {
@@ -549,10 +580,15 @@ const assert = require('node:assert/strict');
   }
   for (const subpath of ['src/acl/service-authorization', 'src/acl/document-authorization',
      'src/acl/service-execution', 'src/acl/prepared-query', 'src/acl/populate-policy',
-     'src/options/populate-policy', 'src/acl/unsafe-snapshot-options', 'dist/index.js']) {
+      'src/options/populate-policy', 'src/acl/unsafe-snapshot-options', 'dist/index.js']) {
+      // The exact entry map also excludes new private trusted/capture modules.
     assert.throws(() => require.resolve('@web-ts-toolkit/access-router/' + subpath),
       { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
-  }
+   }
+   for (const subpath of ['src/acl/captured-authorization-configuration', 'src/acl/trusted-output-materialization']) {
+     assert.throws(() => require.resolve('@web-ts-toolkit/access-router/' + subpath),
+       { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
+   }
 })().catch((error) => { console.error(error); process.exitCode = 1; });
 `,
   );
@@ -914,7 +950,7 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         module: 'Node16',
         moduleResolution: 'Node16',
         strict: true,
-        noEmit: true,
+        outDir: 'node16-out',
         skipLibCheck,
         esModuleInterop: true,
         types: ['node'],
@@ -926,6 +962,10 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         'grouped-count-consumer.types.fixture.cts',
         'output-publication-fusion-withdrawal.types.fixture.mts',
         'output-publication-fusion-withdrawal.types.fixture.cts',
+        'authorization-fast-path-consumer.types.fixture.mts',
+        'authorization-fast-path-consumer.types.fixture.cts',
+        'authorization-fast-path.readme.mts',
+        'authorization-fast-path.readme.cts',
       ],
     }),
   );
@@ -967,7 +1007,7 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
  * skipped to avoid failing on old peer declaration internals unrelated to
  * access-router's emitted declaration graph.
  */
-function runMongoConsumer(file: string, consumerDir: string): Promise<void> {
+function runMongoConsumer(file: string, consumerDir: string): Promise<string> {
   // MongoMemoryServer drains mongod stdout in this process. Keeping its event loop
   // blocked across several execFileSync workflows can fill that pipe and stall the DB.
   return new Promise((resolve, reject) => {
@@ -983,7 +1023,7 @@ function runMongoConsumer(file: string, consumerDir: string): Promise<void> {
       (error, stdout, stderr) => {
         if (error)
           reject(new Error(`Installed authorization workflow failed (${file}):\n${stdout}${stderr}`, { cause: error }));
-        else resolve();
+        else resolve(stdout);
       },
     );
   });
@@ -998,6 +1038,10 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   run('node', ['private-exports.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.node16.json'], consumerDir);
+  // Compile and execute the EXACT packed README through Node16 import/require
+  // conditions, not just a hand-maintained fixture or a NodeNext-only example.
+  await runMongoConsumer('node16-out/authorization-fast-path.readme.mjs', consumerDir);
+  await runMongoConsumer('node16-out/authorization-fast-path.readme.cjs', consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.emit.json'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.mjs'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.cjs'], consumerDir);
@@ -1007,6 +1051,13 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   run('node', ['authorization-out/field-helper.runtime.cjs'], consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
+  await runMongoConsumer('authorization-out/authorization-fast-path.readme.mjs', consumerDir);
+  await runMongoConsumer('authorization-out/authorization-fast-path.readme.cjs', consumerDir);
+  cpSync(
+    path.resolve(packageRoot, 'test/authorization-fast-path-native.runtime.fixture.mjs'),
+    path.resolve(consumerDir, 'authorization-fast-path-native.runtime.mjs'),
+  );
+  await runMongoConsumer('authorization-fast-path-native.runtime.mjs', consumerDir);
   // MPO-03: exact shipped mixed Document/User and live-default workflow plus
   // both-hydration arrays/native/default/authorized-union/exact-ID/miss/capture controls,
   // using the real transformed packed installation and both runtime entry conditions.
@@ -1032,6 +1083,74 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
     logLevel: 'silent',
   });
   await runMongoConsumer('authorization.bundle.cjs', consumerDir);
+  buildSync({
+    absWorkingDir: consumerDir,
+    entryPoints: ['authorization-fast-path.readme.mts'],
+    outfile: 'authorization-fast-path.bundle.cjs',
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    target: 'node22',
+    external: ['express', 'mongoose'],
+    logLevel: 'silent',
+  });
+  await runMongoConsumer('authorization-fast-path.bundle.cjs', consumerDir);
+  // Optional repo-local evidence survives normal consumer scratch cleanup. It is
+  // written only AFTER every real packed compile/runtime path above has passed.
+  const evidenceRoot = process.env.WTT_ACCESS_ROUTER_CONSUMER_EVIDENCE_DIR;
+  if (evidenceRoot) {
+    const evidenceBase = path.resolve(workspaceRoot, evidenceRoot);
+    mkdirSync(evidenceBase, { recursive: true });
+    const evidence = mkdtempSync(path.resolve(evidenceBase, 'packed-consumer-'));
+    const installed = path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router');
+    cpSync(installed, path.resolve(evidence, 'installed'), { recursive: true, dereference: true });
+    const files = [
+      'tsconfig.nodenext.json',
+      'tsconfig.node16.json',
+      'tsconfig.bundler.json',
+      'tsconfig.authorization.json',
+      ...['ts', 'mts', 'cts'].flatMap((extension) => [
+        `authorization-fast-path-consumer.types.fixture.${extension}`,
+        `authorization-fast-path.readme.${extension}`,
+        `output-publication-fusion-withdrawal.types.fixture.${extension}`,
+      ]),
+      'node16-out/authorization-fast-path.readme.mjs',
+      'node16-out/authorization-fast-path.readme.cjs',
+      'authorization-out/authorization-fast-path.readme.mjs',
+      'authorization-out/authorization-fast-path.readme.cjs',
+      'authorization-fast-path.bundle.cjs',
+      'private-exports.cjs',
+    ];
+    const hashes: Record<string, string> = {};
+    for (const file of files) {
+      const destination = path.resolve(evidence, file);
+      mkdirSync(path.dirname(destination), { recursive: true });
+      cpSync(path.resolve(consumerDir, file), destination);
+      hashes[file] = createHash('sha256').update(readFileSync(destination)).digest('hex');
+    }
+    const tarballs: Record<string, string> = {};
+    for (const [name, tarball] of Object.entries(preparePackedWorkspace().tarballs)) {
+      const file = path.basename(tarball);
+      cpSync(tarball, path.resolve(evidence, file));
+      tarballs[name] = createHash('sha256').update(readFileSync(tarball)).digest('hex');
+    }
+    const consumer = JSON.parse(readFileSync(path.resolve(consumerDir, 'package.json'), 'utf8')) as PackageJson;
+    writeFileSync(
+      path.resolve(evidence, 'verification.json'),
+      JSON.stringify(
+        {
+          passed: true,
+          fullDeclarationCheck: options.fullDeclarationCheck,
+          peers: { express: consumer.dependencies!.express, mongoose: consumer.dependencies!.mongoose },
+          runtimePaths: files.filter((file) => /(?:node16-out\/|authorization-out\/|bundle\.cjs$)/.test(file)),
+          hashes,
+          tarballs,
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+  }
 }
 
 afterAll(async () => {
@@ -1048,6 +1167,42 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     preparePackedWorkspace();
     authorizationMongo = await MongoMemoryServer.create();
   }, 240_000);
+
+  it('FP-08 rejects overbound native scopes on packed public LIST/READ and retains ordinary Code/DBRef', async () => {
+    const tarball = preparePackedWorkspace().tarballs['@web-ts-toolkit/access-router'];
+    const packedRoot = unpackTarballToDir(tarball);
+    // No install required for this focused runtime gate. Package self-reference
+    // resolves the real tarball's exports; existing dependencies supply only peers
+    // and its workspace dependency closure, never access-router's implementation.
+    symlinkSync(path.resolve(packageRoot, 'node_modules'), path.resolve(packedRoot, 'node_modules'), 'dir');
+    const fixture = 'authorization-fast-path-native.runtime.mjs';
+    cpSync(
+      path.resolve(packageRoot, 'test/authorization-fast-path-native.runtime.fixture.mjs'),
+      path.resolve(packedRoot, fixture),
+    );
+    for (const file of readdirSync(path.resolve(packageRoot, 'dist')).filter((name) =>
+      /\.(?:js|mjs|ts|mts)$/.test(name),
+    ))
+      expect(readFileSync(path.resolve(packedRoot, file))).toEqual(
+        readFileSync(path.resolve(packageRoot, 'dist', file)),
+      );
+    const result = {
+      ...JSON.parse((await runMongoConsumer(fixture, packedRoot)).trim()),
+      tarballSha256: createHash('sha256').update(readFileSync(tarball)).digest('hex'),
+      esmSha256: createHash('sha256')
+        .update(readFileSync(path.resolve(packedRoot, 'index.mjs')))
+        .digest('hex'),
+    };
+    console.log('FP08_PACKED_PUBLIC', JSON.stringify(result));
+    if (process.env.WTT_ACCESS_ROUTER_CONSUMER_EVIDENCE_DIR) {
+      const base = path.resolve(workspaceRoot, process.env.WTT_ACCESS_ROUTER_CONSUMER_EVIDENCE_DIR);
+      mkdirSync(base, { recursive: true });
+      const evidence = mkdtempSync(path.resolve(base, 'native-budget-'));
+      cpSync(tarball, path.resolve(evidence, path.basename(tarball)));
+      cpSync(path.resolve(packedRoot, fixture), path.resolve(evidence, fixture));
+      writeFileSync(path.resolve(evidence, 'result.json'), JSON.stringify(result, null, 2) + '\n');
+    }
+  }, 120_000);
 
   it.each([
     ['minimum peers', '5.0.0', '8.0.0'],
@@ -1217,6 +1372,33 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     for (const file of ['README.md', 'llms.txt']) {
       const current = readFileSync(path.resolve(packageRoot, file), 'utf8');
       expect(readFileSync(path.resolve(packedRoot, file), 'utf8'), `packed ${file}`).toBe(current);
+    }
+  });
+
+  it('FP-04 packs the experimental consumer contract without trusted internal declarations', () => {
+    const packedRoot = unpackTarballToDir(preparePackedWorkspace().tarballs['@web-ts-toolkit/access-router']);
+    const readme = readFileSync(path.resolve(packedRoot, 'README.md'), 'utf8');
+    const llms = readFileSync(path.resolve(packedRoot, 'llms.txt'), 'utf8');
+    for (const flag of ['unsafeUseListAuthorizationFastPath', 'unsafeUseReadAuthorizationFastPath']) {
+      expect(readme).toContain(flag);
+      expect(llms).toContain(flag);
+    }
+    expect(readme).toContain('async function runAuthorizationFastPathExample()');
+    expect(readme).toContain('including denial becoming allowance');
+    expect(readme).toContain('membership is not reachability');
+    expect(llms).toContain('not every row zero-copy');
+    for (const file of readdirSync(packedRoot).filter((name) => /\.d\.(?:ts|mts)$/.test(name))) {
+      const declaration = readFileSync(path.resolve(packedRoot, file), 'utf8');
+      for (const name of [
+        'AuthorizationFastPathCapture',
+        'QueryAuthorizationSource',
+        'TrustedOutputBudget',
+        'TrustedOutputMemberBuilder',
+        'readAuthorizationFastPath',
+        'unsafeAuthorizationFastPathOptions',
+        'createTrustedOutputBudget',
+      ])
+        expect(declaration, `packed ${file}`).not.toMatch(new RegExp(`\\b${name}\\b`));
     }
   });
 

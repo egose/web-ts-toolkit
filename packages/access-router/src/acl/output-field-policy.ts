@@ -8,6 +8,7 @@ import {
   canPrepareStaticOutputPolicy,
   getAuthorizationPermissions,
   readServiceOutputFieldAuthorization,
+  serviceOutputFieldPolicyOwner,
 } from './service-authorization';
 import type {
   AuthorizationBinding,
@@ -50,7 +51,8 @@ export function callFieldPolicy(
   binding: AuthorizationBinding,
 ): CallFieldPolicy {
   assertAuthorizationBinding(authorization, binding);
-  let policy = fieldPolicies.get(authorization);
+  const owner = serviceOutputFieldPolicyOwner(authorization, binding);
+  let policy = fieldPolicies.get(owner);
   if (!policy) {
     const view = readServiceOutputFieldAuthorization(authorization, binding);
     policy = {
@@ -67,7 +69,7 @@ export function callFieldPolicy(
       accesses: new Map(),
     };
     // Eligibility comes from the stored source, not an already-normalized view.
-    if (view.reusable) fieldPolicies.set(authorization, policy);
+    if (view.reusable) fieldPolicies.set(owner, policy);
   }
   return policy;
 }

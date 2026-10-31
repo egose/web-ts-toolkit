@@ -1,9 +1,10 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { finished } from 'node:stream/promises';
+import { fileURLToPath } from 'node:url';
 
 export const SCENARIOS = Object.freeze([
   { id: 'plain-narrow', label: 'Plain list / narrow selection / lean', fields: 'narrow' },
@@ -33,16 +34,39 @@ export const UNSAFE_INITIAL_OUTPUT_COPY_FLAGS = Object.freeze([
   'unsafeSkipReadInitialOutputSnapshotCopy',
 ]);
 
+/** Third independent server group. Existing six/two ON meanings never include these flags. */
+export const UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS = Object.freeze([
+  'unsafeUseListAuthorizationFastPath',
+  'unsafeUseReadAuthorizationFastPath',
+]);
+
 /** Inspect actual model-option declarations, not comments or similarly named internal fields. */
 async function supportedOptionFlags(declarations, flagNames) {
   // Only preparation parses types. Benchmark workers must not load the compiler
   // into the measured process and alter its heap/GC behavior.
   const { default: ts } = await import('typescript');
-  const found = new Set();
-  const hasBoolean = (type) =>
-    type && (type.kind === ts.SyntaxKind.BooleanKeyword || (ts.isUnionTypeNode(type) && type.types.some(hasBoolean)));
+  const conditions = new Map();
+  const names = new Set();
+  const isOptionalBoolean = (type) => {
+    if (!type) return false;
+    if (ts.isParenthesizedTypeNode(type)) return isOptionalBoolean(type.type);
+    if (type.kind === ts.SyntaxKind.BooleanKeyword) return true;
+    return (
+      ts.isUnionTypeNode(type) &&
+      type.types.length === 2 &&
+      type.types.some((entry) => entry.kind === ts.SyntaxKind.BooleanKeyword) &&
+      type.types.some((entry) => entry.kind === ts.SyntaxKind.UndefinedKeyword)
+    );
+  };
   for (const [fileName, text] of declarations) {
+    if (names.has(fileName)) throw new Error(`Duplicate declaration file: ${fileName}`);
+    names.add(fileName);
+    const condition = fileName.endsWith('.d.mts') ? 'import' : 'require';
+    if (!conditions.has(condition)) conditions.set(condition, new Map());
+    const found = conditions.get(condition);
     const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    // Do not infer support from the parser's recovery of a malformed declaration.
+    if (source.parseDiagnostics.length) return [];
     const visit = (node) => {
       if (
         ts.isInterfaceDeclaration(node) &&
@@ -53,10 +77,12 @@ async function supportedOptionFlags(declarations, flagNames) {
             ts.isPropertySignature(member) &&
             member.name &&
             (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) &&
-            flagNames.includes(member.name.text) &&
-            hasBoolean(member.type)
-          )
-            found.add(member.name.text);
+            flagNames.includes(member.name.text)
+          ) {
+            const key = member.name.text;
+            // Duplicate or required/mixed/any declarations are not optional booleans.
+            found.set(key, !found.has(key) && !!member.questionToken && isOptionalBoolean(member.type));
+          }
         }
       } else if (ts.isSourceFile(node) || ts.isModuleDeclaration(node) || ts.isModuleBlock(node)) {
         ts.forEachChild(node, visit);
@@ -64,17 +90,67 @@ async function supportedOptionFlags(declarations, flagNames) {
     };
     visit(source);
   }
-  return flagNames.filter((flag) => found.has(flag));
+  // When both CJS and ESM declarations exist, both must support the option.
+  return flagNames.filter(
+    (flag) => conditions.size > 0 && [...conditions.values()].every((found) => found.get(flag) === true),
+  );
 }
 
 export const supportedSnapshotFlags = (declarations) => supportedOptionFlags(declarations, UNSAFE_SNAPSHOT_FLAGS);
 export const supportedInitialOutputCopyFlags = (declarations) =>
   supportedOptionFlags(declarations, UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
+export const supportedAuthorizationFastPathFlags = (declarations) =>
+  supportedOptionFlags(declarations, UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS);
+
+/** A same-named private interface is not installed root-option support. */
+async function publishedModelOptionFlags(root, declarations) {
+  const { default: ts } = await import('typescript');
+  const directory = resolve(root, 'packages/access-router/dist');
+  const program = ts.createProgram(
+    declarations.map(([name]) => resolve(directory, name)),
+    {
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      strictNullChecks: true,
+      skipLibCheck: true,
+      types: [],
+    },
+  );
+  const checker = program.getTypeChecker();
+  const conditions = [];
+  for (const entry of ['index.d.ts', 'index.d.mts']) {
+    const source = program.getSourceFile(resolve(directory, entry));
+    if (!source) continue; // Old builds can publish a single declaration condition.
+    const module = checker.getSymbolAtLocation(source);
+    const found = new Set();
+    if (module) {
+      for (let symbol of checker.getExportsOfModule(module)) {
+        if (!['DefaultModelRouterOptions', 'ModelRouterOptions'].includes(symbol.name)) continue;
+        if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+        for (const property of checker.getDeclaredTypeOfSymbol(symbol).getProperties()) {
+          const declaration = property.valueDeclaration ?? property.declarations?.[0];
+          if (
+            declaration &&
+            property.flags & ts.SymbolFlags.Optional &&
+            checker.typeToString(checker.getTypeOfSymbolAtLocation(property, declaration)) === 'boolean | undefined'
+          )
+            found.add(property.name);
+        }
+      }
+    }
+    conditions.push(found);
+  }
+  return [
+    ...UNSAFE_SNAPSHOT_FLAGS,
+    ...UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
+    ...UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  ].filter((flag) => conditions.length > 0 && conditions.every((found) => found.has(flag)));
+}
 
 /** tsup may put the actual options in a shared declaration chunk instead of index.d.ts. */
 async function readSnapshotDeclarations(root) {
   const directory = resolve(root, 'packages/access-router/dist');
-  const files = (await readdir(directory)).filter((name) => name.endsWith('.d.ts')).sort();
+  const files = (await readdir(directory)).filter((name) => /\.d\.(?:ts|mts)$/.test(name)).sort();
   if (!files.includes('index.d.ts')) throw new Error(`Build did not produce ${resolve(directory, 'index.d.ts')}`);
   return Promise.all(files.map(async (file) => [file, await readFile(resolve(directory, file), 'utf8')]));
 }
@@ -93,16 +169,65 @@ function hashSnapshotDeclarations(declarations) {
 
 export async function inspectSnapshotDeclarations(root) {
   const declarations = await readSnapshotDeclarations(root);
+  const published = await publishedModelOptionFlags(root, declarations);
   return {
-    supportedSnapshotFlags: await supportedSnapshotFlags(declarations),
-    supportedInitialOutputCopyFlags: await supportedInitialOutputCopyFlags(declarations),
+    supportedSnapshotFlags: (await supportedSnapshotFlags(declarations)).filter((flag) => published.includes(flag)),
+    supportedInitialOutputCopyFlags: (await supportedInitialOutputCopyFlags(declarations)).filter((flag) =>
+      published.includes(flag),
+    ),
+    supportedAuthorizationFastPathFlags: (await supportedAuthorizationFastPathFlags(declarations)).filter((flag) =>
+      published.includes(flag),
+    ),
     snapshotDeclarationsSha256: hashSnapshotDeclarations(declarations),
+    snapshotDeclarationManifest: declarations.map(([name, text]) => ({
+      name,
+      bytes: Buffer.byteLength(text),
+      sha256: createHash('sha256').update(text).digest('hex'),
+    })),
   };
 }
 
 /** Workers recheck the preparation manifest without importing/parsing TypeScript. */
 export async function snapshotDeclarationHash(root) {
   return hashSnapshotDeclarations(await readSnapshotDeclarations(root));
+}
+
+/** Reparse in a short-lived preparation process, never in the measured worker heap. */
+export async function verifySnapshotDeclarationManifest(target) {
+  const inspector = fileURLToPath(new URL('./access-router-declarations.mjs', import.meta.url));
+  const actual = await new Promise((done, reject) => {
+    execFile(
+      process.execPath,
+      [inspector, target.root],
+      { timeout: 30_000, maxBuffer: 2 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) reject(new Error(`Cannot verify prepared declaration manifest: ${stderr || error.message}`));
+        else {
+          try {
+            done(JSON.parse(stdout));
+          } catch (error) {
+            reject(new Error('Invalid prepared declaration inspection result.', { cause: error }));
+          }
+        }
+      },
+    );
+  });
+  if (actual.snapshotDeclarationsSha256 !== target.snapshotDeclarationsSha256)
+    throw new Error('Prepared unsafe snapshot flag declarations changed. Rebuild and select candidates again.');
+  for (const key of [
+    'supportedSnapshotFlags',
+    'supportedInitialOutputCopyFlags',
+    'supportedAuthorizationFastPathFlags',
+  ]) {
+    if (target[key] !== undefined && canonicalJson(target[key]) !== canonicalJson(actual[key]))
+      throw new Error(`Prepared declaration manifest has fake or inconsistent ${key}.`);
+  }
+  if (
+    target.snapshotDeclarationManifest !== undefined &&
+    canonicalJson(target.snapshotDeclarationManifest) !== canonicalJson(actual.snapshotDeclarationManifest)
+  )
+    throw new Error('Prepared declaration file manifest changed. Rebuild and select candidates again.');
+  return actual;
 }
 
 function normalizeSupportedSnapshotFlags(flags) {
@@ -175,6 +300,83 @@ export function effectiveInitialOutputCopySkips(snapshotFlags, copyFlags) {
     copyFlags.unsafeSkipListInitialOutputSnapshotCopy === true
     ? 'on'
     : 'off';
+}
+
+export function authorizationFastPathFlagOptions(mode, supported) {
+  if (!['off', 'on'].includes(mode)) throw new Error(`Invalid authorization fast path mode: ${String(mode)}`);
+  if (
+    !Array.isArray(supported) ||
+    new Set(supported).size !== supported.length ||
+    supported.some((flag) => !UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.includes(flag))
+  )
+    throw new Error('Invalid supported authorization fast path flags.');
+  if (mode === 'on' && supported.length !== UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.length)
+    throw new Error('Cannot enable authorization fast paths; this build does not declare both options.');
+  return Object.fromEntries(
+    UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.filter((flag) => supported.includes(flag)).map((flag) => [
+      flag,
+      mode === 'on',
+    ]),
+  );
+}
+
+/** Effective modes from actual literal server getters, not an assertion of security equivalence. */
+export function effectiveAuthorizationFastPathModes(
+  snapshotFlags,
+  copyFlags,
+  fastFlags,
+  supported = UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+) {
+  const options = { ...snapshotFlags, ...copyFlags, ...fastFlags };
+  return Object.fromEntries(
+    ['List', 'Read'].map((origin) => {
+      if (!supported.includes(`unsafeUse${origin}AuthorizationFastPath`)) return [origin.toLowerCase(), 'n/a'];
+      const requested = options[`unsafeUse${origin}AuthorizationFastPath`] === true;
+      const prerequisites = [
+        'DocumentSnapshotChecks',
+        'OutputSnapshotChecks',
+        'NestedDocumentSnapshotChecks',
+        'InitialOutputSnapshotCopy',
+      ].every((suffix) => options[`unsafeSkip${origin}${suffix}`] === true);
+      return [origin.toLowerCase(), !requested ? 'off' : prerequisites ? 'active' : 'dormant'];
+    }),
+  );
+}
+
+export function authorizationFastPathModeLabel(target) {
+  if (!target?.authorizationFastPaths) return '-';
+  const supported = target.supportedAuthorizationFastPathFlags ?? [];
+  authorizationFastPathFlagOptions(target.authorizationFastPaths, supported);
+  if (supported.length === 0) return 'N/A (0/2 supported)';
+  const mode = target.authorizationFastPaths.toUpperCase();
+  return supported.length === UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS.length
+    ? mode
+    : `${mode} (${supported.length}/2 supported)`;
+}
+
+/** Third independent cross product; configuration predictions are explicitly unverified. */
+export function authorizationFastPathCandidates(target, setting) {
+  if (!['off', 'on', 'both'].includes(setting))
+    throw new Error(`Invalid authorization fast path candidate setting: ${String(setting)}`);
+  return (setting === 'both' ? ['off', 'on'] : [setting]).map((mode) => {
+    const supported = target.supportedAuthorizationFastPathFlags ?? [];
+    authorizationFastPathFlagOptions(mode, supported);
+    const effective = effectiveAuthorizationFastPathModes(
+      snapshotFlagOptions(target.snapshotSkips, target.supportedSnapshotFlags),
+      initialOutputCopyFlagOptions(target.initialOutputCopySkips, target.supportedInitialOutputCopyFlags ?? []),
+      authorizationFastPathFlagOptions(mode, supported),
+      supported,
+    );
+    const candidate = {
+      ...target,
+      id: `${target.id}-authorization-fast-${mode}`,
+      authorizationFastPaths: mode,
+      supportedAuthorizationFastPathFlags: supported,
+      configuredAuthorizationFastPathModes: effective,
+    };
+    candidate.label = `${target.label} · authorization fast paths ${authorizationFastPathModeLabel(candidate)} (configured LIST ${effective.list}; READ ${effective.read}, not timed; unverified)`;
+    return candidate;
+  });
 }
 
 export function initialOutputCopyModeLabel(target) {
@@ -417,6 +619,40 @@ function caseKey(row) {
   return `${row.scenario}/${row.rows}/${row.concurrency}`;
 }
 
+function verifiedFastPathModeLabel(target, row, origin) {
+  const supported = target?.supportedAuthorizationFastPathFlags;
+  if (!Array.isArray(supported)) return 'unknown (unverified)';
+  try {
+    authorizationFastPathFlagOptions('off', supported);
+  } catch {
+    return 'unknown (unverified)';
+  }
+  const key = origin === 'list' ? UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS[0] : UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS[1];
+  if (!supported.includes(key)) return 'N/A';
+  try {
+    const expected = {
+      ...snapshotFlagOptions(target.snapshotSkips, target.supportedSnapshotFlags),
+      ...initialOutputCopyFlagOptions(target.initialOutputCopySkips, target.supportedInitialOutputCopyFlags ?? []),
+      ...authorizationFastPathFlagOptions(target.authorizationFastPaths, supported),
+    };
+    const verification = row.authorizationFastPathVerification;
+    if (row.status !== 'ok' || verification?.kind !== 'server-option-getters') return 'unknown (unverified)';
+    for (const model of ['source', 'target']) {
+      const record = verification.models?.[model];
+      if (typeof record?.modelName !== 'string' || !record.modelName) return 'unknown (unverified)';
+      for (const [flag, value] of Object.entries(expected))
+        if (record.getModelOption?.[flag] !== value || record.getModelOptions?.[flag] !== value)
+          return 'unknown (unverified)';
+    }
+    const actual = effectiveAuthorizationFastPathModes(verification.models.source.getModelOptions, {}, {}, supported);
+    return row.effectiveAuthorizationFastPathModes?.[origin] === actual[origin]
+      ? actual[origin]
+      : 'unknown (unverified)';
+  } catch {
+    return 'unknown (unverified)';
+  }
+}
+
 export function reportRows(report) {
   const baseline = new Map(
     report.results
@@ -426,7 +662,28 @@ export function reportRows(report) {
   return report.results.map((row) => {
     const reference = baseline.get(caseKey(row));
     const target = report.targets.find((target) => target.id === row.targetId);
-    const comparable = row.status === 'ok' && reference && reference.outputFingerprint === row.outputFingerprint;
+    const hasFastGroup = report.targets.some((entry) => entry.authorizationFastPaths !== undefined);
+    const fastModes = hasFastGroup
+      ? { list: verifiedFastPathModeLabel(target, row, 'list'), read: verifiedFastPathModeLabel(target, row, 'read') }
+      : undefined;
+    const unverified = fastModes && Object.values(fastModes).some((mode) => mode === 'unknown (unverified)');
+    const referenceTarget = report.targets.find((entry) => entry.id === reference?.targetId);
+    const unverifiedBaseline =
+      hasFastGroup &&
+      reference &&
+      ['list', 'read'].some(
+        (origin) => verifiedFastPathModeLabel(referenceTarget, reference, origin) === 'unknown (unverified)',
+      );
+    const sameOutputs = reference && reference.outputFingerprint === row.outputFingerprint;
+    const comparable = row.status === 'ok' && !unverified && !unverifiedBaseline && sameOutputs;
+    let requestedFastMode = 'unknown (unverified)';
+    if (hasFastGroup) {
+      try {
+        requestedFastMode = authorizationFastPathModeLabel(target);
+      } catch {
+        /* Malformed imported reports are not activation evidence. */
+      }
+    }
     const ratio =
       comparable && reference.stats.medianMs > 0 ? row.stats.medianMs / reference.stats.medianMs : undefined;
     return {
@@ -435,10 +692,25 @@ export function reportRows(report) {
       ...(report.targets.some((entry) => entry.initialOutputCopySkips !== undefined)
         ? { 'initial output copy skips': initialOutputCopyModeLabel(target) }
         : {}),
+      ...(hasFastGroup
+        ? {
+            'authorization fast paths requested': requestedFastMode,
+            'LIST fast path (verified config)': fastModes.list,
+            'READ fast path (not timed; verified config)': fastModes.read,
+            'measured origin': row.measuredAuthorizationOrigin ?? 'unknown',
+          }
+        : {}),
       scenario: row.scenario,
       rows: row.rows,
       clients: row.concurrency,
-      status: row.status === 'ok' && reference && !comparable ? 'OUTPUT DIFF' : row.status,
+      status:
+        row.status === 'ok' && unverified
+          ? 'UNVERIFIED CONFIG'
+          : row.status === 'ok' && reference && !sameOutputs
+            ? 'OUTPUT DIFF'
+            : row.status === 'ok' && unverifiedBaseline
+              ? 'UNVERIFIED BASELINE'
+              : row.status,
       'median ms': row.stats?.medianMs.toFixed(2) ?? '-',
       'p95 ms': row.stats?.p95Ms.toFixed(2) ?? '-',
       'req/s': row.stats?.requestsPerSecond.toFixed(2) ?? '-',
@@ -462,7 +734,10 @@ export async function saveReport(directory, report) {
     '',
     'Latency ratios are target / baseline; lower is faster. Ratios require identical validated outputs.',
     'Snapshot skips ON is UNSAFE and not security-equivalent to OFF. N/A means the build does not declare these options.',
-    'Initial output copy skips are a separate UNSAFE group: ON requires the matching output-comparison skip, otherwise it is dormant. Eligible graphs still retain bounded shape admission and graph identities; other copies remain.',
+    'Initial output copy skips are a separate UNSAFE group: ON requires the matching output-comparison skip, otherwise it is dormant. With the new authorization fast path OFF/dormant, eligible graphs still retain bounded shape admission and graph identities; other copies remain.',
+    'Authorization fast paths are a third independent experimental UNSAFE group. ON requires all four matching document/output/nested comparison skips and initial-copy skip; otherwise dormant, without enabling prerequisites. Requested/configured modes are not verified modes: unknown/unverified results are never labeled active.',
+    'Verified fast-path modes describe server configuration from both getter paths on both actual models, NOT per-row borrowing or runtime omission counts. Trusted rows borrow source/grants/context and omit descendant graph checks; copied/value/getter fallbacks remain. Mutation, stale decisions and omitted native observations can turn denial into allowance. No security equivalence, universal gain or v0.51.0 parity is claimed.',
+    'All current workloads time LIST only. READ configuration is verified but READ is not timed. Runtime omission counts are not instrumented in timing workers; measure them separately. Matching fingerprints validate only this fixture, not the weaker authorization contract.',
     'HTTP timing includes loopback transport, response serialization and parsing. Setup, seeding and warmup are excluded.',
     'CPU is the Node worker (HTTP server + client), not the separate MongoDB process. Read counts use Mongoose debug operations.',
     'Each tag uses its own frozen lockfile: dependency-version changes can affect results. Sequential ordering and JIT/OS noise can bias small runs.',

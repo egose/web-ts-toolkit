@@ -47,17 +47,26 @@ import {
   readServiceAuthorization,
   readServiceAuthorizationAccess,
   readServiceOutputMetadata,
+  readAuthorizationFastPath,
 } from '../acl/service-authorization';
 import {
   createServiceOutputContext,
   readDocumentAuthorization,
+  prepareQueryOutputSource,
+  prepareQueryDocumentAuthorization,
+  isTrustedAuthorizationOutput,
+  getQueryReferenceOriginal,
+  retainTrustedOutputSpine,
   transferDocumentAuthorizationGraph,
 } from '../acl/document-authorization';
 import { requestOutputFieldPaths, resolveOutputDocumentAuthorization } from '../acl/output-field-filter';
 import { classifyEffectiveFieldAuthorization, extractOutputFieldRules } from '../acl/field-authorization';
 import { authorizationError } from '../acl/authorization-snapshot';
-import { unsafeSnapshotOptions } from '../acl/unsafe-snapshot-options';
-import { assertHydrationDefaults, assertPublicDefaults } from '../validation/public-admission';
+import {
+  assertHydrationDefaults,
+  assertNoServerModelControls,
+  assertPublicDefaults,
+} from '../validation/public-admission';
 import {
   createServiceExecution,
   deriveServiceExecution,
@@ -85,7 +94,22 @@ import { evaluateRouteGuard, intersectFilters } from '../core-shared';
 import { validateExpandedCorrelatedOperands } from '../correlated-includes';
 import { finalizeModelOutput, type FinalizeSnapshot } from '../output/finalize-model-output';
 import { attachPermissionsAlias, removeGeneratedPermissionsAlias } from '../output/permissions-alias';
-import { getIncludeOriginal, getIncludeSource, restoreIncludeOutput } from '../output/include-output';
+import {
+  getIncludeOriginal,
+  getIncludeSource,
+  restoreIncludeOutput,
+  restoreTrustedIncludeOutput,
+} from '../output/include-output';
+import {
+  createTrustedOutputBudget,
+  defineTrustedOutputValue,
+  materializeTrustedOutputValue,
+  setTrustedOutputPath,
+  shallowTrustedOutput,
+  unsetTrustedOutputPath,
+  visitTrustedOutput,
+  type TrustedOutputBudget,
+} from '../acl/trusted-output-materialization';
 import {
   VIRT_ASSOCIATION_FIELD,
   VIRT_ASSOCIATION_VALUES,
@@ -318,11 +342,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       ['args', args],
       ['options', options],
     ] as const) {
-      if (value !== null && (typeof value === 'object' || typeof value === 'function')) {
-        for (const key of unsafeSnapshotOptions) {
-          if (key in value) authorizationError(`${slot}.${key} is server model configuration only`);
-        }
-      }
+      assertNoServerModelControls(value, authorizationError);
       if (
         value !== null &&
         (typeof value === 'object' || typeof value === 'function') &&
@@ -473,13 +493,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     includeFieldPermissions?: boolean;
     sharedGate?: SharedHookGate;
     privateAssociationField?: string;
+    copiedQuerySource?: NonNullable<ReturnType<typeof prepareQueryDocumentAuthorization>>;
   }): Promise<{ data: Record<string, unknown>; context: ServiceOutputContext }> {
     const { plan, context } = args;
     const { authorization, authorizationBinding: binding } = plan;
     const access = readServiceAuthorizationAccess(authorization!, binding!);
     const configuration = readServiceOutputMetadata(authorization!, binding!);
-    const source = getIncludeSource(args.doc);
-    const snapshot = isolateDocForOutput(source) as Record<string, unknown>;
+    const source = args.copiedQuerySource?.source ?? getIncludeSource(args.doc);
+    const prepared = prepareQueryOutputSource(authorization!, binding!, source, 'hook');
+    if (prepared?.sourceState === 'trusted')
+      return this.finalizeTrustedDirectOutput(args, prepared.source, prepared.budget);
+    const snapshot = prepared?.source ?? (isolateDocForOutput(source) as Record<string, unknown>);
     // Hydrated parents can contain package-finalized target DTOs. Transfer each
     // child explicitly while making the plain projected input for this stage.
     for (const key of Object.keys(snapshot))
@@ -493,6 +517,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       binding: binding!,
       snapshot,
       context,
+      stage:
+        args.copiedQuerySource?.stage ??
+        (prepared ? prepareQueryDocumentAuthorization(authorization!, binding!, snapshot)!.stage : undefined),
     });
     const { stage, grants } = readDocumentAuthorization(handle, binding!);
     context.docPermissions = deepIsolateValue(grants);
@@ -509,7 +536,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       context,
       operation: access.operation,
       documentAuthorizationStage: stage,
-      virtualPopulateRow: getVirtualPopulateRow(getIncludeOriginal(args.doc) as object),
+      virtualPopulateRow: getVirtualPopulateRow(getIncludeOriginal(args.doc, authorization) as object),
       sharedGate: gate,
       concurrencyLimit: this.getVirtualHookConcurrencyLimit(),
       onFinalized: (_output, outputContext) => {
@@ -562,6 +589,113 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         stage,
       }),
     };
+  }
+
+  /** Same modern finalizer/evaluators; source/grants/attachments are borrowed only by authenticated trusted rows. */
+  private async finalizeTrustedDirectOutput(
+    args: {
+      doc: unknown;
+      plan: VirtualProjectionPlan;
+      context: ModelHookContext;
+      includePermissions?: boolean;
+      includeFieldPermissions?: boolean;
+      privateAssociationField?: string;
+    },
+    borrowedSource: Record<string, unknown>,
+    sourceBudget?: TrustedOutputBudget,
+  ): Promise<{ data: Record<string, unknown>; context: ServiceOutputContext }> {
+    const { plan, context } = args;
+    const binding = plan.authorizationBinding!,
+      authorization = plan.authorization!;
+    const access = readServiceAuthorizationAccess(authorization, binding);
+    const configuration = readServiceOutputMetadata(authorization, binding);
+    const budget = sourceBudget ?? createTrustedOutputBudget();
+    let source = borrowedSource;
+    if (args.privateAssociationField) {
+      source = shallowTrustedOutput(source, budget);
+      unsetTrustedOutputPath(source, args.privateAssociationField, budget);
+    }
+    const prepared = prepareQueryDocumentAuthorization(authorization, binding, source)!;
+    if (prepared.sourceState === 'copied') return this.finalizeDirectOutput({ ...args, copiedQuerySource: prepared });
+    let finalizedContext!: ServiceOutputContext;
+    const data = await finalizeModelOutput({
+      receivingModelName: this.modelName,
+      input: prepared.source,
+      plan,
+      snapshot: configuration as FinalizeSnapshot,
+      virtualAccess: access.virtualAccess,
+      outputAccess: access.outputAccess,
+      docPermissionsAccess: access.docPermissionsAccess,
+      request: this.req,
+      context,
+      operation: access.operation,
+      documentAuthorizationStage: prepared.stage,
+      virtualPopulateRow: getVirtualPopulateRow(getIncludeOriginal(args.doc, authorization) as object),
+      trustedOutputBudget: budget,
+      completeTrustedOutput: async (output, handle, materialization) => {
+        const { grants } = readDocumentAuthorization(handle, binding);
+        context.docPermissions = grants;
+        restoreTrustedIncludeOutput(args.doc, output, materialization);
+        const field = (configuration.documentPermissionField as string) ?? '_permissions';
+        if (configuration.stripPermissionsField)
+          unsetTrustedOutputPath(output, field, budget, (source, copy) =>
+            retainTrustedOutputSpine(materialization.members, source, copy),
+          );
+        else {
+          const exposed = configuration.exposedDocPermissionKeys as string[] | undefined;
+          const metadata: Record<string, unknown> = {};
+          if (args.includePermissions || args.includeFieldPermissions) {
+            for (const key of Object.keys(grants)) {
+              visitTrustedOutput(budget, 1);
+              if (exposed && key !== '_view' && key !== '_edit' && !exposed.includes(key)) continue;
+              defineTrustedOutputValue(metadata, key, grants[key]);
+            }
+          }
+          if (args.includeFieldPermissions && !configuration.disableFieldPermissions) {
+            const rowAccess =
+              this.asServiceHookContext(context).fieldPermissionAccess ??
+              (await this.getFieldPermissionAccess([source._id]));
+            const id = String(source._id);
+            const views = rowAccess.readIds?.has(id) ? await requestOutputFieldPaths(handle, binding, 'read') : [];
+            const edits = rowAccess.updateIds?.has(id) ? await requestOutputFieldPaths(handle, binding, 'update') : [];
+            const map = (paths: string[]) => {
+              visitTrustedOutput(budget, 1, paths.length || 1);
+              return paths.length ? Object.fromEntries(paths.map((path) => [path, true])) : { $: '_' };
+            };
+            defineTrustedOutputValue(metadata, '_view', map(views));
+            defineTrustedOutputValue(metadata, '_edit', map(edits));
+          } else if (!args.includePermissions) {
+            defineTrustedOutputValue(metadata, '_view', { $: '_' });
+            defineTrustedOutputValue(metadata, '_edit', { $: '_' });
+          }
+          setTrustedOutputPath(output, field, metadata, budget, 0, (source, copy) =>
+            retainTrustedOutputSpine(materialization.members, source, copy),
+          );
+          attachPermissionsAlias(output, field);
+        }
+      },
+      onFinalized: (_output, outputContext) => {
+        finalizedContext = outputContext;
+      },
+    });
+    return { data, context: finalizedContext };
+  }
+
+  /** Actual correlated inputs only, not an unconditional whole-source diagnostic snapshot. */
+  private captureTrustedCorrelatedSource(doc: unknown, fields: readonly string[]): Record<string, unknown> {
+    const output: Record<string, unknown> = {},
+      budget = createTrustedOutputBudget();
+    for (const field of fields) {
+      const value = get(doc as object, field);
+      if (value !== undefined)
+        setTrustedOutputPath(
+          output,
+          field,
+          materializeTrustedOutputValue(value, field, budget, { keep: () => true }),
+          budget,
+        );
+    }
+    return output;
   }
 
   private getEffectiveAllowedSortFields(allowedSortFields: string[]): string[] {
@@ -1001,6 +1135,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     hookLimit: number,
     sharedGate: SharedHookGate,
     originalTarget: unknown = rawTarget,
+    trustedCacheOrigins = false,
   ): Promise<unknown> {
     if (rawTarget === null || rawTarget === undefined) return rawTarget;
     if (this.isScalarPopulateValue(rawTarget)) return rawTarget;
@@ -1026,10 +1161,16 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // Include source copies retain the actual fetched target identity for cache
     // reuse. Never infer this identity from IDs/values or finalize the original.
     const originalKey = originalTarget && typeof originalTarget === 'object' ? originalTarget : (rawTarget as object);
-    const cacheKey = getVirtualPopulatePublicIdentity(originalKey) ?? originalKey;
+    const cacheKey = trustedCacheOrigins
+      ? (getVirtualPopulatePublicIdentity(rawTarget as object) ??
+        getQueryReferenceOriginal(rawTarget as object) ??
+        (rawTarget as object))
+      : (getVirtualPopulatePublicIdentity(originalKey) ?? originalKey);
     const existing = cache.get(cacheKey);
     if (existing) {
       const source = await existing;
+      if (source && typeof source === 'object' && isTrustedAuthorizationOutput(source, meta.plan.authorization))
+        return source;
       const copy = deepIsolateValue(source);
       transferDocumentAuthorizationGraph(source, copy);
       return copy;
@@ -1069,6 +1210,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     });
     cache.set(cacheKey, pending);
     const finalized = await pending;
+    if (finalized && typeof finalized === 'object' && isTrustedAuthorizationOutput(finalized, meta.plan.authorization))
+      return finalized;
     const copy = deepIsolateValue(finalized);
     transferDocumentAuthorizationGraph(finalized, copy);
     return copy;
@@ -1086,6 +1229,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     hookLimit: number,
     sharedGate: SharedHookGate,
     original: unknown = current,
+    trustedCacheOrigins = false,
   ): Promise<void> {
     if (current === null || current === undefined) return;
     if (Array.isArray(current)) {
@@ -1100,6 +1244,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           hookLimit,
           sharedGate,
           Array.isArray(original) ? original[index] : undefined,
+          trustedCacheOrigins,
         );
       }
       return;
@@ -1144,6 +1289,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
               hookLimit,
               sharedGate,
               Array.isArray(originalChild) ? originalChild[index] : undefined,
+              trustedCacheOrigins,
             ),
           );
         }
@@ -1162,6 +1308,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           hookLimit,
           sharedGate,
           originalChild,
+          trustedCacheOrigins,
         );
         try {
           setDocValue(current as never, key, finalized);
@@ -1180,6 +1327,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         hookLimit,
         sharedGate,
         originalChild,
+        trustedCacheOrigins,
       );
     }
   }
@@ -1191,6 +1339,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     parentOperation: string,
     hookLimit: number,
     sharedGate: SharedHookGate,
+    trustedCacheOrigins = false,
+    parentAuthorization?: VirtualProjectionPlan['authorization'],
   ): Promise<void> {
     if (!doc || !Array.isArray(populateEntries) || populateEntries.length === 0) return;
     for (const entry of populateEntries) {
@@ -1209,7 +1359,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         parentContext,
         hookLimit,
         sharedGate,
-        getIncludeOriginal(doc),
+        getIncludeOriginal(doc, parentAuthorization),
+        trustedCacheOrigins,
       );
     }
   }
@@ -1475,20 +1626,27 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         findOneAssociationField ? [findOneAssociationField] : [],
       );
 
+    const trustedQuery = readAuthorizationFastPath(state.authorization, state.binding)?.mode === 'active';
+    if (trustedQuery) doc = prepareQueryOutputSource(state.authorization, state.binding, doc)!.source;
+
     const context: ModelHookContext = {
       mongooseModel: this.model.mongooseModel,
       modelName: this.modelName,
       // VIRT-00A D1: operation stays initiating (`read`), never the
       // fallback/effective visibility. Effective accesses carry `access`.
       operation: state.access.operation,
-      originalDocumentSnapshot: toObject(doc),
+      originalDocumentSnapshot: trustedQuery ? doc : toObject(doc),
       resolvedQuery: query,
     };
 
     // Stable snapshot for correlated references (ACI-01 D7.3): fetched from
     // persistence including internal-only reference fields, before legacy
     // include attachment, decorate, and task mutation.
-    const correlatedSnapshots = [cloneDeep(toObject(doc))];
+    const correlatedSnapshots = trustedQuery
+      ? correlatedIncludes.length
+        ? [this.captureTrustedCorrelatedSource(doc, correlatedReferenceFields)]
+        : []
+      : [cloneDeep(toObject(doc))];
 
     try {
       doc = await this.includeDocs(doc, includes, state.authorization);
@@ -1526,6 +1684,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           'read',
           findOneHookLimit,
           findOneGate,
+          trustedQuery &&
+            prepareQueryOutputSource(state.authorization, state.binding, getIncludeSource(doc))!.sourceState ===
+              'trusted',
+          state.authorization,
         );
       } catch (error) {
         const result = this.getClientRequestErrorResult(error);
@@ -1781,6 +1943,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         undefined,
         findAssociationField ? [findAssociationField] : [],
       );
+    const trustedQuery = readAuthorizationFastPath(state.authorization, state.binding)?.mode === 'active';
+    if (trustedQuery)
+      docs = docs.map((doc) => prepareQueryOutputSource(state.authorization, state.binding, doc)!.source);
+    const diagnosticSources = trustedQuery ? [...docs] : undefined;
     // VIRT-05 association capture (before trim/nested): immutable values
     // aligned to rows for the caller's join index.
     const capturedAssociation = findAssociationField
@@ -1788,7 +1954,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       : undefined;
     // A foreign field can also be a nested include's local/reference input.
     // Keep it until all nested dispatch has consumed the original snapshots.
-    const correlatedSnapshots = docs.map((doc) => cloneDeep(toObject(doc)));
+    const correlatedSnapshots = trustedQuery
+      ? correlatedIncludes.length
+        ? docs.map((doc) => this.captureTrustedCorrelatedSource(doc, correlatedReferenceFields))
+        : []
+      : docs.map((doc) => cloneDeep(toObject(doc)));
     try {
       docs = await this.includeDocs(docs, includes, state.authorization);
       if (correlatedIncludes.length > 0) {
@@ -1842,11 +2012,11 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       }
     }
 
-    const contexts: ModelHookContext[] = correlatedSnapshots.map((doc) => ({
+    const contexts: ModelHookContext[] = (diagnosticSources ?? correlatedSnapshots).map((doc) => ({
       mongooseModel: this.model.mongooseModel,
       modelName: this.modelName,
       operation: 'list',
-      originalDocumentSnapshot: toObject(doc) as Record<string, unknown>,
+      originalDocumentSnapshot: (trustedQuery ? doc : toObject(doc)) as Record<string, unknown>,
       resolvedQuery: query,
     }));
 
@@ -1875,6 +2045,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           'list',
           hookLimit,
           sharedGate,
+          trustedQuery &&
+            prepareQueryOutputSource(state.authorization, state.binding, getIncludeSource(doc))!.sourceState ===
+              'trusted',
+          state.authorization,
         );
       }
       const output = await this.finalizeDirectOutput({

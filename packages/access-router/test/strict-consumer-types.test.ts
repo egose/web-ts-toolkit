@@ -25,6 +25,7 @@ function stageConsumerDir(): string {
   mkdirSync(consumerPkgRoot, { recursive: true });
   cpSync(path.resolve(packageRoot, 'dist'), path.resolve(consumerPkgRoot, 'dist'), { recursive: true });
   cpSync(path.resolve(packageRoot, 'package.json'), path.resolve(consumerPkgRoot, 'package.json'));
+  cpSync(path.resolve(packageRoot, 'README.md'), path.resolve(consumerPkgRoot, 'README.md'));
 
   const hoistedDirs = [path.join(packageRoot, 'node_modules'), path.join(workspaceRoot, 'node_modules')];
   const ensure = (link: Link): boolean => {
@@ -95,6 +96,55 @@ describe('ARF-14 strict packed-consumer types', () => {
   beforeAll(() => {
     consumerDir = stageConsumerDir();
   });
+
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ])(
+    'FP-04 checks installed optional flags, opaque handles and the exact runnable example (%s / %s)',
+    (resolution, extension, module) => {
+      const source = `fast-path-${resolution}.${extension}`;
+      const example = `fast-path-readme-${resolution}.${extension}`;
+      writeFileSync(
+        path.resolve(consumerDir, source),
+        readFileSync(path.resolve(packageRoot, 'test/authorization-fast-path-consumer.types.fixture.ts'), 'utf8'),
+      );
+      const readme = readFileSync(
+        path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/README.md'),
+        'utf8',
+      );
+      const snippet = [...readme.matchAll(/<!--\s*doc-example:\s*complete-runtime\s*-->\s*```ts\n([\s\S]*?)```/g)]
+        .map((match) => match[1])
+        .find((text) => text.includes('async function runAuthorizationFastPathExample()'));
+      expect(snippet, 'installed runnable LIST/READ fast-path example').toBeDefined();
+      writeFileSync(path.resolve(consumerDir, example), snippet!);
+      const config = `tsconfig-fast-path-${resolution}-${extension}.json`;
+      writeFileSync(
+        path.resolve(consumerDir, config),
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module,
+            moduleResolution: resolution,
+            strict: true,
+            noUnusedLocals: true,
+            noUnusedParameters: true,
+            noEmit: true,
+            skipLibCheck: false,
+            esModuleInterop: true,
+            types: ['node'],
+          },
+          files: [source, example],
+        }),
+      );
+      const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+      expect(result.stdout + result.stderr).toBe('');
+      expect(result.status).toBe(0);
+    },
+  );
 
   it.each([
     ['Bundler', 'ts', 'ESNext'],

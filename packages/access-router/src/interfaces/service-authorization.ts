@@ -233,13 +233,16 @@ declare const documentAuthorizationBrand: unique symbol;
 
 /**
  * Package-issued same-execution output handle, authenticated by private runtime state.
- * Bound to request/runtime/model, projected document snapshot, scope and access stage.
+ * Bound to request/runtime/model, scope and access stage. Default/copied records also
+ * bind a projected document snapshot and exact output graph; active trusted records
+ * instead have exact root association and issued-document membership, no stage snapshot.
  * Obtain it from an internal result context, never from DTO metadata or JSON. It is
  * an opaque consumer handle, not a constructor, reusable call policy or wire token.
  * It reuses full document grants and memoized decisions after ownerId/private inputs
- * and permission metadata are trimmed. Use the original unchanged output or a
- * package-created helper subset; caller spreads, matching IDs, changed values, another
- * row/call/access or pre-/post-write stages cannot establish validity and reject.
+ * and permission metadata are trimmed. Use the original associated root or a
+ * package-created helper subset; caller spreads, matching IDs, another row/call/access
+ * or pre-/post-write stages cannot establish validity and reject. Default/copied records
+ * additionally reject graph changes; the active trusted contract below deliberately does not.
  * A list/read handle with its server unsafeSkipListDocumentSnapshotChecks or
  * unsafeSkipReadDocumentSnapshotChecks flag enabled retains that weakened source-
  * mutation policy; independent output-value/ownership checks still apply. Turning a setting
@@ -255,20 +258,37 @@ declare const documentAuthorizationBrand: unique symbol;
  * and exact graph ownership, but omit this pass's native/BSON normalization and
  * validation observations. Source/callback/grant copies remain detached; unproven
  * graphs or open ownership bindings fall back to copying. Retained handles keep this mode.
+ * These are the original flags' contracts alone. A genuinely active
+ * unsafeUseListAuthorizationFastPath/unsafeUseReadAuthorizationFastPath trusted row
+ * instead borrows source/grants/context leaves and keeps only exact root authority,
+ * not descendant graph integrity. Its handle filters current values with potentially
+ * stale decisions/shared grants after descendant replacement. Removed issued children
+ * can remain discoverable; replacements/spreads/other rows receive no child authority.
+ * Copied fallback records keep graph checks; fresh raw-policy helpers remain strict.
+ * Rollback changes new calls only: an issued trusted handle does not regain stronger
+ * protections. Its mutable grant/context leaves may be borrowed between callbacks;
+ * changed native observations or stale decisions can turn denial into allowance.
  */
 export interface DocumentAuthorization {
   readonly [documentAuthorizationBrand]: true;
 }
 
-/** Internal output context; public serializers omit it and no authority is attached to data. */
+/**
+ * Internal output context; public serializers omit it and no authority is attached to data.
+ * Active trusted queries use shallow diagnostic shells with borrowed source/grant leaves;
+ * snapshot-named properties are not detached immutable snapshots in that mode.
+ */
 export interface ServiceOutputContext extends ModelHookContext {
   /** Non-enumerable, non-writable handle for this output row/scope/access stage. */
   readonly documentAuthorization: DocumentAuthorization;
   /**
-   * Look up an exact unchanged value in this result's output graph, including
-   * registered embedded/related copies. Unknown/stale values return undefined;
+   * Default/copied result: look up an exact unchanged value in its output graph,
+   * including registered embedded/related copies. Unknown/stale values return undefined;
    * scalar IDs/null/counts have no child handle. Pass a related handle to that
    * target model's helper at its output access. This method cannot issue new authority.
+   * For an active trusted query root, lookup is fixed issued-document membership,
+   * not current reachability: a removed original child can still be found and a
+   * replacement cannot. Root/request/runtime/model/scope/access checks still apply.
    */
   getDocumentAuthorization(output: object): DocumentAuthorization | undefined;
 }
@@ -305,7 +325,7 @@ export interface OutputPlanningOptions<TModel = unknown, TVirtuals extends objec
 /**
  * Mutually exclusive named output filtering inputs: raw policy OR an issued handle.
  * Raw-policy evaluation (including `{}` for request mode) is a fresh call; only an
- * issued handle reuses full document decisions from the immutable original call.
+ * issued handle reuses full document decisions from the captured original call.
  * A fresh unassociated document needs suitable untrimmed projected hook inputs.
  * On recognized trimmed output, fresh evaluation retains unconditional request fields
  * and explicit grants but denies unresolved document-dependent rules without rerunning
@@ -315,6 +335,10 @@ export interface OutputPlanningOptions<TModel = unknown, TVirtuals extends objec
  * virtual getters, absent-value restoration, row checks or write grants. Omitted or
  * undefined options equal {} (fresh request-mode output), including on hydrated docs,
  * which are isolated rather than mutated. Positional baseFields have been removed.
+ * A trusted fast-path handle filters current values with stale memo/shared grants and
+ * remains usable on its exact associated root after descendant replacement/rollback;
+ * it is not a current-graph or detached-callback-context guarantee. Fresh raw helpers
+ * never acquire that weaker issued mode from server flags or DTO metadata.
  */
 export type OutputFieldOptions<TModel = unknown, TVirtuals extends object = Record<never, never>> =
   | (OutputPlanningOptions<TModel, TVirtuals> & { readonly documentAuthorization?: never })
