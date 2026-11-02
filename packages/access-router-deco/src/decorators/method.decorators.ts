@@ -11,7 +11,8 @@ import type {
   ModelDocumentHook,
   ModelHook,
   ModelIdentifierHook,
-  ModelListHook,
+  ModelOutputHook,
+  ModelOutputListHook,
   ModelOverrideFilterHook,
   ModelValidateHook,
 } from '@web-ts-toolkit/access-router';
@@ -38,8 +39,8 @@ type ValidateDecoratorHook = ModelValidateHook;
 type PrepareDecoratorHook<TModel = unknown> = Extract<ModelHook<TModel>, Function>;
 type TransformDecoratorHook<TModel = unknown> = Extract<ModelDocumentHook<TModel>, Function>;
 type AfterPersistDecoratorHook<TModel = unknown> = Extract<ModelDocumentHook<TModel>, Function>;
-type DecorateDecoratorHook<TModel = unknown> = Extract<ModelHook<TModel>, Function>;
-type DecorateAllDecoratorHook<TModel = unknown> = Extract<ModelListHook<TModel>, Function>;
+type DecorateDecoratorHook<TModel = unknown> = Extract<ModelOutputHook<TModel>, Function>;
+type DecorateAllDecoratorHook<TModel = unknown> = Extract<ModelOutputListHook<TModel>, Function>;
 
 /**
  * Instance-only decorator contract (all method hooks in this file).
@@ -141,10 +142,15 @@ export function GlobalPermissions(): HookDecorator<MaybePromise<GlobalPermission
  *
  * Valid class roles: `@Router(Model)` (model router) and `@RouterOptions(Model)` (model-specific options). Not valid on `@Module`, root routers, or default options.
  * Valid operations: `default`, `create`, `update`, `list`, `read` — one operation per decorator; scalar hook rejects duplicate `docPermissions.<op>` on the same class.
- * Result contract: `MaybePromise<Record<string, unknown>>` — per-document permission map combined with global grants via OR.
+ * Result contract: `MaybePromise<DocumentGrants>` — own enumerable literal-boolean facts, normalized once per document stage.
  * A field is visible when the global permission OR the document permission grants it (`permissions.has(key) || docPermissions[key]`),
  * so an empty map grants nothing by itself and never revokes a global grant; it is not a universal deny mechanism.
- * Parameter injection is explicit: use `@Document()` for the document, `@Permissions()` for resolved permissions, `@Context()` for `ModelHookContext`, optional `@Request()` for the request. `this` is the class instance.
+ * Invalid fulfilled rich/native/accessor/proxy/protected/over-budget facts fail the whole operation with 400.
+ * Missing hooks yield empty facts; thrown/rejected hooks also emit a fixed-category warning.
+ * Parameter injection is explicit: use `@Document()` for the projected view, `@Permissions()` for resolved permissions,
+ * `@Context()` for frozen diagnostic-only `ModelOutputContext`, optional `@Request()` for the original request.
+ * `this` is the class instance. Isolated doc views are disposable; trusted may borrow ordinary source only,
+ * never actor/policy/facts. Real mutation lifecycle contexts remain mutable. See access-router's installed MIGRATION.md.
  *
  * @param optionKey - operation name (`default` applies to `create`+`update`, `list`/`read`/`create`/`update` are operation-specific).
  */

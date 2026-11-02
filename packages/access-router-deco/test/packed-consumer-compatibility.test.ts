@@ -331,6 +331,12 @@ function writeConsumerFiles(consumerDir: string): void {
     ?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
   if (!populatePolicy) throw new Error('Missing packed target-owned populate example');
   writeFileSync(path.join(consumerDir, 'populate-policy.ts'), populatePolicy);
+  const owned = readFileSync(
+    path.join(consumerDir, 'node_modules/@web-ts-toolkit/access-router-deco/README.md'),
+    'utf8',
+  ).match(/<!-- doc-example: owned-authorization -->\s*```ts\n([\s\S]*?)\n```/)?.[1];
+  if (!owned) throw new Error('Missing packed owned-authorization module');
+  writeFileSync(path.join(consumerDir, 'owned-authorization.ts'), owned);
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
     `import {
@@ -592,6 +598,7 @@ void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, reg
           'hydration.ts',
           'hydration-migration.ts',
           'populate-policy.ts',
+          'owned-authorization.ts',
         ],
       },
       null,
@@ -615,7 +622,13 @@ void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, reg
           types: ['node'],
           lib: ['ES2022', 'DOM'],
         },
-        include: ['consumer.bundler.ts', 'hydration.ts', 'hydration-migration.ts', 'populate-policy.ts'],
+        include: [
+          'consumer.bundler.ts',
+          'hydration.ts',
+          'hydration-migration.ts',
+          'populate-policy.ts',
+          'owned-authorization.ts',
+        ],
       },
       null,
       2,
@@ -651,7 +664,7 @@ describe('DECO-15 packed package consumer compatibility', () => {
     expect(manifest.types).toBe('./index.d.ts');
     expect(manifest.exports).toEqual({
       '.': {
-        types: './index.d.ts',
+        types: { import: './index.d.mts', require: './index.d.ts', default: './index.d.ts' },
         import: './index.mjs',
         require: './index.js',
         default: './index.js',

@@ -18,6 +18,17 @@
 
 ### ⚠ BREAKING CHANGES
 
+- **access-router / access-router-deco:** replace the previous unreleased unsafe
+  authorization switches and public document handles with one owned-stage engine,
+  independent `readAuthorizationMode` / `listAuthorizationMode` (default `isolated`),
+  immutable boolean `DocumentGrants` and diagnostic-only output contexts. Retired
+  controls reject by presence; raw helpers use empty facts with no hidden reads/hooks.
+  Current document-dependent checks require a new normal query. Lifecycle/write
+  authority remains separate. The shipped `access-router/MIGRATION.md` covers the
+  breaking types, all ten flags, callback isolation, helper costs and matching-revision
+  rollout/rollback. This supersedes the unreleased flag notes above; no version/date
+  or measured performance acceptance is implied.
+
 * **access-router-runtime:** runtime config loading now rejects unsupported export forms, ambiguous model definitions, duplicate model/data names, existing-model `collection`, and invalid `dev.delay` values before runtime assembly.
 * **moo:** Keycloak user sync no longer removes assigned realm roles by default. Role synchronization is additive-only unless `managedRoles` explicitly declares the role names this plugin owns.
 * **moo:** Keycloak user sync now rejects invalid identity/path configuration at schema registration and treats persisted provider IDs as server-controlled.

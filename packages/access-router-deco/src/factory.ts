@@ -40,7 +40,8 @@ import {
 } from './metadata';
 import type { BootstrapResult, RouterModel, Type } from './interfaces';
 import type { OptionMetadata, OptionScope } from './decorators/property.decorators';
-import { validatePropertyOptionScope, validatePropertyOptionValue } from './property-options';
+import { readPropertyOptionValue, validatePropertyOptionScope, validatePropertyOptionValue } from './property-options';
+import { validateAuthorizationModeOptions, validateModeOptionAssignment } from './authorization-modes';
 
 type HookParamMetadata = { index: number; type: HookParamtypes };
 type HookConfig = HookDefinition;
@@ -52,11 +53,13 @@ type HookRegistration = {
 };
 type ClassRegistrationPlan = {
   hooks: HookRegistration[];
+  properties: OptionMetadata[];
 };
 type PreparedClass = {
   Type: Type;
   instance: object;
   plan: ClassRegistrationPlan;
+  propertyValues?: { option: OptionMetadata; value: unknown }[];
 };
 type ModuleConfigurationPlan = {
   module: PreparedClass;
@@ -67,7 +70,6 @@ type ModuleConfigurationPlan = {
 type OptionSetter = (aclKey: string, value: unknown) => void;
 type OptionGetter = (aclKey: string) => any;
 type ModuleOptions = GlobalOptions & { basePath?: string; handleErrors?: boolean };
-type InstanceRecord = Record<string | symbol, unknown>;
 type RuntimeSnapshot = { restore: () => void };
 
 const normalizeErrorStatus = (status: unknown): number => {
@@ -335,6 +337,7 @@ export class EgoseFactoryStatic {
       const routers = getOwnMetadata(module, MODULE_ROUTERS) || [];
       const routerOptions = getOwnMetadata(module, MODULE_ROUTER_OPTIONS) || [];
       const moduleOptions = (getOwnMetadata(module, MODULE_OPTIONS) || {}) as ModuleOptions;
+      validateAuthorizationModeOptions(moduleOptions, false);
       const { basePath, handleErrors, globalOptions } = splitModuleOptions(moduleOptions);
 
       const plan = this.validateModuleConfiguration(module, routers, routerOptions);
@@ -342,6 +345,7 @@ export class EgoseFactoryStatic {
       runtimeSnapshot = this.createRuntimeSnapshot();
       appStackCapture = this.captureAppStack(expressApp);
 
+      this.validateOptionValuesPreflight(plan, routers);
       this.validateHookChainPreflight(plan);
       this.validateModelRegistrationPreflight(plan);
 
@@ -645,7 +649,7 @@ export class EgoseFactoryStatic {
   }
 
   private bootstrapEgose(prepared: PreparedClass) {
-    this.registerPropertyOptions(prepared.instance, (key, val) =>
+    this.registerPropertyOptions(prepared, (key, val) =>
       this.runtime.setGlobalOption(key as keyof GlobalOptions, val as never),
     );
 
@@ -666,7 +670,7 @@ export class EgoseFactoryStatic {
 
     registerRouterModel(this.runtime, model);
     this.runtime.setModelOptions(modelName, options);
-    this.registerPropertyOptions(prepared.instance, (key, val) =>
+    this.registerPropertyOptions(prepared, (key, val) =>
       this.runtime.setModelOption(modelName, key as never, val as never),
     );
     this.registerMethodOptions(
@@ -695,7 +699,7 @@ export class EgoseFactoryStatic {
     const options = getOwnMetadata(DecoRouterOptions, ROUTER_OPTIONS) as ModelRouterOptions;
     this.runtime.setDefaultModelOptions(options);
 
-    this.registerPropertyOptions(prepared.instance, (key, val) =>
+    this.registerPropertyOptions(prepared, (key, val) =>
       this.runtime.setDefaultModelOption(key as never, val as never),
     );
     this.registerMethodOptions(
@@ -715,7 +719,7 @@ export class EgoseFactoryStatic {
     registerRouterModel(this.runtime, model);
     this.runtime.setModelOptions(modelName, options);
 
-    this.registerPropertyOptions(prepared.instance, (key, val) =>
+    this.registerPropertyOptions(prepared, (key, val) =>
       this.runtime.setModelOption(modelName, key as never, val as never),
     );
     this.registerMethodOptions(
@@ -727,19 +731,30 @@ export class EgoseFactoryStatic {
     );
   }
 
-  private registerPropertyOptions(instance: object, setOption: OptionSetter) {
-    const optionProps = getOwnMetadataListFromPrototypeChain<OptionMetadata>(
-      Object.getPrototypeOf(instance),
-      OPTIONS_METADATA,
-      'optionKey',
-    );
-
-    for (let x = 0; x < optionProps.length; x++) {
-      const optionProp = optionProps[x];
-      const value = (instance as InstanceRecord)[optionProp.propertyKey];
-      validatePropertyOptionValue(optionProp, value);
-      setOption(optionProp.optionKey as string, value);
+  private validateOptionValuesPreflight(plan: ModuleConfigurationPlan, routers: Type[]): void {
+    for (const router of routers)
+      validateAuthorizationModeOptions(getOwnMetadata(router, ROUTER_OPTIONS) ?? {}, isModelRouter(router));
+    for (const prepared of plan.routerOptions)
+      validateAuthorizationModeOptions(getOwnMetadata(prepared.Type, ROUTER_OPTIONS) ?? {}, true);
+    for (const prepared of [
+      plan.module,
+      ...plan.routerOptions,
+      ...plan.routers.filter((entry): entry is PreparedClass => !!entry),
+    ]) {
+      prepared.propertyValues = prepared.plan.properties.map((option) => {
+        const value = readPropertyOptionValue(prepared.instance, option);
+        validatePropertyOptionValue(option, value);
+        // Preserve dotted property setters' actual namespaces; business schemas
+        // and arbitrary callable closures are not recursively control bags.
+        if (typeof option.optionKey === 'string')
+          validateModeOptionAssignment(option.optionKey, value, prepared !== plan.module);
+        return { option, value };
+      });
     }
+  }
+
+  private registerPropertyOptions(prepared: PreparedClass, setOption: OptionSetter) {
+    for (const { option, value } of prepared.propertyValues ?? []) setOption(option.optionKey as string, value);
   }
 
   private registerMethodOptions(
@@ -1074,11 +1089,8 @@ export class EgoseFactoryStatic {
           : role === 'modelRouter' || role === 'modelOptions'
             ? 'model'
             : undefined;
-    for (const option of getOwnMetadataListFromPrototypeChain<OptionMetadata>(
-      prototype,
-      OPTIONS_METADATA,
-      'optionKey',
-    )) {
+    const properties = getOwnMetadataListFromPrototypeChain<OptionMetadata>(prototype, OPTIONS_METADATA, 'optionKey');
+    for (const option of properties) {
       validatePropertyOptionScope(option, propertyScope);
       if (!propertyScope || (option.scope && option.scope !== propertyScope)) {
         throw new TypeError(
@@ -1142,7 +1154,7 @@ export class EgoseFactoryStatic {
 
     this.assertNoDuplicateScalarHooks(instance, registrations);
 
-    return { hooks: registrations };
+    return { hooks: registrations, properties };
   }
 
   private getMethodParamMetadataFromOwner(

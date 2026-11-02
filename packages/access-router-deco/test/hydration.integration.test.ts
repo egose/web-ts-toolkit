@@ -5,7 +5,7 @@ import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { permissionsPlugin } from '@web-ts-toolkit/access-router';
 import type { HydrationMode, ModelHydrationOptions } from '@web-ts-toolkit/access-router';
-import type { ModelHookContext, ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+import type { ModelHookContext, ModelOutputContext, ModelRequest } from '@web-ts-toolkit/access-router/advanced';
 import {
   AfterDelete,
   AfterPersist,
@@ -102,7 +102,7 @@ async function fixture(mode: HydrationMode, scope: Scope = 'router', plugin = fa
   const events: Array<{
     family: string;
     doc: any;
-    ctx: ModelHookContext;
+    ctx: ModelHookContext | ModelOutputContext;
     req: ModelRequest;
     perms: any;
     self: object;
@@ -113,9 +113,18 @@ async function fixture(mode: HydrationMode, scope: Scope = 'router', plugin = fa
     hydration = { ...allModes(mode), publicRead: opposite(mode) };
     readMode = mode;
 
-    record(family: string, doc: any, perms: any, ctx: ModelHookContext, req: ModelRequest) {
+    record(family: string, doc: any, perms: any, ctx: ModelHookContext | ModelOutputContext, req: ModelRequest) {
       expect(this).toBeInstanceOf(ItemRouter);
-      expect(ctx).toMatchObject({ modelName: name, mongooseModel: Item });
+      expect(ctx.modelName).toBe(name);
+      if (['permissions', 'decorate', 'decorateAll'].includes(family)) {
+        expect(Object.isFrozen(ctx)).toBe(true);
+        for (const key of ['mongooseModel', 'originalDocumentSnapshot', 'finalDocumentSnapshot', 'currentDocument'])
+          expect(ctx).not.toHaveProperty(key);
+        expect(ctx.resolvedQuery).not.toHaveProperty('filter');
+      } else {
+        expect(ctx).toHaveProperty('mongooseModel', Item);
+        expect(Object.isFrozen(ctx)).toBe(false);
+      }
       expect(typeof ctx.operation).toBe('string');
       expect(typeof perms.has).toBe('function');
       expect(req.macl).toBeDefined();
@@ -124,7 +133,7 @@ async function fixture(mode: HydrationMode, scope: Scope = 'router', plugin = fa
       expect(ctx.resolvedQuery).not.toHaveProperty('lean');
       if (live.has(family)) {
         expect(doc).toBeInstanceOf(mongoose.Document);
-        expect(ctx.currentDocument).toBe(doc);
+        expect((ctx as ModelHookContext).currentDocument).toBe(doc);
         expect(typeof doc.save).toBe('function');
       } else {
         for (const row of Array.isArray(doc) ? doc : [doc]) expect(row).not.toBeInstanceOf(mongoose.Document);
@@ -132,16 +141,16 @@ async function fixture(mode: HydrationMode, scope: Scope = 'router', plugin = fa
       events.push({ family, doc, perms, ctx, req, self: this });
     }
 
-    grants(doc: Row, perms: any, ctx: ModelHookContext, req: ModelRequest) {
+    grants(doc: Row, perms: any, ctx: ModelOutputContext, req: ModelRequest) {
       this.record('permissions', doc, perms, ctx, req);
       return { visible: doc.secret === 'private', privateGrant: true };
     }
-    decorate(doc: Row, perms: any, ctx: ModelHookContext, req: ModelRequest) {
+    decorate(doc: Row, perms: any, ctx: ModelOutputContext, req: ModelRequest) {
       this.record('decorate', doc, perms, ctx, req);
       expect(doc).not.toHaveProperty('secret');
       return doc;
     }
-    decorateAll(doc: Row[], perms: any, ctx: ModelHookContext, req: ModelRequest) {
+    decorateAll(doc: Row[], perms: any, ctx: ModelOutputContext, req: ModelRequest) {
       this.record('decorateAll', doc, perms, ctx, req);
       return doc;
     }
@@ -323,15 +332,15 @@ describe.each(modes)('HYD-05 bootstrapped %s configuration', (mode) => {
       expect(grants.doc).toMatchObject({ secret: 'private' });
       expect(grants.req).toBe(req);
       expect(f.events.every((event) => event.self === grants.self && event.req === req)).toBe(true);
-      // Output context is a pruned view, not the private permissions-stage object.
+      // Immutable diagnostics retain internal facts; exposed metadata is a separate DATA subset.
       expect(f.events[1].ctx).toMatchObject({
         modelName: f.name,
-        mongooseModel: f.Item,
         operation: 'read',
-        originalDocumentSnapshot: grants.ctx.originalDocumentSnapshot,
-        docPermissions: { visible: true },
+        docPermissions: { visible: true, privateGrant: true },
       });
-      expect(f.events[1].ctx.docPermissions).not.toHaveProperty('privateGrant');
+      expect(grants.ctx.docPermissions).toEqual({});
+      expect(Object.isFrozen(f.events[1].ctx.docPermissions)).toBe(true);
+      expect(f.events[2].ctx.docPermissions).toEqual({});
       // Each stage captures permissions; the adapter preserves that stage's signature.
       expect(f.events[1].perms).toStrictEqual(grants.perms);
       f.factory.runtime.setModelOption(f.name, 'stripPermissionsField', true);

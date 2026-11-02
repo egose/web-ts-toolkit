@@ -9,6 +9,11 @@ final-build timings pass; all eight tasks are complete and no known blocker or
 required verification remains. Nothing was committed or published. Historical
 failures/results below are preserved, not claims about the final artifact.
 
+Recommended future breaking redesign:
+[owned authorization and consumer migration](20261031-153020-access-router-owned-authorization-redesign.md).
+That separate pending phase may replace flags, grant values and retained handles;
+it does not reopen this completed delivery or claim those changes are implemented.
+
 ## Objective and authorization
 
 Implement two independent, default-false server model/default-model options:

@@ -227,6 +227,58 @@ describe('access-router-deco documentation examples', () => {
     },
   );
 
+  it.each(['mts', 'cts'] as const)(
+    'OAR-08 runs the exact shipped owned-authorization module (%s)',
+    async (extension) => {
+      const readme = readFileSync(path.join(packageRoot, 'README.md'), 'utf8');
+      const source = readme.match(/<!-- doc-example: owned-authorization -->\s*```ts\n([\s\S]*?)\n```/)?.[1];
+      if (!source) throw new Error('Missing executable owned-authorization module');
+      expect(source).not.toMatch(/@ts-(?:ignore|expect-error)|\bas\s+(?:any|unknown)\b|access-router\/(?:src|dist)\//);
+      const basename = `owned-authorization.${extension}`;
+      writeFileSync(path.join(consumerDir, basename), source);
+      const config = path.join(consumerDir, `${basename}.json`);
+      writeFileSync(
+        config,
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'NodeNext',
+            moduleResolution: 'NodeNext',
+            strict: true,
+            noEmitOnError: true,
+            skipLibCheck: false,
+            experimentalDecorators: true,
+            esModuleInterop: true,
+            types: ['node', 'reflect-metadata'],
+            lib: ['ES2022', 'DOM'],
+          },
+          files: [basename],
+        }),
+      );
+      const compiled = runTsc(consumerDir, config);
+      if (compiled.status !== 0)
+        throw new Error(`Owned deco module compile failed:\n${compiled.stdout}${compiled.stderr}`);
+      const runner = path.join(consumerDir, 'owned-authorization.runner.mjs');
+      writeFileSync(
+        runner,
+        readFileSync(path.join(packageRoot, 'test/owned-authorization.documentation.runtime.fixture.mjs')),
+      );
+      const { stdout } = await execute(
+        process.execPath,
+        [runner, path.join(consumerDir, `owned-authorization.${extension === 'mts' ? 'mjs' : 'cjs'}`)],
+        { cwd: consumerDir, encoding: 'utf8', timeout: 60_000, env: { ...process.env, MONGODB_URL: mongo.getUri() } },
+      );
+      expect(JSON.parse(stdout)).toEqual({
+        statuses: [200, 200, 200, 400],
+        reads: 3,
+        hooks: 3,
+        decorations: 3,
+        targetMode: 'isolated',
+      });
+    },
+    90_000,
+  );
+
   it('rejects returning document from typed validator at type-check time', () => {
     const sourceFile = path.resolve(consumerDir, 'validate-return-doc-fail.ts');
     const tsconfigPath = path.resolve(consumerDir, 'validate-return-doc-fail.tsconfig.json');
@@ -365,7 +417,7 @@ describe('access-router-deco documentation examples', () => {
       expect(dts).not.toMatch(/Actually wrapped via/);
       // supported result types still declared
       expect(dts).toMatch(/Filter \| true \| null \| undefined/);
-      expect(dts).toMatch(/MaybePromise<Record<string, unknown>>/);
+      expect(dts).toMatch(/DocumentGrants/);
     });
 
     it('README and website docs agree on effective semantics and flag prior guidance', () => {
