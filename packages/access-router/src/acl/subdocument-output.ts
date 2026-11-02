@@ -1,6 +1,6 @@
 /** Private dedicated output adapter; receives only captured, validated child output authority. */
 import type { Service } from '../services/service';
-import type { ModelHookContext, Populate, Projection } from '../interfaces';
+import type { Populate, Projection } from '../interfaces';
 import { createServiceExecution, getServiceExecutors, readServiceExecution } from './service-execution';
 import {
   getAuthorizationPermissions,
@@ -9,9 +9,12 @@ import {
   serviceAuthorizationInput,
 } from './service-authorization';
 import { planAuthorizedModelProjection } from './output-projection';
-import { resolveOutputDocumentAuthorization } from './output-field-filter';
+import { resolveOutputDocumentStage } from './output-field-filter';
 import { isolateDocForOutput } from '../helpers/document';
-import { transferDocumentAuthorizationGraph } from './document-authorization';
+import { copyDocumentView, documentStageSource, prepareQueryDocumentStage } from './document-stage';
+import { bindOutputPublication, createPublicationRowBudget, runOutputPublication } from './output-publication';
+import type { TrustedOutputBudget } from './trusted-output-materialization';
+import { createModelOutputContext } from '../output/model-output-context';
 import { finalizeModelOutputs } from '../output/finalize-model-output';
 import type { FinalizeSnapshot } from '../output/finalize-model-output';
 import { captureRelatedTargets } from './related-execution';
@@ -37,14 +40,28 @@ const populateExecutors = new WeakMap<
   {
     execute: (execution: SubdocumentOutputPlan['execution'], populate: Populate[]) => Promise<Populate[]>;
     core?: object;
+    finalize?: (
+      execution: SubdocumentOutputPlan['execution'],
+      rows: unknown[],
+      populate: Populate[],
+      budgets: readonly TrustedOutputBudget[],
+      references: Map<string, unknown>[],
+    ) => Promise<void>;
   }
 >();
 export function registerSubdocumentPopulateExecutor(
   service: object,
   execute: (execution: SubdocumentOutputPlan['execution'], populate: Populate[]) => Promise<Populate[]>,
   core?: object,
+  finalize?: (
+    execution: SubdocumentOutputPlan['execution'],
+    rows: unknown[],
+    populate: Populate[],
+    budgets: readonly TrustedOutputBudget[],
+    references: Map<string, unknown>[],
+  ) => Promise<void>,
 ): void {
-  populateExecutors.set(service, { execute, core });
+  populateExecutors.set(service, { execute, core, finalize });
 }
 export function prepareSubdocumentPopulate(service: object, prepared: SubdocumentOutputPlan): Promise<Populate[]> {
   return populateExecutors.get(service)!.execute(prepared.execution, prepared.populate);
@@ -110,6 +127,7 @@ export function prepareSubdocumentOutput<T, V extends object>(
     requestPermissions: getAuthorizationPermissions(state.authorization, state.binding),
   });
   const plan = planAuthorizedModelProjection({ authorization, binding, requestedSelect: select });
+  bindOutputPublication(authorization, state.publication);
   return { sub, execution, state, plan, populate: populate ?? [] };
 }
 
@@ -122,69 +140,78 @@ export async function finalizeSubdocumentRows<T, V extends object>(
 ): Promise<Record<string, unknown>[]> {
   if (!rows.length) return [];
   const { state, plan } = prepared;
-  const context: ModelHookContext = {
-    modelName: state.binding.modelName,
-    mongooseModel: state.binding.model as ModelHookContext['mongooseModel'],
-    operation: state.access.operation,
-  };
-  const owningDocument = await resolveOutputDocumentAuthorization({
-    authorization: state.authorization,
-    binding: state.binding,
-    snapshot: isolateDocForOutput(parent) as Record<string, unknown>,
-    context,
-  });
-  const localPopulate = childPopulate(prepared, populate);
-  const population = planVirtualPopulateQuery(plan, localPopulate);
-  let inputs = rows;
-  if (population.requiresCapture) {
-    // Parent hooks keep their raw owning-document input. Only visible children
-    // enter this collected batch; never populate persistence documents.
-    const runtime = state.binding.runtime as import('../runtime').AccessRuntime;
-    inputs = await loadVirtualPopulateOutputRows(
-      {
-        request: service.getServiceRequest(),
-        runtime,
-        family: state.family,
-        core: populateExecutors.get(service)?.core,
-        permissions: getAuthorizationPermissions(state.authorization, state.binding),
-        hydration: ['subCreate', 'subUpdate', 'subBulkUpdate'].includes(state.access.operation) ? 'lean' : 'hydrated',
-      },
-      rows,
-      plan,
-      population.publicPopulate,
-      [...plan.publicPersistedFetchSelection, ...localPopulate.map((entry) => entry.path)],
-      population.queryPopulate,
-      population.queryPopulate.length
-        ? (output) =>
-            getRequestWorkState(service.getServiceRequest(), runtime).scheduler.work(() =>
-              (state.binding.model as import('mongoose').Model<unknown>).populate(
-                { [prepared.sub]: output },
-                populate.filter((entry) =>
-                  population.queryPopulate.some((local) => entry.path === `${prepared.sub}.${local.path}`),
+  return runOutputPublication(state.publication, async () => {
+    const context = createModelOutputContext({ modelName: state.binding.modelName, ...state.access });
+    const parentStage = prepareQueryDocumentStage(state.authorization, state.binding, parent);
+    const owningDocument = await resolveOutputDocumentStage({
+      authorization: state.authorization,
+      binding: state.binding,
+      snapshot: documentStageSource(parentStage.stage, state.binding),
+      stage: parentStage.stage,
+      context,
+    });
+    const localPopulate = childPopulate(prepared, populate);
+    const rowBudgets = rows.map(() => createPublicationRowBudget(state.publication));
+    const rowReferences = rows.map(() => new Map<string, unknown>());
+    const population = planVirtualPopulateQuery(plan, localPopulate);
+    let inputs = rows;
+    if (population.requiresCapture) {
+      // Parent hooks keep their raw owning-document input. Only visible children
+      // enter this collected batch; never populate persistence documents.
+      const runtime = state.binding.runtime as import('../runtime').AccessRuntime;
+      inputs = await loadVirtualPopulateOutputRows(
+        {
+          request: service.getServiceRequest(),
+          runtime,
+          family: state.family,
+          core: populateExecutors.get(service)?.core,
+          permissions: getAuthorizationPermissions(state.authorization, state.binding),
+          hydration: ['subCreate', 'subUpdate', 'subBulkUpdate'].includes(state.access.operation) ? 'lean' : 'hydrated',
+        },
+        rows,
+        plan,
+        population.publicPopulate,
+        [...plan.publicPersistedFetchSelection, ...localPopulate.map((entry) => entry.path)],
+        population.queryPopulate,
+        population.queryPopulate.length
+          ? (output) =>
+              getRequestWorkState(service.getServiceRequest(), runtime).scheduler.work(() =>
+                (state.binding.model as import('mongoose').Model<unknown>).populate(
+                  { [prepared.sub]: output },
+                  populate.filter((entry) =>
+                    population.queryPopulate.some((local) => entry.path === `${prepared.sub}.${local.path}`),
+                  ),
                 ),
-              ),
-            )
-        : undefined,
-    );
-  }
-  if (populate.length)
-    await service.finalizePopulateForSubParent({ [prepared.sub]: inputs }, populate, state.access.operation);
-  return finalizeModelOutputs({
-    receivingModelName: state.binding.modelName,
-    inputs,
-    plan,
-    snapshot: readServiceAuthorization(state.authorization, state.binding).configuration as FinalizeSnapshot,
-    request: service.getServiceRequest(),
-    context,
-    ...state.access,
-    owningDocument,
-    owningBinding: state.binding,
+              )
+          : undefined,
+      );
+    }
+    if (populate.length)
+      await populateExecutors.get(service)!.finalize!(
+        prepared.execution,
+        inputs,
+        localPopulate,
+        rowBudgets,
+        rowReferences,
+      );
+    return finalizeModelOutputs({
+      receivingModelName: state.binding.modelName,
+      inputs,
+      plan,
+      snapshot: readServiceAuthorization(state.authorization, state.binding).configuration as FinalizeSnapshot,
+      request: service.getServiceRequest(),
+      context,
+      ...state.access,
+      owningDocument,
+      owningBinding: state.binding,
+      publication: state.publication,
+      rowBudgets,
+      rowReferences,
+    });
   });
 }
 
 /** Output copies preserve populated target handles without changing persistence documents. */
 export function copySubdocumentParent(parent: unknown): Record<string, unknown> {
-  const copy = isolateDocForOutput(parent) as Record<string, unknown>;
-  transferDocumentAuthorizationGraph(parent, copy);
-  return copy;
+  return copyDocumentView(isolateDocForOutput(parent)) as Record<string, unknown>;
 }

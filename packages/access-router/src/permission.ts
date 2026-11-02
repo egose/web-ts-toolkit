@@ -1,4 +1,5 @@
 import { hasOwn } from '@web-ts-toolkit/utils';
+import { markOwnedPermission } from './acl/owned-permissions';
 
 interface BooleanObject {
   [key: string]: boolean;
@@ -10,16 +11,24 @@ type AccessRouterPermissionKey = Extract<keyof AccessRouterPermissionMap, string
 type PermissionName = AccessRouterPermissionKey | (string & {});
 
 class Permission {
-  private readonly permissions: BooleanObject;
-  private readonly permissionKeys: string[];
+  readonly #permissions: Readonly<BooleanObject>;
+  readonly #permissionKeys: readonly string[];
 
   constructor(permissions: BooleanObject) {
-    this.permissions = { ...permissions };
-    this.permissionKeys = Object.keys(this.permissions);
+    const owned = Object.create(null) as BooleanObject;
+    for (const key of Object.keys(permissions)) {
+      Object.defineProperty(owned, key, { value: permissions[key] === true, enumerable: true });
+    }
+    this.#permissions = Object.freeze(owned);
+    this.#permissionKeys = Object.freeze(Object.keys(owned));
+    Object.freeze(this);
+    // instanceof/freeze would also admit subclasses with live overridden reads.
+    // Only exact instances own exclusively private boolean data and frozen keys.
+    if (new.target === Permission) markOwnedPermission(this);
   }
 
   get keys(): readonly string[] {
-    return this.permissionKeys;
+    return this.#permissionKeys;
   }
 
   private normalizePermissionArgs(
@@ -34,11 +43,11 @@ class Permission {
   }
 
   hasKey(permission: PermissionName) {
-    return hasOwn(this.permissions, permission);
+    return hasOwn(this.#permissions, permission);
   }
 
   has(permission: PermissionName) {
-    return this.permissions[permission] === true;
+    return this.#permissions[permission] === true;
   }
 
   hasAny(permissionOrPermissions: PermissionName | readonly PermissionName[], ...permissions: PermissionName[]) {

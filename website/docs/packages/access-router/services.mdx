@@ -42,7 +42,7 @@ no recursive `subdocuments` tree on model-root authorization.
 All authorization input is **trusted server-only**. Use `router.getService(req)` or
 `req.macl.getService(...)` after the owning runtime's middleware initializes the request.
 There is no standalone `Service` export. Root and `/advanced` expose the policy types
-and opaque consumer handles, while issuers, resolved execution and prepared queries
+and immutable diagnostic contexts, while stage owners, resolved execution and prepared queries
 remain private. The installed package README contains a complete runnable Mongo/Express
 example and the full breaking-release migration table.
 
@@ -71,9 +71,10 @@ const result = await service.findOne(
   },
 );
 if (result.success) {
-  const reuse = { documentAuthorization: result.context.documentAuthorization };
-  const picked = await service.pickAllowedFields(result.data, 'read', reuse);
-  await service.trimOutputFields(picked, 'read', reuse);
+  console.log({ internalNote: result.data.internalNote }); // already-filtered presentation DATA
+  const current = await service.findById(orderId, { select: ['status', 'internalNote'] });
+  if (!current.success) throw new Error(`Refresh failed: ${current.code}`);
+  console.log(current.data); // fresh normal row/document authorization, extra read/hook
 }
 ```
 
@@ -233,22 +234,15 @@ hook inputs (for example `ownerId`) with `alwaysSelectFields`; full document gra
 once even with skim or disabled/stripped/limited metadata. `_view`/`_edit` and hook metadata
 still describe request permissions, not backend grants.
 
-Successful single results expose `context.documentAuthorization`; lists/create expose one
-`contexts[index]` per row. The non-enumerable opaque handle is outside `data` and preserves
-owner-dependent `status` and a granted note after `ownerId` and `_permissions` are trimmed.
-Default/copied handles accept only unchanged original or package-created same-stage copies, not caller spreads,
-matching IDs, another row/call, or pre-/post-write stage reuse. `getDocumentAuthorization(child)`
-looks up an unchanged registered child in the original result graph.
-
-With an actually active unsafe READ/LIST authorization fast path, trusted handles
-instead require exact associated roots and issued-document membership, **not current
-descendant integrity**. Removed original children may remain discoverable; replacements
-get no child handle. Root helpers can filter changed descendants with stale memo/shared
-grants after rollback, while fresh raw helpers stay strict. Diagnostic context/grant
-leaves may be borrowed, not detached snapshots. See
-[configuration](./configuration.mdx#experimental-unsafe-readlist-authorization-fast-paths)
-and the shipped README before opting in; source/grant mutation or changed native
-observations can turn denial into allowance.
+Successful single results expose frozen diagnostic `context`; lists/create expose
+aligned `contexts[index]`. DTOs, copies and metadata are DATA, not reusable authority.
+DocumentAuthorization, the helper option and child lookup are removed entirely.
+Raw helpers evaluate globals + frozen empty facts and explicit scoped output policy,
+with zero database operations/document hooks, no rows/virtuals/omitted-value recovery.
+For current document-dependent authorization issue a new normal read/list; do not
+replace a handle with unrestricted/client grants. For presentation use the filtered
+DTO without a query or claim of current checks. See the shipped
+[migration guide](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md).
 
 Named `pickAllowedFields`/`trimOutputFields` and `genAllowedFields(..., { purpose: 'output', ... })`
 accept either raw **output-only** authorization or the handle, never both. Raw policy is a

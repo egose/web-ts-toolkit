@@ -46,6 +46,7 @@ import {
   resolveInputDocumentGrants,
 } from '../acl/model-input-admission';
 import { ServiceAuthorizationError } from '../acl/service-authorization';
+import { EMPTY_DOCUMENT_GRANTS } from '../acl/document-grants';
 import { intersectFilters } from '../core-shared';
 import { isExecutionRowDenied } from '../acl/prepared-query';
 import { getServiceExecutors } from '../acl/service-execution';
@@ -106,7 +107,7 @@ async function inputAdmission<T, V extends object>(service: Service<T, V>, call:
   const state = subdocumentInputPolicy(service, call);
   const grants =
     call.method === 'create'
-      ? {}
+      ? EMPTY_DOCUMENT_GRANTS
       : await resolveInputDocumentGrants({
           ...state,
           doc: parent,
@@ -171,8 +172,10 @@ async function visibleMutationRows<T, V extends object>(
     if (read === false || list === false) return [];
     const visible = filterCollection(get(parent, call.sub) as Record<string, unknown>[], intersectFilters(read, list));
     return await finalizeSubdocumentRows(service, call.output!, parent, visible);
-  } catch {
-    // No retry and no raw-data fallback, including when a post-save hook fails.
+  } catch (error) {
+    // Admission poison is a controlled 400 even AFTER save. No rollback/retry.
+    if (error instanceof ServiceAuthorizationError) throw error;
+    // No retry and no raw-data fallback for ordinary visibility failures.
     return [];
   }
 }

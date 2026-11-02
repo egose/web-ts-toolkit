@@ -70,7 +70,9 @@ describe('ARL-07 captured request/runtime hook ownership', () => {
     expect(result[1]).toMatchObject({ success: true, data: [{ key: 'data-0' }] });
     expect(result[6]).toMatchObject({ success: true, data: [{ key: 'data-1' }] });
     expect(probes.map((probe) => probe.peak)).toEqual([1, 2]);
-    expect(probes.map((probe) => probe.calls.length)).toEqual([7, 7]);
+    // Raw helpers evaluate empty facts without resolving a document hook.
+    expect(probes.map((probe) => probe.calls.length)).toEqual([6, 6]);
+    expect(probes.map((probe) => probe.calls.filter((call) => call === 'grant').length)).toEqual([1, 1]);
   });
 
   it('keeps same-request runtimes and separate requests independent under ambient/config changes', async () => {
@@ -186,12 +188,13 @@ describe('ARL-07 captured request/runtime hook ownership', () => {
         data.decorateAll('data', [{ key: 'data' }], 'list'),
       ]);
     });
-    expect(values[0]).toMatchObject({ key: 'value' });
+    expect(values[0]).not.toHaveProperty('key');
     expect(values[0]).not.toHaveProperty('secret');
     expect(values[1]).toEqual({ visible: true });
     expect(values[3]).toEqual({ key: 'value' });
     expect(values[4]).toEqual(['key']);
-    expect(probe.calls).toHaveLength(7);
+    expect(probe.calls).toHaveLength(6);
+    expect(probe.calls.filter((call) => call === 'grant')).toHaveLength(1);
     expect(probe.peak).toBe(2);
     expect(probe.active).toBe(0);
   });

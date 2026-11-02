@@ -105,13 +105,13 @@ describe('ARCPU-04 narrow execution capture reads', () => {
     expect(derived.family).toBe(state.family);
     expect(derived.authorization).not.toBe(state.authorization);
     expect(full).toHaveBeenCalledTimes(1);
-    expect(clone).toHaveBeenCalledTimes(512 + 768);
+    expect(clone).toHaveBeenCalledTimes(512); // Derivation owns its changed policy; captured configuration is shared privately.
     clone.mockClear();
     authorization.readServiceAuthorization(derived.authorization, derived.binding);
-    expect(clone).toHaveBeenCalledTimes(512); // Full reads still detach every unrelated native leaf.
+    expect(clone).not.toHaveBeenCalled(); // Private reads never expose/copy the whole captured graph.
   });
 
-  it('detaches open hydration configuration, including native extensions, on every authenticated read', () => {
+  it('owns hydration configuration once and reuses it only on authenticated private reads', () => {
     const f = fixture();
     const native = {
       when: new Date(10),
@@ -133,19 +133,19 @@ describe('ARCPU-04 narrow execution capture reads', () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.getOwnPropertyDescriptor(first, 'find')).toMatchObject({ value: 'lean', writable: false });
     expect(first.native).not.toBe(native);
-    first.native.when.setTime(99);
-    first.native.bytes[0] = 9;
-    first.native.id.id = Buffer.alloc(12);
-    first.native.decimal.bytes[0] ^= 255;
-    first.native.long.low = 99;
-    first.native.map.get('when')!.setTime(99);
-    [...first.native.set][0].setTime(99);
-    first.native.pattern.lastIndex = 99;
+    native.when.setTime(99);
+    native.bytes[0] = 9;
+    native.id.id = Buffer.alloc(12);
+    native.decimal.bytes[0] ^= 255;
+    native.long.low = 99;
+    native.map.get('when')!.setTime(99);
+    [...native.set][0].setTime(99);
+    native.pattern.lastIndex = 99;
     const next = read();
-    expect(next).not.toBe(first);
+    expect(next).toBe(first);
     expect(next.native.when.getTime()).toBe(10);
     expect(next.native.bytes[0]).toBe(1);
-    expect(next.native.id.equals(native.id)).toBe(true);
+    expect(next.native.id.equals(native.id)).toBe(false);
     expect(next.native.decimal.toString()).toBe('1.2');
     expect(next.native.long.toNumber()).toBe(4);
     expect(next.native.map.get('when')!.getTime()).toBe(20);

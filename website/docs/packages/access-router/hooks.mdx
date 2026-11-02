@@ -83,7 +83,7 @@ Use these for audit logs, cache invalidation, and external side effects.
 
 ### `docPermissions`
 
-Return full request-user document grants from the untrimmed **projected** input. Declare
+Return a plain record of literal-boolean `DocumentGrants` from untrimmed **projected** input. Declare
 additional persisted inputs with `alwaysSelectFields` (for example ownerId); the hook does
 not implicitly fetch all stored fields. Integrated output resolves it once per document/
 scope/access stage independently of skim and permission metadata switches. Pre-write and
@@ -91,9 +91,23 @@ post-write output are distinct stages.
 
 Serialization on the configured permission field is separate: disabling/stripping/limiting
 metadata does not erase internal grants. Backend output grants do not forge request-user
-metadata. Later named output helpers reuse original decisions via the opaque result-context
-handle, even after ownerId and metadata trim; a fresh raw policy is new evaluation, not
-document-state reuse. See [Services](./services#call-policy-and-document-result-reuse).
+metadata. Facts are normalized once into an owned frozen map in both source modes;
+rich/nested/native/accessor/proxy/protected/over-budget fulfilled values fail the whole
+operation with 400. Missing hooks yield empty facts; throwing/rejected hooks also emit a fixed-category warning.
+FieldPermissionHook receives `(permissions, facts)` and original-request `this`;
+operation guards remain one-argument. Raw helpers/data/new-input receive empty facts;
+existing-document input retains separate normalized pre-write facts.
+
+Doc/virtual/decorate contexts are frozen `ModelOutputContext`: model/receiving names,
+initiating operation, scope/effective accesses, boolean facts and optional canonical
+select/populate/sort arrays plus skip/limit, NO filter. No raw model/source/snapshot/
+lifecycle aliases or reusable handles. Genuine mutation `ModelHookContext` remains
+mutable. Isolated doc-hook views are disposable; trusted may borrow ordinary source
+only, never actor/policy/facts. Getter views/return staging/private input isolation
+remain in both modes; closures/external caches are not sandboxed or kept fresh.
+Raw output helpers have empty facts, zero reads/hooks and no current-document authority.
+See [Services](./services#call-policy-and-document-result-reuse) and the shipped
+[migration guide](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md).
 
 ### Private populated getter inputs
 

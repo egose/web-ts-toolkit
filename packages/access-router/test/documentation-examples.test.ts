@@ -5,6 +5,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { extractMigrationBlocks } from './migration-guide-fixture';
 
 const packageRoot = path.resolve(__dirname, '..');
 const workspaceRoot = path.resolve(packageRoot, '..', '..');
@@ -49,7 +50,7 @@ const stageConsumerDir = (): string => {
   mkdirSync(consumerModulesPkgRoot, { recursive: true });
   cpSync(path.resolve(packageRoot, 'dist'), path.resolve(consumerModulesPkgRoot, 'dist'), { recursive: true });
   cpSync(path.resolve(packageRoot, 'package.json'), path.resolve(consumerModulesPkgRoot, 'package.json'));
-  for (const file of ['README.md', 'llms.txt']) {
+  for (const file of ['README.md', 'MIGRATION.md', 'llms.txt']) {
     if (existsSync(path.resolve(packageRoot, file))) {
       cpSync(path.resolve(packageRoot, file), path.resolve(consumerModulesPkgRoot, file));
     }
@@ -203,7 +204,7 @@ const assembleAllBlocks = (): CompiledBlock[] => {
     if (!snippet)
       throw new Error(`${entry} is missing the installed DefaultModelRouterOptions populate-operation example`);
     blocks.push({ name: `DefaultModelRouterOptions-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
-    for (const option of ['unsafeUseListAuthorizationFastPath', 'unsafeUseReadAuthorizationFastPath']) {
+    for (const option of ['listAuthorizationMode', 'readAuthorizationMode']) {
       const mode = checker.getDeclaredTypeOfSymbol(symbol).getProperty(option)!;
       const example = mode.getJsDocTags(checker).find((tag) => tag.name === 'example');
       const snippet = ts.displayPartsToString(example?.text).match(/```ts\n([\s\S]*?)```/)?.[1];
@@ -211,6 +212,16 @@ const assembleAllBlocks = (): CompiledBlock[] => {
       blocks.push({ name: `${option}-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
     }
   }
+  const migration = extractMigrationBlocks(readFileSync(path.resolve(packageRoot, 'MIGRATION.md'), 'utf8'));
+  migration.forEach((block, index) => {
+    if (block.kind === 'expected-error') return; // compiled separately, required to reject in strict/packed suites
+    blocks.push({
+      name: `MIGRATION-block-${index + 1}`,
+      sourcePath: 'MIGRATION.md',
+      kind: block.kind,
+      snippet: block.source,
+    });
+  });
   return blocks;
 };
 
@@ -316,7 +327,7 @@ describe('documentation examples compile and complete workflows execute against 
               noUnusedLocals: true,
               noUnusedParameters: true,
               noEmit: true,
-              skipLibCheck: !block.snippet.includes('unsafeUse'),
+              skipLibCheck: false,
               types: ['node'],
               lib: ['ES2022', 'DOM'],
             },
@@ -359,7 +370,7 @@ describe('documentation examples compile and complete workflows execute against 
                 noUnusedLocals: false,
                 noUnusedParameters: false,
                 outDir,
-                skipLibCheck: !block.snippet.includes('unsafeUse'),
+                skipLibCheck: false,
                 types: ['node'],
                 lib: ['ES2022', 'DOM'],
               },

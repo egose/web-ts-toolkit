@@ -6,6 +6,7 @@ import { createAccessRuntime, permissionsPlugin } from '../dist/index.mjs';
 import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 import { quiet } from './service-authorization-fixture';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 let sequence = 0;
@@ -174,7 +175,7 @@ const emailGrant = { outputFields: { mode: 'grant' as const, paths: ['contacts.e
 
 describe.each([false, true])('SVA-07 embedded authorization (virtuals=%s)', (virtuals) => {
   it.each([false, true])(
-    'retains leaf grants, minimal arrays and copied handles (container=%s)',
+    'retains leaf grants and minimal arrays without copied authority (container=%s)',
     async (containerAllowed) => {
       const f = await fixture(virtuals, containerAllowed);
       await f.execute(async (req) => {
@@ -195,18 +196,17 @@ describe.each([false, true])('SVA-07 embedded authorization (virtuals=%s)', (vir
           expect(contacts[0].name).toBe('A');
         } else expect(contacts[0]).not.toHaveProperty('name');
         expect(result.data).not.toHaveProperty('ownerId');
-        const before = f.decision.mock.calls.length;
+        expectOutputContext(result.context, { docPermissions: { owner: true } });
         const picked = await service.pickAllowedFields(result.data, 'read', {
-          documentAuthorization: result.context.documentAuthorization,
+          authorization: emailGrant,
         });
-        const childHandle = result.context.getDocumentAuthorization(contacts[0]);
-        expect(childHandle).toBeDefined();
         const child = await service.trimOutputFields(picked.contacts[0], 'read', {
-          documentAuthorization: childHandle!,
+          scopePath: ['contacts'],
+          authorization: emailGrant,
         });
         expect(child.email).toBe('a@x');
         expect(child).not.toHaveProperty('ssn');
-        expect(f.decision).toHaveBeenCalledTimes(before);
+        expect(child).not.toHaveProperty('name');
         expect(f.parentHook).toHaveBeenCalledTimes(1);
         expect(f.getter).toHaveBeenCalledTimes(virtuals && containerAllowed ? 2 : 0);
         expect((await f.Parent.findById(f.parent._id).lean())!.contacts[0].ssn).toBe('private-a');
@@ -258,14 +258,14 @@ describe.each([false, true])('SVA-07 embedded authorization (virtuals=%s)', (vir
       expect(result.data.target.contacts[0]).not.toHaveProperty('ssn');
       expect(result.data.other.contacts[0]).not.toHaveProperty('email');
       expect(result.data.other.contacts[0]).not.toHaveProperty('name');
-      const copy = await service.pickAllowedFields(result.data, 'read', {
-        documentAuthorization: result.context.documentAuthorization,
+      const copy = await service.pickAllowedFields(result.data, 'read');
+      expectOutputContext(result.context);
+      // Raw reference helpers disclose IDs only, never reconstruct populated target authorization.
+      expect(copy.target).toEqual(f.target._id);
+      const child = await req.macl.getService(f.targetName).pickAllowedFields(result.data.target.contacts[0], 'read', {
+        scopePath: ['contacts'],
+        authorization: emailGrant,
       });
-      const handle = result.context.getDocumentAuthorization(result.data.target.contacts[0]);
-      expect(handle).toBeDefined();
-      const child = await req.macl
-        .getService(f.targetName)
-        .pickAllowedFields(copy.target.contacts[0], 'read', { documentAuthorization: handle! });
       expect(child.email).toBe('target@x');
       expect(f.targetHook).toHaveBeenCalledTimes(2);
       expect(f.parentHook).toHaveBeenCalledTimes(1);
@@ -306,7 +306,7 @@ describe.each([false, true])('SVA-07 embedded authorization (virtuals=%s)', (vir
       const target = result.data.contacts[0].friend;
       expect(Object.keys(target.contacts[0]).sort()).toEqual(['_id', 'email']);
       expect(target.contacts[0].email).toBe('target@x');
-      expect(result.context.getDocumentAuthorization(target.contacts[0])).toBeDefined();
+      expectOutputContext(result.context);
       expect(result.data.contacts[1].friend).toBeNull();
       expect(f.targetHook).toHaveBeenCalledTimes(1);
       expect(f.targetGetter).not.toHaveBeenCalled();
@@ -338,11 +338,13 @@ describe.each([false, true])('SVA-07 embedded authorization (virtuals=%s)', (vir
       const child = result.data.items[0].contacts[0];
       expect(child).toMatchObject({ email: 'target@x', name: 'target-name' });
       expect(child).not.toHaveProperty('ssn');
-      const handle = result.context.getDocumentAuthorization(child);
-      expect(handle).toBeDefined();
-      expect(
-        await req.macl.getService(f.targetName).pickAllowedFields(child, 'list', { documentAuthorization: handle! }),
-      ).toMatchObject({ email: 'target@x', name: 'target-name' });
+      expectOutputContext(result.context);
+      const picked = await req.macl.getService(f.targetName).pickAllowedFields(child, 'list', {
+        scopePath: ['contacts'],
+        authorization: emailGrant,
+      });
+      expect(picked).toHaveProperty('email', 'target@x');
+      expect(picked).not.toHaveProperty('name');
       expect(f.targetHook).toHaveBeenCalledTimes(1);
       expect(f.targetGetter).toHaveBeenCalledTimes(virtuals ? 1 : 0);
     });

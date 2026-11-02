@@ -5,16 +5,22 @@ import { RequestConcurrencyScheduler } from '../src/helpers/concurrency.ts';
 import Model, { admitModelPersistence, type ModelAdapter } from '../src/model.ts';
 import { AccessRuntime } from '../src/runtime.ts';
 import { setGlobalOptions } from '../src/options/index.ts';
-import { Base } from '../src/services/base.ts';
+import { Base, VIRT_ASSOCIATION_VALUES } from '../src/services/base.ts';
 import { Service } from '../src/services/service.ts';
 import { registerServiceExecutors } from '../src/acl/service-execution';
 import Permission from '../src/permission';
+import { prepareIncludeOutput } from '../src/output/include-output';
+import { createTrustedOutputBudget } from '../src/acl/trusted-output-materialization';
 
 let modelCounter = 0;
 
 class TestBase extends Base {
   include(docs: unknown, include: unknown) {
-    return this.includeDocs(docs, include as never);
+    // Internal include helpers receive an explicit construction owner in real services.
+    const prepared = (Array.isArray(docs) ? docs : [docs]).map((doc) =>
+      prepareIncludeOutput(doc, undefined, undefined, createTrustedOutputBudget()),
+    );
+    return this.includeDocs(Array.isArray(docs) ? prepared : prepared[0], include as never);
   }
 
   parse<T>(value: T, scheduler?: RequestConcurrencyScheduler, scheduled?: boolean) {
@@ -312,19 +318,19 @@ describe('access-router internals', () => {
   it('indexes include list matches instead of rescanning target rows per source row', async () => {
     let targetForeignReads = 0;
     const targetRows = Array.from({ length: 20 }, (_, i) => {
-      const row: Record<string, unknown> = { title: `post-${i}` };
-      Object.defineProperty(row, 'ownerId', {
-        enumerable: true,
+      return { title: `post-${i}` };
+    });
+    const paired = targetRows.map((_row, i) => `u${i % 4}`);
+    for (let i = 0; i < paired.length; i++)
+      Object.defineProperty(paired, i, {
         get() {
-          targetForeignReads += 1;
+          targetForeignReads++;
           return `u${i % 4}`;
         },
       });
-      return row;
-    });
     const publicService = {
       genFilter: vi.fn().mockImplementation(async (_access: string, filter: unknown) => filter),
-      find: vi.fn().mockResolvedValue({ success: true, data: targetRows }),
+      find: vi.fn().mockResolvedValue({ success: true, data: targetRows, [VIRT_ASSOCIATION_VALUES]: paired }),
     };
     const req = {
       macl: {

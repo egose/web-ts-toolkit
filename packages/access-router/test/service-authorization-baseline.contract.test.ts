@@ -365,10 +365,10 @@ describe('SVA-00 baseline scenarios under the completed replacement contract', (
       expect(result.data).not.toHaveProperty('_permissions');
       expect(result.data).toHaveProperty('status', 'ready');
       expect(hook).toHaveBeenCalledTimes(1);
-      const picked = await service.pickAllowedFields(result.data, 'read', {
-        documentAuthorization: result.context.documentAuthorization,
-      });
-      expect(picked).toHaveProperty('status', 'ready');
+      expect(result.context.docPermissions).toEqual({ owner: true });
+      expect(result.context).not.toHaveProperty('documentAuthorization');
+      const picked = await service.pickAllowedFields(result.data, 'read');
+      expect(picked).not.toHaveProperty('status');
       expect(hook).toHaveBeenCalledTimes(1);
     });
   });

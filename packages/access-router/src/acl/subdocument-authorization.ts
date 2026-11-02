@@ -7,7 +7,11 @@ import { genSubPopulate, filterCollection } from '../helpers';
 import { deepIsolateValue } from '../helpers/document';
 import { evaluateRouteGuard, intersectFilters, resolveIdentifierFilter } from '../core-shared';
 import { validateRequestComplexity } from '../request-complexity';
-import { assertPublicAdmission, assertPublicDefaults } from '../validation/public-admission';
+import {
+  assertNoServerModelControls,
+  assertPublicAdmission,
+  assertPublicDefaults,
+} from '../validation/public-admission';
 import { isVirtualDbPath, stripSubVirtualKeysFromFilter, validateClientFilter } from '../services/base';
 import { authorizationError, authorizationRecord, copyAuthorizationValue } from './authorization-snapshot';
 import {
@@ -20,7 +24,7 @@ import { createServiceExecution, getServiceExecutors, readServiceExecution } fro
 import type { ServiceExecutionContext } from './service-execution';
 import { isExecutionRowDenied } from './prepared-query';
 import { isCatalogOutputPath, matchesCatalogPattern } from './field-catalog';
-import { getCapturedAuthorizationOption } from './model-output-planning';
+import { getCapturedAuthorizationOption, readCapturedAuthorizationOption } from './model-output-planning';
 import { prepareSubdocumentOutput } from './subdocument-output';
 
 type Method = 'list' | 'read' | 'create' | 'update' | 'bulkUpdate' | 'delete';
@@ -45,6 +49,7 @@ export function prepareSubdocumentCall<T, V extends object>(
   method: Method,
   options: unknown,
 ): SubdocumentCall {
+  assertNoServerModelControls(options, authorizationError);
   assertPublicDefaults(service.defaults);
   const original = options === undefined ? {} : authorizationRecord(options, 'subdocument options');
   // Inspect inherited/non-enumerable controls before positively excluding the one internal slot.
@@ -247,8 +252,8 @@ export async function subdocumentGateAllowed<T, V extends object>(
   let guard: unknown;
   if (access.startsWith('subs.')) {
     const [, sub, op] = access.split('.');
-    guard = get(configuration, `operationAccess.${access}`);
-    if (guard === undefined) guard = get(configuration, `operationAccess.subs.${sub}`);
+    guard = readCapturedAuthorizationOption(configuration, `operationAccess.${access}`);
+    if (guard === undefined) guard = readCapturedAuthorizationOption(configuration, `operationAccess.subs.${sub}`);
     if (guard === undefined) guard = getCapturedAuthorizationOption(configuration, `operationAccess.${op}`);
   } else guard = getCapturedAuthorizationOption(configuration, `operationAccess.${access}`);
   return evaluateRouteGuard(

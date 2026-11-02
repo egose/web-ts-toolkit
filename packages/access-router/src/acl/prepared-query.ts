@@ -19,6 +19,14 @@ import { deepIsolateValue } from '../helpers/document';
 import { authorizationError, copyAuthorizationValue } from './authorization-snapshot';
 import { readServiceAuthorization } from './service-authorization';
 import { getServiceExecutors, readServiceExecution } from './service-execution';
+import {
+  assertOutputPublication,
+  failOutputPublication,
+  runOutputPublication,
+  trackPublicationWork,
+} from './output-publication';
+import { getRequestWorkState } from '../helpers/request-work';
+import type { AccessRuntime } from '../runtime';
 import type { PreparedModelQuery, ResolvedIdentifier, QueryInput, ServiceExecutionContext } from './service-execution';
 export type { PreparedModelQuery, ResolvedIdentifier, QueryInput } from './service-execution';
 
@@ -95,10 +103,12 @@ export async function prepareModelQuery<T, V extends object>(
   if (!earlyDenied) {
     registered.validate(original, input.kind === 'expanded');
     parsed =
-      input.kind === 'client-read' ? await registered.parse(deepIsolateValue(original)) : deepIsolateValue(original);
+      input.kind === 'client-read'
+        ? await trackPublicationWork(state.publication, registered.parse(deepIsolateValue(original)))
+        : deepIsolateValue(original);
     // Validation after expansion measures operand budgets without interpreting marker-shaped values.
     if (input.kind === 'client-read') registered.validate(parsed, true);
-    parts = await registered.authorize(execution, deepIsolateValue(parsed));
+    parts = await trackPublicationWork(state.publication, registered.authorize(execution, deepIsolateValue(parsed)));
   }
   // Virtual stripping applies to ordinary query input only. Never discard a mandatory scope/join.
   const filter =
@@ -138,6 +148,45 @@ const denied = () => ({
 });
 type Decorator = ServiceOutputDecorator;
 
+async function outputOperation<T, V extends object, TResult>(
+  receiver: Service<T, V>,
+  execution: ServiceExecutionContext,
+  work: () => Promise<TResult>,
+): Promise<TResult> {
+  const { publication, ownsPublication } = readServiceExecution(receiver, execution);
+  if (ownsPublication) return runOutputPublication(publication, work);
+  assertOutputPublication(publication);
+  try {
+    return await trackPublicationWork(publication, work());
+  } catch (error) {
+    failOutputPublication(publication, error);
+    throw error;
+  }
+}
+
+async function decorateResult<T, V extends object, TResult>(
+  receiver: Service<T, V>,
+  execution: ServiceExecutionContext,
+  result: TResult,
+  decorate?: Decorator,
+): Promise<TResult> {
+  if (!decorate) return result;
+  const value = result as
+    | import('../interfaces').AuthorizedSingleResult
+    | import('../interfaces').AuthorizedListResult
+    | import('../interfaces').ErrorResult;
+  if (!value.success) return result;
+  const { binding } = readServiceExecution(receiver, execution);
+  const gate = getRequestWorkState(binding.request, binding.runtime as AccessRuntime).hookGate;
+  if (value.kind === 'single')
+    return { ...value, data: await gate.run(() => decorate(value.data, value.context)) } as TResult;
+  const data = await getRequestWorkState(binding.request, binding.runtime as AccessRuntime).scheduler.map(
+    value.data,
+    (row, index) => gate.run(() => decorate(row, value.contexts[index])),
+  );
+  return { ...value, data } as TResult;
+}
+
 export async function executePreparedFindOne<T, V extends object>(
   receiver: Service<T, V>,
   execution: ServiceExecutionContext,
@@ -150,7 +199,9 @@ export async function executePreparedFindOne<T, V extends object>(
   if (access !== 'read' && access !== 'list') authorizationError('findOne row access mismatch');
   return filter === false
     ? denied()
-    : getServiceExecutors(receiver).findOne(execution, filter, args, { ...options, access });
+    : outputOperation(receiver, execution, () =>
+        getServiceExecutors(receiver).findOne(execution, filter, args, { ...options, access }),
+      );
 }
 export async function executePreparedFind<T, V extends object>(
   receiver: Service<T, V>,
@@ -163,9 +214,12 @@ export async function executePreparedFind<T, V extends object>(
   const { filter } = readPreparedModelQuery(receiver, execution, query);
   if (readServiceExecution(receiver, execution).access.rowAccess !== 'list')
     authorizationError('find row access mismatch');
-  return filter === false
+  const result = await (filter === false
     ? denied()
-    : getServiceExecutors(receiver).find(execution, query, filter, args, options, decorate);
+    : outputOperation(receiver, execution, () =>
+        getServiceExecutors(receiver).find(execution, query, filter, args, options),
+      ));
+  return decorateResult(receiver, execution, result, decorate);
 }
 export async function executePreparedUpdateOne<T, V extends object>(
   receiver: Service<T, V>,
@@ -179,9 +233,12 @@ export async function executePreparedUpdateOne<T, V extends object>(
   const { filter } = readPreparedModelQuery(receiver, execution, query);
   if (readServiceExecution(receiver, execution).access.rowAccess !== 'update')
     authorizationError('update row access mismatch');
-  return filter === false
+  const result = await (filter === false
     ? denied()
-    : getServiceExecutors(receiver).updateOne(execution, filter, data, args, options, decorate);
+    : outputOperation(receiver, execution, () =>
+        getServiceExecutors(receiver).updateOne(execution, filter, data, args, options),
+      ));
+  return decorateResult(receiver, execution, result, decorate);
 }
 export async function executeCreate<T, V extends object>(
   receiver: Service<T, V>,
@@ -194,7 +251,10 @@ export async function executeCreate<T, V extends object>(
   const state = readServiceExecution(receiver, execution);
   if (state.access.rowAccess || state.access.virtualAccess !== 'create')
     authorizationError('create execution access mismatch');
-  return getServiceExecutors(receiver).create(execution, data, args, options, decorate);
+  const result = await outputOperation(receiver, execution, () =>
+    getServiceExecutors(receiver).create(execution, data, args, options),
+  );
+  return decorateResult(receiver, execution, result, decorate);
 }
 export async function executePreparedExists<T, V extends object>(
   receiver: Service<T, V>,

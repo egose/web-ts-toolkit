@@ -1,414 +1,256 @@
-import mongoose, { mongo } from 'mongoose';
+import mongoose from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import Permission from '../src/permission';
-import { AccessRuntime } from '../src/runtime';
-import type { ModelHookContext } from '../src/interfaces';
-import type { AccessRouterRequest } from '../src/interfaces/request';
-import type { ServiceOutputContext } from '../src/interfaces/service-authorization';
-import type { AuthorizationConfiguration } from '../src/acl/service-authorization';
-import * as serviceAuthorization from '../src/acl/service-authorization';
-import * as modelOutputPlanning from '../src/acl/model-output-planning';
-import * as documentHelpers from '../src/helpers/document';
-import { readDocumentAuthorization } from '../src/acl/document-authorization';
+import type { ModelOutputContext } from '../src/interfaces';
+import { getCapturedAuthorizationOption } from '../src/acl/model-output-planning';
+import * as calls from '../src/acl/service-authorization';
+import * as planning from '../src/acl/model-output-planning';
 import { planAuthorizedModelProjection } from '../src/acl/output-projection';
-import { planVirtualProjection } from '../src/acl/virtual-projection';
-import { finalizeModelOutput, finalizeModelOutputs, type FinalizeSnapshot } from '../src/output/finalize-model-output';
+import { finalizeModelOutput, finalizeModelOutputs } from '../src/output/finalize-model-output';
+import { ownedStageFixture, sourceModes, stageAccess } from './owned-stage-test-fixture';
 
-const access = { operation: 'read', virtualAccess: 'read', outputAccess: 'read', docPermissionsAccess: 'read' };
+afterEach(() => vi.restoreAllMocks());
 
-function fixture(configuration: AuthorizationConfiguration, requestedSelect = ['-_id'], effectiveAccess = access) {
-  const binding = {
-    request: {} as AccessRouterRequest,
-    runtime: new AccessRuntime(),
-    model: {},
-    modelName: 'Order',
-  };
-  binding.runtime.setGlobalOptions({ requestComplexity: { maxHookConcurrency: 1 } });
-  const authorization = serviceAuthorization.resolveServiceAuthorization({
-    binding,
-    access: effectiveAccess,
-    configuration,
-    requestPermissions: new Permission({ reader: true }),
-  });
-  const plan = planAuthorizedModelProjection({ authorization, binding, requestedSelect });
-  const args = {
-    receivingModelName: 'Order',
-    request: binding.request,
-    plan,
-    snapshot: configuration as FinalizeSnapshot,
-    ...effectiveAccess,
-  };
-  return { binding, authorization, args };
-}
-
-afterEach(() => {
-  vi.restoreAllMocks();
-  mongoose.deleteModel(/^Arcpu03/);
-});
-
-describe('ARCPU-03 finalizer pass preparation', () => {
-  it.each(['none', 'inactive', 'missing', 'private'] as const)(
-    'does not copy a getter-only stable document when no getter can run: %s',
+describe('owned finalizer preparation and disposable callback boundaries', () => {
+  it.each(['none', 'inactive', 'missing'] as const)(
+    'does not run unavailable getters or retain stale virtual values: %s',
     async (kind) => {
-      const getter = vi.fn(() => 'unexpected');
-      const snapshot: FinalizeSnapshot = {
-        permissionSchema: { when: true, ...(kind === 'none' ? {} : { v: true }) },
-        virtuals:
-          kind === 'none'
-            ? {}
-            : kind === 'inactive'
-              ? { v: { update: getter } }
-              : {
-                  v: {
-                    get: getter,
-                    dependsOn: kind === 'missing' ? ['absent'] : [],
-                    ...(kind === 'private' ? { dependsOnPopulate: [{ path: 'customer' }] } : {}),
-                  },
-                },
-      } as FinalizeSnapshot;
-      const permissions = { has: () => false };
-      const plan = planVirtualProjection({
-        receivingModelName: 'Order',
-        snapshot,
-        ...access,
-        requestedSelect: ['when', 'v', '-_id'],
-        globalPermissions: permissions,
+      const get = vi.fn(() => 'unexpected');
+      const f = ownedStageFixture({
+        configuration: {
+          catalog: { paths: kind === 'none' ? ['when'] : ['when', 'v'], virtualPaths: kind === 'none' ? [] : ['v'] },
+          permissionSchema: kind === 'none' ? { when: true } : { when: true, v: true },
+          virtuals:
+            kind === 'none' ? {} : kind === 'inactive' ? { v: { update: get } } : { v: { get, dependsOn: ['absent'] } },
+        },
+        select: ['when', 'v', '-_id'],
       });
       const inputs = [1, 2, 3].map((time) => ({ when: new Date(time), v: 'stale' }));
-      const copies = vi.spyOn(Date.prototype, 'getTime');
-      const outputs = await finalizeModelOutputs({
-        receivingModelName: 'Order',
-        request: {} as AccessRouterRequest,
-        snapshot,
-        plan,
-        ...access,
-        inputs,
-        docPermissions: {},
-        globalPermissions: permissions,
-        concurrencyLimit: 1,
-      });
-      // Exactly one Date clone per row for output normalization. Previously the
-      // unused stableBase made this two, even with zero virtual candidates.
-      expect(copies).toHaveBeenCalledTimes(inputs.length);
-      expect(getter).not.toHaveBeenCalled();
-      expect(outputs).toEqual(inputs.map(({ when }) => ({ when })));
+      const output = await finalizeModelOutputs({ ...f.args, inputs });
+      expect(output).toEqual(inputs.map(({ when }) => ({ when })));
+      expect(get).not.toHaveBeenCalled();
       for (let index = 0; index < inputs.length; index++) {
-        expect(outputs[index].when).not.toBe(inputs[index].when);
+        expect(output[index].when).not.toBe(inputs[index].when);
         expect(inputs[index].v).toBe('stale');
       }
     },
   );
 
-  it.each([1, 6])('resolves the captured document hook once per pass for %s rows, not per row', async (rows) => {
-    const hook = vi.fn((doc) => ({ owner: doc.value }));
-    const f = fixture({
-      catalog: { paths: ['value'] },
-      permissionSchema: { value: true },
-      docPermissions: { default: hook },
-      stripPermissionsField: true,
-    });
-    const read = vi.spyOn(serviceAuthorization, 'readServiceFinalizerConfiguration');
-    const option = vi.spyOn(modelOutputPlanning, 'getCapturedAuthorizationOption');
-    const inputs = Array.from({ length: rows }, (_, value) => ({ value }));
-    expect(await finalizeModelOutputs({ ...f.args, inputs })).toEqual(inputs);
-    expect(read).toHaveBeenCalledTimes(1);
-    expect(option).toHaveBeenCalledTimes(1);
-    expect(hook).toHaveBeenCalledTimes(rows);
-    // A second invocation owns fresh preparation, even when reusing this plan.
-    expect(await finalizeModelOutputs({ ...f.args, inputs })).toEqual(inputs);
-    expect(read).toHaveBeenCalledTimes(2);
-    expect(option).toHaveBeenCalledTimes(2);
-    expect(hook).toHaveBeenCalledTimes(rows * 2);
-  });
-
-  it('keeps only the projected-stage and metadata document copies in an authenticated no-virtual list', async () => {
-    const f = fixture({
-      catalog: { paths: ['value', 'when'] },
-      permissionSchema: { value: true, when: true },
-      stripPermissionsField: true,
-    });
-    const inputs = [1, 2, 3].map((value) => ({ value, when: new Date(value) }));
-    const isolate = vi.spyOn(documentHelpers, 'deepIsolateValue');
-    const outputs = await finalizeModelOutputs({ ...f.args, inputs });
-    const fullDocumentCopies = isolate.mock.calls.filter(
-      ([value]) => value && typeof value === 'object' && 'value' in value && 'when' in value,
-    );
-    // Normalization owns its separate copy. Of the explicit finalizer copies,
-    // only the projected snapshot and metadata source remain: no stableBase.
-    expect(fullDocumentCopies).toHaveLength(inputs.length * 2);
-    expect(outputs).toEqual(inputs);
-    expect(f.args.plan.candidates).toEqual([]);
-  });
-
-  it('does not duplicate a large base-context snapshot for a single no-virtual invocation', async () => {
-    const f = fixture({ catalog: { paths: ['value'] }, permissionSchema: { value: true } });
-    const context = {
-      originalDocumentSnapshot: { dates: Array.from({ length: 128 }, (_, index) => new Date(index)) },
-    } as unknown as ModelHookContext;
-    const isolate = vi.spyOn(documentHelpers, 'deepIsolateValue');
-    expect(await finalizeModelOutput({ ...f.args, input: { value: 'yes' }, context })).toEqual({ value: 'yes' });
-    const contextCopies = isolate.mock.calls.filter(
-      ([value]) => value && typeof value === 'object' && 'originalDocumentSnapshot' in value,
-    );
-    expect(contextCopies).toHaveLength(1);
-    expect(context.originalDocumentSnapshot!.dates).toHaveLength(128);
-  });
-
-  it('does not clone an unused public configuration graph for default embedded traversal', async () => {
-    const configuration = {
-      catalog: { paths: ['children', 'children.value'], containerPaths: ['children'] },
-      permissionSchema: { children: { read: true, sub: { value: true } } },
-      defaults: { dates: Array.from({ length: 128 }, (_, index) => new Date(index)) },
-    };
-    const f = fixture(configuration);
-    const isolate = vi.spyOn(documentHelpers, 'deepIsolateValue');
-    const inputs = [1, 2].map((value) => ({ children: [{ value }] }));
-    expect(await finalizeModelOutputs({ ...f.args, inputs })).toEqual(inputs);
-    expect(isolate.mock.calls.filter(([value]) => value === configuration)).toHaveLength(0);
-  });
-
-  it('never hands private prepared configuration to traversal callbacks', async () => {
-    const keys = {
-      when: new Date(1),
-      includes(key: string) {
-        expect(this.when.getTime()).toBe(1);
-        return key === 'visible';
-      },
-    };
-    const configuration = {
-      catalog: { paths: ['children', 'children.value'], containerPaths: ['children'] },
-      permissionSchema: { children: { read: true, sub: { value: true } } },
-      exposedDocPermissionKeys: keys,
-    };
-    const f = fixture(configuration);
-    const inputs = [1, 2].map((value) => ({ children: [{ value }, { value }], _permissions: { visible: true } }));
-    const outputs = await finalizeModelOutputs({
-      ...f.args,
-      inputs,
-      traversal: {
-        finalizeEmbeddedChildren: async ({ rawValue, parentArgs }) => {
-          const snapshot = parentArgs.snapshot as typeof configuration;
-          // Legacy callback args retain the public snapshot; it must never be
-          // substituted with the hoisted private configuration used by metadata.
-          expect(snapshot).toBe(configuration);
-          snapshot.exposedDocPermissionKeys.when.setTime(99);
-          return rawValue;
-        },
-      },
-    });
-    expect(outputs).toEqual(inputs);
-    const captured = serviceAuthorization.readServiceAuthorization(f.authorization, f.binding).configuration;
-    expect((captured.exposedDocPermissionKeys as typeof keys).when.getTime()).toBe(1);
-  });
-
-  it.each(['read', 'custom.read'])(
-    'does not hoist mutable function properties along a hook lookup: %s',
-    async (docPermissionsAccess) => {
-      const allow = vi.fn(() => ({ owner: true }));
-      const deny = vi.fn(() => ({ owner: false }));
-      let next = allow;
-      const bare = () => ({});
-      const lookup = vi.fn(() => next);
-      Object.defineProperty(bare, 'read', { get: lookup });
-      const f = fixture(
-        {
+  it.each([1, 6])(
+    'captures a document hook once per call and invokes it once for each of %s row stages',
+    async (rows) => {
+      const hook = vi.fn((doc) => ({ owner: doc.value > 0 }));
+      const f = ownedStageFixture({
+        configuration: {
           catalog: { paths: ['value'] },
-          permissionSchema: { value: 'doc:owner' },
-          modelPermissionPrefix: 'doc:',
-          docPermissions: docPermissionsAccess === 'read' ? bare : { custom: bare },
-          stripPermissionsField: true,
-        },
-        ['-_id'],
-        { ...access, docPermissionsAccess },
-      );
-      const read = vi.spyOn(serviceAuthorization, 'readServiceFinalizerConfiguration');
-      const outputs = await finalizeModelOutputs({
-        ...f.args,
-        inputs: [{ value: 1 }, { value: 2 }],
-        onFinalized: () => {
-          next = deny;
+          permissionSchema: { value: true },
+          docPermissions: { default: hook },
         },
       });
-      expect(outputs).toEqual([{ value: 1 }, {}]);
+      const read = vi.spyOn(calls, 'readServiceFinalizerConfiguration');
+      const lookup = vi.spyOn(planning, 'getCapturedAuthorizationOption');
+      const inputs = Array.from({ length: rows }, (_, value) => ({ value }));
+      expect(await finalizeModelOutputs({ ...f.args, inputs })).toEqual(inputs);
       expect(read).toHaveBeenCalledTimes(1);
+      expect(lookup).toHaveBeenCalledTimes(1);
+      expect(hook).toHaveBeenCalledTimes(rows);
+      const nextCall = f.ownCall();
+      const plan = planAuthorizedModelProjection({
+        authorization: nextCall,
+        binding: f.binding,
+        requestedSelect: ['-_id'],
+      });
+      expect(await finalizeModelOutputs({ ...f.args, plan, inputs })).toEqual(inputs);
+      expect(read).toHaveBeenCalledTimes(2);
       expect(lookup).toHaveBeenCalledTimes(2);
-      expect(allow).toHaveBeenCalledTimes(1);
-      expect(deny).toHaveBeenCalledTimes(1);
+      expect(hook).toHaveBeenCalledTimes(rows * 2);
     },
   );
 
-  it('captures the getter view before candidate permission callbacks, not after their side effects', async () => {
-    let retained: Record<string, unknown> | undefined;
-    const permission = vi.fn(() => {
-      retained!.name = 'changed by authorization callback';
-      return true;
+  it('does not traverse unused lifecycle aliases or give callbacks a private configuration/native backing reference', async () => {
+    const forbidden = vi.fn(() => {
+      throw new Error('not an output diagnostic');
     });
-    const getter = vi.fn((doc) => doc.child.name);
-    const f = fixture({
-      catalog: { paths: ['child', 'child.name', 'v'], containerPaths: ['child'], virtualPaths: ['v'] },
-      permissionSchema: { child: { read: true, sub: { name: true } }, v: permission },
-      virtuals: { v: { get: getter, dependsOn: [] } },
-      stripPermissionsField: true,
-    });
-    const outputs = await finalizeModelOutputs({
-      ...f.args,
-      inputs: [{ child: { name: 'original' } }],
-      traversal: {
-        finalizeEmbeddedChildren: async ({ rawValue }) => {
-          retained = rawValue as Record<string, unknown>;
-          return rawValue;
+    const context = Object.defineProperties(
+      {},
+      Object.fromEntries(
+        [
+          'originalDocumentSnapshot',
+          'finalDocumentSnapshot',
+          'currentDocument',
+          'mongooseModel',
+          'changes',
+          'allowedData',
+        ].map((key) => [key, { get: forbidden }]),
+      ),
+    );
+    const hookContexts: ModelOutputContext[] = [];
+    const f = ownedStageFixture({
+      configuration: {
+        catalog: { paths: ['value'] },
+        permissionSchema: { value: true },
+        defaults: { unused: Array.from({ length: 128 }, (_, index) => new Date(index)) },
+        docPermissions: {
+          read: (_doc, _permissions, diagnostic: ModelOutputContext) => {
+            hookContexts.push(diagnostic);
+            return {};
+          },
         },
       },
     });
-    expect(outputs[0].v).toBe('original');
-    expect(permission).toHaveBeenCalledTimes(1);
-    expect(getter).toHaveBeenCalledTimes(1);
-  });
-
-  it('preserves no-virtual lean/hydrated selection, dotted metadata and custom aliases', async () => {
-    const model = mongoose.model(
-      'Arcpu03Hydrated',
-      new mongoose.Schema({
-        value: String,
-        hidden: String,
-        when: Date,
-        meta: { permissions: mongoose.Schema.Types.Mixed },
+    const observe = vi.spyOn(Date.prototype, 'getTime');
+    const contexts: ModelOutputContext[] = [];
+    expect(
+      await finalizeModelOutputs({
+        ...f.args,
+        inputs: [{ value: 'yes' }, { value: 'also' }],
+        context: context as never,
+        onFinalized: (_row, diagnostic) => contexts.push(diagnostic),
       }),
-    );
-    const f = fixture(
-      {
-        catalog: { paths: ['value', 'hidden', 'when', 'meta', 'meta.permissions'] },
-        permissionSchema: { value: true, hidden: false, when: true },
-        documentPermissionField: 'meta.permissions',
-        exposedDocPermissionKeys: ['visible'],
-        stripPermissionsField: false,
-      },
-      ['value', 'when', '-_id'],
-    );
-    const metadata = { visible: { when: new Date(2) }, secret: false, _view: { value: true } };
-    const raw = { value: 'yes', hidden: 'no', when: new Date(1), meta: { permissions: metadata } };
-    const hydrated = new model(raw);
-    const outputs = await finalizeModelOutputs({ ...f.args, inputs: [raw, hydrated] });
-    expect(outputs).toEqual([
-      { value: 'yes', when: new Date(1), meta: { permissions: { visible: metadata.visible, _view: metadata._view } } },
-      { value: 'yes', when: new Date(1), meta: { permissions: { visible: metadata.visible, _view: metadata._view } } },
-    ]);
-    for (const output of outputs) {
-      const alias = Object.getOwnPropertyDescriptor(output, 'permissions')!;
-      expect(alias.enumerable).toBe(false);
-      expect(output.permissions).toBe((output.meta as typeof raw.meta).permissions);
-      expect(output.when).not.toBe(raw.when);
-      expect((output.permissions as typeof metadata).visible.when).not.toBe(metadata.visible.when);
+    ).toEqual([{ value: 'yes' }, { value: 'also' }]);
+    expect(forbidden).not.toHaveBeenCalled();
+    expect(observe).not.toHaveBeenCalled();
+    for (const diagnostic of [...contexts, ...hookContexts]) {
+      expect(Object.isFrozen(diagnostic)).toBe(true);
+      for (const key of [
+        'originalDocumentSnapshot',
+        'finalDocumentSnapshot',
+        'currentDocument',
+        'mongooseModel',
+        'changes',
+        'defaults',
+        'snapshot',
+        'configuration',
+      ])
+        expect(diagnostic).not.toHaveProperty(key);
     }
-    (outputs[0].permissions as typeof metadata).visible.when.setTime(99);
-    expect((outputs[1].permissions as typeof metadata).visible.when.getTime()).toBe(2);
-    expect(metadata.visible.when.getTime()).toBe(2);
-    expect(hydrated.meta!.permissions).toEqual(metadata);
   });
 
-  it('detaches native-valued metadata options before any per-row application method can use them', async () => {
-    const seen: object[] = [];
-    const keys = {
-      when: new Date(1),
-      map: new Map([['when', new Date(2)]]),
-      id: new mongo.BSON.ObjectId(),
-      includes(key: string) {
-        expect(this.when.getTime()).toBe(1);
-        expect(this.map.get('when')!.getTime()).toBe(2);
-        expect(this.id.equals(keys.id)).toBe(true);
-        seen.push(this);
-        this.when.setTime(99);
-        this.map.clear();
-        this.id.id = Buffer.alloc(12);
-        return key === 'visible';
-      },
-    };
-    const f = fixture({
-      catalog: { paths: ['value'] },
-      permissionSchema: { value: true },
-      stripPermissionsField: false,
-      exposedDocPermissionKeys: keys,
-    });
-    const inputs = [1, 2].map((value) => ({ value, _permissions: { visible: new Date(value) } }));
-    const outputs = await finalizeModelOutputs({ ...f.args, inputs });
-    expect(outputs).toEqual(inputs);
-    expect(new Set(seen).size).toBe(2);
-    expect(keys.when.getTime()).toBe(1);
-    expect(keys.map.size).toBe(1);
-    const captured = serviceAuthorization.readServiceAuthorization(f.authorization, f.binding).configuration;
-    expect((captured.exposedDocPermissionKeys as typeof keys).when.getTime()).toBe(1);
-    expect((captured.exposedDocPermissionKeys as typeof keys).map.size).toBe(1);
-  });
+  it.each(['read', 'custom.read'])(
+    'function-attached hook lookup slots are not a live configuration API: %s',
+    async (docPermissionsAccess) => {
+      const lookup = vi.fn(() => () => ({ owner: true }));
+      const bare = vi.fn(() => ({ owner: false }));
+      Object.defineProperty(bare, 'read', { get: lookup });
+      const f = ownedStageFixture({
+        configuration: {
+          catalog: { paths: ['value'] },
+          permissionSchema: { value: 'doc:owner' },
+          docPermissions: docPermissionsAccess === 'read' ? bare : { custom: bare },
+        },
+      });
+      const access = { ...stageAccess(), docPermissionsAccess };
+      const call = f.ownCall({ access });
+      const plan = planAuthorizedModelProjection({
+        authorization: call,
+        binding: f.binding,
+        requestedSelect: ['-_id'],
+      });
+      expect(
+        await finalizeModelOutputs({ ...f.args, ...access, plan, inputs: [{ value: 'first' }, { value: 'second' }] }),
+      ).toEqual([{}, {}]);
+      expect(lookup).not.toHaveBeenCalled();
+      expect(bare).toHaveBeenCalledTimes(2);
+    },
+  );
 
-  it('does not share Set-backed metadata option state between rows in one prepared pass', async () => {
-    const receivers: Set<string>[] = [];
-    const keys = {
-      entries: new Set(['visible']),
-      includes(key: string) {
-        receivers.push(this.entries);
-        const allowed = this.entries.has(key);
-        this.entries.clear();
-        return allowed;
-      },
-    };
-    const f = fixture({
-      catalog: { paths: ['value'] },
-      permissionSchema: { value: true },
-      exposedDocPermissionKeys: keys,
-      stripPermissionsField: false,
-    });
-    const inputs = [1, 2].map((value) => ({ value, _permissions: { visible: true } }));
-    expect(await finalizeModelOutputs({ ...f.args, inputs })).toEqual(inputs);
-    expect(receivers).toHaveLength(2);
-    expect(new Set(receivers).size).toBe(2);
-    expect(keys.entries).toEqual(new Set(['visible']));
-    const captured = serviceAuthorization.readServiceAuthorization(f.authorization, f.binding).configuration;
-    expect((captured.exposedDocPermissionKeys as typeof keys).entries).toEqual(new Set(['visible']));
-  });
+  it.each(sourceModes)(
+    '%s captures getter dependency views before permission callbacks and never treats argument mutation as a return',
+    async (mode) => {
+      const source = { payload: { name: 'original', when: new Date(1) } };
+      const permission = vi.fn(() => {
+        source.payload.name = 'authorization closure change';
+        source.payload.when.setTime(9);
+        return true;
+      });
+      const getter = vi.fn((doc, _permissions, context) => {
+        expect(context).not.toHaveProperty('originalDocumentSnapshot');
+        const value = doc.payload.name;
+        expect(doc.payload.when.getTime()).toBe(1);
+        doc.payload.name = 'getter argument write';
+        return value;
+      });
+      const f = ownedStageFixture({
+        mode,
+        configuration: {
+          catalog: { paths: ['payload', 'v'], opaquePaths: ['payload'], virtualPaths: ['v'] },
+          permissionSchema: { payload: true, v: permission },
+          virtuals: { v: { get: getter, dependsOn: ['payload'] } },
+        },
+      });
+      const output = await finalizeModelOutput({ ...f.args, input: source });
+      expect(output.v).toBe('original');
+      expect((output.payload as any).name).toBe(mode === 'trusted' ? 'authorization closure change' : 'original');
+      expect(permission).toHaveBeenCalledTimes(1);
+      expect(getter).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  it('keeps hook documents, grants, contexts, snapshots and getter views independent at concurrency one', async () => {
-    const id = new mongo.BSON.ObjectId();
+  it.each(sourceModes)(
+    '%s retains lean/hydrated selection, dotted metadata, native isolation and a non-enumerable alias',
+    async (mode) => {
+      const f = ownedStageFixture({
+        mode,
+        configuration: {
+          catalog: { paths: ['value', 'hidden', 'when', 'meta', 'meta.permissions'] },
+          permissionSchema: { value: true, hidden: false, when: true },
+          documentPermissionField: 'meta.permissions',
+          exposedDocPermissionKeys: ['visible'],
+          stripPermissionsField: false,
+        },
+        select: ['value', 'when', '-_id'],
+      });
+      const metadata = { visible: { when: new Date(2) }, secret: false, _view: { value: true } };
+      const raw = { value: 'yes', hidden: 'no', when: new Date(1), meta: { permissions: metadata } };
+      const hydrated = new f.model(raw);
+      const toObject = vi.spyOn(hydrated, 'toObject');
+      const outputs = await finalizeModelOutputs({ ...f.args, inputs: [raw, hydrated] });
+      expect(outputs).toEqual(
+        [0, 1].map(() => ({
+          value: 'yes',
+          when: new Date(1),
+          meta: { permissions: { visible: metadata.visible, _view: metadata._view } },
+        })),
+      );
+      for (const output of outputs) {
+        expect(Object.getOwnPropertyDescriptor(output, 'permissions')!.enumerable).toBe(false);
+        expect(output.permissions).toBe((output.meta as any).permissions);
+        expect(output.when).not.toBe(raw.when);
+        expect((output.permissions as any).visible.when).not.toBe(metadata.visible.when);
+      }
+      (outputs[0].permissions as any).visible.when.setTime(99);
+      expect((outputs[1].permissions as any).visible.when.getTime()).toBe(2);
+      expect(metadata.visible.when.getTime()).toBe(2);
+      expect(hydrated.meta!.permissions).toEqual(metadata);
+      expect(toObject).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('isolated same-ID rows retain disposable native hook/getter views and separate immutable diagnostic facts at concurrency one', async () => {
+    const id = new mongoose.mongo.BSON.ObjectId();
     const payload = { when: new Date(1), bytes: Buffer.from([1]), id };
-    const grants = { when: new Date(3), bytes: Buffer.from([3]), id };
-    const originalDocumentSnapshot = {
-      when: new Date(1),
-      map: new Map([['when', new Date(1)]]),
-      id,
-    };
-    const hookContexts: ModelHookContext[] = [];
-    const getterContexts: object[] = [];
+    const maps = { owner: true };
+    const hookContexts: ModelOutputContext[] = [],
+      getterContexts: ModelOutputContext[] = [];
     const hook = vi.fn((doc, _permissions, context) => {
-      expect(doc.payload.when.getTime()).toBe(1);
-      expect(doc.payload.bytes[0]).toBe(1);
-      expect(doc.payload.id.equals(id)).toBe(true);
-      expect(context.originalDocumentSnapshot.when.getTime()).toBe(1);
-      expect(context.originalDocumentSnapshot.map.get('when').getTime()).toBe(1);
+      expect(doc.payload).toEqual(payload);
+      expect(context.docPermissions).toEqual({});
       hookContexts.push(context);
       doc.payload.when.setTime(99);
       doc.payload.bytes[0] = 9;
       doc.payload.id.id = Buffer.alloc(12);
-      context.originalDocumentSnapshot.when.setTime(2);
-      context.originalDocumentSnapshot.map.get('when').setTime(2);
-      return grants;
+      return maps;
     });
-    const rule = vi.fn((_permissions, supplied) => {
-      expect(supplied.when.getTime()).toBe(3);
-      expect(supplied.bytes[0]).toBe(3);
-      expect(supplied.id.equals(id)).toBe(true);
-      supplied.when.setTime(99);
-      supplied.bytes[0] = 9;
-      supplied.id.id = Buffer.alloc(12);
+    const rule = vi.fn((_permissions, facts) => {
+      expect(facts.owner).toBe(true);
+      expect(Reflect.set(facts, 'owner', false)).toBe(false);
       return true;
     });
     const observe = vi.fn((view, permissions, context) => {
       expect(permissions.has('reader')).toBe(true);
-      expect(view.payload.when.getTime()).toBe(1);
-      expect(view.payload.bytes[0]).toBe(1);
-      expect(view.payload.id.equals(id)).toBe(true);
-      expect(context.docPermissions.when.getTime()).toBe(3);
-      expect(context.originalDocumentSnapshot.when.getTime()).toBe(2);
-      expect(context.originalDocumentSnapshot.map.get('when').getTime()).toBe(2);
+      expect(view.payload).toEqual(payload);
+      expect(context.docPermissions.owner).toBe(true);
       expect(context.scopePath).toEqual([]);
+      expect(context).not.toHaveProperty('currentDocument');
       getterContexts.push(context);
       return 'observed';
     });
@@ -417,184 +259,117 @@ describe('ARCPU-03 finalizer pass preparation', () => {
       view.payload.when.setTime(99);
       view.payload.bytes[0] = 9;
       view.payload.id.id = Buffer.alloc(12);
-      context.docPermissions.when.setTime(99);
-      context.originalDocumentSnapshot.when.setTime(99);
-      context.originalDocumentSnapshot.map.clear();
-      context.scopePath.push('never');
+      expect(Reflect.set(context.docPermissions, 'owner', false)).toBe(false);
       return 'mutated';
     });
-    const f = fixture({
-      catalog: {
-        paths: ['payload', 'first', 'second', 'mutate', 'observe'],
-        opaquePaths: ['payload'],
-        virtualPaths: ['mutate', 'observe'],
+    const f = ownedStageFixture({
+      configuration: {
+        catalog: {
+          paths: ['payload', 'first', 'second', 'mutate', 'observe'],
+          opaquePaths: ['payload'],
+          virtualPaths: ['mutate', 'observe'],
+        },
+        permissionSchema: { payload: true, first: rule, second: rule, mutate: true, observe: true },
+        docPermissions: { read: hook },
+        virtuals: { mutate: { get: mutate }, observe: { get: observe } },
       },
-      permissionSchema: { payload: true, first: rule, second: rule, mutate: true, observe: true },
-      docPermissions: { read: hook },
-      virtuals: { mutate: { get: mutate, dependsOn: [] }, observe: { get: observe, dependsOn: [] } },
-      stripPermissionsField: true,
     });
-    const contexts: ServiceOutputContext[] = [];
-    const inputs = [1, 2].map((value) => ({ payload, first: value, second: value }));
+    const inputs = [1, 2].map((value) => ({ _id: 'same', payload, first: value, second: value }));
+    const contexts: ModelOutputContext[] = [];
     const outputs = await finalizeModelOutputs({
       ...f.args,
       inputs,
-      context: { originalDocumentSnapshot } as unknown as ModelHookContext,
-      onFinalized: (_output, context, index) => {
-        contexts[index!] = context;
-        (context.originalDocumentSnapshot!.when as Date).setTime(88);
-        (context.docPermissions!.when as Date).setTime(88);
+      onFinalized: (_output, context) => {
+        contexts.push(context);
+        expect(Reflect.set(context.docPermissions, 'owner', false)).toBe(false);
       },
     });
-    expect(outputs).toEqual(inputs.map((input) => ({ ...input, mutate: 'mutated', observe: 'observed' })));
+    expect(outputs).toEqual(inputs.map(({ _id, ...input }) => ({ ...input, mutate: 'mutated', observe: 'observed' })));
     expect(hook).toHaveBeenCalledTimes(2);
     expect(rule).toHaveBeenCalledTimes(4);
     expect(mutate).toHaveBeenCalledTimes(2);
     expect(observe).toHaveBeenCalledTimes(4);
-    expect(new Set(getterContexts).size).toBe(4);
     expect(hookContexts[0]).not.toBe(hookContexts[1]);
-    expect(contexts[0].documentAuthorization).not.toBe(contexts[1].documentAuthorization);
-    for (const context of contexts) {
-      const stored = readDocumentAuthorization(context.documentAuthorization, f.binding).grants;
-      expect((stored.when as Date).getTime()).toBe(3);
-      expect((stored.bytes as Buffer)[0]).toBe(3);
-      expect((stored.id as mongo.BSON.ObjectId).equals(id)).toBe(true);
-    }
+    expect(contexts[0].docPermissions).not.toBe(contexts[1].docPermissions);
+    expect(getterContexts[0].docPermissions).toBe(getterContexts[1].docPermissions);
     expect(payload.when.getTime()).toBe(1);
     expect(payload.bytes[0]).toBe(1);
-    expect(grants.when.getTime()).toBe(3);
-    expect(originalDocumentSnapshot.when.getTime()).toBe(1);
-    expect(originalDocumentSnapshot.map.get('when')!.getTime()).toBe(1);
+    expect(payload.id.equals(id)).toBe(true);
+    expect(Object.isFrozen(maps)).toBe(false);
   });
 
-  it('reuses scope setup without sharing mutable embedded/related getter contexts or grants', async () => {
-    const snapshot = { when: new Date(1) };
+  it('embedded children finish before parent getters, share each owning row facts and receive separate disposable views', async () => {
+    const events: string[] = [];
     const child = vi.fn((doc, _permissions, context) => {
       expect(context.scopePath).toEqual(['children', 'sub']);
-      expect(context.docPermissions.owner).toBe('parent');
-      expect(context.docPermissions.when.getTime()).toBe(1);
-      expect(context.originalDocumentSnapshot.when.getTime()).toBe(1);
-      context.docPermissions.when.setTime(99);
-      context.originalDocumentSnapshot.when.setTime(99);
+      expect(context.docPermissions.owner).toBe(true);
+      events.push(`child:${doc.name}`);
       const name = doc.name;
       doc.name = 'mutated';
       return name;
     });
-    const target = vi.fn((doc, _permissions, context) => {
-      expect(context.scopePath).toEqual([]);
-      expect(context.docPermissions.owner).toBe('target');
-      expect(context.docPermissions.when.getTime()).toBe(2);
-      expect(context.originalDocumentSnapshot.when.getTime()).toBe(1);
-      context.docPermissions.when.setTime(99);
-      context.originalDocumentSnapshot.when.setTime(99);
-      return doc.name;
-    });
-    const summary = vi.fn((doc, _permissions, context) => {
-      expect(context.docPermissions.owner).toBe('parent');
-      expect(context.docPermissions.when.getTime()).toBe(1);
-      expect(context.originalDocumentSnapshot.when.getTime()).toBe(1);
+    const parent = vi.fn((doc, _permissions, context) => {
       expect(doc.children).toEqual([
         { name: 'a', v: 'a' },
         { name: 'b', v: 'b' },
       ]);
-      expect(doc.related).toEqual([
-        { name: 'c', v: 'c' },
-        { name: 'd', v: 'd' },
-      ]);
+      expect(context.scopePath).toEqual([]);
+      events.push('parent');
       return 'complete';
     });
-    const parentHook = vi.fn(() => ({ owner: 'parent', when: new Date(1) }));
-    const targetHook = vi.fn(() => ({ owner: 'target', when: new Date(2) }));
-    const f = fixture({
-      catalog: {
-        paths: ['children', 'children.name', 'children.v', 'related', 'summary'],
-        containerPaths: ['children'],
-        referencePaths: ['related'],
-        virtualPaths: ['children.v', 'summary'],
+    const hook = vi.fn(() => ({ owner: true }));
+    const f = ownedStageFixture({
+      select: ['children.name', 'children.v', 'summary', '-children._id', '-_id'],
+      modelOptions: {
+        permissionSchema: { children: { read: true, sub: { name: true, v: true } }, summary: true },
+        virtuals: { children: { sub: { v: { get: child } } }, summary: { get: parent, dependsOn: ['children'] } },
+        docPermissions: { read: hook },
       },
-      permissionSchema: { children: { read: true, sub: { name: true, v: true } }, related: true, summary: true },
-      docPermissions: { read: parentHook },
-      virtuals: { children: { sub: { v: { get: child, dependsOn: [] } } }, summary: { get: summary, dependsOn: [] } },
-      stripPermissionsField: true,
     });
-    const targetBinding = { ...f.binding, model: {}, modelName: 'Related' };
-    const targetConfiguration = {
-      catalog: { paths: ['name', 'v'], virtualPaths: ['v'] },
-      permissionSchema: { name: true, v: true },
-      docPermissions: { read: targetHook },
-      virtuals: { v: { get: target, dependsOn: [] } },
-      stripPermissionsField: true,
+    const input = {
+      children: [
+        { _id: 'same', name: 'a' },
+        { _id: 'same', name: 'b' },
+      ],
     };
-    const targetAuthorization = serviceAuthorization.resolveServiceAuthorization({
-      binding: targetBinding,
-      configuration: targetConfiguration,
-      access,
-      requestPermissions: new Permission({}),
-      parent: f.authorization,
-    });
-    const targetPlan = planAuthorizedModelProjection({
-      authorization: targetAuthorization,
-      binding: targetBinding,
-      requestedSelect: ['-_id'],
-    });
-    const input = { children: [{ name: 'a' }, { name: 'b' }], related: [{ name: 'c' }, { name: 'd' }] };
-    const outputs = await finalizeModelOutputs({
-      ...f.args,
-      inputs: [input, input],
-      context: { originalDocumentSnapshot: snapshot } as unknown as ModelHookContext,
-      related: [{ path: 'related', plan: targetPlan, snapshot: targetConfiguration, ...access }],
-    });
+    const outputs = await finalizeModelOutputs({ ...f.args, inputs: [input, input] });
     expect(outputs).toEqual(
-      Array.from({ length: 2 }, () => ({
+      [0, 1].map(() => ({
         children: [
           { name: 'a', v: 'a' },
           { name: 'b', v: 'b' },
         ],
-        related: [
-          { name: 'c', v: 'c' },
-          { name: 'd', v: 'd' },
-        ],
         summary: 'complete',
       })),
     );
-    expect(parentHook).toHaveBeenCalledTimes(2);
-    expect(targetHook).toHaveBeenCalledTimes(4);
+    expect(events).toEqual(['child:a', 'child:b', 'parent', 'child:a', 'child:b', 'parent']);
+    expect(hook).toHaveBeenCalledTimes(2);
     expect(child).toHaveBeenCalledTimes(4);
-    expect(target).toHaveBeenCalledTimes(4);
-    expect(summary).toHaveBeenCalledTimes(2);
-    expect(snapshot.when.getTime()).toBe(1);
-    expect(input.children).toEqual([{ name: 'a' }, { name: 'b' }]);
+    expect(parent).toHaveBeenCalledTimes(2);
+    expect(child.mock.calls[0][2].docPermissions).toBe(parent.mock.calls[0][2].docPermissions);
+    expect(child.mock.calls[2][2].docPermissions).not.toBe(child.mock.calls[0][2].docPermissions);
+    expect(input.children.map((child) => child.name)).toEqual(['a', 'b']);
   });
 
-  it.each(['binding', 'call'] as const)(
-    'revalidates %s identity before consuming another prepared row',
-    async (kind) => {
-      const hook = vi.fn(() => ({}));
-      const configuration = {
+  it.each(['binding', 'call'] as const)('rejects changed %s before consuming another prepared row', async (kind) => {
+    const hook = vi.fn(() => ({}));
+    const f = ownedStageFixture({
+      configuration: {
         catalog: { paths: ['value'] },
         permissionSchema: { value: true },
         docPermissions: { read: hook },
-      };
-      const f = fixture(configuration);
-      const read = vi.spyOn(serviceAuthorization, 'readServiceFinalizerConfiguration');
-      await expect(
-        finalizeModelOutputs({
-          ...f.args,
-          inputs: [{ value: 1 }, { value: 2 }],
-          onFinalized: () => {
-            if (kind === 'binding') f.args.plan.authorizationBinding = { ...f.binding, model: {} };
-            else
-              f.args.plan.authorization = serviceAuthorization.resolveServiceAuthorization({
-                binding: f.binding,
-                access,
-                configuration,
-                requestPermissions: new Permission({}),
-              });
-          },
-        }),
-      ).rejects.toBeInstanceOf(serviceAuthorization.ServiceAuthorizationError);
-      expect(read).toHaveBeenCalledTimes(1);
-      expect(hook).toHaveBeenCalledTimes(1);
-    },
-  );
+      },
+    });
+    await expect(
+      finalizeModelOutputs({
+        ...f.args,
+        inputs: [{ value: 1 }, { value: 2 }],
+        onFinalized: () => {
+          if (kind === 'binding') f.plan.authorizationBinding = { ...f.binding, modelName: 'wrong' };
+          else f.plan.authorization = f.ownCall();
+        },
+      }),
+    ).rejects.toBeInstanceOf(calls.ServiceAuthorizationError);
+    expect(hook).toHaveBeenCalledTimes(1);
+  });
 });

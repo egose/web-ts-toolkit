@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../dist/index.mjs';
 import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
@@ -171,6 +172,8 @@ describe.each(['lean', 'hydrated'] as const)('PPR-04 adversarial output boundari
       '%s include colliding with a dependency ref preserves only actual attachment provenance',
       async (mode) => {
         const f = await fixture(hydration, strict);
+        const sourceHook = vi.fn((doc) => ({ hasOriginalRef: doc.link.equals(f.target._id) }));
+        f.api.setModelOption(f.Source.modelName, 'docPermissions', sourceHook);
         if (mode === 'read-row-denied') f.api.setModelOption(f.Report.modelName, 'baseFilter.read', () => false);
         const produced = mode === 'read' || mode === 'list' || mode === 'count';
         const result = await f.execute((req) =>
@@ -208,7 +211,9 @@ describe.each(['lean', 'hydrated'] as const)('PPR-04 adversarial output boundari
         else expect(result.data).toHaveProperty('amount', 17);
         expect(f.guard).toHaveBeenCalledTimes(Number(strict));
         if (produced) expect(JSON.stringify(result.data)).not.toContain(String(f.target._id));
-        expect(result.context.originalDocumentSnapshot.link).toEqual(f.target._id);
+        expect(sourceHook).toHaveBeenCalledTimes(1);
+        expect(sourceHook.mock.calls[0][0].link).toEqual(f.target._id);
+        expectOutputContext(result.context, { docPermissions: { hasOriginalRef: true } });
         expect(result.data).not.toHaveProperty('link.amount');
         expect((await f.Source.findById(f.source._id).lean())!.link).toEqual(f.target._id);
       },

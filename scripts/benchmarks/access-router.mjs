@@ -23,6 +23,7 @@ import {
   UNSAFE_SNAPSHOT_FLAGS,
   UNSAFE_INITIAL_OUTPUT_COPY_FLAGS,
   UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
+  authorizationModeCandidates,
 } from './access-router-core.mjs';
 
 const exec = promisify(execFile);
@@ -85,7 +86,9 @@ Interactive only (Node >=22, Git, tar and pnpm required).
       needs all four matching prerequisites. BOTH in every group makes eight candidates.
   4. Choose the baseline, scenarios, row sizes, samples and concurrency.
   5. Run all jobs sequentially against disposable MongoDB; show/save JSON + Markdown.
-      All current workloads time LIST; READ is verified but not timed.
+      This interactive table times LIST; READ is verified but not timed here.
+      New builds select actual isolated/trusted source modes, never legacy aliases.
+      For selected READ/helper/native/fact/retention families use access-router-owned.mjs --help.
 
 No checkout/reset/worktree changes. Installs historical frozen lockfiles with
 install scripts disabled, then explicitly executes each selected tag's build code.
@@ -216,6 +219,22 @@ in .wip/benchmarks/. MongoDB may download a binary on first use. See scripts/ben
     const targets = [];
     const modeSelections = [];
     for (const target of selectedBuilds) {
+      if (target.supportedAuthorizationModes.length) {
+        const setting = await ask(
+          prompts.select({
+            message: `Owned READ/LIST source isolation for ${target.label} (LIST timed here)`,
+            initialValue: 'isolated',
+            options: [
+              { value: 'isolated', label: 'isolated (default)' },
+              { value: 'trusted', label: 'trusted (borrowed source; not old all-ten ON)' },
+              { value: 'both', label: 'BOTH as separate same-mode profiles' },
+            ],
+          }),
+        );
+        targets.push(...authorizationModeCandidates(target, setting));
+        modeSelections.push({ buildId: target.id, authorizationModes: setting });
+        continue;
+      }
       const count = target.supportedSnapshotFlags.length;
       let setting = 'off';
       if (count < UNSAFE_SNAPSHOT_FLAGS.length) {

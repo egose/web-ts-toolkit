@@ -69,16 +69,16 @@ async function verifyInstalledHelpers() {
     }
     assert.equal(docHooks, 0);
     assert.deepEqual(await service.genQuerySelect('read', ['name', 'secret']), ['name', 'ownerId', '_id']);
-    assert.deepEqual(await service.pickAllowedFields(raw, 'read'), { _id: 'id', name: 'model', owned: 'visible' });
-    assert.equal(docHooks, 1);
+    assert.deepEqual(await service.pickAllowedFields(raw, 'read'), { _id: 'id', name: 'model' });
+    assert.equal(docHooks, 0);
     const options = { authorization: { outputFields: { mode: 'grant', paths: ['secret'] } } } as const;
     assert.deepEqual(await service.trimOutputFields(raw, 'read', options), {
       _id: 'id',
       name: 'model',
-      owned: 'visible',
       secret: 'denied', // pragma: allowlist secret
     });
     assert.deepEqual(await service.genAllowedFields(null, 'read'), []);
+    assert.equal(docHooks, 0);
     assert.equal('buildVirtualPlan' in service, false);
     assert.equal('buildSubVirtualPlan' in service, false);
     res.json({ ok: true });

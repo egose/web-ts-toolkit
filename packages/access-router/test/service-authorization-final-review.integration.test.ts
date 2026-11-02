@@ -9,6 +9,7 @@ import type { ModelRequest, RowAuthorization } from '../src/interfaces';
 import { createServiceExecution } from '../src/acl/service-execution';
 import { executePreparedCount, prepareModelQuery, readPreparedModelQuery } from '../src/acl/prepared-query';
 import { useMongoTestDatabase } from './setup';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 let sequence = 0;
@@ -127,7 +128,7 @@ describe('SVA-11 independent hook resolver review', () => {
     });
   }
 
-  it('default document grants survive metadata/dependency trim and same-stage picks', async () => {
+  it('default document facts survive trim but are not replayed by fresh raw picks', async () => {
     const hook = vi.fn(function (this: ModelRequest, doc) {
       expect(this).toBe(f.request);
       return { owner: doc.ownerId === 'alice' };
@@ -148,9 +149,11 @@ describe('SVA-11 independent hook resolver review', () => {
       expect(result.data).not.toHaveProperty('ownerId');
       expect(result.data).not.toHaveProperty('_permissions');
       const picked = await f.service.pickAllowedFields(result.data, 'read', {
-        documentAuthorization: result.context.documentAuthorization,
+        authorization: noteGrant,
       });
-      expect(picked).toEqual(result.data);
+      expect(picked).toHaveProperty('internalNote', 'note-a');
+      expect(picked).not.toHaveProperty('status');
+      expectOutputContext(result.context, { docPermissions: { owner: true } });
       expect(hook).toHaveBeenCalledTimes(1);
     });
   });
@@ -378,13 +381,10 @@ describe('SVA-11 independent private-input lifetime review', () => {
       expect(child).not.toHaveProperty('ownerId');
       expect(child).not.toHaveProperty('slug');
       expect(child).not.toHaveProperty('_permissions');
-      const handle = result.context.getDocumentAuthorization(child);
-      expect(handle).toBeDefined();
+      expectOutputContext(result.context);
       expect(
-        await f.request.macl
-          .getService(f.targetName)
-          .pickAllowedFields(child, 'list', { documentAuthorization: handle! }),
-      ).toEqual(child);
+        await f.request.macl.getService(f.targetName).pickAllowedFields(child, 'list', { authorization: noteGrant }),
+      ).toEqual({ internalNote: 'backend', _id: child._id });
       expect(hook).toHaveBeenCalledTimes(1);
     });
   });
@@ -402,7 +402,7 @@ describe('SVA-11 independent private-input lifetime review', () => {
           { ...quiet, authorization },
         );
         expect(result.success).toBe(true);
-        if (result.success) expect(result.data).not.toHaveProperty('marker');
+        if (result.success) expect(result.data).toHaveProperty('marker', null);
         const picked = await f.service.pickAllowedFields({ marker: value }, 'read', { authorization });
         expect(picked).not.toHaveProperty('marker');
         expect(
@@ -470,7 +470,7 @@ describe('SVA-11 independent opaque subtree review', () => {
         });
         expect(
           await f.service.pickAllowedFields(result.data, 'read', {
-            documentAuthorization: result.context.documentAuthorization,
+            authorization,
           }),
         ).toEqual(result.data);
       });
@@ -485,7 +485,7 @@ describe('SVA-11 independent opaque subtree review', () => {
         if (!result.success) throw new Error('expected granted opaque output');
         expect(
           await f.service.pickAllowedFields(result.data, 'read', {
-            documentAuthorization: result.context.documentAuthorization,
+            authorization,
           }),
         ).toEqual(result.data);
         expect(await f.service.pickAllowedFields({ marker: value }, 'read', {})).toEqual({});

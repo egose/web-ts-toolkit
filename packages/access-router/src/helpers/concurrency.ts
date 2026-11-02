@@ -10,20 +10,41 @@ export const mapWithConcurrencyLimit = async <TInput, TOutput>(
   items: TInput[],
   limit: number,
   iteratee: (item: TInput, index: number) => Promise<TOutput>,
+  onError?: (error: unknown) => void,
 ) => {
   const results: TOutput[] = new Array(items.length);
   let cursor = 0;
+  let failed = false;
+  let failure: unknown;
   const workerCount = Math.min(Math.max(limit, 1), items.length || 1);
 
-  await Promise.all(
+  await Promise.allSettled(
     Array.from({ length: workerCount }, async () => {
-      while (cursor < items.length) {
+      while (!failed && cursor < items.length) {
         const current = cursor;
         cursor += 1;
-        results[current] = await iteratee(items[current], current);
+        try {
+          // Output/native callbacks can install inherited setters while awaiting.
+          // Commit an own data slot, never an inherited assignment observation.
+          Object.defineProperty(results, current, {
+            value: await iteratee(items[current], current),
+            enumerable: true,
+            configurable: true,
+            writable: true,
+          });
+        } catch (error) {
+          if (!failed) {
+            failed = true;
+            failure = error;
+            onError?.(error);
+          }
+          throw error;
+        }
       }
     }),
   );
+
+  if (failed) throw failure;
 
   return results;
 };

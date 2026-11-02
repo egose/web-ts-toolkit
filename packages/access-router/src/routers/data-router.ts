@@ -10,6 +10,8 @@ import { handleResultError, parseSelectParam } from '../helpers';
 import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter, RouteVariant, Sort } from '../interfaces';
 import { DataService } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
+import { assertAuthorizationModeOptions } from '../acl/authorization-modes';
+import { assertPublicAdmission } from '../validation/public-admission';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
 import {
@@ -74,6 +76,8 @@ export class DataRouter<TData = unknown> {
   }
 
   private async assertAllowed(req: DataRequest, baseAccess: string, variant: RouteVariant) {
+    assertPublicAdmission(req.query);
+    assertPublicAdmission(req.body);
     const allowed = await req.dacl.isAllowedRoute(this.dataName, baseAccess, variant);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
@@ -266,6 +270,7 @@ export class DataRouter<TData = unknown> {
   set<K extends keyof ExtendedDataRouterOptions<TData>>(key: K, value: ExtendedDataRouterOptions<TData>[K]): this;
   set(options: DataRouterOptions<TData>): this;
   set<K extends keyof ExtendedDataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
+    if (arguments.length === 1) assertAuthorizationModeOptions(keyOrOptions, false);
     if (arguments.length === 2 && isString(keyOrOptions)) {
       assertMutableRouterOption('data', keyOrOptions as string);
       this.runtime.setDataOption<K, TData>(

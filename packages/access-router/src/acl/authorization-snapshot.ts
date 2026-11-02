@@ -1,9 +1,14 @@
-import { isDeepStrictEqual, types } from 'node:util';
-import { Buffer as NodeBuffer } from 'node:buffer';
+import { types } from 'node:util';
 import { mongo } from 'mongoose';
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { Codes } from '../enums';
+import { readOwnedAuthorizationCatalogWork } from './field-catalog';
 import type { ErrorResult } from '../interfaces/base';
+import {
+  createTrustedOutputBudget,
+  materializeTrustedOutputValue,
+  visitTrustedOutput,
+} from './trusted-output-materialization';
 
 /** Private controlled error; services can map `result`, helpers can throw it. */
 export class ServiceAuthorizationError extends JsonRouter.clientErrors.BadRequestError {
@@ -13,6 +18,15 @@ export class ServiceAuthorizationError extends JsonRouter.clientErrors.BadReques
     const errors = [{ detail: `Service authorization: ${detail}` }];
     super('Bad Request', { errors });
     this.result = { success: false, kind: 'error', code: Codes.BadRequest, errors };
+    Object.freeze(errors[0]);
+    Object.freeze(errors);
+    Object.freeze(this.result);
+    Object.defineProperty(this, 'result', {
+      value: this.result,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    });
   }
 }
 
@@ -41,15 +55,24 @@ export function authorizationRecord(value: unknown, label: string): Record<strin
  */
 export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'document' = false): T {
   const active = new WeakSet<object>();
-  let nodes = 0;
+  const budget = createTrustedOutputBudget();
   function copy(input: unknown, depth: number): unknown {
-    if (++nodes > 20000 || depth > 100) authorizationError('snapshot exceeds structural limits');
+    visitTrustedOutput(budget, depth);
     if (typeof input === 'function') {
       if (configuration === true) return input;
       authorizationError('functions are not policy values');
     }
     if (typeof input === 'symbol') authorizationError('symbols are not policy values');
     if (input === null || typeof input !== 'object') return input;
+    if (types.isProxy(input)) authorizationError('proxy snapshot input');
+    const ownedCatalog = configuration === true ? readOwnedAuthorizationCatalogWork(input) : undefined;
+    if (ownedCatalog) {
+      // Only fresh library-generated frozen primitive catalogs qualify. Charge
+      // the exact omitted traversal in this SAME capture budget/depth owner;
+      // arbitrary frozen objects/native leaves still detach normally below.
+      visitTrustedOutput(budget, depth + ownedCatalog.depth, ownedCatalog.slots - 1);
+      return input;
+    }
     if (active.has(input)) authorizationError('cyclic input');
     active.add(input);
     try {
@@ -65,18 +88,30 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
           // Even canonical-looking BSON leaves may have wire hooks overridden
           // before this module loads. Import-time prototype identities are not a
           // trusted baseline for bypassing serialization's normalization/validation.
-          return mongo.BSON.deserialize(mongo.BSON.serialize({ value: input }), {
-            promoteValues: false,
-            bsonRegExp: true,
-          }).value;
-        } catch {
+          return materializeTrustedOutputValue(
+            input,
+            '',
+            budget,
+            { keep: () => true, rejectProtectedKeys: true },
+            depth,
+            true,
+          );
+        } catch (error) {
+          if (error instanceof ServiceAuthorizationError) throw error;
           authorizationError('unsupported BSON snapshot');
         }
       }
       if (configuration && input instanceof Map) {
-        return new Map([...input].map(([key, entry]) => [copy(key, depth + 1), copy(entry, depth + 1)]));
+        const result = new Map();
+        for (const [key, entry] of Map.prototype.entries.call(input))
+          result.set(copy(key, depth + 1), copy(entry, depth + 1));
+        return result;
       }
-      if (configuration && input instanceof Set) return new Set([...input].map((entry) => copy(entry, depth + 1)));
+      if (configuration && input instanceof Set) {
+        const result = new Set();
+        for (const entry of Set.prototype.values.call(input)) result.add(copy(entry, depth + 1));
+        return result;
+      }
       const array = Array.isArray(input);
       if (array && input.length > 20000) authorizationError('snapshot array exceeds structural limits');
       if (!array) authorizationRecord(input, 'snapshot');
@@ -114,123 +149,4 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
     }
   }
   return copy(value, 0) as T;
-}
-
-export function matchesAuthorizationSnapshot(value: unknown, snapshot: unknown): boolean {
-  try {
-    // The allocation-reduced tape regressed paired real-list CPU/latency, including
-    // dynamic policy. Keep the original normalizer/Node equality without a shape
-    // selector: normalization can run application hooks and must finish first.
-    return isDeepStrictEqual(copyAuthorizationValue(value, 'document'), snapshot);
-  } catch {
-    return false;
-  }
-}
-
-/** Exact graph identities supplement value checks (equal replacement is not provenance). */
-export function outputIdentities(value: object): readonly object[] {
-  const result: object[] = [];
-  const seen = new WeakSet<object>();
-  function visit(input: unknown): void {
-    if (!input || typeof input !== 'object' || seen.has(input)) return;
-    seen.add(input);
-    result.push(input);
-    if (input instanceof Map) {
-      for (const [key, entry] of input) {
-        visit(key);
-        visit(entry);
-      }
-    } else if (input instanceof Set) {
-      for (const entry of input) visit(entry);
-    } else if (
-      Array.isArray(input) ||
-      Object.getPrototypeOf(input) === Object.prototype ||
-      Object.getPrototypeOf(input) === null
-    ) {
-      for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(input))) {
-        if ('value' in descriptor) visit(descriptor.value);
-      }
-    }
-  }
-  visit(value);
-  return Object.freeze(result);
-}
-
-/** Explicit UNSAFE initial-copy alternative only: no native normalization or wire
- * validation. The ordinary graph walk is closed (no accessors/proxies/iterators),
- * bounded like document copying and captures identities without freezing inputs.
- * Unproven containers fall back to the original copier AND identity walk. Never
- * use this as a validation certificate across application/native work or awaits.
- */
-export function tryOutputIdentitiesWithoutSnapshot(value: object): readonly object[] | undefined {
-  const identities: object[] = [];
-  const seen = new WeakSet<object>();
-  const active = new WeakSet<object>();
-  const fallback = {};
-  let nodes = 0;
-  function visit(input: unknown, depth: number): void {
-    if (++nodes > 20000 || depth > 100) authorizationError('snapshot exceeds structural limits');
-    if (typeof input === 'function') authorizationError('functions are not policy values');
-    if (typeof input === 'symbol') authorizationError('symbols are not policy values');
-    if (input === null || typeof input !== 'object') return;
-    if (types.isProxy(input)) throw fallback;
-    if (active.has(input)) authorizationError('cyclic input');
-    if (!seen.has(input)) {
-      seen.add(input);
-      identities.push(input);
-    }
-    // Native brand tests do not invoke application Symbol.hasInstance methods.
-    // Normalization of these leaves is precisely what this unsafe mode omits.
-    const prototype = Object.getPrototypeOf(input);
-    if (types.isDate(input)) {
-      if (prototype === Date.prototype) return;
-      throw fallback;
-    }
-    if (types.isRegExp(input)) {
-      if (prototype === RegExp.prototype) return;
-      throw fallback;
-    }
-    if (types.isUint8Array(input)) {
-      if (prototype === NodeBuffer.prototype) return;
-      throw fallback;
-    }
-    // Do not mistake a prototype-modified iterated container for a BSON leaf.
-    if (types.isMap(input) || types.isSet(input)) throw fallback;
-    const array = Array.isArray(input);
-    if (!array) {
-      if (prototype !== Object.prototype && prototype !== null) {
-        // BSON leaves have no universal private JS brand. Admit the same base
-        // prototype family without wire validation; forged/invalid BSON contents
-        // are one of the deliberately lost normalization guarantees. Never trust
-        // an application _bsontype/constructor-name tag or traverse proxy prototypes.
-        let parent = prototype;
-        for (let count = 0; parent && count < 100; count++) {
-          if (types.isProxy(parent)) throw fallback;
-          if (parent === mongo.BSON.BSONValue.prototype) return;
-          parent = Object.getPrototypeOf(parent);
-        }
-        throw fallback;
-      }
-    } else if (input.length > 20000) authorizationError('snapshot array exceeds structural limits');
-    active.add(input);
-    try {
-      for (const key of Reflect.ownKeys(input)) {
-        if (array && key === 'length') continue;
-        if (typeof key !== 'string' || unsafeKeys.has(key)) authorizationError('unsafe snapshot key');
-        if (array && !/^(0|[1-9]\d*)$/.test(key)) authorizationError('invalid array property');
-        const descriptor = Object.getOwnPropertyDescriptor(input, key)!;
-        if (!('value' in descriptor)) authorizationError('accessor/non-enumerable input');
-        visit(descriptor.value, depth + 1);
-      }
-    } finally {
-      active.delete(input);
-    }
-  }
-  try {
-    visit(value, 0);
-    return Object.freeze(identities);
-  } catch (error) {
-    if (error !== fallback) throw error;
-    return undefined;
-  }
 }

@@ -19,6 +19,8 @@ import { rootQuerySchema } from '../src/validation/root-router';
 import { populateSchema, subPopulateSchema } from '../src/validation/common';
 import Permission from '../src/permission';
 import { registerServiceExecutors, readServiceExecution } from '../src/acl/service-execution';
+import { prepareIncludeOutput } from '../src/output/include-output';
+import { createTrustedOutputBudget } from '../src/acl/trusted-output-materialization';
 
 const controls = [
   'authorization',
@@ -406,7 +408,7 @@ describe('SVA-01A actual nested dispatch seams', () => {
         groupedCount: vi.fn(),
       });
       const nested = { ...correlated, path: 'nested', args: { select: ['overrides'] } };
-      await service.includeDocs([{ key: 1 }], {
+      await service.includeDocs([prepareIncludeOutput({ key: 1 }, undefined, undefined, createTrustedOutputBudget())], {
         ...legacy,
         op,
         filter: business,
@@ -709,13 +711,13 @@ describe('SVA-01A schemas, transformed envelopes, root dispatch and defaults', (
     api.setModelOption(modelName, 'defaults.publicListOptions', { includeCount: true });
     for (const key of controls) {
       expect(() => api.setModelOptions(modelName, { defaults: { findOptions: { [key]: {} } } } as never)).toThrow(
-        PublicAdmissionError,
+        key.startsWith('documentAuthorization') ? TypeError : PublicAdmissionError,
       );
       expect(() => api.setModelOption(modelName, 'defaults.findOptions', { [key]: {} } as never)).toThrow(
-        PublicAdmissionError,
+        key.startsWith('documentAuthorization') ? TypeError : PublicAdmissionError,
       );
       expect(() => api.setModelOption(modelName, `defaults.createOptions.${key}` as never, {} as never)).toThrow(
-        PublicAdmissionError,
+        key.startsWith('documentAuthorization') ? TypeError : PublicAdmissionError,
       );
     }
     expect(api.getModelOption(modelName, 'defaults.publicListOptions')).toEqual({ includeCount: true });

@@ -15,7 +15,7 @@ describe('hydration configuration admission and shallow ownership', () => {
   it('owns plain records, replaces shallowly, clears overrides, and restores bootstrap snapshots', () => {
     const { api, model, name } = fixture();
     api.setDefaultModelOptions({ hydration: { publicList: 'hydrated', find: 'lean' } });
-    api.createRouter(model);
+    api.createRouter(model, {});
     const initial = api.getModelOptions(name);
     api.setDefaultModelOption('hydration.publicRead', 'lean');
     expect(api.getModelOptions(name).hydration).toEqual({ ...initial.hydration, publicRead: 'lean' });

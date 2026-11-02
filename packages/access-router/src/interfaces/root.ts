@@ -8,6 +8,7 @@ import {
   ModelHookContext,
   ModelRequest,
   Validation,
+  FieldValidation,
 } from './base';
 import type { AccessRouterRequest } from './request';
 import { PublicCreateArgs, CreateArgs, PublicCreateOptions, CreateOptions } from './service-create';
@@ -43,6 +44,8 @@ import type {
   ModelHook,
   ModelIdentifierHook,
   ModelListHook,
+  ModelOutputHook,
+  ModelOutputListHook,
   ModelOverrideFilterHook,
   ModelValidateHook,
   ModelVirtualAccess,
@@ -57,6 +60,15 @@ export * from './access';
 export * from './router-hooks';
 
 type RequestSchema = RequestSchemaLike;
+/**
+ * One engine, two source-isolation modes. `isolated` (default) owns bounded detached
+ * projected source and disposable doc-hook views; `trusted` may borrow admitted ordinary
+ * source/doc-hook input. Actor, policy, normalized boolean facts and selected/native
+ * output bounds remain owned/enforced in BOTH. No callback sandbox, transaction,
+ * external-cache/database freshness or blanket security-equivalence promise.
+ * See the installed MIGRATION.md before choosing trusted.
+ */
+export type AuthorizationMode = 'isolated' | 'trusted';
 type NestedRequestSchema = {
   default?: RequestSchema;
   data?: RequestSchema;
@@ -90,7 +102,7 @@ export interface SubOperationAccess {
 /** Per-field subdocument route objects or scalar guards; field names remain dynamic. */
 export type SubRouteGuardOptions = Record<string, Validation | SubOperationAccess>;
 
-type SubFieldPermissionOptions = Record<string, Validation | Record<string, Validation>>;
+type SubFieldPermissionOptions = Record<string, FieldValidation | Record<string, FieldValidation>>;
 
 export interface RequestSchemas {
   create?: RequestSchema;
@@ -217,16 +229,16 @@ export interface RootRouterOptions {
 
 /** Base-operation field grants used by PermissionSchema. Basic/advanced route keys do not grant fields. */
 export interface FieldOperationAccess {
-  new?: Validation;
-  list?: Validation;
-  create?: Validation;
-  read?: Validation;
-  update?: Validation;
-  upsert?: Validation;
-  delete?: Validation;
-  distinct?: Validation;
-  count?: Validation;
-  subs?: Validation | SubFieldPermissionOptions;
+  new?: FieldValidation;
+  list?: FieldValidation;
+  create?: FieldValidation;
+  read?: FieldValidation;
+  update?: FieldValidation;
+  upsert?: FieldValidation;
+  delete?: FieldValidation;
+  distinct?: FieldValidation;
+  count?: FieldValidation;
+  subs?: FieldValidation | SubFieldPermissionOptions;
 }
 
 /**
@@ -239,7 +251,7 @@ export interface FieldOperationAccess {
  * Field/row/hook, root-entry, related-target and mutation-response policies keep
  * their existing base operations. Paths below use the default route segments.
  */
-export interface OperationAccess extends Omit<FieldOperationAccess, 'subs'> {
+export interface OperationAccess {
   /** GET /new guard; unpaired, with no basic/advanced override. */
   new?: Validation;
   /** Base list guard and fallback for both list routes; also governs model read-to-list retries. */
@@ -295,7 +307,7 @@ export interface OperationAccess extends Omit<FieldOperationAccess, 'subs'> {
   subs?: Validation | SubRouteGuardOptions;
 }
 
-type PermissionRule = Validation | (FieldOperationAccess & { sub?: PermissionSchema });
+type PermissionRule = FieldValidation | (FieldOperationAccess & { sub?: PermissionSchema });
 
 /**
  * Field grants by base operation. Put basic/advanced route guards in operationAccess,
@@ -354,7 +366,7 @@ export interface ModelHydrationOptions {
  * null, empty objects/arrays) win; setting a model option to undefined restores inheritance.
  * Exception: explicitly cleared operationAccess retains its exact-key-only default fallback;
  * a runtime catch-all/default guard is not an exact fallback in that mode.
- * Nested objects replace shallowly. Existing calls/handles and router.options keep their
+ * Nested objects replace shallowly. Existing calls and router.options keep their
  * captured snapshots; changing defaults does not rebuild already-mounted route paths.
  * The two populate operation flags retain raw override values in model snapshots;
  * their effective policy is resolved separately against the captured model defaults.
@@ -523,236 +535,50 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    */
   disableFieldPermissions?: boolean;
   /**
-   * TEMPORARY UNSAFE performance escape hatch (default `false`). Only literal `true`
-   * skips repeated projected-document snapshot comparisons for this model's top-level
-   * `find`/public/root list responses. Captured before awaits; list-origin handles keep
-   * that mode. Single reads use the independent unsafeSkipReadDocumentSnapshotChecks
-   * setting. Embedded/related source stages and output values have separate flags.
-   * Writes and fresh standalone helpers stay strict.
-   *
-   * Row/field permissions, exact ownership/binding, independent output-value checks
-   * and detached callback/grant copies still run. However, source changes during a
-   * callback/await are no longer detected: stale grants/decisions may authorize output.
-   * Use only with trusted non-mutating application hooks, measure before rollout, and
-   * restore `false` as soon as possible. Enabling logs a warning once per model transition.
-   * Server model configuration only, never service.defaults, per-call or wire options.
-   * Retained isolation guarantees here describe this flag alone, not the active
-   * trusted runtime for unsafeUseListAuthorizationFastPath.
-   */
-  unsafeSkipListDocumentSnapshotChecks?: boolean;
-  /**
-   * TEMPORARY UNSAFE single-read escape hatch (default `false`). Only literal `true`
-   * skips repeated projected-document snapshot comparisons in top-level findOne,
-   * findById, public identifier/filter reads and root reads. Read-to-list retries use
-   * this setting, not unsafeSkipListDocumentSnapshotChecks. Captured before awaits;
-   * read-origin handles and retries keep that mode. List operations use their own flag.
-   *
-   * Permission rules, exact ownership/binding, independent output-value checks and
-   * detached callback/grant copies still run. Source changes during callbacks/awaits
-   * can leave stale grants/decisions and incorrectly authorized output. Use only with
-   * trusted non-mutating hooks, measure before rollout and restore `false` promptly.
-   * Embedded/related source stages use separate nested flags. Writes (including
-   * read-like output) and fresh helpers stay strict. Warns per model/flag transition.
-   * Server model or inherited model-default configuration only; never method defaults
-   * or wire options.
-   * Retained isolation guarantees describe this flag alone, not the active
-   * trusted runtime for unsafeUseReadAuthorizationFastPath.
-   */
-  unsafeSkipReadDocumentSnapshotChecks?: boolean;
-  /**
-   * TEMPORARY UNSAFE (default `false`): skip output VALUE snapshot comparisons in
-   * top-level LIST responses and their embedded/populated/included descendants.
-   * Exact output associations, graph identities, bindings and permission rules remain;
-   * scalar/native in-place mutations can now reuse stale decisions and expose data.
-   * Source checks and detached callback/grant/output copies remain. Initial output
-   * snapshots also remain unless unsafeSkipListInitialOutputSnapshotCopy is active.
-   * Captured before awaits; handles keep this mode after rollback. Only literal `true`
-   * in server model/default configuration enables it and warns on effective transition.
-   * READ/retries use unsafeSkipReadOutputSnapshotChecks; writes and fresh helpers stay
-   * strict. Never set from request/per-call/method defaults. Revisit/remove promptly.
-   * Retained copy/graph guarantees describe this flag alone, not the active
-   * trusted runtime for unsafeUseListAuthorizationFastPath.
-   */
-  unsafeSkipListOutputSnapshotChecks?: boolean;
-  /**
-   * TEMPORARY UNSAFE (default `false`): READ equivalent of unsafeSkipListOutputSnapshotChecks,
-   * including findOne/findById, public/root reads, read-to-list retries and their
-   * embedded/populated/included outputs. Uses the initiating READ model's captured
-   * setting, not LIST or target-model settings. Value mutations may reuse stale
-   * decisions; exact ownership/graph identities and permissions still run. Server
-   * model/default literal `true` only; warns on effective enablement. Retained handles
-   * keep their mode. Writes/fresh helpers stay strict. Revisit/remove promptly.
-   * Retained copy/graph guarantees describe this flag alone, not the active
-   * trusted runtime for unsafeUseReadAuthorizationFastPath.
-   */
-  unsafeSkipReadOutputSnapshotChecks?: boolean;
-  /**
-   * TEMPORARY UNSAFE (default `false`): skip repeated SOURCE snapshot comparisons for
-   * embedded/populated/included document stages reached from a top-level LIST.
-   * The initiating model's captured setting applies recursively, not target-model
-   * flags. Parent source and all output-value checks remain independently configured;
-   * parent snapshots still include nested values. Permission rules, exact binding,
-   * initial source snapshots and detached copies remain. Child mutation can leave stale
-   * grants/decisions and expose data. Only server model/default literal `true`
-   * enables it; warns on transition. Rollback affects new calls, not captured descendants
-   * or handles. READ uses its own flag; writes, dedicated subdocument operations and
-   * fresh helpers stay strict. Never derive from requests. Revisit/remove promptly.
-   * Retained copy/graph guarantees describe this flag alone, not the active
-   * trusted runtime for unsafeUseListAuthorizationFastPath.
-   */
-  unsafeSkipListNestedDocumentSnapshotChecks?: boolean;
-  /**
-   * TEMPORARY UNSAFE (default `false`): READ equivalent of
-   * unsafeSkipListNestedDocumentSnapshotChecks, including read-to-list retries.
-   * Recursively skips embedded/populated/included SOURCE comparisons using the
-   * initiating READ model's captured setting, independently of LIST, root source
-   * and output-value flags. Parent comparisons may still observe child mutation.
-   * Stale grants/decisions can expose data; permissions, identities and detached copies
-   * remain. Server model/default literal `true` only; warns on effective enablement.
-   * Writes/dedicated subdocument operations/fresh helpers stay strict; retained handles
-   * keep their mode after rollback. Never set from requests. Revisit/remove promptly.
-   * Retained copy/graph guarantees describe this flag alone, not the active
-   * trusted runtime for unsafeUseReadAuthorizationFastPath.
-   */
-  unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
-  /**
-   * TEMPORARY UNSAFE (default `false`): omit the initial output-association snapshot
-   * copy for eligible LIST outputs and their authenticated descendants. Active only
-   * with unsafeSkipListOutputSnapshotChecks=true; otherwise dormant (warns).
-   * Skips this pass's native/BSON normalization and validation observations, which
-   * can change exceptions, side effects and permission outcomes. Exact ownership,
-   * bounded shape admission and graph identities remain; proxies/Map/Set and open
-   * ownership bindings use the original copy fallback. Source snapshots and detached
-   * hook/grant/response copies remain. Not a general clone bypass. Server model/default literal true
-   * only; warns on activation. Captured before awaits; retained handles keep their
-   * mode after rollback. READ/retries use their own flag; writes/fresh helpers stay
-   * strict. Restore false promptly; never select from requests or method defaults.
-   * Retained copy/shape/graph guarantees describe this flag alone, not the active
-   * trusted runtime for unsafeUseListAuthorizationFastPath.
-   */
-  unsafeSkipListInitialOutputSnapshotCopy?: boolean;
-  /**
-   * TEMPORARY UNSAFE (default `false`): READ equivalent of
-   * unsafeSkipListInitialOutputSnapshotCopy, including READ-to-list retries and
-   * authenticated embedded/populated/included outputs. Requires the independent
-   * unsafeSkipReadOutputSnapshotChecks=true. Uses the initiating READ model's
-   * captured setting, not LIST/target flags. Omits initial native normalization
-   * observations; ownership/bounds/identities and detached callback/source copies
-   * remain. Proxies/Map/Set fall back to copying. Server model/default literal true
-   * only; warns on activation/dormancy. Writes/fresh helpers stay strict. Captured
-   * handles do not change on rollback. Never derive from requests; restore false.
-   * Retained copy/shape/graph guarantees describe this flag alone, not the active
-   * trusted runtime for unsafeUseReadAuthorizationFastPath.
-   */
-  unsafeSkipReadInitialOutputSnapshotCopy?: boolean;
-  /**
-   * EXPERIMENTAL performance-first UNSAFE, default `false`; literal server model/default `true` only. LIST authorization
-   * fast path requires ALL FOUR matching unsafeSkipListDocumentSnapshotChecks,
-   * unsafeSkipListOutputSnapshotChecks, unsafeSkipListNestedDocumentSnapshotChecks and
-   * unsafeSkipListInitialOutputSnapshotCopy options to be literal true. Otherwise dormant:
-   * the original flags keep their independent behavior. Never enables prerequisites.
-   * Explicit false overrides model defaults; undefined restores inheritance.
-   *
-   * Captured before hooks/awaits on find/public/root LIST origins; authenticated
-   * embedded/populated/included outputs and issued handles retain that origin's mode
-   * after rollback, not live target settings. Independent calls capture their own mode.
-   * Independent READ queries/retries use unsafeUseReadAuthorizationFastPath. Writes,
-   * write-derived output, new/create/update/upsert/delete, dedicated subdocuments and
-   * fresh raw-policy helpers do not apply.
-   * Never accepted in method defaults, per-call, policy, helper or wire controls.
-   *
-   * Eligible rows borrow projected source and ordinary hook grants, use shallow contexts,
-   * and omit repeated snapshots, defensive isolation and descendant graph verification.
-   * The trusted runtime retains operation/row/field rules, document hooks/getters,
-   * cheap exact root binding and issued-handle membership, NOT detached source/grant/context
-   * leaves or full descendant integrity. Borrowed values/grants/context, stale decisions,
-   * descendant replacement and fewer native normalization/validation observations can
-   * change outcomes, including denial becoming allowance. Full unvisited per-document
-   * shape/bounds are lost; request/work and bounded new output-materialization limits
-   * remain. Not a full ACL bypass or security-equivalent optimization. Warns on effective
-   * activation/dormancy and missing-prerequisite changes, never per call or when off.
-   * Measure with trusted application code and restore false promptly; already captured
-   * calls/handles do not change. Shallow-unproven rows use compatible copied stages with
-   * graph checks before hooks; selected reconstruction is bounded to 20,000 slots/issued
-   * roots and depth 100. Selected unsupported values reject; invalid virtual returns omit.
-   * Retained original children may remain discoverable after replacement; new objects
-   * receive no child handle. Measure rather than assuming a speedup.
-   * Ordinary grants are shared per field/read/owning embedded child; captured configuration
-   * and scope views are reused. No trusted stage snapshot is issued. Native/BSON snapshot
-   * wire/equality passes are omitted, but hydration, selected native/value fallbacks,
-   * getter document views/return staging, private populated argument-four isolation and
-   * JSON serialization can still copy/normalize. Active configuration is not a promise
-   * every row is zero-copy; copied/trusted rows can coexist. No universal performance
-   * gain or v0.51.0 equivalence/parity is promised. Turning false leaves the original
-   * prerequisite skip flags unchanged; restore those independently for default protections.
+   * Server model/default-model READ source isolation; default `isolated`.
+   * Only literal `isolated` / `trusted`; undefined restores inheritance. Captured
+   * before hooks/awaits; READ-to-LIST retries keep the initiating READ mode but use a
+   * fresh stage. Embedded scopes inherit their genuine owner; related targets capture
+   * their own model/access mode and policy. Independent service calls capture anew.
+   * No per-call, helper, method-default, HTTP/root/include/populate/subquery selector.
+   * Retired unsafe controls reject by presence, even false/undefined or inherited.
+   * Warns once per effective owner/access transition into trusted; logger failures
+   * cannot abort configuration. Switching to isolated affects new calls only.
    *
    * @example
    * ```ts
-   * import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';
+   * import { createAccessRuntime } from '@web-ts-toolkit/access-router';
    * const api = createAccessRuntime();
-   * const list = {
-   *   unsafeSkipListDocumentSnapshotChecks: true,
-   *   unsafeSkipListOutputSnapshotChecks: true,
-   *   unsafeSkipListNestedDocumentSnapshotChecks: true,
-   *   unsafeSkipListInitialOutputSnapshotCopy: true,
-   *   unsafeUseListAuthorizationFastPath: true,
-   * } satisfies DefaultModelRouterOptions;
-   * api.setDefaultModelOptions(list); // all READ flags remain independently off
-   * api.setDefaultModelOption('unsafeUseListAuthorizationFastPath', false);
-   * // Rollback protects new calls only; existing handles retain the weaker mode.
+   * api.setDefaultModelOption('readAuthorizationMode', 'isolated');
+   * api.setModelOptions('Employee', { readAuthorizationMode: 'trusted' });
+   * api.setModelOption('Employee', 'readAuthorizationMode', undefined); // inherit
    * ```
    */
-  unsafeUseListAuthorizationFastPath?: boolean;
+  readAuthorizationMode?: AuthorizationMode;
   /**
-   * EXPERIMENTAL performance-first UNSAFE, default `false`; independent READ equivalent of unsafeUseListAuthorizationFastPath.
-   * Requires ALL FOUR unsafeSkipReadDocumentSnapshotChecks, unsafeSkipReadOutputSnapshotChecks,
-   * unsafeSkipReadNestedDocumentSnapshotChecks and unsafeSkipReadInitialOutputSnapshotCopy
-   * options to be literal true; missing prerequisites leave it dormant without changing them.
-   * Explicit false overrides model defaults; undefined restores inheritance.
-   * Captured before hooks/awaits for findOne/findById/public/root reads, including READ-to-list
-   * retries and authenticated embedded/related descendants, never from LIST/target settings.
-   * Retained issued handles keep the captured mode; rollback affects new calls only.
-   *
-   * Eligible rows borrow source/ordinary hook grants, use shallow contexts and omit
-   * repeated snapshots, defensive isolation and descendant graph verification.
-   * The trusted runtime retains actual rules/hooks/getters, operation/row admission,
-   * cheap exact root binding and issuance membership, not full descendant integrity or
-   * detached source/grant/context leaves. Mutation, stale decisions, descendant replacement
-   * and lost native observations can turn denial into allowance; full unvisited per-document
-   * shape/bounds are lost. Request/work limits remain; selected reconstruction is bounded
-   * to 20,000 slots/issued roots and depth 100. Shallow-unproven rows use compatible copied
-   * stages with graph checks before hooks. Unsupported selected values reject; invalid
-   * virtual returns omit. Removed issued children may remain discoverable; replacements
-   * receive no child handle.
-   * Writes/write-derived reads, new/create/update/upsert/delete, dedicated subdocuments
-   * and fresh raw-policy helpers
-   * stay inapplicable. Server model/default literal true only, never method defaults or
-   * per-call/policy/helper/wire controls. Warns on effective activation/dormancy and
-   * missing-prerequisite changes, never per call or when off;
-   * restore false promptly and measure rather than assuming equivalent security or speed.
-   * Grants/context/native leaves and captured scope/config views may be shared; there
-   * is no trusted stage snapshot. Selected natives/hydration/getter views/return staging/
-   * private argument-four isolation/JSON serialization still normalize or copy. Active
-   * configuration is not an every-row zero-copy promise. No universal gain or v0.51.0
-   * equivalence/parity. Rollback does not automatically restore the four original skips.
+   * Independent server model/default-model LIST source isolation; default `isolated`.
+   * Literal `isolated` / `trusted` only; undefined restores inheritance. Both modes
+   * capture actor/policy before hooks/awaits and normalize facts once per stage. Only source
+   * borrowing changes: trusted doc-hook mutations can affect values/calculated facts;
+   * no whole-document bounds on hidden unvisited graphs. Selected 20,000-slot/depth 100
+   * bounds, original actor, rows/fields/targets, getter views and private argument-four
+   * isolation remain. Related targets use their own captured mode; embedded scopes
+   * inherit their owner. Writes/new/dedicated subdocuments ALWAYS stay isolated.
+   * Atomic setters and new-call-only rollback follow readAuthorizationMode. There is
+   * no one-to-one mapping from old mixed flags and no reusable output handle.
    *
    * @example
    * ```ts
-   * import acl, { type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';
-   * const read = {
-   *   unsafeSkipReadDocumentSnapshotChecks: true,
-   *   unsafeSkipReadOutputSnapshotChecks: true,
-   *   unsafeSkipReadNestedDocumentSnapshotChecks: true,
-   *   unsafeSkipReadInitialOutputSnapshotCopy: true,
-   *   unsafeUseReadAuthorizationFastPath: true,
-   * } satisfies DefaultModelRouterOptions;
-   * // User must already be registered on this runtime; never spread request options.
-   * acl.setModelOptions('User', read); // LIST is not enabled
-   * acl.setModelOption('User', 'unsafeUseReadAuthorizationFastPath', false);
-   * // READ-to-list retries and retained handles keep the initiating READ capture.
+   * import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+   * const api = createAccessRuntime();
+   * api.setModelOptions('Employee', {
+   *   readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted',
+   * });
+   * api.setModelOptions('Payroll', { listAuthorizationMode: 'isolated' });
+   * api.setModelOption('Employee', 'listAuthorizationMode', 'isolated'); // new calls
    * ```
    */
-  unsafeUseReadAuthorizationFastPath?: boolean;
+  listAuthorizationMode?: AuthorizationMode;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
@@ -880,10 +706,9 @@ export interface ModelRouterOptions<
   alwaysSelectFields?: string[] | Record<string, string[]>;
   /**
    * Once-per-root/target projected document grants, independently of skim/metadata.
-   * Active unsafe query fast paths borrow ordinary source/hook input and share returned
-   * grants/context leaves across field decisions/reads/owning embedded children.
-   * Mutation can change permission outcomes; see ModelDocPermissionsHook and the
-   * unsafeUseListAuthorizationFastPath / unsafeUseReadAuthorizationFastPath contract.
+   * Both source modes own one immutable boolean map. Genuine embedded scopes share
+   * owning facts; related targets and independent pre/post-write stages resolve anew.
+   * Output contexts are immutable diagnostics, never source or reusable authority.
    */
   docPermissions?: DocPermissions | ModelDocPermissionsHook;
   /**
@@ -900,8 +725,8 @@ export interface ModelRouterOptions<
   baseFilter?: ModelBaseFilterHook | Record<string, ModelBaseFilterHook>;
   /** Ordinary-query transform, run once even with trusted row policy. Mandatory IDs/joins and scope remain ANDed. */
   overrideFilter?: ModelOverrideFilterHook | Record<string, ModelOverrideFilterHook>;
-  decorate?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
+  decorate?: ModelOutputHook<TModel> | Record<string, ModelOutputHook<TModel>>;
+  decorateAll?: ModelOutputListHook<TModel> | Record<string, ModelOutputListHook<TModel>>;
   validate?: ValidateRule | ModelValidateHook | Record<string, ValidateRule | ModelValidateHook>;
   /**
    * Trusted model hook after validation of selected client data; output is not
@@ -999,13 +824,13 @@ export interface ExtendedModelRouterOptions<TModel = unknown, TVirtuals extends 
   'overrideFilter.read'?: ModelOverrideFilterHook;
   'overrideFilter.update'?: ModelOverrideFilterHook;
   'overrideFilter.delete'?: ModelOverrideFilterHook;
-  'decorate.default'?: ModelHook<TModel>;
-  'decorate.list'?: ModelHook<TModel>;
-  'decorate.create'?: ModelHook<TModel>;
-  'decorate.read'?: ModelHook<TModel>;
-  'decorate.update'?: ModelHook<TModel>;
-  'decorateAll.default'?: ModelListHook<TModel>;
-  'decorateAll.list'?: ModelListHook<TModel>;
+  'decorate.default'?: ModelOutputHook<TModel>;
+  'decorate.list'?: ModelOutputHook<TModel>;
+  'decorate.create'?: ModelOutputHook<TModel>;
+  'decorate.read'?: ModelOutputHook<TModel>;
+  'decorate.update'?: ModelOutputHook<TModel>;
+  'decorateAll.default'?: ModelOutputListHook<TModel>;
+  'decorateAll.list'?: ModelOutputListHook<TModel>;
   'validate.default'?: ValidateRule | ModelValidateHook;
   'validate.create'?: ValidateRule | ModelValidateHook;
   'validate.update'?: ValidateRule | ModelValidateHook;

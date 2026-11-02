@@ -31,6 +31,7 @@ export function setDocValue(doc: unknown, path: string, value: unknown) {
   }
 }
 
+/** Read serialized metadata DATA (including _view/_edit), never stage facts or authority. */
 export function getDocPermissions(modelName: string, doc: unknown): Record<string, unknown> {
   const docPermissionField = getModelOption(modelName, 'documentPermissionField');
   const permissions = getDocValue(doc as DocValue, docPermissionField, {});

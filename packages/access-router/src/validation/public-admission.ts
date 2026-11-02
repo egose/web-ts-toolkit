@@ -1,7 +1,13 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
+import { types } from 'node:util';
 import { isPlainObject } from '@web-ts-toolkit/utils';
 import { Codes } from '../enums';
-import { unsafeServerOptions } from '../acl/unsafe-snapshot-options';
+import {
+  admitControlPrototypes,
+  authorizationControlError,
+  controlPropertyKeys,
+  serverAuthorizationControls,
+} from '../acl/authorization-modes';
 import type {
   ErrorResult,
   FindOneOptions,
@@ -31,7 +37,7 @@ const privateControls = [
   'skipParsing',
   'skipAuthorization',
   'alreadyAuthorized',
-  ...unsafeServerOptions,
+  ...serverAuthorizationControls,
   'operation',
 ] as const;
 
@@ -46,7 +52,7 @@ export class PublicAdmissionError extends JsonRouter.clientErrors.BadRequestErro
 }
 
 export type PublicAdmissionKind = 'envelope' | 'include' | 'populate' | 'data';
-type ControlAdmissionKind = PublicAdmissionKind | 'policy' | 'policies' | 'defaults';
+type ControlAdmissionKind = PublicAdmissionKind | 'policy' | 'policies' | 'defaults' | 'model-options' | 'data-options';
 
 const defaultControlBuckets = [
   'findOneArgs',
@@ -86,13 +92,14 @@ function assertPublicControlAdmission(input: unknown, kind: ControlAdmissionKind
   walkControlAdmission(
     input,
     kind,
-    (record, path) => {
-      for (const key of privateControls) {
+    (_record, path, keys) => {
+      for (const property of keys) {
+        const key = property.split('.')[0];
         // Presence includes undefined, non-enumerable and inherited JS controls.
-        if (key in record) {
+        if ((privateControls as readonly string[]).includes(key)) {
           throw new PublicAdmissionError(
-            (unsafeServerOptions as readonly string[]).includes(key)
-              ? `Unsupported public control ${path}.${key}; this unsafe flag is server model configuration only`
+            (serverAuthorizationControls as readonly string[]).includes(key)
+              ? `Unsupported public control ${path}.${authorizationControlError(key)}`
               : `Unsupported public control ${path}.${key}; use explicit per-call internal service options for backend authorization`,
           );
         }
@@ -115,9 +122,14 @@ export function assertNoServerModelControls(
   walkControlAdmission(
     input,
     kind,
-    (record, path) => {
-      for (const key of unsafeServerOptions)
-        if (key in record) reject(`${path}.${key} is server model configuration only`);
+    (_record, path, keys) => {
+      for (const property of keys) {
+        const key = property.split('.')[0];
+        if ((serverAuthorizationControls as readonly string[]).includes(key))
+          reject(`${path}.${authorizationControlError(key)}`);
+        if (key === 'documentAuthorization' || key === 'documentAuthorizationStage')
+          reject(`${path}.${key} was removed; output DTOs carry no authority`);
+      }
     },
     reject,
   );
@@ -126,7 +138,7 @@ export function assertNoServerModelControls(
 function walkControlAdmission(
   input: unknown,
   kind: ControlAdmissionKind,
-  check: (record: Record<string, unknown>, path: string) => void,
+  check: (record: Record<string, unknown>, path: string, keys: readonly string[]) => void,
   reject: (detail: string) => never,
 ): void {
   const pending = [{ value: input, kind, path: 'request', depth: 0 }];
@@ -135,6 +147,12 @@ function walkControlAdmission(
   while (pending.length) {
     const { value, kind: slot, path, depth } = pending.pop()!;
     if (!value || (typeof value !== 'object' && typeof value !== 'function')) continue;
+    // Trusted callbacks are callable leaves, not function-attached option bags.
+    if (typeof value === 'function' && (slot === 'policy' || slot === 'data')) continue;
+    // Control preflight precedes descriptor/snapshot admission. A proxy cannot
+    // supply trustworthy slots and must not execute traps while being rejected.
+    if (types.isProxy(value)) reject(`unsupported proxy in control admission: ${path}`);
+    const owners = admitControlPrototypes(value, reject);
     const kinds = seen.get(value) ?? new Set<ControlAdmissionKind>();
     if (kinds.has(slot)) continue;
     kinds.add(slot);
@@ -145,13 +163,37 @@ function walkControlAdmission(
       pending.push({ value: child, kind: childKind, path: `${path}.${key}`, depth: depth + 1 });
     };
     const record = value as Record<string, unknown>;
-    if (slot !== 'data' && slot !== 'policies') check(record, path);
+    const propertyKeys = slot === 'data' || slot === 'policies' ? [] : controlPropertyKeys(owners, reject);
+    if (slot !== 'data' && slot !== 'policies' && slot !== 'model-options') check(record, path, propertyKeys);
+    // Untyped bulk settings can contain literal dotted property names. Follow
+    // only recognized control namespaces, never permission-schema/business paths.
+    for (const property of propertyKeys) {
+      const parts = property.split('.');
+      if (parts.length < 2 || !parts.some((part) => (serverAuthorizationControls as readonly string[]).includes(part)))
+        continue;
+      const roots =
+        slot === 'defaults'
+          ? defaultControlBuckets
+          : slot === 'policy'
+            ? ['rows', 'outputFields', 'inputFields', 'operation', 'related']
+            : ['args', 'options', 'sqOptions', 'include', 'populate', 'authorization', 'defaults'];
+      if (!(roots as readonly string[]).includes(parts[0])) continue;
+      if (parts.length > 100) reject('control admission dotted path exceeds structural limits');
+      const wrapper: Record<string, unknown> = {};
+      let target = wrapper;
+      for (const part of parts.slice(0, -1)) {
+        const child = {};
+        Object.defineProperty(target, part, { value: child, enumerable: true });
+        target = child;
+      }
+      const descriptor = owners.map((owner) => Object.getOwnPropertyDescriptor(owner, property)).find(Boolean)!;
+      Object.defineProperty(target, parts.at(-1)!, descriptor);
+      add(wrapper, slot, property);
+    }
     // Preflight must not execute a policy/control accessor before the existing
     // snapshot validator can reject it. Inherited data slots still count as controls.
     const read = (key: string): unknown => {
-      let owner: object | null = value;
-      for (let depth = 0; owner; depth++, owner = Object.getPrototypeOf(owner)) {
-        if (depth > 100) reject('control admission prototype depth exceeded');
+      for (const owner of owners) {
         const descriptor = Object.getOwnPropertyDescriptor(owner, key);
         if (!descriptor) continue;
         if (!('value' in descriptor)) reject(`accessor control/data property: ${path}.${key}`);
@@ -181,12 +223,14 @@ function walkControlAdmission(
       for (const key of keys) if (key in record) add(read(key), 'envelope', key);
       continue;
     }
+    add(read('defaults'), 'defaults', 'defaults');
     if (slot === 'policies') {
       for (const key of Object.keys(value)) add(read(key), 'policy', key);
       continue;
     }
     if (slot === 'policy') {
-      for (const key of ['rows', 'outputFields', 'inputFields', 'operation']) add(read(key), 'policy', key);
+      for (const key of ['rows', 'outputFields', 'inputFields', 'operation', 'parent', 'child', 'visibility'])
+        add(read(key), 'policy', key);
       add(read('related'), 'policies', 'related');
       add(read('filter'), 'data', 'filter');
       continue;
@@ -195,7 +239,9 @@ function walkControlAdmission(
     add(read('include'), 'include', 'include');
     add(read('populate'), 'populate', 'populate');
     add(read('authorization'), 'policy', 'authorization');
-    for (const key of ['filter', 'match', 'data']) add(read(key), 'data', key);
+    add(read('operationAccess'), 'policy', 'operationAccess');
+    for (const key of slot === 'data-options' ? ['filter', 'match'] : ['filter', 'match', 'data'])
+      add(read(key), 'data', key);
   }
 }
 

@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useMongoTestDatabase } from './setup';
 import { authorizationFixture, noteGrant, quiet } from './service-authorization-fixture';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 
 describe('SVA-05 mutation authority and stages', () => {
-  it('create grants output only, preserves validation/prepare/afterPersist and gives each row a handle', async () => {
+  it('create grants output only, preserves validation/prepare/afterPersist and publishes independent row diagnostics', async () => {
     const validate = vi.fn(() => true);
     const prepare = vi.fn((data) => data);
     const afterPersist = vi.fn((doc) => doc);
@@ -38,12 +39,15 @@ describe('SVA-05 mutation authority and stages', () => {
       expect(prepare).toHaveBeenCalledTimes(2);
       expect(afterPersist).toHaveBeenCalledTimes(2);
       expect(hook).toHaveBeenCalledTimes(2);
-      for (let i = 0; i < 2; i++)
+      for (let i = 0; i < 2; i++) {
+        expectOutputContext(result.contexts[i], { operation: 'create', docPermissions: { owner: true } });
         expect(
           await service.pickAllowedFields(result.data[i], 'read', {
-            documentAuthorization: result.contexts[i].documentAuthorization,
+            authorization: noteGrant,
           }),
         ).toHaveProperty('internalNote', 'server-default');
+      }
+      expect(result.contexts[0].docPermissions).not.toBe(result.contexts[1].docPermissions);
       expect((await f.Model.findById(result.data[0]._id).select('+internalNote').lean())!.internalNote).toBe(
         'server-default',
       );
@@ -88,9 +92,10 @@ describe('SVA-05 mutation authority and stages', () => {
         expect(afterPersist).toHaveBeenCalledTimes(1);
         expect(
           await service.pickAllowedFields(result.data, 'read', {
-            documentAuthorization: result.context.documentAuthorization,
+            authorization: noteGrant,
           }),
         ).toHaveProperty('internalNote', 'note-a');
+        expectOutputContext(result.context, { docPermissions: { owner: false }, operation: 'update' });
         expect(hook).toHaveBeenCalledTimes(2);
         expect(await f.Model.findById(f.rows[0]._id).select('+internalNote').lean()).toMatchObject({
           status: 'changed',
@@ -206,7 +211,7 @@ describe('SVA-05 mutation authority and stages', () => {
     });
   });
 
-  it('new ignores selection but grants selected-template eligibility and provides a create-access handle', async () => {
+  it('new ignores selection but grants template eligibility with immutable create diagnostics', async () => {
     const hook = vi.fn(() => ({}));
     const f = await authorizationFixture({
       docPermissions: { create: hook },
@@ -221,9 +226,10 @@ describe('SVA-05 mutation authority and stages', () => {
         if (!result.success) throw new Error(result.code);
         expect(
           await service.pickAllowedFields(result.data, 'create', {
-            documentAuthorization: result.context.documentAuthorization,
+            authorization: noteGrant,
           }),
         ).toHaveProperty('internalNote', 'server-default');
+        expectOutputContext(result.context, { operation: 'new', outputAccess: 'create', docPermissions: {} });
       }
       expect(hook).toHaveBeenCalledTimes(3);
     });

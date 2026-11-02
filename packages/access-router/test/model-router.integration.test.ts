@@ -513,9 +513,9 @@ describe('model router integration', () => {
         modelName,
         access: 'read',
         operation: 'read',
-        error: 'docPermissions exploded',
       }),
     );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('docPermissions exploded');
   });
 
   it('applies baseFilter and permissionSchema for list and read requests', async () => {
@@ -1066,11 +1066,11 @@ describe('model router integration', () => {
     expect(response.body).toMatchObject({
       operation: 'list',
       resolvedQuery: {
-        filter: {},
         skip: 0,
         limit: 1,
       },
     });
     expect(Array.isArray(response.body.resolvedQuery.select)).toBe(true);
+    expect(response.body.resolvedQuery).not.toHaveProperty('filter');
   });
 });

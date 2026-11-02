@@ -1,5 +1,11 @@
 # One-off access-router version benchmark
 
+**Current owned-authorization builds use `isolated` / `trusted`, not the ten retired
+flags below.** The interactive table still measures only the unchanged historical
+LIST fixtures. The separate fixed-protocol driver below explicitly selects READ,
+helpers, native adapters, facts and retained heap. No timing acceptance is implied by
+its implementation or small smoke runs.
+
 From the repository root, after `pnpm install`:
 
 ```sh
@@ -24,12 +30,17 @@ the prepared entrypoint hash before importing it.
    its own frozen lockfile, and built in a separate temporary directory. Install
    lifecycle scripts are disabled; explicitly selected tag build scripts still
    execute repository code, so select only trusted tags.
-3. Multiselect ready builds (**at least one**). For each build declaring all six
+3. Multiselect ready builds (**at least one**). A new build must declare both optional
+   literal source modes through exported model/default options in **both** declaration
+   conditions. Choose isolated (default), trusted, or both; verify READ/LIST through
+   exact **and** bulk getters on both source and related target. These are not old
+   flag aliases and cannot silently fall back to historical profiles.
+   For each historical build declaring all six
    unsafe snapshot flags, choose **OFF** (default), **ON**, or **BOTH**. BOTH
    measures the same build twice as separate candidates. Older/partial builds do
    not offer ON: any supported flags are set to false, and the report identifies
-   how many are supported. For example, select BOTH for the current build and
-   include v0.51.0 to compare current OFF, current ON, and the historical build.
+   how many are supported. For example, select BOTH for an older flag-bearing build
+   and include v0.51.0 to compare that build OFF, ON, and v0.51.0.
    Separately select **OFF/ON/BOTH initial output copy skips** for builds declaring
    both copy options. BOTH creates the cross-product with comparison candidates.
    Old/partial copy support is labeled N/A or supported-OFF; ON is unavailable.
@@ -163,19 +174,132 @@ SSH key into your running agent (`ssh-add /path/to/key`) or configure GitHub acc
 normally. The runner does not alter remotes, SSH configuration, keys or permissions.
 Installing `ssh-askpass` is not required for terminal passphrase entry.
 
-Runner checks (no benchmarks, no network or MongoDB required):
+Historical runner unit checks (no MongoDB; the sealed historical source fixture is
+read only to retain the old group-export assertions):
 
 ```sh
-node --test scripts/benchmarks/access-router.test.mjs
+WTT_BENCH_LEGACY_ROOT='<sealed-old-root>' node --test scripts/benchmarks/access-router.test.mjs
 pnpm exec eslint scripts/benchmarks
 ```
 
 For a real worker smoke test of all eight comparison/copy/fast-path candidates on separate
 embedded and document-hook scenarios,
-build the current access-router first, then run the integration test. This starts
+select a sealed historical build (all ten declarations, including its original
+source fixture), then run the integration test. This starts
 disposable MongoDB and may download its binary:
 
 ```sh
-pnpm --filter @web-ts-toolkit/access-router... --workspace-concurrency=1 build
-node --test --test-concurrency=1 scripts/benchmarks/access-router.test.mjs scripts/benchmarks/access-router.integration.test.mjs
+WTT_BENCH_LEGACY_ROOT='<sealed-old-root>' node --test --test-concurrency=1 scripts/benchmarks/access-router.test.mjs scripts/benchmarks/access-router.integration.test.mjs scripts/benchmarks/access-router-owned.test.mjs
 ```
+
+## Fixed owned-authorization protocol (separate driver)
+
+Replace placeholders and run from the checkout root. Use **new ignored directories**
+for every output/cache/batch. Neither command builds or installs anything. Sealed
+baseline/candidate trees must resolve the same immutable external dependency bytes.
+
+```json
+{
+  "baselineRoot": "<sealed-old-root>",
+  "candidateRoot": "<sealed-candidate-root>",
+  "baselineSeal": "<baseline-metadata.json>",
+  "candidateSeal": "<candidate-metadata.json>",
+  "dependencySeal": "<dependency-identities.json>"
+}
+```
+
+```sh
+node scripts/benchmarks/access-router-owned.mjs --plan config.json '<new-plan-dir>'
+node scripts/benchmarks/access-router-owned.mjs --smoke config.json '<new-smoke-dir>'
+# OAR-09B ONLY, after implementation/full gates/artifacts are accepted:
+node scripts/benchmarks/access-router-owned.mjs --run config.json '<new-final-batch-dir>'
+```
+
+`--plan` starts no processes/databases. `--smoke` has two samples, one warmup and one
+paired round; an optional `cases` array selects exact catalog IDs. It is **NOT
+retention/performance acceptance**. `--run` rejects subsets/settings overrides and
+requires seals: `allFilesSha256` paths relative to each artifact; dependency records
+have checkout-relative `directory` plus `filesSha256`. Seals are verified before and
+after. The candidate seal also fixes source/tool hashes, tool-dependency files,
+Node version/runtime/binary, lock, baseline/dependency-seal identities, pnpm binary,
+and MongoDB binary/version. Set `MONGOMS_SYSTEM_BINARY` to that sealed executable;
+Mongo-backed workers report the actual server version. A different tool/runtime
+requires a newly named accepted packet, not reuse of an existing candidate seal.
+Partial raw reports/jobs/logs survive failures.
+The runner awaits one child at a time and stops its one disposable Mongo in finally.
+
+The fixed catalog (`--plan` writes every ID) is:
+
+| Family                | Actual API/work                                                                                                                                  | Reads and document hooks per operation                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| primary               | Original plain-wide, document-rules, embedded HTTP LIST; 100 rows/24 fields/32 bytes                                                             | 1 read; document-rules 100 hooks, others 0                                                                                                              |
+| guard                 | All six original guards at 10/100 rows                                                                                                           | 1 read (populate 2); virtuals 2 getters/row; no doc hooks                                                                                               |
+| read                  | Generated POST `/bench/__query/<id>` and `/bench/__query/__filter`; cycle 100 persisted IDs; wide/document/embedded plus hydrated/virtual guards | 1 `findOne`, 1 returned row; document case 1 hook, virtual case 2 getters; no counts                                                                    |
+| H0                    | Packed direct `findById` then ordinary presentation subset, in an HTTP workflow wrapper                                                          | 1 initial read, subset +0 reads/hooks                                                                                                                   |
+| H1 / H1-scoped        | `pickAllowedFields`, `trimOutputFields`, `genAllowedFields(...,{purpose:'output'})`; global functions and explicit scoped output policy          | 0 DB operations/hooks/virtuals; new hooks observe frozen EMPTY facts                                                                                    |
+| H2 / H2-query         | Old initial `findById` + actual context handle pick versus new initial + fresh `findById`; matching normal query alone is separate               | old 1 read/hook; new 2 reads/hooks; query component 1/1                                                                                                 |
+| H3 / H3-query         | Same migration via `find` at 10/100 rows and actual old per-row `contexts[i]` handles                                                            | old 1 batched read/rows hooks; new 2 batched reads/2×rows hooks, **not per-row queries**                                                                |
+| H2-global / H3-global | Old handle reuse versus new fresh raw helper on global-only rules                                                                                | 1 initial read; helper +0 reads/hooks                                                                                                                   |
+| H4                    | Actual exported `guard({modelName,id,condition})`                                                                                                | 1 normal read/hook. Metadata enabled on BOTH artifacts for comparable old guard behavior; separate new guard security coverage is in full package tests |
+| native-adapter        | Packed direct `findById` / `find` with bounded Date/Buffer/ObjectId/Code.scope/DBRef.fields and nested Map/array                                 | **0 Mongo reads**; explicit Query adapter 1 call; 1 or 100 hooks. This is NOT Mongo timing                                                              |
+| facts                 | Own owner-only baseline versus identical used owner + unused boolean checksum fact, 100 rows/24 fields                                           | 1 read, 100 hooks, exactly 100 × 10,000 checksum iterations in expensive case, independent of selected fields                                           |
+| retention             | `--expose-gc`, fixed 100 rows at 4/24/48 fields, five warmups; four cycles of five operations, held/released result and three GCs/observation    | retained bytes, **NOT allocation counts**; true allocation counters unavailable                                                                         |
+
+All ordinary families have 100 samples, guards 50, one client, hook concurrency 10,
+five warmups. `current-default` (ten OFF) and `current-active` (ten ON) are **the SAME
+sealed old build**, not versions/new source modes. Paired comparisons are
+isolated/default and trusted/active. Round two reverses both case and profile order.
+
+Every measured response is fully checked on BOTH artifacts, plus before/after checks.
+This is `checked-each-response-v1`, **not** the old row-count-only timing series.
+Original LIST request latency excludes the post-response deep check; its process CPU
+includes it. New workflow latencies include their checks. Never pool these APIs/series.
+Raw samples, each fingerprint, actual Node user/system CPU totals and elapsed time are
+saved. DB server CPU and allocation counts are unavailable. HTTP helper wrappers also
+include transport/serialization/parsing; they are not isolated helper microbenchmarks.
+
+Separate preflight children verify actual packed direct APIs, admitted READ retry
+(2 adapter calls/1 hook, initiating READ capture/list field rules), terminal 400/403
+(no retry), source/target mode input mutations, current ownership/global actor changes,
+DTO/metadata replay non-authority, helper hydration/denied accessors and native/wire
+bounds. Historical native/accessor/raw-helper differences are recorded, not rewritten
+as new-contract promises. Overflow cases are correctness only, never timed. Real Mongo
+native persistence/bounds and exact/depleted/depth/cycle controls also remain in the
+full packed/package gates; adapter counts never stand in for those Mongo reads.
+
+Another **instrumented correctness-only** child copies the root bundle into exclusive
+scratch, refuses missing/ambiguous real function seams and observes 6 rows × 24
+callbacks = 144, 6 hooks, one adapter call, raw facts normalized once/root, closed stage
+source/fact/promise/memo clearing, and 4/24/48-field copy scaling. It adds no public
+package API. Never use that instrumented entry/heap for timing or retained-heap data.
+
+### Immutable gates and reporting
+
+These encode the pre-candidate OAR-01 protocol, not tuned thresholds:
+
+- Primary isolated/default: each initial pair must improve median and CPU; median
+  paired savings **≥10% AND ≥1.0 ms median**, **≥10% AND ≥0.5 ms CPU/request**.
+- Adverse: **>10% AND >1 ms median**, **>15% AND >2 ms p95**, or **>10% AND >0.5 ms CPU**.
+  Trusted/active, guards, READ, comparable raw/native/fact work use the adverse gates.
+- H2/H3 migration allowance compares the observed new workflow with old workflow
+  **plus its matching normal query component**, with the same median/CPU allowances.
+  Component medians/CPU are explicit sums; **no synthetic p95 distribution**. The
+  extra fresh read is a disclosed migration cost, not a speedup. The fact report also
+  compares expensive work with each profile's OWN no-unused-fact baseline.
+- Miss/sign disagreement/material adverse triggers **exactly two** more reversed
+  pairs, at original settings. No discards/sample increases/substitutions. Four-pair
+  benefit needs three aligned median+CPU pairs and median paired size thresholds;
+  adverse confirmation needs the same metric in three pairs and the median delta.
+  Unresolved instability/failing counts/fingerprints remains blocking.
+- Repeated retained growth **>15% AND >1 MiB** above each process's own forced-GC
+  starting heap is blocking in **either held or released observations**. Both initial
+  rounds trigger the fixed repeat; confirmation needs three of four rounds (and
+  three of four GC cycles per round). Inspect all 4/24/48-field held/released data
+  alongside the structural copy/closed-state proof: superlinear retained per-field
+  graphs remain blocking even below the absolute heap threshold. No allocation count
+  or graph-growth conclusion follows from a noisy heap delta alone.
+
+`report.json` aggregates **median of paired deltas**, never pools requests. p95 is
+nearest-rank per job. Two rounds are a reproducibility screen: no CI/significance or
+universal speed/security-equivalence claim. Product timings are not established by
+unit tests, correctness runs or OAR-09A smokes.

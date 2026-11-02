@@ -6,6 +6,7 @@ import { createAccessRuntime } from '../dist/index.mjs';
 import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 import { quiet } from './service-authorization-fixture';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 let sequence = 0;
@@ -119,7 +120,7 @@ async function fixture(targetOptions: Record<string, unknown> = {}, parentOption
 
 describe('SVA-06 explicit related policies', () => {
   it.each([false, true])(
-    'populates false/missing target output rules (virtuals=%s), keeps selection and target handles',
+    'populates false/missing target output rules (virtuals=%s), keeps selection and target-local facts',
     async (virtuals) => {
       const getter = vi.fn((doc) => `v:${doc.hidden}`);
       const hook = vi.fn((doc) => ({ owner: doc.owner === 'alice' }));
@@ -145,12 +146,12 @@ describe('SVA-06 explicit related policies', () => {
         });
         if (!result.success) throw new Error(result.code);
         const child = (result.data as any).ref;
-        const handle = result.context.getDocumentAuthorization(child);
-        expect(handle).toBeDefined();
-        expect(await target.pickAllowedFields(child, 'read', { documentAuthorization: handle! })).toMatchObject({
-          note: 'note-a',
-          name: 'a',
+        expectOutputContext(result.context);
+        const picked = await target.pickAllowedFields(child, 'read', {
+          authorization: { outputFields: { mode: 'grant', paths: ['note'] } },
         });
+        expect(picked).toHaveProperty('note', 'note-a');
+        expect(picked).not.toHaveProperty('name'); // Empty facts cannot replay the target's owner decision.
         expect(child).not.toHaveProperty('owner');
         expect(child).not.toHaveProperty('hidden');
         expect(child).not.toHaveProperty('_permissions');
@@ -280,7 +281,7 @@ describe('SVA-06 explicit related policies', () => {
           if (op !== 'count') {
             const child = op === 'list' ? items[0] : items;
             expect(child).not.toHaveProperty('group');
-            expect(result.context.getDocumentAuthorization(child)).toBeDefined();
+            expectOutputContext(result.context);
             const requestFields = await svc.findOne(
               { _id: f.parents[0]._id },
               { include } as never,
@@ -374,15 +375,18 @@ describe('SVA-06 explicit related policies', () => {
       expect(data.items[1].nested).toBeNull();
       expect(data.ordinary[0]).not.toHaveProperty('note');
       const target = req.macl.getService(f.targetName);
-      const handle = result.context.getDocumentAuthorization(data.items[0]);
-      expect(await target.pickAllowedFields(data.items[0], 'list', { documentAuthorization: handle! })).toHaveProperty(
-        'note',
-        'note-a',
-      );
+      expectOutputContext(result.context);
+      expect(
+        await target.pickAllowedFields(data.items[0], 'list', {
+          authorization: { outputFields: { mode: 'grant', paths: ['note'] } },
+        }),
+      ).toHaveProperty('note', 'note-a');
       await expect(
-        target.pickAllowedFields(data.items[1], 'list', { documentAuthorization: handle! }),
+        target.pickAllowedFields(data.items[1], 'list', {
+          documentAuthorization: result.context.docPermissions,
+        } as never),
       ).rejects.toThrow();
-      expect(result.context.getDocumentAuthorization(data.items[0].nested)).toBeDefined();
+      expect(data.items[0].nested).toHaveProperty('note', 'note-b');
     });
   });
 
@@ -495,7 +499,7 @@ describe('SVA-06 explicit related policies', () => {
       expect(getter).toHaveBeenCalledTimes(1);
       expect(rows[2].ref).toBeNull();
       expect(rows[2].refs).toEqual([]);
-      expect(result.contexts[0].getDocumentAuthorization(rows[0].ref)).toBeDefined();
+      for (const context of result.contexts) expectOutputContext(context);
     });
   });
 
@@ -583,7 +587,7 @@ describe('SVA-06 explicit related policies', () => {
   });
 
   it.each(['disabled', 'stripped', 'limited'])(
-    'related handles keep document and backend grants with %s metadata',
+    'related output keeps document and backend grants with %s metadata, not reusable authority',
     async (posture) => {
       const hook = vi.fn((doc) => ({ owner: doc.owner === 'alice', other: true }));
       const f = await fixture({
@@ -613,11 +617,12 @@ describe('SVA-06 explicit related policies', () => {
         else expect(children[0]._permissions).toEqual({ _view: { $: '_' }, _edit: { $: '_' } });
         expect(children[0]).not.toHaveProperty('owner');
         const before = hook.mock.calls.length;
-        expect(
-          await req.macl.getService(f.targetName).pickAllowedFields(children[0], 'list', {
-            documentAuthorization: result.context.getDocumentAuthorization(children[0])!,
-          }),
-        ).toMatchObject({ name: 'a', note: 'note-a' });
+        expectOutputContext(result.context);
+        const picked = await req.macl.getService(f.targetName).pickAllowedFields(children[0], 'list', {
+          authorization: { outputFields: { mode: 'grant', paths: ['note'] } },
+        });
+        expect(picked).toHaveProperty('note', 'note-a');
+        expect(picked).not.toHaveProperty('name');
         expect(hook).toHaveBeenCalledTimes(before);
       });
     },

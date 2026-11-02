@@ -17,6 +17,7 @@ import path from 'node:path';
 import { buildSync } from 'esbuild';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { assertMigrationDiagnostics, extractMigrationBlocks } from './migration-guide-fixture';
 
 /**
  * Resolve the real production manifest transformer (`createPublishPackageJson`)
@@ -169,13 +170,6 @@ function hasBuiltBinEntries(packageDir: string): boolean {
   return binEntries.every((entry) => existsSync(path.resolve(packageDir, entry)));
 }
 
-function ensureReleaseArtifactBinPackagesBuilt(): void {
-  const missing = releaseArtifactBinPackages.filter((pkg) => !hasBuiltBinEntries(pkg.dir));
-  if (missing.length === 0) return;
-
-  for (const pkg of missing) run('pnpm', ['--filter', pkg.name, 'build'], workspaceRoot);
-}
-
 /**
  * Seed an asdf `.tool-versions` into a temp directory so spawned `pnpm` /
  * `node` / `tsc` processes (started from a consumer tree under `/tmp`)
@@ -314,7 +308,8 @@ function preparePackedWorkspace(): PackedWorkspace {
     const manifest = buildPublishedManifest(rawManifest, internalPackageNames, packageDirRelative);
     const stageDir = path.resolve(tempRoot, pkg.name.replace(/[@/]/g, '_'));
     stagePublishedPackage(stageDir, pkg.dir, manifest);
-    seedToolVersions(stageDir);
+    // tempRoot already owns the tool-version pin; do not pack test-only tooling
+    // into the production publication tree.
     run('pnpm', ['pack', '--pack-destination', tarballDir], stageDir);
     const tarballName = pkg.name.replace('@web-ts-toolkit/', 'web-ts-toolkit-');
     const resolvedTarball = path.resolve(tarballDir, `${tarballName}-${testVersion}.tgz`);
@@ -345,13 +340,36 @@ function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
     return releaseArtifactWorkspaceCache;
   }
 
-  ensureReleaseArtifactBinPackagesBuilt();
-  const artifactRoot = path.resolve(workspaceRoot, 'dist', `web-ts-toolkit-${testVersion}`);
-  // Rebuild once per suite invocation: an existing version directory may contain
-  // another worktree revision. The in-process cache above avoids repeated builds.
-  // Artifact command discovery requires compiled bin entries from packages outside
-  // access-router's dependency closure; beforeAll builds missing bin outputs first.
-  run('pnpm', ['build-artifact', '--version', testVersion], workspaceRoot);
+  // Exercise the actual artifact assembler on a fresh, bounded package tree.
+  // Do not build unrelated workspace CLIs or overwrite a previous release artifact.
+  const scopedRoot = mkdtempSync(path.join(os.tmpdir(), 'access-router-scoped-artifact-'));
+  tempRoots.push(scopedRoot);
+  const packagesDir = path.join(scopedRoot, 'packages');
+  // The assembler requires a real CLI owner. Stage one existing compiled CLI
+  // read-only for discovery, not a synthetic bin or a claimed CLI build/test.
+  const cli = releaseArtifactBinPackages.find((pkg) => hasBuiltBinEntries(pkg.dir));
+  if (!cli) throw new Error('A prebuilt release-artifact CLI fixture is required; no unrelated builds are run');
+  for (const pkg of [...workspacePackages, cli]) {
+    const target = path.join(packagesDir, path.basename(pkg.dir));
+    mkdirSync(target, { recursive: true });
+    cpSync(path.join(pkg.dir, 'dist'), path.join(target, 'dist'), { recursive: true });
+    // The artifact assembler preserves source-package docs (unlike the flattening
+    // npm publisher). Include the real new package-root file in this bounded tree.
+    for (const file of ['package.json', ...DEFAULT_PACKAGE_FILES, 'MIGRATION.md']) {
+      const source = path.join(pkg.dir, file);
+      if (existsSync(source)) cpSync(source, path.join(target, path.basename(file)), { recursive: true });
+    }
+  }
+  const { buildReleaseArtifact } = publisherRequire('@repo-toolkit/release-artifact');
+  const { artifactRoot } = buildReleaseArtifact({
+    cwd: workspaceRoot,
+    version: testVersion,
+    toolName: 'web-ts-toolkit',
+    packagesDir,
+    distDir: path.join(scopedRoot, 'dist'),
+    nodeModulesMode: 'none',
+    versionFiles: [],
+  }) as { artifactRoot: string };
 
   const packageDirs = Object.fromEntries(
     workspacePackages.map((pkg) => [
@@ -466,7 +484,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     }
   }
   // Execute the shipped README itself in both Node module systems, with a real
-  // database supplied by the suite. Its assertions cover grants/handles/targets.
+  // database supplied by the suite. Its assertions cover facts/policy/targets.
   const readme = readFileSync(
     path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/README.md'),
     'utf8',
@@ -493,10 +511,31 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     .map((match) => match[1])
     .find((snippet) => snippet.includes('async function runPrivatePopulateExample()'));
   if (!privatePopulateExample) throw new Error('Installed README is missing its runnable private-populate contract');
-  const fastPathExample = [...readme.matchAll(/<!--\s*doc-example:\s*complete-runtime\s*-->\s*```ts\n([\s\S]*?)```/g)]
-    .map((match) => match[1])
-    .find((snippet) => snippet.includes('async function runAuthorizationFastPathExample()'));
-  if (!fastPathExample) throw new Error('Installed README is missing its runnable LIST/READ fast-path contract');
+  const migration = readFileSync(
+    path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/MIGRATION.md'),
+    'utf8',
+  );
+  const guideBlocks = extractMigrationBlocks(migration);
+  const javascriptErrors = migration.match(/<!-- doc-example: javascript-errors -->\s*```js\n([\s\S]*?)\n```/)?.[1];
+  if (!javascriptErrors) throw new Error('Missing exact shipped JavaScript rejection example');
+  writeFileSync(path.resolve(consumerDir, 'migration-errors.mjs'), javascriptErrors);
+  const fastPathExample = guideBlocks.find((block) => block.kind === 'complete-runtime')!.source;
+  guideBlocks
+    .filter((block) => block.kind === 'partial')
+    .forEach((block, index) => {
+      const name = `migration-target-${index}`;
+      authorizationFixtures.push(name);
+      for (const extension of ['ts', 'mts', 'cts'])
+        writeFileSync(path.resolve(consumerDir, `${name}.${extension}`), block.source);
+    });
+  const negatives = [
+    guideBlocks.find((block) => block.kind === 'expected-error')!.source,
+    readFileSync(path.resolve(packageRoot, 'test/owned-authorization-migration.invalid.types.fixture.ts'), 'utf8'),
+  ];
+  negatives.forEach((source, index) => {
+    for (const extension of ['ts', 'mts', 'cts'])
+      writeFileSync(path.resolve(consumerDir, `migration-negative-${index}.${extension}`), source);
+  });
   authorizationFixtures.push('authorization-fast-path.readme');
   for (const extension of ['ts', 'mts', 'cts']) {
     writeFileSync(path.resolve(consumerDir, `authorization-fast-path.readme.${extension}`), fastPathExample);
@@ -956,6 +995,9 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         types: ['node'],
       },
       files: [
+        ...authorizationFixtures
+          .filter((name) => name.startsWith('migration-target-'))
+          .flatMap((name) => [`${name}.mts`, `${name}.cts`]),
         'field-helper-migration.types.fixture.mts',
         'field-helper-migration.types.fixture.cts',
         'grouped-count-consumer.types.fixture.mts',
@@ -1031,28 +1073,96 @@ function runMongoConsumer(file: string, consumerDir: string): Promise<string> {
 
 async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCheck: boolean }): Promise<void> {
   writeConsumerFiles(consumerDir, options);
+  const migrationRuns: unknown[] = [];
+  const runMigration = async (file: string) => {
+    const observed = JSON.parse(await runMongoConsumer(file, consumerDir));
+    expect(observed).toEqual({
+      guide: 'owned-authorization',
+      statuses: [200, 200, 400],
+      reads: 4,
+      hooks: 4,
+      observations: ['isolated', 'trusted'].map((mode) => ({
+        mode,
+        initial: { reads: 1, hooks: 1 },
+        helperExtra: { reads: 0, hooks: 0 },
+        currentExtra: { reads: 1, hooks: 1 },
+      })),
+    });
+    migrationRuns.push({ file, ...observed });
+  };
   run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
   run('node', ['operation-access.esm.mjs'], consumerDir);
   run('node', ['operation-access.cjs.cjs'], consumerDir);
   run('node', ['private-exports.cjs'], consumerDir);
+  expect(JSON.parse(run('node', ['migration-errors.mjs'], consumerDir))).toEqual({
+    retiredPresenceRejections: 40,
+    invalidModes: 6,
+    atomicBulk: true,
+  });
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.node16.json'], consumerDir);
   // Compile and execute the EXACT packed README through Node16 import/require
   // conditions, not just a hand-maintained fixture or a NodeNext-only example.
-  await runMongoConsumer('node16-out/authorization-fast-path.readme.mjs', consumerDir);
-  await runMongoConsumer('node16-out/authorization-fast-path.readme.cjs', consumerDir);
+  await runMigration('node16-out/authorization-fast-path.readme.mjs');
+  await runMigration('node16-out/authorization-fast-path.readme.cjs');
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.emit.json'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.mjs'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir);
+  const migrationDiagnostics: unknown[] = [];
+  for (const [resolution, extension, module] of [
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ]) {
+    for (const index of [0, 1]) {
+      const file = `migration-negative-${index}.${extension}`;
+      const source = readFileSync(path.resolve(consumerDir, file), 'utf8');
+      const config = `tsconfig-migration-negative-${resolution}-${extension}-${index}.json`;
+      writeFileSync(
+        path.resolve(consumerDir, config),
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module,
+            moduleResolution: resolution,
+            strict: true,
+            noEmit: true,
+            skipLibCheck: !options.fullDeclarationCheck,
+            esModuleInterop: true,
+            types: ['node'],
+          },
+          files: [file],
+        }),
+      );
+      let output: string;
+      let status = 0;
+      try {
+        output = execFileSync('pnpm', ['exec', 'tsc', '-p', config], {
+          cwd: consumerDir,
+          encoding: 'utf8',
+          stdio: 'pipe',
+        });
+      } catch (error) {
+        const rejected = error as { status: number; stdout: string; stderr: string };
+        status = rejected.status;
+        output = rejected.stdout + rejected.stderr;
+      }
+      expect(status).not.toBe(0);
+      assertMigrationDiagnostics(source, file, output);
+      migrationDiagnostics.push({ resolution, extension, file, status, output });
+    }
+  }
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.authorization.json'], consumerDir);
   run('node', ['authorization-out/field-helper.runtime.mjs'], consumerDir);
   run('node', ['authorization-out/field-helper.runtime.cjs'], consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.mjs', consumerDir);
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
-  await runMongoConsumer('authorization-out/authorization-fast-path.readme.mjs', consumerDir);
-  await runMongoConsumer('authorization-out/authorization-fast-path.readme.cjs', consumerDir);
+  await runMigration('authorization-out/authorization-fast-path.readme.mjs');
+  await runMigration('authorization-out/authorization-fast-path.readme.cjs');
   cpSync(
     path.resolve(packageRoot, 'test/authorization-fast-path-native.runtime.fixture.mjs'),
     path.resolve(consumerDir, 'authorization-fast-path-native.runtime.mjs'),
@@ -1094,7 +1204,7 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
     external: ['express', 'mongoose'],
     logLevel: 'silent',
   });
-  await runMongoConsumer('authorization-fast-path.bundle.cjs', consumerDir);
+  await runMigration('authorization-fast-path.bundle.cjs');
   // Optional repo-local evidence survives normal consumer scratch cleanup. It is
   // written only AFTER every real packed compile/runtime path above has passed.
   const evidenceRoot = process.env.WTT_ACCESS_ROUTER_CONSUMER_EVIDENCE_DIR;
@@ -1104,6 +1214,8 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
     const evidence = mkdtempSync(path.resolve(evidenceBase, 'packed-consumer-'));
     const installed = path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router');
     cpSync(installed, path.resolve(evidence, 'installed'), { recursive: true, dereference: true });
+    writeFileSync(path.resolve(evidence, 'migration-runs.json'), JSON.stringify(migrationRuns, null, 2));
+    writeFileSync(path.resolve(evidence, 'migration-diagnostics.json'), JSON.stringify(migrationDiagnostics, null, 2));
     const files = [
       'tsconfig.nodenext.json',
       'tsconfig.node16.json',
@@ -1120,6 +1232,7 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
       'authorization-out/authorization-fast-path.readme.cjs',
       'authorization-fast-path.bundle.cjs',
       'private-exports.cjs',
+      'migration-errors.mjs',
     ];
     const hashes: Record<string, string> = {};
     for (const file of files) {
@@ -1168,7 +1281,139 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     authorizationMongo = await MongoMemoryServer.create();
   }, 240_000);
 
-  it('FP-08 rejects overbound native scopes on packed public LIST/READ and retains ordinary Code/DBRef', async () => {
+  it('OAR-05 verifies fresh helpers, current-document reads and private guards on a fresh public tarball', async () => {
+    const tarball = preparePackedWorkspace().tarballs['@web-ts-toolkit/access-router'];
+    const packedRoot = unpackTarballToDir(tarball);
+    symlinkSync(path.resolve(packageRoot, 'node_modules'), path.resolve(packedRoot, 'node_modules'), 'dir');
+    const packedDistSha256: Record<string, string> = {};
+    for (const file of readdirSync(path.resolve(packageRoot, 'dist')).filter((name) =>
+      /\.(?:js|mjs|ts|mts)$/.test(name),
+    )) {
+      const packedBytes = readFileSync(path.resolve(packedRoot, file));
+      expect(packedBytes).toEqual(readFileSync(path.resolve(packageRoot, 'dist', file)));
+      packedDistSha256[file] = createHash('sha256').update(packedBytes).digest('hex');
+    }
+    expect(Object.keys(packedDistSha256)).toHaveLength(14);
+    const source = readFileSync(path.resolve(packageRoot, 'test/field-helper-consumer.runtime.fixture.ts'), 'utf8');
+    for (const extension of ['mts', 'cts']) writeFileSync(path.resolve(packedRoot, `helpers.${extension}`), source);
+    for (const extension of ['mts', 'cts'])
+      writeFileSync(
+        path.resolve(packedRoot, `hooks.${extension}`),
+        readFileSync(path.resolve(packageRoot, 'test/owned-authorization-hooks.types.fixture.ts')),
+      );
+    writeFileSync(
+      path.resolve(packedRoot, 'tsconfig.helpers.json'),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          strict: true,
+          skipLibCheck: false,
+          esModuleInterop: true,
+          outDir: 'helpers-out',
+          types: ['node'],
+        },
+        files: ['helpers.mts', 'helpers.cts', 'hooks.mts', 'hooks.cts'],
+      }),
+    );
+    run(
+      'node',
+      [path.resolve(workspaceRoot, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.helpers.json'],
+      packedRoot,
+    );
+    run('node', ['helpers-out/helpers.mjs'], packedRoot);
+    run('node', ['helpers-out/helpers.cjs'], packedRoot);
+    run('node', ['helpers-out/hooks.mjs'], packedRoot);
+    run('node', ['helpers-out/hooks.cjs'], packedRoot);
+    for (const extension of ['mts', 'cts'])
+      writeFileSync(
+        path.resolve(packedRoot, `removed.${extension}`),
+        readFileSync(path.resolve(packageRoot, 'test/owned-authorization-cutover.invalid.types.fixture.ts')),
+      );
+    writeFileSync(
+      path.resolve(packedRoot, 'tsconfig.removed.json'),
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          strict: true,
+          skipLibCheck: false,
+          esModuleInterop: true,
+          noEmit: true,
+          types: ['node'],
+        },
+        files: ['removed.mts', 'removed.cts'],
+      }),
+    );
+    let negativeDiagnostics = '';
+    try {
+      run(
+        'node',
+        [path.resolve(workspaceRoot, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.removed.json'],
+        packedRoot,
+      );
+    } catch (error) {
+      const cause = (error as Error).cause as { status: number; stdout: string; stderr: string };
+      expect(cause.status).toBe(2);
+      negativeDiagnostics = cause.stdout + cause.stderr;
+    }
+    expect(negativeDiagnostics).toMatch(/has no exported member(?: named)? 'DocumentAuthorization'/);
+    for (const name of [
+      'DocumentStage',
+      'unsafeUseReadAuthorizationFastPath',
+      'documentAuthorization',
+      'getDocumentAuthorization',
+      'mongooseModel',
+      'originalDocumentSnapshot',
+      'currentDocument',
+    ])
+      expect(negativeDiagnostics).toContain(name);
+    expect(negativeDiagnostics).toContain("Property 'filter' does not exist");
+    expect(negativeDiagnostics).toContain('only permits reading');
+    expect(negativeDiagnostics).not.toContain('node_modules/');
+    writeFileSync(path.resolve(packedRoot, 'removed.log'), negativeDiagnostics, { flag: 'wx' });
+    const fixture = 'owned-authorization-helpers.runtime.mjs';
+    cpSync(
+      path.resolve(packageRoot, `test/${fixture.replace('.mjs', '.fixture.mjs')}`),
+      path.resolve(packedRoot, fixture),
+    );
+    const result = {
+      ...JSON.parse((await runMongoConsumer(fixture, packedRoot)).trim()),
+      tarballSha256: createHash('sha256').update(readFileSync(tarball)).digest('hex'),
+      esmSha256: createHash('sha256')
+        .update(readFileSync(path.resolve(packedRoot, 'index.mjs')))
+        .digest('hex'),
+      installedHelperConditions: ['ESM', 'CJS'],
+      packedDistSha256,
+      packedNegativeTypeConditions: ['NodeNext .mts', 'NodeNext .cts'],
+    };
+    console.log('OAR05_PACKED_PUBLIC', JSON.stringify(result));
+    if (process.env.WTT_ACCESS_ROUTER_CONSUMER_EVIDENCE_DIR) {
+      const base = path.resolve(workspaceRoot, process.env.WTT_ACCESS_ROUTER_CONSUMER_EVIDENCE_DIR);
+      mkdirSync(base, { recursive: true });
+      const evidence = mkdtempSync(path.resolve(base, 'owned-helpers-'));
+      cpSync(tarball, path.resolve(evidence, path.basename(tarball)));
+      for (const file of [
+        'helpers.mts',
+        'helpers.cts',
+        'hooks.mts',
+        'hooks.cts',
+        'removed.mts',
+        'removed.cts',
+        'tsconfig.helpers.json',
+        'tsconfig.removed.json',
+        'removed.log',
+        fixture,
+      ])
+        cpSync(path.resolve(packedRoot, file), path.resolve(evidence, file));
+      cpSync(path.resolve(packedRoot, 'helpers-out'), path.resolve(evidence, 'helpers-out'), { recursive: true });
+      writeFileSync(path.resolve(evidence, 'result.json'), JSON.stringify(result, null, 2) + '\n');
+    }
+  }, 120_000);
+
+  it('OAR-04 rejects overbound native scopes on packed public LIST/READ in both source modes and retains ordinary Code/DBRef', async () => {
     const tarball = preparePackedWorkspace().tarballs['@web-ts-toolkit/access-router'];
     const packedRoot = unpackTarballToDir(tarball);
     // No install required for this focused runtime gate. Package self-reference
@@ -1369,24 +1614,28 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
       const current = readFileSync(path.resolve(distRoot, file), 'utf8');
       expect(readFileSync(path.resolve(packedRoot, file), 'utf8'), `packed ${file}`).toBe(current);
     }
-    for (const file of ['README.md', 'llms.txt']) {
+    for (const file of ['README.md', 'MIGRATION.md', 'llms.txt']) {
       const current = readFileSync(path.resolve(packageRoot, file), 'utf8');
       expect(readFileSync(path.resolve(packedRoot, file), 'utf8'), `packed ${file}`).toBe(current);
     }
   });
 
-  it('FP-04 packs the experimental consumer contract without trusted internal declarations', () => {
+  it('OAR-08 packs the linked executable guide without private authority or test files', () => {
     const packedRoot = unpackTarballToDir(preparePackedWorkspace().tarballs['@web-ts-toolkit/access-router']);
     const readme = readFileSync(path.resolve(packedRoot, 'README.md'), 'utf8');
     const llms = readFileSync(path.resolve(packedRoot, 'llms.txt'), 'utf8');
-    for (const flag of ['unsafeUseListAuthorizationFastPath', 'unsafeUseReadAuthorizationFastPath']) {
-      expect(readme).toContain(flag);
-      expect(llms).toContain(flag);
+    const migration = readFileSync(path.resolve(packedRoot, 'MIGRATION.md'), 'utf8');
+    expect(extractMigrationBlocks(migration)).toHaveLength(6);
+    for (const mode of ['readAuthorizationMode', 'listAuthorizationMode']) {
+      expect(readme).toContain(mode);
+      expect(llms).toContain(mode);
     }
-    expect(readme).toContain('async function runAuthorizationFastPathExample()');
-    expect(readme).toContain('including denial becoming allowance');
-    expect(readme).toContain('membership is not reachability');
-    expect(llms).toContain('not every row zero-copy');
+    expect(readme).toContain('(MIGRATION.md)');
+    expect(llms).toContain('(MIGRATION.md)');
+    expect(migration).toContain('async function runOwnedAuthorizationExample()');
+    expect(migration).toContain('0 DB operations / 0 document hooks');
+    expect(readdirSync(packedRoot).some((name) => /^(?:test|src|_tmp)|fixture|\.test\./.test(name))).toBe(false);
+    expect(readdirSync(packedRoot).some((name) => name.startsWith('.'))).toBe(false);
     for (const file of readdirSync(packedRoot).filter((name) => /\.d\.(?:ts|mts)$/.test(name))) {
       const declaration = readFileSync(path.resolve(packedRoot, file), 'utf8');
       for (const name of [
@@ -1412,7 +1661,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
         readFileSync(path.resolve(distRoot, file), 'utf8'),
       );
     }
-    for (const file of ['README.md', 'llms.txt']) {
+    for (const file of ['README.md', 'MIGRATION.md', 'llms.txt']) {
       expect(readFileSync(path.resolve(artifactRoot, file), 'utf8'), `artifact ${file}`).toBe(
         readFileSync(path.resolve(packageRoot, file), 'utf8'),
       );
@@ -1429,7 +1678,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
       await runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
     // Includes install, runtime smoke and three compiler invocations under suite load.
-    180000,
+    300000,
   );
 
   it.each([
@@ -1441,6 +1690,6 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
       const consumerDir = installArtifactConsumer(expressVersion, mongooseVersion);
       await runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
-    180000,
+    300000,
   );
 });

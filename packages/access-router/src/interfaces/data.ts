@@ -15,7 +15,6 @@ export interface DataFieldOptions {
   readonly scopePath?: readonly string[];
   /** Model output policies are not data authority, including pretyped options. */
   readonly authorization?: never;
-  readonly documentAuthorization?: never;
 }
 
 export interface DataFindOneArgs<T = unknown, TSelect extends Projection | undefined = Projection | undefined> {

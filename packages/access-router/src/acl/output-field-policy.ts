@@ -34,6 +34,7 @@ interface PreparedOutputPath {
   readonly entries: readonly PreparedRequestRule[];
   readonly state: FieldAuthorizationState | undefined;
   readonly backendGrant: boolean;
+  readonly documentDependent: boolean;
 }
 interface CallFieldPolicy {
   readonly schema: Record<string, unknown> | undefined;
@@ -133,6 +134,7 @@ export function prepareOutputPath(
     prepared = {
       entries,
       backendGrant,
+      documentDependent: classifications.some((value) => value?.decision === undefined),
       state: backendGrant
         ? 'granted'
         : classifications.every((value) => value !== undefined)

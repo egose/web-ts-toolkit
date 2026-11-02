@@ -26,6 +26,7 @@ import { isolateDocForOutput } from '../src/helpers/document';
 import type { ModelRequest, Populate, Projection } from '../src/interfaces';
 import type { FinalizeSnapshot } from '../src/output/finalize-model-output';
 import { useMongoTestDatabase } from './setup';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 let serial = 0;
@@ -505,7 +506,8 @@ describe('DPV-03 isolated getters and unconditional reconstruction', () => {
       expect(populated.account).not.toHaveProperty('credit');
       expect(doc.account).toEqual({ name: 'a' });
       expect(context).not.toHaveProperty('populated');
-      expect(context.originalDocumentSnapshot.account).not.toHaveProperty('balance');
+      expectOutputContext(context);
+      expect(doc.account).not.toHaveProperty('balance');
       populated.account.balance = -100;
       populated.account.stamp.setFullYear(1999);
       const bytes = populated.account.bytes;
@@ -571,13 +573,13 @@ describe('DPV-03 isolated getters and unconditional reconstruction', () => {
       expect(result.data).not.toHaveProperty('accounts');
       expect(getVirtualPopulateRow(result.data)).toBeUndefined();
       expect(Reflect.ownKeys(result.data).every((key) => typeof key === 'string')).toBe(true);
-      const picked = await service.pickAllowedFields(result.data, 'read', {
-        documentAuthorization: result.context.documentAuthorization,
-      });
-      expect(picked).toHaveProperty('account.name', 'a');
+      const picked = await service.pickAllowedFields(result.data, 'read');
+      // This selection explicitly excluded the target ID; a raw helper cannot
+      // recover it or preserve a populated target as document authority.
+      expect(picked).not.toHaveProperty('account');
       expect(picked).not.toHaveProperty('account.balance');
       expect(result.context).not.toHaveProperty('populated');
-      expect(result.context.documentAuthorization).not.toHaveProperty('populated');
+      expect(result.context).not.toHaveProperty('documentAuthorization');
     });
     for (const getter of [mutate, credit, balance, legacy]) expect(getter).toHaveBeenCalledTimes(1);
     await expect(mutate.mock.results[0].value).resolves.toBeUndefined();
@@ -912,13 +914,12 @@ describe('DPV-03 detached mutations and templates', () => {
       });
       if (!result.success) throw new Error(result.code);
       for (const [i, context] of result.contexts.entries()) {
-        expect(context.finalDocumentSnapshot).toHaveProperty('account', f.b._id);
-        expect(context.currentDocument).toBe(live[i]);
+        expectOutputContext(context, { operation: 'create' });
         expect(live[i].get('account')).toEqual(f.b._id);
         expect(live[i].populated('account')).toBeUndefined();
         expect(live[i].modifiedPaths()).toEqual(modified[i]);
       }
-      expect(result.contexts[0].finalDocumentSnapshot).not.toHaveProperty('eligible');
+      expect(result.contexts[0]).not.toHaveProperty('finalDocumentSnapshot');
     });
     expect(order).toEqual(['validate', 'validate', 'afterPersist', 'afterPersist', 'getter', 'getter']);
     expect(f.calls).toHaveLength(1);
@@ -975,9 +976,7 @@ describe('DPV-03 detached mutations and templates', () => {
         const row = result.kind === 'list' ? result.data[0] : result.data;
         expect(row).toMatchObject({ account: f.b._id, eligible: 20 });
         const context = result.kind === 'list' ? result.contexts[0] : result.context;
-        expect(context.finalDocumentSnapshot).toHaveProperty('account', f.b._id);
-        expect(context.finalDocumentSnapshot).not.toHaveProperty('eligible');
-        expect(context.currentDocument).toBe(live[0]);
+        expectOutputContext(context, { operation: method.startsWith('upsert') ? 'upsert' : 'update' });
         expect(live[0].get('account')).toEqual(f.b._id);
         expect(live[0].populated('account')).toBeUndefined();
         expect(live[0].modifiedPaths()).toEqual([]);

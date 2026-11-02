@@ -227,19 +227,17 @@ describe('ARL-11 retained model/public service owner', () => {
             const fresh = await service.pickAllowedFields(row, 'read');
             expect(fresh.secret).toBe(row.secret);
             if (entry === 'findOne') {
-              const handle = (result as any).context.documentAuthorization;
-              expect(await service.pickAllowedFields(row, 'read', { documentAuthorization: handle })).toEqual(row);
+              const context = (result as any).context;
+              expect(context).not.toHaveProperty('documentAuthorization');
+              expect(context).not.toHaveProperty('getDocumentAuthorization');
+              expect(await service.pickAllowedFields(row, 'read')).toEqual(fresh);
               await expect(
-                replacement.pickAllowedFields(row, 'read', { documentAuthorization: handle }),
+                replacement.pickAllowedFields(row, 'read', { documentAuthorization: context.docPermissions } as never),
               ).rejects.toThrow();
               const child = row.children[0];
-              const childHandle = (result as any).context.getDocumentAuthorization(child);
-              expect(childHandle).toBeDefined();
-              expect(await service.pickAllowedFields(child, 'read', { documentAuthorization: childHandle })).toEqual(
-                child,
-              );
+              expect(await service.pickAllowedFields(child, 'read', { scopePath: ['children'] })).toEqual(child);
               await expect(
-                replacement.pickAllowedFields(child, 'read', { documentAuthorization: childHandle }),
+                replacement.pickAllowedFields(child, 'read', { documentAuthorization: {} } as never),
               ).rejects.toThrow();
             }
             const other = data(await replacement.findOne({ _id: 'a' }, { select }, quiet));
@@ -359,7 +357,7 @@ describe('ARL-11 retained model/public service owner', () => {
   });
 
   for (const kind of ['read', 'list', 'count', 'correlated', 'populate'] as const)
-    it(`${kind} targets use A's registry, row scope and private handles`, async () => {
+    it(`${kind} targets use A's registry and row scope without exported handles`, async () => {
       const f = await fixture();
       await f.run(async ({ service, original, req }) => {
         const include =
@@ -384,18 +382,15 @@ describe('ARL-11 retained model/public service owner', () => {
           expect(target).toMatchObject({ name: 'a-a-target' });
           expect(String(target._id)).toBe(String(row.ref?._id ?? row.ref));
           expect(target).not.toHaveProperty('secret');
-          const handle = (result as any).context.getDocumentAuthorization(target);
-          expect(handle).toBeDefined();
+          expect((result as any).context).not.toHaveProperty('getDocumentAuthorization');
           const access = kind === 'list' || kind === 'correlated' ? 'list' : 'read';
-          expect(
-            await original
-              .getService(f.targetName)
-              .pickAllowedFields(target, access, { documentAuthorization: handle }),
-          ).toEqual(target);
+          expect(await original.getService(f.targetName).pickAllowedFields(target, access)).toEqual(target);
           await expect(
-            req.macl.getService(f.targetName).pickAllowedFields(target, access, { documentAuthorization: handle }),
+            req.macl.getService(f.targetName).pickAllowedFields(target, access, { documentAuthorization: {} } as never),
           ).rejects.toThrow();
-          await expect(service.pickAllowedFields(target, access, { documentAuthorization: handle })).rejects.toThrow();
+          await expect(
+            service.pickAllowedFields(target, access, { documentAuthorization: {} } as never),
+          ).rejects.toThrow();
         }
       });
     });

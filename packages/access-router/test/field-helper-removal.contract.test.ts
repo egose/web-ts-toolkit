@@ -40,7 +40,7 @@ function probe(router: { router: { post: Function }; routes: express.Router }) {
   };
 }
 
-function modelFixture(entry = esm, options: Record<string, unknown> = {}) {
+function modelFixture(entry = esm, options: esm.ModelRouterOptions = {}) {
   const api = entry.createAccessRuntime();
   runtimes.push(api);
   const name = `Svaf03Helper${++sequence}`;
@@ -83,7 +83,7 @@ function modelFixture(entry = esm, options: Record<string, unknown> = {}) {
     alwaysSelectFields: { read: ['ownerId'] },
     virtuals: { label: { get: getter, dependsOn: ['ownerId'] } },
     ...options,
-  } as never);
+  });
   return { api, name, model, hook, rule, getter, router, execute: probe(router) };
 }
 
@@ -118,7 +118,7 @@ function dataFixture(entry = esm) {
       absent: true,
       contacts: { read: true, list: true, sub: { email: true, private: false } },
     },
-  } as never);
+  });
   // A same-name Mongoose model with conflicting rules must be irrelevant to data helpers.
   const model = mongoose.model(name, new mongoose.Schema({ name: String }));
   api.registerModelInstance(name, model);
@@ -286,7 +286,7 @@ describe('SVA-F03 canonical model defaults and private request metadata', () => 
     });
   });
 
-  it('default filtering isolates hydrated input, uses fresh private grants and keeps only existing paths', async () => {
+  it('default filtering isolates hydrated input, uses empty facts and keeps only existing paths', async () => {
     const f = modelFixture();
     await f.execute(async (req) => {
       const service = f.router.getService(req);
@@ -303,8 +303,6 @@ describe('SVA-F03 canonical model defaults and private request metadata', () => 
       const expected = {
         _id: raw._id,
         name: 'A',
-        owned: 'owned',
-        fn: 'decision',
         profile: { name: 'P' },
         contacts: [{ email: 'E' }],
       };
@@ -316,16 +314,23 @@ describe('SVA-F03 canonical model defaults and private request metadata', () => 
         expect(raw.toObject()).toEqual(original);
       }
       const fields = await service.genAllowedFields(raw, 'read');
-      expect(fields).toEqual(expect.arrayContaining(['_id', 'name', 'owned', 'fn', 'profile.name', 'contacts.email']));
+      expect(fields).toEqual(expect.arrayContaining(['_id', 'name', 'profile.name', 'contacts.email']));
+      expect(fields).not.toContain('owned');
+      expect(fields).not.toContain('fn');
       expect(fields).not.toContain('absent');
       expect(fields).not.toContain('internalNote');
       expect(await req.macl.genAllowedFields(f.name, null, 'read')).toEqual([]);
       expect(await service.genAllowedFields({}, 'read', undefined)).toEqual([]);
       const forged = await service.pickAllowedFields({ owned: 'no', _permissions: { owner: true } }, 'read');
       expect(forged).not.toHaveProperty('owned');
-      expect(f.hook).toHaveBeenCalled();
+      expect(f.hook).not.toHaveBeenCalled();
       expect(f.getter).not.toHaveBeenCalled();
       for (const context of f.rule.mock.contexts) expect(context).toBe(req);
+      for (const call of f.rule.mock.calls) {
+        expect(call).toHaveLength(2);
+        expect(call[1]).toEqual({});
+        expect(Object.isFrozen(call[1])).toBe(true);
+      }
     });
   });
 
@@ -354,7 +359,7 @@ describe('SVA-F03 canonical model defaults and private request metadata', () => 
       await req.macl.addFieldPermissions(f.name, doc, 'read', {
         operation: 'read',
         fieldPermissionAccess: { updateIds: new Set(['one']) },
-      } as never);
+      });
       expect(doc._permissions).toMatchObject({
         owner: true,
         _view: { name: true, owned: true, fn: true, absent: true },
@@ -391,8 +396,10 @@ describe('SVA-F03 data request evaluator compatibility', () => {
         'email',
       ]);
       for (const call of f.rule.mock.calls) {
-        expect(call).toHaveLength(1);
+        expect(call).toHaveLength(2);
         expect(call[0]).toBe(req.dacl.getPermissions());
+        expect(call[1]).toEqual({});
+        expect(Object.isFrozen(call[1])).toBe(true);
       }
       for (const context of f.rule.mock.contexts) expect(context).toBe(req);
       expect(catalog).not.toHaveBeenCalled();

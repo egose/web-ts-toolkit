@@ -1,4 +1,4 @@
-// The interface barrel explicitly lists authorization inputs/opaque consumer handles.
+// The interface barrel explicitly lists server authorization inputs and output diagnostics.
 // Resolved call/document issuers and prepared/execution modules stay package-private.
 export * from './interfaces';
 export * from './symbols';

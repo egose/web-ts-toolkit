@@ -6,10 +6,12 @@ import type {
   Filter,
   ModelDocument,
   ModelHookContext,
+  ModelOutputContext,
   ModelRequest,
 } from './base';
 import type { AccessRouterRequest } from './request';
 import type { Projection } from './query-types';
+import type { DocumentGrants } from './access';
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -57,8 +59,8 @@ type DocPermissionsHook<TRequest extends AccessRouterRequest = AccessRouterReque
   this: TRequest,
   doc: unknown,
   permissions: AccessRouterPermissions,
-  context: ModelHookContext,
-) => MaybePromise<Record<string, unknown>>;
+  context: ModelOutputContext,
+) => MaybePromise<DocumentGrants>;
 
 type ChangeHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
   this: TRequest,
@@ -96,13 +98,17 @@ export type ModelValidateHook = ValidateHook<ModelRequest>;
 /**
  * Request-user grants from untrimmed projected input. Declare private persisted inputs
  * with alwaysSelectFields. Integrated output resolves once per document/access stage,
- * independently of skim or metadata serialization; use the result's document handle
- * for later picks after input/metadata trim. Backend grants do not forge user metadata.
- * With an active unsafe READ/LIST authorization fast path, ordinary lean projected
- * input and the returned grant map are borrowed; field decisions/reads/owning embedded
- * children share grants and context leaves. Mutation across callbacks/awaits can turn
- * denial into allowance. Shallow-unproven inputs/grants may copy once without rerunning
- * the hook. Off/dormant calls retain their existing copying behavior.
+ * independently of skim or metadata serialization. Returned DTOs carry no authority;
+ * use a fresh normal query for current document-dependent authorization.
+ * Return a plain record of literal booleans. The library owns a frozen detached
+ * copy shared by every field callback in the stage, including embedded scopes.
+ * Invalid fulfilled maps reject the whole operation with BadRequest (400); a missing
+ * hook yields empty facts. Throwing/rejected hooks also emit a fixed-category warning. Frozen
+ * ModelOutputContext contains no source/model/lifecycle aliases. Isolated gives a
+ * disposable detached view (including supported native leaves); trusted may borrow
+ * admitted ordinary source, NOT actor/policy/facts. Return facts, do not mutate input
+ * to write business data. Stage-once expensive unused facts still cost work; closures,
+ * external caches and database state are neither sandboxed nor kept fresh after await.
  */
 export type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
 export type ModelChangeHook = ChangeHook<ModelRequest>;
@@ -110,6 +116,10 @@ export type ModelDocumentHook<TValue = unknown> = DocumentHookChain<TValue, Mode
 export type ModelDeleteHook<TValue = unknown> = DeleteHook<ModelDocument<TValue>, ModelRequest>;
 export type ModelHook<TValue = unknown> = HookChain<TValue, ModelHookContext, ModelRequest>;
 export type ModelListHook<TValue = unknown> = HookChain<TValue[], ModelHookContext, ModelRequest>;
+/** Trusted presentation after authorization closes; no automatic second filtering pass. */
+export type ModelOutputHook<TValue = unknown> = HookChain<TValue, ModelOutputContext, ModelRequest>;
+/** List presentation has no owning row and receives empty diagnostic document facts. */
+export type ModelOutputListHook<TValue = unknown> = HookChain<TValue[], ModelOutputContext, ModelRequest>;
 export type DataHook<TValue = unknown> = HookChain<TValue, DataHookContext, DataRequest>;
 export type DataListHook<TValue = unknown> = HookChain<TValue[], DataHookContext, DataRequest>;
 
@@ -123,7 +133,7 @@ export type ModelVirtualRecordAccess = 'default' | ModelVirtualAccess;
 
 /**
  * Scope-aware virtual getter context (VIRT-00A D2, frozen).
- * Extends {@link ModelHookContext} with the receiving model, definition/
+ * Extends {@link ModelOutputContext} with literal access narrowing. The definition/
  * permission `scopePath` (e.g. `[]` at root, `['contacts','sub']` for
  * `contacts.sub.displayName`), and the three effective accesses. The
  * initiating operation stays in `context.operation` and is never
@@ -135,17 +145,13 @@ export type ModelVirtualRecordAccess = 'default' | ModelVirtualAccess;
  * include) targets finalize with the target model's own definitions,
  * permissions, selection, and effective access before parent getters run.
  * Declaration-scoped private inputs use the getter's fourth argument, never
- * this context or its document-authorization metadata.
- * Active unsafe query fast paths retain separate getter document views, but diagnostic
- * context/grant/native leaves may alias across callbacks; this context is not an
- * immutable authority snapshot or a place to set server options.
+ * this context. All diagnostics are frozen primitives, arrays and owned boolean facts;
+ * they contain no source/native/lifecycle aliases and confer no reusable authority.
  */
-export interface ModelVirtualContext extends ModelHookContext {
-  receivingModelName: string;
-  scopePath: string[];
-  virtualAccess: ModelVirtualAccess;
-  outputAccess: ModelVirtualAccess;
-  docPermissionsAccess: ModelVirtualAccess;
+export interface ModelVirtualContext extends ModelOutputContext {
+  readonly virtualAccess: ModelVirtualAccess;
+  readonly outputAccess: ModelVirtualAccess;
+  readonly docPermissionsAccess: ModelVirtualAccess;
 }
 
 type IsUnknownVirtual<T> = unknown extends T ? ([keyof T] extends [never] ? true : false) : false;
@@ -262,10 +268,8 @@ export type ModelVirtualPopulateInputs<
  * present null/empty refs and missing target rows yield null/[]/null array slots.
  * Private values are not implicitly transported to output or authorization metadata;
  * an authorized getter can deliberately return a computed value using them.
- * Even in an active unsafe authorization fast path, the stable base, separate
- * per-getter document views, return staging and private argument-four isolation remain.
- * Context/grant leaves can still be borrowed and mutate later decisions; document-view
- * isolation does not restore source/grant/context or descendant-integrity guarantees.
+ * Both source modes retain the stable base, separate per-getter views, return staging
+ * and private argument-four isolation. Diagnostic facts remain owned and immutable.
  */
 export type ModelVirtualGetter<
   TModel = unknown,
@@ -293,8 +297,8 @@ export type ModelVirtualGetter<
  * field fail-closed and computed values never persist. Getters see an
  * isolated plain-object view for both lean and hydrated results; mutating the
  * input has no implicit effect on response data or lifecycle snapshots.
- * Off/dormant results retain whole lean-source normalization; active trusted queries
- * omit that authorization pass, not the separate getter views/private-input isolation.
+ * Isolated owns the projected source; trusted may borrow ordinary source only, never
+ * getter views, private populated inputs, policy, actor, facts or diagnostic backing data.
  *
  * Annotate a descriptor separately with `TPopulated` to type its private fourth
  * getter argument, then assign it to ordinary `ModelVirtuals`. The optional

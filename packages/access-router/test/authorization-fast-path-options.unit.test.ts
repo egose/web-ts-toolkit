@@ -6,43 +6,36 @@ import { Core } from '../src/core';
 import { runWithRuntime } from '../src/runtime-context';
 import { PublicService } from '../src/services/public-service';
 import { PERMISSIONS } from '../src/symbols';
-import type { ModelRequest, ModelRouterOptions } from '../src/interfaces';
+import type { AuthorizationMode, ModelRequest, ModelRouterOptions } from '../src/interfaces';
 import {
-  readAuthorizationFastPath,
-  requiresDocumentSnapshotChecks,
-  requiresOutputSnapshotChecks,
+  readServiceAuthorizationMode,
   resolveServiceAuthorization,
-  skipsInitialOutputSnapshotCopy,
   ServiceAuthorizationError,
   type AuthorizationBinding,
   type ResolveServiceAuthorizationInput,
 } from '../src/acl/service-authorization';
 import {
-  assertDocumentAuthorization,
-  associateDocumentAuthorization,
-  createDocumentAuthorizationStage,
-  createServiceOutputContext,
-  normalizeOutputAuthorizationOptions,
-  readDocumentAuthorization,
-  resolveDocumentAuthorization,
-} from '../src/acl/document-authorization';
+  closeDocumentStage,
+  prepareQueryDocumentStage,
+  readDocumentStage,
+  resolveDocumentStage,
+} from '../src/acl/document-stage';
+import { normalizeOutputAuthorizationOptions } from '../src/acl/output-helper-options';
 import {
-  authorizationFastPathPrerequisites,
-  unsafeAuthorizationFastPathOptions as fastFlags,
-  unsafeInitialOutputCopyOptions,
-  unsafeServerOptions,
-  unsafeSnapshotCheckOptions,
-  unsafeSnapshotOptions,
-} from '../src/acl/unsafe-snapshot-options';
+  authorizationModeKeys,
+  retiredAuthorizationOptions,
+  serverAuthorizationControls,
+} from '../src/acl/authorization-modes';
 import { captureModelAuthorizationConfiguration } from '../src/acl/model-output-planning';
 import { createServiceExecution, deriveServiceExecution, readServiceExecution } from '../src/acl/service-execution';
 import { authorizeEmbeddedOutputPlan } from '../src/acl/output-field-filter';
 import { planAuthorizedModelProjection } from '../src/acl/output-projection';
 import { assertPublicAdmission, assertPublicDefaults, PublicAdmissionError } from '../src/validation/public-admission';
-import * as snapshots from '../src/acl/authorization-snapshot';
+import { deferred } from './hook-admission-fixture';
 
 const catalog = { paths: ['value', 'child', 'child.value', 'ref'], referencePaths: ['ref'] };
 const permissions = new Permission({ reader: true });
+const modes: AuthorizationMode[] = ['isolated', 'trusted'];
 const access = (operation: string, effective = operation) => ({
   operation,
   rowAccess: effective,
@@ -50,8 +43,6 @@ const access = (operation: string, effective = operation) => ({
   virtualAccess: effective,
   docPermissionsAccess: effective,
 });
-const on = Object.fromEntries(unsafeServerOptions.map((key) => [key, true]));
-const off = Object.fromEntries(unsafeServerOptions.map((key) => [key, false]));
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
 let serial = 0;
 
@@ -61,7 +52,7 @@ function call(
   extra: Partial<ResolveServiceAuthorizationInput> = {},
 ) {
   const input: ResolveServiceAuthorizationInput = {
-    binding: { request: {} as ModelRequest, runtime: {}, model: {}, modelName: 'FastOptions' },
+    binding: { request: {} as ModelRequest, runtime: {}, model: {}, modelName: 'ModeOptions' },
     configuration: { catalog, ...options },
     access: access(operation),
     requestPermissions: permissions,
@@ -72,14 +63,14 @@ function call(
   return { input, binding: input.binding, authorization: resolveServiceAuthorization(input) };
 }
 type State = Pick<ReturnType<typeof call>, 'authorization' | 'binding'>;
-const mode = (state: State) => readAuthorizationFastPath(state.authorization, state.binding);
+const mode = (state: State) => readServiceAuthorizationMode(state.authorization, state.binding);
 
 function fixture(options: ModelRouterOptions = {}) {
-  const runtime = new AccessRuntime(),
-    warn = vi.fn();
+  const runtime = new AccessRuntime();
+  const warn = vi.fn();
   runtime.setGlobalOptions({ logger: { warn } });
   const model = mongoose.model(
-    `FastOptions${++serial}`,
+    `ModeOptions${++serial}`,
     new mongoose.Schema({ value: String, child: { value: String } }),
   );
   runtime.registerModelInstance(model.modelName, model);
@@ -110,180 +101,118 @@ function fixture(options: ModelRouterOptions = {}) {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  mongoose.deleteModel(/^FastOptions/);
+  mongoose.deleteModel(/^ModeOptions/);
 });
 
-describe('private captured fast-path selection (runtime transition from configuration-only FP-02)', () => {
-  it('keeps the original six/two/eight groups and adds a separate two/ten group', () => {
-    expect(unsafeSnapshotCheckOptions).toHaveLength(6);
-    expect(unsafeInitialOutputCopyOptions).toHaveLength(2);
-    expect(unsafeSnapshotOptions).toEqual([...unsafeSnapshotCheckOptions, ...unsafeInitialOutputCopyOptions]);
-    expect(fastFlags).toEqual(['unsafeUseListAuthorizationFastPath', 'unsafeUseReadAuthorizationFastPath']);
-    expect(unsafeServerOptions).toEqual([...unsafeSnapshotOptions, ...fastFlags]);
+describe('captured source modes replace flags, prerequisites and dormant profiles', () => {
+  it('has exactly two independent mode keys and ten rejection-only retired names', () => {
+    expect(authorizationModeKeys).toEqual(['readAuthorizationMode', 'listAuthorizationMode']);
+    expect(retiredAuthorizationOptions).toHaveLength(10);
+    expect(new Set(serverAuthorizationControls).size).toBe(12);
   });
 
-  it.each(Array.from({ length: 256 }, (_, mask) => mask))(
-    'selects all 4 new pairs x both origins independently of original eight mask=%s',
-    (mask) => {
-      const original = Object.fromEntries(unsafeSnapshotOptions.map((key, index) => [key, !!(mask & (1 << index))]));
-      for (let pair = 0; pair < 4; pair++)
-        for (const origin of ['list', 'read'] as const) {
-          const options = {
-            ...original,
-            ...Object.fromEntries(fastFlags.map((key, index) => [key, !!(pair & (1 << index))])),
-          };
-          const inverse = Object.fromEntries(unsafeServerOptions.map((key) => [key, !options[key]]));
-          const root = call(options, origin, {
-            relatedTargets: [{ path: 'ref', modelName: 'Other', configuration: { catalog, ...inverse } }],
-          });
-          const prereqs = authorizationFastPathPrerequisites(origin);
-          const bits = prereqs.reduce((bits, key, index) => bits | (options[key] ? 1 << index : 0), 0);
-          const requested = options[origin === 'list' ? fastFlags[0] : fastFlags[1]];
-          const expected = {
-            origin,
-            mode: !requested ? 'off' : bits === 15 ? 'active' : 'dormant',
-            prerequisites: bits,
-          };
-          expect(mode(root)).toEqual(expected);
-          expect(Object.isFrozen(mode(root))).toBe(true);
-          expect(requiresDocumentSnapshotChecks(root.authorization, root.binding)).toBe(!options[prereqs[0]]);
-          expect(requiresOutputSnapshotChecks(root.authorization, root.binding)).toBe(!options[prereqs[1]]);
-          expect(skipsInitialOutputSnapshotCopy(root.authorization)).toBe(options[prereqs[1]] && options[prereqs[3]]);
-          const child = call(inverse, origin, {
-            binding: { ...root.binding, scopePath: ['child'] },
-            parent: root.authorization,
-            snapshotDerivation: { kind: 'embedded', parentBinding: root.binding },
-          });
-          expect(mode(child)).toBe(mode(root));
-          expect(requiresDocumentSnapshotChecks(child.authorization, child.binding)).toBe(!options[prereqs[2]]);
-          for (const operation of ['list', 'read']) {
-            const related = call(inverse, operation, {
-              binding: { ...root.binding, model: {}, modelName: 'Other' },
-              parent: root.authorization,
-              readResponse: false,
-              listResponse: false,
-              snapshotDerivation: { kind: 'related', parentBinding: root.binding, path: 'ref' },
-            });
-            expect(mode(related)).toBe(mode(root));
-          }
-          if (origin === 'read') {
-            const retry = call(inverse, 'read', {
-              binding: root.binding,
-              access: access('read', 'list'),
-              parent: root.authorization,
-              snapshotDerivation: { kind: 'retry', parentBinding: root.binding },
-            });
-            expect(mode(retry)).toBe(mode(root));
-          }
-        }
-    },
-  );
-
-  it.each(['list', 'read'] as const)(
-    'requires literal true for every %s prerequisite/request, even before native cloning',
-    (origin) => {
-      const key = origin === 'list' ? fastFlags[0] : fastFlags[1];
-      const keys = [key, ...authorizationFastPathPrerequisites(origin)];
-      for (const flag of keys)
-        for (const value of [undefined, false, null, 0, 1, 'true', {}]) {
-          const state = call({ ...on, [flag]: value }, origin);
-          expect(mode(state)?.mode).toBe(flag === key ? 'off' : 'dormant');
-        }
-      for (const flag of keys) {
-        const wire = vi.fn(() => true);
-        const native = Object.assign(new mongoose.mongo.BSON.ObjectId(), { toBSON: wire });
-        const state = call({ ...on, [flag]: native }, origin);
-        expect(wire).toHaveBeenCalled();
-        expect(mode(state)?.mode).toBe(flag === key ? 'off' : 'dormant');
-      }
-      const getter = vi.fn(() => true);
-      expect(() =>
-        call({}, origin, { configuration: Object.defineProperty({ catalog }, key, { get: getter, enumerable: true }) }),
-      ).toThrow(ServiceAuthorizationError);
-      expect(getter).not.toHaveBeenCalled();
-      expect(mode(call({}, origin))).toEqual({ origin, mode: 'off', prerequisites: 0 });
-    },
-  );
-
-  it('requires authenticated edges, exact optional target identity, binding and query access', () => {
-    const targetModel = fixture().model,
-      root = call(on, 'read', {
-        relatedTargets: [
-          { path: 'ref', modelName: 'Other', model: targetModel as never, configuration: { catalog } },
-          { path: 'total', modelName: 'Other', kind: 'count', configuration: { catalog } },
-        ],
-      });
-    for (const extra of [
-      { parent: root.authorization, binding: root.binding }, // even readResponse alone is not retry admission
-      { binding: { ...root.binding, scopePath: ['child'] } },
-      { applicability: 'output' as const },
-      { applicability: 'mutation' as const },
-      { applicability: 'create' as const },
-      { access: { ...access('read'), virtualAccess: 'update' } },
-      { listResponse: false, readResponse: false },
-    ])
-      expect(mode(call(on, 'read', extra))).toBeUndefined();
-    const related = (model: object, path = 'ref') =>
-      call(on, 'read', {
-        binding: { ...root.binding, model, modelName: 'Other' },
-        parent: root.authorization,
-        readResponse: false,
-        snapshotDerivation: { kind: 'related', parentBinding: root.binding, path },
-      });
-    expect(mode(related(targetModel))?.mode).toBe('active');
-    expect(mode(related({}))).toBeUndefined();
-    expect(mode(related(targetModel, 'total'))).toBeUndefined();
-    expect(mode(related(targetModel, 'missing'))).toBeUndefined();
-    for (const key of ['request', 'runtime', 'model', 'modelName', 'scopePath']) {
-      const binding = { ...root.binding, [key]: key === 'modelName' ? 'Other' : key === 'scopePath' ? ['child'] : {} };
-      for (let repeat = 0; repeat < 2; repeat++) {
-        expect(() => readAuthorizationFastPath(root.authorization, binding as AuthorizationBinding)).toThrow(
-          ServiceAuthorizationError,
-        );
-        expect(() => readAuthorizationFastPath({ ...root.authorization }, root.binding)).toThrow(
-          ServiceAuthorizationError,
-        );
-      }
-      expect(() =>
-        call(on, 'read', {
+  it.each(modes.flatMap((read) => modes.map((list) => ({ read, list }))))(
+    'captures read=$read/list=$list with embedded inheritance, own target modes and READ-origin retry',
+    ({ read, list }) => {
+      for (const origin of ['read', 'list'] as const) {
+        const targetOptions = { readAuthorizationMode: list, listAuthorizationMode: read };
+        const targetModel = fixture().model;
+        const root = call({ readAuthorizationMode: read, listAuthorizationMode: list }, origin, {
+          relatedTargets: [
+            {
+              path: 'ref',
+              modelName: 'Other',
+              model: targetModel as never,
+              configuration: { catalog, ...targetOptions },
+            },
+          ],
+        });
+        expect(mode(root)).toBe(origin === 'read' ? read : list);
+        const child = call(targetOptions, origin, {
+          binding: { ...root.binding, scopePath: ['child'] },
           parent: root.authorization,
-          binding: root.binding,
-          snapshotDerivation: { kind: 'retry', parentBinding: binding as AuthorizationBinding },
-        }),
-      ).toThrow(ServiceAuthorizationError);
-    }
-    const foreign = fixture();
-    expect(() => readServiceExecution(foreign.service, fixture(on).capture().execution)).toThrow(
-      ServiceAuthorizationError,
-    );
-  });
+          snapshotDerivation: { kind: 'embedded', parentBinding: root.binding },
+        });
+        expect(mode(child)).toBe(mode(root));
+        for (const effective of ['read', 'list'] as const) {
+          const related = call({}, effective, {
+            binding: { ...root.binding, model: targetModel, modelName: 'Other' },
+            parent: root.authorization,
+            snapshotDerivation: { kind: 'related', parentBinding: root.binding, path: 'ref' },
+          });
+          expect(mode(related)).toBe(targetOptions[`${effective}AuthorizationMode`]);
+        }
+        if (origin === 'read') {
+          const retry = call({}, 'read', {
+            binding: root.binding,
+            access: access('read', 'list'),
+            parent: root.authorization,
+            snapshotDerivation: { kind: 'retry', parentBinding: root.binding },
+          });
+          expect(mode(retry)).toBe(read);
+        }
+      }
+    },
+  );
 
-  it.each(['off', 'dormant', 'active'] as const)(
-    'authenticates every %s mode read, including repeated reads',
-    (state) => {
-      const root = call(
-        {
-          ...on,
-          unsafeUseReadAuthorizationFastPath: state !== 'off',
-          unsafeSkipReadDocumentSnapshotChecks: state !== 'dormant',
-        },
-        'read',
-      );
-      expect(mode(root)?.mode).toBe(state);
+  it.each(modes)(
+    'authenticates every %s mode read, repeated reads, receiving service and derived edge',
+    (sourceMode) => {
+      const root = call({ readAuthorizationMode: sourceMode }, 'read');
       for (const key of ['request', 'runtime', 'model', 'modelName', 'scopePath']) {
         const wrong = {
           ...root.binding,
           [key]: key === 'modelName' ? 'Other' : key === 'scopePath' ? ['child'] : {},
         } as AuthorizationBinding;
         for (let repeat = 0; repeat < 2; repeat++) {
-          expect(() => readAuthorizationFastPath(root.authorization, wrong)).toThrow(ServiceAuthorizationError);
-          expect(() => readAuthorizationFastPath({ ...root.authorization }, root.binding)).toThrow(
+          expect(() => readServiceAuthorizationMode(root.authorization, wrong)).toThrow(ServiceAuthorizationError);
+          expect(() => readServiceAuthorizationMode({ ...root.authorization }, root.binding)).toThrow(
             ServiceAuthorizationError,
           );
         }
+        expect(() =>
+          call({}, 'read', {
+            binding: root.binding,
+            parent: root.authorization,
+            snapshotDerivation: { kind: 'retry', parentBinding: wrong },
+          }),
+        ).toThrow(ServiceAuthorizationError);
       }
+      const f = fixture();
+      expect(() => readServiceExecution(fixture().service, f.capture().execution)).toThrow(ServiceAuthorizationError);
     },
   );
+
+  it('requires actual target model identity, path, scope and unchanged embedded access', () => {
+    const target = {};
+    const root = call({ readAuthorizationMode: 'trusted' }, 'read', {
+      relatedTargets: [{ path: 'ref', modelName: 'Other', model: target as never, configuration: { catalog } }],
+    });
+    for (const change of [{ model: {} }, { modelName: 'Wrong' }, { scopePath: ['child'] }])
+      expect(() =>
+        call({}, 'read', {
+          binding: { ...root.binding, model: target, modelName: 'Other', ...change },
+          parent: root.authorization,
+          snapshotDerivation: { kind: 'related', parentBinding: root.binding, path: 'ref' },
+        }),
+      ).toThrow(ServiceAuthorizationError);
+    expect(() =>
+      call({}, 'read', {
+        binding: { ...root.binding, model: target, modelName: 'Other' },
+        parent: root.authorization,
+        snapshotDerivation: { kind: 'related', parentBinding: root.binding, path: 'missing' },
+      }),
+    ).toThrow(ServiceAuthorizationError);
+    for (const changed of [access('update', 'read'), { ...access('read'), virtualAccess: 'update' }])
+      expect(() =>
+        call({}, 'read', {
+          binding: { ...root.binding, scopePath: ['child'] },
+          access: changed,
+          parent: root.authorization,
+          snapshotDerivation: { kind: 'embedded', parentBinding: root.binding },
+        }),
+      ).toThrow(ServiceAuthorizationError);
+  });
 
   it.each([
     'new',
@@ -297,503 +226,338 @@ describe('private captured fast-path selection (runtime transition from configur
     'listSub',
     'count',
     'distinct',
-  ])('%s and write-derived reads/descendants never gain a query origin', (operation) => {
-    const root = call(on, operation, { access: access(operation, 'read') });
-    expect(mode(root)).toBeUndefined();
+  ])('%s and write-derived reads do not gain trust through read-shaped output', (operation) => {
+    const root = call({ readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' }, operation, {
+      access: access(operation, 'read'),
+    });
+    expect(mode(root)).toBe('isolated');
     expect(
       mode(
-        call(on, 'read', {
+        call({ readAuthorizationMode: 'trusted' }, 'read', {
           parent: root.authorization,
           binding: root.binding,
           snapshotDerivation: { kind: 'retry', parentBinding: root.binding },
         }),
       ),
-    ).toBeUndefined();
-    expect(
-      mode(
-        call(on, 'read', {
-          parent: root.authorization,
-          binding: { ...root.binding, scopePath: ['child'] },
-          snapshotDerivation: { kind: 'embedded', parentBinding: root.binding },
-        }),
-      ),
-    ).toBeUndefined();
+    ).toBe('isolated');
   });
 
-  it.each(
-    (['list', 'read'] as const).flatMap((origin) =>
-      (['off', 'dormant', 'active'] as const).map((mode) => ({ origin, mode })),
-    ),
-  )(
-    'retains $origin/$mode selection on issued handles; only trusted active records omit copies/graph checks',
-    async ({ origin, mode: selectedMode }) => {
-      const key = origin === 'list' ? fastFlags[0] : fastFlags[1];
-      const f = fixture({
-          ...on,
-          [key]: selectedMode !== 'off',
-          [authorizationFastPathPrerequisites(origin)[0]]: selectedMode !== 'dormant',
-        }),
-        state = f.capture(origin);
-      const source = { value: 'source', date: new Date(1) },
-        grants = { date: new Date(2) };
-      const stage = createDocumentAuthorizationStage(state.authorization, state.binding, source);
-      const copies = vi.spyOn(snapshots, 'copyAuthorizationValue');
-      const handle = await resolveDocumentAuthorization(stage, (input) => {
-        (input.date as Date).setTime(99);
-        return grants;
+  it.each(modes)(
+    '%s changes only source borrowing; boolean facts, closure and raw helpers stay owned',
+    async (sourceMode) => {
+      const f = fixture({ readAuthorizationMode: sourceMode });
+      const state = f.capture('read');
+      const source = { value: 'source', date: new Date(1) };
+      const rawFacts = { owner: true };
+      const prepared = prepareQueryDocumentStage(state.authorization, state.binding, source);
+      await resolveDocumentStage(prepared.stage, (doc) => {
+        (doc.date as Date).setTime(99);
+        return rawFacts;
       });
-      expect(source.date.getTime()).toBe(selectedMode === 'active' ? 99 : 1);
-      grants.date.setTime(99);
-      const owned = readDocumentAuthorization(handle, state.binding);
-      expect(owned.grants.date).toEqual(new Date(selectedMode === 'active' ? 99 : 2));
-      if (selectedMode === 'active') expect(copies).not.toHaveBeenCalled();
-      else expect(copies).toHaveBeenCalled();
-      const output = { value: 'output', child: { value: 'child' } };
-      associateDocumentAuthorization(handle, state.binding, output);
-      const use = { binding: state.binding, output, outputAccess: origin };
-      const context = createServiceOutputContext({}, handle, use);
-      f.runtime.setModelOptions(f.model.modelName, off);
-      expect(mode({ authorization: owned.authorization, binding: state.binding })?.mode).toBe(selectedMode);
-      expect(mode(f.capture(origin))?.mode).toBe('off');
-      const picked = await f.service.pickAllowedFields(output, origin, { documentAuthorization: handle });
-      expect(picked).toHaveProperty('value', 'output');
-      expect(
-        mode({ authorization: readDocumentAuthorization(handle, state.binding).authorization, binding: state.binding })
-          ?.mode,
-      ).toBe(selectedMode);
-      expect(context.getDocumentAuthorization(output)).toBe(handle);
-      output.child = { value: 'child' };
-      if (selectedMode === 'active') expect(() => assertDocumentAuthorization(handle, use)).not.toThrow();
-      else {
-        expect(() => assertDocumentAuthorization(handle, use)).toThrow(ServiceAuthorizationError);
-        for (const invalid of [{ value: () => true }, { value: Array(20001) }])
-          expect(() => createDocumentAuthorizationStage(state.authorization, state.binding, invalid)).toThrow(
-            ServiceAuthorizationError,
-          );
-      }
+      expect(source.date.getTime()).toBe(sourceMode === 'trusted' ? 99 : 1);
+      rawFacts.owner = false;
+      const facts = readDocumentStage(prepared.stage, state.binding).grants;
+      expect(facts).toEqual({ owner: true });
+      expect(facts).not.toBe(rawFacts);
+      expect(Object.isFrozen(facts)).toBe(true);
+      f.runtime.setModelOption(
+        f.model.modelName,
+        'readAuthorizationMode',
+        sourceMode === 'trusted' ? 'isolated' : 'trusted',
+      );
+      expect(mode(state)).toBe(sourceMode);
+      expect(mode(f.capture('read'))).not.toBe(sourceMode);
       const raw = normalizeOutputAuthorizationOptions(
         {
           binding: state.binding,
-          access: access(origin),
+          access: access('read'),
           requestPermissions: permissions,
           configuration: captureModelAuthorizationConfiguration(f.runtime, f.model.modelName),
         },
-        { authorization: { outputFields: { mode: 'request' } } },
+        {},
       );
-      expect(raw.kind).toBe('policy');
-      if (raw.kind === 'policy')
-        expect(mode({ authorization: raw.authorization, binding: state.binding })).toBeUndefined();
+      expect(mode({ ...state, authorization: raw.authorization })).toBe('isolated');
+      closeDocumentStage(prepared.stage);
+      expect(() => readDocumentStage(prepared.stage, state.binding)).toThrow(ServiceAuthorizationError);
+      await expect(
+        f.service.pickAllowedFields({ value: 'output' }, 'read', { documentAuthorization: prepared.stage } as never),
+      ).rejects.toMatchObject({
+        result: { code: 'bad_request', errors: [{ detail: expect.stringContaining('removed') }] },
+      });
     },
   );
 
-  it.each(['list', 'read'] as const)(
-    'captures %s before awaits; descendants/retry keep capture while independent calls refresh',
+  it.each(['read', 'list'] as const)(
+    'retains captured %s in late embedded/retry stages, not fresh calls',
     async (origin) => {
-      for (const initial of [on, off]) {
-        const f = fixture(initial),
-          state = f.capture(origin);
-        let entered!: () => void, release!: () => void;
-        const started = new Promise<void>((done) => {
-          entered = done;
+      for (const initial of modes) {
+        const f = fixture({ [`${origin}AuthorizationMode`]: initial });
+        const state = f.capture(origin);
+        const entered = deferred();
+        const release = deferred();
+        const stage = prepareQueryDocumentStage(state.authorization, state.binding, { value: 'row' }).stage;
+        const pending = resolveDocumentStage(stage, async () => {
+          entered.resolve();
+          await release.promise;
+          return {};
         });
-        const waiting = new Promise<void>((done) => {
-          release = done;
-        });
-        const pending = resolveDocumentAuthorization(
-          createDocumentAuthorizationStage(state.authorization, state.binding, { value: 'row' }),
-          async () => {
-            entered();
-            await waiting;
-            expect(mode(f.capture(origin))?.mode).toBe(initial === on ? 'off' : 'active');
-            return {};
-          },
-        );
-        await started;
+        await entered.promise;
         try {
-          f.runtime.setModelOptions(f.model.modelName, initial === on ? off : on);
+          f.runtime.setModelOption(
+            f.model.modelName,
+            `${origin}AuthorizationMode`,
+            initial === 'trusted' ? 'isolated' : 'trusted',
+          );
         } finally {
-          release();
+          release.resolve();
         }
         await pending;
-        const parentPlan = planAuthorizedModelProjection({
-          authorization: state.authorization,
-          binding: state.binding,
-        });
-        const child = authorizeEmbeddedOutputPlan(parentPlan, parentPlan.childPlans.child);
-        expect(readAuthorizationFastPath(child.authorization!, child.authorizationBinding!)).toBe(mode(state));
-        if (origin === 'read') {
-          const retry = readServiceExecution(
-            f.service,
-            deriveServiceExecution(f.service, state.execution, access('read', 'list')),
-          );
-          expect(mode(retry)).toBe(mode(state));
-        }
+        const plan = planAuthorizedModelProjection({ authorization: state.authorization, binding: state.binding });
+        const child = authorizeEmbeddedOutputPlan(plan, plan.childPlans.child);
+        expect(readServiceAuthorizationMode(child.authorization!, child.authorizationBinding!)).toBe(initial);
+        if (origin === 'read')
+          expect(
+            mode(
+              readServiceExecution(
+                f.service,
+                deriveServiceExecution(f.service, state.execution, access('read', 'list')),
+              ),
+            ),
+          ).toBe(initial);
+        expect(mode(f.capture(origin))).not.toBe(initial);
+        closeDocumentStage(stage);
       }
     },
   );
 });
 
-describe('normalized defaults and coherent effective warnings', () => {
-  it.each(fastFlags)('%s inherits, restores undefined and normalizes both setter forms', (key) => {
-    const f = fixture(),
-      name = f.model.modelName;
-    expect(f.runtime.getDefaultModelOption(key)).toBe(false);
-    expect(f.runtime.getModelOption(name, key)).toBe(false);
-    for (const value of ['true', 1, {}, new Boolean(true), null, undefined, false]) {
-      f.runtime.setDefaultModelOptions({ [key]: value } as never);
-      f.runtime.setModelOptions(name, { [key]: value } as never);
-      expect(f.runtime.getDefaultModelOption(key)).toBe(false);
-      expect(f.runtime.getModelOption(name, key)).toBe(false);
-      f.runtime.setDefaultModelOption(key, value as never);
-      f.runtime.setModelOption(name, key, value as never);
-      expect(f.runtime.getModelOptions(name)[key]).toBe(false);
-    }
-    expect(f.warn).not.toHaveBeenCalled();
-    f.runtime.setDefaultModelOptions({ [key]: true });
-    f.runtime.setModelOption(name, key, undefined);
-    expect(f.runtime.getModelOption(name, key)).toBe(true);
-    f.runtime.setModelOption(name, key, false);
-    f.runtime.setDefaultModelOption(key, true);
-    expect(f.runtime.getModelOption(name, key)).toBe(false);
-    f.runtime.setModelOptions(name, { [key]: undefined });
-    expect(f.runtime.getModelOption(name, key)).toBe(true);
-    f.runtime.setDefaultModelOption(key, undefined);
-    expect(f.runtime.getModelOption(name, key)).toBe(false);
-    for (const flag of unsafeSnapshotOptions) expect(f.runtime.getModelOption(name, flag)).toBe(false);
-    const model = mongoose.model(`FastOptions${++serial}`, new mongoose.Schema({ value: String }));
-    f.runtime.registerModelInstance(model.modelName, model);
-    f.runtime.setDefaultModelOption(key, true);
-    expect(f.runtime.getModelOptions(model.modelName)[key]).toBe(true);
-    expect(f.warn.mock.calls.at(-1)![0]).toContain(key);
-    expect(f.runtime.getModelOptions(model.modelName)[fastFlags.find((other) => other !== key)!]).toBe(false);
-  });
-
-  it.each(['list', 'read'] as const)(
-    '%s warnings track coherent active/dormant missing-mask transitions, never per-call',
-    (origin) => {
-      const f = fixture(),
-        name = f.model.modelName,
-        key = origin === 'list' ? fastFlags[0] : fastFlags[1];
-      const prereqs = authorizationFastPathPrerequisites(origin);
-      const warnings = () =>
-        f.warn.mock.calls.filter(([text]) => text.includes(key) || text.includes('authorization fast path active'));
-      f.runtime.setModelOption(name, key, true);
-      expect(warnings()).toHaveLength(1);
-      expect(warnings()[0][0]).toContain('dormant');
-      for (const prerequisite of prereqs) expect(warnings()[0][0]).toContain(prerequisite);
-      f.runtime.setModelOption(name, key, true);
-      f.capture(origin);
-      f.capture(origin);
-      expect(warnings()).toHaveLength(1);
-      for (const [index, prerequisite] of prereqs.entries()) {
-        f.runtime.setDefaultModelOption(prerequisite, true);
-        expect(warnings()).toHaveLength(index + 2);
-        const text = warnings().at(-1)![0];
-        if (index < 3) {
-          expect(text).toContain('dormant');
-          expect(text).not.toContain(`${prerequisite},`);
-        } else {
-          expect(text).toContain(`${origin} authorization fast path active`);
-          for (const risk of [
-            'source/grant mutation',
-            'stale decisions',
-            'descendant replacement',
-            'native normalization/validation',
-            'denial becoming allowance',
-            'source/grant/context leaves',
-            'full unvisited source shape/bounds',
-            'operation/row/field rules',
-            'cheap exact root authority',
-            'omit repeated snapshots',
-            `Restore ${key}=false`,
-          ])
-            expect(text).toContain(risk);
-        }
-      }
-      const before = warnings().length;
-      f.runtime.setDefaultModelOptions(Object.fromEntries(prereqs.map((key) => [key, true])));
-      f.runtime.setModelOptions(name, { [key]: true });
-      f.capture(origin);
-      expect(warnings()).toHaveLength(before);
-      f.runtime.setModelOption(name, prereqs[0], false);
-      expect(warnings().at(-1)![0]).toContain(`${prereqs[0]}=true`);
-      f.runtime.setModelOption(name, prereqs[0], undefined);
-      expect(warnings().at(-1)![0]).toContain('fast path active');
-      f.runtime.setModelOption(name, key, false);
-      expect(warnings()).toHaveLength(before + 2); // Off need not warn.
-    },
-  );
-
-  it('publishes all models/defaults before warnings, rejects atomic invalid changes and tolerates throwing loggers', () => {
-    const f = fixture(),
-      other = fixture();
-    f.runtime.registerModelInstance(other.model.modelName, other.model);
-    f.runtime.setModelOptions(other.model.modelName, {});
-    const seen: boolean[] = [];
-    f.warn.mockImplementation(() =>
-      seen.push(
-        [f.model, other.model].every((model) =>
-          unsafeServerOptions.every((key) => f.runtime.getModelOption(model.modelName, key) === true),
-        ),
-      ),
-    );
-    f.runtime.setDefaultModelOptions(on);
-    expect(seen.length).toBeGreaterThan(0);
-    expect(seen.every(Boolean)).toBe(true);
-    expect(f.warn.mock.calls.some(([text]) => text.includes('dormant'))).toBe(false);
-    const before = f.warn.mock.calls.length;
-    const snapshot = f.runtime.getModelOptions(f.model.modelName);
-    for (const update of [
-      () =>
-        f.runtime.setModelOptions(f.model.modelName, {
-          ...off,
-          virtuals: { invalid: { dependsOn: ['missing'] } },
-        } as never),
-      () => f.runtime.setDefaultModelOptions({ ...off, virtuals: { invalid: { dependsOn: ['missing'] } } } as never),
-    ]) {
-      expect(update).toThrow();
-      expect(f.runtime.getModelOptions(f.model.modelName)).toEqual(snapshot);
-      expect(f.warn).toHaveBeenCalledTimes(before);
-    }
-    f.runtime.setDefaultModelOptions(off);
-    f.warn.mockImplementation(() => {
-      throw new Error('logger unavailable');
-    });
-    expect(() => f.runtime.setDefaultModelOptions(on)).not.toThrow();
-    const count = f.warn.mock.calls.length;
-    expect(mode(f.capture())?.mode).toBe('active');
-    f.runtime.setDefaultModelOptions(on);
-    expect(f.warn).toHaveBeenCalledTimes(count);
-    expect(f.runtime.getModelOption(f.model.modelName, fastFlags[1])).toBe(true);
-  });
-
-  it.each(['list', 'read'] as const)(
-    'tracks every coherent %s missing-mask transition, not just popcount',
-    (origin) => {
-      const f = fixture(),
-        name = f.model.modelName,
-        key = origin === 'list' ? fastFlags[0] : fastFlags[1];
-      const prerequisites = authorizationFastPathPrerequisites(origin);
-      const options = (mask: number) =>
-        Object.fromEntries(prerequisites.map((flag, index) => [flag, !!(mask & (1 << index))]));
-      const warnings = () => f.warn.mock.calls.filter(([text]) => text.includes(key));
-      f.runtime.setModelOption(name, key, true);
-      for (let previous = 0; previous < 16; previous++)
-        for (let next = 0; next < 16; next++) {
-          f.runtime.setDefaultModelOptions(options(previous));
-          f.warn.mockClear();
-          f.runtime.setDefaultModelOptions(options(next));
-          expect(mode(f.capture(origin))).toEqual({
-            origin,
-            mode: next === 15 ? 'active' : 'dormant',
-            prerequisites: next,
-          });
-          expect(warnings()).toHaveLength(previous === next ? 0 : 1);
-          if (next !== 15 && previous !== next)
-            for (const [index, prerequisite] of prerequisites.entries())
-              expect(warnings()[0][0].includes(`${prerequisite}=true`)).toBe(!(next & (1 << index)));
-        }
-      f.warn.mockClear();
-      const opposite = authorizationFastPathPrerequisites(origin === 'list' ? 'read' : 'list');
-      f.runtime.setDefaultModelOptions(Object.fromEntries(opposite.map((flag) => [flag, true])));
-      f.runtime.setDefaultModelOptions(Object.fromEntries(opposite.map((flag) => [flag, false])));
-      expect(warnings()).toHaveLength(0);
-      f.runtime.setModelOption(name, key, false);
-      f.warn.mockClear();
-      for (let mask = 0; mask < 16; mask++) {
-        f.runtime.setDefaultModelOptions(options(mask));
-        expect(mode(f.capture(origin))?.mode).toBe('off');
-      }
-      expect(warnings()).toHaveLength(0);
-    },
-  );
-
-  it.each(['list', 'read'] as const)(
-    'normalizes every truthy %s prerequisite at model/default publication',
-    (origin) => {
+describe('effective owner/access warnings and undefined restoration', () => {
+  it.each(authorizationModeKeys)(
+    '%s warns only on an effective transition into trusted, never on calls or repeated assignment',
+    (key) => {
       const f = fixture();
-      f.runtime.setDefaultModelOptions(on);
-      for (const key of authorizationFastPathPrerequisites(origin))
-        for (const value of ['true', 1, {}, new Boolean(true), null, false, new mongoose.mongo.BSON.ObjectId()]) {
-          f.runtime.setDefaultModelOption(key, value as never);
-          expect(f.runtime.getDefaultModelOption(key)).toBe(false);
-          expect(mode(f.capture(origin))?.mode).toBe('dormant');
-          f.runtime.setDefaultModelOption(key, true);
-          expect(mode(f.capture(origin))?.mode).toBe('active');
-          f.runtime.setModelOptions(f.model.modelName, { [key]: value } as never);
-          expect(f.runtime.getModelOption(f.model.modelName, key)).toBe(false);
-          expect(mode(f.capture(origin))?.mode).toBe('dormant');
-          f.runtime.setModelOption(f.model.modelName, key, undefined);
-          expect(mode(f.capture(origin))?.mode).toBe('active');
-        }
+      const name = f.model.modelName;
+      f.runtime.setModelOption(name, key, 'trusted');
+      expect(f.warn).toHaveBeenCalledTimes(1);
+      expect(f.warn.mock.calls[0][1]).toEqual({
+        modelName: name,
+        access: key.startsWith('read') ? 'read' : 'list',
+        category: 'trustedAuthorizationSource',
+      });
+      f.runtime.setModelOptions(name, { [key]: 'trusted' });
+      f.capture('read');
+      f.capture('list');
+      expect(f.warn).toHaveBeenCalledTimes(1);
+      f.runtime.setModelOption(name, key, 'isolated');
+      f.runtime.setModelOption(name, key, undefined);
+      expect(f.warn).toHaveBeenCalledTimes(1);
+      f.runtime.setDefaultModelOption(key, 'trusted');
+      expect(f.warn.mock.calls.slice(1).map((entry) => entry[1].modelName)).toEqual(['default-model', name]);
+      f.runtime.setDefaultModelOptions({ [key]: 'trusted' });
+      expect(f.warn).toHaveBeenCalledTimes(3);
+      f.runtime.setDefaultModelOption(key, undefined);
+      expect(f.runtime.getModelOptions(name)[key]).toBe('isolated');
+      expect(f.warn).toHaveBeenCalledTimes(3);
     },
   );
 
-  it('owns the published warning signature before any logger can reenter option setters', () => {
+  it('publishes all inheriting owners before any warning, preserving explicit isolation and runtime separation', () => {
+    const f = fixture();
+    const explicit = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
+    const inherited = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
+    for (const model of [explicit, inherited]) f.runtime.registerModelInstance(model.modelName, model);
+    f.runtime.setModelOptions(explicit.modelName, { readAuthorizationMode: 'isolated' });
+    f.runtime.setModelOptions(inherited.modelName, {});
+    const observations: boolean[] = [];
+    f.warn.mockImplementation(() => {
+      observations.push(
+        f.runtime.getDefaultModelOption('readAuthorizationMode') === 'trusted' &&
+          f.runtime.getModelOption(f.model.modelName, 'readAuthorizationMode') === 'trusted' &&
+          f.runtime.getModelOption(inherited.modelName, 'readAuthorizationMode') === 'trusted' &&
+          f.runtime.getModelOption(explicit.modelName, 'readAuthorizationMode') === 'isolated',
+      );
+    });
+    f.runtime.setDefaultModelOptions({ readAuthorizationMode: 'trusted' });
+    expect(observations).toEqual([true, true, true]);
+    expect(f.warn.mock.calls.map((entry) => entry[1].modelName)).toEqual([
+      'default-model',
+      f.model.modelName,
+      inherited.modelName,
+    ]);
+    expect(fixture().runtime.getDefaultModelOption('readAuthorizationMode')).toBe('isolated');
+    const lazy = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
+    f.runtime.registerModelInstance(lazy.modelName, lazy);
+    f.runtime.getModelOptions(lazy.modelName);
+    f.runtime.getModelOptions(lazy.modelName);
+    expect(f.warn.mock.calls.at(-1)![1].modelName).toBe(lazy.modelName);
+    expect(f.warn).toHaveBeenCalledTimes(4);
+  });
+
+  it('owns the entire warning transition before a logger reenters and tolerates logger failure after commit', () => {
     const f = fixture();
     let reentered = false;
     f.warn.mockImplementation(() => {
       if (reentered) return;
       reentered = true;
-      f.runtime.setModelOptions(f.model.modelName, Object.fromEntries(fastFlags.map((key) => [key, false])));
+      f.runtime.setModelOptions(f.model.modelName, {
+        readAuthorizationMode: 'isolated',
+        listAuthorizationMode: 'isolated',
+      });
     });
-    f.runtime.setDefaultModelOptions(on);
-    const warnings = f.warn.mock.calls.filter(([text]) => text.includes('authorization fast path active'));
-    expect(warnings).toHaveLength(2); // The coherent publication was active before the logger's later rollback.
-    expect(f.warn.mock.calls.some(([text]) => text.includes('dormant'))).toBe(false);
-    expect(mode(f.capture('list'))?.mode).toBe('off');
-    expect(mode(f.capture('read'))?.mode).toBe('off');
-    for (const key of unsafeSnapshotOptions) expect(f.runtime.getModelOption(f.model.modelName, key)).toBe(true);
+    f.runtime.setDefaultModelOptions({ readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' });
+    expect(f.warn.mock.calls.map((entry) => entry[1])).toEqual([
+      { modelName: 'default-model', access: 'read', category: 'trustedAuthorizationSource' },
+      { modelName: 'default-model', access: 'list', category: 'trustedAuthorizationSource' },
+      { modelName: f.model.modelName, access: 'read', category: 'trustedAuthorizationSource' },
+      { modelName: f.model.modelName, access: 'list', category: 'trustedAuthorizationSource' },
+    ]);
+    expect(mode(f.capture('read'))).toBe('isolated');
+    f.warn.mockImplementation(() => {
+      throw new Error('logger unavailable');
+    });
+    expect(() =>
+      f.runtime.setModelOptions(f.model.modelName, {
+        readAuthorizationMode: undefined,
+        listAuthorizationMode: undefined,
+      }),
+    ).not.toThrow();
+    expect(mode(f.capture())).toBe('trusted');
+    const count = f.warn.mock.calls.length;
+    f.runtime.setModelOptions(f.model.modelName, {
+      readAuthorizationMode: undefined,
+      listAuthorizationMode: undefined,
+    });
+    expect(f.warn).toHaveBeenCalledTimes(count);
   });
 });
 
-describe('presence-based bounded control admission and inert business values', () => {
-  it.each(fastFlags)('preflights raw/dotted default setters before cloning can erase %s presence', (key) => {
-    const f = fixture();
-    const getter = vi.fn(() => undefined);
-    const defaults = f.runtime.getDefaultModelOptions();
-    const modelOptions = f.runtime.getModelOptions(f.model.modelName);
-    for (const controls of [
-      { [key]: undefined },
-      Object.create({ [key]: undefined }),
-      Object.defineProperty({}, key, { value: undefined }),
-      Object.defineProperty({}, key, { get: getter, enumerable: true }),
-    ])
-      for (const path of ['defaults', 'defaults.findOptions', 'defaults.publicReadOptions']) {
-        const value = path === 'defaults' ? { findOptions: controls } : controls;
-        expect(() => f.runtime.setDefaultModelOption(path as never, value as never)).toThrow(PublicAdmissionError);
-        expect(f.runtime.getDefaultModelOptions()).toEqual(defaults);
-        expect(f.runtime.getModelOptions(f.model.modelName)).toEqual(modelOptions);
-      }
-    expect(getter).not.toHaveBeenCalled();
-    expect(f.warn).not.toHaveBeenCalled();
-  });
-
-  it.each(fastFlags)('does not invoke a defaults-bucket accessor to discover %s controls', (key) => {
-    const f = fixture();
-    const getter = vi.fn(() => ({ [key]: undefined }));
-    const defaults = Object.defineProperty({}, 'findOptions', { get: getter, enumerable: true });
-    expect(() => assertPublicDefaults(defaults)).toThrow(PublicAdmissionError);
-    expect(() => f.runtime.setModelOption(f.model.modelName, 'defaults', defaults)).toThrow(PublicAdmissionError);
-    expect(() => f.runtime.setDefaultModelOption('defaults' as never, defaults as never)).toThrow(PublicAdmissionError);
-    expect(getter).not.toHaveBeenCalled();
-    expect(f.warn).not.toHaveBeenCalled();
-  });
-
-  it.each(fastFlags)(
-    'rejects inherited Object.prototype %s presence before policy copying can erase it',
+describe('presence-based public/default/service/policy/helper lanes', () => {
+  it.each(serverAuthorizationControls)(
+    'rejects %s in every control lane without observing slot values',
     async (key) => {
       const f = fixture();
-      const previous = Object.getOwnPropertyDescriptor(Object.prototype, key);
-      Object.defineProperty(Object.prototype, key, { value: undefined, configurable: true, writable: true });
-      try {
-        expect(() => assertPublicAdmission({ options: {} })).toThrow(PublicAdmissionError);
-        expect(() => assertPublicDefaults({ findOptions: {} })).toThrow(PublicAdmissionError);
-        expect(() => call({}, 'list', { authorization: {} })).toThrow(ServiceAuthorizationError);
-        await expect(f.service.pickAllowedFields({ value: 'v' }, 'read', {})).rejects.toThrow(
-          ServiceAuthorizationError,
-        );
-      } finally {
-        if (previous) Object.defineProperty(Object.prototype, key, previous);
-        else delete (Object.prototype as Record<string, unknown>)[key];
+      const getter = vi.fn(() => {
+        throw new Error('control getter');
+      });
+      for (const controls of [
+        { [key]: false },
+        { [key]: undefined },
+        Object.create({ [key]: undefined }),
+        Object.defineProperty({}, key, { value: false }),
+        Object.defineProperty({}, key, { get: getter }),
+      ]) {
+        for (const input of [
+          controls,
+          { args: controls },
+          { options: controls },
+          { include: [{ options: controls }] },
+          { populate: [{ args: { options: controls } }] },
+          { filter: { nested: { $$sq: { options: controls } } } },
+          { data: { $$sq: { args: { populate: [{ options: controls }] } } } },
+        ]) {
+          expect(() => assertPublicAdmission(input)).toThrow(PublicAdmissionError);
+          for (const method of ['find', 'findOne'] as const) {
+            expect(await f.service[method]({}, input as never, quiet)).toMatchObject({
+              success: false,
+              code: 'bad_request',
+            });
+            expect(await f.service[method]({}, {}, input as never)).toMatchObject({
+              success: false,
+              code: 'bad_request',
+            });
+          }
+        }
+        for (const bucket of [
+          'findArgs',
+          'findOneOptions',
+          'findByIdArgs',
+          'publicReadOptions',
+          'publicListOptions',
+          'createOptions',
+          'updateOneOptions',
+          'upsertOptions',
+          'existsOptions',
+        ]) {
+          for (const defaults of [
+            { [bucket]: controls },
+            Object.create({ [bucket]: controls }),
+            Object.defineProperty({}, bucket, { value: controls }),
+          ]) {
+            expect(() => assertPublicDefaults(defaults)).toThrow(PublicAdmissionError);
+            expect(() => f.runtime.setModelOption(f.model.modelName, 'defaults', defaults)).toThrow();
+            expect(() => f.runtime.setDefaultModelOptions({ defaults } as never)).toThrow();
+            expect(() => {
+              f.service.defaults = defaults;
+            }).toThrow(PublicAdmissionError);
+          }
+        }
+        for (const authorization of [
+          controls,
+          { rows: controls },
+          { outputFields: controls },
+          { inputFields: controls },
+          { related: { ref: { model: 'Other', operation: controls } } },
+        ])
+          expect(() => call({}, 'list', { authorization })).toThrow(ServiceAuthorizationError);
+        for (const options of [controls, { authorization: controls }]) {
+          await expect(f.service.pickAllowedFields({ value: 'v' }, 'read', options as never)).rejects.toThrow(
+            ServiceAuthorizationError,
+          );
+          await expect(f.service.genSelect('read', undefined, options as never)).rejects.toThrow(
+            ServiceAuthorizationError,
+          );
+          await expect(f.service.genPopulate('read', undefined, options as never)).rejects.toThrow(
+            ServiceAuthorizationError,
+          );
+        }
       }
+      expect(getter).not.toHaveBeenCalled();
+      expect(f.adapter.find).not.toHaveBeenCalled();
+      expect(f.adapter.findOne).not.toHaveBeenCalled();
+      expect(f.warn).not.toHaveBeenCalled();
     },
   );
 
-  it.each(fastFlags)('rejects %s on every public/default/service/policy/helper control lane', async (key) => {
-    const f = fixture();
-    const get = vi.fn(() => {
-      throw new Error('must not invoke flag getter');
-    });
-    for (const property of [
-      { [key]: undefined },
-      { [key]: false },
-      Object.create({ [key]: undefined }),
-      Object.defineProperty({}, key, { value: undefined }),
-      Object.defineProperty({}, key, { get }),
-    ]) {
-      for (const envelope of [
-        property,
-        { args: property },
-        { options: property },
-        { include: [{ options: property }] },
-        { populate: [{ args: { options: property } }] },
-        { filter: { nested: { $$sq: { options: property } } } },
-        { data: { $$sq: { args: { populate: [{ options: property }] } } } },
-      ]) {
-        expect(() => assertPublicAdmission(envelope)).toThrow(PublicAdmissionError);
-        for (const method of ['find', 'findOne'] as const) {
-          expect(await f.service[method]({}, envelope as never, quiet)).toMatchObject({
-            success: false,
-            code: 'bad_request',
-          });
-          expect(await f.service[method]({}, {}, envelope as never)).toMatchObject({
-            success: false,
-            code: 'bad_request',
-          });
-        }
-      }
-      for (const bucket of [
-        'findArgs',
-        'findOneOptions',
-        'findByIdArgs',
-        'publicReadOptions',
-        'publicListOptions',
-        'createOptions',
-        'updateOneOptions',
-        'upsertOptions',
-        'existsOptions',
-      ]) {
-        for (const defaults of [
-          { [bucket]: property },
-          Object.create({ [bucket]: property }),
-          Object.defineProperty({}, bucket, { value: property }),
-        ]) {
-          expect(() => assertPublicDefaults(defaults)).toThrow(PublicAdmissionError);
-          expect(() => f.runtime.setModelOption(f.model.modelName, 'defaults', defaults)).toThrow(PublicAdmissionError);
-          expect(() => f.runtime.setDefaultModelOptions({ defaults } as never)).toThrow(PublicAdmissionError);
-          f.service.defaults = defaults;
-          expect(await f.service.find({}, {}, quiet)).toMatchObject({ success: false, code: 'bad_request' });
-          f.service.defaults = {};
-        }
-      }
-      for (const authorization of [
-        property,
-        { rows: property },
-        { outputFields: property },
-        { inputFields: property },
-        { related: { ref: { model: 'Other', operation: property } } },
-      ])
-        expect(() => call({}, 'list', { authorization })).toThrow(ServiceAuthorizationError);
-      for (const options of [property, { authorization: property }]) {
-        await expect(f.service.pickAllowedFields({ value: 'v' }, 'read', options as never)).rejects.toThrow(
-          ServiceAuthorizationError,
-        );
-        await expect(f.service.genSelect('read', undefined, options as never)).rejects.toThrow(
-          ServiceAuthorizationError,
-        );
-        await expect(f.service.genPopulate('read', undefined, options as never)).rejects.toThrow(
-          ServiceAuthorizationError,
-        );
-      }
+  it.each(serverAuthorizationControls)('%s on Object.prototype still rejects before copying erases it', (key) => {
+    const previous = Object.getOwnPropertyDescriptor(Object.prototype, key);
+    Object.defineProperty(Object.prototype, key, { value: undefined, configurable: true });
+    try {
+      expect(() => assertPublicAdmission({ options: {} })).toThrow(PublicAdmissionError);
+      expect(() => assertPublicDefaults({ findOptions: {} })).toThrow(PublicAdmissionError);
+      expect(() => call({}, 'read', { authorization: {} })).toThrow(ServiceAuthorizationError);
+    } finally {
+      if (previous) Object.defineProperty(Object.prototype, key, previous);
+      else Reflect.deleteProperty(Object.prototype, key);
     }
-    expect(get).not.toHaveBeenCalled();
-    expect(f.adapter.find).not.toHaveBeenCalled();
-    expect(f.adapter.findOne).not.toHaveBeenCalled();
   });
 
-  it.each(fastFlags)(
-    '%s is inert in business predicates, projection paths, data and backend scoped filters',
+  it('does not invoke default bucket accessors, and bounds cyclic/shared/deep/array admission', () => {
+    const getter = vi.fn(() => ({ readAuthorizationMode: 'trusted' }));
+    expect(() =>
+      assertPublicDefaults(Object.defineProperty({}, 'findOptions', { get: getter, enumerable: true })),
+    ).toThrow(PublicAdmissionError);
+    expect(getter).not.toHaveBeenCalled();
+    const cycle: Record<string, unknown> = {};
+    cycle.options = cycle;
+    expect(() => assertPublicAdmission(cycle)).not.toThrow();
+    let deep: object = {};
+    for (let index = 0; index < 102; index++) deep = { options: deep };
+    expect(() => assertPublicAdmission(deep)).toThrow(PublicAdmissionError);
+    expect(() => assertPublicAdmission({ include: Array(20001) })).toThrow(PublicAdmissionError);
+  });
+
+  it.each(serverAuthorizationControls)(
+    '%s stays inert in business predicates, selection and scoped backend row filters',
     async (key) => {
       const f = fixture();
       const input = {
         filter: { [key]: true },
         match: { [key]: true },
         data: { [key]: true, options: { [key]: true } },
-        select: { [key]: 1 },
+        select: [key],
       };
       expect(() => assertPublicAdmission(input)).not.toThrow();
-      expect(() => assertPublicDefaults({ findArgs: input } as never)).not.toThrow();
+      expect(() => assertPublicDefaults({ findArgs: input })).not.toThrow();
       expect(() =>
         call({}, 'list', { authorization: { rows: { mode: 'scope', filter: { [key]: true } } } }),
       ).not.toThrow();
@@ -804,7 +568,6 @@ describe('presence-based bounded control admission and inert business values', (
           { ...quiet, authorization: { rows: { mode: 'scope', filter: { [key]: true } } } },
         ),
       ).toMatchObject({ success: true });
-      // Unrelated backend per-call authorization must still be admitted.
       expect(
         await f.service.find(
           {},
@@ -814,14 +577,4 @@ describe('presence-based bounded control admission and inert business values', (
       ).toMatchObject({ success: true });
     },
   );
-
-  it('bounds shared traversals and handles cycles without a new unbounded recursive walk', () => {
-    const cycle: Record<string, unknown> = {};
-    cycle.options = cycle;
-    expect(() => assertPublicAdmission(cycle)).not.toThrow();
-    let deep: object = {};
-    for (let n = 0; n < 102; n++) deep = { options: deep };
-    expect(() => assertPublicAdmission(deep)).toThrow(PublicAdmissionError);
-    expect(() => assertPublicAdmission({ include: Array(20001) })).toThrow(PublicAdmissionError);
-  });
 });

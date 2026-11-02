@@ -276,8 +276,11 @@ describe('SVA-09 complete service container removal', () => {
     await f.execute(async (req) => {
       const service = req.macl.getService(f.modelName);
       const noDispatch = observeDispatch(service, req);
-      service.defaults = { [key]: { overrides: null } } as never;
-      expect(await service.findOne({}, {}, { ...quiet, authorization: noteGrant })).toMatchObject(badRequest);
+      const saved = service.defaults;
+      expect(() => {
+        service.defaults = { [key]: { overrides: null } } as never;
+      }).toThrow();
+      expect(service.defaults).toEqual(saved);
       noDispatch();
     });
   });
@@ -317,7 +320,7 @@ describe('SVA-09 complete service container removal', () => {
 
 describe('SVA-09 canonical replacements', () => {
   it.each(['false', 'missing'] as const)(
-    'ordinary select plus an explicit grant survives finalizer and handle pick (%s request rule)',
+    'ordinary select plus an explicit grant survives finalizer and fresh explicit pick (%s request rule)',
     async (rule) => {
       const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice', note: false }));
       const f = await fixture({
@@ -342,12 +345,13 @@ describe('SVA-09 canonical replacements', () => {
         expect(result.data).toMatchObject({ status: 'ready', internalNote: 'note-a' });
         expect(result.data).not.toHaveProperty('ownerId');
         expect(result.data).not.toHaveProperty('_permissions');
-        const reuse = { documentAuthorization: result.context.documentAuthorization };
+        expect(result.context).not.toHaveProperty('documentAuthorization');
+        const reuse = { authorization: noteGrant };
         const picked = await service.pickAllowedFields(result.data, 'read', reuse);
         expect(await service.trimOutputFields(picked, 'read', reuse)).toMatchObject({
-          status: 'ready',
           internalNote: 'note-a',
         });
+        expect(picked).not.toHaveProperty('status');
         expect(hook).toHaveBeenCalledTimes(1);
         const fresh = await service.pickAllowedFields(result.data, 'read', { authorization: noteGrant });
         expect(fresh).toHaveProperty('internalNote', 'note-a');
@@ -432,7 +436,7 @@ describe('SVA-09 canonical replacements', () => {
     });
   });
 
-  it('ordinary populate requires separate source/target grants and preserves target handle authority', async () => {
+  it('ordinary populate requires separate source/target grants without exporting target authority', async () => {
     const f = await fixture({ permissionSchema: { customer: false } });
     f.targetRouter.operationAccess('read', false);
     await f.execute(async (req) => {
@@ -458,9 +462,9 @@ describe('SVA-09 canonical replacements', () => {
       });
       if (!result.success) throw new Error(result.code);
       const child = (result.data as Record<string, object>).customer;
-      const handle = result.context.getDocumentAuthorization(child)!;
+      expect(result.context).not.toHaveProperty('getDocumentAuthorization');
       expect(
-        await req.macl.getService(f.targetName).pickAllowedFields(child, 'read', { documentAuthorization: handle }),
+        await req.macl.getService(f.targetName).pickAllowedFields(child, 'read', { authorization: noteGrant }),
       ).toMatchObject({ name: 'customer', internalNote: 'target-note' });
       expect(f.targetTransform).toHaveBeenCalledTimes(1);
     });

@@ -9,7 +9,7 @@ import {
   Sort,
   Projection,
   Populate,
-  ModelHookContext,
+  ModelOutputContext,
   FindAccess,
   PublicOutput,
   SelectedPublicOutput,
@@ -52,6 +52,8 @@ import { getAuthorizationPermissions, readServiceAuthorization } from '../acl/se
 import { withCapturedModelOperationGuard } from '../acl/model-service-owner';
 import { getRequestWorkState } from '../helpers/request-work';
 import { assertModelInputComplexity } from '../acl/model-input-admission';
+import { bindReadGuardExecution } from '../acl/document-guard';
+import { createModelOutputContext } from '../output/model-output-context';
 import {
   executeCreate,
   executePreparedExists,
@@ -193,7 +195,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
           includeCount,
           populateAccess,
         }),
-        async (doc, context: ModelHookContext) => {
+        async (doc, context: ModelOutputContext) => {
           doc = toObject(doc);
           return this.decorate(doc, 'list', context);
         },
@@ -203,12 +205,18 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         return result as ErrorResult;
       }
 
-      const docs = await this.decorateAll(result.data, 'list', {
-        mongooseModel: this.model.mongooseModel,
-        modelName: this.modelName,
-        operation: 'list',
-        resolvedQuery: result.query,
-      });
+      const docs = await this.decorateAll(
+        result.data,
+        'list',
+        createModelOutputContext({
+          modelName: this.modelName,
+          operation: 'list',
+          virtualAccess: 'list',
+          outputAccess: 'list',
+          docPermissionsAccess: 'list',
+          resolvedQuery: result.query,
+        }),
+      );
       const transformedDocs = docs.map((row) =>
         this.runTasks(row as Record<string, unknown>, tasks),
       ) as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>[];
@@ -243,7 +251,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
       data as Record<string, unknown> | Record<string, unknown>[],
       { populate, select: effectiveSelect },
       requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
-      async (doc, context: ModelHookContext): Promise<unknown> => {
+      async (doc, context: ModelOutputContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
         d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
         d = this.runTasks(d, tasks);
@@ -321,6 +329,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         'publicRead',
       );
       const admitListFallback = this.captureListFallbackAdmission(execution);
+      bindReadGuardExecution(this, execution);
       const identifier = await resolveModelIdentifier(this, execution, id);
       const query = await prepareModelQuery(this, execution, {
         kind: 'client-read',
@@ -529,7 +538,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
       data,
       { populate, select: effectiveSelect },
       requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
-      async (doc, context: ModelHookContext): Promise<unknown> => {
+      async (doc, context: ModelOutputContext): Promise<unknown> => {
         let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
         d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
         d = this.runTasks(d, tasks);
@@ -631,7 +640,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
           otherData,
           { populate, select: effectiveSelect },
           requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
-          async (doc, context: ModelHookContext): Promise<unknown> => {
+          async (doc, context: ModelOutputContext): Promise<unknown> => {
             let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
             d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
             d = this.runTasks(d, tasks);
@@ -659,7 +668,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         otherData as Record<string, unknown>,
         { populate, select: createSelect as Projection | undefined },
         requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, populateAccess }),
-        async (doc, context: ModelHookContext): Promise<unknown> => {
+        async (doc, context: ModelOutputContext): Promise<unknown> => {
           let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
           d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
           d = this.runTasks(d, tasks);

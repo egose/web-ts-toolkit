@@ -289,7 +289,22 @@ describe('ARL-08 numeric grouped counts', () => {
   ] as const)('accepts the inclusive %s bound in one query', async (_label, keys) => {
     const parentKeys = keys();
     const f = await fixture(true, parentKeys);
-    const response = await f.invoke().expect(200);
+    if (_label === 'key occurrences') {
+      // 10,000 array entries alone charge 20,001 source/output slots. The
+      // grouped-key bound is independent: isolate rejects that whole projection,
+      // while a trusted source can use the bounded private join and omit its value.
+      await f.invoke().expect(400);
+      expect(f.aggregate).not.toHaveBeenCalled();
+      f.api.setModelOptions(f.Parent.modelName, {
+        listAuthorizationMode: 'trusted',
+        permissionSchema: { name: true, join: false },
+      });
+      f.reset();
+    }
+    const response = await f
+      .invoke()
+      .send({ select: ['name'] })
+      .expect(200);
     expect(response.body.data).toHaveLength(parentKeys.length);
     expect(response.body.data.every((row: { total: number }) => row.total === 10)).toBe(true);
     expectOneNumericAggregate(f, parentKeys.length);

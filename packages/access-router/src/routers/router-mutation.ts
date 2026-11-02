@@ -21,9 +21,12 @@ function assertMutableKey(kind: 'model' | 'data', key: string) {
 }
 
 export function assertMutableRouterOption(kind: 'model' | 'data', key: string) {
+  assertAuthorizationModeKey(key, kind === 'model');
   assertMutableKey(kind, key);
 }
 
 export function assertMutableRouterOptions(kind: 'model' | 'data', options: Record<string, unknown>) {
+  assertAuthorizationModeOptions(options, kind === 'model');
   Object.keys(options).forEach((key) => assertMutableKey(kind, key));
 }
+import { assertAuthorizationModeKey, assertAuthorizationModeOptions } from '../acl/authorization-modes';

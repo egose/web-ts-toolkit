@@ -26,20 +26,21 @@ test(
   'real workers apply eight comparison/copy/fast-path candidates to separate embedded and document-hook workloads',
   { timeout: 240_000 },
   async () => {
-    const manifest = await inspectSnapshotDeclarations(root);
+    const legacyRoot = resolve(process.env.WTT_BENCH_LEGACY_ROOT ?? root);
+    const manifest = await inspectSnapshotDeclarations(legacyRoot);
     assert.deepEqual(
       manifest.supportedSnapshotFlags,
       UNSAFE_SNAPSHOT_FLAGS,
-      'Build the current access-router sources first.',
+      'Select a built historical six/two/fast artifact with WTT_BENCH_LEGACY_ROOT; never alias new modes.',
     );
     assert.deepEqual(manifest.supportedInitialOutputCopyFlags, UNSAFE_INITIAL_OUTPUT_COPY_FLAGS);
     assert.deepEqual(manifest.supportedAuthorizationFastPathFlags, UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS);
     assert.equal(manifest.snapshotDeclarationManifest.filter((file) => file.name.endsWith('.d.mts')).length, 4);
-    const entry = resolve(root, 'packages/access-router/dist/index.mjs');
+    const entry = resolve(legacyRoot, 'packages/access-router/dist/index.mjs');
     const build = {
       id: 'current',
       label: 'Current',
-      root,
+      root: legacyRoot,
       entry,
       distSha256: createHash('sha256')
         .update(await readFile(entry))

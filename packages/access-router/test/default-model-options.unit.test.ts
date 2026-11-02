@@ -5,15 +5,18 @@ import {
   captureModelAuthorizationConfiguration,
   getCapturedAuthorizationOption,
 } from '../src/acl/model-output-planning';
-import { unsafeSnapshotOptions } from '../src/acl/unsafe-snapshot-options';
-import { resolveServiceAuthorization, ServiceAuthorizationError } from '../src/acl/service-authorization';
+import { authorizationModeKeys, retiredAuthorizationOptions } from '../src/acl/authorization-modes';
 import {
-  assertDocumentAuthorization,
-  associateDocumentAuthorization,
-  createDocumentAuthorizationStage,
-  readDocumentAuthorizationAccess,
-  resolveDocumentAuthorization,
-} from '../src/acl/document-authorization';
+  readServiceAuthorizationMode,
+  resolveServiceAuthorization,
+  ServiceAuthorizationError,
+} from '../src/acl/service-authorization';
+import {
+  closeDocumentStage,
+  prepareQueryDocumentStage,
+  readDocumentStage,
+  resolveDocumentStage,
+} from '../src/acl/document-stage';
 import Permission from '../src/permission';
 import type { DefaultModelRouterOptions } from '../src/interfaces';
 
@@ -22,7 +25,6 @@ const booleanOptions = [
   'stripDisallowedSort',
   'stripPermissionsField',
   'disableFieldPermissions',
-  ...unsafeSnapshotOptions,
 ] as const;
 let sequence = 0;
 
@@ -66,10 +68,6 @@ describe('default-model options stay inherited unless explicitly overridden', ()
     expect(f.runtime.getModelOptions(f.name)[key]).toBe(false);
     f.runtime.setModelOption(f.name, key, undefined);
     expect(f.runtime.getModelOptions(f.name)[key]).toBe(true);
-    if (unsafeSnapshotOptions.some((flag) => flag === key)) {
-      expect(f.warn).toHaveBeenCalledTimes(3);
-      expect(f.warn.mock.calls[0][0]).toContain(`Restore ${key}=false`);
-    }
   });
 
   it.each(booleanOptions)('%s supports default-before-model setup and explicit false before defaults', (key) => {
@@ -88,22 +86,46 @@ describe('default-model options stay inherited unless explicitly overridden', ()
     expect(other.runtime.getModelOptions(other.name)[key]).toBe(false);
   });
 
-  it.each(unsafeSnapshotOptions)('%s normalizes default setters without enabling truthy values', (key) => {
-    const f = fixture();
-    f.runtime.setModelOptions(f.name, {});
-    for (const value of ['true', 1, {}, new Boolean(true), null, undefined, false]) {
-      f.runtime.setDefaultModelOptions({ [key]: value } as never);
-      expect(f.runtime.getDefaultModelOption(key)).toBe(false);
-      expect(f.runtime.getModelOption(f.name, key)).toBe(false);
-      f.runtime.setDefaultModelOption(key, value as never);
-      expect(f.runtime.getModelOptions(f.name)[key]).toBe(false);
-    }
-    expect(f.warn).not.toHaveBeenCalled();
-    f.runtime.setDefaultModelOption(key, true);
-    f.runtime.setDefaultModelOption(key, true);
-    f.runtime.setModelOptions(f.name, {});
-    expect(f.warn).toHaveBeenCalledTimes(1);
-  });
+  it.each(retiredAuthorizationOptions)(
+    '%s is rejected by presence without partial default/model changes or warnings',
+    (key) => {
+      const f = fixture();
+      f.runtime.setModelOptions(f.name, {});
+      const before = f.runtime.createBootstrapSnapshot();
+      for (const value of [undefined, false, true, 'true', 1, {}]) {
+        expect(() =>
+          f.runtime.setDefaultModelOptions({ readAuthorizationMode: 'trusted', [key]: value } as never),
+        ).toThrow(/removed/);
+        expect(() => f.runtime.setDefaultModelOption(key as never, value as never)).toThrow(/removed/);
+        expect(f.runtime.createBootstrapSnapshot()).toEqual(before);
+      }
+      expect(f.warn).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(authorizationModeKeys)(
+    '%s inherits across all getter forms and restores model/default undefined independently',
+    (key) => {
+      const f = fixture();
+      f.runtime.setModelOptions(f.name, {});
+      const initial = f.runtime.getModelOptions(f.name);
+      f.runtime.setDefaultModelOptions({ [key]: 'trusted' });
+      expect(f.runtime.getModelOptions(f.name)[key]).toBe('trusted');
+      expect(f.runtime.getModelOption(f.name, key)).toBe('trusted');
+      expect(f.runtime.getExactModelOption(f.name, key)).toBe('trusted');
+      expect(captureModelAuthorizationConfiguration(f.runtime, f.name)[key]).toBe('trusted');
+      expect(initial[key]).toBe('isolated');
+      f.runtime.setModelOptions(f.name, { [key]: 'isolated' });
+      f.runtime.setDefaultModelOption(key, 'isolated');
+      f.runtime.setDefaultModelOption(key, 'trusted');
+      expect(f.runtime.getModelOptions(f.name)[key]).toBe('isolated');
+      f.runtime.setModelOption(f.name, key, undefined);
+      expect(f.runtime.getModelOptions(f.name)[key]).toBe('trusted');
+      f.runtime.setDefaultModelOptions({ [key]: undefined });
+      expect(f.runtime.getModelOptions(f.name)[key]).toBe('isolated');
+      expect(f.runtime.getModelOptions(f.name)[authorizationModeKeys.find((other) => other !== key)!]).toBe('isolated');
+    },
+  );
 
   it('inherits non-boolean defaults and replaces object/array overrides shallowly', () => {
     const f = fixture();
@@ -208,7 +230,7 @@ describe('default-model options stay inherited unless explicitly overridden', ()
     expect(() =>
       f.runtime.setDefaultModelOptions({
         documentPermissionField: 'computed',
-        unsafeSkipReadDocumentSnapshotChecks: true,
+        readAuthorizationMode: 'trusted',
       }),
     ).toThrow(/overlaps/);
     expect(f.runtime.getDefaultModelOptions()).toEqual(snapshot.defaultModelOptions);
@@ -235,7 +257,7 @@ describe('default-model options stay inherited unless explicitly overridden', ()
     });
     const before = f.runtime.createBootstrapSnapshot();
     expect(() =>
-      f.runtime.setDefaultModelOptions({ permissionSchema: undefined, unsafeSkipReadOutputSnapshotChecks: true }),
+      f.runtime.setDefaultModelOptions({ permissionSchema: undefined, readAuthorizationMode: 'trusted' }),
     ).toThrow(ServiceAuthorizationError);
     expect(f.runtime.getDefaultModelOptions()).toEqual(before.defaultModelOptions);
     expect(f.runtime.getModelOptions(f.name)).toEqual(before.modelOptions[f.name]);
@@ -247,7 +269,7 @@ describe('default-model options stay inherited unless explicitly overridden', ()
     expect(f.runtime.getDefaultModelOptions()).toEqual(before.defaultModelOptions);
   });
 
-  it('publishes all effective models before invoking inherited unsafe warning loggers', () => {
+  it('publishes all effective models before invoking inherited trusted transition loggers', () => {
     const f = fixture();
     const other = mongoose.model(`InheritedOptions${++sequence}`, f.model.schema);
     f.runtime.registerModelInstance(other.modelName, other);
@@ -256,21 +278,24 @@ describe('default-model options stay inherited unless explicitly overridden', ()
     const observed: boolean[] = [];
     f.warn.mockImplementation(() => {
       observed.push(
-        f.runtime.getModelOptions(f.name).unsafeSkipReadOutputSnapshotChecks === true &&
-          f.runtime.getModelOptions(other.modelName).unsafeSkipReadOutputSnapshotChecks === true,
+        f.runtime.getModelOptions(f.name).readAuthorizationMode === 'trusted' &&
+          f.runtime.getModelOptions(other.modelName).readAuthorizationMode === 'trusted',
       );
     });
-    f.runtime.setDefaultModelOption('unsafeSkipReadOutputSnapshotChecks', true);
-    expect(observed).toEqual([true, true]);
+    f.runtime.setDefaultModelOption('readAuthorizationMode', 'trusted');
+    expect(observed).toEqual([true, true, true]);
   });
 
   it.each(['read', 'list'].flatMap((operation) => [false, true].map((initial) => ({ operation, initial }))))(
-    'captures inherited $operation modes before awaits and retains old handles (initial=$initial)',
+    'captures inherited $operation source modes before awaits without retaining output authority (trusted=$initial)',
     async ({ operation, initial }) => {
       const f = fixture();
       f.runtime.setModelOptions(f.name, {});
       const configure = (enabled: boolean) =>
-        f.runtime.setDefaultModelOptions(Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, enabled])));
+        f.runtime.setDefaultModelOptions({
+          readAuthorizationMode: enabled ? 'trusted' : 'isolated',
+          listAuthorizationMode: enabled ? 'trusted' : 'isolated',
+        });
       configure(initial);
       const binding = { request: {} as never, runtime: f.runtime, model: f.model, modelName: f.name };
       const capture = () =>
@@ -289,13 +314,8 @@ describe('default-model options stay inherited unless explicitly overridden', ()
           readResponse: operation === 'read',
         });
       const call = capture();
-      const retained = await resolveDocumentAuthorization(
-        createDocumentAuthorizationStage(call, binding, { value: 'stable' }),
-        () => ({}),
-      );
-      const output = { value: 'published' };
-      associateDocumentAuthorization(retained, binding, output);
       const source = { value: 'before' };
+      const prepared = prepareQueryDocumentStage(call, binding, source);
       let entered!: () => void, release!: () => void;
       const started = new Promise<void>((done) => {
           entered = done;
@@ -303,34 +323,22 @@ describe('default-model options stay inherited unless explicitly overridden', ()
         held = new Promise<void>((done) => {
           release = done;
         });
-      const pending = resolveDocumentAuthorization(
-        createDocumentAuthorizationStage(call, binding, source),
-        async () => {
-          entered();
-          await held;
-          return {};
-        },
-      );
+      const pending = resolveDocumentStage(prepared.stage, async (view) => {
+        entered();
+        await held;
+        return { changed: view.value === 'changed' };
+      });
       await started;
       configure(!initial);
       source.value = 'changed';
       release();
-      if (initial) await expect(pending).resolves.toBeDefined();
-      else await expect(pending).rejects.toBeInstanceOf(ServiceAuthorizationError);
-      output.value = 'changed';
-      const check = () => assertDocumentAuthorization(retained, { binding, output, outputAccess: operation });
-      if (initial) expect(check).not.toThrow();
-      else expect(check).toThrow(ServiceAuthorizationError);
-      const next = capture(),
-        nextSource = { value: 'before' };
-      const nextHandle = await resolveDocumentAuthorization(
-        createDocumentAuthorizationStage(next, binding, nextSource),
-        () => ({}),
-      );
-      nextSource.value = 'changed';
-      const checkNext = () => readDocumentAuthorizationAccess(nextHandle, binding);
-      if (initial) expect(checkNext).toThrow(ServiceAuthorizationError);
-      else expect(checkNext).not.toThrow();
+      expect(await pending).toEqual({ changed: initial });
+      expect(readDocumentStage(prepared.stage, binding).grants).toEqual({ changed: initial });
+      expect(readServiceAuthorizationMode(call, binding)).toBe(initial ? 'trusted' : 'isolated');
+      const next = capture();
+      expect(readServiceAuthorizationMode(next, binding)).toBe(initial ? 'isolated' : 'trusted');
+      closeDocumentStage(prepared.stage);
+      expect(() => readDocumentStage(prepared.stage, binding)).toThrow(ServiceAuthorizationError);
     },
   );
 

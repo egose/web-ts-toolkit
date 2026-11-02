@@ -5,6 +5,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import pkg from '../package.json' assert { type: 'json' };
+import { retiredAuthorizationControls } from './migration-guide-fixture';
 
 import aclDefaultExport, {
   acl as aclNamedExport,
@@ -155,7 +156,7 @@ describe('AR-14 published export contract', () => {
     });
 
     it('declares all files published by the tarball', () => {
-      expect(pkg.files).toEqual(expect.arrayContaining(['README.md', 'llms.txt', 'dist']));
+      expect(pkg.files).toEqual(expect.arrayContaining(['README.md', 'MIGRATION.md', 'llms.txt', 'dist']));
     });
 
     it('does not publish src/', () => {
@@ -342,7 +343,7 @@ describe('AR-14 published export contract', () => {
 
   describe('dist artifact sanity', () => {
     it.each(['d.ts', 'd.mts'])(
-      'FP-04 ships truthful optional fast-path/handle hover without private issuers in %s',
+      'OAR-08 ships truthful modes/facts/diagnostic hover without private issuers in %s',
       (extension) => {
         const ts = require('typescript') as typeof import('typescript');
         const entries = ['index', 'advanced'].map((entry) =>
@@ -367,7 +368,7 @@ describe('AR-14 published export contract', () => {
         };
         const hover = (symbol: import('typescript').Symbol) =>
           ts.displayPartsToString(symbol.getDocumentationComment(checker));
-        const flags = ['unsafeUseListAuthorizationFastPath', 'unsafeUseReadAuthorizationFastPath'];
+        const modes = ['readAuthorizationMode', 'listAuthorizationMode'];
         for (const entry of entries) {
           for (const name of [
             'ModelRouterOptions',
@@ -375,31 +376,21 @@ describe('AR-14 published export contract', () => {
             'ExtendedModelRouterOptions',
             'ExtendedDefaultModelRouterOptions',
           ]) {
-            for (const flag of flags) {
-              const property = exported(entry, name).type.getProperty(flag)!;
-              expect(property, `${name}.${flag}`).toBeDefined();
+            for (const mode of modes) {
+              const property = exported(entry, name).type.getProperty(mode)!;
+              expect(property, `${name}.${mode}`).toBeDefined();
               expect(property.flags & ts.SymbolFlags.Optional).not.toBe(0);
-              expect(
-                checker.typeToString(checker.getTypeOfSymbolAtLocation(property, property.valueDeclaration!)),
-              ).toBe('boolean | undefined');
-              for (const phrase of [
-                'EXPERIMENTAL performance-first',
-                'default `false`',
-                'ALL FOUR',
-                'dormant',
-                'undefined restores inheritance',
-                'before hooks/awaits',
-                'denial',
-                'allowance',
-                '20,000',
-                'depth 100',
-                'v0.51.0',
-                'argument-four',
-                'zero-copy',
-              ])
-                expect(hover(property), `${flag} documents ${phrase}`).toContain(phrase);
+              const text = checker.typeToString(
+                checker.getTypeOfSymbolAtLocation(property, property.valueDeclaration!),
+              );
+              expect(text).toContain('AuthorizationMode');
+              expect(text).toContain('undefined');
+              for (const phrase of ['isolated', 'trusted', 'undefined restores inheritance', 'before hooks/awaits'])
+                expect(hover(property), `${mode} documents ${phrase}`).toContain(phrase);
               expect(property.getJsDocTags(checker).some((tag) => tag.name === 'example')).toBe(true);
             }
+            for (const key of retiredAuthorizationControls)
+              expect(exported(entry, name).type.getProperty(key), `${name} retires ${key}`).toBeUndefined();
           }
           for (const name of [
             'GlobalOptions',
@@ -408,42 +399,45 @@ describe('AR-14 published export contract', () => {
             'SubdocumentReadOptions',
             'ServiceAuthorization',
           ])
-            for (const flag of flags) expect(exported(entry, name).type.getProperty(flag)).toBeUndefined();
-          const handle = exported(entry, 'DocumentAuthorization');
-          for (const phrase of [
-            'Default/copied',
-            'exact root association',
-            'issued-document membership',
-            'no stage snapshot',
-            'stale decisions/shared grants',
-            'Removed issued children',
-            'Rollback changes new calls only',
-            'denial into allowance',
-          ])
-            expect(hover(handle.symbol)).toContain(phrase);
-          const context = exported(entry, 'ServiceOutputContext');
-          expect(hover(context.symbol)).toContain('shallow diagnostic shells');
-          expect(hover(context.symbol)).toContain('not detached immutable snapshots');
-          expect(hover(context.type.getProperty('getDocumentAuthorization')!)).toContain('not current reachability');
-          expect(hover(context.type.getProperty('originalDocumentSnapshot')!)).toContain('borrow it');
-          expect(hover(exported(entry, 'ModelDocPermissionsHook').symbol)).toContain('share grants and context leaves');
-          expect(hover(exported(entry, 'ModelVirtualGetter').symbol)).toContain(
-            'private argument-four isolation remain',
+            for (const mode of modes) expect(exported(entry, name).type.getProperty(mode)).toBeUndefined();
+          const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
+          expect(checker.getExportsOfModule(module).map((symbol) => symbol.name)).not.toContain(
+            'DocumentAuthorization',
           );
-          expect(context.type.getProperty('authorizationFastPath')).toBeUndefined();
-          for (const flag of [
-            'unsafeSkipListDocumentSnapshotChecks',
-            'unsafeSkipReadDocumentSnapshotChecks',
-            'unsafeSkipListOutputSnapshotChecks',
-            'unsafeSkipReadOutputSnapshotChecks',
-            'unsafeSkipListNestedDocumentSnapshotChecks',
-            'unsafeSkipReadNestedDocumentSnapshotChecks',
-            'unsafeSkipListInitialOutputSnapshotCopy',
-            'unsafeSkipReadInitialOutputSnapshotCopy',
+          const context = exported(entry, 'ServiceOutputContext');
+          expect(
+            context.type
+              .getProperties()
+              .map((property) => property.name)
+              .sort(),
+          ).toEqual(
+            [
+              'modelName',
+              'operation',
+              'receivingModelName',
+              'scopePath',
+              'virtualAccess',
+              'outputAccess',
+              'docPermissionsAccess',
+              'docPermissions',
+              'resolvedQuery',
+            ].sort(),
+          );
+          expect(hover(context.symbol)).toContain('no reusable authority');
+          for (const name of [
+            'DocumentGrants',
+            'FieldPermissionHook',
+            'FieldValidation',
+            'AuthorizationMode',
+            'ModelOutputContext',
+            'ModelOutputHook',
+            'ModelOutputListHook',
           ])
-            expect(hover(exported(entry, 'DefaultModelRouterOptions').type.getProperty(flag)!)).toContain(
-              'not the active',
-            );
+            expect(hover(exported(entry, name).symbol), `${name} has installed hover`).not.toBe('');
+          expect(hover(exported(entry, 'DocumentGrants').symbol)).toContain('19,999');
+          expect(hover(exported(entry, 'FieldPermissionHook').symbol)).toContain('pre-write facts');
+          expect(hover(exported(entry, 'ModelDocPermissionsHook').symbol)).toContain('BadRequest (400)');
+          expect(hover(exported(entry, 'ModelVirtualGetter').symbol)).toContain('private argument-four isolation');
         }
         const privateNames = [
           'AuthorizationFastPathOrigin',
@@ -806,223 +800,224 @@ describe('AR-14 published export contract', () => {
       },
     );
 
-    it.each(['d.ts', 'd.mts'])('SVA-10 exports consumer policy/handle types with editor JSDoc in %s', (extension) => {
-      const ts = require('typescript') as typeof import('typescript');
-      const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));
-      const program = ts.createProgram(entries, {
-        target: ts.ScriptTarget.ESNext,
-        module: ts.ModuleKind.ESNext,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        noEmit: true,
-        skipLibCheck: true,
-        types: [],
-      });
-      const checker = program.getTypeChecker();
-      const exported = (entry: string) =>
-        checker.getExportsOfModule(checker.getSymbolAtLocation(program.getSourceFile(entry)!)!);
-      const type = (entry: string, name: string) => {
-        let symbol = exported(entry).find((candidate) => candidate.name === name)!;
-        expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
-        if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
-        return { symbol, value: checker.getDeclaredTypeOfSymbol(symbol) };
-      };
-      const hover = (symbol: import('typescript').Symbol) =>
-        ts.displayPartsToString(symbol.getDocumentationComment(checker));
-      const documented = {
-        OutputFieldPath: ['contacts.email', 'runtime schema'],
-        FieldAuthorization: ['additive', 'explicit selection', 'selected eligible subtree', 'required output fields'],
-        InputFieldPath: ['persisted-model', 'runtime schema', 'No virtual shape'],
-        InputFieldAuthorization: ['mutation-only', 'by index', 'container authority', 'No row, output'],
-        MutationAuthorization: ['independent of rows/output/related', 'output-only policy'],
-        RowAuthorization: ['overrideFilter', 'EVERY mode', 'ANDed', 'Null/undefined'],
-        OperationAuthorization: ['target operation', 'not its rows'],
-        ServiceAuthorization: [
-          'immutable call policy',
-          'server-only',
-          'overrides',
-          'breaking release',
-          'HTTP/OpenAPI/client',
-        ],
-        RelatedAuthorization: ['parent unrestricted', 'immediate target', 'Count targets'],
-        CreateAuthorization: ['Rows reject', 'input/output/related'],
-        OutputAuthorization: ['row/target options reject'],
-        DocumentAuthorization: ['projected document snapshot', 'ownerId', 'another', 'reject'],
-        ServiceOutputContext: ['public serializers omit', 'no authority is attached to data'],
-        AuthorizedSingleResult: ['no stronger field-existence inference'],
-        AuthorizedListResult: ['same index'],
-        ServiceOutputDecorator: ['no automatic', 'mutations/replacements'],
-        OutputPlanningOptions: ['persisted fetch inputs', 'alwaysSelectFields'],
-        OutputFieldOptions: [
-          'Mutually exclusive',
-          'fresh call',
-          'without rerunning',
-          'Positional baseFields have been removed',
-        ],
-        AllowedOutputFieldOptions: ["purpose: 'output'", 'never a write/schema', 'Null/undefined'],
-        DataFieldOptions: ['request-only', 'No Mongoose catalog', 'empty result'],
-        PopulatePlanningOptions: ['request-only', 'response segments', 'target operation/rows'],
-        NewArgs: ['historically ignored'],
-        NewOptions: ['ignores select', 'unsupported'],
-        SubdocumentReadAuthorization: ['independent', 'base-operation gates', 'request authority', 'Child paths'],
-        SubdocumentMutationAuthorization: ['independent', 'Visibility', 'null/[]'],
-        SubdocumentCreateAuthorization: ['visible full array', 'no existing-child rows'],
-        SubdocumentDeleteAuthorization: ['Parent update', 'removed ID'],
-        SubdocumentVisibilityAuthorization: ['Independent', 'never inherits writes'],
-        SubdocumentCreateVisibilityAuthorization: ['list AND read', 'read output'],
-        SubdocumentInputAuthorization: ['by index', 'original hydrated owning parent', 'identity'],
-        SubdocumentOutputAuthorization: ['Child-relative', 'referenced targets', 'RAW'],
-        SubdocumentGateAuthorization: ['overrideFilter', 'ANDed', 'False is terminal'],
-      };
-      const privateNames = [
-        'Service',
-        'Core',
-        'ResolvedServiceAuthorization',
-        'NormalizedServiceAuthorization',
-        'AuthorizationBinding',
-        'AuthorizationAccess',
-        'AuthorizationConfiguration',
-        'AuthorizationFieldCatalog',
-        'ServiceExecutionContext',
-        'ServiceExecutionState',
-        'PreparedModelQuery',
-        'ResolvedIdentifier',
-        'QueryInput',
-        'DocumentAuthorizationStage',
-        'resolveServiceAuthorization',
-        'readServiceAuthorization',
-        'requiresDocumentSnapshotChecks',
-        'requiresOutputSnapshotChecks',
-        'unsafeSnapshotOptions',
-        'unsafeSnapshotCheckOptions',
-        'unsafeInitialOutputCopyOptions',
-        'skipsInitialOutputSnapshotCopy',
-        'tryOutputIdentitiesWithoutSnapshot',
-        'serviceAuthorizationInput',
-        'createDocumentAuthorizationStage',
-        'resolveDocumentAuthorization',
-        'associateDocumentAuthorization',
-        'transferDocumentAuthorizationGraph',
-        'createServiceOutputContext',
-        'createServiceExecution',
-        'registerServiceExecutors',
-        'prepareModelQuery',
-        'resolveModelIdentifier',
-        'executePreparedFindOne',
-        'executePreparedFind',
-        'executePreparedUpdateOne',
-        'executeCreate',
-        'executePreparedCount',
-        'executePreparedExists',
-        'admitModelInput',
-        'assertModelInputComplexity',
-        'requestInputFields',
-        'resolveInputDocumentGrants',
-        'inputFetchPaths',
-        'sanitizePreparedInput',
-        'stripDocumentInputVirtuals',
-        'prepareSubdocumentCall',
-        'subdocumentGateAllowed',
-        'subdocumentRows',
-        'subdocumentParentFilter',
-        'subdocumentInputPolicy',
-        'SubdocumentCall',
-        'collectModelRequestFields',
-        'assertFieldHelperCall',
-        'requestFieldScope',
-        'isInputVirtualPath',
-      ];
-      for (const entry of entries) {
-        for (const [name, phrases] of Object.entries(documented)) {
-          for (const phrase of phrases) expect(hover(type(entry, name).symbol), `${name} hover`).toContain(phrase);
+    it.each(['d.ts', 'd.mts'])(
+      'SVA-10 exports consumer policy/diagnostic types with editor JSDoc in %s',
+      (extension) => {
+        const ts = require('typescript') as typeof import('typescript');
+        const entries = ['index', 'advanced'].map((entry) =>
+          path.resolve(packageRoot, 'dist', `${entry}.${extension}`),
+        );
+        const program = ts.createProgram(entries, {
+          target: ts.ScriptTarget.ESNext,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          noEmit: true,
+          skipLibCheck: true,
+          types: [],
+        });
+        const checker = program.getTypeChecker();
+        const exported = (entry: string) =>
+          checker.getExportsOfModule(checker.getSymbolAtLocation(program.getSourceFile(entry)!)!);
+        const type = (entry: string, name: string) => {
+          let symbol = exported(entry).find((candidate) => candidate.name === name)!;
+          expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
+          if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+          return { symbol, value: checker.getDeclaredTypeOfSymbol(symbol) };
+        };
+        const hover = (symbol: import('typescript').Symbol) =>
+          ts.displayPartsToString(symbol.getDocumentationComment(checker));
+        const documented = {
+          OutputFieldPath: ['contacts.email', 'runtime schema'],
+          FieldAuthorization: ['additive', 'explicit selection', 'selected eligible subtree', 'required output fields'],
+          InputFieldPath: ['persisted-model', 'runtime schema', 'No virtual shape'],
+          InputFieldAuthorization: ['mutation-only', 'by index', 'container authority', 'No row, output'],
+          MutationAuthorization: ['independent of rows/output/related', 'output-only policy'],
+          RowAuthorization: ['overrideFilter', 'EVERY mode', 'ANDed', 'Null/undefined'],
+          OperationAuthorization: ['target operation', 'not its rows'],
+          ServiceAuthorization: [
+            'immutable call policy',
+            'server-only',
+            'overrides',
+            'breaking release',
+            'HTTP/OpenAPI/client',
+          ],
+          RelatedAuthorization: ['parent unrestricted', 'immediate target', 'Count targets'],
+          CreateAuthorization: ['Rows reject', 'input/output/related'],
+          OutputAuthorization: ['row/target options reject'],
+          DocumentGrants: ['literal-boolean', '19,999', 'BadRequest'],
+          FieldPermissionHook: ['Two-argument', 'frozen empty facts', 'pre-write'],
+          ServiceOutputContext: ['public serializers omit', 'No authority is attached to data'],
+          AuthorizedSingleResult: ['no stronger field-existence inference'],
+          AuthorizedListResult: ['same index'],
+          ServiceOutputDecorator: ['no automatic', 'mutations/replacements'],
+          OutputPlanningOptions: ['persisted fetch inputs', 'alwaysSelectFields'],
+          OutputFieldOptions: [
+            'Fresh output-only evaluation',
+            'frozen empty document facts',
+            'No document',
+            'current document',
+          ],
+          AllowedOutputFieldOptions: ["purpose: 'output'", 'never a write/schema', 'Null/undefined'],
+          DataFieldOptions: ['request-only', 'No Mongoose catalog', 'empty result'],
+          PopulatePlanningOptions: ['request-only', 'response segments', 'target operation/rows'],
+          NewArgs: ['historically ignored'],
+          NewOptions: ['ignores select', 'unsupported'],
+          SubdocumentReadAuthorization: ['independent', 'base-operation gates', 'request authority', 'Child paths'],
+          SubdocumentMutationAuthorization: ['independent', 'Visibility', 'null/[]'],
+          SubdocumentCreateAuthorization: ['visible full array', 'no existing-child rows'],
+          SubdocumentDeleteAuthorization: ['Parent update', 'removed ID'],
+          SubdocumentVisibilityAuthorization: ['Independent', 'never inherits writes'],
+          SubdocumentCreateVisibilityAuthorization: ['list AND read', 'read output'],
+          SubdocumentInputAuthorization: ['by index', 'original hydrated owning parent', 'identity'],
+          SubdocumentOutputAuthorization: ['Child-relative', 'referenced targets', 'RAW'],
+          SubdocumentGateAuthorization: ['overrideFilter', 'ANDed', 'False is terminal'],
+        };
+        const privateNames = [
+          'Service',
+          'Core',
+          'ResolvedServiceAuthorization',
+          'NormalizedServiceAuthorization',
+          'AuthorizationBinding',
+          'AuthorizationAccess',
+          'AuthorizationConfiguration',
+          'AuthorizationFieldCatalog',
+          'ServiceExecutionContext',
+          'ServiceExecutionState',
+          'PreparedModelQuery',
+          'ResolvedIdentifier',
+          'QueryInput',
+          'DocumentAuthorizationStage',
+          'resolveServiceAuthorization',
+          'readServiceAuthorization',
+          'requiresDocumentSnapshotChecks',
+          'requiresOutputSnapshotChecks',
+          'unsafeSnapshotOptions',
+          'unsafeSnapshotCheckOptions',
+          'unsafeInitialOutputCopyOptions',
+          'skipsInitialOutputSnapshotCopy',
+          'tryOutputIdentitiesWithoutSnapshot',
+          'serviceAuthorizationInput',
+          'createDocumentAuthorizationStage',
+          'resolveDocumentAuthorization',
+          'associateDocumentAuthorization',
+          'transferDocumentAuthorizationGraph',
+          'createServiceOutputContext',
+          'createServiceExecution',
+          'registerServiceExecutors',
+          'prepareModelQuery',
+          'resolveModelIdentifier',
+          'executePreparedFindOne',
+          'executePreparedFind',
+          'executePreparedUpdateOne',
+          'executeCreate',
+          'executePreparedCount',
+          'executePreparedExists',
+          'admitModelInput',
+          'assertModelInputComplexity',
+          'requestInputFields',
+          'resolveInputDocumentGrants',
+          'inputFetchPaths',
+          'sanitizePreparedInput',
+          'stripDocumentInputVirtuals',
+          'prepareSubdocumentCall',
+          'subdocumentGateAllowed',
+          'subdocumentRows',
+          'subdocumentParentFilter',
+          'subdocumentInputPolicy',
+          'SubdocumentCall',
+          'collectModelRequestFields',
+          'assertFieldHelperCall',
+          'requestFieldScope',
+          'isInputVirtualPath',
+        ];
+        for (const entry of entries) {
+          for (const [name, phrases] of Object.entries(documented)) {
+            for (const phrase of phrases) expect(hover(type(entry, name).symbol), `${name} hover`).toContain(phrase);
+          }
+          const names = exported(entry).map((symbol) => symbol.name);
+          for (const name of privateNames) expect(names, `${path.basename(entry)} hides ${name}`).not.toContain(name);
+          const context = type(entry, 'ServiceOutputContext').value;
+          expect(context.getProperty('documentAuthorization')).toBeUndefined();
+          expect(context.getProperty('getDocumentAuthorization')).toBeUndefined();
+          expect(exported(entry).map((symbol) => symbol.name)).not.toContain('DocumentAuthorization');
         }
-        const names = exported(entry).map((symbol) => symbol.name);
-        for (const name of privateNames) expect(names, `${path.basename(entry)} hides ${name}`).not.toContain(name);
-        const context = type(entry, 'ServiceOutputContext').value;
-        expect(hover(context.getProperty('documentAuthorization')!)).toContain('Non-enumerable');
-        expect(hover(context.getProperty('getDocumentAuthorization')!)).toContain('cannot issue new authority');
-      }
-      const router = type(entries[0], 'ModelRouter').value;
-      expect(hover(type(entries[0], 'setDefaultModelOptions').symbol)).toContain('explicit model values');
-      expect(hover(type(entries[0], 'DefaultModelRouterOptions').symbol)).toContain('follow later default updates');
-      for (const option of [
-        'unsafeSkipListOutputSnapshotChecks',
-        'unsafeSkipReadOutputSnapshotChecks',
-        'unsafeSkipListNestedDocumentSnapshotChecks',
-        'unsafeSkipReadNestedDocumentSnapshotChecks',
-      ]) {
-        for (const name of ['ModelRouterOptions', 'DefaultModelRouterOptions']) {
-          const property = type(entries[0], name).value.getProperty(option)!;
-          expect(property, `${name}.${option} ships`).toBeDefined();
-          expect(hover(property)).toContain('TEMPORARY UNSAFE');
-          expect(hover(property)).toContain('default `false`');
-        }
-      }
-      expect(hover(type(entries[0], 'ModelRouterOptions').value.getProperty('alwaysSelectFields')!)).toContain(
-        'per-access record',
-      );
-      expect(hover(type(entries[0], 'ModelDocPermissionsHook').symbol)).toContain('independently of skim');
-      const acquire = router.getProperty('getService')!;
-      expect(hover(acquire)).toContain('req.macl');
-      const service = checker.getReturnTypeOfSignature(
-        checker.getTypeOfSymbolAtLocation(acquire, acquire.valueDeclaration!).getCallSignatures()[0],
-      );
-      expect(hover(service.getProperty('genSelect')!)).toContain('not an output');
-      expect(hover(service.getProperty('genAllowedFields')!)).toContain("purpose: 'output'");
-      expect(hover(service.getProperty('pickAllowedFields')!)).toContain('mutually exclusive');
-      expect(hover(service.getProperty('trimOutputFields')!)).toContain('never authorizes writes');
-      const macl = type(entries[1], 'ModelRequest').value.getProperty('macl')!;
-      const core = checker.getTypeOfSymbolAtLocation(macl, macl.valueDeclaration!);
-      expect(hover(core.getProperty('pickAllowedFields')!)).toContain('mutually exclusive');
-      const dataRequest = type(entries[1], 'DataRequest').value.getProperty('dacl')!;
-      const dataCore = checker.getTypeOfSymbolAtLocation(dataRequest, dataRequest.valueDeclaration!);
-      const dataAcquire = type(entries[0], 'DataRouter').value.getProperty('getService')!;
-      const dataService = checker.getReturnTypeOfSignature(
-        checker.getTypeOfSymbolAtLocation(dataAcquire, dataAcquire.valueDeclaration!).getCallSignatures()[0],
-      );
-      const publicAcquire = router.getProperty('getPublicService')!;
-      const publicService = checker.getReturnTypeOfSignature(
-        checker.getTypeOfSymbolAtLocation(publicAcquire, publicAcquire.valueDeclaration!).getCallSignatures()[0],
-      );
-      for (const [receiver, maximum, helpers] of [
-        [
-          core,
-          4,
-          ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
-        ],
-        [
-          service,
-          3,
-          ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
-        ],
-        [
-          publicService,
-          3,
-          ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
-        ],
-        [dataCore, 4, ['genSelect', 'genAllowedFields', 'pickAllowedFields']],
-        [dataService, 3, ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields']],
-      ] as const) {
-        for (const helper of helpers) {
-          const symbol = receiver.getProperty(helper)!;
-          const signatures = checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration!).getCallSignatures();
-          expect(signatures, `${helper} has no retained overload`).toHaveLength(1);
-          const parameters = signatures[0].getParameters();
-          expect(parameters).toHaveLength(maximum);
-          expect(parameters.at(-1)!.name).toBe('options');
-          const declaration = signatures[0].getDeclaration();
-          expect(declaration.parameters.some((parameter) => !!parameter.dotDotDotToken)).toBe(false);
-          const names = parameters.map((parameter) => parameter.name);
-          for (const retired of ['skipChecks', 'subPaths', 'baseFields', 'optionsOrBase', 'optionsOrSkipChecks']) {
-            expect(names).not.toContain(retired);
+        const router = type(entries[0], 'ModelRouter').value;
+        expect(hover(type(entries[0], 'setDefaultModelOptions').symbol)).toContain('explicit model values');
+        expect(hover(type(entries[0], 'DefaultModelRouterOptions').symbol)).toContain('follow later default updates');
+        for (const option of retiredAuthorizationControls)
+          for (const name of ['ModelRouterOptions', 'DefaultModelRouterOptions'])
+            expect(type(entries[0], name).value.getProperty(option)).toBeUndefined();
+        expect(hover(type(entries[0], 'ModelRouterOptions').value.getProperty('alwaysSelectFields')!)).toContain(
+          'per-access record',
+        );
+        expect(hover(type(entries[0], 'ModelDocPermissionsHook').symbol)).toContain('independently of skim');
+        const acquire = router.getProperty('getService')!;
+        expect(hover(acquire)).toContain('req.macl');
+        const service = checker.getReturnTypeOfSignature(
+          checker.getTypeOfSymbolAtLocation(acquire, acquire.valueDeclaration!).getCallSignatures()[0],
+        );
+        expect(hover(service.getProperty('genSelect')!)).toContain('not an output');
+        expect(hover(service.getProperty('genAllowedFields')!)).toContain("purpose: 'output'");
+        expect(hover(service.getProperty('pickAllowedFields')!)).toContain('empty document facts');
+        expect(hover(service.getProperty('trimOutputFields')!)).toContain('never authorizes writes');
+        const macl = type(entries[1], 'ModelRequest').value.getProperty('macl')!;
+        const core = checker.getTypeOfSymbolAtLocation(macl, macl.valueDeclaration!);
+        expect(hover(core.getProperty('pickAllowedFields')!)).toContain('frozen empty facts');
+        const dataRequest = type(entries[1], 'DataRequest').value.getProperty('dacl')!;
+        const dataCore = checker.getTypeOfSymbolAtLocation(dataRequest, dataRequest.valueDeclaration!);
+        const dataAcquire = type(entries[0], 'DataRouter').value.getProperty('getService')!;
+        const dataService = checker.getReturnTypeOfSignature(
+          checker.getTypeOfSymbolAtLocation(dataAcquire, dataAcquire.valueDeclaration!).getCallSignatures()[0],
+        );
+        const publicAcquire = router.getProperty('getPublicService')!;
+        const publicService = checker.getReturnTypeOfSignature(
+          checker.getTypeOfSymbolAtLocation(publicAcquire, publicAcquire.valueDeclaration!).getCallSignatures()[0],
+        );
+        for (const [receiver, maximum, helpers] of [
+          [
+            core,
+            4,
+            ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
+          ],
+          [
+            service,
+            3,
+            ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
+          ],
+          [
+            publicService,
+            3,
+            ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields', 'genPopulate'],
+          ],
+          [dataCore, 4, ['genSelect', 'genAllowedFields', 'pickAllowedFields']],
+          [
+            dataService,
+            3,
+            ['genSelect', 'genQuerySelect', 'genAllowedFields', 'pickAllowedFields', 'trimOutputFields'],
+          ],
+        ] as const) {
+          for (const helper of helpers) {
+            const symbol = receiver.getProperty(helper)!;
+            const signatures = checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration!).getCallSignatures();
+            expect(signatures, `${helper} has no retained overload`).toHaveLength(1);
+            const parameters = signatures[0].getParameters();
+            expect(parameters).toHaveLength(maximum);
+            expect(parameters.at(-1)!.name).toBe('options');
+            const declaration = signatures[0].getDeclaration();
+            expect(declaration.parameters.some((parameter) => !!parameter.dotDotDotToken)).toBe(false);
+            const names = parameters.map((parameter) => parameter.name);
+            for (const retired of ['skipChecks', 'subPaths', 'baseFields', 'optionsOrBase', 'optionsOrSkipChecks']) {
+              expect(names).not.toContain(retired);
+            }
           }
         }
-      }
-      expect(service.getProperty('buildVirtualPlan')).toBeUndefined();
-      expect(service.getProperty('buildSubVirtualPlan')).toBeUndefined();
-      for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
-        for (const name of [...Object.keys(documented), ...privateNames]) expect(runtime).not.toHaveProperty(name);
-      }
-    });
+        expect(service.getProperty('buildVirtualPlan')).toBeUndefined();
+        expect(service.getProperty('buildSubVirtualPlan')).toBeUndefined();
+        for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
+          for (const name of [...Object.keys(documented), ...privateNames]) expect(runtime).not.toHaveProperty(name);
+        }
+      },
+    );
 
     it('compiles a TypeScript snippet against published declarations without error', async () => {
       const ts = require('typescript') as typeof import('typescript');

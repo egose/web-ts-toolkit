@@ -3,6 +3,8 @@ import { collectSchemaFields } from '../core-shared';
 import type { AccessRouterBaseRequest, Projection } from '../interfaces';
 import type { AccessRouterPermissions } from '../permission';
 import { pickDocFields, normalizeSelect } from '../helpers';
+import type { DocumentGrants } from '../interfaces/access';
+import { EMPTY_DOCUMENT_GRANTS, normalizeDocumentGrants } from './document-grants';
 
 export async function collectAllowedFieldsForRequest({
   req,
@@ -32,10 +34,11 @@ export function collectModelRequestFields(args: {
   permissionSchema: Record<string, unknown> | null | undefined;
   access: string;
   permissions: AccessRouterPermissions;
-  grants?: Readonly<Record<string, unknown>>;
+  grants?: DocumentGrants;
   modelPermissionPrefix?: string;
 }): Promise<string[]> {
-  const { permissions, grants = {}, modelPermissionPrefix: prefix = '' } = args;
+  const { permissions, modelPermissionPrefix: prefix = '' } = args;
+  const grants = args.grants === undefined ? EMPTY_DOCUMENT_GRANTS : normalizeDocumentGrants(args.grants);
   return collectAllowedFieldsForRequest({
     req: args.req,
     permissionSchema: args.permissionSchema,

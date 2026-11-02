@@ -11,7 +11,6 @@ import type { FieldAuthorizationState } from './field-authorization';
 import {
   getAuthorizationPermissions,
   readServiceAuthorization,
-  readAuthorizationFastPath,
   type AuthorizationBinding,
   type AuthorizationConfiguration,
   type ResolvedServiceAuthorization,
@@ -78,7 +77,16 @@ export function readStaticOutputPlanFields(
 /** Positive Mongo projection with deterministic ordering and no ancestor/descendant collisions. */
 export function compactPersistedProjection(paths: readonly string[]): string[] {
   const unique = [...new Set(paths.filter((p) => p && !p.startsWith('-')))];
-  return unique.filter((path) => !unique.some((parent) => parent !== path && path.startsWith(`${parent}.`)));
+  const candidates = new Set(unique);
+  return unique.filter((path) => {
+    // Only a dotted ancestor can cover this path. Checking its actual ancestors
+    // avoids an all-pairs scan for ordinary wide selections, without sorting or
+    // changing the caller's deterministic projection order.
+    for (let end = path.indexOf('.'); end !== -1; end = path.indexOf('.', end + 1)) {
+      if (candidates.has(path.slice(0, end))) return false;
+    }
+    return true;
+  });
 }
 
 /** Private executor seam: authenticate the call; use its captured catalog/rules/accesses/permissions. */
@@ -111,7 +119,7 @@ export function planAuthorizedModelProjection(args: {
       globalPermissions: getAuthorizationPermissions(args.authorization, args.binding),
     },
     authorization.outputFields,
-    readAuthorizationFastPath(args.authorization, args.binding)?.mode === 'active',
+    true,
   );
   // Keep the authenticated owner separate from serialized output. Never recreate
   // this plan with live options/permissions after an asynchronous hook.

@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../dist/index.mjs';
-import type { ModelRequest } from '../src/interfaces';
+import type { AuthorizationMode, ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -12,7 +12,9 @@ const flag = 'unsafeSkipListDocumentSnapshotChecks';
 const select = ['ordinal', 'visible', 'restricted', 'hidden', '-_id'];
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
 
-async function fixture(unsafe: boolean) {
+const modes = ['isolated', 'trusted'] as const;
+
+async function fixture(mode: AuthorizationMode) {
   const api = createAccessRuntime();
   api.setGlobalOptions({ globalPermissions: () => ['reader'], logger: { warn: vi.fn() } });
   const Model = mongoose.model(
@@ -39,7 +41,7 @@ async function fixture(unsafe: boolean) {
     alwaysSelectFields: ['owner'],
     docPermissions: { list: hooks },
     stripPermissionsField: true,
-    unsafeSkipListDocumentSnapshotChecks: unsafe,
+    listAuthorizationMode: mode,
     defaults: { publicListOptions: quiet },
   });
   const root = api.createRouter({ basePath: '/root', operationAccess: true });
@@ -83,46 +85,48 @@ afterEach(() => {
   mongoose.deleteModel(/^ListSnapshotHttp/);
 });
 
-describe('server list snapshot flag does not turn off ACL', () => {
-  it.each([false, true])(
-    'preserves row/document/field rules through direct, public and HTTP lists (unsafe=%s)',
-    async (unsafe) => {
-      const f = await fixture(unsafe);
-      await f.execute(async (req) => {
-        const service = req.macl.getService(f.Model.modelName);
-        const direct = await service.find({}, { select, sort: 'ordinal' }, quiet);
-        expect(direct.success).toBe(true);
-        if (!direct.success) throw new Error(direct.code);
-        expect(direct.data).toEqual(f.expected);
-        const handle = direct.contexts[0].documentAuthorization;
-        expect(await service.pickAllowedFields(direct.data[0], 'list', { documentAuthorization: handle })).toEqual(
-          f.expected[0],
-        );
-        expect(
-          await req.macl.getPublicService(f.Model.modelName)._list({}, { select, sort: 'ordinal' }, quiet),
-        ).toMatchObject({ success: true, data: f.expected });
+describe('owned LIST source modes do not turn off ACL', () => {
+  it.each(modes)('preserves row/document/field rules through direct, public and HTTP lists (mode=%s)', async (mode) => {
+    const f = await fixture(mode);
+    await f.execute(async (req) => {
+      const service = req.macl.getService(f.Model.modelName);
+      const direct = await service.find({}, { select, sort: 'ordinal' }, quiet);
+      expect(direct.success).toBe(true);
+      if (!direct.success) throw new Error(direct.code);
+      expect(direct.data).toEqual(f.expected);
+      const hookCalls = f.hooks.mock.calls.length;
+      expect(await service.pickAllowedFields(direct.data[0], 'list')).toEqual({ ordinal: 0, visible: 'first' });
+      expect(f.hooks).toHaveBeenCalledTimes(hookCalls);
+      expect(direct.contexts[0]).not.toHaveProperty('documentAuthorization');
+      expect(await service.find({ ordinal: 0 }, { select, sort: 'ordinal' }, quiet)).toMatchObject({
+        success: true,
+        data: [f.expected[0]],
       });
-      await request(f.app)
-        .post('/items/__query')
-        .send({ select, sort: 'ordinal' })
-        .expect(200)
-        .expect(({ body }) => {
-          expect(body.data).toEqual(f.expected);
-        });
-      expect(f.hooks).toHaveBeenCalled();
-      await request(f.app).get('/items/0123456789abcdef01234567').expect(401);
-      f.router.setOption('baseFilter.list', () => false);
-      await f.execute(async (req) => {
-        expect(await req.macl.getService(f.Model.modelName).find({}, { select }, quiet)).toMatchObject({
-          success: false,
-          code: 'forbidden',
-        });
+      expect(f.hooks).toHaveBeenCalledTimes(hookCalls + 1);
+      expect(
+        await req.macl.getPublicService(f.Model.modelName)._list({}, { select, sort: 'ordinal' }, quiet),
+      ).toMatchObject({ success: true, data: f.expected });
+    });
+    await request(f.app)
+      .post('/items/__query')
+      .send({ select, sort: 'ordinal' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toEqual(f.expected);
       });
-    },
-  );
+    expect(f.hooks).toHaveBeenCalled();
+    await request(f.app).get('/items/0123456789abcdef01234567').expect(401);
+    f.router.setOption('baseFilter.list', () => false);
+    await f.execute(async (req) => {
+      expect(await req.macl.getService(f.Model.modelName).find({}, { select }, quiet)).toMatchObject({
+        success: false,
+        code: 'forbidden',
+      });
+    });
+  });
 
-  it.each([false, true])('keeps root list output and denied root reads identical (unsafe=%s)', async (unsafe) => {
-    const f = await fixture(unsafe);
+  it.each(modes)('keeps root list output and denied root reads identical (mode=%s)', async (mode) => {
+    const f = await fixture(mode);
     const response = await request(f.app)
       .post('/root')
       .send([
@@ -137,25 +141,29 @@ describe('server list snapshot flag does not turn off ACL', () => {
     expect(denied.body[0].result).toMatchObject({ success: false, code: 'unauthorized' });
   });
 
-  it.each(['body', 'options', 'root', 'query'])('cannot enable the flag from %s control slots', async (slot) => {
-    const f = await fixture(false);
-    if (slot === 'root') {
-      await request(f.app)
-        .post('/root')
-        .send([{ target: 'model', name: f.Model.modelName, op: 'list', args: { select }, options: { [flag]: true } }])
-        .expect(400);
-    } else if (slot === 'query') {
-      await request(f.app)
-        .get('/items')
-        .query({ select: select.join(' '), [flag]: 'true' })
-        .expect(400);
-    } else {
-      await request(f.app)
-        .post('/items/__query')
-        .send({ select, ...(slot === 'body' ? { [flag]: true } : { options: { [flag]: true } }) })
-        .expect(400);
-    }
-    expect(f.hooks).not.toHaveBeenCalled();
-    expect(f.api.getModelOption(f.Model.modelName, flag)).toBe(false);
-  });
+  it.each(['body', 'options', 'root', 'query'])(
+    'rejects retired client controls in %s before document hooks',
+    async (slot) => {
+      const f = await fixture('isolated');
+      if (slot === 'root') {
+        await request(f.app)
+          .post('/root')
+          .send([{ target: 'model', name: f.Model.modelName, op: 'list', args: { select }, options: { [flag]: true } }])
+          .expect(400);
+      } else if (slot === 'query') {
+        await request(f.app)
+          .get('/items')
+          .query({ select: select.join(' '), [flag]: 'true' })
+          .expect(400);
+      } else {
+        await request(f.app)
+          .post('/items/__query')
+          .send({ select, ...(slot === 'body' ? { [flag]: true } : { options: { [flag]: true } }) })
+          .expect(400);
+      }
+      expect(f.hooks).not.toHaveBeenCalled();
+      expect(f.api.getModelOptions(f.Model.modelName)).not.toHaveProperty(flag);
+      expect(f.api.getModelOption(f.Model.modelName, 'listAuthorizationMode')).toBe('isolated');
+    },
+  );
 });

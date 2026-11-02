@@ -258,466 +258,50 @@ Express routes. `parentPath` supplies the external prefix for route metadata/log
 mount that prefix in Express yourself. Live `idField`/`resolveIdFilter` change lookup
 behavior rather than route shape.
 
-### Temporary unsafe read/list-performance switches
+### Owned READ/LIST authorization modes
 
-**All default to off (snapshot checks enabled).** Six independent server-only
-settings temporarily skip specific comparisons on one registered model:
-
-The retained-copy/graph guarantees in this section and the initial-copy section
-below apply with the matching **authorization fast-path flag OFF (or dormant)**.
-The separately opted-in [active trusted path](#experimental-unsafe-readlist-authorization-fast-paths)
-has a deliberately weaker contract; it does not change these original six/two groups.
-
-| LIST flag                                    | READ flag                                    | Comparisons skipped                                                               |
-| -------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------- |
-| `unsafeSkipListDocumentSnapshotChecks`       | `unsafeSkipReadDocumentSnapshotChecks`       | Repeated source comparisons for the top-level document stage                      |
-| `unsafeSkipListOutputSnapshotChecks`         | `unsafeSkipReadOutputSnapshotChecks`         | Output-value comparisons for the root and its embedded/populated/included outputs |
-| `unsafeSkipListNestedDocumentSnapshotChecks` | `unsafeSkipReadNestedDocumentSnapshotChecks` | Repeated source comparisons for embedded/populated/included document stages       |
-
-LIST means top-level `find`, generated public lists and root-list entries. READ
-means `findOne`, `findById`, public identifier/filter reads and root-read entries.
-A read-to-list retry follows the **read flags**, because the initiating operation
-is still a single read, even when its effective field access is `list`. Changing
-one flag does not change any other flag.
+There is one document-stage engine and exactly two independent server options:
+`readAuthorizationMode` / `listAuthorizationMode`, each `'isolated' | 'trusted'`,
+default **isolated**. See the shipped [breaking migration guide](MIGRATION.md) for
+before/after examples, all ten removed flags, errors and rollout guidance. No old
+flag combination, dormant mode, output handle or compatibility alias remains.
 
 <!-- doc-example: partial -->
 
 ```ts
-import acl from '@web-ts-toolkit/access-router';
-
-// User must already be registered on this runtime. Never take this value from a request.
-// TODO: revisit/remove this temporary workaround after query-performance remediation.
-acl.setModelOptions('User', {
-  unsafeSkipReadDocumentSnapshotChecks: true,
-  unsafeSkipReadOutputSnapshotChecks: true,
-  unsafeSkipReadNestedDocumentSnapshotChecks: true,
-  // All three LIST flags remain false unless separately enabled.
-});
-```
-
-Set any flag to `false` with `setModelOption` to roll back for new calls.
-All flags can be set in `createRouter(Model, { ... })` or `setDefaultModelOptions`.
-An unspecified model flag inherits the current default, even when defaults change
-after router/model setup. Explicit per-model `false` overrides default `true`;
-setting a model flag to `undefined` restores inheritance. This precedence applies
-to all default-model options, not only unsafe flags. Object/array options replace
-shallowly rather than deep-merging. Retained call/handle snapshots do not change.
-Prefer per-model opt-in rather than enabling it for every model. Use the owning
-`createAccessRuntime()` API instead of default `acl` for an isolated runtime.
-Only literal boolean `true` enables each flag. Enabling emits a logger warning once
-per effective model/flag transition, including inherited enablement on an existing
-model. Setting defaults before model setup warns when applied to that model, not
-when the defaults alone are stored. No warning repeats per row/request. None is a global, per-call, HTTP/root
-entry, `options.authorization`, or `service.defaults` option.
-
-- **Independent scopes:** root-source flags do not relax descendant source checks;
-  nested-source flags do not relax root source or output checks; output flags do
-  not relax source checks. Nested flags do **not** prune child values from parent
-  snapshots: a still-strict parent comparison can detect child mutation.
-- **Propagation:** output/nested flags use the **initiating model's captured mode**
-  recursively through embedded scopes, ordinary public population and includes
-  (including correlated includes). A target model's own flags cannot relax a
-  strict parent or override that captured mode. Independent service calls made
-  inside hooks use their own settings, not ambient parent authority.
-- **Still enforced:** row filters, document/field rules, operation gates, exact
-  request/runtime/model/scope/access/stage binding, handle/output associations,
-  output graph identities and structural bounds on initial snapshots. Initial
-  source snapshots and detached callback/grant/output copies remain. Initial output
-  snapshots also remain unless the separate copy flags below are active. Equal
-  replacement objects, forged handles and unrelated rows/calls still reject;
-  package-created output-copy transfers still authenticate their source.
-- **Strict boundaries:** writes (including read-like output), dedicated subdocument
-  operations and fresh standalone output helpers remain strict. Helpers using an
-  originating handle retain that handle's captured mode.
-- **Risk:** source mutation during callbacks/awaits can leave stale grants/decisions.
-  Output flags additionally allow changed scalar values, in-place Date/Buffer/BSON
-  mutations and other value changes that graph-identity checks cannot detect to
-  reuse earlier decisions. This can expose incorrectly authorized output, even
-  though permission rules still run. This is **not a security-equivalent fast mode**.
-  Use only with trusted, non-mutating hooks and output consumers; review your
-  application and measure a staged rollout before production opt-in.
-
-Each call captures the setting before awaits. Turning it off protects new calls,
-not in-flight calls, later descendants of captured calls, retries or existing
-handles. These switches do not eliminate all cloning or promise v0.51.0 performance.
-Measure each separately on your workload; restore `false` as soon as possible.
-
-### Temporary unsafe initial output-snapshot copy switches
-
-Two **additional**, default-false server model/default-model options can omit the
-initial snapshot stored when finalized output is associated with its private
-authorization handle. They do not change the six comparison flags above:
-
-| Copy option                               | Required comparison option                 |
-| ----------------------------------------- | ------------------------------------------ |
-| `unsafeSkipListInitialOutputSnapshotCopy` | `unsafeSkipListOutputSnapshotChecks: true` |
-| `unsafeSkipReadInitialOutputSnapshotCopy` | `unsafeSkipReadOutputSnapshotChecks: true` |
-
-| Matching comparison skip | Copy skip | Effective behavior                                                                 |
-| ------------------------ | --------- | ---------------------------------------------------------------------------------- |
-| false                    | false     | Copy and compare output snapshots                                                  |
-| true                     | false     | Copy snapshots; skip comparisons (existing behavior)                               |
-| false                    | true      | Dormant: still copy and compare; warn about the prerequisite                       |
-| true                     | true      | Omit eligible initial output snapshots; retain structural admission and identities |
-
-Only literal boolean `true` enables either option. They follow the same server-only
-inheritance and capture rules as comparison flags: explicit model false wins, model
-undefined restores inheritance, and later default updates affect new calls. Never
-derive them from client input or put them in method defaults/per-call authorization.
-READ-to-list retries follow READ settings. Authenticated embedded/populated/included
-outputs and package-created transfers inherit the initiating model's mode; target
-flags cannot override it. Writes, dedicated subdocument operations and fresh helpers
-stay strict. An originating handle keeps its mode after runtime rollback.
-
-**This removes protection, not just an allocation.** The omitted pass no longer
-normalizes Date/RegExp/Buffer/BSON leaves or runs BSON wire validation/hooks. Lost
-observations can change exceptions, side effects and subsequent permission outcomes,
-including changing a denial into an allowance. The prerequisite already allows
-scalar/native mutation to reuse stale decisions. Do not call this security-equivalent
-to copying, or assume that matching benchmark output proves it safe for your app.
-
-Eligible ordinary records/arrays retain clone-free bounded structural admission:
-20,000 visited nodes (including repeated aliases), depth 100, array length 20,000,
-safe keys, data descriptors, supported containers and cycle rejection. Exact output
-root/descendant identities, request/runtime/model/scope/access/stage binding and
-permission evaluation remain. Standard native leaves are allowed without their copy
-normalization; invalid/forged BSON leaf contents are **not** wire-validated by this
-pass. Proxies, Map/Set graphs, unproven native subclasses and unsupported objects use
-the original copier/identity fallback and may still reject. Accessor/proxy ownership
-bindings also use that fallback; graph admission is not retained across binding
-callbacks. A requested skip does
-not guarantee zero copying for every graph.
-
-Source snapshots, detached document/field callback inputs and grants, captured
-configuration, getter isolation, metadata and actual output/response copies remain.
-This is **not a general deep-clone opt-out**. Enable only per model with trusted,
-stable data and hooks after a measured staged rollout; the remaining query costs can
-still dominate and no v0.51.0 parity is promised. Warnings distinguish active copying
-omission from dormant requests, occur on effective model/operation transitions and
-do not repeat per row/request. Failed option publication does not activate a warning.
-
-<!-- doc-example: partial -->
-
-```ts
-import mongoose from 'mongoose';
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
-
 const api = createAccessRuntime();
-const User = mongoose.model('InitialCopyUser', new mongoose.Schema({ name: String }));
-api.registerModelInstance(User.modelName, User);
-// TEMPORARY UNSAFE: separately enable only the two intended LIST settings.
-api.setModelOptions(User.modelName, {
-  unsafeSkipListOutputSnapshotChecks: true,
-  unsafeSkipListInitialOutputSnapshotCopy: true,
-});
-// Rollback for new calls; existing handles/calls retain their captured settings.
-api.setModelOption(User.modelName, 'unsafeSkipListInitialOutputSnapshotCopy', false);
-api.setModelOption(User.modelName, 'unsafeSkipListOutputSnapshotChecks', false);
+api.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
+api.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });
+api.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
+api.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default
+api.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only
 ```
 
-Keep all READ, root-source and nested-source flags off unless independently selected.
-Monitor authorization failures, unexpected callback/native behavior and latency/CPU;
-restore false promptly and revisit/remove this temporary workaround. No release or
-configuration migration automatically enables it.
+Isolated owns bounded detached projected source and gives document hooks disposable
+views. Trusted may borrow admitted ordinary projected source/doc-hook input: mutations
+can affect values/calculated facts; hidden unvisited graphs are not whole-document
+bounded. **Both own actor, private policy and normalized frozen boolean facts**, enforce
+original actor, rows/fields/targets and selected/native 20,000-slot/depth-100 bounds.
+Both retain separate getter views, return staging and private argument-four isolation.
+No sandbox, transaction, rollback, external freshness or blanket security equivalence.
 
-An unshipped output-publication fusion experiment was withdrawn after failing its
-performance-and-regression gate. **No publication-fusion options are available**;
-the six comparison and two initial-copy switches above are unchanged.
+Capture precedes hooks/awaits. Genuine embedded scopes inherit their owner; related
+targets use their own captured model/access mode and policy, not their parent's mode.
+READ-to-LIST retry keeps initiating READ mode with a fresh stage. Independent service
+calls capture anew. Writes/new/dedicated subdocuments always stay isolated.
 
-### Experimental unsafe READ/LIST authorization fast paths
+Only literal enum strings or undefined restoration are valid. Bulk setters reject
+atomically. Retired controls reject by presence, even false/undefined/inherited/
+non-enumerable. New/old selectors are prohibited in HTTP/root/per-call/helper/defaults/
+include/populate/subquery authority slots; same-named business fields remain data.
+Trusted transitions warn once per effective owner/access; logger failures cannot abort.
+Switching to isolated affects new calls, not in-flight captures. Rollback means a tested
+matching application/library revision, never re-adding removed flags or assuming mixed
+rolling compatibility. No timing or universal-speedup claim follows from mode names.
 
-`unsafeUseListAuthorizationFastPath?: boolean` and
-`unsafeUseReadAuthorizationFastPath?: boolean` are a **third independent** group,
-both default `false`. This is experimental, performance-first reduced authorization
-bookkeeping, **not** publication fusion, a full ACL bypass, or a security-equivalent
-optimization. Benchmark your workload and review application hooks/data before
-opting in; no universal speedup or v0.51.0 equivalence/performance parity is promised.
-
-Only literal server model/default-model boolean `true` requests a fast path. It
-requires **all four matching prerequisites**, without enabling any automatically:
-
-| LIST prerequisites                           | READ prerequisites                           |
-| -------------------------------------------- | -------------------------------------------- |
-| `unsafeSkipListDocumentSnapshotChecks`       | `unsafeSkipReadDocumentSnapshotChecks`       |
-| `unsafeSkipListOutputSnapshotChecks`         | `unsafeSkipReadOutputSnapshotChecks`         |
-| `unsafeSkipListNestedDocumentSnapshotChecks` | `unsafeSkipReadNestedDocumentSnapshotChecks` |
-| `unsafeSkipListInitialOutputSnapshotCopy`    | `unsafeSkipReadInitialOutputSnapshotCopy`    |
-
-| Requested fast flag | All four matching skips true | Effective behavior                                    |
-| ------------------- | ---------------------------- | ----------------------------------------------------- |
-| false/omitted       | either                       | **off**; original flags retain their behavior         |
-| true                | no                           | **dormant**; original flags retain their behavior     |
-| true                | yes                          | **active**; eligible rows use the weaker trusted path |
-
-LIST covers `find`, generated lists and root lists; READ covers `findOne`,
-`findById`, public identifier/filter reads and root reads. **READ-to-list retries
-remain READ-origin**, even with effective `list` field access. Configuration is
-captured at the genuine query origin **before hooks/awaits**. Authenticated
-embedded/populated/included descendants inherit that capture, never live target
-flags; target operation/row/field policy and target grants remain their own.
-Independent calls inside callbacks capture their own settings. Arbitrary parent
-provenance, writes/write-derived output, new/create/update/delete/upsert, dedicated
-subdocument operations and fresh raw-policy helpers cannot select this path.
-
-Use `createRouter`, model setters or model-default setters on the owning runtime.
-Explicit model `false` overrides a true default; model `undefined` restores
-inheritance. Effective activation/dormancy and missing-prerequisite transitions
-warn, not every request. Presence in HTTP/root/service per-call/defaults, policy,
-helper, include/populate or `$$sq` **control slots rejects**, even if undefined;
-same-named ordinary persisted business fields remain inert data.
-
-#### What active trusted rows actually omit and retain
-
-- Ordinary lean projected source and document-hook input are **borrowed**, not
-  detached stage snapshots. Ordinary returned grants are shared across field
-  decisions, reads and owning embedded children. Diagnostic contexts are shallow;
-  `originalDocumentSnapshot` is a historical property name, **not an immutable
-  snapshot promise** here. Captured configuration/scope views are reused; native
-  configuration and context/grant leaves are not isolated anew per row/callback.
-- Actual operation gates, row filters, ordered field rules, original actor,
-  short-circuiting, document hooks, getters and finite hook concurrency remain.
-  Modern document hooks run once per root/target regardless of skim/metadata;
-  embedded children reuse owner grants. Independent rows/targets do not cache
-  grants/decisions by ID. Modern backend policy, target admission and private
-  populated inputs remain; this is historical-like bookkeeping, not old skim behavior.
-- Selected output is safely constructed once; metadata and include attachments
-  finish before one root context/association. Authenticated target DTO roots can
-  be retained directly. Source and produced-attachment lanes remain separate.
-  Selection/denied fields, metadata stripping/exposure, dotted paths, population,
-  includes and registered virtual semantics still apply to ordinary stable data.
-- Trusted handles retain exact root association and cheap call/stage/request/
-  runtime/model/name/scope/access checks, **not snapshot or current-descendant
-  identity walks**. Child lookup means **issued-document membership, not current
-  reachability**: a removed original child may still be found; a replacement/new
-  object receives no child handle. Equal values, IDs, spreads, other rows or forged
-  handles establish no authority. The exact root helper remains usable after
-  descendant replacement, filtering current values with stale memo/shared grants.
-- Public request/query/filter/pagination/work limits remain. New selected
-  materialization/child/registry algorithms share **20,000 visited slots/issued
-  roots and depth 100**, safe descriptor writes and controlled cycle errors.
-  Encountered-key filtering consumes slots even for denied/protected keys; denied
-  values and their descendants remain unread, not recursively validated.
-  There is **no full 20,000-node/depth-100 validation guarantee for unvisited
-  source/grants/context**. Unknown selected proxies/custom objects/functions/
-  symbols/cycles reject with a controlled authorization error; invalid virtual
-  returns omit fail-closed rather than publishing partial output.
-- Snapshot native/BSON wire/equality passes are omitted, **not every native
-  observation**. Hydrated inputs normalize once; selected native/value fallbacks,
-  stable-base/per-getter document views, getter return staging, private populated
-  argument-four isolation and JSON serialization can still copy/normalize or run
-  native code. Getter argument-one mutation is still not an implicit output write.
-- Selected BSON compatibility first prepares contained/wire-expanded containers
-  under the **same remaining slot/depth budget**, then performs one BSON wire copy.
-  Ordinary BSON leaves, `Code.scope`, `DBRef` fields/IDs and nested natives remain
-  supported; aliases consume work per emitted occurrence. Data-method `toBSON`
-  runs once per encountered occurrence (its own computation/allocation is not
-  bounded). Accessor state/hooks, chained hook results, custom serializer overrides,
-  unknown prototypes and native-as-document scope roots fail closed; BSON-contained
-  RegExp values use intrinsic state. String/binary storage is scalar, not a
-  per-byte slot budget. Structural-budget exhaustion fails the complete result,
-  including when discovered while staging a virtual return; other invalid native
-  virtual returns retain fail-closed omission.
-- Shallow-unproven roots (including proxy/accessor/unsafe-root shapes) use compatible
-  copied stages before the hook; exotic grants may copy once without rerunning it.
-  Copied and trusted rows may coexist in one active call. Supported native/value
-  fallbacks copy once under the selected-output budget. **Active configuration is
-  not a promise that every row is zero-copy**, nor does a copied row restore all
-  former context/configuration isolation. No general deep-clone switch is exposed.
-
-**Accepted risk:** source/grant/context mutation across callbacks/awaits, stale
-decisions, descendant replacement and fewer/different native observations or
-exceptions can change permission outcomes, **including denial becoming allowance**.
-Matching benchmark fingerprints do not prove security equivalence. Use trusted,
-stable application code/data and a measured staged rollout; restore false promptly.
-
-Rollback affects **new calls only**, not in-flight calls, retries, descendants or
-retained handles. Turning off a new flag does **not** turn off its original four
-skip flags: restore those independently if you want default protections. Retained
-trusted-handle helpers keep the weaker behavior after rollback; fresh raw-policy
-helpers remain strict and known trimmed DTOs retain unresolved-rule fail-closed behavior.
-
-#### Runnable LIST/READ prerequisites, rollback and handle warnings
-
-Save as `authorization-fast-path-example.mts`; run on Node 22.18+ or compile with
-TypeScript/NodeNext first. Uses only public package imports, Express and Mongoose.
-It creates/drops its own example database (`MONGODB_URL` or local MongoDB), serves
-one loopback request and closes all resources. **The deliberate DTO replacements
-demonstrate lost protection, not recommended application behavior.** LIST defaults
-and READ opt-in below are independent server constants, never request inputs.
-
-<!-- doc-example: complete-runtime -->
-
-```ts
-import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { once } from 'node:events';
-import type { Server } from 'node:http';
-import express from 'express';
-import mongoose from 'mongoose';
-import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';
-import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
-
-type Row = { name?: string; owner?: boolean; secret?: string; contacts?: { email?: string; secret?: string }[] };
-
-async function runAuthorizationFastPathExample() {
-  const connection = await mongoose
-    .createConnection(process.env.MONGODB_URL ?? 'mongodb://127.0.0.1:27017', {
-      dbName: `authorization_fast_example_${randomUUID().replaceAll('-', '')}`,
-    })
-    .asPromise();
-  let server: Server | undefined;
-  try {
-    const api = createAccessRuntime();
-    const listDefaults = {
-      unsafeSkipListDocumentSnapshotChecks: true,
-      unsafeSkipListOutputSnapshotChecks: true,
-      unsafeSkipListNestedDocumentSnapshotChecks: true,
-      unsafeSkipListInitialOutputSnapshotCopy: true,
-      unsafeUseListAuthorizationFastPath: true,
-    } satisfies DefaultModelRouterOptions;
-    api.setDefaultModelOptions(listDefaults); // no READ flags enabled
-    const Model = connection.model<Row>(
-      'FastPathExampleRow',
-      new mongoose.Schema<Row>({
-        name: String,
-        owner: Boolean,
-        secret: String,
-        contacts: [new mongoose.Schema({ email: String, secret: String }, { _id: false })],
-      }),
-    );
-    let documentHooks = 0;
-    const router = api.createRouter(Model, {
-      operationAccess: { list: true, read: true },
-      hydration: { find: 'lean', findOne: 'lean' },
-      stripPermissionsField: true,
-      unsafeUseListAuthorizationFastPath: false, // explicit false wins over defaults
-      alwaysSelectFields: ['owner'],
-      docPermissions: (doc) => {
-        documentHooks++;
-        return { owner: !!doc && typeof doc === 'object' && 'owner' in doc && doc.owner === true };
-      },
-      permissionSchema: {
-        name: 'owner',
-        secret: false,
-        contacts: { list: true, read: true, sub: { email: true, secret: false } },
-      },
-      virtuals: { contacts: { sub: {} } }, // registered embedded scope, no getters
-    });
-    const row = await Model.create({
-      name: 'Ada',
-      owner: true,
-      secret: 'hidden',
-      contacts: [{ email: 'ada@example.test', secret: 'hidden' }],
-    });
-    const selected = { select: ['name', 'contacts', 'secret', '-_id'] };
-
-    async function verify(req: ModelRequest) {
-      const service = router.getService(req);
-      const off = await service.find({}, selected);
-      assert.ok(off.success);
-      off.data[0].contacts![0] = { email: 'replacement' };
-      await assert.rejects(
-        service.pickAllowedFields(off.data[0], 'list', {
-          documentAuthorization: off.contexts[0].documentAuthorization,
-        }),
-      );
-
-      router.setOption('unsafeUseListAuthorizationFastPath', undefined); // inherit true
-      router.setOption('unsafeSkipListNestedDocumentSnapshotChecks', false); // missing ONE prerequisite
-      const dormant = await service.find({}, selected);
-      assert.ok(dormant.success);
-      dormant.data[0].contacts![0] = { email: 'replacement' };
-      await assert.rejects(
-        service.pickAllowedFields(dormant.data[0], 'list', {
-          documentAuthorization: dormant.contexts[0].documentAuthorization,
-        }),
-      );
-
-      router.setOption('unsafeSkipListNestedDocumentSnapshotChecks', undefined); // all FOUR now true
-      const active = await service.find({}, selected);
-      assert.ok(active.success);
-      assert.deepEqual(active.data[0], { name: 'Ada', contacts: [{ email: 'ada@example.test' }] });
-      const context = active.contexts[0];
-      const originalChild = active.data[0].contacts![0];
-      const childHandle = context.getDocumentAuthorization(originalChild);
-      assert.ok(childHandle);
-      const replacement = { email: 'replacement', secret: 'must be filtered' };
-      active.data[0].contacts![0] = replacement;
-      router.setOption('unsafeUseListAuthorizationFastPath', false); // rollback NEW calls only
-      assert.equal(context.getDocumentAuthorization(originalChild), childHandle); // removed issued member survives
-      assert.equal(context.getDocumentAuthorization(replacement), undefined); // membership is not reachability
-      assert.deepEqual(
-        await service.pickAllowedFields(active.data[0], 'list', {
-          documentAuthorization: context.documentAuthorization,
-        }),
-        { name: 'Ada', contacts: [{ email: 'replacement' }] },
-      );
-      const fresh = await service.pickAllowedFields(active.data[0], 'list');
-      assert.equal(fresh.name, undefined); // fresh raw helper cannot recover the trimmed owner decision
-
-      const readOptions = {
-        unsafeSkipReadDocumentSnapshotChecks: true,
-        unsafeSkipReadOutputSnapshotChecks: true,
-        unsafeSkipReadNestedDocumentSnapshotChecks: true,
-        unsafeSkipReadInitialOutputSnapshotCopy: true,
-        unsafeUseReadAuthorizationFastPath: true,
-      } satisfies DefaultModelRouterOptions;
-      api.setModelOptions(Model.modelName, readOptions); // does NOT enable LIST
-      assert.equal(api.getModelOption(Model.modelName, 'unsafeUseListAuthorizationFastPath'), false);
-      const read = await service.findOne({ _id: row._id }, selected);
-      assert.ok(read.success);
-      read.data.contacts![0] = { email: 'read replacement', secret: 'must be filtered' };
-      api.setModelOption(Model.modelName, 'unsafeUseReadAuthorizationFastPath', false);
-      assert.deepEqual(
-        await service.pickAllowedFields(read.data, 'read', {
-          documentAuthorization: read.context.documentAuthorization,
-        }),
-        { name: 'Ada', contacts: [{ email: 'read replacement' }] },
-      );
-      const rolledBack = await service.findOne({ _id: row._id }, selected);
-      assert.ok(rolledBack.success);
-      rolledBack.data.contacts![0] = { email: 'replacement' };
-      await assert.rejects(
-        service.pickAllowedFields(rolledBack.data, 'read', {
-          documentAuthorization: rolledBack.context.documentAuthorization,
-        }),
-      );
-      assert.equal(documentHooks, 5); // once per query row, never rerun for retained/trimmed helpers
-    }
-
-    const app = express();
-    const initialize = api();
-    app.use((req, res, next) => initialize(req as ModelRequest, res, next));
-    app.get('/verify', async (req, res, next) => {
-      try {
-        await verify(req as ModelRequest);
-        res.json({ ok: true });
-      } catch (error) {
-        next(error);
-      }
-    });
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    const address = server.address();
-    assert.ok(address && typeof address !== 'string');
-    const response = await fetch(`http://127.0.0.1:${address.port}/verify`);
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { ok: true });
-  } finally {
-    if (server)
-      await new Promise<void>((resolve, reject) => server!.close((error) => (error ? reject(error) : resolve())));
-    try {
-      await connection.dropDatabase();
-    } finally {
-      await connection.close();
-    }
-  }
-}
-runAuthorizationFastPathExample().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
-```
+The [complete executable migration workflow](MIGRATION.md#complete-public-workflow-facts-helper-costs-and-checked-refresh)
+uses literal facts, both modes, zero-read raw helpers and a checked fresh read.
 
 ### Wire placement and option names
 
@@ -968,8 +552,8 @@ reentry bound are separate contracts, documented in their sections.
 ## Trusted service authorization
 
 Use these contracts for tenant-scoped business services, protected input/output,
-related targets and same-execution document decisions. For a complete executable
-example, see [Runnable authorization and handle reuse](#runnable-authorization-and-handle-reuse).
+related targets and document facts. See [Runnable service authorization](#runnable-service-authorization)
+and the shipped [owned-authorization migration](MIGRATION.md) with executable examples.
 
 ### Public request admission and backend options
 
@@ -1011,10 +595,9 @@ Target output grants remain selection-limited, including schema-hidden fields an
 virtuals. Populate match, include filter, ref IDs and join/correlation constraints
 remain ANDed with the target scope after query transformation in every row mode.
 Populate policies also apply after create/update/upsert. Neither parent nor related
-grants flow into request-controlled `$$sq` queries. For a same-execution target pick,
-use `result.context.getDocumentAuthorization(child)` (or the corresponding list-row
-context) with **that target model's** helper. Private dependencies and join keys do
-not become output grants; related copies retain their own document results.
+grants flow into request-controlled `$$sq` queries. Related output is already-filtered
+DATA; no child handles/lookups remain. A current target-dependent decision needs a
+new normal target read/list. Private dependencies/join keys do not grant output.
 
 Every requested populate target needs an actual registered Mongoose model and ACL
 configuration with an **effective object `permissionSchema`** in the owning runtime.
@@ -1074,29 +657,15 @@ start fresh request-mode output evaluation. `genAllowedFields` defaults to
 purpose. It reports **existing output paths**, not a schema/input allowlist. Null or
 undefined documents yield `[]` (pick/trim preserve the nullish value) without hooks.
 
-The shared finalizer now consumes retained authorization plans and privately
-memoizes full document grants and field decisions. For a subsequent same-execution
-pick, use `{ documentAuthorization }` with the package-issued output context's
-handle, rather than resupplying the raw policy. Default/copied handles validate the
-unchanged output graph; active trusted handles validate exact root association and
-issued membership, not current descendants. All retain request/runtime/model, scope,
-access and document-stage checks; caller
-spreads, matching IDs and `_permissions` are not provenance. Raw policy on a known
-trimmed output retains unconditional request fields and explicit grants, but does
-not rerun the document hook or recover document-dependent decisions. Metadata
-stripping/exposure switches are independent of internal grants. Target models
-require their own authorization; parent grants cover the relationship only.
+The finalizer owns a private stage, resolves boolean `DocumentGrants` once and
+memoizes field decisions only until publication. Each row/call/target/pre-/post-write
+stage is independent; genuine embedded scopes reuse their owner's facts. Returned
+DTOs carry **no capability**, hidden authority symbol or reusable document handle.
 
-Internal `findOne`/`findById`/`find`, `create`, `updateOne`/`updateById`, `upsert`
-and `new` now consume the captured call policy throughout output finalization.
-Single results expose `context.documentAuthorization`; list/create results expose
-one `contexts[index]` per row. These opaque handles are non-enumerable context
-properties, never attached to `data`. `context.getDocumentAuthorization(value)`
-looks up an unchanged registered output in a default/copied result's graph. In the
-[active trusted path](#experimental-unsafe-readlist-authorization-fast-paths), it
-instead looks up issued document-root membership: removed original children may
-remain discoverable, replacements are not issued, and an exact root's helper can
-filter changed descendants using stale decisions/shared grants after rollback.
+Single results have a frozen diagnostic `context`; list/create results have aligned
+`contexts[index]`. These are `ModelOutputContext` diagnostics, not source/model/
+lifecycle aliases or authority. Their exact allowlist and removed-member replacements
+are in [MIGRATION.md](MIGRATION.md#m2-replace-output-context-mutation-with-explicit-business-work).
 
 <!-- doc-example: partial -->
 
@@ -1110,40 +679,30 @@ const result = await service.findOne(
   { select: ['status', 'internalNote'] },
   { authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } },
 );
-if (result.success) {
-  const picked = await service.pickAllowedFields(result.data, 'read', {
-    documentAuthorization: result.context.documentAuthorization,
-  });
-  console.log(picked);
-}
+if (!result.success) throw new Error(`Read failed: ${result.code}`);
+console.log({ internalNote: result.data.internalNote }); // presentation subset, no new authorization
+const current = await service.findById(orderId, { select: ['status', 'internalNote'] });
+if (!current.success) throw new Error(`Refresh failed: ${current.code}`);
+console.log(current.data); // new normal row/document authorization; adds a read/hook
 ```
 
-The selected stored note survives false/missing request rules; `status` still
-requires normal request authorization. Ordinary document grants now apply even
-under `skim` and metadata-disabled/stripped postures. Declare private hook inputs
-with `alwaysSelectFields`; later handle picks reuse the original results after
-those inputs are removed. Metadata describes request permissions, not backend grants.
+Raw output helpers use captured global permissions + frozen **empty document facts**
+and explicit output-only server policy. They perform zero DB operations/document hooks,
+no row checks, virtuals or omitted-value recovery. `!facts.suspended` may be true on
+empty facts; that is not current-document proof. Metadata (`getDocPermissions` included)
+is DATA, not authority. Never replace a retired handle with unrestricted/client grants.
 
-Mutations use ordinary `args.select`. Output grants never admit protected writes;
-validation, prepare/transform/afterPersist/change hooks and save semantics remain.
-Update admission and post-write output have separate document stages. Upsert keeps
-its initiating operation with create/update branch accesses. `new()` continues to
-ignore `select`, including empty/exclusion projections. Trusted presentation hooks
-run after finalization and may intentionally remove/construct output. There is no
-automatic second authorization pass; arbitrary mutations/replacements do not acquire
-provenance. For an unchanged output, use its handle at the **output access**: `read`
-for ordinary reads/create/update/upsert output, `list` for lists or reads using list
-access, and `create` for `new()`.
+For current document-dependent authorization use a new normal read/list with suitable
+selection and private `alwaysSelectFields` hook inputs. For presentation just use the
+already-filtered DTO: no extra query, but no claim of current checks. See the executable
+guide for exact **0/0 helper** versus **+1 read/+1 hook** refresh counts.
 
-The immutable **call policy** captures authority once for planning and execution.
-Each document/scope/access stage separately owns its hook grants and field decisions;
-two list rows never share those results. Reusing the same raw policy is fresh
-evaluation, not a substitute for a document handle. A fresh unassociated input must
-contain the projected hook dependencies; a recognized trimmed output cannot rerun
-the hook to reconstruct lost decisions. Use either `authorization` or
-`documentAuthorization` in a named helper, never both. When extracting policy from a
-full call, construct `{ outputFields: policy.outputFields }` for output-only helpers;
-`create` accepts input/output/related, and `new` accepts output only.
+Mutations retain ordinary `args.select`, independent input admission, validation,
+prepare/transform/save/afterPersist/change roles and separate pre-/post-write facts.
+`new()` still ignores select. Presentation callbacks run after stage closure and may
+construct data, with no automatic second filtering pass. Extract only
+`{ outputFields: policy.outputFields }` for output helpers; full row/input/related
+policies reject. There is no helper handle option or child lookup.
 
 ### Independent mutation input authority
 
@@ -1360,7 +919,7 @@ for public adapters. Keep policies as server constants, not spreads of request
 options. Positional helper overloads are removed; see the named-helper migration
 and request-only data compatibility contract below.
 
-### Runnable authorization and handle reuse
+### Runnable service authorization
 
 This complete example uses an installed package, Express and MongoDB. Save it as
 `authorization-example.mts` and run `node authorization-example.mts` on Node 22.18+
@@ -1489,10 +1048,9 @@ async function runServiceAuthorizationExample() {
       const result = await service.findOne({ _id: rows[0]._id }, selected, { ...quiet, authorization });
       assert.ok(result.success);
       assert.deepEqual(result.data, { status: 'ready', internalNote: 'server note' });
-      // ownerId and _permissions are absent, yet this handle retains both decisions.
-      const reuse = { documentAuthorization: result.context.documentAuthorization };
-      const picked = await service.pickAllowedFields(result.data, 'read', reuse);
-      assert.deepEqual(await service.trimOutputFields(picked, 'read', reuse), result.data);
+      // Already-filtered DTO is usable DATA, not current-document authority.
+      const subset = { status: result.data.status };
+      assert.deepEqual(subset, { status: 'ready' });
       assert.equal(documentHookCalls, 1);
       const fresh = await service.pickAllowedFields(result.data, 'read', { authorization: output });
       assert.deepEqual(fresh, { internalNote: 'server note' }); // no original owner decision
@@ -1555,13 +1113,10 @@ async function runServiceAuthorizationExample() {
       assert.equal(related.data.contacts?.[0].ssn, undefined);
       const child: unknown = Reflect.get(related.data, 'customer');
       assert.ok(child && typeof child === 'object');
-      const childHandle = related.context.getDocumentAuthorization(child);
-      assert.ok(childHandle);
-      const childPick = await customerRouter
-        .getService(req)
-        .pickAllowedFields(child, 'read', { documentAuthorization: childHandle });
-      assert.equal(Reflect.get(childPick, 'billingEmail'), 'billing@example.test');
-      assert.equal(Reflect.get(childPick, 'tenantId'), undefined);
+      assert.equal(Reflect.get(child, 'billingEmail'), 'billing@example.test');
+      assert.equal(Reflect.get(child, 'tenantId'), undefined);
+      const targetRaw = await customerRouter.getService(req).pickAllowedFields(child, 'read');
+      assert.equal(Reflect.get(targetRaw, 'billingEmail'), undefined); // no retained target authority
 
       // Input authority is independent: patch the existing first contact, preserve ssn,
       // persist the denied note, and grant neither field in the mutation response.
@@ -1776,7 +1331,7 @@ adapter or alternate legacy authority path.
 | `overrides.idFilter: { slug }`                                                                       | `findOne({ slug }, args, options)` / `updateOne({ slug }, data, args, options)` with explicit row policy when needed. By-ID calls always use normal identifier resolution.                                                                                                |
 | `overrides.effectiveSelect: ['status']`                                                              | `create(data, { select: ['status'] }, options)` / `updateOne(query, data, { select: ['status'] }, options)` / `upsert(query, data, { select: ['status'] }, options)`. Public `returningAll: false` computes this ordinary selection once.                                 |
 | `overrides.operation: 'upsert'`                                                                      | Call `upsert(query, data, args, options)`. Private execution retains initiating `upsert` while create/update branch accesses govern getters, output and document grants.                                                                                                  |
-| `pickAllowedFields(doc, 'read', ['internalNote'])` using helper `baseFields` as visibility authority | `pickAllowedFields(doc, 'read', { authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } })`, or reuse the original `documentAuthorization` handle for same-execution document decisions.                                                            |
+| `pickAllowedFields(doc, 'read', ['internalNote'])` using helper `baseFields` as visibility authority | `pickAllowedFields(doc, 'read', { authorization: { outputFields: { mode: 'grant', paths: ['internalNote'] } } })`. For document-dependent decisions, use a new normal service query; presentation can use the already-filtered DTO.                                       |
 | `genSelect('read', select, true)` using helper `skipChecks` for provisional fetching                 | `genSelect('read', select, { authorization: { outputFields: { mode: 'request' } } })` / `genQuerySelect(...)`. Named planning defers document-dependent rules; use an explicit output grant when backend visibility is required.                                          |
 
 The helper overloads in the last two rows are also **removed in this next breaking
@@ -2425,7 +1980,7 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 - fetch configuration types (also `/advanced`): `HydrationMode`, `ModelHydrationOptions` — server-owned model/default configuration, never per-call/wire options.
 - virtual types (also `/advanced`): `ModelVirtualGetter`, `ModelVirtualDescriptor`, `ModelVirtualAccessRecord`, `ModelVirtualLeaf`, `ModelVirtuals`, `ModelVirtualDoc`, `ModelVirtualContext`, `ModelVirtualPopulateDependency`, `ModelVirtualPopulateInputs`. Explicit private target maps type only the fourth getter argument; see [Private populated dependencies](#private-populated-dependencies).
 - trusted service policy types (also `/advanced`): `ServiceAuthorization` (reads), `MutationAuthorization` (update/upsert), `CreateAuthorization`, `InputFieldAuthorization`, `InputFieldPath`, `OutputAuthorization`, `FieldAuthorization`, `RowAuthorization`, `OperationAuthorization`, `RelatedAuthorization`, `OutputFieldPath`. Input paths use persisted types only; output paths also include virtuals. Unknown models have an explicit runtime-validated string fallback; grant arrays may be readonly.
-- named helper/result types (also `/advanced`): `OutputPlanningOptions`, `OutputFieldOptions`, `AllowedOutputFieldOptions`, opaque `DocumentAuthorization`, `ServiceOutputContext`, `ServiceOutputDecorator`, `AuthorizedSingleResult`, `AuthorizedListResult`, `NewArgs`, `NewOptions`. Acquire the service from a router/request; there is no standalone `Service` export or public issuer/execution/prepared API.
+- named helper/result types (also `/advanced`): `OutputPlanningOptions`, `OutputFieldOptions`, `AllowedOutputFieldOptions`, `DocumentGrants`, `FieldPermissionHook`, `AuthorizationMode`, `ModelOutputContext`, `ModelOutputHook`, `ModelOutputListHook`, `ServiceOutputContext`, `ServiceOutputDecorator`, `AuthorizedSingleResult`, `AuthorizedListResult`, `NewArgs`, `NewOptions`. Acquire the service from a router/request; there is no standalone `Service` export or public issuer/execution/prepared API.
 
 Subpath entrypoints:
 
@@ -3681,7 +3236,7 @@ admitted hook chains per request/runtime**. Independent services, root-batch
 entries, legacy/correlated includes, populate and embedded/subdocument outputs
 share one private pool. It covers:
 
-- Model `docPermissions`, including pre-write, output-helper and owning-parent stages;
+- Model `docPermissions`, including pre-write and owning-parent stages (raw output helpers never invoke it);
 - Virtual getters;
 - Model/data `decorate` and `decorateAll` chains and service output decorator callbacks;
 - Data request-field selection/trimming stages (their field rules run sequentially).

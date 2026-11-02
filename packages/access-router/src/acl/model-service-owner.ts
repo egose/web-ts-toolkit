@@ -4,6 +4,7 @@ import type { ModelRequest } from '../interfaces';
 import { defaultRuntime, type AccessRuntime } from '../runtime';
 import { getActiveRuntime, runWithRuntime } from '../runtime-context';
 import type { AccessRouterPermissions } from '../permission';
+import { captureAuthorizationPermissions } from './service-authorization';
 import { capturePopulatePolicyDefaults, type PopulatePolicyDefaultsToken } from './populate-policy';
 
 interface Owner {
@@ -16,6 +17,7 @@ const construction = new AsyncLocalStorage<Owner>();
 const dispatch = new AsyncLocalStorage<{
   receiver: object;
   options?: unknown;
+  permissions?: AccessRouterPermissions;
   populatePolicyDefaults?: PopulatePolicyDefaultsToken;
 }>();
 // These are independent query origins, even when application hooks reenter the
@@ -113,6 +115,16 @@ export function modelServiceOptions<T>(receiver: object, runtime: AccessRuntime,
   const call = dispatch.getStore();
   if (call?.receiver !== receiver) return read();
   return (call.options ??= read()) as T;
+}
+
+/** Capture before any configuration/native exposure, including related preparation. */
+export function modelServicePermissions(
+  receiver: object,
+  read: () => AccessRouterPermissions,
+): AccessRouterPermissions {
+  const call = dispatch.getStore();
+  if (call?.receiver !== receiver) return captureAuthorizationPermissions(read());
+  return (call.permissions ??= captureAuthorizationPermissions(read()));
 }
 
 /** One owner snapshot for source, private targets and ordinary related capture, before awaits. */

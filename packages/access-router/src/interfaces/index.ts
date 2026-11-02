@@ -13,7 +13,6 @@ export type {
   AuthorizedListResult,
   AuthorizedSingleResult,
   CreateAuthorization,
-  DocumentAuthorization,
   FieldAuthorization,
   InputFieldAuthorization,
   InputFieldPath,

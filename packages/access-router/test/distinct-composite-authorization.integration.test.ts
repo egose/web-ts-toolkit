@@ -553,11 +553,15 @@ describe('ARL-04 schema and request proof boundaries', () => {
     const f = await fixture();
     await f.execute(async (req) => {
       const permissions = req.macl.getPermissions();
-      const has = vi.spyOn(permissions, 'has').mockImplementationOnce(() => {
-        throw new Error('permission failure');
+      expect(Object.isFrozen(permissions)).toBe(true);
+      const failure = new Error('permission failure');
+      const has = vi.spyOn(Object.getPrototypeOf(permissions), 'has').mockImplementationOnce(() => {
+        throw failure;
       });
       const service = req.macl.getService(f.modelName);
-      expect.soft(await service.distinct('role')).toMatchObject({ success: false, code: 'forbidden' });
+      // A failed entry actor capture propagates; it cannot silently retry with
+      // broader request permissions or reach distinct persistence.
+      await expect(service.distinct('role')).rejects.toBe(failure);
       expect.soft(has).toHaveBeenCalledTimes(1);
       f.assertNoPersistence();
       has.mockRestore();

@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import type {} from './filter-type-tests';
 import type { Router as ExpressRouter } from 'express';
-import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
+import { isUndefined } from '@web-ts-toolkit/utils';
+import { admitControlPrototypes, assertAuthorizationModeOptions } from './acl/authorization-modes';
 import middleware, { guard } from './middleware';
 import type { GuardModelCondition, GuardModelConditionID } from './middleware';
 import { createSetCore } from './core';
@@ -189,13 +190,12 @@ export type {
   OpenApiRouterOptions,
 };
 export type { CombinedRouteInput } from './routers';
-// Only policy inputs and opaque consumer results/handles belong to the package boundary.
+// Policy inputs and diagnostic result shapes, never private stages or output capabilities.
 export type {
   AllowedOutputFieldOptions,
   AuthorizedListResult,
   AuthorizedSingleResult,
   CreateAuthorization,
-  DocumentAuthorization,
   FieldAuthorization,
   InputFieldAuthorization,
   InputFieldPath,
@@ -242,6 +242,8 @@ export type {
 } from './interfaces/subdocument-authorization';
 export type {
   DefaultModelRouterOptions,
+  AuthorizationMode,
+  ModelOutputContext,
   HydrationMode,
   ModelHydrationOptions,
   ExtendedDataRouterOptions,
@@ -260,6 +262,8 @@ export type {
   ModelHook,
   ModelIdentifierHook,
   ModelListHook,
+  ModelOutputHook,
+  ModelOutputListHook,
   ModelOverrideFilterHook,
   ModelValidateHook,
   ModelVirtualAccess,
@@ -279,6 +283,9 @@ export type {
 export type {
   GuardHook,
   Validation,
+  DocumentGrants,
+  FieldPermissionHook,
+  FieldValidation,
   PairedRouteAccess,
   RouteBaseAccess,
   RouteGuardAccess,
@@ -397,13 +404,17 @@ function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
       return new RootRouter(modelName as RootRouterOptions, runtime);
     }
 
+    assertAuthorizationModeOptions(options, true);
+    if (modelName && (typeof modelName === 'object' || typeof modelName === 'function'))
+      admitControlPrototypes(modelName, (detail) => {
+        throw new TypeError(detail);
+      });
+
     if (typeof modelName === 'string') {
       return new ModelRouter(modelName, options, runtime);
     }
 
     if (isMongooseModel(modelName)) {
-      const name = String(modelName.modelName);
-      runtime.registerModelInstance(name, modelName);
       return ModelRouter.fromModel(modelName, options, runtime);
     }
 
@@ -421,11 +432,11 @@ function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
   wtt.combineRoutes = combineRoutes;
 
   wtt.set = function <K extends keyof GlobalOptions>(keyOrOptions: K | GlobalOptions, value?: unknown) {
-    if (arguments.length === 2 && isString(keyOrOptions)) {
+    if (arguments.length === 2) {
       return runtime.setGlobalOption(keyOrOptions as K, value as GlobalOptions[K]);
     }
 
-    if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
+    if (arguments.length === 1) {
       return runtime.setGlobalOptions(keyOrOptions as GlobalOptions);
     }
   };

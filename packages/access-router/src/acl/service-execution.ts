@@ -20,7 +20,14 @@ import {
 } from './service-authorization';
 import { authorizationError } from './authorization-snapshot';
 import type { AccessRouterPermissions } from '../permission';
-import type { DocumentAuthorizationStage } from './document-authorization';
+import {
+  bindOutputPublication,
+  createOutputPublication,
+  outputPublicationFor,
+  type OutputPublication,
+} from './output-publication';
+import type { TrustedOutputBudget } from './trusted-output-materialization';
+import { inheritReadGuardExecution } from './document-guard';
 import type { Service } from '../services/service';
 import type { GroupedCountInput } from '../services/grouped-count';
 import type { ModelServiceIntent } from '../services/model-service-intent';
@@ -69,7 +76,8 @@ export interface ServiceExecutionState {
   readonly access: AuthorizationAccess;
   readonly preparedQuery?: PreparedModelQuery;
   readonly identifier?: ResolvedIdentifier;
-  readonly documentStage?: DocumentAuthorizationStage;
+  readonly publication: OutputPublication;
+  readonly ownsPublication: boolean;
 }
 
 type Decorator = ServiceOutputDecorator;
@@ -130,6 +138,7 @@ interface ExecutionRecord extends ServiceExecutionState {
   readonly receiver: object;
   readonly binding: AuthorizationBinding;
   readonly family: object;
+  readonly outputBudget?: (row: unknown, index: number) => TrustedOutputBudget | null;
 }
 const executions = new WeakMap<ServiceExecutionContext, ExecutionRecord>();
 
@@ -162,6 +171,7 @@ export function createServiceExecution<T, V extends object>(
   const registered = getServiceExecutors(receiver);
   const receiving = registered.binding();
   const binding = Object.freeze({ ...receiving, scopePath: Object.freeze([...(receiving.scopePath ?? [])]) });
+  const permissions = requestPermissions ?? registered.permissions();
   const call = resolveServiceAuthorization({
     binding,
     access,
@@ -170,18 +180,23 @@ export function createServiceExecution<T, V extends object>(
     relatedTargets,
     parent,
     configuration: configuration ?? registered.configuration(),
-    requestPermissions: requestPermissions ?? registered.permissions(),
+    requestPermissions: permissions,
     listResponse: access.operation === 'list' && parent === undefined,
     readResponse: access.operation === 'read' && parent === undefined,
     snapshotDerivation,
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  const publication =
+    parent && snapshotDerivation?.kind === 'related' ? outputPublicationFor(parent) : createOutputPublication();
+  bindOutputPublication(call, publication);
   executions.set(
     execution,
     Object.freeze({
       receiver,
       binding,
       authorization: call,
+      publication,
+      ownsPublication: !parent || snapshotDerivation?.kind !== 'related',
       access: readServiceAuthorizationAccess(call, binding),
       family: execution,
       hydration: resolveHydration(readServiceAuthorizationHydration(call, binding), hydration),
@@ -222,6 +237,18 @@ export function readServiceExecution<T, V extends object>(
   if (!record || record.receiver !== receiver) authorizationError('invalid execution receiver/call');
   assertAuthorizationBinding(record.authorization, getServiceExecutors(receiver).binding());
   return record;
+}
+
+/** Private row-budget receiver, fixed before a related query constructs any output. */
+export function withExecutionOutputBudget<T, V extends object>(
+  receiver: Service<T, V>,
+  parent: ServiceExecutionContext,
+  outputBudget: (row: unknown, index: number) => TrustedOutputBudget | null,
+): ServiceExecutionContext {
+  const record = readServiceExecution(receiver, parent);
+  const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  executions.set(execution, Object.freeze({ ...record, outputBudget }));
+  return execution;
 }
 
 /** Own effective output arguments alongside the authenticated configuration/actor.
@@ -273,9 +300,18 @@ export function deriveServiceExecution<T, V extends object>(
     snapshotDerivation: { kind: 'retry', parentBinding: record.binding },
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  const publication =
+    record.access.operation === 'read' && access.operation === 'read' ? createOutputPublication() : record.publication;
+  bindOutputPublication(call, publication);
   executions.set(
     execution,
-    Object.freeze({ ...record, authorization: call, access: readServiceAuthorizationAccess(call, record.binding) }),
+    Object.freeze({
+      ...record,
+      publication,
+      authorization: call,
+      access: readServiceAuthorizationAccess(call, record.binding),
+    }),
   );
+  inheritReadGuardExecution(receiver, parent, execution);
   return execution;
 }

@@ -3,6 +3,13 @@ import type { Schema, SchemaType } from 'mongoose';
 import { types } from 'node:util';
 import type { AuthorizationFieldCatalog } from './service-authorization';
 
+// Only the constructor below admits these frozen primitive-only arrays. This
+// records ownership of a fresh capture, never a live schema-identity cache.
+const ownedCatalogs = new WeakMap<object, { readonly slots: number; readonly depth: number }>();
+export function readOwnedAuthorizationCatalogWork(value: object) {
+  return ownedCatalogs.get(value);
+}
+
 interface PreparedOutputCatalog {
   readonly paths: Set<string>;
   readonly results: Map<string, boolean>;
@@ -14,9 +21,15 @@ const preparedOutputCatalogs = new WeakMap<AuthorizationFieldCatalog, PreparedOu
  * No configuration normalization, row decision or binding check is reused here.
  */
 export function prepareCapturedOutputCatalog(catalog: AuthorizationFieldCatalog): void {
-  // Short-lived child scopes must not pay for indexes or a second density walk.
-  // Admit preparation only after enough lookups to amortize its construction.
-  preparedOutputCatalogs.set(catalog, 0);
+  if (preparedOutputCatalogs.has(catalog)) return;
+  // The fresh constructor already proved every own array/primitive. Share its
+  // index across planning and evaluation, without re-proving density or losing
+  // the first lookups before a warmup threshold. This records no field decision.
+  // Unbranded captures keep lazy descriptor admission for short-lived scopes.
+  preparedOutputCatalogs.set(
+    catalog,
+    ownedCatalogs.has(catalog) ? { paths: new Set(catalog.paths), results: new Map() } : 0,
+  );
 }
 
 function prepareOutputCatalog(catalog: AuthorizationFieldCatalog): PreparedOutputCatalog | false {
@@ -257,7 +270,7 @@ export function captureAuthorizationFieldCatalog(
   };
   visitVirtuals(virtuals, '');
   const eligible = [...paths].filter((p) => ![...protectedPaths].some((v) => matchesCatalogPattern(v, p, true)));
-  return Object.freeze({
+  const catalog = Object.freeze({
     paths: Object.freeze(eligible.filter((p) => !p.includes('$*'))),
     persistedPaths: Object.freeze(persistedPaths),
     arrayPaths: Object.freeze([...arrays]),
@@ -271,4 +284,14 @@ export function captureAuthorizationFieldCatalog(
     virtualScopePaths: Object.freeze([...virtualScopes]),
     protectedPaths: Object.freeze([...protectedPaths]),
   });
+  if (typeof documentPermissionField === 'string') {
+    const arrays = Object.values(catalog);
+    // Exact graph work that the general copier would charge: one record, each
+    // array and each primitive string. Reuse must not replenish its budget.
+    ownedCatalogs.set(
+      catalog,
+      Object.freeze({ slots: 1 + arrays.length + arrays.reduce((sum, paths) => sum + paths.length, 0), depth: 2 }),
+    );
+  }
+  return catalog;
 }

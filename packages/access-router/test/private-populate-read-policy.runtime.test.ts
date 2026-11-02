@@ -171,7 +171,10 @@ describe.each(['lean', 'hydrated'] as const)(
               ...(populate ? { populate: [{ path: 'accounts', select: 'name -_id' }] } : {}),
             }),
           );
-          expect(result).toMatchObject({ success: true, data: { slots: [7, null, null, 7, 8, null] } });
+          expect(result, JSON.stringify(result)).toMatchObject({
+            success: true,
+            data: { slots: [7, null, null, 7, 8, null] },
+          });
           if (!result.success) throw new Error(result.code);
           expect(result.data.accounts).toEqual(populate ? [{ name: 'a' }, { name: 'a' }, { name: 'b' }] : f.ids);
           expect(f.finds).toHaveBeenCalledTimes(1);
@@ -512,7 +515,7 @@ describe.each(['lean', 'hydrated'] as const)(
       expect(f.finds).toHaveBeenCalledTimes(1);
     });
 
-    it('false mode confers no public target operation/handle authority and retains local snapshots', async () => {
+    it('false mode confers no public target operation authority or backing diagnostic views', async () => {
       const f = await fixture(hydration, false);
       await f.execute(async (req) => {
         const service = req.macl.getService(f.Source.modelName);
@@ -520,13 +523,11 @@ describe.each(['lean', 'hydrated'] as const)(
         expect(result).toMatchObject({ success: true, data: { total: 7 } });
         if (!result.success) throw new Error(result.code);
         expect(result.data).toHaveProperty('account', f.a._id);
-        expect(result.context.originalDocumentSnapshot.account).toEqual(f.a._id);
-        expect(result.context.documentAuthorization).not.toHaveProperty('populated');
+        expect(result.context).not.toHaveProperty('originalDocumentSnapshot');
+        expect(result.context).not.toHaveProperty('documentAuthorization');
         expect(result.context).not.toHaveProperty('populated');
         expect(f.getter.mock.calls[0][2]).not.toHaveProperty('populated');
-        const picked = await service.pickAllowedFields(result.data, 'read', {
-          documentAuthorization: result.context.documentAuthorization,
-        });
+        const picked = await service.pickAllowedFields(result.data, 'read', {});
         expect(picked).toHaveProperty('total', 7);
         expect(picked).toHaveProperty('account', f.a._id);
         expect(await req.macl.isAllowed(f.Target.modelName, 'read')).toBe(false);

@@ -3,11 +3,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../dist/index.mjs';
-import {
-  unsafeSnapshotCheckOptions,
-  unsafeInitialOutputCopyOptions,
-  unsafeSnapshotOptions,
-} from '../src/acl/unsafe-snapshot-options';
+import { authorizationModeKeys } from '../src/acl/authorization-modes';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -19,8 +15,8 @@ afterEach(() => {
   mongoose.deleteModel(/^DefaultModelHttp/);
 });
 
-describe('effective default model flags in generated HTTP routes', () => {
-  it('updates inherited flags after router creation without overriding explicit false or old snapshots', async () => {
+describe('effective default source modes in generated HTTP routes', () => {
+  it('updates inherited modes/posture without overriding explicit isolation/false or old snapshots', async () => {
     const api = createAccessRuntime(),
       warn = vi.fn();
     api.setGlobalOptions({ globalPermissions: () => ['reader'], logger: { warn } });
@@ -40,7 +36,8 @@ describe('effective default model flags in generated HTTP routes', () => {
               stripDisallowedSort: false,
               stripPermissionsField: false,
               disableFieldPermissions: false,
-              ...Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, false])),
+              readAuthorizationMode: 'isolated',
+              listAuthorizationMode: 'isolated',
             }
           : {}),
       }),
@@ -54,16 +51,20 @@ describe('effective default model flags in generated HTTP routes', () => {
       stripDisallowedSort: true,
       stripPermissionsField: true,
       disableFieldPermissions: true,
-      ...Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, true])),
+      readAuthorizationMode: 'trusted',
+      listAuthorizationMode: 'trusted',
     });
-    expect(warn).toHaveBeenCalledTimes(unsafeSnapshotOptions.length);
-    expect(warn.mock.calls.filter(([message]) => message.includes('snapshot checks disabled'))).toHaveLength(
-      unsafeSnapshotCheckOptions.length,
-    );
-    expect(
-      warn.mock.calls.filter(([message]) => message.includes('initial output snapshot copying disabled')),
-    ).toHaveLength(unsafeInitialOutputCopyOptions.length);
-    for (const [, metadata] of warn.mock.calls) expect(metadata).toEqual({ modelName: models[0].modelName });
+    expect(warn).toHaveBeenCalledTimes(4);
+    expect(warn.mock.calls.map(([, metadata]) => metadata)).toEqual([
+      { modelName: 'default-model', access: 'read', category: 'trustedAuthorizationSource' },
+      { modelName: 'default-model', access: 'list', category: 'trustedAuthorizationSource' },
+      { modelName: models[0].modelName, access: 'read', category: 'trustedAuthorizationSource' },
+      { modelName: models[0].modelName, access: 'list', category: 'trustedAuthorizationSource' },
+    ]);
+    for (const key of authorizationModeKeys) {
+      expect(api.getModelOptions(models[0].modelName)[key]).toBe('trusted');
+      expect(api.getModelOptions(models[1].modelName)[key]).toBe('isolated');
+    }
     expect(routers[0].options).toEqual(initial);
     const inherited = await request(app).get('/inherited').query(metadataQuery).expect(200);
     expect(inherited.body.data).toEqual([{ _id: String(row._id) }]);
@@ -100,6 +101,6 @@ describe('effective default model flags in generated HTTP routes', () => {
     const full = await request(app).get('/inherited').query(metadataQuery).expect(200);
     expect(full.body.data[0]).toMatchObject({ name: 'visible', rank: 1 });
     expect(full.body.data[0]).not.toHaveProperty('hidden');
-    expect(warn).toHaveBeenCalledTimes(unsafeSnapshotOptions.length);
+    expect(warn).toHaveBeenCalledTimes(4);
   });
 });
