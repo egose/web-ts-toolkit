@@ -61,6 +61,10 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
+  "value": "Owned authorization: breaking migration",
+  "id": "owned-authorization-breaking-migration",
+  "level": 2
+}, {
   "value": "Runtime Ownership",
   "id": "runtime-ownership",
   "level": 2
@@ -550,6 +554,57 @@ function _createMdxContent(props) {
       children: ["This package is a good fit when you like ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
       }), "'s hooks and configuration model but want to express them through decorators and classes instead of building option objects manually."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "owned-authorization-breaking-migration",
+      children: "Owned authorization: breaking migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use the installed server's ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md",
+        children: "M1–M5 migration guide"
+      }), "\nand the deco ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router-deco/README.md#owned-authorization-breaking-migration",
+        children: "executable owned-authorization module"
+      }), ".\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DocumentGrants"
+      }), " is an immutable literal-boolean map, not a rich/native object.\nAn empty fact map never revokes a global grant. ESM imports select deco's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".d.mts"
+      }), "\nand CJS requires its ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".d.ts"
+      }), ", matching access-router's declaration conditions.\nMissing hooks yield empty facts; thrown/rejected hooks also warn. Invalid fulfilled\nmaps fail the whole operation with 400. Existing-document input keeps pre-write facts;\npost-write output has a separate stage. Data/raw/new-input evaluation has empty facts."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Configure independent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "readAuthorizationMode"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "listAuthorizationMode"
+      }), " on server\nmodel/default options, including ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Router"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RouterOptions"
+      }), ", scoped option properties\nor factory ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaultModelOptions"
+      }), ". Literal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isolated"
+      }), " is the default; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "trusted"
+      }), " may\nborrow an admitted ordinary projected source only. Actor/policy/facts stay owned,\ntargets select their own mode, embedded scopes inherit their owner, READ retries\nretain READ mode, and writes/new/dedicated origins stay isolated. Undefined restores\ninheritance. All ten retired unsafe keys reject by presence (even false/undefined/\ninherited/non-enumerable); global/module/root/per-call/wire/default-method placements\nreject. Bulk updates are atomic; logger failures do not change committed settings."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Decorated methods keep class-instance ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), ", unlike ordinary field predicates'\noriginal-request ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), "; inject the original request with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Request()"
+      }), " and never\nstore request authority on shared class fields. Doc/virtual/decorate contexts are\nfrozen ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelOutputContext"
+      }), ", not raw model/source/snapshot/query-filter/lifecycle\naliases. Genuine prepare/transform/save/change ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelHookContext"
+      }), " remains mutable.\nGetter mutations are not implicit writes; return values are staged. Presentation\nruns after stage closure with no automatic second authorization pass."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["DTOs/metadata/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getDocPermissions"
+      }), " are DATA. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DocumentAuthorization"
+      }), ", the helper\noption, context handles and child lookup are removed without aliases. Raw helpers\nuse global permissions, empty facts and explicit scoped server output policy, with\nzero reads/hooks/row checks/virtuals. A presentation subset needs no read; a current\ndocument-dependent decision needs a fresh checked normal query (+1 read/hook for a\nsingle row). Negative empty-fact predicates are not current-document proof. Retain\nseparate rows/input/output/related policy, selection, hydration and raw-parent APIs.\nPost-save 400 may follow persistence: no rollback or automatic retry. Deploy/roll\nback matching tested library/application revisions; modes affect new calls only.\nNeither mode is a callback sandbox, external-freshness or performance guarantee."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "runtime-ownership",
       children: "Runtime Ownership"
@@ -1065,8 +1120,8 @@ function _createMdxContent(props) {
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
-              children: "Record<string,unknown>"
-            }), " — per-document map, OR-combined with global grants; empty map grants nothing and never revokes a global grant"]
+              children: "DocumentGrants"
+            }), " — immutable literal-boolean facts; empty facts never revoke a global grant"]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -1607,11 +1662,11 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Context()"
-        }), " injects the ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " injects frozen ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelOutputContext"
+        }), " for document/virtual/decoration hooks; mutable ", (0,jsx_runtime.jsx)(_components.code, {
           children: "ModelHookContext"
-        }), " from ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "access-router"
-        }), " — valid on model hooks"]
+        }), " is retained only for genuine mutation lifecycle work"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Filter()"

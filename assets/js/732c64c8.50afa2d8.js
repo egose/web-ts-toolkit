@@ -214,11 +214,11 @@ function _createMdxContent(props) {
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Runtime: Node ", (0,jsx_runtime.jsx)(_components.code, {
-        children: ">=22"
+        children: ">=24"
       }), "; use package-root named imports. The shipped\n", (0,jsx_runtime.jsx)(_components.a, {
         href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/message-service/README.md",
         children: "README"
-      }), "\nis the installed integration contract, including migration guidance and the\ntwo-app recipe verified from installed tarballs on Node 22.0.0 with minimum\nExpress 5.0.0/Mongoose 8.0.0 and installed-current Express 5/Mongoose 9 peers."]
+      }), "\nis the installed integration contract, including migration guidance and the\ntwo-app recipe verified from installed tarballs on Node 24.0.0 with minimum\nExpress 5.0.0/Mongoose 8.0.0 and installed-current Express 5/Mongoose 9 peers."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "multi-app-adaptation-and-migration-notes",
       children: "Multi-app adaptation and migration notes"

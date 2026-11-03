@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Hooks | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Hooks | web-ts-toolkit"><meta data-rh="true" name="description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><meta data-rh="true" property="og:description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Hooks","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"}]}</script><link rel="stylesheet" href="/assets/css/styles.3d079bff.css">
-<script src="/assets/js/runtime~main.92ccecdf.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.0ecd80ae.js" defer="defer"></script>
 <script src="/assets/js/main.0c9dea1b.js" defer="defer"></script>
 </head>
 <body>
@@ -69,16 +69,39 @@ commands; direct DB/network calls from application hooks are not governed by
 <h3 class="anchor anchorTargetStickyNavbar_DYXl" id="beforedelete--afterdelete"><code>beforeDelete</code> / <code>afterDelete</code><a href="#beforedelete--afterdelete" class="hash-link" aria-label="Direct link to beforedelete--afterdelete" title="Direct link to beforedelete--afterdelete" translate="no">​</a></h3>
 <p>Use these for audit logs, cache invalidation, and external side effects.</p>
 <h3 class="anchor anchorTargetStickyNavbar_DYXl" id="docpermissions"><code>docPermissions</code><a href="#docpermissions" class="hash-link" aria-label="Direct link to docpermissions" title="Direct link to docpermissions" translate="no">​</a></h3>
-<p>Return full request-user document grants from the untrimmed <strong>projected</strong> input. Declare
-additional persisted inputs with <code>alwaysSelectFields</code> (for example ownerId); the hook does
+<p>Return a plain record of literal-boolean <code>DocumentGrants</code> from untrimmed <strong>projected</strong> input. Declare
+additional persisted inputs with <code>{ dependsOn: [&#x27;ownerId&#x27;], get: existingHook }</code> on
+<code>docPermissions</code> or its applicable access/default/custom entry; the hook does
 not implicitly fetch all stored fields. Integrated output resolves it once per document/
 scope/access stage independently of skim and permission metadata switches. Pre-write and
 post-write output are distinct stages.</p>
+<p><code>alwaysSelectFields</code> is removed. Existing sync/async functions remain valid, but add no
+extra fetch inputs. Use <code>get</code>, not <code>getter</code>. Dependencies are top-level persisted schema
+keys, like virtuals: declare <code>profile</code>, not <code>profile.ownerId</code>; unsafe/unknown/virtual
+names reject. Only active <code>docPermissionsAccess</code> (exact then undefined→default) supplies
+inputs, never an output-access union. Hook and dependencies are captured as one pair.
+Missing/undefined inputs never skip the hook; absent/empty dependencies add nothing.
+Inputs stay private unless independently selected and authorized, even if excluded or
+denied. Embedded scopes inherit owning facts; related targets resolve their own hook.
+Dotted access setters replace whole definitions, not partial <code>.get</code>/<code>.dependsOn</code> edits.</p>
 <p>Serialization on the configured permission field is separate: disabling/stripping/limiting
 metadata does not erase internal grants. Backend output grants do not forge request-user
-metadata. Later named output helpers reuse original decisions via the opaque result-context
-handle, even after ownerId and metadata trim; a fresh raw policy is new evaluation, not
-document-state reuse. See <a class="" href="/docs/packages/access-router/services#call-policy-and-document-result-reuse">Services</a>.</p>
+metadata. Facts are normalized once into an owned frozen map in both source modes;
+rich/nested/native/accessor/proxy/protected/over-budget fulfilled values fail the whole
+operation with 400. Missing hooks yield empty facts; throwing/rejected hooks also emit a fixed-category warning.
+FieldPermissionHook receives <code>(permissions, facts)</code> and original-request <code>this</code>;
+operation guards remain one-argument. Raw helpers/data/new-input receive empty facts;
+existing-document input retains separate normalized pre-write facts.</p>
+<p>Doc/virtual/decorate contexts are frozen <code>ModelOutputContext</code>: model/receiving names,
+initiating operation, scope/effective accesses, boolean facts and optional canonical
+select/populate/sort arrays plus skip/limit, NO filter. No raw model/source/snapshot/
+lifecycle aliases or reusable handles. Genuine mutation <code>ModelHookContext</code> remains
+mutable. Isolated doc-hook views are disposable; trusted may borrow ordinary source
+only, never actor/policy/facts. Getter views/return staging/private input isolation
+remain in both modes; closures/external caches are not sandboxed or kept fresh.
+Raw output helpers have empty facts, zero reads/hooks and no current-document authority.
+See <a class="" href="/docs/packages/access-router/services#call-policy-and-document-result-reuse">Services</a> and the shipped
+<a href="https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md" target="_blank" rel="noopener noreferrer" class="">migration guide</a>.</p>
 <h3 class="anchor anchorTargetStickyNavbar_DYXl" id="private-populated-getter-inputs">Private populated getter inputs<a href="#private-populated-getter-inputs" class="hash-link" aria-label="Direct link to Private populated getter inputs" title="Direct link to Private populated getter inputs" translate="no">​</a></h3>
 <p>Package virtuals run after internal document grants and before decoration/tasks.
 Their first argument remains an isolated ordinary persisted/local-<code>dependsOn</code> view
@@ -162,6 +185,21 @@ virtual values and the reconstructed original public reference shapes do.</p>
 <li class="">a model condition object</li>
 </ul>
 <div class="language-ts codeBlockContainer_J0Gm theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_W0O_"><pre tabindex="0" class="prism-code language-ts codeBlock_Kgsu thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_dBBN"><div class="token-line" style="color:#393A34"><span class="token plain">router</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">router</span><span class="token punctuation" style="color:#393A34">.</span><span class="token function" style="color:#d73a49">get</span><span class="token punctuation" style="color:#393A34">(</span><span class="token string" style="color:#e3116c">&#x27;/admin&#x27;</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token function" style="color:#d73a49">guard</span><span class="token punctuation" style="color:#393A34">(</span><span class="token string" style="color:#e3116c">&#x27;isAdmin&#x27;</span><span class="token punctuation" style="color:#393A34">)</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token keyword" style="color:#00009f">async</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">(</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"> </span><span class="token operator" style="color:#393A34">=&gt;</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token keyword" style="color:#00009f">return</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> ok</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">}</span><span class="token punctuation" style="color:#393A34">;</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">}</span><span class="token punctuation" style="color:#393A34">)</span><span class="token punctuation" style="color:#393A34">;</span><br></div></code></pre></div></div>
+<p>Model conditions (<code>guard({ modelName, id, condition })</code>) require a visible row and
+fresh root document facts, using the same public by-ID defaults, DB projection,
+hydration and hook-source preparation as a normal read. They publish <strong>no DTO</strong>:
+field callbacks, virtuals, embedded/populated DTO output, output-only include
+attachments, metadata, decorate/tasks and <code>_read</code> overrides do not run. Their
+output-only errors no longer veto the condition. Source/fact/necessary-input
+structural errors still produce 400; ordinary missing/denied conditions produce 401.
+Include preflight and actual necessary target queries retain their admission/masks.</p>
+<p>This request-only service read does not imply generated HTTP READ-route operation
+admission; compose the appropriate route/global check when both are needed. A visible
+row normally costs one root read/hook; an admitted miss may retry once under captured
+LIST admission and READ mode. A true/false condition and 400/403 do not retry.
+Put security in operation/row/fact hooks, not output side effects. A caller requiring
+a DTO must separately perform a normal authorized read and handle its result and
+additional read/hook/output cost. See the installed package&#x27;s <code>MIGRATION.md</code>, M2/M3/M5.</p>
 <h2 class="anchor anchorTargetStickyNavbar_DYXl" id="permissions-plugin">Permissions Plugin<a href="#permissions-plugin" class="hash-link" aria-label="Direct link to Permissions Plugin" title="Direct link to Permissions Plugin" translate="no">​</a></h2>
 <p><code>permissionsPlugin</code> adds only a hydrated Mongoose getter alias (default <code>permissions</code>)
 for existing <code>_doc[documentPermissionField]</code> metadata, usually <code>_permissions</code>.

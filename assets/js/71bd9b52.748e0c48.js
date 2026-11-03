@@ -55,16 +55,8 @@ const toc = [{
   "id": "authority-hook-inputs-and-metadata",
   "level": 3
 }, {
-  "value": "Temporary unsafe read/list-performance switches",
-  "id": "temporary-unsafe-readlist-performance-switches",
-  "level": 3
-}, {
-  "value": "Separate initial output-copy opt-outs",
-  "id": "separate-initial-output-copy-opt-outs",
-  "level": 4
-}, {
-  "value": "Experimental unsafe READ/LIST authorization fast paths",
-  "id": "experimental-unsafe-readlist-authorization-fast-paths",
+  "value": "Owned READ/LIST authorization modes",
+  "id": "owned-readlist-authorization-modes",
   "level": 3
 }, {
   "value": "Populate operation policies",
@@ -122,7 +114,6 @@ function _createMdxContent(props) {
     h1: "h1",
     h2: "h2",
     h3: "h3",
-    h4: "h4",
     header: "header",
     li: "li",
     p: "p",
@@ -304,10 +295,6 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "permissionSchema"
         }), " maps fields to booleans, permission names, or per-operation rule objects"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "alwaysSelectFields"
-        })
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "virtuals"
@@ -316,10 +303,12 @@ function _createMdxContent(props) {
         }), " and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "dependsOnPopulate"
         })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "docPermissions"
-        })
+        }), ": function or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ dependsOn?, get }"
+        }), ", directly or per-access/default/custom"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "baseFilter"
@@ -423,9 +412,22 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "alwaysSelectFields"
-      }), " declares persisted inputs needed by document-permission hooks beyond\nselected output, such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "ownerId"
-      }), ". Hooks see the untrimmed projected document; fetch-only\ninputs do not grant output. The immutable call captures configuration, while each document/\nscope/access stage has separate hook grants and decisions. Opaque result-context handles\npreserve them after those inputs and metadata trim. See ", (0,jsx_runtime.jsx)(_components.a, {
+      }), " is removed. Put private persisted inputs on the calculation that\nuses them: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissions: { dependsOn: ['ownerId'], get: existingHook }"
+      }), ", or the same\ndescriptor at ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissions.read"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".default"
+      }), ", or a trusted custom access. Existing\nfunctions remain valid with no extra fetch inputs. Only the active document-permission\naccess resolves exact → default, not a union with output/virtual access. Hook and inputs\nare captured together. Dependencies are top-level persisted schema keys; use the whole\ncontainer for nested data. Dotted, unsafe, unknown and virtual names reject. Absent/empty\ndependencies add nothing; missing values never skip ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), ". Dotted access setters replace\nthe whole definition; partial ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".get"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".dependsOn"
+      }), " edits reject (reserved leaf names).\nHooks see projected input; fetch-only inputs grant no output, including denied/excluded\nfields. Embedded scopes inherit owning facts, while related targets resolve their own.\nDTOs/diagnostics carry no reusable authority after inputs trim; raw helpers do no hidden\nquery or hook work. See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./hooks#docpermissions",
+        children: "Hooks"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.a, {
         href: "./services#call-policy-and-document-result-reuse",
         children: "Services"
       }), "."]
@@ -449,6 +451,24 @@ function _createMdxContent(props) {
       }), " authority."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "disableFieldPermissions"
+      }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_view"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_edit"
+      }), " maps and placeholders\nare neither computed nor emitted, regardless of client flags or method defaults.\nSet it to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " on the model or runtime model defaults to allow field maps;\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includeFieldPermissions"
+      }), " then controls whether they are requested. This does not\nchange permission enforcement or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissions"
+      }), "-hook keys. Use\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "stripPermissionsField: true"
+      }), " to remove the metadata field entirely."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "skim"
       }), " is a deprecated compatibility no-op in canonical model operations. True, false\nand omission all retain authorization, document grants, virtuals and decoration.\nServer model ", (0,jsx_runtime.jsx)(_components.code, {
         children: "hydration"
@@ -466,161 +486,39 @@ function _createMdxContent(props) {
         children: "public*Options"
       }), " before internal\nmethods; already-resolved flags take precedence over internal defaults. Public upsert\nuses its create/update branch's public bucket. A model service captures current presentation\ndefaults from its originating runtime per call; per-call model authority captures current\npolicy before awaiting hooks. Retained services keep their original core, actor, model\nconnection and related registry across a same-request runtime handoff. Base-filter cache\nentries are reused only for the same model/access and policy function.\nRequest base-filter caches remain owned by their request/runtime/access."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "temporary-unsafe-readlist-performance-switches",
-      children: "Temporary unsafe read/list-performance switches"
+      id: "owned-readlist-authorization-modes",
+      children: "Owned READ/LIST authorization modes"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The original six comparison/two initial-copy contracts below retain their copy/graph\nguarantees only with the matching new authorization fast-path flag ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "OFF (or dormant)"
-      }), ".\nThe separately opted-in active mode described below deliberately weakens them."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Model-only ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeSkipListDocumentSnapshotChecks: true"
-      }), " skips repeated source snapshot\ncomparisons on top-level ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "find"
-      }), ", generated lists and root-list entries. Independent\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeSkipReadDocumentSnapshotChecks: true"
-      }), " does the same for ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "findOne"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "findById"
-      }), ",\npublic identifier/filter reads and root reads."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Four further independent flags are available:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
-      children: [(0,jsx_runtime.jsx)(_components.thead, {
-        children: (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.th, {
-            children: "LIST"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "READ"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "Skips"
-          })]
-        })
-      }), (0,jsx_runtime.jsxs)(_components.tbody, {
-        children: [(0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "unsafeSkipListOutputSnapshotChecks"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "unsafeSkipReadOutputSnapshotChecks"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Output-value comparisons for root and embedded/populated/included outputs"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "unsafeSkipListNestedDocumentSnapshotChecks"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "unsafeSkipReadNestedDocumentSnapshotChecks"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Source comparisons on embedded/populated/included document stages"
-          })]
-        })]
-      })]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Read-to-list retries follow all three ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "READ"
-      }), " settings, not LIST settings. All six\ndefault to ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "false"
-      }), ", are captured before awaits, and warn independently on enablement.\nConfigure them with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "api.setModelOption"
-      }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "api.setDefaultModelOptions"
-      }), "; unspecified model flags inherit later default updates,\nincluding after router creation. Explicit per-model ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "false"
-      }), " wins over default ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "true"
-      }), ";\nmodel ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "undefined"
-      }), " restores inheritance. This precedence applies to all model-default\noptions; object/array overrides replace shallowly. Restore ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "false"
-      }), " for new calls as soon as possible. Never\nderive these flags from request input."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Inherited enablement warns once per effective model/flag transition, just like an\nexplicit model setter. Defaults configured before model setup warn when applied to\nthat model. Existing call/handle snapshots and mounted route paths do not change."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Output/nested settings propagate recursively from the ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "initiating model"
-      }), ", not the\ntarget model's flags. Root-source, nested-source and output-value checks are independent;\nnested flags do not prune child values from still-strict parent comparisons."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Permission rules, exact associations/bindings, output graph identities and initial\nsnapshots/detached copies remain with the new copy flags below off. Writes, dedicated subdocument operations and fresh\nhelpers stay strict. Originating handles, captured retries and later descendants\nretain their original mode after rollback. ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "Source mutation can leave stale grants/\ndecisions; output flags additionally allow changed values with unchanged identities\nto reuse authorization and expose incorrectly authorized data."
-      }), " Use only as a\ntemporary, measured workaround, not as a security-equivalent fast path. Per-call,\nwire and method-default controls cannot enable it. See the shipped README for the contract."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h4, {
-      id: "separate-initial-output-copy-opt-outs",
-      children: "Separate initial output-copy opt-outs"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeSkipListInitialOutputSnapshotCopy"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeSkipReadInitialOutputSnapshotCopy"
-      }), "\nare two additional server model/default booleans, ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "false by default"
-      }), ". Each requires\nits matching ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeSkipListOutputSnapshotChecks"
+      children: ["There is one document-stage engine and exactly two independent server options:\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "readAuthorizationMode"
       }), " / ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeSkipReadOutputSnapshotChecks"
-      }), "\nto be true. Copy true with comparisons strict is ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "dormant"
-      }), ": copying/comparisons stay\non and a prerequisite warning is logged. Neither option silently changes another flag."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "When active, eligible initial output-association snapshots (including authenticated\nembedded/populated/included outputs and package-created transfers) are omitted. READ\nretries keep READ settings; targets cannot override the initiating model. Inheritance,\nliteral-true enablement, server-only controls and captured-handle rollback match the\ncomparison flags. Active/dormant warnings follow effective model/operation transitions,\nnot rows/requests. Writes, dedicated subdocument operations and fresh helpers stay strict."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.strong, {
-        children: "Additional risk:"
-      }), " this pass no longer clones/normalizes native leaves or runs BSON\nwire-validation hooks. Changed observations can alter exceptions, side effects and\npermission outcomes—even turn denial into allowance. Ordinary graph admission retains\nsafe keys/descriptors, cycles, 20,000 visited-node/array-length and depth-100 limits,\nplus exact graph/binding ownership. Standard native leaves are admitted without this\nnormalization; invalid/forged BSON content is not wire-validated by the omitted pass.\nProxies, Map/Set, unproven subclasses/unsupported graphs use the original copy fallback.\nAccessor/proxy ownership bindings also fall back, rather than retaining graph admission\nacross binding callbacks."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Source snapshots, detached callback inputs/grants, configuration, getters, metadata\nand actual response-copy boundaries remain. This is not an all-cloning opt-out and\ndoes not promise historical performance. Prefer temporary per-model opt-in only after\nreviewing trusted data/hooks and measured rollout evidence. Restore the copy flag to\nfalse and then restore strict comparisons for new calls; retained authority keeps its\ncaptured mode. The ", (0,jsx_runtime.jsx)(_components.a, {
-        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#temporary-unsafe-initial-output-snapshot-copy-switches",
-        children: "shipped README"
-      }), "\ncontains the four-combination table and server-only example."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "experimental-unsafe-readlist-authorization-fast-paths",
-      children: "Experimental unsafe READ/LIST authorization fast paths"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeUseListAuthorizationFastPath?: boolean"
-      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeUseReadAuthorizationFastPath?: boolean"
-      }), " form a third independent default-false\nserver model/default group. Literal true requests the mode; each needs ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "all four"
-      }), "\nmatching ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "unsafeSkip{List,Read}DocumentSnapshotChecks"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OutputSnapshotChecks"
-      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "NestedDocumentSnapshotChecks"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "InitialOutputSnapshotCopy"
-      }), ". False/omitted is off;\ntrue with any missing prerequisite is dormant with original flag behavior. Never\nauto-enables prerequisites. Explicit model false overrides defaults; undefined\nrestores inheritance. Control-slot presence in requests/defaults/policy/helpers/\ninclude/populate/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "$$sq"
-      }), " rejects; same-named business data remains inert."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Capture precedes hooks/awaits on a genuine query origin. READ-to-list retries retain\nREAD, genuine embedded/related descendants inherit origin capture rather than live\ntarget flags, and independent calls capture their own settings. Writes/write-derived\noutput, new/create/update/delete/upsert, dedicated subdocuments and fresh raw helpers\nstay strict. Effective active/dormant/missing-prerequisite changes warn, not each call."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Active ordinary lean source/hook input and grants are borrowed; shallow contexts and\ncaptured config/scope views are reused. Actual operation/row/field rules, actor,\nmandatory once-per-root/target document hooks, getters and target admission remain.\nIndependent rows/targets do not share grants/decisions by ID. Trusted outputs have\nexact root bindings and ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "issued-document membership, not current graph walks"
-      }), ":\nremoved original children may remain discoverable, replacements get no handle, and\nroot helpers filter current values with stale memo/shared grants after replacement.\nMetadata/includes finish before one association; source/attachment lanes stay separate."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["New selected work is bounded to 20,000 visited slots/issued roots and depth 100, with\nsafe descriptor writes/cycle errors—not full unvisited source/grant/context validation.\nShallow-unproven rows may use copied compatibility before hooks, exotic grants/value\nfallbacks copy once, and mixed copied/trusted rows can coexist. Selected unsupported\nvalues reject (invalid virtual returns omit). Hydration, selected natives, getter\nstable-base/per-getter views/return staging, private argument-four isolation and JSON\nserialization still copy/normalize. Active configuration is ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "not every-row zero-copy"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Mutation/stale decisions/changed descendants/fewer native observations can turn denial\ninto allowance. Experimental performance-first, not a full ACL bypass, security-equivalent\noptimization, publication fusion, universal gain or v0.51.0 parity. Benchmark your workload.\nRollback protects new calls only; retained trusted handles keep weaker semantics,\nand original prerequisite skip flags must be restored separately. The\n", (0,jsx_runtime.jsx)(_components.a, {
-        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#experimental-unsafe-readlist-authorization-fast-paths",
-        children: "installed README"
-      }), "\nis authoritative and includes executable LIST/READ and retained-handle warnings."]
+        children: "listAuthorizationMode"
+      }), ", each ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'isolated' | 'trusted'"
+      }), ",\ndefault ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "isolated"
+      }), ". See the shipped ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md",
+        children: "breaking migration guide"
+      }), " for\nbefore/after examples, all ten removed flags, errors and rollout guidance. No old\nflag combination, dormant mode, output handle or compatibility alias remains."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';\n\nconst api = createAccessRuntime();\nconst readDefaults = {\n  unsafeSkipReadDocumentSnapshotChecks: true,\n  unsafeSkipReadOutputSnapshotChecks: true,\n  unsafeSkipReadNestedDocumentSnapshotChecks: true,\n  unsafeSkipReadInitialOutputSnapshotCopy: true,\n  unsafeUseReadAuthorizationFastPath: true,\n} satisfies DefaultModelRouterOptions;\napi.setDefaultModelOptions(readDefaults); // LIST stays independently off\napi.setDefaultModelOption('unsafeUseReadAuthorizationFastPath', false);\n// Existing READ retries/handles keep captured semantics. Restore other skips separately.\n"
+        children: "import { createAccessRuntime } from '@web-ts-toolkit/access-router';\nconst api = createAccessRuntime();\napi.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });\napi.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });\napi.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });\napi.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default\napi.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Isolated owns bounded detached projected source and gives document hooks disposable\nviews. Trusted may borrow admitted ordinary projected source/doc-hook input: mutations\ncan affect values/calculated facts; hidden unvisited graphs are not whole-document\nbounded. ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Both own actor, private policy and normalized frozen boolean facts"
+      }), ", enforce\noriginal actor, rows/fields/targets and selected/native 20,000-slot/depth-100 bounds.\nBoth retain separate getter views, return staging and private argument-four isolation.\nNo sandbox, transaction, rollback, external freshness or blanket security equivalence."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Capture precedes hooks/awaits. Genuine embedded scopes inherit their owner; related\ntargets use their own captured model/access mode and policy, not their parent's mode.\nREAD-to-LIST retry keeps initiating READ mode with a fresh stage. Independent service\ncalls capture anew. Writes/new/dedicated subdocuments always stay isolated."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Only literal enum strings or undefined restoration are valid. Bulk setters reject\natomically. Retired controls reject by presence, even false/undefined/inherited/\nnon-enumerable. New/old selectors are prohibited in HTTP/root/per-call/helper/defaults/\ninclude/populate/subquery authority slots; same-named business fields remain data.\nTrusted transitions warn once per effective owner/access; logger failures cannot abort.\nSwitching to isolated affects new calls, not in-flight captures. Rollback means a tested\nmatching application/library revision, never re-adding removed flags or assuming mixed\nrolling compatibility. No timing or universal-speedup claim follows from mode names."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md#complete-public-workflow-facts-helper-costs-and-checked-refresh",
+        children: "complete executable migration workflow"
+      }), "\nuses literal facts, both modes, zero-read raw helpers and a checked fresh read."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "populate-operation-policies",
       children: "Populate operation policies"

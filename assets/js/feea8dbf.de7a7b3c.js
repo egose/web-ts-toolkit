@@ -150,6 +150,20 @@ function _createMdxContent(props) {
       }), " returns the internal model service.\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "ModelRouter.getPublicService(req)"
       }), " returns the public wrapper used by the built-in routes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Both model service getters also inherit the optional direct backend\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pickAllowedFieldsMany(rows, access, options?)"
+      }), "; Core prepends ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "modelName"
+      }), ". It is\nnot a generated HTTP/DataService/client method or a default migration: one deliberate\nactor/model/catalog/config/scope/output-policy capture is ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "not N fresh picks"
+      }), ".\nAll raw/hydrated row sources are isolated before the first predicate, with separate\nEMPTY-fact stages/decisions; no DB/document hooks, virtuals or row/target authority.\nPresentation subsets normally need zero helpers; current document facts require a\nnew checked normal READ/LIST with row policy/private hook inputs. Never accept helper\noutput grants from request options; scope grants are model-relative."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["See the shipped core README/MIGRATION M3 for executable alternatives and the\ntype-only root/advanced ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "FilteredOutput<T>"
+      }), " (deep optional/readonly, normalized native/\nMap/unknown branches). Dense arrays have 0–1,000 positions; row 20,000/depth-100 owners\nand one 200,000 work / 16 MiB cumulative ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "router-controlled"
+      }), " ledger remain. Opaque\nMongoose/native internals/dependency allocations, trusted effects and engine enumeration\nare excluded, not a total-memory/RSS/whole-normalization/sandbox cap. Normalized\nreturns are admitted before further router copies; explicit native/wire preparation\nstill counts. Shared bounded scheduling and whole-call poison/close/drain/clear\nprevent partial publication, not callback-side-effect rollback. No speedup/gate waiver."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Common public methods:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -258,11 +272,11 @@ function _createMdxContent(props) {
         children: "Service"
       }), " export. Root and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/advanced"
-      }), " expose the policy types\nand opaque consumer handles, while issuers, resolved execution and prepared queries\nremain private. The installed package README contains a complete runnable Mongo/Express\nexample and the full breaking-release migration table."]
+      }), " expose the policy types\nand immutable diagnostic contexts, while stage owners, resolved execution and prepared queries\nremain private. The installed package README contains a complete runnable Mongo/Express\nexample and the full breaking-release migration table."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import type { ModelRouter, OutputAuthorization } from '@web-ts-toolkit/access-router';\nimport type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';\ntype Order = { status?: string; internalNote?: string; tenantId: string };\ndeclare const router: ModelRouter<Order>;\ndeclare const req: ModelRequest;\ndeclare const orderId: string;\ndeclare const tenantId: string; // resolved by trusted server code\nconst service = router.getService(req);\nconst output = {\n  outputFields: { mode: 'grant', paths: ['internalNote'] },\n} as const satisfies OutputAuthorization<Order>;\nconst result = await service.findOne(\n  { _id: orderId },\n  { select: ['status', 'internalNote'] },\n  {\n    skim: true,\n    includePermissions: false,\n    includeFieldPermissions: false,\n    authorization: { ...output, rows: { mode: 'scope', filter: { tenantId } } },\n  },\n);\nif (result.success) {\n  const reuse = { documentAuthorization: result.context.documentAuthorization };\n  const picked = await service.pickAllowedFields(result.data, 'read', reuse);\n  await service.trimOutputFields(picked, 'read', reuse);\n}\n"
+        children: "import type { ModelRouter, OutputAuthorization } from '@web-ts-toolkit/access-router';\nimport type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';\ntype Order = { status?: string; internalNote?: string; tenantId: string };\ndeclare const router: ModelRouter<Order>;\ndeclare const req: ModelRequest;\ndeclare const orderId: string;\ndeclare const tenantId: string; // resolved by trusted server code\nconst service = router.getService(req);\nconst output = {\n  outputFields: { mode: 'grant', paths: ['internalNote'] },\n} as const satisfies OutputAuthorization<Order>;\nconst result = await service.findOne(\n  { _id: orderId },\n  { select: ['status', 'internalNote'] },\n  {\n    skim: true,\n    includePermissions: false,\n    includeFieldPermissions: false,\n    authorization: { ...output, rows: { mode: 'scope', filter: { tenantId } } },\n  },\n);\nif (result.success) {\n  console.log({ internalNote: result.data.internalNote }); // already-filtered presentation DATA\n  const current = await service.findById(orderId, { select: ['status', 'internalNote'] });\n  if (!current.success) throw new Error(`Refresh failed: ${current.code}`);\n  console.log(current.data); // fresh normal row/document authorization, extra read/hook\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Business output is selected AND (request permission OR explicit grant). Grants are\nadditive: the stored selected note survives false/missing user rules, while denied\n", (0,jsx_runtime.jsx)(_components.code, {
@@ -402,36 +416,24 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["One immutable call policy governs fetch planning and output. Each document/scope/access\nstage owns separate hook grants and memoized field decisions. Declare projected private\nhook inputs (for example ", (0,jsx_runtime.jsx)(_components.code, {
         children: "ownerId"
-      }), ") with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "alwaysSelectFields"
-      }), "; full document grants resolve\nonce even with skim or disabled/stripped/limited metadata. ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ") on the active ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissions"
+      }), " descriptor's\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dependsOn"
+      }), " (exact access, then default; no output-access union); full document grants resolve\nonce even with skim or disabled/stripped/limited metadata. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "_view"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "_edit"
       }), " and hook metadata\nstill describe request permissions, not backend grants."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Successful single results expose ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "context.documentAuthorization"
-      }), "; lists/create expose one\n", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Successful single results expose frozen diagnostic ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "context"
+      }), "; lists/create expose\naligned ", (0,jsx_runtime.jsx)(_components.code, {
         children: "contexts[index]"
-      }), " per row. The non-enumerable opaque handle is outside ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "data"
-      }), " and preserves\nowner-dependent ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "status"
-      }), " and a granted note after ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "ownerId"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "_permissions"
-      }), " are trimmed.\nDefault/copied handles accept only unchanged original or package-created same-stage copies, not caller spreads,\nmatching IDs, another row/call, or pre-/post-write stage reuse. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "getDocumentAuthorization(child)"
-      }), "\nlooks up an unchanged registered child in the original result graph."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["With an actually active unsafe READ/LIST authorization fast path, trusted handles\ninstead require exact associated roots and issued-document membership, ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "not current\ndescendant integrity"
-      }), ". Removed original children may remain discoverable; replacements\nget no child handle. Root helpers can filter changed descendants with stale memo/shared\ngrants after rollback, while fresh raw helpers stay strict. Diagnostic context/grant\nleaves may be borrowed, not detached snapshots. See\n", (0,jsx_runtime.jsx)(_components.a, {
-        href: "/docs/packages/access-router/configuration#experimental-unsafe-readlist-authorization-fast-paths",
-        children: "configuration"
-      }), "\nand the shipped README before opting in; source/grant mutation or changed native\nobservations can turn denial into allowance."]
+      }), ". DTOs, copies and metadata are DATA, not reusable authority.\nDocumentAuthorization, the helper option and child lookup are removed entirely.\nRaw helpers evaluate globals + frozen empty facts and explicit scoped output policy,\nwith zero database operations/document hooks, no rows/virtuals/omitted-value recovery.\nFor current document-dependent authorization issue a new normal read/list; do not\nreplace a handle with unrestricted/client grants. For presentation use the filtered\nDTO without a query or claim of current checks. See the shipped\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md",
+        children: "migration guide"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Named ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pickAllowedFields"

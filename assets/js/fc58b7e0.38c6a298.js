@@ -286,15 +286,50 @@ function _createMdxContent(props) {
         children: "docPermissions"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Return full request-user document grants from the untrimmed ", (0,jsx_runtime.jsx)(_components.strong, {
+      children: ["Return a plain record of literal-boolean ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DocumentGrants"
+      }), " from untrimmed ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "projected"
       }), " input. Declare\nadditional persisted inputs with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "alwaysSelectFields"
-      }), " (for example ownerId); the hook does\nnot implicitly fetch all stored fields. Integrated output resolves it once per document/\nscope/access stage independently of skim and permission metadata switches. Pre-write and\npost-write output are distinct stages."]
+        children: "{ dependsOn: ['ownerId'], get: existingHook }"
+      }), " on\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissions"
+      }), " or its applicable access/default/custom entry; the hook does\nnot implicitly fetch all stored fields. Integrated output resolves it once per document/\nscope/access stage independently of skim and permission metadata switches. Pre-write and\npost-write output are distinct stages."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Serialization on the configured permission field is separate: disabling/stripping/limiting\nmetadata does not erase internal grants. Backend output grants do not forge request-user\nmetadata. Later named output helpers reuse original decisions via the opaque result-context\nhandle, even after ownerId and metadata trim; a fresh raw policy is new evaluation, not\ndocument-state reuse. See ", (0,jsx_runtime.jsx)(_components.a, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "alwaysSelectFields"
+      }), " is removed. Existing sync/async functions remain valid, but add no\nextra fetch inputs. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), ", not ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getter"
+      }), ". Dependencies are top-level persisted schema\nkeys, like virtuals: declare ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "profile"
+      }), ", not ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "profile.ownerId"
+      }), "; unsafe/unknown/virtual\nnames reject. Only active ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissionsAccess"
+      }), " (exact then undefined→default) supplies\ninputs, never an output-access union. Hook and dependencies are captured as one pair.\nMissing/undefined inputs never skip the hook; absent/empty dependencies add nothing.\nInputs stay private unless independently selected and authorized, even if excluded or\ndenied. Embedded scopes inherit owning facts; related targets resolve their own hook.\nDotted access setters replace whole definitions, not partial ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".get"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".dependsOn"
+      }), " edits."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Serialization on the configured permission field is separate: disabling/stripping/limiting\nmetadata does not erase internal grants. Backend output grants do not forge request-user\nmetadata. Facts are normalized once into an owned frozen map in both source modes;\nrich/nested/native/accessor/proxy/protected/over-budget fulfilled values fail the whole\noperation with 400. Missing hooks yield empty facts; throwing/rejected hooks also emit a fixed-category warning.\nFieldPermissionHook receives ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "(permissions, facts)"
+      }), " and original-request ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), ";\noperation guards remain one-argument. Raw helpers/data/new-input receive empty facts;\nexisting-document input retains separate normalized pre-write facts."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Doc/virtual/decorate contexts are frozen ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelOutputContext"
+      }), ": model/receiving names,\ninitiating operation, scope/effective accesses, boolean facts and optional canonical\nselect/populate/sort arrays plus skip/limit, NO filter. No raw model/source/snapshot/\nlifecycle aliases or reusable handles. Genuine mutation ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelHookContext"
+      }), " remains\nmutable. Isolated doc-hook views are disposable; trusted may borrow ordinary source\nonly, never actor/policy/facts. Getter views/return staging/private input isolation\nremain in both modes; closures/external caches are not sandboxed or kept fresh.\nRaw output helpers have empty facts, zero reads/hooks and no current-document authority.\nSee ", (0,jsx_runtime.jsx)(_components.a, {
         href: "./services#call-policy-and-document-result-reuse",
         children: "Services"
+      }), " and the shipped\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md",
+        children: "migration guide"
       }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "private-populated-getter-inputs",
@@ -407,6 +442,18 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "router.router.get('/admin', guard('isAdmin'), async () => {\n  return { ok: true };\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Model conditions (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "guard({ modelName, id, condition })"
+      }), ") require a visible row and\nfresh root document facts, using the same public by-ID defaults, DB projection,\nhydration and hook-source preparation as a normal read. They publish ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "no DTO"
+      }), ":\nfield callbacks, virtuals, embedded/populated DTO output, output-only include\nattachments, metadata, decorate/tasks and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_read"
+      }), " overrides do not run. Their\noutput-only errors no longer veto the condition. Source/fact/necessary-input\nstructural errors still produce 400; ordinary missing/denied conditions produce 401.\nInclude preflight and actual necessary target queries retain their admission/masks."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This request-only service read does not imply generated HTTP READ-route operation\nadmission; compose the appropriate route/global check when both are needed. A visible\nrow normally costs one root read/hook; an admitted miss may retry once under captured\nLIST admission and READ mode. A true/false condition and 400/403 do not retry.\nPut security in operation/row/fact hooks, not output side effects. A caller requiring\na DTO must separately perform a normal authorized read and handle its result and\nadditional read/hook/output cost. See the installed package's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MIGRATION.md"
+      }), ", M2/M3/M5."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "permissions-plugin",
       children: "Permissions Plugin"
