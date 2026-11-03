@@ -202,7 +202,10 @@ const rowModes: readonly RowAuthorization<Order>[] = [
 ];
 const operation: OperationAuthorization = { mode: 'request' };
 const projectedHooks: ModelRouterOptions<Order, Virtuals> = {
-  alwaysSelectFields: { default: ['tenantId'], read: ['tenantId', 'status'] },
+  docPermissions: {
+    default: { dependsOn: ['tenantId'], get: () => ({ tenant: true }) },
+    read: { dependsOn: ['tenantId', 'status'], get: () => ({ owner: true }) },
+  },
 };
 
 interface Recursive {
@@ -301,8 +304,11 @@ const missingModel: RelatedAuthorization = { outputFields: empty };
 
 export async function installedServiceCalls(req: ModelRequest, router: ModelRouter<Order, Virtuals>) {
   router.setOptions(projectedHooks);
-  router.alwaysSelectFields({ read: ['status'], inspection: ['tenantId'] });
-  router.setOption('alwaysSelectFields.read', ['status']);
+  router.docPermissions({
+    read: { dependsOn: ['status'], get: () => ({ owner: true }) },
+    inspection: { dependsOn: ['tenantId'], get: () => ({ tenant: true }) },
+  });
+  router.setOption('docPermissions.read', { dependsOn: ['status'], get: () => ({ owner: true }) });
   const service = router.getService(req);
   const sameModel = req.macl.getService<Order, Virtuals>('Order');
   await service.listSub('id', subName, { filter: { email: 'a@example.test' }, authorization: subRead });

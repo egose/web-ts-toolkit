@@ -272,7 +272,6 @@ describe('existing-value helper consumer of the owned stage engine', () => {
     const get = vi.fn(() => 'computed');
     const f = ownedStageFixture({
       modelOptions: {
-        alwaysSelectFields: ['hidden'],
         permissionSchema: { label: true, inactive: true },
         virtuals: { label: { get, dependsOn: ['hidden'] }, inactive: { list: { get } } },
       },
@@ -386,7 +385,6 @@ describe('existing-value helper consumer of the owned stage engine', () => {
           label: { get: () => 'virtual', dependsOn: ['hidden'] },
           children: { sub: { display: { get: () => 'child', dependsOn: ['value'] } } },
         },
-        alwaysSelectFields: ['ownerId'],
       },
     });
     const source = { value: 'stored', children: [{ value: 'child', display: 'stored child' }], label: 'stored' };

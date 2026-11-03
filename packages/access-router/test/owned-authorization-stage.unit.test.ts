@@ -143,7 +143,6 @@ function fixture(mode: AuthorizationMode = 'isolated', options: ModelRouterOptio
     baseFilter: true,
     stripPermissionsField: true,
     modelPermissionPrefix: 'doc:',
-    alwaysSelectFields: ['ownerId'],
     permissionSchema: {
       value: decisions,
       ownerId: false,
@@ -153,7 +152,12 @@ function fixture(mode: AuthorizationMode = 'isolated', options: ModelRouterOptio
       when: true,
       children: { read: true, list: true, sub: { value: 'doc:owner', hidden: false } },
     },
-    docPermissions: { read: hooks.source, list: hooks.source, create: hooks.source, update: hooks.source },
+    docPermissions: {
+      read: { dependsOn: ['ownerId'], get: hooks.source },
+      list: { dependsOn: ['ownerId'], get: hooks.source },
+      create: { dependsOn: ['ownerId'], get: hooks.source },
+      update: { dependsOn: ['ownerId'], get: hooks.source },
+    },
     ...options,
   });
   const rows = [

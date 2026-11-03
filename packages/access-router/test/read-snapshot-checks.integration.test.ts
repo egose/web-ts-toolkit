@@ -40,9 +40,11 @@ async function fixture(read: AuthorizationMode, list: AuthorizationMode = 'isola
     operationAccess: { read: 'reader', list: 'reader' },
     baseFilter: { read: () => ({ tenant: 'read' }), list: () => ({ tenant: 'list' }) },
     permissionSchema: { ordinal: true, value: 'reader', secret: 'doc:owner', hidden: false },
-    alwaysSelectFields: ['owner'],
     modelPermissionPrefix: 'doc:',
-    docPermissions: hooks,
+    docPermissions: {
+      read: { dependsOn: ['owner'], get: hooks.read },
+      list: { dependsOn: ['owner'], get: hooks.list },
+    },
     stripPermissionsField: true,
     readAuthorizationMode: read,
     listAuthorizationMode: list,

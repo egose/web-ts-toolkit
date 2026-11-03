@@ -93,8 +93,7 @@ async function fixture({
       permissions: true,
       children: { list: true, read: true, create: true, update: true, delete: true, sub: { name: true } },
     },
-    alwaysSelectFields: ['secret'],
-    docPermissions,
+    docPermissions: { dependsOn: ['secret'], get: docPermissions },
     decorate,
     virtuals: { hasSecret: { dependsOn: ['secret'], get: virtual } },
   };

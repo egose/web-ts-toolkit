@@ -151,8 +151,12 @@ export function GlobalPermissions(): HookDecorator<MaybePromise<GlobalPermission
  * `@Context()` for frozen diagnostic-only `ModelOutputContext`, optional `@Request()` for the original request.
  * `this` is the class instance. Isolated doc views are disposable; trusted may borrow ordinary source only,
  * never actor/policy/facts. Real mutation lifecycle contexts remain mutable. See access-router's installed MIGRATION.md.
+ * This decorator registers a callable with no extra fetch inputs. When it needs private persisted data,
+ * wrap the registered callback in `{ dependsOn, get }` through the public runtime after bootstrap and before
+ * serving, or supply a complete descriptor through `@ModelOption('docPermissions')`. Dependencies are top-level
+ * persisted keys (whole containers for nested data), never output grants; missing inputs never skip `get`.
  *
- * @param optionKey - operation name (`default` applies to `create`+`update`, `list`/`read`/`create`/`update` are operation-specific).
+ * @param optionKey - exact operation name, or `default` fallback when that access has no defined entry.
  */
 export function DocPermissions(
   optionKey: HookOperation<'docPermissions'>,

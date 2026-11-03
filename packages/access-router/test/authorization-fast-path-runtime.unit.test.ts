@@ -24,8 +24,7 @@ describe('owned query runtime: independent rows, safe publication and fresh help
         mode,
         modelOptions: {
           permissionSchema: { name: rule },
-          alwaysSelectFields: ['owner'],
-          docPermissions: { list: hook },
+          docPermissions: { list: { dependsOn: ['owner'], get: hook } },
         },
       });
       f.runtime.setGlobalOption('requestComplexity.maxHookConcurrency', 2);
@@ -279,7 +278,9 @@ describe('owned query runtime: independent rows, safe publication and fresh help
     const value = Object.assign(new Date(1), { getTime });
     const hidden: any = { proxy: new Proxy({}, {}), giant: Array(25000) };
     hidden.self = hidden;
-    const f = ownedStageFixture({ mode: 'trusted', modelOptions: { alwaysSelectFields: ['hidden'] } });
+    // The adapter deliberately over-returns hidden data. No consumer needs it;
+    // trusted output must still avoid observing an unselected source graph.
+    const f = ownedStageFixture({ mode: 'trusted' });
     f.adapter.find.mockResolvedValue([{ name: 'name', value, hidden }]);
     expect(await f.direct.find({}, { select: ['name', 'value', '-_id'] }, quietOutput)).toMatchObject({
       success: true,

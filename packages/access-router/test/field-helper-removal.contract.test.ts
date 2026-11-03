@@ -79,8 +79,7 @@ function modelFixture(entry = esm, options: esm.ModelRouterOptions = {}) {
       contacts: { read: true, sub: { email: true, private: false } },
       label: true,
     },
-    docPermissions: { read: hook },
-    alwaysSelectFields: { read: ['ownerId'] },
+    docPermissions: { read: { dependsOn: ['ownerId'], get: hook } },
     virtuals: { label: { get: getter, dependsOn: ['ownerId'] } },
     ...options,
   });

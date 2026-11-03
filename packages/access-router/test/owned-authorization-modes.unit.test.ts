@@ -54,10 +54,12 @@ function fixture(options: ModelRouterOptions = {}, getter: 'bulk' | 'key' = 'bul
   runtime.setModelOptions(model.modelName, {
     permissionSchema: { value: true, secret: 'doc:owner' },
     modelPermissionPrefix: 'doc:',
-    alwaysSelectFields: ['owner'],
     hydration: { find: 'lean', findOne: 'lean' },
     stripPermissionsField: true,
-    docPermissions: { read: hook, list: hook },
+    docPermissions: {
+      read: { dependsOn: ['owner'], get: hook },
+      list: { dependsOn: ['owner'], get: hook },
+    },
     ...options,
   });
   const request = { [PERMISSIONS]: new Permission({ reader: true }) } as unknown as ModelRequest;
@@ -82,7 +84,6 @@ function fixture(options: ModelRouterOptions = {}, getter: 'bulk' | 'key' = 'bul
             ...authorizationModeKeys,
             'permissionSchema',
             'modelPermissionPrefix',
-            'alwaysSelectFields',
             'docPermissions',
             'hydration',
             'stripPermissionsField',

@@ -78,7 +78,7 @@ import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
 import { callHookChain, evaluateRouteGuard, intersectFilters } from './core-shared';
 import { resolveRouteOperationAccess } from './operation-access';
-import { resolveAlwaysSelectForAccess } from './acl/virtual-projection';
+import { resolveDocumentPermissionsDefinition } from './acl/document-permissions-definition';
 import { planAuthorizedModelProjection } from './acl/output-projection';
 import { setPopulateTargetMeta, type PopulateTargetAccess } from './acl/populate-target';
 import { assertPopulateAccess } from './acl/populate-access';
@@ -451,13 +451,11 @@ export class Core {
             ret.select,
           );
           // Fetch-only target hook inputs have no role in source-field admission.
-          const hookInputs = resolveAlwaysSelectForAccess(
-            targetConfiguration.alwaysSelectFields as import('./acl/virtual-projection').VirtualProjectionSnapshot['alwaysSelectFields'],
-            populateAccess,
-          );
+          const hookInputs =
+            resolveDocumentPermissionsDefinition(targetConfiguration.docPermissions, populateAccess)?.dependsOn ?? [];
           ret.select = uniq([
             ...ret.select,
-            ...stripVirtuals(hookInputs, [...(targetConfiguration.catalog.virtualPaths ?? [])]),
+            ...stripVirtuals([...hookInputs], [...(targetConfiguration.catalog.virtualPaths ?? [])]),
           ]);
           const match = (isString(p) ? {} : (p.match ?? {})) as Filter;
           // Hooks may rewrite ordinary input in place; the captured required
@@ -617,7 +615,7 @@ export class Core {
     context: ModelOutputContext,
   ): Promise<DocumentGrants> {
     const configuration = captureModelAuthorizationConfiguration(this.requestRuntime, modelName);
-    const hook = getCapturedAuthorizationOption(configuration, `docPermissions.${access}`);
+    const hook = resolveDocumentPermissionsDefinition(configuration.docPermissions, access)?.get;
     const permissions = this.getGlobalPermissions();
     const diagnostic = createModelOutputContext({
       modelName,

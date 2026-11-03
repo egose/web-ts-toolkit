@@ -1,27 +1,8 @@
 /**
- * VIRT-00 baseline characterization (no behavior change).
- *
- * Pins the current populate-vs-include trimming asymmetry plus
- * projection-identity basics before the virtuals feature lands:
- *
- * - `include` targets trim via target `Service.find`/`findOne`
- *   (`src/services/base.ts`), while `populate` targets only get
- *   query-level `select`/`match` (`src/core.ts:219-283`) with no
- *   target-model post-fetch trim.
- * - There is no package `virtuals` option yet.
- *
- * Fixture design (distinguishes query projection from trimming): the
- * target model keeps an internal field (`internalNote`) OUTSIDE its
- * `permissionSchema` but forces it into the query via
- * `alwaysSelectFields.read` / `.list`. A second denied field
- * (`secret`) is left unforced as a control for ordinary
- * query-restriction.
- *
- * HISTORICAL EVIDENCE: the populate-leakage assertions below describe
- * today's behavior. VIRT-05 closes the asymmetry (target-model
- * finalization for populate targets) and must update those live
- * assertions to the intended symmetric contract; do not retain a test
- * requiring the old leakage after integration.
+ * VIRT-00 maintained populate/include trimming and projection-identity contract.
+ * VIRT-05 closed the historical asymmetry; both paths finalize target output.
+ * The target hook consumes private internalNote to authorize name, without any
+ * virtuals. A second denied field (secret) remains unrequested by every consumer.
  */
 import express from 'express';
 import mongoose from 'mongoose';
@@ -80,16 +61,17 @@ const createAsymmetryApp = async () => {
     globalPermissions: () => [],
   });
 
-  // `internalNote` is deliberately outside `permissionSchema` but forced
-  // into the query via `alwaysSelectFields`; `secret` stays fully denied
-  // (control for ordinary query-restriction).
+  // Internal input must be fetched for a real decision, never emitted as output.
   runtime.createRouter(Target, {
     basePath: `/virt00-targets-${tag}`,
     operationAccess: { list: true, read: true },
     permissionSchema: {
-      name: { list: true, read: true },
+      name: { list: 'hasNote', read: 'hasNote' },
     },
-    alwaysSelectFields: { read: ['internalNote'], list: ['internalNote'] },
+    docPermissions: {
+      dependsOn: ['internalNote'],
+      get: (doc) => ({ hasNote: doc.internalNote === 'forced-internal' }),
+    },
   });
 
   const parentRouter = runtime.createRouter(Parent, {
@@ -159,7 +141,7 @@ const createProjectionApp = async () => {
 
 describe('VIRT-00 virtuals baseline: populate-vs-include trimming symmetry (VIRT-05 closed)', () => {
   // HISTORICAL NOTE (VIRT-00 evidence retained): before VIRT-05, populate
-  // leaked `internalNote` (forced via alwaysSelectFields, no target trim)
+  // leaked a private `internalNote` input (no target trim)
   // while includes trimmed it. VIRT-05 closes the asymmetry: populate targets
   // now finalize through the target model (virtuals + trim), even without
   // virtual definitions. Live assertions below assert the symmetric contract.
@@ -176,14 +158,14 @@ describe('VIRT-00 virtuals baseline: populate-vs-include trimming symmetry (VIRT
     expect(rows).toHaveLength(1);
     const populated = rows[0].targetRef as Record<string, unknown>;
     expect(populated).toMatchObject({ name: 'virt00-target' });
-    // Forced via alwaysSelectFields.read: fetched internally but trimmed from
+    // Declared by docPermissions: fetched internally but trimmed from
     // populated output (symmetric with includes since VIRT-05).
     expect(populated).not.toHaveProperty('internalNote');
     // Control: ordinary unforced denied field stays query-restricted.
     expect(populated).not.toHaveProperty('secret');
   });
 
-  it('populate with explicit list access also trims the forced field (alwaysSelectFields.list)', async () => {
+  it('populate with explicit list access also trims the private hook input', async () => {
     const { app, parentBase } = await createAsymmetryApp();
 
     const response = await request(app)

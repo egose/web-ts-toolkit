@@ -198,7 +198,6 @@ async function fixture(mode: HydrationMode, scope: Scope = 'router', plugin = fa
     basePath: '/rows',
     operationAccess: true,
     permissionSchema: { name: true, missingDefault: true, lean: true, hydration: true, secret: false },
-    alwaysSelectFields: ['secret'],
     exposedDocPermissionKeys: ['visible'],
     defaults: { publicListOptions: quiet, publicReadOptions: { ...quiet, tryList: false } },
   };
@@ -242,6 +241,11 @@ async function fixture(mode: HydrationMode, scope: Scope = 'router', plugin = fa
     res.sendStatus(204);
   });
   factory.bootstrap(AppModule, app);
+  // Keep explicit parameter injection/host binding coverage: wrap the registered
+  // decorated callback, not a separately reimplemented permission calculation.
+  const get = factory.runtime.getModelOption(name, 'docPermissions.read');
+  if (typeof get !== 'function') throw new Error('missing decorated document hook');
+  factory.runtime.setModelOption(name, 'docPermissions.read', { dependsOn: ['secret'], get });
   async function check(run: typeof callback) {
     callback = run;
     failure = undefined;

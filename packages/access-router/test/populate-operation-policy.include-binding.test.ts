@@ -123,13 +123,15 @@ async function fixture(hydration: 'lean' | 'hydrated') {
     operationAccess: { read: 'reader', list: 'reader', count: 'reader' },
     permissionSchema: { name: 'reader', user: true, value: 'm::owner', stamp: 'reader' },
     modelPermissionPrefix: 'm::',
-    alwaysSelectFields: ['owner'],
     stripPermissionsField: true,
-    docPermissions: (doc: any, permissions: any, context: any) => {
-      expect(permissions.has('reader')).toBe(true);
-      expect(context).not.toHaveProperty('mongooseModel');
-      contexts.push(context.modelName);
-      return { owner: doc.owner === true };
+    docPermissions: {
+      dependsOn: ['owner'],
+      get: (doc: any, permissions: any, context: any) => {
+        expect(permissions.has('reader')).toBe(true);
+        expect(context).not.toHaveProperty('mongooseModel');
+        contexts.push(context.modelName);
+        return { owner: doc.owner === true };
+      },
     },
     baseFilter: {
       read: (permissions: any) => ({ tenant: permissions.has('reader') ? 'allowed' : 'none' }),

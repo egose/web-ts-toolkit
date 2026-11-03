@@ -174,7 +174,7 @@ describe('owned document-condition consumer', () => {
         const f = fixture(mode);
         f.runtime.setModelOptions(f.model.modelName, {
           requireExplicitSelect: true,
-          alwaysSelectFields: ['ownerId'],
+          docPermissions: { read: { dependsOn: ['ownerId'], get: f.hook } },
           defaults: { publicReadArgs: { select: ['field1', '-_id'] }, findOneArgs: { sort: [['field1', 1]] } },
           hydration: { publicRead: hydration, findOne: hydration === 'lean' ? 'hydrated' : 'lean' },
           sortableFields: ['field1'],

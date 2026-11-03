@@ -26,7 +26,7 @@ describe('installed authorization guidance', () => {
       '**Ordinary document-grant behavior also changes',
       'Output grants cannot write protected fields',
     );
-    expect(text).toContain('`alwaysSelectFields`');
+    expect(text).toContain('`docPermissions.dependsOn`');
     expect(text).toContain('published DTO is data, not an authorization certificate');
     expect(text).toContain('raw helper pick uses captured global permissions, frozen empty document facts');
     expect(text).toContain('explicit output-only server policy, not retained document decisions');

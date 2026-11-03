@@ -29,7 +29,8 @@
  * explicit deny, missing applicable getter, purely-global miss) omits the
  * candidate and fetches nothing for it.
  */
-import { get, isArray, isPlainObject } from '@web-ts-toolkit/utils';
+import { get, isPlainObject } from '@web-ts-toolkit/utils';
+import { resolveDocumentPermissionsDefinition } from './document-permissions-definition';
 import { normalizeSelect } from '../helpers/query';
 import type { Projection } from '../interfaces';
 import { classifyRequestFieldRule, extractScopedOutputRule } from './field-authorization';
@@ -65,8 +66,8 @@ export interface VirtualProjectionSnapshot {
   catalog?: AuthorizationFieldCatalog;
   permissionSchema?: Record<string, unknown> | null;
   virtuals?: Record<string, unknown> | null;
-  /** Raw `alwaysSelectFields` option: array or per-access record. */
-  alwaysSelectFields?: string[] | Record<string, string[]> | null;
+  /** Captured callable/descriptor/access record; only docPermissionsAccess contributes private inputs. */
+  docPermissions?: unknown;
   modelPermissionPrefix?: string;
   requireExplicitSelect?: boolean;
   documentPermissionField?: string;
@@ -176,24 +177,6 @@ const getScopedPermissionSchema = (
   return isPlainObject(scoped) ? (scoped as Record<string, unknown>) : null;
 };
 
-/** Resolve `alwaysSelectFields` for an access from raw option shapes. */
-export const resolveAlwaysSelectForAccess = (
-  raw: VirtualProjectionSnapshot['alwaysSelectFields'],
-  access: string,
-): string[] => {
-  if (!raw) return [];
-  if (isArray(raw)) return [...(raw as string[])];
-  if (isPlainObject(raw)) {
-    const record = raw as Record<string, unknown>;
-    const exact = record[access];
-    if (isArray(exact)) return [...(exact as string[])];
-    const def = record.default;
-    if (isArray(def)) return [...(def as string[])];
-    return [];
-  }
-  return [];
-};
-
 /** Strip registered virtual names from a normalized select (both `v`/`-v`). */
 export const stripVirtualsFromNormalizedSelect = (normalized: string[], virtualNames: Set<string>): string[] =>
   normalized.filter((token) => {
@@ -275,13 +258,14 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
   );
   const modelPermissionPrefix = snapshot.modelPermissionPrefix ?? '';
 
-  // Always-select (forced fetch, never a grant): strip virtuals up front.
-  // Embedded scopes never carry alwaysSelect (core.ts:204-205).
-  const rawAlways = scopePath.length > 0 ? [] : resolveAlwaysSelectForAccess(snapshot.alwaysSelectFields, outputAccess);
-  const alwaysStripped = stripVirtualsFromNormalizedSelect(
-    normalizeSelect(rawAlways as unknown as Projection),
-    dbVirtualPaths,
-  ).filter((t) => !t.startsWith('-') && !t.includes('.sub.'));
+  // Embedded scopes inherit owning-document grants; only the root hook needs inputs.
+  const hookInputs =
+    scopePath.length > 0
+      ? []
+      : (resolveDocumentPermissionsDefinition(snapshot.docPermissions, docPermissionsAccess)?.dependsOn ?? []);
+  const hookInputsStripped = stripVirtualsFromNormalizedSelect([...hookInputs], dbVirtualPaths).filter(
+    (t) => !t.startsWith('-') && !t.includes('.sub.'),
+  );
 
   // Persisted defined keys for this scope (excluding virtual leaves).
   const persistedDefined: string[] = scopedPermissionSchema
@@ -383,7 +367,7 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
   const identityFields = internalFetch.identityFields ?? [];
 
   // Persisted fetch = authorized output persisted (definite denials excluded)
-  // + virtual deps (even when denied, stripped post-fetch) + alwaysSelect +
+  // + virtual deps (even when denied, stripped post-fetch) + active hook inputs +
   // internal join/extra + identity. Never
   // virtual names, never `.sub` definition paths, never `-_id`. All paths
   // here are relative to this scope (root absolute == relative).
@@ -392,7 +376,7 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
     if (isPersistedFetchable(f)) fetchSet.add(f);
   }
   for (const d of depRelative) fetchSet.add(d);
-  for (const f of alwaysStripped) fetchSet.add(f);
+  for (const f of hookInputsStripped) fetchSet.add(f);
   for (const f of joinFields.filter((t) => !t.startsWith('-'))) fetchSet.add(stripLeadingDash(f));
   for (const f of [...baseFields, ...identityFields]) {
     const leaf = stripLeadingDash(f);
@@ -415,7 +399,7 @@ export function planVirtualProjection(args: PlanVirtualProjectionArgs): VirtualP
   // `_id` internal-only when output excludes it; otherwise it is shared.
   const internalOnly = new Set<string>([
     ...virtualOnlyDeps,
-    ...alwaysStripped.filter((f) => !outputPersistedSet.has(f)),
+    ...hookInputsStripped.filter((f) => !outputPersistedSet.has(f)),
     ...joinFields.filter((f) => !outputPersistedSet.has(stripLeadingDash(f))),
   ]);
   if (outputIdExcluded) internalOnly.add('_id');

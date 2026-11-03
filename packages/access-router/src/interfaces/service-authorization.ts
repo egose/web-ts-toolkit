@@ -256,7 +256,7 @@ export type ServiceOutputDecorator = (doc: unknown, context: ServiceOutputContex
  * resolves a fresh policy and returns persisted fetch inputs, including private
  * dependencies/identity, not an output allowlist. Document rules are deferred;
  * planning invokes no permission functions or virtual getters. Declare additional
- * projected document-hook inputs with alwaysSelectFields. No rows/baseFields/skip flags.
+ * projected document-hook inputs on docPermissions descriptors' dependsOn. No rows/baseFields/skip flags.
  * Omitted/undefined options equal {} (canonical request-mode output planning).
  * Positional booleans, scope arrays and extra arguments have been removed and reject.
  */

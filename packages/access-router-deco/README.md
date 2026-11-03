@@ -576,7 +576,6 @@ export function createOwnedAuthorizationApp(connection: Connection) {
     operationAccess: { read: true },
     readAuthorizationMode: 'isolated',
     listAuthorizationMode: 'trusted',
-    alwaysSelectFields: ['ownerId'],
     permissionSchema: { name: 'reader', salary: { read: salary }, teamId: 'reader' },
     stripPermissionsField: true,
   })
@@ -614,6 +613,11 @@ export function createOwnedAuthorizationApp(connection: Connection) {
   const app = express();
   app.use(express.json());
   const { runtime } = EgoseFactoryStatic.create().bootstrap(OwnedModule, app);
+  // Preserve the decorated method's host and explicit parameter injection.
+  // Install the whole definition before accepting requests, not a partial edit.
+  const get = runtime.getModelOption(EmployeeModel.modelName, 'docPermissions.read');
+  if (typeof get !== 'function') throw new Error('Missing decorated document hook');
+  runtime.setModelOption(EmployeeModel.modelName, 'docPermissions.read', { dependsOn: ['ownerId'], get });
   return { app, runtime, EmployeeModel, Team, counts: () => ({ reads, hooks, decorations }) };
 }
 ```
@@ -627,6 +631,14 @@ ordinary projected source **only**. Actor/policy/facts remain owned. Getter argu
 mutation is not an implicit write; return values are staged. Closures/external caches
 are not sandboxed or kept fresh. Real prepare/transform/save/change contexts remain
 mutable, and post-filter presentation remains trusted application work.
+
+`@DocPermissions` registers a callable calculation. For extra private inputs, wrap
+that registered callback in `{ dependsOn, get }` after bootstrap and before serving,
+as above, or configure a complete descriptor with `@ModelOption('docPermissions')`.
+`alwaysSelectFields` has been removed. Dependencies are top-level persisted keys
+(use the whole container for nested data), never dotted/virtual/unknown names.
+Only the active access's definition, then `default` fallback, supplies inputs;
+missing values never skip `get`. A dependency grants no output permission.
 
 DTOs, permission metadata and `getDocPermissions` are DATA, not authority.
 `DocumentAuthorization`, `documentAuthorization`, `getDocumentAuthorization` and

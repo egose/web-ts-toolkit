@@ -480,6 +480,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'authorization-fast-path-consumer.types.fixture',
     'owned-authorization-many.types.fixture',
     'owned-authorization-many-consumer.types.fixture',
+    'document-permissions-dependencies.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -1043,6 +1044,8 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         'owned-authorization-many.types.fixture.cts',
         'owned-authorization-many-consumer.types.fixture.mts',
         'owned-authorization-many-consumer.types.fixture.cts',
+        'document-permissions-dependencies.types.fixture.mts',
+        'document-permissions-dependencies.types.fixture.cts',
         'collection.runtime.mts',
         'collection.runtime.cts',
         ...['raw', 'presentation', 'current'].flatMap((name) => [

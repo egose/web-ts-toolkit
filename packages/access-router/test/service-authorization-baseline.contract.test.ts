@@ -351,8 +351,7 @@ describe('SVA-00 baseline scenarios under the completed replacement contract', (
     const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice' }));
     const f = await fixture({
       permissionSchema: { status: 'owner', internalNote: false },
-      docPermissions: { read: hook },
-      alwaysSelectFields: { read: ['ownerId'] },
+      docPermissions: { read: { dependsOn: ['ownerId'], get: hook } },
       stripPermissionsField: true,
     });
     await f.execute(async (req) => {

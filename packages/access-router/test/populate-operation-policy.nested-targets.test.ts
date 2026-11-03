@@ -146,9 +146,8 @@ async function fixture(hydration: 'lean' | 'hydrated', queries = false, dependen
       amount: 'm::owns',
       selfAmount: 'm::owns',
     },
-    docPermissions: documentGrants,
+    docPermissions: { dependsOn: ['owner'], get: documentGrants },
     modelPermissionPrefix: 'm::',
-    alwaysSelectFields: ['owner'],
     stripPermissionsField: true,
     baseFilter: { read: () => ({ tenant: 'allowed' }), list: () => ({ tenant: 'allowed' }) },
     virtuals: {

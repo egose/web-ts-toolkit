@@ -10,6 +10,36 @@ its diagnostic context have **no reusable authorization authority**. Neither mod
 is a callback sandbox, database transaction, rollback mechanism, external-cache
 freshness guarantee, blanket security-equivalence claim or performance promise.
 
+## Replace global private-fetch inputs with document-permission descriptors
+
+`alwaysSelectFields` is removed entirely: no option, dotted option, fluent setter,
+default or compatibility alias. For each hook that needs extra projected data,
+replace its function with `{ dependsOn: ['ownerId'], get: existingFunction }`.
+Functions remain valid and add no private fetch inputs. Direct descriptors and
+per-access/default/custom entries share the same contract; use `get`, not `getter`.
+
+Only the active `docPermissionsAccess` supplies inputs (exact entry, then `default`
+if undefined); it is not unioned with output/read or virtual access. Declare each
+definition's actual inputs, not a global union. Hook/dependencies are captured as a
+pair before awaits. Absent/empty dependencies add nothing. Missing/undefined values
+never skip `get`. Inputs grant no output: selection and authorization still apply,
+including exclusions and denied fields. Virtuals retain their own dependencies.
+
+Use top-level persisted schema keys only, like virtuals. Dotted, unsafe, unknown and
+virtual inputs reject. Move old nested paths such as `profile.ownerId` to the whole
+`profile` container. Dotted access setters such as
+`router.set('docPermissions.read', { dependsOn: ['ownerId'], get: hook })` replace
+whole definitions; partial `.get`/`.dependsOn` edits reject. Those member names are
+reserved, not custom accesses. Malformed definitions, including null/false or mixed
+descriptor/access keys, reject rather than silently disabling calculation. To override
+default with no facts, provide an exact callback returning `{}`. Move inputs used only by virtuals onto their virtual
+descriptors; remove forced fields with no consumer rather than inventing a hook.
+
+Embedded scopes inherit owning-document facts; dedicated subdocument routes prepare
+their owning parent. Populate/include targets resolve their own hook and inputs.
+Pre-/post-write stages stay independent; raw output helpers do no hidden query or
+document-hook computation. See the [typed shapes](README.md#document-permission-dependencies-breaking-change).
+
 ## M1. Replace rich grants with immutable boolean facts
 
 Before (historical, not a target example):
@@ -43,11 +73,13 @@ const salaryRule: FieldPermissionHook = function (permissions, facts) {
 const api = createAccessRuntime();
 api.setModelOptions('Employee', {
   modelPermissionPrefix: 'doc:',
-  alwaysSelectFields: ['ownerId'], // fetched privately, not selected/authorized output
   docPermissions: {
-    async read(doc): Promise<DocumentGrants> {
-      const membership = await loadMembership(this, doc);
-      return { canReadSalary: membership.canReadSalary === true };
+    read: {
+      dependsOn: ['ownerId'], // fetched privately, not selected/authorized output
+      async get(doc): Promise<DocumentGrants> {
+        const membership = await loadMembership(this, doc);
+        return { canReadSalary: membership.canReadSalary === true };
+      },
     },
   },
   permissionSchema: {
@@ -280,7 +312,7 @@ export function presentationSubset(rows: readonly { readonly name?: string }[]) 
 ```
 
 For current document-dependent facts, use a **new normal LIST**, not either raw
-recipe or an output grant. Configure `alwaysSelectFields`/declared dependencies for
+recipe or an output grant. Configure the applicable `docPermissions.dependsOn` for
 private hook inputs on the model; keep normal row policy. After an earlier LIST:
 
 <!-- doc-example: partial -->
@@ -405,7 +437,6 @@ async function runOwnedAuthorizationExample() {
       operationAccess: { read: true },
       hydration: { findById: 'lean' },
       modelPermissionPrefix: 'doc:',
-      alwaysSelectFields: ['ownerId'],
       stripPermissionsField: true,
       baseFilter: { read: () => ({ visible: true }) },
       permissionSchema: {
@@ -415,12 +446,15 @@ async function runOwnedAuthorizationExample() {
         allowance: { read: ['isHR', 'doc:canReadSalary'] }, // OR
       },
       docPermissions: {
-        async read(doc, _permissions, context): Promise<DocumentGrants> {
-          hooks++;
-          assert.ok(Object.isFrozen(context));
-          assert.equal('currentDocument' in context, false);
-          const membership = await loadMembership(this, doc);
-          return { canReadSalary: membership.canReadSalary === true };
+        read: {
+          dependsOn: ['ownerId'],
+          async get(doc, _permissions, context): Promise<DocumentGrants> {
+            hooks++;
+            assert.ok(Object.isFrozen(context));
+            assert.equal('currentDocument' in context, false);
+            const membership = await loadMembership(this, doc);
+            return { canReadSalary: membership.canReadSalary === true };
+          },
         },
       },
     });

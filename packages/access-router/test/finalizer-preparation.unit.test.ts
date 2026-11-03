@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModelOutputContext } from '../src/interfaces';
 import { getCapturedAuthorizationOption } from '../src/acl/model-output-planning';
 import * as calls from '../src/acl/service-authorization';
-import * as planning from '../src/acl/model-output-planning';
+import * as definitions from '../src/acl/document-permissions-definition';
 import { planAuthorizedModelProjection } from '../src/acl/output-projection';
 import { finalizeModelOutput, finalizeModelOutputs } from '../src/output/finalize-model-output';
 import { ownedStageFixture, sourceModes, stageAccess } from './owned-stage-test-fixture';
@@ -47,7 +47,7 @@ describe('owned finalizer preparation and disposable callback boundaries', () =>
         },
       });
       const read = vi.spyOn(calls, 'readServiceFinalizerConfiguration');
-      const lookup = vi.spyOn(planning, 'getCapturedAuthorizationOption');
+      const lookup = vi.spyOn(definitions, 'resolveDocumentPermissionsDefinition');
       const inputs = Array.from({ length: rows }, (_, value) => ({ value }));
       expect(await finalizeModelOutputs({ ...f.args, inputs })).toEqual(inputs);
       expect(read).toHaveBeenCalledTimes(1);
@@ -59,9 +59,12 @@ describe('owned finalizer preparation and disposable callback boundaries', () =>
         binding: f.binding,
         requestedSelect: ['-_id'],
       });
+      // Planning resolves the same hook/dependency pair without executing it;
+      // measure finalizer preparation independently of that separate work.
+      lookup.mockClear();
       expect(await finalizeModelOutputs({ ...f.args, plan, inputs })).toEqual(inputs);
       expect(read).toHaveBeenCalledTimes(2);
-      expect(lookup).toHaveBeenCalledTimes(2);
+      expect(lookup).toHaveBeenCalledTimes(1);
       expect(hook).toHaveBeenCalledTimes(rows * 2);
     },
   );
@@ -125,17 +128,18 @@ describe('owned finalizer preparation and disposable callback boundaries', () =>
     }
   });
 
-  it.each(['read', 'custom.read'])(
+  it.each(['read', 'custom', 'custom.read'])(
     'function-attached hook lookup slots are not a live configuration API: %s',
     async (docPermissionsAccess) => {
       const lookup = vi.fn(() => () => ({ owner: true }));
       const bare = vi.fn(() => ({ owner: false }));
+      const fallback = vi.fn(() => ({ owner: false }));
       Object.defineProperty(bare, 'read', { get: lookup });
       const f = ownedStageFixture({
         configuration: {
           catalog: { paths: ['value'] },
           permissionSchema: { value: 'doc:owner' },
-          docPermissions: docPermissionsAccess === 'read' ? bare : { custom: bare },
+          docPermissions: docPermissionsAccess === 'read' ? bare : { custom: bare, default: fallback },
         },
       });
       const access = { ...stageAccess(), docPermissionsAccess };
@@ -149,7 +153,8 @@ describe('owned finalizer preparation and disposable callback boundaries', () =>
         await finalizeModelOutputs({ ...f.args, ...access, plan, inputs: [{ value: 'first' }, { value: 'second' }] }),
       ).toEqual([{}, {}]);
       expect(lookup).not.toHaveBeenCalled();
-      expect(bare).toHaveBeenCalledTimes(2);
+      expect(bare).toHaveBeenCalledTimes(docPermissionsAccess === 'custom.read' ? 0 : 2);
+      expect(fallback).toHaveBeenCalledTimes(docPermissionsAccess === 'custom.read' ? 2 : 0);
     },
   );
 

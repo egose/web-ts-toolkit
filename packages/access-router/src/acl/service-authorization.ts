@@ -90,7 +90,7 @@ export interface AuthorizationConfiguration {
   /** Independent target-owned ordinary-populate operation admission. */
   readonly requireOperationAccessForPopulateQueries?: boolean;
   readonly documentPermissionField?: string;
-  /** Captured permission schema, virtual descriptors, always-select and metadata posture. */
+  /** Captured permission schema, virtual/document-permission definitions and metadata posture. */
   readonly [key: string]: unknown;
 }
 

@@ -19,6 +19,7 @@ import {
   snapshotFlagOptions,
   summarize,
   authorizationModeOptions,
+  documentPermissionFixtureOptions,
 } from './access-router-core.mjs';
 
 async function dependencyVersion(require, name) {
@@ -262,13 +263,15 @@ export async function benchmark(job) {
       // there are no virtuals and permission metadata is not requested.
       options.defaults.publicListOptions.skim = false;
       options.modelPermissionPrefix = 'doc:';
-      options.alwaysSelectFields = ['ownerFlag'];
-      options.docPermissions = {
-        list: (doc) => {
-          documentHooks++;
-          return { owner: doc.ownerFlag };
-        },
-      };
+      Object.assign(
+        options,
+        await documentPermissionFixtureOptions(job.target, ['ownerFlag'], {
+          list: (doc) => {
+            documentHooks++;
+            return { owner: doc.ownerFlag };
+          },
+        }),
+      );
     }
     if (scenario.largeConfig) {
       // Intentionally unused in list work, but part of captured model configuration.

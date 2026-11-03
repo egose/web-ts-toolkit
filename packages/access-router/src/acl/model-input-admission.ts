@@ -18,8 +18,15 @@ import {
 } from '../request-complexity';
 import { collectModelRequestFields } from './select-resolution';
 import { authorizationError } from './authorization-snapshot';
-import { getCapturedAuthorizationOption, readCapturedAuthorizationOption } from './model-output-planning';
-import { isCatalogInputPath, isInputVirtualPath, isSafeInputPath, matchesCatalogPattern } from './field-catalog';
+import { readCapturedAuthorizationOption } from './model-output-planning';
+import { resolveDocumentPermissionsDefinition } from './document-permissions-definition';
+import {
+  isCatalogInputPath,
+  isInputVirtualPath,
+  isSafeInputPath,
+  isSafeOutputPath,
+  matchesCatalogPattern,
+} from './field-catalog';
 import { getAuthorizationPermissions, readServiceAuthorization } from './service-authorization';
 import type {
   AuthorizationBinding,
@@ -360,7 +367,7 @@ export async function resolveInputDocumentGrants(args: {
   context: ModelHookContext;
 }): Promise<DocumentGrants> {
   const { configuration } = readServiceAuthorization(args.authorization, args.binding);
-  const hook = getCapturedAuthorizationOption(configuration, 'docPermissions.update');
+  const hook = resolveDocumentPermissionsDefinition(configuration.docPermissions, 'update')?.get;
   const access = readServiceAuthorizationAccess(args.authorization, args.binding);
   const context = createModelOutputContext({
     modelName: args.binding.modelName,
@@ -394,11 +401,22 @@ export async function resolveInputDocumentGrants(args: {
   }
 }
 
-/** Include nested paths too: +parent alone does not override a child's select:false. */
-export function inputFetchPaths(catalog: AuthorizationFieldCatalog): string[] {
+/** Include nested paths too: +parent alone does not override a child's select:false.
+ * Explicit hook dependencies may include persisted metadata excluded from input
+ * admission. Expanding their stored descendants is fetch-only, never a write grant.
+ */
+export function inputFetchPaths(
+  catalog: AuthorizationFieldCatalog,
+  privateDependencies: readonly string[] = [],
+): string[] {
   return [
     ...new Set(
-      (catalog.persistedPaths ?? catalog.paths).filter((p) => !p.includes('$*') && isCatalogInputPath(catalog, p)),
+      (catalog.persistedPaths ?? catalog.paths).filter(
+        (p) =>
+          !p.includes('$*') &&
+          (isCatalogInputPath(catalog, p) ||
+            (isSafeOutputPath(p) && privateDependencies.some((dep) => p === dep || p.startsWith(`${dep}.`)))),
+      ),
     ),
   ];
 }

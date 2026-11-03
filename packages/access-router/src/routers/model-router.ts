@@ -8,6 +8,7 @@ import {
   ModelRouterOptions,
   ExtendedModelRouterOptions,
   ModelRequest,
+  ModelDocPermissionsDefinition,
   ModelVirtualDescriptor,
   ModelVirtualGetter,
   ModelVirtualLeaf,
@@ -350,20 +351,28 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
   > = setOption.bind(this, 'documentPermissionField');
 
   /**
-   * The model fields always selected for ACL and response shaping.
+   * Configure a callable/descriptor directly, or replace one exact/default/custom
+   * access definition. Descriptor dependsOn adds private persisted inputs, not output grants.
+   * An undefined access restores default fallback; pass undefined alone to clear the option.
    */
-  public alwaysSelectFields: SetTargetOption<
-    ModelRouter<TModel, TVirtuals>,
-    ModelRouterOptions<TModel, TVirtuals>['alwaysSelectFields']
-  > = setOption.bind(this, 'alwaysSelectFields');
-
-  /**
-   * The function called in the process of generating document permissions.
-   */
-  public docPermissions: SetTargetOption<
-    ModelRouter<TModel, TVirtuals>,
-    ModelRouterOptions<TModel, TVirtuals>['docPermissions']
-  > = setOption.bind(this, 'docPermissions');
+  public docPermissions: {
+    (option: ModelRouterOptions<TModel, TVirtuals>['docPermissions']): ModelRouter<TModel, TVirtuals>;
+    (access: string, option: ModelDocPermissionsDefinition<TModel> | undefined): ModelRouter<TModel, TVirtuals>;
+  } = (
+    ...args:
+      | [ModelRouterOptions<TModel, TVirtuals>['docPermissions']]
+      | [string, ModelDocPermissionsDefinition<TModel> | undefined]
+  ) => {
+    const key = args.length === 2 ? `docPermissions.${args[0]}` : 'docPermissions';
+    const value = args.length === 2 ? args[1] : args[0];
+    assertMutableRouterOption('model', key);
+    this.runtime.setModelOption(
+      this.modelName,
+      key as keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
+      value as never,
+    );
+    return this;
+  };
 
   /**
    * Configure live base and basic/advanced route guards. Only undefined inherits;

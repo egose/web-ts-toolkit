@@ -197,7 +197,7 @@ describe('VIRT-09 config cross-path', () => {
             b: { get: makeGetter('b'), dependsOn: ['a'] },
           } as never,
         ),
-      ).toThrow(/virtual-to-virtual/i);
+      ).toThrow(/must not reference another virtual/i);
       expect(runtime.runtime.getVirtualNames(n).sort()).toEqual(['a', 'b']);
     }
     // Non-array dependsOn via single setModelOption.

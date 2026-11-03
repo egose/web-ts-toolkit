@@ -131,7 +131,9 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
         f.runtime.setDefaultModelOptions({ operationAccess: { read: false } });
         f.runtime.setDefaultModelOption('requireOperationAccessForPopulateQueries', false);
         f.runtime.setDefaultModelOptions({ requireOperationAccessForPopulateDependencies: false });
-        f.runtime.setModelOptions(f.model.modelName, { alwaysSelectFields: ['name'] });
+        f.runtime.setModelOptions(f.model.modelName, {
+          docPermissions: { dependsOn: ['name'], get: (doc) => ({ named: typeof doc.name === 'string' }) },
+        });
         f.runtime.setModelOption(f.model.modelName, 'hydration.findOne', 'hydrated');
         f.runtime.setModelOption(f.model.modelName, 'hydration.publicRead', 'lean');
         f.runtime.setModelOption(f.target.modelName, 'permissionSchema.balance' as never, false as never);
@@ -147,7 +149,7 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
       const retained = read(0);
       expect(retained.configuration.permissionSchema).toEqual({ status: true });
       expect(getCapturedAuthorizationOption(retained.configuration, 'operationAccess.read')).toBe(true);
-      expect(retained.configuration.alwaysSelectFields).toEqual([]);
+      expect(retained.configuration.docPermissions).toBeUndefined();
       expect(retained.configuration.requireOperationAccessForPopulateQueries).toBe(true);
       expect(retained.configuration.requireOperationAccessForPopulateDependencies).toBe(true);
       for (const target of retained.relatedTargets) {
@@ -171,7 +173,7 @@ describe('ARCPU-04 configuration capture ownership lifetime', () => {
       const next = read(1);
       expect(next.configuration.permissionSchema).toEqual({ status: false });
       expect(getCapturedAuthorizationOption(next.configuration, 'operationAccess.read')).toBe(false);
-      expect(next.configuration.alwaysSelectFields).toEqual(['name']);
+      expect(next.configuration.docPermissions).toMatchObject({ dependsOn: ['name'], get: expect.any(Function) });
       expect(next.configuration.hydration).toEqual({ findOne: 'hydrated', publicRead: 'lean' });
       expect(next.configuration.requireOperationAccessForPopulateQueries).toBe(false);
       expect(next.configuration.requireOperationAccessForPopulateDependencies).toBe(false);

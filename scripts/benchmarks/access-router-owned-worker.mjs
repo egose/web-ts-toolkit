@@ -14,6 +14,7 @@ import {
   snapshotFlagOptions,
   initialOutputCopyFlagOptions,
   authorizationFastPathFlagOptions,
+  documentPermissionFixtureOptions,
 } from './access-router-core.mjs';
 import { verifySnapshotFlagOptions } from './access-router-worker.mjs';
 import { validateJob, verifyCounts, verifyCountContract, SERIES } from './access-router-owned-core.mjs';
@@ -174,14 +175,18 @@ export async function benchmarkOwned(input) {
         find: 'lean',
         findOne: 'lean',
       },
-      alwaysSelectFields: docRules ? ['ownerFlag'] : [],
       defaults: {
         publicReadOptions: job.scenario === 'H4' ? { ...quiet, includePermissions: true } : quiet,
         publicListOptions: quiet,
         findOptions: quiet,
         findOneOptions: quiet,
       },
-      ...(docRules ? { modelPermissionPrefix: 'doc:', docPermissions: { read: hook, list: hook } } : {}),
+      ...(docRules
+        ? {
+            modelPermissionPrefix: 'doc:',
+            ...(await documentPermissionFixtureOptions(job.target, ['ownerFlag'], { read: hook, list: hook })),
+          }
+        : {}),
       ...flags,
     };
     if (['H1', 'H1-scoped'].includes(job.scenario))

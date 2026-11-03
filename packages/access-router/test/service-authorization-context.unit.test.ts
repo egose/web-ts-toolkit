@@ -45,6 +45,7 @@ function fixture() {
       catalog: {
         paths: [
           'status',
+          'ownerId',
           'internalNote',
           'contacts',
           'contacts.email',
@@ -60,7 +61,7 @@ function fixture() {
         referencePaths: ['customer'],
         protectedPaths: ['version', 'execution'],
       },
-      alwaysSelectFields: { read: ['ownerId'] },
+      docPermissions: { read: { dependsOn: ['ownerId'], get: (doc) => ({ owner: doc.ownerId === 'actor' }) } },
       permissionSchema: { status: { read: 'owner' } },
     },
   });
@@ -125,7 +126,7 @@ describe('owned private call policy and separate authority dimensions', () => {
     filter.long.low = 20;
     config.map.get('key')!.enabled = false;
     authorization.related.customer.outputFields.paths.push('name');
-    (config.alwaysSelectFields as { read: string[] }).read.push('secret');
+    (config.docPermissions as { read: { dependsOn: string[] } }).read.dependsOn.push('secret');
     const captured = readServiceAuthorization(call, f.binding);
     expect(captured.authorization.outputFields).toEqual({ mode: 'grant', paths: ['internalNote'] });
     expect(captured.authorization.related.customer.outputFields).toEqual({ mode: 'grant', paths: ['billingEmail'] });
@@ -137,7 +138,7 @@ describe('owned private call policy and separate authority dimensions', () => {
     expect(held.decimal.toString()).toBe('1.20');
     expect(held.long.toNumber()).toBe(4);
     expect((captured.configuration.map as Map<string, { enabled: boolean }>).get('key')).toEqual({ enabled: true });
-    expect(captured.configuration.alwaysSelectFields).toEqual({ read: ['ownerId'] });
+    expect(captured.configuration.docPermissions).toMatchObject({ read: { dependsOn: ['ownerId'] } });
     const observe = vi.spyOn(Date.prototype, 'getTime');
     for (let repeat = 0; repeat < 8; repeat++) expect(readServiceAuthorization(call, f.binding)).toBe(captured);
     expect(observe).not.toHaveBeenCalled();

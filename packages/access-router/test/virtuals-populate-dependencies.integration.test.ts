@@ -73,8 +73,10 @@ async function fixture(targetOptions: Record<string, unknown> = {}, sourceOption
   api.createRouter(Target, {
     operationAccess: { read: true, list: true },
     permissionSchema: { name: true, hookInput: false, balance: false, credit: false },
-    alwaysSelectFields: { read: ['hookInput'], list: ['hookInput'] },
-    docPermissions: { read: targetPermissions, list: targetPermissions },
+    docPermissions: {
+      read: { dependsOn: ['hookInput'], get: targetPermissions },
+      list: { dependsOn: ['hookInput'], get: targetPermissions },
+    },
     baseFilter: { read: base, list: base },
     ...targetOptions,
   } as never);

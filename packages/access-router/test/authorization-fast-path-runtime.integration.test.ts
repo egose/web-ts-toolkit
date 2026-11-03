@@ -97,8 +97,10 @@ async function fixture(hydrated = false, metadata = false, mode: AuthorizationMo
     },
     permissionSchema: { name: true, secret: 'doc:owner', balance: false, targetView: true },
     modelPermissionPrefix: 'doc:',
-    alwaysSelectFields: ['owner'],
-    docPermissions: { list: targetHook, read: targetHook },
+    docPermissions: {
+      list: { dependsOn: ['owner'], get: targetHook },
+      read: { dependsOn: ['owner'], get: targetHook },
+    },
     virtuals: { targetView: { dependsOn: ['name'], get: targetGetter } },
     stripPermissionsField: true,
     // Each target owns its captured source mode; a trusted parent cannot lower it.
@@ -110,8 +112,10 @@ async function fixture(hydrated = false, metadata = false, mode: AuthorizationMo
     operationAccess: { read: true, list: true },
     baseFilter: { read: () => ({ tenant: 'allowed' }), list: () => ({ tenant: 'allowed' }) },
     modelPermissionPrefix: 'doc:',
-    alwaysSelectFields: ['owner'],
-    docPermissions: { list: sourceHook, read: sourceHook },
+    docPermissions: {
+      list: { dependsOn: ['owner'], get: sourceHook },
+      read: { dependsOn: ['owner'], get: sourceHook },
+    },
     permissionSchema: {
       name: true,
       conditional: 'doc:owner',

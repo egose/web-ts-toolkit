@@ -82,9 +82,8 @@ Common model options:
 
 - `basePath`
 - `permissionSchema` maps fields to booleans, permission names, or per-operation rule objects
-- `alwaysSelectFields`
 - `virtuals`, including server-only `dependsOn` and `dependsOnPopulate`
-- `docPermissions`
+- `docPermissions`: function or `{ dependsOn?, get }`, directly or per-access/default/custom
 - `baseFilter`
 - `overrideFilter`
 - `decorate`
@@ -119,11 +118,20 @@ service overrides are not defaults or HTTP/OpenAPI/client options. Supply truste
 server-only policy to the service acquired from `router.getService(req)` instead.
 Missing policy dimensions use request authority and never inherit a prior call's elevation.
 
-`alwaysSelectFields` declares persisted inputs needed by document-permission hooks beyond
-selected output, such as `ownerId`. Hooks see the untrimmed projected document; fetch-only
-inputs do not grant output. The immutable call captures configuration, while each document/
-scope/access stage has separate hook grants and decisions. Opaque result-context handles
-preserve them after those inputs and metadata trim. See [Services](./services#call-policy-and-document-result-reuse).
+`alwaysSelectFields` is removed. Put private persisted inputs on the calculation that
+uses them: `docPermissions: { dependsOn: ['ownerId'], get: existingHook }`, or the same
+descriptor at `docPermissions.read`, `.default`, or a trusted custom access. Existing
+functions remain valid with no extra fetch inputs. Only the active document-permission
+access resolves exact → default, not a union with output/virtual access. Hook and inputs
+are captured together. Dependencies are top-level persisted schema keys; use the whole
+container for nested data. Dotted, unsafe, unknown and virtual names reject. Absent/empty
+dependencies add nothing; missing values never skip `get`. Dotted access setters replace
+the whole definition; partial `.get`/`.dependsOn` edits reject (reserved leaf names).
+Hooks see projected input; fetch-only inputs grant no output, including denied/excluded
+fields. Embedded scopes inherit owning facts, while related targets resolve their own.
+DTOs/diagnostics carry no reusable authority after inputs trim; raw helpers do no hidden
+query or hook work. See [Hooks](./hooks#docpermissions) and
+[Services](./services#call-policy-and-document-result-reuse).
 
 Internal document grants resolve independently of `includePermissions`,
 `includeFieldPermissions`, `stripPermissionsField`, `disableFieldPermissions` and exposed-key

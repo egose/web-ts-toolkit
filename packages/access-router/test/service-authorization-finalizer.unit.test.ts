@@ -73,8 +73,7 @@ function fixture(options: ModelRouterOptions = {}) {
       contacts: { read: true, sub: { name: true, email: false, ssn: false } },
       profile: { read: true, sub: { name: true, secret: false } },
     },
-    alwaysSelectFields: { read: ['ownerId'] },
-    docPermissions: { read: hook },
+    docPermissions: { read: { dependsOn: ['ownerId'], get: hook } },
     ...options,
   });
   const permissions = new Permission({ admin: false });
@@ -250,10 +249,21 @@ describe('SVA-03 private finalizer and fresh output helpers', () => {
   });
 
   it('does not add unselected grants or fabricate missing values, even when privately fetched', async () => {
-    const f = fixture({ alwaysSelectFields: { read: ['ownerId', 'internalNote'] } });
+    // The owning hook only needs ownerId; a selected virtual consumes the private
+    // note so fetching it still cannot select an unrequested granted field.
+    const f = fixture({
+      virtuals: { notePresent: { dependsOn: ['internalNote'], get: (doc) => doc.internalNote !== undefined } },
+      permissionSchema: { status: 'doc:owner', internalNote: false, notePresent: true },
+    });
     expect(
-      (await f.finalize({ status: 'open', ownerId: 'actor', internalNote: 'hidden' }, ['status', '-_id'])).output,
-    ).toEqual({ status: 'open' });
+      (
+        await f.finalize({ status: 'open', ownerId: 'actor', internalNote: 'hidden' }, [
+          'status',
+          'notePresent',
+          '-_id',
+        ])
+      ).output,
+    ).toEqual({ status: 'open', notePresent: true });
     expect((await f.finalize({ status: 'open', ownerId: 'actor' })).output).toEqual({ status: 'open' });
     expect((await f.finalize({ status: 'open', ownerId: 'other', internalNote: 'note' })).output).toEqual({
       internalNote: 'note',

@@ -161,11 +161,10 @@ describe('actual owned LIST preparation, row facts and publication ordering', ()
       const f = ownedStageFixture({
         modelOptions: {
           permissionSchema: { name: 'doc:owner', value: true, hidden: false, payload: true },
-          alwaysSelectFields: ['owner'],
           documentPermissionField: 'meta.permissions',
           stripPermissionsField: false,
           hydration: { find: 'lean', publicList: 'hydrated' },
-          docPermissions: { list: hook },
+          docPermissions: { list: { dependsOn: ['owner'], get: hook } },
           decorate: { list: decorate },
           decorateAll: { list: decorateAll },
           ...(modelOptions as object),

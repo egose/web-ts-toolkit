@@ -317,7 +317,6 @@ describe('actual class-instance/context/request mode integration', () => {
       Router(model, {
         basePath: '/deco-modes',
         operationAccess: { list: true },
-        alwaysSelectFields: ['owner'],
         permissionSchema: { value: true, hidden: false, readAuthorizationMode: true },
         stripPermissionsField: true,
       })(ItemRouter);
@@ -330,6 +329,11 @@ describe('actual class-instance/context/request mode integration', () => {
       })(App);
       const app = express().use(express.json());
       EgoseFactoryStatic.create(api).bootstrap(App, app);
+      for (const access of ['read', 'list'] as const) {
+        const get = api.getModelOption(model.modelName, `docPermissions.${access}`);
+        if (typeof get !== 'function') throw new Error('missing decorated document hook');
+        api.setModelOption(model.modelName, `docPermissions.${access}`, { dependsOn: ['owner'], get });
+      }
       const query = {
         select: 'value readAuthorizationMode -_id',
         include_permissions: 'false',

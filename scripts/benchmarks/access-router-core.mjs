@@ -42,6 +42,23 @@ export const UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS = Object.freeze([
 
 export const AUTHORIZATION_MODE_OPTIONS = Object.freeze(['readAuthorizationMode', 'listAuthorizationMode']);
 
+/**
+ * Untimed fixture setup for comparisons with genuinely historical packages.
+ * Current candidates always use descriptors. The old option is used only when
+ * the selected artifact predates their exported type, never as a library alias.
+ * Each worker still verifies the full response and actual hook counts.
+ */
+export async function documentPermissionFixtureOptions(target, dependsOn, hooks) {
+  const declarations = await readFile(resolve(target.root, 'packages/access-router/dist/index.d.ts'), 'utf8');
+  if (/\bModelDocPermissionsDescriptor\b/.test(declarations))
+    return {
+      docPermissions: Object.fromEntries(
+        Object.entries(hooks).map(([access, get]) => [access, { dependsOn: [...dependsOn], get }]),
+      ),
+    };
+  return { alwaysSelectFields: [...dependsOn], docPermissions: hooks };
+}
+
 /** Inspect actual model-option declarations, not comments or similarly named internal fields. */
 async function supportedOptionFlags(declarations, flagNames) {
   // Only preparation parses types. Benchmark workers must not load the compiler

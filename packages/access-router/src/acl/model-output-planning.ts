@@ -6,6 +6,8 @@ import { captureAuthorizationFieldCatalog } from './field-catalog';
 import { authorizationError } from './authorization-snapshot';
 import { assertAuthorizationModeOptions } from './authorization-modes';
 import { captureAuthorizationConfiguration } from './captured-authorization-configuration';
+import { captureDocumentPermissionsDefinition } from './document-permissions-definition';
+import { collectPersistedTopLevel } from './persisted-dependencies';
 import { captureVirtualPopulateSnapshot } from './virtual-populate-dependencies';
 import { normalizeOutputAuthorizationOptions } from './output-helper-options';
 import { planAuthorizedModelProjection } from './output-projection';
@@ -63,6 +65,17 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
   const model = runtime.getModelInstance(modelName);
   if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
   const virtuals = options.virtuals as Record<string, unknown> | undefined;
+  const docPermissions = captureDocumentPermissionsDefinition(options.docPermissions, {
+    storedFields: collectPersistedTopLevel(model.schema),
+    virtualNames: new Set([
+      ...Object.keys(model.schema.virtuals ?? {}),
+      ...Object.entries(virtuals ?? {})
+        .filter(
+          ([, value]) => value !== undefined && !(value && typeof value === 'object' && Object.hasOwn(value, 'sub')),
+        )
+        .map(([name]) => name),
+    ]),
+  });
   return captureAuthorizationConfiguration({
     catalog: captureAuthorizationFieldCatalog(model.schema, virtuals, options.documentPermissionField),
     virtualPopulateSnapshot: captureVirtualPopulateSnapshot(
@@ -78,11 +91,10 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
         ? runtime.getDefaultModelOption('permissionSchema')
         : options.permissionSchema,
     virtuals,
-    alwaysSelectFields: options.alwaysSelectFields,
     modelPermissionPrefix: options.modelPermissionPrefix,
     requireExplicitSelect: options.requireExplicitSelect,
     documentPermissionField: options.documentPermissionField,
-    docPermissions: options.docPermissions,
+    docPermissions,
     exposedDocPermissionKeys: options.exposedDocPermissionKeys,
     stripPermissionsField: options.stripPermissionsField,
     disableFieldPermissions: options.disableFieldPermissions,

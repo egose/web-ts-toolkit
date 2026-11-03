@@ -958,8 +958,10 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
     const transform = vi.fn((filter) => filter);
     const f = await fixture({
       permissionSchema: { name: true, status: { read: 'owner', list: 'owner' }, internalNote: false },
-      alwaysSelectFields: { read: ['owner'], list: ['owner'] },
-      docPermissions: { read: hook, list: hook },
+      docPermissions: {
+        read: { dependsOn: ['owner'], get: hook },
+        list: { dependsOn: ['owner'], get: hook },
+      },
       baseFilter: { read: () => ({ tenant: 'a' }), list: () => ({ tenant: 'a' }) },
       overrideFilter: { read: transform, list: transform },
     });

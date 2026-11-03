@@ -48,8 +48,7 @@ async function fixture() {
     operationAccess: { read: true },
     modelPermissionPrefix: 'doc:',
     permissionSchema: { name: true, secret: false, ownerId: false, owned: 'doc:owner', public: false },
-    alwaysSelectFields: { read: ['ownerId'] },
-    docPermissions: { read: targetHook },
+    docPermissions: { read: { dependsOn: ['ownerId'], get: targetHook } },
     overrideFilter: { read: targetTransform },
     baseFilter: { read: () => ({ public: true }) },
   });
@@ -66,8 +65,7 @@ async function fixture() {
       friend: false,
       contacts: { sub: { name: true, friend: true } },
     },
-    alwaysSelectFields: { read: ['ownerId', 'friend'] },
-    docPermissions: { read: hook },
+    docPermissions: { read: { dependsOn: ['ownerId', 'friend'], get: hook } },
   });
   const visible = await Target.create({
     name: 'visible',

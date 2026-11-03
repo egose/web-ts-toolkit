@@ -98,8 +98,10 @@ describe('SVA-05 direct authorized execution', () => {
       const decision = vi.fn((_permissions, grants) => grants.owner === true);
       const f = await authorizationFixture({
         permissionSchema: { status: { read: decision, list: decision }, internalNote: false },
-        alwaysSelectFields: { read: ['ownerId'], list: ['ownerId'] },
-        docPermissions: { read: hook, list: hook },
+        docPermissions: {
+          read: { dependsOn: ['ownerId'], get: hook },
+          list: { dependsOn: ['ownerId'], get: hook },
+        },
         ...posture,
       });
       await f.execute(async (req) => {
@@ -149,8 +151,10 @@ describe('SVA-05 direct authorized execution', () => {
     const transform = vi.fn((filter) => filter);
     const f = await authorizationFixture({
       permissionSchema: { status: { read: 'owner', list: 'owner' }, internalNote: false },
-      alwaysSelectFields: ['ownerId'],
-      docPermissions: { list: hook, read: hook },
+      docPermissions: {
+        list: { dependsOn: ['ownerId'], get: hook },
+        read: { dependsOn: ['ownerId'], get: hook },
+      },
       overrideFilter: { list: transform },
     });
     let previous: any;
@@ -248,8 +252,10 @@ describe('SVA-05 direct authorized execution', () => {
       const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice' }));
       const f = await authorizationFixture({
         permissionSchema: { status: 'owner', slug: true },
-        alwaysSelectFields: ['ownerId'],
-        docPermissions: { list: hook, read: hook },
+        docPermissions: {
+          list: { dependsOn: ['ownerId'], get: hook },
+          read: { dependsOn: ['ownerId'], get: hook },
+        },
         stripPermissionsField: true,
       });
       await f.execute(async (req) => {

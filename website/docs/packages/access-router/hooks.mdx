@@ -84,10 +84,21 @@ Use these for audit logs, cache invalidation, and external side effects.
 ### `docPermissions`
 
 Return a plain record of literal-boolean `DocumentGrants` from untrimmed **projected** input. Declare
-additional persisted inputs with `alwaysSelectFields` (for example ownerId); the hook does
+additional persisted inputs with `{ dependsOn: ['ownerId'], get: existingHook }` on
+`docPermissions` or its applicable access/default/custom entry; the hook does
 not implicitly fetch all stored fields. Integrated output resolves it once per document/
 scope/access stage independently of skim and permission metadata switches. Pre-write and
 post-write output are distinct stages.
+
+`alwaysSelectFields` is removed. Existing sync/async functions remain valid, but add no
+extra fetch inputs. Use `get`, not `getter`. Dependencies are top-level persisted schema
+keys, like virtuals: declare `profile`, not `profile.ownerId`; unsafe/unknown/virtual
+names reject. Only active `docPermissionsAccess` (exact then undefined→default) supplies
+inputs, never an output-access union. Hook and dependencies are captured as one pair.
+Missing/undefined inputs never skip the hook; absent/empty dependencies add nothing.
+Inputs stay private unless independently selected and authorized, even if excluded or
+denied. Embedded scopes inherit owning facts; related targets resolve their own hook.
+Dotted access setters replace whole definitions, not partial `.get`/`.dependsOn` edits.
 
 Serialization on the configured permission field is separate: disabling/stripping/limiting
 metadata does not erase internal grants. Backend output grants do not forge request-user

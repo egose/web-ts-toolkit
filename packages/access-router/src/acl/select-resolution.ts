@@ -82,7 +82,6 @@ export async function resolveSelectForRequest({
   hasPermission,
   functionArgs = [],
   mode,
-  alwaysSelectFields = [],
   virtualNames = [],
 }: {
   req: AccessRouterBaseRequest;
@@ -92,19 +91,16 @@ export async function resolveSelectForRequest({
   hasPermission: (key: string) => boolean;
   functionArgs?: unknown[];
   mode: 'model' | 'data';
-  alwaysSelectFields?: string[];
   /** VIRT-02: registered virtual leaves for this scope; stripped, never granted. */
   virtualNames?: string[] | Set<string>;
 }) {
   const virtualSet = virtualNames instanceof Set ? virtualNames : new Set(virtualNames ?? []);
-  // Strip virtual names from every projection input up front, including
-  // `alwaysSelectFields` and private fetch inputs, without granting auth.
-  const strippedAlways = stripVirtuals(alwaysSelectFields ?? [], virtualSet);
+  // Persisted request eligibility only; private inputs are added by the output planner.
   let normalizedSelect = stripVirtuals(normalizeSelect(targetFields), virtualSet);
   // Persisted-field policy must never see virtual keys, even when the
   // permissionSchema widened to carry virtual output rules (VIRT-01).
   const persistedSchema = stripVirtualKeysFromPermissionSchema(permissionSchema, virtualSet);
-  if (!persistedSchema) return strippedAlways;
+  if (!persistedSchema) return [];
 
   let fields = await collectSchemaFields({
     req,
@@ -127,7 +123,7 @@ export async function resolveSelectForRequest({
       }
     }
 
-    return fields.concat(strippedAlways);
+    return fields;
   }
 
   return intersection(normalizedSelect, fields);

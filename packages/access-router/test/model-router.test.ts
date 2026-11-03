@@ -296,15 +296,15 @@ describe('model router', () => {
     );
 
     acl.setModelOptions(modelName, {
-      alwaysSelectFields: {
-        default: ['id'],
-        create: ['email'],
-      } as unknown as ModelRouterOptions['alwaysSelectFields'],
+      docPermissions: {
+        default: { dependsOn: ['name'], get: () => ({ reader: true }) },
+        create: () => ({ creator: true }),
+      },
       operationAccess: true,
     });
 
-    expect(getModelOption(modelName, 'alwaysSelectFields.create')).toEqual(['email']);
-    expect(getModelOption(modelName, 'alwaysSelectFields.read')).toEqual(['id']);
+    expect(getModelOption(modelName, 'docPermissions.create')).toBeTypeOf('function');
+    expect(getModelOption(modelName, 'docPermissions.read')).toMatchObject({ dependsOn: ['name'] });
     expect(getModelOption(modelName, 'operationAccess.list')).toBe(true);
   });
 

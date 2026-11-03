@@ -70,7 +70,6 @@ const makePopulateApp2 = async (opts: Parameters<typeof makePopulateApp>[0]) => 
     }) as never,
     ...(opts.targetVirtuals ? { virtuals: opts.targetVirtuals as never } : {}),
     ...(opts.targetDocPermissions ? { docPermissions: opts.targetDocPermissions as never } : {}),
-    ...(opts.targetAlwaysSelect ? { alwaysSelectFields: opts.targetAlwaysSelect as never } : {}),
   } as never);
   const parentRouter = runtime.createRouter(Parent, {
     basePath: `/v5p-${tag}`,
@@ -128,11 +127,14 @@ describe('VIRT-05 populate + include finalization', () => {
         fullAddress: { dependsOn: ['address'], read: fullGet as never, list: fullGet as never },
       },
       targetPermissionSchema: {
-        name: { list: true, read: true },
+        name: { list: 'hasNote', read: 'hasNote' },
         address: { list: true, read: true },
         fullAddress: { list: true, read: true },
       } as never,
-      targetAlwaysSelect: { read: ['internalNote'], list: ['internalNote'] } as never,
+      targetDocPermissions: {
+        dependsOn: ['internalNote'],
+        get: (doc) => ({ hasNote: doc.internalNote === 'forced' }),
+      },
       seedTargets: [{ name: 't1', address: 'a1', internalNote: 'forced', secret: 'denied' }], // pragma: allowlist secret
       seedParents: (ids) => [{ name: 'p1', targetRef: ids.t0 }],
     });

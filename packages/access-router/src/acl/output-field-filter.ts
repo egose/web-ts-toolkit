@@ -38,7 +38,8 @@ import {
   type AuthorizationConfiguration,
   type ResolvedServiceAuthorization,
 } from './service-authorization';
-import { captureOutputHelperConfiguration, getCapturedAuthorizationOption } from './model-output-planning';
+import { captureOutputHelperConfiguration } from './model-output-planning';
+import { resolveDocumentPermissionsDefinition } from './document-permissions-definition';
 import { evaluateScopedAccessRuleValue, hasExplicitFieldGrant } from './field-authorization';
 import {
   clearCapturedOutputCatalog,
@@ -107,8 +108,7 @@ export function prepareOutputDocumentStage(
   configuration: AuthorizationConfiguration,
 ): (args: ResolveOutputStageArgs) => Promise<DocumentStage> {
   const access = readServiceAuthorizationAccess(authorization, binding);
-  const option = getCapturedAuthorizationOption(configuration, `docPermissions.${access.docPermissionsAccess}`);
-  const hook = typeof option === 'function' ? option : undefined;
+  const hook = resolveDocumentPermissionsDefinition(configuration.docPermissions, access.docPermissionsAccess)?.get;
   return async (args) => {
     if (args.authorization !== authorization) authorizationError('document resolver call mismatch');
     assertAuthorizationBinding(authorization, args.binding);

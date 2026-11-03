@@ -139,8 +139,7 @@ async function fixture(lean: boolean, metadata = false) {
       restrictionState: true,
       ref: true,
     },
-    alwaysSelectFields: ['secret', 'unselected', 'restricted', 'owner', 'profile.private', 'profile.restricted'],
-    docPermissions: hook,
+    docPermissions: { dependsOn: ['secret', 'unselected', 'restricted', 'owner', 'profile'], get: hook },
     virtuals: { restrictionState: { dependsOn: ['restricted'], read: getter, list: getter } },
     stripPermissionsField: true,
     hydration: Object.fromEntries(
