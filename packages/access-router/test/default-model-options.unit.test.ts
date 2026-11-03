@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccessRuntime } from '../src/runtime';
 import {
   captureModelAuthorizationConfiguration,
+  captureOutputHelperConfiguration,
   getCapturedAuthorizationOption,
 } from '../src/acl/model-output-planning';
 import { authorizationModeKeys, retiredAuthorizationOptions } from '../src/acl/authorization-modes';
@@ -44,6 +45,29 @@ afterEach(() => {
 });
 
 describe('default-model options stay inherited unless explicitly overridden', () => {
+  it('disables field permission maps by default and preserves explicit false overrides', () => {
+    const f = fixture();
+    const expectFieldPermissionsDisabled = (expected: boolean) => {
+      expect(f.runtime.getModelOption(f.name, 'disableFieldPermissions')).toBe(expected);
+      expect(f.runtime.getExactModelOption(f.name, 'disableFieldPermissions')).toBe(expected);
+      expect(f.runtime.getModelOptions(f.name).disableFieldPermissions).toBe(expected);
+      expect(captureModelAuthorizationConfiguration(f.runtime, f.name).disableFieldPermissions).toBe(expected);
+      expect(captureOutputHelperConfiguration(f.runtime, f.name).disableFieldPermissions).toBe(expected);
+    };
+    expect(f.runtime.getDefaultModelOptions().disableFieldPermissions).toBe(true);
+    expect(f.runtime.getDefaultModelOption('disableFieldPermissions')).toBe(true);
+    expectFieldPermissionsDisabled(true);
+    f.runtime.setModelOptions(f.name, { disableFieldPermissions: false });
+    expectFieldPermissionsDisabled(false);
+    f.runtime.setModelOption(f.name, 'disableFieldPermissions', undefined);
+    expectFieldPermissionsDisabled(true);
+    f.runtime.setDefaultModelOption('disableFieldPermissions', false);
+    expectFieldPermissionsDisabled(false);
+    f.runtime.setDefaultModelOption('disableFieldPermissions', undefined);
+    expect(captureModelAuthorizationConfiguration(f.runtime, f.name).disableFieldPermissions).toBe(true);
+    expect(captureOutputHelperConfiguration(f.runtime, f.name).disableFieldPermissions).toBe(true);
+  });
+
   it.each(booleanOptions)('%s applies before configuration and after a model was already configured', (key) => {
     const f = fixture();
     f.runtime.setModelOptions(f.name, { permissionSchema: { name: true } });
@@ -55,7 +79,7 @@ describe('default-model options stay inherited unless explicitly overridden', ()
     expect(f.runtime.getModelOptions(f.name)[key]).toBe(true);
     if (key !== 'stripDisallowedSort')
       expect(captureModelAuthorizationConfiguration(f.runtime, f.name)[key]).toBe(true);
-    expect(initial[key]).not.toBe(true);
+    expect(initial[key] ?? false).toBe(key === 'disableFieldPermissions');
     // A later unrelated model update/router construction must not pin inherited values.
     f.runtime.setModelOptions(f.name, { sortableFields: ['rank'] });
     f.runtime.setDefaultModelOption(key, false);

@@ -53,7 +53,6 @@ function fixture(mode: AuthorizationMode = 'isolated', options: ModelRouterOptio
     baseFilter: true,
     stripPermissionsField: true,
     modelPermissionPrefix: 'doc:',
-    alwaysSelectFields: ['ownerId'],
     permissionSchema: {
       name: true,
       secret: false,
@@ -67,7 +66,10 @@ function fixture(mode: AuthorizationMode = 'isolated', options: ModelRouterOptio
       contacts: { read: true, list: true, sub: { email: 'reader', private: false } },
       label: true,
     },
-    docPermissions: { read: hook, list: hook },
+    docPermissions: {
+      read: { dependsOn: ['ownerId'], get: hook },
+      list: { dependsOn: ['ownerId'], get: hook },
+    },
     virtuals: { label: { get: virtual, dependsOn: [] } },
     ...options,
   });

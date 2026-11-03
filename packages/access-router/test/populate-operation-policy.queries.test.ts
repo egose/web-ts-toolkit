@@ -78,8 +78,10 @@ async function fixture(required = false, hydration: 'lean' | 'hydrated' = 'lean'
       readOnly: { read: true, list: false },
       listOnly: { read: false, list: true },
     },
-    alwaysSelectFields: { read: ['owner'], list: ['owner'] },
-    docPermissions: { read: grants, list: grants },
+    docPermissions: {
+      read: { dependsOn: ['owner'], get: grants },
+      list: { dependsOn: ['owner'], get: grants },
+    },
     baseFilter: { read: readRows, list: () => ({ tenant: 'b' }) },
     overrideFilter: { read: transform, list: transform },
   });

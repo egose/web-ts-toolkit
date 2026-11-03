@@ -11,6 +11,7 @@ import {
   authorizationFastPathFlagOptions,
   verifySnapshotDeclarationManifest,
   fingerprint,
+  documentPermissionFixtureOptions,
 } from './access-router-core.mjs';
 import { verifySnapshotFlagOptions } from './access-router-worker.mjs';
 import { verifyCountContract } from './access-router-owned-core.mjs';
@@ -80,7 +81,6 @@ export async function probeDocumentCondition(target, { library, observe = () => 
     operationAccess: { read: true, list: true },
     ...flags,
     stripPermissionsField: false,
-    alwaysSelectFields: ['ownerFlag'],
     hydration: { publicRead: 'lean', publicList: 'lean', find: 'lean', findOne: 'lean' },
     modelPermissionPrefix: 'doc:',
     permissionSchema: {
@@ -98,13 +98,16 @@ export async function probeDocumentCondition(target, { library, observe = () => 
       ),
     },
     docPermissions: {
-      read(doc, _permissions, context) {
-        counts.hooks++;
-        inputs.push(fingerprint({ doc, context }));
-        assert.deepEqual(Object.keys(context.docPermissions), []);
-        assert.ok(Object.isFrozen(context.docPermissions));
-        assert.ok(Object.isFrozen(context));
-        return { owner: invalid ? 1 : owner };
+      read: {
+        dependsOn: ['ownerFlag'],
+        get(doc, _permissions, context) {
+          counts.hooks++;
+          inputs.push(fingerprint({ doc, context }));
+          assert.deepEqual(Object.keys(context.docPermissions), []);
+          assert.ok(Object.isFrozen(context.docPermissions));
+          assert.ok(Object.isFrozen(context));
+          return { owner: invalid ? 1 : owner };
+        },
       },
     },
     decorate: {
@@ -355,7 +358,6 @@ export async function probeOwned(target) {
     basePath: '/bench',
     operationAccess: true,
     stripPermissionsField: true,
-    alwaysSelectFields: ['ownerFlag'],
     modelPermissionPrefix: 'doc:',
     hydration: { publicRead: 'lean', publicList: 'lean', find: 'lean', findOne: 'lean' },
     permissionSchema: {
@@ -367,7 +369,7 @@ export async function probeOwned(target) {
       children: { read: true, list: true, sub: { label: true, hidden: false } },
       emptyAllows: { read: (_p, g) => g.owner !== true },
     },
-    docPermissions: { read: hook, list: hook },
+    ...(await documentPermissionFixtureOptions(target, ['ownerFlag'], { read: hook, list: hook })),
     virtuals: {
       children: { sub: {} },
       label: {

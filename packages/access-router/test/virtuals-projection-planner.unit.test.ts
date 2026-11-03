@@ -27,7 +27,6 @@ const baseSnapshot = (over: Partial<VirtualProjectionSnapshot> = {}): VirtualPro
     address: { read: true, list: true },
   },
   virtuals: {},
-  alwaysSelectFields: [],
   modelPermissionPrefix: '',
   requireExplicitSelect: false,
   documentPermissionField: '_permissions',
@@ -44,7 +43,6 @@ describe('VIRT-02 virtual projection planner', () => {
       snapshot: baseSnapshot({
         permissionSchema: { name: true },
         virtuals: { contacts: { sub: { badge: { update: () => 'inactive' } } } },
-        alwaysSelectFields: ['contacts.badge', 'contacts.badge.part'],
       }),
       requestedSelect: ['name'],
       internalFetch: { joinFields: ['profile.name', 'profile'], extraPersistedFields: ['contacts.badge'] },
@@ -366,7 +364,6 @@ describe('VIRT-02 virtual projection planner', () => {
         pureGlobal: { get: depGet, dependsOn: ['address'] },
         denied: { get: denyGet, dependsOn: ['address'] },
       },
-      alwaysSelectFields: [],
       modelPermissionPrefix: 'doc:',
       requireExplicitSelect: false,
     };
@@ -389,12 +386,11 @@ describe('VIRT-02 virtual projection planner', () => {
     expect(denyGet).not.toHaveBeenCalled();
   });
 
-  it('strips virtuals from alwaysSelectFields and private fetch inputs without granting', () => {
+  it('strips virtuals from private fetch inputs and fetches no denied virtual dependencies', () => {
     const get = vi.fn(async () => 'v');
     const snap = baseSnapshot({
       permissionSchema: { name: { read: true }, fullAddress: { read: false } },
       virtuals: { fullAddress: { get, dependsOn: ['address'] } },
-      alwaysSelectFields: ['fullAddress', 'address'],
     });
     const plan = planVirtualProjection({
       receivingModelName: 'U',
@@ -408,7 +404,7 @@ describe('VIRT-02 virtual projection planner', () => {
     });
     // Denied virtual never becomes a candidate even though forced/overridden.
     expect(plan.candidates).toEqual([]);
-    expect(plan.persistedFetchSelection).toEqual(expect.arrayContaining(['name', 'address', '_id']));
+    expect(plan.persistedFetchSelection).toEqual(['name', '_id']);
     expect(plan.persistedFetchSelection).not.toContain('fullAddress');
     expect(stripVirtuals(['fullAddress', '-fullAddress', 'name'], new Set(['fullAddress']))).toEqual(['name']);
     expect(stripVirtualKeysFromPermissionSchema({ name: true, fullAddress: true }, new Set(['fullAddress']))).toEqual({
@@ -460,7 +456,6 @@ describe('VIRT-02 virtual projection planner', () => {
       virtuals: {
         contacts: { sub: { nick: { get: nickGet, dependsOn: ['displayName'] } } },
       } as never,
-      alwaysSelectFields: [],
       modelPermissionPrefix: '',
     };
     const plan = planVirtualProjection({
@@ -504,7 +499,6 @@ describe('VIRT-02 virtual projection planner', () => {
     const targetSnap: VirtualProjectionSnapshot = {
       permissionSchema: { title: { list: true }, tv: { list: true } },
       virtuals: { tv: { get: targetGet, dependsOn: ['title'] } },
-      alwaysSelectFields: [],
       modelPermissionPrefix: '',
     };
     const plan = planVirtualProjection({

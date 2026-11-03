@@ -21,20 +21,20 @@ jobs:
       uses: ./.github/actions/setup-npm
 
     - name: Install message-service runtime floor
-      run: asdf install nodejs 22.0.0
+      run: asdf install nodejs 24.0.0
 
     - name: Build installed consumer artifacts
       run: pnpm --filter @web-ts-toolkit/message-service... build
 
-    - name: Verify minimum and installed-current peers on Node 22.0.0
+    - name: Verify minimum and installed-current peers on Node 24.0.0
       env:
-        MESSAGE_SERVICE_EXPECT_NODE: 22.0.0
+        MESSAGE_SERVICE_EXPECT_NODE: 24.0.0
         MESSAGE_SERVICE_REPORT_DIR: ${{ runner.temp }}/message-service-consumer-reports
       run: |
         mkdir -p _tmp-msga
         git check-ignore _tmp-msga
         export TMPDIR="$PWD/_tmp-msga"
-        export MESSAGE_SERVICE_CONSUMER_NODE="$(asdf where nodejs 22.0.0)/bin/node"
+        export MESSAGE_SERVICE_CONSUMER_NODE="$(asdf where nodejs 24.0.0)/bin/node"
         "$MESSAGE_SERVICE_CONSUMER_NODE" --version
         pnpm --filter @web-ts-toolkit/message-service exec vitest run --config ../../vitest.config.ts --fileParallelism=false test/message-service.packed-consumer.test.ts -t MSGA-11
 

@@ -480,6 +480,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'authorization-fast-path-consumer.types.fixture',
     'owned-authorization-many.types.fixture',
     'owned-authorization-many-consumer.types.fixture',
+    'document-permissions-dependencies.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -1043,6 +1044,8 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         'owned-authorization-many.types.fixture.cts',
         'owned-authorization-many-consumer.types.fixture.mts',
         'owned-authorization-many-consumer.types.fixture.cts',
+        'document-permissions-dependencies.types.fixture.mts',
+        'document-permissions-dependencies.types.fixture.cts',
         'collection.runtime.mts',
         'collection.runtime.cts',
         ...['raw', 'presentation', 'current'].flatMap((name) => [
@@ -1605,7 +1608,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     // tarball to prove the staging + `pnpm pack` round-trips the same fields.
     expect(accessRouterManifest).toEqual(stagedManifest);
     expect(accessRouterManifest.version).toBe(testVersion);
-    expect(accessRouterManifest.engines).toEqual({ node: '>=22' });
+    expect(accessRouterManifest.engines).toEqual({ node: '>=24' });
     expect(accessRouterManifest.license).toBe(rootPackageJson.license);
     expect(accessRouterManifest.repository).toEqual({
       ...rootPackageJson.repository,

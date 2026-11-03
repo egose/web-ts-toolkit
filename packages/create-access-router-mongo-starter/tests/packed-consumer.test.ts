@@ -111,7 +111,7 @@ describe('release-like packed consumer', () => {
         repository: { directory: string };
       };
       expect(installedManifest.author).toBe('Junmin Ahn');
-      expect(installedManifest.engines.node).toBe('>=22.12.0');
+      expect(installedManifest.engines.node).toBe('>=24');
       expect(installedManifest.license).toBe('Apache-2.0');
       expect(installedManifest.repository.directory).toBe('packages/create-access-router-mongo-starter');
 

@@ -87,8 +87,7 @@ describe('semantic runtime-profile migration: source borrowing, never borrowed a
           ...(embedded ? { children: { list: true, read: true, sub: { label: 'doc:owner', hidden: false } } } : {}),
         },
         modelPermissionPrefix: 'doc:',
-        alwaysSelectFields: ['owner'],
-        docPermissions: { list: hook },
+        docPermissions: { list: { dependsOn: ['owner'], get: hook } },
         ...(embedded ? { virtuals: { children: { sub: {} } } } : {}),
       });
       const rows = Array.from({ length: 6 }, (_, index) => ({
@@ -205,8 +204,7 @@ describe('semantic runtime-profile migration: source borrowing, never borrowed a
         const f = fixture(mode, {
           permissionSchema: { value: 'doc:owner' },
           modelPermissionPrefix: 'doc:',
-          alwaysSelectFields: ['hidden'],
-          docPermissions: { list: hook },
+          docPermissions: { list: { dependsOn: ['hidden'], get: hook } },
         });
         f.adapter.find.mockResolvedValue([{ value: 'sensitive', hidden: leaf }]);
         expect(await f.service.find({}, { select: ['value', '-_id'] }, quiet)).toMatchObject({

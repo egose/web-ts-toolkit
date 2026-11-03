@@ -108,7 +108,7 @@ async function main() {
         slug: 'welcome',
         title: 'Welcome 0',
         body: 'Hello',
-        _permissions: { _view: { $: '_' }, _edit: { $: '_' } },
+        _permissions: {},
       });
       await send(urls[0], '/api/articles/draft', 404, { headers });
       // Explicitly requesting a denied field still cannot disclose it.

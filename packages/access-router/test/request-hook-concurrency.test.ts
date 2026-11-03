@@ -171,9 +171,11 @@ describe('ARL-07 request/runtime-owned hook admission', () => {
         rows(`${parent.key}-c`, 3).map((row) => ({ ...row, parent: parent.key })),
       );
       const target = f.addModel('Child', childRows, {
-        alwaysSelectFields: ['parent'],
         permissionSchema: { key: 'doc:visible', parent: false, secret: false, computed: 'doc:visible' },
-        docPermissions: (doc: { key: string }) => probe.run(`grant:${doc.key}`, () => ({ visible: true })),
+        docPermissions: {
+          dependsOn: ['key'],
+          get: (doc: { key: string }) => probe.run(`grant:${doc.key}`, () => ({ visible: true })),
+        },
         virtuals: {
           computed: { dependsOn: ['key'], get: (doc: { key: string }) => probe.run(`get:${doc.key}`, () => doc.key) },
         },
@@ -269,6 +271,8 @@ describe('ARL-07 request/runtime-owned hook admission', () => {
     'limit-one nested service/fan-out from %s completes with bounded leaves',
     async (kind) => {
       const f = fixture(1, 1);
+      // Retain field-metadata row queries in this nested persistence-admission case.
+      f.api.setDefaultModelOptions({ disableFieldPermissions: false });
       const leafProbe = new HookProbe();
       let frames = 0;
       let framePeak = 0;
@@ -435,12 +439,16 @@ describe('ARL-07 request/runtime-owned hook admission', () => {
     const probe = new HookProbe();
     const parents = rows('parent', 3).map((parent) => ({ ...parent, contacts: rows(`${parent.key}-sub`, 2) }));
     const model = f.addModel('Subs', parents, {
-      alwaysSelectFields: ['key'],
       permissionSchema: {
         key: true,
         contacts: { read: true, list: true, sub: { key: 'doc:visible', computed: 'doc:visible' } },
       },
-      docPermissions: { read: (doc: { key: string }) => probe.run(`grant:${doc.key}`, () => ({ visible: true })) },
+      docPermissions: {
+        read: {
+          dependsOn: ['key'],
+          get: (doc: { key: string }) => probe.run(`grant:${doc.key}`, () => ({ visible: true })),
+        },
+      },
       virtuals: {
         contacts: {
           sub: {

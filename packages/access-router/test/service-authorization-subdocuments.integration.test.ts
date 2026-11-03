@@ -77,7 +77,6 @@ async function fixture(virtuals: boolean, containerAllowed = true, extra: Record
     },
     permissionSchema: schema,
     stripPermissionsField: true,
-    alwaysSelectFields: { read: ['ownerId'], list: ['ownerId'] },
     baseFilter: { read: () => ({ visible: true }), list: () => ({ visible: true }) },
   };
   api.setGlobalOptions({
@@ -88,14 +87,20 @@ async function fixture(virtuals: boolean, containerAllowed = true, extra: Record
   api.createRouter(Target, {
     ...base,
     basePath: `/sva07-target-${tag}`,
-    docPermissions: { read: targetHook, list: targetHook },
+    docPermissions: {
+      read: { dependsOn: ['ownerId'], get: targetHook },
+      list: { dependsOn: ['ownerId'], get: targetHook },
+    },
     permissionSchema: { ...schema, contacts: { ...schema.contacts, read: true, list: true } },
     virtuals: virtuals ? { contacts: { sub: { label: { get: targetGetter, dependsOn: ['email'] } } } } : {},
   } as never);
   const router = api.createRouter(Parent, {
     ...base,
     basePath: `/sva07-${tag}`,
-    docPermissions: { read: parentHook, list: parentHook },
+    docPermissions: {
+      read: { dependsOn: ['ownerId'], get: parentHook },
+      list: { dependsOn: ['ownerId'], get: parentHook },
+    },
     virtuals: virtuals ? { contacts: { sub: { label: { get: getter, dependsOn: ['email'] } } } } : {},
     ...extra,
   } as never);

@@ -151,9 +151,9 @@ describe('stripPermissionsField', () => {
   });
 });
 
-describe('disableFieldPermissions', () => {
+describe.each([undefined, true])('disableFieldPermissions (%s)', (disableFieldPermissions) => {
   it('list keeps doc hook keys but never emits field maps', async () => {
-    const { app, basePath } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions: true });
+    const { app, basePath } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
 
     const res = await request(app)
       .get(`${basePath}?include_permissions=true&include_field_permissions=true`)
@@ -165,7 +165,7 @@ describe('disableFieldPermissions', () => {
   it('read and update keep doc hook keys but never emit field maps', async () => {
     const { app, basePath, id } = await createPostureApp({
       prefix: 'AclPostureDisable',
-      disableFieldPermissions: true,
+      disableFieldPermissions,
     });
 
     const read = await request(app)
@@ -184,7 +184,7 @@ describe('disableFieldPermissions', () => {
   it('client field flags stay disabled even when owner defaults enable permissions', async () => {
     const { app, basePath } = await createPostureApp({
       prefix: 'AclPostureDisable',
-      disableFieldPermissions: true,
+      disableFieldPermissions,
       defaults: { publicListOptions: { includePermissions: true } },
     });
 
@@ -193,14 +193,29 @@ describe('disableFieldPermissions', () => {
     expect(res.body.data[0]._permissions).toEqual({ 'view.secret': true });
 
     // Without owner defaults, an explicit client field flag is still ignored:
-    // both flags resolve false, so the placeholder wipe applies.
-    const plain = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions: true });
+    // both flags resolve false, and disabled field maps have no placeholders.
+    const plain = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
     const explicit = await request(plain.app).get(`${plain.basePath}?include_field_permissions=true`).expect(200);
-    expect(explicit.body.data[0]._permissions).toEqual({ _view: { $: '_' }, _edit: { $: '_' } });
+    expect(explicit.body.data[0]._permissions).toEqual({});
+  });
+
+  it.each([
+    '',
+    '?include_permissions=false',
+    '?include_permissions=false&include_field_permissions=true',
+    '?include_permissions=false&include_field_permissions=false',
+  ])('list omits placeholders when doc permissions are not requested: %s', async (query) => {
+    const { app, basePath } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
+
+    const res = await request(app).get(`${basePath}${query}`).expect(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0]._permissions).toEqual({});
+    // Metadata output must not affect document-grant enforcement.
+    expect(res.body.data[0].secret).toBe('s1');
   });
 
   it('root batch field flags are ignored', async () => {
-    const { app, modelName } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions: true });
+    const { app, modelName } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
 
     const res = await request(app)
       .post('/root')
@@ -215,5 +230,41 @@ describe('disableFieldPermissions', () => {
       ])
       .expect(200);
     expect(res.body[0].result.data[0]._permissions).toEqual({ 'view.secret': true });
+  });
+
+  it.each([
+    { label: 'omitted options', options: undefined },
+    { label: 'doc permissions disabled', options: { includePermissions: false } },
+    { label: 'field flag enabled', options: { includePermissions: false, includeFieldPermissions: true } },
+    { label: 'both flags disabled', options: { includePermissions: false, includeFieldPermissions: false } },
+  ])('root batch omits placeholders with $label', async ({ options }) => {
+    const { app, modelName, id } = await createPostureApp({
+      prefix: 'AclPostureDisable',
+      disableFieldPermissions,
+    });
+    const entries = [
+      { op: 'list' },
+      { op: 'read', id },
+      { op: 'read', filter: {} },
+      { op: 'create', data: { name: 'beta', secret: 's2' }, order: 1 }, // pragma: allowlist secret
+      { op: 'update', id, data: { name: 'renamed' }, order: 1 },
+    ];
+
+    const res = await request(app)
+      .post('/root')
+      .send(entries.map((entry) => ({ target: 'model', name: modelName, ...entry, options })))
+      .expect(200);
+    expect(res.body).toHaveLength(entries.length);
+    for (const [index, entry] of entries.entries()) {
+      const { result } = res.body[index];
+      expect(result.success).toBe(true);
+      const rows = Array.isArray(result.data) ? result.data : [result.data];
+      expect(rows).toHaveLength(1);
+      for (const row of rows) {
+        const includePermissions = options?.includePermissions ?? entry.op !== 'list';
+        expect(row._permissions).toEqual(includePermissions ? { 'view.secret': true } : {});
+        if (entry.op === 'list' || entry.op === 'read') expect(row.secret).toBe('s1');
+      }
+    }
   });
 });

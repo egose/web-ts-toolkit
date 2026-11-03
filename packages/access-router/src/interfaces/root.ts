@@ -39,7 +39,8 @@ import type {
   ModelBaseFilterHook,
   ModelChangeHook,
   ModelDeleteHook,
-  ModelDocPermissionsHook,
+  ModelDocPermissionsDefinition,
+  ModelDocPermissionsAccessRecord,
   ModelDocumentHook,
   ModelHook,
   ModelIdentifierHook,
@@ -317,13 +318,6 @@ type PermissionRule = FieldValidation | (FieldOperationAccess & { sub?: Permissi
  */
 export type PermissionSchema<TField extends string = string> = Partial<Record<TField, PermissionRule>>;
 
-interface DocPermissions {
-  list?: ModelDocPermissionsHook;
-  create?: ModelDocPermissionsHook;
-  read?: ModelDocPermissionsHook;
-  update?: ModelDocPermissionsHook;
-}
-
 /**
  * Mongoose fetch mode, not an output type. Both modes finalize plain objects;
  * schema defaults, getters, transforms and init hooks can still change values.
@@ -530,8 +524,12 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * When `true`, client `includeFieldPermissions` input (query params,
    * body/root-batch options and service-direct options) as well as
    * per-operation `defaults` are ignored and field maps (`_view`/`_edit`)
-   * are never computed. `docPermissions`-hook keys still follow
-   * `includePermissions`. Defaults to `false`.
+   * are neither computed nor emitted, including empty placeholders.
+   * `docPermissions`-hook keys still follow `includePermissions`; when none
+   * are included, the permissions field is an empty object. Use
+   * `stripPermissionsField` to remove the field entirely. Defaults to `true`;
+   * set `false` on the model or runtime model defaults to allow field maps.
+   * Permission enforcement is unaffected.
    */
   disableFieldPermissions?: boolean;
   /**
@@ -698,19 +696,16 @@ export interface ModelRouterOptions<
    */
   virtuals?: ModelVirtuals<TModel, TVirtuals>;
   /**
-   * Private persisted fetch inputs for projected document hooks (for example ownerId).
-   * An array applies to every access; a per-access record uses its exact entry, then
-   * default. These fields do not grant output. Integrated output captures the inputs
-   * for both output and document-permission access, independently of metadata flags.
-   */
-  alwaysSelectFields?: string[] | Record<string, string[]>;
-  /**
    * Once-per-root/target projected document grants, independently of skim/metadata.
    * Both source modes own one immutable boolean map. Genuine embedded scopes share
    * owning facts; related targets and independent pre/post-write stages resolve anew.
    * Output contexts are immutable diagnostics, never source or reusable authority.
+   * Accepts a callable or { get, dependsOn? }, directly or in an exact/default/custom
+   * access record. Only the active document-permission definition adds private inputs;
+   * top-level persisted dependencies confer no output permission. Missing inputs never
+   * skip the hook. See ModelDocPermissionsDescriptor for the dependency contract.
    */
-  docPermissions?: DocPermissions | ModelDocPermissionsHook;
+  docPermissions?: ModelDocPermissionsDefinition<TModel> | ModelDocPermissionsAccessRecord<TModel>;
   /**
    * Allowlist of `docPermissions`-hook keys exposed in API responses.
    * Enforcement always uses the full hook map; only serialization is reduced,
@@ -804,16 +799,13 @@ export interface DataRouterOptions<TData = unknown> {
 
 export interface ExtendedModelRouterOptions<TModel = unknown, TVirtuals extends object = Record<never, never>>
   extends ModelRouterOptions<TModel, TVirtuals>, Omit<ExtendedDefaultModelRouterOptions<TModel>, 'permissionSchema'> {
-  'alwaysSelectFields.default'?: string[];
-  'alwaysSelectFields.list'?: string[];
-  'alwaysSelectFields.create'?: string[];
-  'alwaysSelectFields.read'?: string[];
-  'alwaysSelectFields.update'?: string[];
-  'docPermissions.default'?: ModelDocPermissionsHook;
-  'docPermissions.list'?: ModelDocPermissionsHook;
-  'docPermissions.create'?: ModelDocPermissionsHook;
-  'docPermissions.read'?: ModelDocPermissionsHook;
-  'docPermissions.update'?: ModelDocPermissionsHook;
+  'docPermissions.default'?: ModelDocPermissionsDefinition<TModel>;
+  'docPermissions.list'?: ModelDocPermissionsDefinition<TModel>;
+  'docPermissions.create'?: ModelDocPermissionsDefinition<TModel>;
+  'docPermissions.read'?: ModelDocPermissionsDefinition<TModel>;
+  'docPermissions.update'?: ModelDocPermissionsDefinition<TModel>;
+  /** Replace a custom access's entire definition; get/dependsOn are reserved leaf members. */
+  [key: `docPermissions.${string}`]: ModelDocPermissionsDefinition<TModel> | undefined;
   'baseFilter.default'?: ModelBaseFilterHook;
   'baseFilter.list'?: ModelBaseFilterHook;
   'baseFilter.read'?: ModelBaseFilterHook;

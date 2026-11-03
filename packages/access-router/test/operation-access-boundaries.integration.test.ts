@@ -888,8 +888,7 @@ describe('OAV-05 populate input boundaries', () => {
         name: { inspection: true, read: false, list: true },
         [grantedField]: { inspection: 'canInspectTarget', read: false, list: false },
       } as never);
-      router.alwaysSelectFields('inspection', [grantedField]);
-      router.docPermissions('inspection', customGrants);
+      router.docPermissions('inspection', { dependsOn: [grantedField], get: customGrants });
       router.docPermissions('read', readGrants);
       const populate = [
         {

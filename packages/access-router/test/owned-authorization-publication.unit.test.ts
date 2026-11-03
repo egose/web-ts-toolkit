@@ -453,7 +453,11 @@ describe('private publication handoffs (not result authority)', () => {
 
   it.each(modes)('admits attempted field-metadata keys before even denied policy callbacks, %s', async (mode) => {
     const denied = vi.fn(() => false);
-    const f = fixture(mode, { stripPermissionsField: false, permissionSchema: { value: true, guarded: denied } });
+    const f = fixture(mode, {
+      stripPermissionsField: false,
+      disableFieldPermissions: false,
+      permissionSchema: { value: true, guarded: denied },
+    });
     f.Source.schema.add({ guarded: String });
     f.rows.splice(1);
     const options = { ...quiet, includeFieldPermissions: true };

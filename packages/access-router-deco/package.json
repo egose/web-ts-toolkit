@@ -20,7 +20,7 @@
     "test:compat": "ARDECO_COMPAT_FULL=1 pnpm --filter @web-ts-toolkit/access-router-deco... build && ARDECO_COMPAT_FULL=1 pnpm typecheck && ARDECO_COMPAT_FULL=1 vitest run --config vitest.compat.config.ts"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",

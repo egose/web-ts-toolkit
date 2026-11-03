@@ -10,6 +10,7 @@ import {
   snapshotFlagOptions,
   initialOutputCopyFlagOptions,
   authorizationFastPathFlagOptions,
+  documentPermissionFixtureOptions,
 } from './access-router-core.mjs';
 import { probeDocumentCondition } from './access-router-owned-probes.mjs';
 
@@ -165,7 +166,6 @@ export async function probeStructure(target, directory) {
         basePath: `/structure${fields}`,
         operationAccess: true,
         stripPermissionsField: true,
-        alwaysSelectFields: ['ownerFlag'],
         hydration: { publicList: 'lean' },
         ...flags,
         permissionSchema: {
@@ -182,7 +182,7 @@ export async function probeStructure(target, directory) {
           ),
           children: { list: true, read: true, sub: { label: true, hidden: false } },
         },
-        docPermissions: { list: hook },
+        ...(await documentPermissionFixtureOptions(target, ['ownerFlag'], { list: hook })),
         virtuals: { children: { sub: {} } },
         defaults: {
           publicListOptions: {

@@ -47,6 +47,7 @@ import {
 } from '../acl/model-input-admission';
 import { ServiceAuthorizationError } from '../acl/service-authorization';
 import { EMPTY_DOCUMENT_GRANTS } from '../acl/document-grants';
+import { resolveDocumentPermissionsDefinition } from '../acl/document-permissions-definition';
 import { intersectFilters } from '../core-shared';
 import { isExecutionRowDenied } from '../acl/prepared-query';
 import { getServiceExecutors } from '../acl/service-execution';
@@ -81,10 +82,20 @@ async function initialDenial<T, V extends object>(
   if (!(await initialGates(service, call))) return denied();
 }
 
-function parentSelection<T, V extends object>(service: Service<T, V>, call: SubdocumentCall): string {
-  const input = inputFetchPaths(subdocumentInputPolicy(service, call).configuration.catalog);
+function parentSelection<T, V extends object>(
+  service: Service<T, V>,
+  call: SubdocumentCall,
+  docPermissionsAccess?: 'read' | 'update',
+): string {
+  const { configuration } = subdocumentInputPolicy(service, call);
+  // Input admission intentionally excludes persisted permission metadata. A hook
+  // may still explicitly consume it; retain only this parent query's active inputs.
+  const dependencies = docPermissionsAccess
+    ? (resolveDocumentPermissionsDefinition(configuration.docPermissions, docPermissionsAccess)?.dependsOn ?? [])
+    : [];
+  const input = inputFetchPaths(configuration.catalog, dependencies);
   // Identity retention is private fetch authority, not an output/input field grant.
-  return [...new Set(['_id', `${call.sub}._id`, ...input])].map((path) => `+${path}`).join(' ');
+  return [...new Set(['_id', `${call.sub}._id`, ...input, ...dependencies])].map((path) => `+${path}`).join(' ');
 }
 
 async function mutationParent<T, V extends object>(
@@ -96,7 +107,7 @@ async function mutationParent<T, V extends object>(
   if (filter === false) return { error: denied(Codes.NotFound) };
   const parent = await service.findRawParentDoc({
     filter,
-    select: parentSelection(service, call),
+    select: parentSelection(service, call, ['update', 'bulkUpdate'].includes(call.method) ? 'update' : undefined),
     populate: [],
   });
   return parent ? { parent } : { error: denied(Codes.NotFound) };
@@ -162,7 +173,7 @@ async function visibleMutationRows<T, V extends object>(
     if (filter === false) return [];
     const parent = await getServiceExecutors(service).subdocumentVisibility({
       filter: filter as Filter<T>,
-      select: parentSelection(service, call),
+      select: parentSelection(service, call, 'read'),
       populate: [],
     });
     if (!parent) return [];
@@ -200,7 +211,7 @@ export async function listSub<T, V extends object>(
     if (childFilter === false) return denied();
     const parent = await service.findRawParentDoc({
       filter,
-      select: parentSelection(service, call),
+      select: parentSelection(service, call, 'read'),
       populate: [],
     });
     if (!parent) return denied(Codes.NotFound);
@@ -230,7 +241,7 @@ export async function readSub<T, V extends object>(
     const capture = subdocumentRequiresPopulateCapture(call.output!, entries);
     const parent = await service.findRawParentDoc({
       filter,
-      select: parentSelection(service, call),
+      select: parentSelection(service, call, 'read'),
       populate: capture ? [] : entries,
     });
     if (!parent) return denied(Codes.NotFound);

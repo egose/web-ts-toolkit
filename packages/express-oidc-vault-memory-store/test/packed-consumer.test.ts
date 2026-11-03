@@ -316,7 +316,7 @@ describe('MEM-06 packed-package consumer compatibility', () => {
       },
     });
     expect(packedManifest.sideEffects).toBe(false);
-    expect(packedManifest.engines).toEqual({ node: '>=22.12.0' });
+    expect(packedManifest.engines).toEqual({ node: '>=24' });
     expect(packedManifest.dependencies).toEqual({ [corePackageName]: testVersion });
     expect(packedManifest.devDependencies).toBeUndefined();
     expect(packedManifest.scripts).toBeUndefined();

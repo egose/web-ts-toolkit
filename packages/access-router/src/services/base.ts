@@ -616,7 +616,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
    * Fresh output-only planner: selection stays independent of additive server authority.
    * Returns persisted fetch inputs including private identity/dependencies, not an output
    * allowlist. Document-dependent rules are deferred; no permission functions/getters run.
-   * Configure extra projected hook inputs with alwaysSelectFields. Omitted/undefined
+   * Declare private hook inputs on docPermissions descriptors' dependsOn. Omitted/undefined
    * options equal {} (request-mode output); positional skipChecks/subPaths are removed.
    */
   public async genSelect(
@@ -760,7 +760,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
   }
 
   public checkIfModelPermissionExists(accesses: DocPermissionsAccess[]) {
-    const modelPermissionKeys = getModelOption(this.modelName, '_modelPermissionKeys' as never) as Record<
+    const modelPermissionKeys = getModelOption(this.modelName, '_modelPermissionKeys' as never) as unknown as Record<
       string,
       string[]
     >;

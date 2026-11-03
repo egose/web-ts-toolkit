@@ -458,6 +458,7 @@ describe('ARF-14 strict packed-consumer types', () => {
         'service-authorization-consumer.types.fixture',
         'service-authorization-boundary.types.fixture',
         'hydration-consumer.types.fixture',
+        'document-permissions-dependencies.types.fixture',
       ];
       for (const source of sources) {
         const snippet = readFileSync(path.resolve(packageRoot, `test/${source}.ts`), 'utf8')

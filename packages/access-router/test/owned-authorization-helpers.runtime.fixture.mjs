@@ -79,12 +79,14 @@ try {
       contacts: { read: true, sub: { email: 'reader', owned: 'doc:owner', secret: false } },
       label: true,
     },
-    alwaysSelectFields: ['ownerId'],
     stripPermissionsField: true,
     docPermissions: {
-      read: (doc) => {
-        hooks++;
-        return { owner: doc.ownerId === 'actor', suspended: true };
+      read: {
+        dependsOn: ['ownerId'],
+        get: (doc) => {
+          hooks++;
+          return { owner: doc.ownerId === 'actor', suspended: true };
+        },
       },
     },
     virtuals: {

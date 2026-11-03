@@ -45,8 +45,10 @@ async function fixture(options: ModelRouterOptions = {}) {
     operationAccess: { list: true, read: true, count: true },
     permissionSchema: { name: 'reader', secret: 'doc:owner', hidden: false },
     baseFilter: { list: () => ({ tenant: 'allowed' }), read: () => ({ tenant: 'allowed' }) },
-    docPermissions: { read: targetHook, list: targetHook },
-    alwaysSelectFields: ['owner'],
+    docPermissions: {
+      read: { dependsOn: ['owner'], get: targetHook },
+      list: { dependsOn: ['owner'], get: targetHook },
+    },
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
     ...Object.fromEntries(
@@ -65,8 +67,10 @@ async function fixture(options: ModelRouterOptions = {}) {
     },
     virtuals: { children: { sub: {} } },
     baseFilter: { read: () => ({ tenant: 'read' }), list: () => ({ tenant: 'list' }) },
-    alwaysSelectFields: ['owner'],
-    docPermissions: { read: rootHook, list: rootHook },
+    docPermissions: {
+      read: { dependsOn: ['owner'], get: rootHook },
+      list: { dependsOn: ['owner'], get: rootHook },
+    },
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
     ...options,

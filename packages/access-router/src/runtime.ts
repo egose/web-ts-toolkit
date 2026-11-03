@@ -46,6 +46,8 @@ import {
   type ResolvedVirtualDescriptor,
 } from './acl/virtual-descriptor';
 import { captureVirtualPopulateDependencies } from './acl/virtual-populate-dependencies';
+import { captureDocumentPermissionsDefinition } from './acl/document-permissions-definition';
+import { capturePersistedDependencies, collectPersistedTopLevel } from './acl/persisted-dependencies';
 import {
   assertAuthorizationModeKey,
   assertAuthorizationModeOptions,
@@ -77,7 +79,6 @@ const FIELD_ACCESS_KEYS = ['list', 'create', 'read', 'update'] as const;
 
 const defaultModelOptions: ModelRouterOptions = {
   basePath: null,
-  alwaysSelectFields: [],
 };
 
 /** Keep inherited values out of overrides; retain explicit clears for guards and populate flags. */
@@ -217,22 +218,7 @@ const virtualPathsOverlap = (virtualPath: string, permissionField: string): bool
   return false;
 };
 
-const collectStoredTopLevel = (schema: mongoose.Schema | null | undefined): Set<string> => {
-  const fields = new Set<string>();
-  if (!schema) return fields;
-  const paths = (schema as unknown as { paths?: Record<string, unknown> }).paths;
-  if (paths) {
-    for (const p of Object.keys(paths)) {
-      const top = p.split('.')[0];
-      if (top) fields.add(top);
-    }
-  }
-  const obj = (schema as unknown as { obj?: Record<string, unknown> }).obj;
-  if (obj) {
-    for (const k of Object.keys(obj)) fields.add(k);
-  }
-  return fields;
-};
+const collectStoredTopLevel = collectPersistedTopLevel;
 
 const getChildSchemaForField = (
   parentSchema: mongoose.Schema | null | undefined,
@@ -293,32 +279,7 @@ const validateVirtualDependsOn = (
   storedFields: Set<string>,
   siblingVirtualNames: Set<string>,
 ): string[] => {
-  if (dependsOn === undefined) return [];
-  if (!isArray(dependsOn)) {
-    throw new Error(`Virtual ${entryLabel}: dependsOn must be an array of top-level persisted field names`);
-  }
-  const list = dependsOn as unknown[];
-  for (const dep of list) {
-    if (!isString(dep) || dep.length === 0) {
-      throw new Error(`Virtual ${entryLabel}: dependsOn entries must be non-empty strings`);
-    }
-    if (dep.includes('.')) {
-      throw new Error(
-        `Virtual ${entryLabel}: dependsOn "${dep}" must be a top-level persisted name relative to its scope (dotted paths rejected)`,
-      );
-    }
-    if (siblingVirtualNames.has(dep)) {
-      throw new Error(
-        `Virtual ${entryLabel}: dependsOn "${dep}" must not reference another virtual (virtual-to-virtual rejected)`,
-      );
-    }
-    if (!storedFields.has(dep)) {
-      throw new Error(
-        `Virtual ${entryLabel}: dependsOn "${dep}" is not a persisted field in its scope (validated against the receiving Mongoose schema/child scope)`,
-      );
-    }
-  }
-  return list as string[];
+  return [...capturePersistedDependencies(dependsOn, `Virtual ${entryLabel}`, storedFields, siblingVirtualNames)];
 };
 
 const validateVirtualLeafValue = (
@@ -555,6 +516,7 @@ export class AccessRuntime {
   >({
     listHardLimit: DEFAULT_LIST_HARD_LIMIT,
     documentPermissionField: '_permissions',
+    disableFieldPermissions: true,
     idParam: 'id',
     idField: '_id',
     parentPath: '/',
@@ -947,12 +909,17 @@ export class AccessRuntime {
     options: ModelRouterOptions,
     proposed?: Parameters<typeof captureVirtualPopulateDependencies>[4],
   ): void {
-    validateVirtualsTree(
-      this.getModelInstance(modelName),
-      options.virtuals,
-      options.documentPermissionField ?? '_permissions',
-      modelName,
-    );
+    const model = this.getModelInstance(modelName);
+    validateVirtualsTree(model, options.virtuals, options.documentPermissionField ?? '_permissions', modelName);
+    captureDocumentPermissionsDefinition(options.docPermissions, {
+      storedFields: collectPersistedTopLevel(model?.schema),
+      virtualNames: new Set([
+        ...Object.keys(model?.schema.virtuals ?? {}),
+        ...Object.entries(options.virtuals ?? {})
+          .filter(([, value]) => value !== undefined && !isVirtualContainerValue(value))
+          .map(([name]) => name),
+      ]),
+    });
     captureVirtualPopulateDependencies(this, modelName, options, undefined, proposed);
   }
 
@@ -1076,6 +1043,13 @@ export class AccessRuntime {
       'model-options',
     );
     assertPublicDefaults(options.defaults);
+    // Admit definitions before the generic option snapshot can invoke/flatten accessors.
+    if ('docPermissions' in options) {
+      const slot = Object.getOwnPropertyDescriptor(options, 'docPermissions');
+      if (!slot || !('value' in slot) || !slot.enumerable)
+        throw new TypeError('docPermissions must be an enumerable data property');
+      options = { ...options, docPermissions: captureDocumentPermissionsDefinition(slot.value) } as typeof options;
+    }
     options = normalizePopulatePolicyOptions(options);
     if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
     const overrides = modelOverrides({ ...this.modelOptionOverrides[modelName], ...options } as ModelRouterOptions);
@@ -1096,6 +1070,17 @@ export class AccessRuntime {
   >(modelName: string, key: K, value: ExtendedModelRouterOptions<TModel, TVirtuals>[K]) {
     assertAuthorizationModeKey(key, true);
     const keyStr = key as string;
+    if (keyStr === 'docPermissions') {
+      value = captureDocumentPermissionsDefinition(value) as typeof value;
+    } else if (keyStr.startsWith('docPermissions.')) {
+      // Per-access setters replace leaves. Validate even an inapplicable leaf before cloning.
+      const path = keyStr.slice('docPermissions.'.length);
+      if (path.includes('.') || path === 'get' || path === 'dependsOn')
+        throw new TypeError(
+          'docPermissions dotted setters replace an access definition; set { get, dependsOn? } together',
+        );
+      captureDocumentPermissionsDefinition({ [path]: value });
+    }
 
     if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
       const hydration = normalizeHydrationUpdate(this.resolveModelOptions(modelName).hydration, keyStr, value);
@@ -1131,7 +1116,15 @@ export class AccessRuntime {
       return;
     }
     const current = this.resolveModelOptions(modelName) as Record<string, unknown>;
-    const nested = cloneModelOptionForUpdate(isPlainObject(current[root]) ? current[root] : {});
+    // A direct descriptor is a leaf, just like a bare function, not an access map.
+    const directDocumentPermissions =
+      root === 'docPermissions' &&
+      current[root] &&
+      typeof current[root] === 'object' &&
+      Object.hasOwn(current[root], 'get');
+    const nested = cloneModelOptionForUpdate(
+      isPlainObject(current[root]) && !directDocumentPermissions ? current[root] : {},
+    );
     if (root === 'virtuals' && value === undefined) {
       const parent = path.length === 1 ? nested : get(nested, path.slice(0, -1));
       if (isPlainObject(parent)) delete (parent as Record<string, unknown>)[path[path.length - 1]];

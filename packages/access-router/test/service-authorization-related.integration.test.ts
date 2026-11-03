@@ -126,8 +126,7 @@ describe('SVA-06 explicit related policies', () => {
       const hook = vi.fn((doc) => ({ owner: doc.owner === 'alice' }));
       const f = await fixture({
         permissionSchema: { name: { read: 'owner' }, ...(virtuals ? { computed: false, note: false } : {}) },
-        alwaysSelectFields: { read: ['owner'] },
-        docPermissions: { read: hook },
+        docPermissions: { read: { dependsOn: ['owner'], get: hook } },
         ...(virtuals ? { virtuals: { computed: { dependsOn: ['hidden'], read: getter } } } : {}),
       });
       await f.execute(async (req) => {
@@ -333,8 +332,10 @@ describe('SVA-06 explicit related policies', () => {
     const hook = vi.fn((doc) => ({ owner: doc.owner === 'alice' }));
     const f = await fixture({
       permissionSchema: { name: { list: 'owner', read: 'owner' }, next: true },
-      docPermissions: { list: hook, read: hook },
-      alwaysSelectFields: { list: ['owner'], read: ['owner'] },
+      docPermissions: {
+        list: { dependsOn: ['owner'], get: hook },
+        read: { dependsOn: ['owner'], get: hook },
+      },
     });
     await f.execute(async (req) => {
       const include = {
@@ -592,12 +593,11 @@ describe('SVA-06 explicit related policies', () => {
       const hook = vi.fn((doc) => ({ owner: doc.owner === 'alice', other: true }));
       const f = await fixture({
         permissionSchema: { name: 'owner', note: false },
-        docPermissions: { list: hook },
-        alwaysSelectFields: { list: ['owner'] },
+        docPermissions: { list: { dependsOn: ['owner'], get: hook } },
         ...(posture === 'stripped'
           ? { stripPermissionsField: true }
           : posture === 'limited'
-            ? { exposedDocPermissionKeys: ['other'] }
+            ? { exposedDocPermissionKeys: ['other'], disableFieldPermissions: false }
             : { disableFieldPermissions: true }),
       });
       await f.execute(async (req) => {
@@ -614,6 +614,7 @@ describe('SVA-06 explicit related policies', () => {
         expect(children[0]).toMatchObject({ name: 'a', note: 'note-a' });
         expect(children[1]).not.toHaveProperty('name');
         if (posture === 'stripped') expect(children[0]).not.toHaveProperty('_permissions');
+        else if (posture === 'disabled') expect(children[0]._permissions).toEqual({});
         else expect(children[0]._permissions).toEqual({ _view: { $: '_' }, _edit: { $: '_' } });
         expect(children[0]).not.toHaveProperty('owner');
         const before = hook.mock.calls.length;

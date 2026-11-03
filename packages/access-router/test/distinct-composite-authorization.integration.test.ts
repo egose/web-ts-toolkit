@@ -107,8 +107,7 @@ async function fixture() {
     },
     modelPermissionPrefix: 'doc:',
     baseFilter: { read: () => ({ tenant: 'visible' }) },
-    alwaysSelectFields: ['restricted'],
-    docPermissions: { read: hook },
+    docPermissions: { read: { dependsOn: ['restricted'], get: hook } },
     virtuals: {
       computed: { get: getter, dependsOn: [] },
       panel: { sub: { computed: { get: getter, dependsOn: [] } } },

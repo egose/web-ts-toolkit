@@ -307,8 +307,12 @@ describe('SVA-02 retained authorization-aware projection', () => {
 
   it('keeps denied unrelated fields out, defers document rules and fetches only declared hook dependencies', () => {
     const permissionFunction = vi.fn(() => true);
+    const hook = vi.fn((doc) => ({ owner: doc.ownerId === 'actor' }));
     for (const rule of [true, false, 'doc:owner', permissionFunction]) {
-      const f = fixture({ permissionSchema: { status: rule }, alwaysSelectFields: { read: ['ownerId'] } });
+      const f = fixture({
+        permissionSchema: { status: rule },
+        docPermissions: { read: { dependsOn: ['ownerId'], get: hook } },
+      });
       const plan = f.plan(['status', 'internalNote'], grant('internalNote'));
       expect(plan.persistedFetchSelection.includes('status')).toBe(rule !== false);
       expect(plan.persistedFetchSelection).toContain('ownerId');
@@ -317,6 +321,7 @@ describe('SVA-02 retained authorization-aware projection', () => {
       expect(plan.internalOnlyFields).toContain('ownerId');
     }
     expect(permissionFunction).not.toHaveBeenCalled();
+    expect(hook).not.toHaveBeenCalled();
   });
 
   it('selects additive exact/subtree paths with minimal ancestors and no sibling fetches', () => {
@@ -358,7 +363,10 @@ describe('SVA-02 retained authorization-aware projection', () => {
   it('retains the separate virtual/output/document accesses and projected document-hook inputs', () => {
     const f = fixture({
       permissionSchema: { inactive: { read: false, update: true } },
-      alwaysSelectFields: { read: ['ownerId'], update: ['status'] },
+      docPermissions: {
+        read: { dependsOn: ['ownerId'], get: (doc) => ({ owner: doc.ownerId === 'actor' }) },
+        update: { dependsOn: ['status'], get: (doc) => ({ editable: doc.status === 'open' }) },
+      },
     });
     const call = resolveServiceAuthorization({
       binding: f.binding,
@@ -378,7 +386,8 @@ describe('SVA-02 retained authorization-aware projection', () => {
       virtualAccess: 'update',
       outputAccess: 'read',
     });
-    expect(plan.persistedFetchSelection).toEqual(expect.arrayContaining(['internalNote', 'ownerId', 'status', '_id']));
+    expect(plan.persistedFetchSelection).toEqual(expect.arrayContaining(['internalNote', 'status', '_id']));
+    expect(plan.persistedFetchSelection).not.toContain('ownerId');
     expect(plan.outputPersistedFields).toEqual([]);
     expect(f.getter).not.toHaveBeenCalled();
   });
@@ -486,7 +495,7 @@ describe('SVA-02 retained authorization-aware projection', () => {
   });
 
   it('internal inputs never become grants and compacts parent/child dependencies without Mongo collisions', () => {
-    const f = fixture({ alwaysSelectFields: { read: ['profile', 'summary', 'inactive', 'contacts.badge'] } });
+    const f = fixture();
     const plan = planAuthorizedModelProjection({
       authorization: f.resolve(grant('contacts.email')),
       binding: f.binding,
@@ -494,7 +503,7 @@ describe('SVA-02 retained authorization-aware projection', () => {
       internalFetch: {
         joinFields: ['contacts.email', 'contacts'],
         identityFields: ['_id'],
-        extraPersistedFields: ['customer', 'inactive'],
+        extraPersistedFields: ['profile', 'summary', 'inactive', 'contacts.badge', 'customer'],
       },
     });
     expect(plan.persistedFetchSelection).toEqual(expect.arrayContaining(['profile', 'contacts', 'customer', '_id']));

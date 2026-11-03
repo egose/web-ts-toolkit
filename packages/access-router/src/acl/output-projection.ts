@@ -6,6 +6,7 @@ import { authorizationError } from './authorization-snapshot';
 import { isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
 import { selectCatalogOutputShape, type CatalogOutputSelection } from './output-selection';
 import { resolveVirtualPopulateDependencies } from './virtual-populate-dependencies';
+import { resolveDocumentPermissionsDefinition } from './document-permissions-definition';
 import {
   getAuthorizationPermissions,
   readServiceAuthorization,
@@ -14,7 +15,6 @@ import {
   type ResolvedServiceAuthorization,
 } from './service-authorization';
 import {
-  resolveAlwaysSelectForAccess,
   planVirtualProjection,
   type PlanVirtualProjectionArgs,
   type VirtualProjectionPlan,
@@ -200,16 +200,11 @@ function expandCatalogProjection(
   const internal = args.internalFetch ?? {};
   const { fetchIdRetained, outputIdExcluded } = shape;
   const identity = fetchIdRetained ? ['_id'] : [];
-  const always = scope.length
+  const hookInputs = scope.length
     ? []
-    : [
-        ...new Set([
-          ...resolveAlwaysSelectForAccess(snapshot.alwaysSelectFields, outputAccess),
-          ...resolveAlwaysSelectForAccess(snapshot.alwaysSelectFields, docPermissionsAccess),
-        ]),
-      ];
+    : (resolveDocumentPermissionsDefinition(snapshot.docPermissions, docPermissionsAccess)?.dependsOn ?? []);
   const joins = [...(internal.joinFields ?? []), ...(internal.extraPersistedFields ?? [])];
-  const forced = [...always, ...joins, ...(internal.baseFields ?? identity), ...(internal.identityFields ?? [])];
+  const forced = [...hookInputs, ...joins, ...(internal.baseFields ?? identity), ...(internal.identityFields ?? [])];
   const fetchSafe = (path: string) => isSafeOutputPath(path) && !virtual(full(path));
   const dependencies = Object.keys(depProvenance).filter(fetchSafe);
   // Preserve each selected child's actual plan, including its declared private

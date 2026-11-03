@@ -325,8 +325,7 @@ describe('SVA-09 canonical replacements', () => {
       const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice', note: false }));
       const f = await fixture({
         permissionSchema: { status: 'owner', ...(rule === 'false' ? { internalNote: false } : {}) },
-        docPermissions: { read: hook },
-        alwaysSelectFields: { read: ['ownerId'] },
+        docPermissions: { read: { dependsOn: ['ownerId'], get: hook } },
       });
       await f.execute(async (req) => {
         const service = req.macl.getService(f.modelName);

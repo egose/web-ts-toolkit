@@ -250,7 +250,8 @@ internal `Subdocument*Options`. Public adapters should migrate to
 
 One immutable call policy governs fetch planning and output. Each document/scope/access
 stage owns separate hook grants and memoized field decisions. Declare projected private
-hook inputs (for example `ownerId`) with `alwaysSelectFields`; full document grants resolve
+hook inputs (for example `ownerId`) on the active `docPermissions` descriptor's
+`dependsOn` (exact access, then default; no output-access union); full document grants resolve
 once even with skim or disabled/stripped/limited metadata. `_view`/`_edit` and hook metadata
 still describe request permissions, not backend grants.
 

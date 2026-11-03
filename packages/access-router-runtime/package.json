@@ -43,7 +43,7 @@
     "tsconfig.package.json"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "dependencies": {
     "@web-ts-toolkit/access-router": "workspace:*",

@@ -1318,7 +1318,7 @@ describe('MessageService packed-package consumer harness', () => {
       handlebars: '^4.7.8',
     });
     expect(manifest.peerDependencies).toMatchObject({ express: '>=5.0.0', mongoose: '>=8.0.0' });
-    expect(manifest.engines).toEqual({ node: '>=22' });
+    expect(manifest.engines).toEqual({ node: '>=24' });
     expect(manifest.devDependencies).toBeUndefined();
     expect(manifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(manifest)).toBe(false);

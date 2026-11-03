@@ -116,6 +116,7 @@ export interface RootModelNewQueryEntry extends RootQueryEntryBase<'model', 'new
     /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
     skim?: boolean;
     includePermissions?: boolean;
+    /** Ignored unless the model opts into field maps with disableFieldPermissions: false. */
     includeFieldPermissions?: boolean;
   };
 }

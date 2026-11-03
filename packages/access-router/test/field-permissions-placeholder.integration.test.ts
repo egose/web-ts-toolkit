@@ -34,6 +34,7 @@ const createPlaceholderApp = async () => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/perm-placeholder-users',
+    disableFieldPermissions: false,
     operationAccess: { list: true, read: true },
     permissionSchema: {
       name: { list: 'isAdmin', read: 'isAdmin' },

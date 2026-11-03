@@ -88,8 +88,14 @@ describe('actual owned LIST preparation, row facts and publication ordering', ()
       [
         ['quiet', {}, quietOutput],
         ['grants', {}, { ...quietOutput, includePermissions: true }],
-        ['field maps', {}, { ...quietOutput, includeFieldPermissions: true }],
+        ['field maps', { disableFieldPermissions: false }, { ...quietOutput, includeFieldPermissions: true }],
         ['disabled maps', { disableFieldPermissions: true }, { ...quietOutput, includeFieldPermissions: true }],
+        ['disabled quiet', { disableFieldPermissions: true }, quietOutput],
+        [
+          'disabled maps with grants',
+          { disableFieldPermissions: true },
+          { ...quietOutput, includePermissions: true, includeFieldPermissions: true },
+        ],
         ['stripped', { stripPermissionsField: true }, { ...quietOutput, includePermissions: true }],
         ['exposed subset', { exposedDocPermissionKeys: ['public'] }, { ...quietOutput, includePermissions: true }],
       ].map(([posture, modelOptions, options]) => ({ entry, posture, modelOptions, options })),
@@ -155,11 +161,10 @@ describe('actual owned LIST preparation, row facts and publication ordering', ()
       const f = ownedStageFixture({
         modelOptions: {
           permissionSchema: { name: 'doc:owner', value: true, hidden: false, payload: true },
-          alwaysSelectFields: ['owner'],
           documentPermissionField: 'meta.permissions',
           stripPermissionsField: false,
           hydration: { find: 'lean', publicList: 'hydrated' },
-          docPermissions: { list: hook },
+          docPermissions: { list: { dependsOn: ['owner'], get: hook } },
           decorate: { list: decorate },
           decorateAll: { list: decorateAll },
           ...(modelOptions as object),
@@ -206,12 +211,17 @@ describe('actual owned LIST preparation, row facts and publication ordering', ()
           const metadata = row.meta.permissions;
           expect(row.permissions).toBe(metadata);
           expect(Object.getOwnPropertyDescriptor(row, 'permissions')!.enumerable).toBe(false);
-          if ((options as any).includeFieldPermissions && !(modelOptions as any).disableFieldPermissions) {
+          const fieldPermissionsDisabled = (modelOptions as any).disableFieldPermissions ?? true;
+          if ((options as any).includeFieldPermissions && !fieldPermissionsDisabled) {
             expect(metadata._view).toEqual({ value: true, payload: true, ...(index === 0 ? { name: true } : {}) });
             expect(metadata._edit).toEqual(metadata._view);
             expect(metadata._view).not.toHaveProperty('hidden');
           } else if (!(options as any).includePermissions)
-            expect(metadata).toEqual({ _view: { $: '_' }, _edit: { $: '_' } });
+            expect(metadata).toEqual(fieldPermissionsDisabled ? {} : { _view: { $: '_' }, _edit: { $: '_' } });
+          if (fieldPermissionsDisabled) {
+            expect(metadata).not.toHaveProperty('_view');
+            expect(metadata).not.toHaveProperty('_edit');
+          }
           if ((modelOptions as any).exposedDocPermissionKeys) expect(metadata).toEqual({ public: true });
           else if ((options as any).includePermissions) expect(metadata.owner).toBe(index === 0);
         }

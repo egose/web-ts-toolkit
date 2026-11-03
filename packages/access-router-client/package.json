@@ -44,7 +44,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "browserslist": [
     "chrome >= 94",

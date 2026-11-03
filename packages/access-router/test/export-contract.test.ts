@@ -877,7 +877,7 @@ describe('AR-14 published export contract', () => {
           AuthorizedSingleResult: ['no stronger field-existence inference'],
           AuthorizedListResult: ['same index'],
           ServiceOutputDecorator: ['no automatic', 'mutations/replacements'],
-          OutputPlanningOptions: ['persisted fetch inputs', 'alwaysSelectFields'],
+          OutputPlanningOptions: ['persisted fetch inputs', 'docPermissions'],
           OutputFieldOptions: [
             'Fresh output-only evaluation',
             'frozen empty document facts',
@@ -982,8 +982,8 @@ describe('AR-14 published export contract', () => {
         for (const option of retiredAuthorizationControls)
           for (const name of ['ModelRouterOptions', 'DefaultModelRouterOptions'])
             expect(type(entries[0], name).value.getProperty(option)).toBeUndefined();
-        expect(hover(type(entries[0], 'ModelRouterOptions').value.getProperty('alwaysSelectFields')!)).toContain(
-          'per-access record',
+        expect(hover(type(entries[0], 'ModelRouterOptions').value.getProperty('docPermissions')!)).toContain(
+          'exact/default/custom',
         );
         expect(hover(type(entries[0], 'ModelDocPermissionsHook').symbol)).toContain('independently of skim');
         const acquire = router.getProperty('getService')!;
@@ -1070,6 +1070,74 @@ describe('AR-14 published export contract', () => {
         for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
           for (const name of [...Object.keys(documented), ...privateNames]) expect(runtime).not.toHaveProperty(name);
         }
+      },
+    );
+
+    it.each(['d.ts', 'd.mts'])(
+      'DEP-02 publishes document-permission types, hovers and no removed API in %s',
+      (extension) => {
+        const ts = require('typescript') as typeof import('typescript');
+        const entries = ['index', 'advanced'].map((entry) =>
+          path.resolve(packageRoot, 'dist', `${entry}.${extension}`),
+        );
+        const program = ts.createProgram(entries, {
+          target: ts.ScriptTarget.ESNext,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          strict: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: [],
+        });
+        const checker = program.getTypeChecker();
+        const exported = (entry: string, name: string) => {
+          const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
+          let symbol = checker.getExportsOfModule(module).find((candidate) => candidate.name === name)!;
+          expect(symbol, `${path.basename(entry)} exports ${name}`).toBeDefined();
+          if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+          return { symbol, type: checker.getDeclaredTypeOfSymbol(symbol) };
+        };
+        const hover = (symbol: import('typescript').Symbol) =>
+          ts.displayPartsToString(symbol.getDocumentationComment(checker));
+        for (const entry of entries) {
+          const descriptor = exported(entry, 'ModelDocPermissionsDescriptor');
+          expect(
+            descriptor.type
+              .getProperties()
+              .map((property) => property.name)
+              .sort(),
+          ).toEqual(['dependsOn', 'get']);
+          for (const phrase of [
+            'top-level persisted',
+            'missing/undefined',
+            'NEVER skip',
+            'exact, then default',
+            'no output',
+          ])
+            expect(hover(descriptor.symbol)).toContain(phrase);
+          expect(hover(descriptor.type.getProperty('get')!)).toContain('request');
+          expect(hover(descriptor.type.getProperty('dependsOn')!)).toContain('whole container');
+          expect(hover(exported(entry, 'ModelDocPermissionsDefinition').symbol)).toContain('callable');
+          expect(hover(exported(entry, 'ModelDocPermissionsAccessRecord').symbol)).toContain('whole definitions');
+          for (const name of [
+            'ModelRouterOptions',
+            'DefaultModelRouterOptions',
+            'ExtendedModelRouterOptions',
+            'ExtendedDefaultModelRouterOptions',
+          ])
+            expect(exported(entry, name).type.getProperty('alwaysSelectFields')).toBeUndefined();
+        }
+        expect(exported(entries[0], 'ModelRouter').type.getProperty('alwaysSelectFields')).toBeUndefined();
+        for (const runtime of [rootModule, aclCjs, advancedModule, advancedCjs]) {
+          for (const name of [
+            'ModelDocPermissionsDescriptor',
+            'ModelDocPermissionsDefinition',
+            'ModelDocPermissionsAccessRecord',
+          ])
+            expect(runtime).not.toHaveProperty(name);
+        }
+        for (const router of [ModelRouter, aclCjs.ModelRouter])
+          expect(router.prototype).not.toHaveProperty('alwaysSelectFields');
       },
     );
 

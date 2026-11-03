@@ -44,6 +44,7 @@ const createIntegrationApp = async () => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/users',
+    disableFieldPermissions: false,
     modelPermissionPrefix: 'm::',
     operationAccess: {
       list: true,

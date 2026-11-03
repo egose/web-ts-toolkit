@@ -37,7 +37,11 @@ import { isValidFieldPath, sanitizeSortFields, validateSortFields } from '../hel
 import { excludeVirtualsFromAllowedSortFields } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler, type SharedHookGate } from '../helpers/concurrency';
 import { getRequestWorkState } from '../helpers/request-work';
-import { resolveAlwaysSelectForAccess, type VirtualProjectionPlan } from '../acl/virtual-projection';
+import type { VirtualProjectionPlan } from '../acl/virtual-projection';
+import {
+  captureDocumentPermissionsDefinition,
+  resolveDocumentPermissionsDefinition,
+} from '../acl/document-permissions-definition';
 import { compactPersistedProjection, planAuthorizedModelProjection } from '../acl/output-projection';
 import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption } from '../acl/model-output-planning';
 import {
@@ -358,7 +362,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   public getPermissionsPosture(): { stripPermissionsField: boolean; disableFieldPermissions: boolean } {
     return {
       stripPermissionsField: this.options.stripPermissionsField ?? false,
-      disableFieldPermissions: this.options.disableFieldPermissions ?? false,
+      disableFieldPermissions: this.options.disableFieldPermissions ?? true,
     };
   }
 
@@ -614,7 +618,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           };
           defineTrustedOutputValue(metadata, '_view', await map('read', rowAccess.readIds?.has(id) ?? false));
           defineTrustedOutputValue(metadata, '_edit', await map('update', rowAccess.updateIds?.has(id) ?? false));
-        } else if (!args.includePermissions) {
+        } else if (!args.includePermissions && !configuration.disableFieldPermissions) {
           visitTrustedOutput(args.budget, metadataDepth + 1, 2);
           visitTrustedOutput(args.budget, metadataDepth + 2, 2);
           defineTrustedOutputValue(metadata, '_view', { $: '_' });
@@ -688,13 +692,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       {
         permissionSchema: (o.permissionSchema as Record<string, unknown> | null | undefined) ?? null,
         virtuals: (o.virtuals as Record<string, unknown> | null | undefined) ?? null,
-        alwaysSelectFields: (o.alwaysSelectFields as string[] | Record<string, string[]> | null | undefined) ?? null,
+        docPermissions: captureDocumentPermissionsDefinition(o.docPermissions),
         modelPermissionPrefix: (o.modelPermissionPrefix as string | undefined) ?? '',
         requireExplicitSelect: (o.requireExplicitSelect as boolean | undefined) ?? false,
         documentPermissionField: (o.documentPermissionField as string | undefined) ?? '_permissions',
         exposedDocPermissionKeys: o.exposedDocPermissionKeys as string[] | undefined,
         stripPermissionsField: (o.stripPermissionsField as boolean | undefined) ?? false,
-        disableFieldPermissions: (o.disableFieldPermissions as boolean | undefined) ?? false,
+        disableFieldPermissions: (o.disableFieldPermissions as boolean | undefined) ?? true,
       },
       true,
     );
@@ -2060,10 +2064,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           path.startsWith(`${findAssociationField}.`) ||
           findAssociationField.startsWith(`${path}.`);
         const isDep = Object.keys(virtualPlan.depProvenance).some(overlapsAssociation);
-        const isHookInput = [
-          ...resolveAlwaysSelectForAccess(virtualSnapshot.alwaysSelectFields, virtualPlan.outputAccess),
-          ...resolveAlwaysSelectForAccess(virtualSnapshot.alwaysSelectFields, virtualPlan.docPermissionsAccess),
-        ].some(overlapsAssociation);
+        const isHookInput = (
+          resolveDocumentPermissionsDefinition(virtualSnapshot.docPermissions, virtualPlan.docPermissionsAccess)
+            ?.dependsOn ?? []
+        ).some(overlapsAssociation);
         const isSelected = normalizedRequested.includes(findAssociationField);
         if (!isDep && !isHookInput && !isSelected) {
           privateAssociationField = findAssociationField;
@@ -2590,11 +2594,15 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
     // Preserve the full hydrated write document; positively include schema-hidden
     // output dependencies without substituting an output projection for write input.
+    const hookInputs =
+      resolveDocumentPermissionsDefinition(captured.configuration.docPermissions, updatePlan.docPermissionsAccess)
+        ?.dependsOn ?? [];
     let doc = (await this.model.findOne({
       filter: _filter,
-      select: uniq([...updatePlan.persistedFetchSelection, ...inputFetchPaths(captured.configuration.catalog)]).map(
-        (path) => `+${path}`,
-      ),
+      select: uniq([
+        ...updatePlan.persistedFetchSelection,
+        ...inputFetchPaths(captured.configuration.catalog, hookInputs),
+      ]).map((path) => `+${path}`),
     })) as ModelDocument<TModel> | null;
     if (!doc) {
       this.completeOp('updateOne', startedAt, Codes.NotFound, _filter);

@@ -102,12 +102,14 @@ async function fixture(actor: (typeof actors)[number] = actors[0]) {
           ref: true,
           children: { read: true, list: true, update: true, sub: { name: true, secret: 'admin' } },
         },
-        alwaysSelectFields: ['secret'],
         stripPermissionsField: true,
         resolveIdFilter: (id) => (id === 'deny' ? false : { [index ? 'alias' : 'slug']: id }),
-        docPermissions: function (doc, permissions) {
-          hooks.push({ owner, admin: permissions.has('admin'), name: doc.name, request: this });
-          return {};
+        docPermissions: {
+          dependsOn: ['name'],
+          get: function (doc, permissions) {
+            hooks.push({ owner, admin: permissions.has('admin'), name: doc.name, request: this });
+            return {};
+          },
         },
       });
       return { runtime, model, target, queries };
@@ -539,7 +541,6 @@ describe('ARL-11 retained model/public service owner', () => {
       const selected = data(await service.findOne({ _id: 'a' }, {}, quiet));
       expect(selected.name).toBe('a-a');
       expect(selected).not.toHaveProperty('ref');
-      f.a.runtime.setModelOption(f.name, 'alwaysSelectFields', []);
       f.a.runtime.setModelOption(f.name, 'permissionSchema.secret', false);
       expect(await service.genSelect('read', ['name', 'secret'])).not.toContain('secret');
       expect(await original.genSelect(f.name, 'read', ['name', 'secret'])).not.toContain('secret');

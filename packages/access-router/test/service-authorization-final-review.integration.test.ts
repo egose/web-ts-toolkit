@@ -135,8 +135,7 @@ describe('SVA-11 independent hook resolver review', () => {
     });
     const f = await fixture({
       permissionSchema: { status: 'owner' },
-      alwaysSelectFields: { default: ['ownerId'] },
-      docPermissions: { read: undefined, default: hook },
+      docPermissions: { read: undefined, default: { dependsOn: ['ownerId'], get: hook } },
     });
     await f.run(async () => {
       const result = await f.service.findOne(
@@ -158,27 +157,32 @@ describe('SVA-11 independent hook resolver review', () => {
     });
   });
 
-  it.each([null, false])('an exact defined %s hook entry suppresses default fallback', async (entry) => {
-    const fallback = vi.fn(() => false);
-    const docFallback = vi.fn(() => ({ owner: true }));
-    const f = await fixture({
-      permissionSchema: { status: 'owner' },
-      overrideFilter: { read: entry, default: fallback },
-      baseFilter: { read: entry, default: fallback },
-      docPermissions: { read: entry, default: docFallback },
-    });
-    await f.run(async () => {
-      const result = await f.service.findOne(
-        { slug: 'first' },
-        { select: ['status', 'internalNote'] },
-        { ...quiet, authorization: noteGrant },
-      );
-      expect(result).toMatchObject({ success: true, data: { internalNote: 'note-a' } });
-      if (result.success) expect(result.data).not.toHaveProperty('status');
-      expect(fallback).not.toHaveBeenCalled();
-      expect(docFallback).not.toHaveBeenCalled();
-    });
-  });
+  it.each([null, false])(
+    'an exact defined %s row hook and an empty-fact document hook suppress defaults',
+    async (entry) => {
+      const fallback = vi.fn(() => false);
+      const docFallback = vi.fn(() => ({ owner: true }));
+      const f = await fixture({
+        permissionSchema: { status: 'owner' },
+        overrideFilter: { read: entry, default: fallback },
+        baseFilter: { read: entry, default: fallback },
+        // Document definitions must be callable/descriptors; return empty facts
+        // explicitly instead of the now-invalid null/false definition shorthand.
+        docPermissions: { read: () => ({}), default: docFallback },
+      });
+      await f.run(async () => {
+        const result = await f.service.findOne(
+          { slug: 'first' },
+          { select: ['status', 'internalNote'] },
+          { ...quiet, authorization: noteGrant },
+        );
+        expect(result).toMatchObject({ success: true, data: { internalNote: 'note-a' } });
+        if (result.success) expect(result.data).not.toHaveProperty('status');
+        expect(fallback).not.toHaveBeenCalled();
+        expect(docFallback).not.toHaveBeenCalled();
+      });
+    },
+  );
 
   it('a captured default hook remains coherent across replacement and another call on the same service', async () => {
     let resume!: () => void;
@@ -198,9 +202,8 @@ describe('SVA-11 independent hook resolver review', () => {
     const docHook = vi.fn((doc) => ({ owner: doc.ownerId === 'alice' }));
     const f = await fixture({
       overrideFilter: { default: initial },
-      docPermissions: { default: docHook },
+      docPermissions: { default: { dependsOn: ['ownerId'], get: docHook } },
       permissionSchema: { status: 'owner' },
-      alwaysSelectFields: ['ownerId'],
     });
     await f.run(async () => {
       const first = f.service.findOne(
@@ -351,8 +354,7 @@ describe('SVA-11 independent private-input lifetime review', () => {
       {},
       {
         permissionSchema: { status: 'owner' },
-        alwaysSelectFields: { list: ['ownerId'] },
-        docPermissions: { list: hook },
+        docPermissions: { list: { dependsOn: ['ownerId'], get: hook } },
       },
     );
     await f.target.create({ ownerId: 'alice', status: 'visible', internalNote: 'backend', slug: 'hidden' });
@@ -392,17 +394,28 @@ describe('SVA-11 independent private-input lifetime review', () => {
   it.each(['classified', 731, true])(
     'a descendant-only grant cannot expose a privately fetched scalar ancestor %j',
     async (value) => {
-      const f = await fixture({ alwaysSelectFields: ['marker'] });
+      // A real document decision consumes the privately fetched scalar before
+      // output shaping. Virtual input can instead see the shaped public container.
+      const hook = vi.fn((doc) => ({ scalarMarker: ['string', 'number', 'boolean'].includes(typeof doc.marker) }));
+      const f = await fixture({
+        permissionSchema: { status: 'scalarMarker' },
+        docPermissions: { read: { dependsOn: ['marker'], get: hook } },
+      });
       await f.model.updateOne({ slug: 'first' }, { marker: value });
       await f.run(async () => {
         const authorization = { outputFields: { mode: 'grant' as const, paths: ['marker.visible'] } };
         const result = await f.service.findOne(
           { slug: 'first' },
-          { select: ['marker.visible'] },
+          { select: ['marker.visible', 'status'] },
           { ...quiet, authorization },
         );
         expect(result.success).toBe(true);
-        if (result.success) expect(result.data).toHaveProperty('marker', null);
+        if (result.success) {
+          expect(result.data).toHaveProperty('marker', null);
+          expect(result.data).toHaveProperty('status', 'ready');
+        }
+        expect(hook).toHaveBeenCalledTimes(1);
+        expect(hook.mock.calls[0][0]).toHaveProperty('marker', value);
         const picked = await f.service.pickAllowedFields({ marker: value }, 'read', { authorization });
         expect(picked).not.toHaveProperty('marker');
         expect(
@@ -415,7 +428,12 @@ describe('SVA-11 independent private-input lifetime review', () => {
   );
 
   it('descendant projection preserves safe Mixed array positions and null containers', async () => {
-    const f = await fixture({ alwaysSelectFields: ['marker'] });
+    const f = await fixture({
+      permissionSchema: { markerKind: true },
+      virtuals: {
+        markerKind: { dependsOn: ['marker'], get: (doc) => (Array.isArray(doc.marker) ? 'array' : 'other') },
+      },
+    });
     await f.model.updateOne(
       { slug: 'first' },
       { marker: ['classified', { visible: 'yes', secret: 'no' }, false, null] },
@@ -424,10 +442,13 @@ describe('SVA-11 independent private-input lifetime review', () => {
       const authorization = { outputFields: { mode: 'grant' as const, paths: ['marker.visible'] } };
       const result = await f.service.findOne(
         { slug: 'first' },
-        { select: ['marker.visible'] },
+        { select: ['marker.visible', 'markerKind'] },
         { ...quiet, authorization },
       );
-      expect(result).toMatchObject({ success: true, data: { marker: [null, { visible: 'yes' }, null, null] } });
+      expect(result).toMatchObject({
+        success: true,
+        data: { marker: [null, { visible: 'yes' }, null, null], markerKind: 'array' },
+      });
       expect(
         await f.service.pickAllowedFields(
           { marker: ['classified', { visible: 'yes', secret: 'no' }, false, null] },

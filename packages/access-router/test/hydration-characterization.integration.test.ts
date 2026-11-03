@@ -93,8 +93,7 @@ async function fixture({
       permissions: true,
       children: { list: true, read: true, create: true, update: true, delete: true, sub: { name: true } },
     },
-    alwaysSelectFields: ['secret'],
-    docPermissions,
+    docPermissions: { dependsOn: ['secret'], get: docPermissions },
     decorate,
     virtuals: { hasSecret: { dependsOn: ['secret'], get: virtual } },
   };
@@ -561,7 +560,10 @@ describe('server-owned hydration compatibility characterization', () => {
         hydration: { publicList: mode(lean), publicRead: mode(lean), findOne: mode(lean) },
         exposedDocPermissionKeys: ['allowed'],
       });
-      f.api.runtime.setModelOptions(f.targetName, { documentPermissionField: 'meta.grants' });
+      f.api.runtime.setModelOptions(f.targetName, {
+        documentPermissionField: 'meta.grants',
+        disableFieldPermissions: false,
+      });
       const alias = (row: Row) => {
         expect(row.permissions).toBe(row.meta.grants);
         expect(Object.getOwnPropertyDescriptor(row, 'permissions')).toMatchObject({

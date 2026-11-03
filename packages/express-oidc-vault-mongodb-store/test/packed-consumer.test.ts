@@ -279,7 +279,7 @@ describe('MDB-09 packed MongoDB store contract', () => {
         default: './index.js',
       },
     });
-    expect(manifest.engines).toEqual({ node: '>=22.12.0' });
+    expect(manifest.engines).toEqual({ node: '>=24' });
     expect(manifest.dependencies).toMatchObject({
       '@web-ts-toolkit/express-oidc-vault': testVersion,
       mongodb: '^6.20.0',

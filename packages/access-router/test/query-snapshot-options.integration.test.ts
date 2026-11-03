@@ -49,8 +49,10 @@ async function fixture(options: ModelRouterOptions = {}) {
     operationAccess: { list: true, read: true },
     baseFilter: { read: () => ({ tenant: 'allowed' }), list: () => ({ tenant: 'allowed' }) },
     permissionSchema: { name: 'reader', secret: 'doc:owner', hidden: false },
-    docPermissions: { read: docHook, list: docHook },
-    alwaysSelectFields: ['owner'],
+    docPermissions: {
+      read: { dependsOn: ['owner'], get: docHook },
+      list: { dependsOn: ['owner'], get: docHook },
+    },
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
     // A related target chooses its own captured mode at its effective access.
@@ -69,8 +71,10 @@ async function fixture(options: ModelRouterOptions = {}) {
       children: { read: true, list: true, sub: { label: 'doc:owner', hidden: false } },
     },
     virtuals: { children: { sub: {} } },
-    alwaysSelectFields: ['owner'],
-    docPermissions: { read: docHook, list: docHook },
+    docPermissions: {
+      read: { dependsOn: ['owner'], get: docHook },
+      list: { dependsOn: ['owner'], get: docHook },
+    },
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
     ...options,

@@ -19,11 +19,13 @@ async function verifyInstalledHelpers() {
     operationAccess: true,
     modelPermissionPrefix: 'doc:',
     permissionSchema: { name: true, secret: false, owned: 'doc:owner' },
-    alwaysSelectFields: { read: ['ownerId'] },
     docPermissions: {
-      read(doc) {
-        docHooks++;
-        return { owner: doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'actor' };
+      read: {
+        dependsOn: ['ownerId'],
+        get(doc) {
+          docHooks++;
+          return { owner: doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'actor' };
+        },
       },
     },
     stripPermissionsField: true,

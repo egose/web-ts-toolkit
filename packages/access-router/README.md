@@ -175,8 +175,10 @@ package-managed execution, falling back to `defaultRuntime` outside it.
    Public `_upsert` uses the public create or update bucket for its branch; trusted
    `upsert` has `upsertArgs`/`upsertOptions`. There is no `publicUpsertOptions` bucket.
 5. **Metadata posture is absolute.** Model `stripPermissionsField: true` removes
-   the entire output metadata field; `disableFieldPermissions: true` suppresses
-   `_view`/`_edit` computation. They win over per-call flags and method defaults.
+   the entire output metadata field; `disableFieldPermissions` defaults to `true`
+   and suppresses `_view`/`_edit` computation and output, including placeholders. They win over
+   per-call flags and method defaults. Set `disableFieldPermissions: false` on a
+   model or with `setDefaultModelOptions` to allow field maps.
    Internal authorization and full document grants still run.
 
 The supported `Defaults` buckets are `findArgs`/`findOptions`,
@@ -337,7 +339,7 @@ separate from both objects. Root entries keep `target`, `name`, base `op`, `filt
 | Names                                                                   | Deliberate distinction                                                                                                                                                                 |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `operationAccess` / `permissionSchema` / `authorization`                | Route entry / request field rules / explicit server-only per-call authority. An entry grant does not grant fields or related targets.                                                  |
-| `select` / `alwaysSelectFields` / virtual `dependsOn`                   | Desired output / private persisted hook inputs / scoped getter dependencies. Fetching a value grants no output authority.                                                              |
+| `select` / `docPermissions.dependsOn` / virtual `dependsOn`             | Desired output / private document-hook inputs / scoped getter dependencies. Fetching a value grants no output authority.                                                               |
 | `baseFilter` / `overrideFilter`                                         | Request row scope / ordinary-query transform. Trusted rows replace only the former; the transform still runs once and false stays terminal.                                            |
 | `idParam` / `idField` / `resolveIdFilter`                               | Express parameter name / lookup field / custom identifier-to-filter hook. A callable resolver takes precedence over `idField`; otherwise lookup uses that field (model default `_id`). |
 | `requestPermissionField` / `documentPermissionField` / `docPermissions` | Request grant storage / serialized document metadata path / hook producing full internal document grants. Metadata flags affect exposure, not authority.                               |
@@ -611,6 +613,73 @@ stay false while ordinary population skips only target operation admission with
 `requireOperationAccessForPopulateQueries: false`. See the [two-flag policy matrix](#runtime-populate-operation-policies)
 and [runnable Document example](#runnable-private-dependency-example).
 
+### Document-permission dependencies (breaking change)
+
+`alwaysSelectFields` is removed, including its fluent setter and dotted options.
+Move each private input onto the calculation that uses it: `docPermissions` accepts
+a synchronous/asynchronous function or `{ dependsOn?, get }`, directly or in a
+per-access map. The spelling is **`get`**, like virtuals, not `getter`.
+
+<!-- doc-example: partial -->
+
+```ts
+import type {
+  ModelDocPermissionsDescriptor,
+  ModelDocPermissionsDefinition,
+  ModelDocPermissionsAccessRecord,
+  ModelRouter,
+  ModelRouterOptions,
+} from '@web-ts-toolkit/access-router';
+
+interface Order {
+  ownerId: string;
+  profile: { tenantId: string };
+}
+const owner: ModelDocPermissionsDescriptor<Order> = {
+  dependsOn: ['ownerId', 'profile'], // whole top-level container for nested input
+  get(doc, permissions, context) {
+    void [this.macl, context.operation]; // original request this; unchanged hook arguments
+    return {
+      owner:
+        permissions.has('admin') ||
+        (doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'alice'),
+    };
+  },
+};
+const definition: ModelDocPermissionsDefinition<Order> = owner;
+const accesses: ModelDocPermissionsAccessRecord<Order> = {
+  default: definition,
+  read: owner,
+  list: async () => ({ owner: false }), // function: no additional fetch inputs
+  inspection: owner, // trusted custom access
+};
+const direct: ModelRouterOptions<Order> = { docPermissions: definition };
+const mapped: ModelRouterOptions<Order> = { docPermissions: accesses };
+declare const router: ModelRouter<Order>;
+router.docPermissions(owner).docPermissions('read', owner);
+router.setOption('docPermissions.inspection', owner); // replace the entire definition
+void [direct, mapped];
+```
+
+Dependencies use model-local **top-level persisted schema keys**, like virtuals.
+Dotted, unsafe, unknown and virtual names reject; declare `profile`, not
+`profile.tenantId`. `dependsOn` absent/empty adds no fetch inputs. A missing or
+undefined value **never skips the document hook** (unlike virtual dependency
+skipping). Declared inputs remain private when unrequested, excluded or denied;
+they grant no output authority and do not select a virtual.
+
+The active **`docPermissionsAccess`** selects the exact definition, then `default`
+when the exact entry is undefined; a direct function/descriptor applies to every
+access. Hook and dependencies are captured together before awaits. Dependencies
+are **not unioned** with output/virtual access or inherited from a different entry.
+`get`/`dependsOn` are reserved descriptor members, not custom access names.
+Dotted access setters replace whole definitions; partial `.get`/`.dependsOn` edits
+reject. Malformed definitions (including null/false or mixed descriptor/access keys)
+reject instead of silently disabling calculation. Embedded scopes inherit owning-document facts; populate/include targets
+resolve their own definitions. Dedicated subdocument routes still prepare the
+owning parent. Pre-write and post-write stages are independent. Raw output helpers
+perform no hidden query or document-hook calculation.
+
 ### Selection, grants and document results
 
 For business fields, output is **selected AND (request-authorized OR explicitly
@@ -642,7 +711,8 @@ scalar value when that root is selected.
 
 Planning defers document-dependent rules and never runs permission functions or
 virtual getters. Document hooks receive projected input: configure additional
-persisted hook dependencies with `alwaysSelectFields`. Internal dependency fetches
+persisted hook dependencies with `docPermissions.dependsOn` (on the applicable
+definition). Internal dependency fetches
 do not grant output, even when the same path is also a private include join key.
 Captured row/document hooks retain exact-access → `.default` → bare-hook resolution;
 only an undefined entry falls through. Omitted/undefined helper options now use the
@@ -694,7 +764,7 @@ empty facts; that is not current-document proof. Metadata (`getDocPermissions` i
 is DATA, not authority. Never replace a retired handle with unrestricted/client grants.
 
 For current document-dependent authorization use a new normal read/list with suitable
-selection and private `alwaysSelectFields` hook inputs. For presentation just use the
+selection and private `docPermissions.dependsOn` hook inputs. For presentation just use the
 already-filtered DTO: no extra query, but no claim of current checks. See the executable
 guide for exact **0/0 helper** versus **+1 read/+1 hook** refresh counts.
 
@@ -1006,11 +1076,13 @@ async function runServiceAuthorizationExample() {
           return filter;
         },
       },
-      alwaysSelectFields: { read: ['ownerId'] }, // private projected document-hook input
       docPermissions: {
-        read: (doc) => {
-          documentHookCalls++;
-          return { owner: doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'alice' };
+        read: {
+          dependsOn: ['ownerId'], // private projected document-hook input
+          get: (doc) => {
+            documentHookCalls++;
+            return { owner: doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'alice' };
+          },
         },
       },
       permissionSchema: { status: { read: 'owner' }, internalNote: false, summary: false },
@@ -1388,7 +1460,7 @@ hook, losing otherwise allowed persisted fields. Full internal document grants
 are now resolved once per projected document/access stage regardless of `skim`,
 `includePermissions`, `includeFieldPermissions`, stripping or exposed-key limits.
 Only serialized metadata changes with those settings. Configure required private
-hook inputs with `alwaysSelectFields`; the published DTO is data, not an authorization
+hook inputs with `docPermissions.dependsOn`; the published DTO is data, not an authorization
 certificate after those inputs and `_permissions` are removed. A later raw helper pick
 uses captured global permissions, frozen empty document facts and explicit output-only
 server policy, not retained document decisions. For current document-dependent facts,
@@ -2056,8 +2128,13 @@ Two router options lock down permission metadata regardless of client input or
 per-operation `defaults`: `stripPermissionsField: true` removes the whole
 permissions field from outputs (equivalent to `includePermissions: false` with
 the field — including its placeholder — deleted; enforcement still runs), and
-`disableFieldPermissions: true` never computes `_view`/`_edit` maps while still
-honoring `includePermissions` for `docPermissions`-hook keys.
+`disableFieldPermissions: true` (the default) neither computes nor emits
+`_view`/`_edit` maps (including placeholders) while still honoring `includePermissions` for
+`docPermissions`-hook keys. When no keys are included, the permissions field is
+an empty object; use `stripPermissionsField: true` to remove it entirely. This
+applies to regular model routes, root batch items, and direct service calls. Set
+`disableFieldPermissions: false` on the model or runtime model defaults to opt in
+to field maps; `includeFieldPermissions` then controls whether they are requested.
 
 ## Main Exports
 

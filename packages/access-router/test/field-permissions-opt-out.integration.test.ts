@@ -34,6 +34,7 @@ const createFieldPermsApp = async () => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/field-perms-users',
+    disableFieldPermissions: false,
     operationAccess: { list: true, read: true, create: true, update: true },
     modelPermissionPrefix: 'm::',
     permissionSchema: {

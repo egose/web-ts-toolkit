@@ -97,7 +97,7 @@ export type DataIdentifierHook<TValue = unknown> = IdentifierHook<TValue, DataRe
 export type ModelValidateHook = ValidateHook<ModelRequest>;
 /**
  * Request-user grants from untrimmed projected input. Declare private persisted inputs
- * with alwaysSelectFields. Integrated output resolves once per document/access stage,
+ * on a {@link ModelDocPermissionsDescriptor}. Integrated output resolves once per document/access stage,
  * independently of skim or metadata serialization. Returned DTOs carry no authority;
  * use a fresh normal query for current document-dependent authorization.
  * Return a plain record of literal booleans. The library owns a frozen detached
@@ -111,6 +111,46 @@ export type ModelValidateHook = ValidateHook<ModelRequest>;
  * external caches and database state are neither sandboxed nor kept fresh after await.
  */
 export type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
+
+/**
+ * A document-permission calculation and its private persisted inputs. `dependsOn`
+ * uses model-local top-level persisted keys, like virtuals (declare the whole
+ * container for nested data). Dotted, unsafe, unknown and virtual names reject.
+ * Absent/empty dependencies add no fetch inputs; missing/undefined input values
+ * NEVER skip `get`. `get` keeps ModelDocPermissionsHook's arguments, request `this`,
+ * sync/async boolean-map result and once-per-stage semantics.
+ *
+ * Only the applicable docPermissions access (exact, then default) supplies inputs,
+ * independently of output/virtual access. Fetching a dependency grants no output;
+ * it remains hidden unless independently selected AND authorized. Embedded scopes
+ * share owning-document facts; related targets and pre/post-write stages resolve anew.
+ */
+export interface ModelDocPermissionsDescriptor<TModel = unknown> {
+  /** Calculation with the original request `this`; runs even when declared inputs are missing. */
+  get: ModelDocPermissionsHook;
+  /** Private top-level persisted keys; no output grant. Use the whole container for nested data. */
+  dependsOn?: readonly AccessRouterFieldKey<NoInfer<TModel>>[];
+}
+
+/** One callable calculation or a descriptor; usable directly or as an access/default entry. */
+export type ModelDocPermissionsDefinition<TModel = unknown> =
+  | ModelDocPermissionsHook
+  | ModelDocPermissionsDescriptor<TModel>;
+
+/**
+ * Per-access definitions, including `default` fallback and trusted custom accesses.
+ * An undefined entry inherits default; an absent exact/default entry runs no hook.
+ * `get` and `dependsOn` are reserved descriptor members, not custom access names.
+ * Entries replace whole definitions: dependencies never inherit from another access.
+ */
+export interface ModelDocPermissionsAccessRecord<TModel = unknown> {
+  default?: ModelDocPermissionsDefinition<TModel>;
+  list?: ModelDocPermissionsDefinition<TModel>;
+  create?: ModelDocPermissionsDefinition<TModel>;
+  read?: ModelDocPermissionsDefinition<TModel>;
+  update?: ModelDocPermissionsDefinition<TModel>;
+  [access: string]: ModelDocPermissionsDefinition<TModel> | undefined;
+}
 export type ModelChangeHook = ChangeHook<ModelRequest>;
 export type ModelDocumentHook<TValue = unknown> = DocumentHookChain<TValue, ModelRequest>;
 export type ModelDeleteHook<TValue = unknown> = DeleteHook<ModelDocument<TValue>, ModelRequest>;

@@ -64,15 +64,17 @@ async function runCollectionRecipes() {
     const router = api.createRouter<Employee, { computed: string }>(EmployeeModel, {
       basePath: '/employees',
       operationAccess: { list: true, read: true },
-      alwaysSelectFields: ['ownerId'],
       hydration: { find: 'lean' },
       stripPermissionsField: true,
       baseFilter: { list: () => ({ visible: true }) },
       permissionSchema: normalRules,
       docPermissions: {
-        list(doc) {
-          hooks++;
-          return { owner: doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'alice' };
+        list: {
+          dependsOn: ['ownerId'],
+          get(doc) {
+            hooks++;
+            return { owner: doc !== null && typeof doc === 'object' && 'ownerId' in doc && doc.ownerId === 'alice' };
+          },
         },
       },
       virtuals: {
