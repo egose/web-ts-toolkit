@@ -37,7 +37,7 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts && node -e \"import fs from 'node:fs'; const a='dist/index.d.ts', b='dist/index.d.mts'; if(fs.existsSync(a)){fs.renameSync(a,b);} const am='dist/index.d.ts.map', bm='dist/index.d.mts.map'; if(fs.existsSync(am)){fs.renameSync(am,bm);}\"",

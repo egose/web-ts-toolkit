@@ -79,7 +79,7 @@ describe('ARC-18 packed-package compatibility using the real release transformat
     expect(packedManifest.version).toBe(testVersion);
     expect(packedManifest.license).toBe(rootPackageJson.license);
     expect(rootPackageJson.engines).toEqual({ node: '>=20' });
-    expect(packedManifest.engines).toEqual({ node: '>=22' });
+    expect(packedManifest.engines).toEqual({ node: '>=24' });
     expect(packedManifest.browserslist).toEqual(expectedBrowserslist);
     expect(packedManifest.repository).toEqual({
       ...rootPackageJson.repository,

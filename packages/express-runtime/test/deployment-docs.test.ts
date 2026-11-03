@@ -180,7 +180,7 @@ export default app;
           },
           dependencies: sourceManifest.dependencies,
           peerDependencies: sourceManifest.peerDependencies,
-          engines: { node: '>=22' },
+          engines: { node: '>=24' },
         },
         null,
         2,

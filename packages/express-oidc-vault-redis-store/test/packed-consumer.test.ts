@@ -321,7 +321,7 @@ describe('RVR-10 packed-package redis store consumer compatibility', () => {
       },
     });
     expect(packedManifest.sideEffects).toBe(false);
-    expect(packedManifest.engines).toEqual({ node: '>=22.12.0' });
+    expect(packedManifest.engines).toEqual({ node: '>=24' });
     // redis moved from dependencies to devDependencies at source. It must NOT
     // appear as a runtime dependency in the published manifest.
     expect(packedManifest.dependencies).toEqual({ [corePackageName]: testVersion });

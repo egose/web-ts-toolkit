@@ -48,7 +48,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "peerDependencies": {
     "rxdb": ">=17.4.0 <18",

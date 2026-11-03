@@ -69,7 +69,7 @@ jobs:
 
     - name: Pin minimum access-router Node version
       run: |
-        printf 'nodejs 22.20.0\npython 3.14.6\npnpm 11.21.0\n' > .tool-versions
+        printf 'nodejs 24.0.0\npython 3.14.6\npnpm 11.21.0\n' > .tool-versions
 
     - name: Setup Tools
       uses: ./.github/actions/setup-tools
@@ -79,6 +79,9 @@ jobs:
 
     - name: Run access-router packed consumer smoke
       run: |
+        mkdir -p _tmp-node24-access-router
+        git check-ignore _tmp-node24-access-router
+        export TMPDIR="$PWD/_tmp-node24-access-router"
         node --version
         pnpm --version
         pnpm --filter @web-ts-toolkit/access-router... build
@@ -101,18 +104,21 @@ jobs:
       uses: ./.github/actions/setup-npm
 
     - name: Install library runtime floor
-      run: asdf install nodejs 22.0.0
+      run: asdf install nodejs 24.0.0
 
     - name: Build installed consumer artifacts
       run: pnpm --filter @web-ts-toolkit/access-router-react... build
 
-    - name: Verify both React majors on Node 22.0.0
+    - name: Verify both React majors on Node 24.0.0
       env:
-        ACCESS_ROUTER_REACT_EXPECT_NODE: 22.0.0
+        ACCESS_ROUTER_REACT_EXPECT_NODE: 24.0.0
         ACCESS_ROUTER_REACT_FLOATING: ${{ matrix.lane == 'floating' && '1' || '0' }}
         ACCESS_ROUTER_REACT_REPORT_DIR: ${{ runner.temp }}/react-consumer-reports
       run: |
-        export ACCESS_ROUTER_REACT_CONSUMER_NODE="$(asdf where nodejs 22.0.0)/bin/node"
+        mkdir -p _tmp-node24-access-router-react
+        git check-ignore _tmp-node24-access-router-react
+        export TMPDIR="$PWD/_tmp-node24-access-router-react"
+        export ACCESS_ROUTER_REACT_CONSUMER_NODE="$(asdf where nodejs 24.0.0)/bin/node"
         "$ACCESS_ROUTER_REACT_CONSUMER_NODE" --version
         pnpm --filter @web-ts-toolkit/access-router-react test:packed-consumer
 

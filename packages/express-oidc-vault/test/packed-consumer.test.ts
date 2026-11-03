@@ -520,8 +520,8 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     expect(packedManifest.sideEffects).toBe(false);
     expect(packedManifest.peerDependencies).toEqual({ express: '>=5.0.0' });
     expect(packedManifest.dependencies).toEqual({ jose: '^6.1.0' });
-    expect(packedManifest.engines).toEqual({ node: '>=22.12.0' });
-    expect(packed.manifests[clientPackageName].engines).toEqual({ node: '>=22.12.0' });
+    expect(packedManifest.engines).toEqual({ node: '>=24' });
+    expect(packed.manifests[clientPackageName].engines).toEqual({ node: '>=24' });
     expect(packedManifest.devDependencies).toBeUndefined();
     expect(packedManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);

@@ -291,7 +291,7 @@ describe('PDFR-02 packed consumer compatibility', () => {
       ...rootPackageJson.repository,
       directory: packageDirRelative,
     });
-    expect(packedManifest.engines).toEqual({ node: '>=22.13.0' });
+    expect(packedManifest.engines).toEqual({ node: '>=24' });
     expect(packedManifest.files).toEqual(['**/*', '!**/*.map']);
     expect(packedManifest.main).toBe('./index.mjs');
     expect(packedManifest.module).toBe('./index.mjs');

@@ -13,7 +13,7 @@ Peer dependencies:
 - `mongoose >= 8`
 - `express >= 5`
 
-Runtime: Node `>=22`. Use package-root **named imports** (or CommonJS
+Runtime: Node `>=24`. Use package-root **named imports** (or CommonJS
 `require('@web-ts-toolkit/message-service')`); there is no default export or public
 deep-import subpath.
 
@@ -106,7 +106,7 @@ const { router, service } = createMessageRoutes({
 app.use('/api/messages', myAuthMiddleware, router.original);
 ```
 
-Prerequisites for the flow above: Node `>=22`, `mongoose >= 8`, `express >= 5`,
+Prerequisites for the flow above: Node `>=24`, `mongoose >= 8`, `express >= 5`,
 and a MongoDB replica set (or sharded cluster) when you use `clientRequestId`
 idempotency or transactional archival — standalone servers throw
 `MessageTransactionRequiredError` instead of partially persisting. The auth
@@ -249,7 +249,7 @@ exact Express/Mongoose versions installed in this workspace (currently 5.x/9.x).
 Both lanes compile root-import ESM/CommonJS NodeNext and Bundler consumers with
 `strict: true`, `skipLibCheck: false`, and run the two-app MongoDB lifecycle in
 both module formats. The minimum-runtime CI lane executes the installed consumers
-on actual Node **22.0.0**; newer Node may run build/install/TypeScript tooling.
+on actual Node **24.0.0**; newer Node may run build/install/TypeScript tooling.
 This bounded check does not certify every intervening or future peer release.
 
 MSGA-11 compatibility correction: schema constants now retain explicit portable
@@ -258,15 +258,14 @@ the shipped declarations. Active/archive document `_id` is explicitly ObjectId
 across Mongoose 8 and 9. Runtime schemas, bundling, exports and peer/runtime floors
 are unchanged; no data migration is required.
 
-Reproduce from the repository after installing build dependencies and Node 22.0.0:
+Reproduce from the repository after installing build dependencies and Node 24.0.0:
 
 ```bash
 mkdir -p _tmp-msga
 git check-ignore _tmp-msga
-export ASDF_NODEJS_VERSION=26.11.1
 export TMPDIR="$PWD/_tmp-msga"
-export MESSAGE_SERVICE_CONSUMER_NODE="$(asdf where nodejs 22.0.0)/bin/node"
-export MESSAGE_SERVICE_EXPECT_NODE=22.0.0
+export MESSAGE_SERVICE_CONSUMER_NODE="$(asdf where nodejs 24.0.0)/bin/node"
+export MESSAGE_SERVICE_EXPECT_NODE=24.0.0
 pnpm --filter @web-ts-toolkit/message-service... build
 pnpm --filter @web-ts-toolkit/message-service exec vitest run --config ../../vitest.config.ts --fileParallelism=false test/message-service.packed-consumer.test.ts -t MSGA-11
 ```

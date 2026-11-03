@@ -402,7 +402,7 @@ describe('ERT-09 staged export contract', () => {
     expect(packedManifest).toEqual(packed.manifest);
     expect(packedManifest.version).toBe(testVersion);
     expect(packedManifest.license).toBe(rootPackageJson.license);
-    expect(packedManifest.engines).toEqual({ node: '>=22' });
+    expect(packedManifest.engines).toEqual({ node: '>=24' });
     expect(packedManifest.repository).toEqual({ ...rootPackageJson.repository, directory: packageDirRelative });
     expect(packedManifest.files).toEqual(['**/*', '!**/*.map']);
     expect(packedManifest.main).toBe('./index.js');

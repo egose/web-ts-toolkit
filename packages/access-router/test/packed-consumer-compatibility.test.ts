@@ -1605,7 +1605,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     // tarball to prove the staging + `pnpm pack` round-trips the same fields.
     expect(accessRouterManifest).toEqual(stagedManifest);
     expect(accessRouterManifest.version).toBe(testVersion);
-    expect(accessRouterManifest.engines).toEqual({ node: '>=22' });
+    expect(accessRouterManifest.engines).toEqual({ node: '>=24' });
     expect(accessRouterManifest.license).toBe(rootPackageJson.license);
     expect(accessRouterManifest.repository).toEqual({
       ...rootPackageJson.repository,

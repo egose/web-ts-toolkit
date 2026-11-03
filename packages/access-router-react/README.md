@@ -15,12 +15,12 @@ Peer dependencies:
 - `react ^18 || ^19` — verified by a React 18 lane in this package's own test suite (React 19 remains the primary lane)
 - `@web-ts-toolkit/access-router-client`
 
-Published builds target `ES2022`. Direct Node consumers require Node `>=22`, matching
-the required client and utility packages; the former `>=20` declaration understated
-that dependency floor. Browser apps can bundle with an ES2022-capable toolchain.
+Published builds target `ES2022`. Direct Node consumers require Node `>=24`, matching
+the required client and utility packages. Browser apps can bundle with an
+ES2022-capable toolchain.
 
 Compatibility CI runs packed CJS/ESM hook smoke and strict NodeNext/Bundler type
-consumers on **Node 22.0.0**, for React 18 and 19 with matching React types. Build
+consumers on **Node 24.0.0**, for React 18 and 19 with matching React types. Build
 and install tooling uses the repository's newer Node pin. The supported lane pins
 React/React DOM 18.3.1 or 19.2.8, Testing Library 16.3.2 and jsdom 26.1.0; it checks
 direct versions and saves resolved dependency trees and lockfiles as CI artifacts.
@@ -31,9 +31,12 @@ peer-range changes. A separate floating-range canary is non-blocking.
 To run the floor check locally after building the package and its dependencies:
 
 ```sh
-ACCESS_ROUTER_REACT_CONSUMER_NODE=/absolute/path/to/node-22.0.0 \
-ACCESS_ROUTER_REACT_EXPECT_NODE=22.0.0 \
-ACCESS_ROUTER_REACT_REPORT_DIR=/tmp/react-consumer-reports \
+mkdir -p _tmp-react-node24
+git check-ignore _tmp-react-node24
+TMPDIR="$PWD/_tmp-react-node24" \
+ACCESS_ROUTER_REACT_CONSUMER_NODE="$(asdf where nodejs 24.0.0)/bin/node" \
+ACCESS_ROUTER_REACT_EXPECT_NODE=24.0.0 \
+ACCESS_ROUTER_REACT_REPORT_DIR="$PWD/_tmp-react-node24/reports" \
 pnpm --filter @web-ts-toolkit/access-router-react test:packed-consumer
 ```
 

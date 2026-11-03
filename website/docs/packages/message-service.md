@@ -26,10 +26,10 @@ Peer dependencies:
 - `mongoose >= 8`
 - `express >= 5`
 
-Runtime: Node `>=22`; use package-root named imports. The shipped
+Runtime: Node `>=24`; use package-root named imports. The shipped
 [README](https://github.com/egose/web-ts-toolkit/blob/main/packages/message-service/README.md)
 is the installed integration contract, including migration guidance and the
-two-app recipe verified from installed tarballs on Node 22.0.0 with minimum
+two-app recipe verified from installed tarballs on Node 24.0.0 with minimum
 Express 5.0.0/Mongoose 8.0.0 and installed-current Express 5/Mongoose 9 peers.
 
 ### Multi-app adaptation and migration notes

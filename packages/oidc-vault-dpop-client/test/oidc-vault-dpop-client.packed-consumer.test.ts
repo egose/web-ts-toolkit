@@ -617,7 +617,7 @@ describe('CLIENT-06 packed-package compatibility', () => {
 
     // Runtime deps stay external requires/imports, not bundled server code.
     expect(Object.keys(packedManifest.dependencies).sort()).toEqual(['idb', 'jose']);
-    expect(packedManifest.engines.node).toBe('>=22.12.0');
+    expect(packedManifest.engines.node).toBe('>=24');
   });
 
   it('packs browser-only declarations without backend auth types or Express augmentation', () => {
