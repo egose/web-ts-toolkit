@@ -81,7 +81,7 @@ describe('ARR-10 packed-package compatibility using the real release transformat
     expect(packedManifest).toEqual(stagedManifest);
     expect(packedManifest.version).toBe(testVersion);
     expect(packedManifest.license).toBe(rootPackageJson.license);
-    expect(rootPackageJson.engines).toEqual({ node: '>=20' });
+    expect(rootPackageJson.engines).toEqual({ node: '>=24' });
     expect(packedManifest.engines).toEqual({ node: '>=24' });
     expect(packedManifest.repository).toEqual({
       ...rootPackageJson.repository,
