@@ -2,6 +2,14 @@
 
 Decorator-based configuration for `@web-ts-toolkit/access-router`.
 
+Model-condition `guard({ modelName, id, condition })` reads fresh visible-row facts
+without publishing a DTO. Field/virtual/output-include/decorate/task effects and
+`_read` overrides no longer run or veto that guard; normal DTO reads are unchanged.
+Keep security in operation/row/document-fact hooks, not presentation side effects.
+Source/fact/necessary-input errors, generated HTTP operation gates and target
+admission remain enforced. See the installed access-router `MIGRATION.md` M2/M3/M5;
+a separately checked ordinary DTO read adds its explicit read/hook/output cost.
+
 ## Installation
 
 ```sh
@@ -631,6 +639,23 @@ related policies, selection, hydration and raw-parent business APIs. A controlle
 post-save 400 may follow persistence: no rollback or automatic retry. Deploy/roll
 back a tested matching library/application revision; changing modes affects new
 calls only. No mixed-version compatibility or speed/security-equivalence claim.
+
+For backend-held raw collections, the injected original request's model services
+(both getters) optionally expose `pickAllowedFieldsMany(rows, access, options?)`.
+It deliberately captures actor/model/catalog/config/scope/output policy **once**,
+not N independent fresh picks; all row sources precede the first predicate and
+row decisions remain separate. It uses empty facts, no reads/document hooks or
+row/target admission, even for decorated models. Never copy `OutputFieldOptions`
+from request input; scope grants remain model-relative. It is not a default migration:
+presentation normally needs zero helpers; current facts need a new checked READ/LIST.
+See the core guide's executable M3 recipes, conservative `FilteredOutput<T>` type,
+dense 1,000-position admission and row/aggregate budgets. The 200,000 work / 16 MiB
+cumulative limits cover router-controlled admission/staging/traversal/copies, **not**
+opaque Mongoose/native internals/dependency allocations, trusted effects or engine
+enumeration; normalized returns must pass admission before the next router copy.
+No total-memory/RSS/whole-normalization/sandbox cap, transaction, side-effect rollback
+or performance acceptance is implied. Structural/native/budget poison closes/drains
+the whole call with 400, without partial publication. No new decorator/HTTP/client API.
 
 ## TypeScript Decorator Configuration
 

@@ -40,7 +40,32 @@ export function extractMigrationBlocks(markdown: string): MigrationBlock[] {
     throw new Error('The exact historical source must be a separate expected-error fixture');
   if (blocks.filter((block) => block.kind === 'partial').length < 4)
     throw new Error('Missing typed facts, write, scoped helper or modes target example');
+  for (const name of ['rawBefore', 'rawMany', 'presentationSubset', 'currentList'])
+    if (
+      !blocks.some(
+        (block) =>
+          block.kind === 'partial' &&
+          block.source.includes(`export ${name === 'presentationSubset' ? '' : 'async '}function ${name}(`),
+      )
+    )
+      throw new Error(`Missing executable collection alternative: ${name}`);
   return blocks;
+}
+
+/** Un-suppressed negative collection statements must each fail in consumer source only. */
+export function assertCollectionDiagnostics(source: string, filename: string, output: string): void {
+  const diagnostics = [...output.matchAll(/^([^\n(]+)\((\d+),\d+\): error TS\d+:/gm)];
+  if (!diagnostics.length || diagnostics.some((match) => match[1] !== filename))
+    throw new Error(`Expected only collection consumer errors in ${filename}:\n${output}`);
+  const lines = new Set(diagnostics.map((match) => Number(match[2])));
+  const sourceLines = source.split('\n');
+  const markers = sourceLines.flatMap((line, index) => (line === '// reject-next' ? [index] : []));
+  for (const [position, index] of markers.entries()) {
+    const end = markers[position + 1] ?? sourceLines.length;
+    // Prettier may wrap an excess-property diagnostic onto a later line of the SAME statement.
+    if (![...lines].some((line) => line >= index + 2 && line <= end))
+      throw new Error(`Missing collection rejection ${filename}:${index + 2}:\n${output}`);
+  }
 }
 
 /** Each intentionally invalid source statement must actually receive a compiler diagnostic. */

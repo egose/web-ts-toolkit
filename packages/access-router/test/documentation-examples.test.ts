@@ -211,6 +211,31 @@ const assembleAllBlocks = (): CompiledBlock[] => {
       if (!snippet) throw new Error(`${entry} is missing the installed ${option} example`);
       blocks.push({ name: `${option}-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
     }
+    let receiver = checker
+      .getExportsOfModule(module)
+      .find((candidate) => candidate.name === (entry.startsWith('index') ? 'ModelRouter' : 'ModelRequest'))!;
+    if (receiver.flags & ts.SymbolFlags.Alias) receiver = checker.getAliasedSymbol(receiver);
+    let owner = checker.getDeclaredTypeOfSymbol(receiver);
+    if (entry.startsWith('advanced')) {
+      const macl = owner.getProperty('macl')!;
+      owner = checker.getTypeOfSymbolAtLocation(macl, macl.valueDeclaration!);
+    }
+    const getter = owner.getProperty('getService')!;
+    const service = checker.getReturnTypeOfSignature(
+      checker.getTypeOfSymbolAtLocation(getter, getter.valueDeclaration!).getCallSignatures()[0],
+    );
+    const collectionExample = service
+      .getProperty('pickAllowedFieldsMany')!
+      .getJsDocTags(checker)
+      .find((tag) => tag.name === 'example');
+    const collectionSnippet = ts.displayPartsToString(collectionExample?.text).match(/```ts\n([\s\S]*?)```/)?.[1];
+    if (!collectionSnippet) throw new Error(`${entry} is missing installed collection-helper guidance`);
+    blocks.push({
+      name: `pickAllowedFieldsMany-${entry}`,
+      sourcePath: `dist/${entry}`,
+      kind: 'partial',
+      snippet: collectionSnippet,
+    });
   }
   const migration = extractMigrationBlocks(readFileSync(path.resolve(packageRoot, 'MIGRATION.md'), 'utf8'));
   migration.forEach((block, index) => {

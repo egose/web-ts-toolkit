@@ -368,6 +368,15 @@ describe('AR-14 published export contract', () => {
         };
         const hover = (symbol: import('typescript').Symbol) =>
           ts.displayPartsToString(symbol.getDocumentationComment(checker));
+        const guardHover = hover(exported(entries[0], 'guard').symbol);
+        for (const phrase of [
+          'publish no DTO',
+          '_read',
+          'Source/fact errors',
+          'HTTP READ gate',
+          'separate normal read',
+        ])
+          expect(guardHover).toContain(phrase);
         const modes = ['readAuthorizationMode', 'listAuthorizationMode'];
         for (const entry of entries) {
           for (const name of [
@@ -440,6 +449,17 @@ describe('AR-14 published export contract', () => {
           expect(hover(exported(entry, 'ModelVirtualGetter').symbol)).toContain('private argument-four isolation');
         }
         const privateNames = [
+          'DocumentCondition',
+          'registerDocumentConditionReader',
+          'assertDocumentConditionReceiver',
+          'consumeDocumentCondition',
+          'evaluateDocumentGuard',
+          'withExecutionDocumentCondition',
+          'executePreparedFindOneCondition',
+          'runFreshModelServiceCall',
+          'OutputSelectionShape',
+          'selectCatalogOutputShape',
+          'resolveEmptyOutputHelperStage',
           'AuthorizationFastPathOrigin',
           'AuthorizationFastPathCapture',
           'QueryAuthorizationSource',
@@ -475,6 +495,13 @@ describe('AR-14 published export contract', () => {
           'retainTrustedOutputSpine',
           'getIssuedEmbeddedDocumentAuthorization',
           'isIssuedOutputMember',
+          'OutputWorkLedger',
+          'createOutputWorkLedger',
+          'debitOutputWork',
+          'debitOutputPayload',
+          'admitOutputHelperManyControls',
+          'admitOutputHelperRows',
+          'filterModelOutputManyForHelper',
         ];
         for (const file of readdirSync(path.resolve(packageRoot, 'dist')).filter((name) =>
           /\.d\.(?:ts|mts)$/.test(name),
@@ -858,6 +885,7 @@ describe('AR-14 published export contract', () => {
             'current document',
           ],
           AllowedOutputFieldOptions: ["purpose: 'output'", 'never a write/schema', 'Null/undefined'],
+          FilteredOutput: ['Conservative DATA', 'optional', 'depth eight', 'string identifiers', 'frozen-native'],
           DataFieldOptions: ['request-only', 'No Mongoose catalog', 'empty result'],
           PopulatePlanningOptions: ['request-only', 'response segments', 'target operation/rows'],
           NewArgs: ['historically ignored'],
@@ -929,6 +957,13 @@ describe('AR-14 published export contract', () => {
           'assertFieldHelperCall',
           'requestFieldScope',
           'isInputVirtualPath',
+          'OutputWorkLedger',
+          'createOutputWorkLedger',
+          'debitOutputWork',
+          'debitOutputPayload',
+          'admitOutputHelperManyControls',
+          'admitOutputHelperRows',
+          'filterModelOutputManyForHelper',
         ];
         for (const entry of entries) {
           for (const [name, phrases] of Object.entries(documented)) {
@@ -973,6 +1008,25 @@ describe('AR-14 published export contract', () => {
         const publicService = checker.getReturnTypeOfSignature(
           checker.getTypeOfSymbolAtLocation(publicAcquire, publicAcquire.valueDeclaration!).getCallSignatures()[0],
         );
+        for (const receiver of [core, service, publicService]) {
+          const method = receiver.getProperty('pickAllowedFieldsMany')!;
+          const signatures = checker.getTypeOfSymbolAtLocation(method, method.valueDeclaration!).getCallSignatures();
+          expect(signatures).toHaveLength(1);
+          expect(signatures[0].getParameters().map((parameter) => parameter.name)).toEqual(
+            receiver === core ? ['modelName', 'rows', 'access', 'options'] : ['rows', 'access', 'options'],
+          );
+          expect(signatures[0].getDeclaration().type!.getText()).toBe('Promise<readonly FilteredOutput<T>[]>');
+          for (const phrase of ['not N independent', '200,000', '16 MiB', 'router', 'normalization', '400'])
+            expect(hover(method), `collection hover: ${phrase}`).toContain(phrase);
+        }
+        expect(
+          service
+            .getProperty('pickAllowedFieldsMany')!
+            .getJsDocTags(checker)
+            .some((tag) => tag.name === 'example'),
+        ).toBe(true);
+        expect(dataCore.getProperty('pickAllowedFieldsMany')).toBeUndefined();
+        expect(dataService.getProperty('pickAllowedFieldsMany')).toBeUndefined();
         for (const [receiver, maximum, helpers] of [
           [
             core,

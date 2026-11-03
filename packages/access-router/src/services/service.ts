@@ -62,7 +62,11 @@ import {
   excludeDocumentStagePath,
   getQueryReferenceOriginal,
 } from '../acl/document-stage';
-import { copyAuthorizedReference, requestOutputFieldPaths } from '../acl/output-field-filter';
+import {
+  copyAuthorizedReference,
+  prepareOutputDocumentStage,
+  requestOutputFieldPaths,
+} from '../acl/output-field-filter';
 import type { DocumentStage } from '../acl/document-stage';
 import {
   assertOutputPublication,
@@ -232,7 +236,7 @@ import {
 import { resolveExistsOptions, resolveUpsertArgs, resolveUpsertOptions } from './model-service-defaults';
 import { captureModelServiceIntent, type ModelServiceIntentMethod } from './model-service-intent';
 import { createModelOutputContext } from '../output/model-output-context';
-import { consumeReadGuardStage } from '../acl/document-guard';
+import { consumeDocumentCondition } from '../acl/document-guard';
 
 type ServiceHookContext = ModelHookContext & {
   diff?(doc: Document): void;
@@ -546,7 +550,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     budget: TrustedOutputBudget;
     publication: OutputPublication;
     references?: ReadonlyMap<string, unknown>;
-    execution?: ServiceExecutionContext;
   }): Promise<{ data: Record<string, unknown>; context: ServiceOutputContext }> {
     const { plan, context } = args;
     const { authorization, authorizationBinding: binding } = plan;
@@ -575,7 +578,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         const { grants } = readDocumentStage(stage, binding!);
         // Private field-row bookkeeping remains outside every callback diagnostic.
         const source = getIncludeSource(args.doc) as Record<string, unknown>;
-        if (args.execution) await consumeReadGuardStage(this, args.execution, stage, binding!);
         if (args.privateAssociationField) unsetTrustedOutputPath(output, args.privateAssociationField, args.budget);
         restoreIncludeOutput(args.doc, output, construction);
         const field = (configuration.documentPermissionField as string) ?? '_permissions';
@@ -1428,6 +1430,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         ) as Promise<{ transformed: Filter<TModel>; scope: Filter<TModel>; filter: Filter<TModel> }>;
       },
       findOne: (execution, filter, args, options) => this.findOnePrepared(execution, filter, args, options),
+      findOneCondition: (execution, filter, args, options) =>
+        this.#findOneConditionPrepared(execution, filter, args, options),
       find: (execution, query, filter, args, options, decorate) =>
         this.findPrepared(execution, query, filter, args, options, decorate),
       updateOne: (execution, filter, data, args, options, decorate) =>
@@ -1492,18 +1496,20 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     }
   }
 
-  private async findOnePrepared(
+  /** Common query/fetch/hook-input prefix for DTO and private condition consumers. */
+  async #fetchOnePrepared(
     execution: ServiceExecutionContext,
     filter: Filter<TModel>,
     args?: FindOneArgs<TModel>,
     options?: FindOneOptions<TModel, TVirtuals>,
-  ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
-    if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
+  ) {
+    if (filter === false)
+      return { success: false as const, kind: 'error' as const, code: Codes.Forbidden as const, query: { filter } };
 
     const state = readServiceExecution(this, execution);
     const intent = this.preparedOutputIntent(execution, 'findOne', args, options);
     const { select: requestedSelect, sort, populate, include } = intent.args;
-    const { includePermissions, includeFieldPermissions, populateAccess } = intent.options;
+    const { populateAccess } = intent.options;
     const access = state.access.rowAccess!;
     const virtualSnapshot = readServiceAuthorization(state.authorization, state.binding)
       .configuration as FinalizeSnapshot;
@@ -1568,20 +1574,32 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
     if (_filter === false) {
       this.completeOp('findOne', startedAt, Codes.Forbidden, _filter);
-      return { success: false, kind: 'error', code: Codes.Forbidden, query };
+      return { success: false as const, kind: 'error' as const, code: Codes.Forbidden as const, query };
     }
 
     if (stripDisallowedSort) {
       // Disallowed keys already omitted from effectiveSort; malformed syntax still fails.
       if (sanitizedSort && sanitizedSort.errors.length > 0) {
         this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);
-        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sanitizedSort.errors, query };
+        return {
+          success: false as const,
+          kind: 'error' as const,
+          code: Codes.BadRequest as const,
+          errors: sanitizedSort.errors,
+          query,
+        };
       }
     } else {
       const sortErrors = validateSortFields(sort, effectiveAllowedSortFields);
       if (sortErrors.length > 0) {
         this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);
-        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
+        return {
+          success: false as const,
+          kind: 'error' as const,
+          code: Codes.BadRequest as const,
+          errors: sortErrors,
+          query,
+        };
       }
     }
 
@@ -1594,7 +1612,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     });
     if (!doc) {
       this.completeOp('findOne', startedAt, Codes.NotFound, _filter);
-      return { success: false, kind: 'error', code: Codes.NotFound, query };
+      return { success: false as const, kind: 'error' as const, code: Codes.NotFound as const, query };
     }
     if (population.requiresCapture)
       [doc] = await this.loadOutputPopulateDependencies(
@@ -1606,6 +1624,76 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         undefined,
         findOneAssociationField ? [findOneAssociationField] : [],
       );
+
+    return {
+      kind: 'fetched' as const,
+      doc,
+      state,
+      intent,
+      query,
+      virtualPlan,
+      _populate,
+      correlatedIncludes,
+      correlatedReferenceFields,
+      includes,
+      startedAt,
+      _filter,
+    };
+  }
+
+  async #findOneConditionPrepared(
+    execution: ServiceExecutionContext,
+    filter: Filter<TModel>,
+    args?: FindOneArgs<TModel>,
+    options?: FindOneOptions<TModel, TVirtuals>,
+  ): Promise<boolean | ErrorResult> {
+    const state = readServiceExecution(this, execution);
+    if (state.purpose.kind !== 'condition') authorizationError('condition reader requires its issued execution');
+    const fetched = await this.#fetchOnePrepared(execution, filter, args, options);
+    if (fetched.kind === 'error') return fetched;
+    const { authorization, binding } = state;
+    // No output row, selected budget, include shell, target DTO, metadata or presentation.
+    const { stage, source } = prepareQueryDocumentStage(authorization, binding, fetched.doc);
+    const { configuration } = readServiceAuthorization(authorization, binding);
+    await prepareOutputDocumentStage(
+      authorization,
+      binding,
+      configuration,
+    )({
+      authorization,
+      binding,
+      stage,
+      snapshot: source,
+      context: { operation: state.access.operation, resolvedQuery: fetched.query },
+    });
+    const decision = consumeDocumentCondition(state.purpose.condition, stage, binding);
+    this.completeOp('findOne', fetched.startedAt, Codes.Success, fetched._filter);
+    return decision;
+  }
+
+  private async findOnePrepared(
+    execution: ServiceExecutionContext,
+    filter: Filter<TModel>,
+    args?: FindOneArgs<TModel>,
+    options?: FindOneOptions<TModel, TVirtuals>,
+  ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
+    if (readServiceExecution(this, execution).purpose.kind !== 'dto') authorizationError('DTO reader purpose mismatch');
+    const fetched = await this.#fetchOnePrepared(execution, filter, args, options);
+    if (fetched.kind === 'error') return fetched;
+    const {
+      state,
+      intent,
+      query,
+      virtualPlan,
+      _populate,
+      correlatedIncludes,
+      correlatedReferenceFields,
+      includes,
+      startedAt,
+      _filter,
+    } = fetched;
+    const { includePermissions, includeFieldPermissions } = intent.options;
+    let { doc } = fetched;
 
     const [outputRow] = this.admitOutputRows(execution, [doc]);
     this.registerPopulateRecipients([outputRow], _populate as Populate[]);
@@ -1690,7 +1778,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         budget: outputRow.budget,
         publication: outputRow.publication,
         references: outputRow.references,
-        execution,
       });
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
@@ -2049,7 +2136,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           budget: outputRows[i].budget,
           publication: outputRows[i].publication,
           references: outputRows[i].references,
-          execution,
         });
         outputContexts[i] = output.context;
         return output.data;

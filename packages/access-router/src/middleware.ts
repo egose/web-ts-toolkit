@@ -26,6 +26,14 @@ export interface GuardModelCondition {
   condition: string | string[];
 }
 
+/**
+ * Request permission middleware. Model conditions require a visible row and fresh
+ * document facts, but publish no DTO: field/virtual/include output, decorate/tasks
+ * and `_read` overrides do not run or veto the condition. Source/fact errors remain
+ * BadRequest. This request-only read does not imply the generated HTTP READ gate;
+ * an admitted miss may retry once under captured LIST admission and READ mode.
+ * Put security in operation/row/fact hooks; use a separate normal read for a DTO.
+ */
 export function guard(condition: string): RequestHandler;
 export function guard(conditions: string[]): RequestHandler;
 export function guard(conditionFunc: GuardHook<ModelRequest>): RequestHandler;

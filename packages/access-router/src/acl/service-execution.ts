@@ -27,7 +27,8 @@ import {
   type OutputPublication,
 } from './output-publication';
 import type { TrustedOutputBudget } from './trusted-output-materialization';
-import { inheritReadGuardExecution } from './document-guard';
+import type { DocumentCondition } from './document-guard';
+import { assertDocumentConditionReceiver } from './document-guard';
 import type { Service } from '../services/service';
 import type { GroupedCountInput } from '../services/grouped-count';
 import type { ModelServiceIntent } from '../services/model-service-intent';
@@ -99,6 +100,12 @@ export interface ServiceExecutors<T, V extends object> {
     args: FindOneArgs<T>,
     options: FindOneOptions<T, V>,
   ): Promise<AuthorizedSingleResult<T> | ErrorResult>;
+  findOneCondition(
+    execution: ServiceExecutionContext,
+    filter: Filter<T>,
+    args: FindOneArgs<T>,
+    options: FindOneOptions<T, V>,
+  ): Promise<boolean | ErrorResult>;
   find(
     execution: ServiceExecutionContext,
     query: PreparedModelQuery,
@@ -138,6 +145,7 @@ interface ExecutionRecord extends ServiceExecutionState {
   readonly receiver: object;
   readonly binding: AuthorizationBinding;
   readonly family: object;
+  readonly purpose: { readonly kind: 'dto' } | { readonly kind: 'condition'; readonly condition: DocumentCondition };
   readonly outputBudget?: (row: unknown, index: number) => TrustedOutputBudget | null;
 }
 const executions = new WeakMap<ServiceExecutionContext, ExecutionRecord>();
@@ -199,8 +207,27 @@ export function createServiceExecution<T, V extends object>(
       ownsPublication: !parent || snapshotDerivation?.kind !== 'related',
       access: readServiceAuthorizationAccess(call, binding),
       family: execution,
+      purpose: Object.freeze({ kind: 'dto' as const }),
       hydration: resolveHydration(readServiceAuthorizationHydration(call, binding), hydration),
     }),
+  );
+  return execution;
+}
+
+/** Issued only by the lexical PublicService condition reader, never from service options. */
+export function withExecutionDocumentCondition<T, V extends object>(
+  receiver: Service<T, V>,
+  parent: ServiceExecutionContext,
+  condition: DocumentCondition,
+): ServiceExecutionContext {
+  assertDocumentConditionReceiver(receiver);
+  const record = readServiceExecution(receiver, parent);
+  if (record.purpose.kind !== 'dto' || record.access.operation !== 'read' || record.access.rowAccess !== 'read')
+    authorizationError('invalid condition execution origin');
+  const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  executions.set(
+    execution,
+    Object.freeze({ ...record, purpose: Object.freeze({ kind: 'condition' as const, condition }) }),
   );
   return execution;
 }
@@ -274,6 +301,18 @@ export function deriveServiceExecution<T, V extends object>(
 ): ServiceExecutionContext {
   const record = readServiceExecution(receiver, parent);
   const captured = readServiceAuthorization(record.authorization, record.binding);
+  if (
+    record.purpose.kind === 'condition' &&
+    (applicability !== 'service' ||
+      record.access.operation !== 'read' ||
+      record.access.rowAccess !== 'read' ||
+      access.operation !== 'read' ||
+      access.rowAccess !== 'list' ||
+      access.virtualAccess !== 'list' ||
+      access.outputAccess !== 'list' ||
+      access.docPermissionsAccess !== 'list')
+  )
+    authorizationError('condition purpose may only follow a read-to-list retry');
   const policy = serviceAuthorizationInput(captured.authorization, captured.relatedTargets);
   const { outputFields, related } = policy;
   const { inputFields } = captured.authorization;
@@ -312,6 +351,5 @@ export function deriveServiceExecution<T, V extends object>(
       access: readServiceAuthorizationAccess(call, record.binding),
     }),
   );
-  inheritReadGuardExecution(receiver, parent, execution);
   return execution;
 }

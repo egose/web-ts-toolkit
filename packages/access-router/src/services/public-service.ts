@@ -10,6 +10,7 @@ import {
   Projection,
   Populate,
   ModelOutputContext,
+  ModelRequest,
   FindAccess,
   PublicOutput,
   SelectedPublicOutput,
@@ -46,19 +47,21 @@ import {
   type ServiceExecutionContext,
   withExecutionHydration,
   withExecutionQueryIntent,
+  withExecutionDocumentCondition,
 } from '../acl/service-execution';
 import { getCapturedAuthorizationOption } from '../acl/model-output-planning';
 import { getAuthorizationPermissions, readServiceAuthorization } from '../acl/service-authorization';
-import { withCapturedModelOperationGuard } from '../acl/model-service-owner';
+import { runFreshModelServiceCall, withCapturedModelOperationGuard } from '../acl/model-service-owner';
 import { getRequestWorkState } from '../helpers/request-work';
 import { assertModelInputComplexity } from '../acl/model-input-admission';
-import { bindReadGuardExecution } from '../acl/document-guard';
+import { registerDocumentConditionReader, type DocumentCondition } from '../acl/document-guard';
 import { createModelOutputContext } from '../output/model-output-context';
 import {
   executeCreate,
   executePreparedExists,
   executePreparedFind,
   executePreparedFindOne,
+  executePreparedFindOneCondition,
   executePreparedUpdateOne,
   prepareModelQuery,
   readModelIdentifier,
@@ -76,6 +79,21 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
   TModel,
   TVirtuals
 > {
+  constructor(req: ModelRequest, modelName: string) {
+    super(req, modelName);
+    const runtime = this.requestRuntime;
+    registerDocumentConditionReader(this, (id, condition) =>
+      runFreshModelServiceCall(this, runtime, () =>
+        this.#readById(
+          id,
+          undefined,
+          { includePermissions: false, includeFieldPermissions: false },
+          { kind: 'condition', condition },
+        ),
+      ),
+    );
+  }
+
   /** Public dispatch stays request-only even for JS callers and transformed envelopes. */
   override async listSub<S extends string>(
     id: string,
@@ -293,6 +311,29 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
     args?: Omit<PublicReadArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicReadOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult> {
+    return this.#readById(id, args, options, { kind: 'dto' }) as Promise<
+      SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals>> | ErrorResult
+    >;
+  }
+
+  #readById(
+    id: string,
+    args: PublicReadArgs | undefined,
+    options: PublicReadOptions | undefined,
+    purpose: { kind: 'dto' },
+  ): Promise<SingleResult<unknown> | ErrorResult>;
+  #readById(
+    id: string,
+    args: PublicReadArgs | undefined,
+    options: PublicReadOptions | undefined,
+    purpose: { kind: 'condition'; condition: DocumentCondition },
+  ): Promise<boolean | ErrorResult>;
+  async #readById(
+    id: string,
+    args: PublicReadArgs | undefined,
+    options: PublicReadOptions | undefined,
+    purpose: { kind: 'dto' } | { kind: 'condition'; condition: DocumentCondition },
+  ): Promise<SingleResult<unknown> | boolean | ErrorResult> {
     const admission = this.admitPublicCall({ args, options });
     if (admission) return admission;
     const { select, populate, include, tasks } = deepIsolateValue(this.resolvePublicReadArgs(args));
@@ -328,22 +369,30 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         ),
         'publicRead',
       );
+      if (purpose.kind === 'condition') execution = withExecutionDocumentCondition(this, execution, purpose.condition);
       const admitListFallback = this.captureListFallbackAdmission(execution);
-      bindReadGuardExecution(this, execution);
       const identifier = await resolveModelIdentifier(this, execution, id);
       const query = await prepareModelQuery(this, execution, {
         kind: 'client-read',
         filter: readModelIdentifier(this, execution, identifier),
       });
-      let result = await executePreparedFindOne(
-        this,
-        execution,
-        query,
-        { select, populate, include },
-        requestOnlyServiceOptions({ skim, includePermissions, includeFieldPermissions, access, populateAccess }),
-      );
+      const execute = (query: Parameters<typeof executePreparedFindOne>[2]) => {
+        const args = { select, populate, include };
+        const options = requestOnlyServiceOptions({
+          skim,
+          includePermissions,
+          includeFieldPermissions,
+          access,
+          populateAccess,
+        });
+        return purpose.kind === 'condition'
+          ? executePreparedFindOneCondition(this, execution, query, args, options)
+          : executePreparedFindOne(this, execution, query, args, options);
+      };
+      let result = await execute(query);
 
       // Invalid descriptors and terminal policy denial cannot be repaired by list access.
+      if (typeof result === 'boolean') return result;
       if (!result.success && (result.code === Codes.BadRequest || result.code === Codes.Forbidden)) return result;
 
       // if not found, try to get the doc with 'list' access
@@ -366,21 +415,10 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
           kind: 'client-read',
           filter: readModelIdentifier(this, execution, identifier),
         });
-        result = await executePreparedFindOne(
-          this,
-          execution,
-          fallback,
-          { select, populate, include },
-          requestOnlyServiceOptions({
-            skim,
-            includePermissions,
-            includeFieldPermissions,
-            access,
-            populateAccess,
-          }),
-        );
+        result = await execute(fallback);
       }
 
+      if (typeof result === 'boolean') return result;
       if (!result.success) {
         return result as ErrorResult;
       }
@@ -389,7 +427,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
       doc = await this.decorate(doc, access, result.context);
       doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
-      return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate, TVirtuals> };
+      return { ...result, data: doc };
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;

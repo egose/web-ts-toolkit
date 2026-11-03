@@ -2,6 +2,7 @@
 import { authorizationError, ServiceAuthorizationError } from './authorization-snapshot';
 import { createTrustedOutputBudget, type TrustedOutputBudget } from './trusted-output-materialization';
 import type { ResolvedServiceAuthorization } from './service-authorization';
+import type { OutputWorkLedger } from './output-work-ledger';
 
 declare const publicationBrand: unique symbol;
 export interface OutputPublication {
@@ -13,6 +14,7 @@ interface PublicationRecord {
   pending: Set<Promise<unknown>>;
   stages: Set<(error?: unknown, clear?: boolean) => void>;
   resources: Set<() => void>;
+  ledger?: OutputWorkLedger;
 }
 const publications = new WeakMap<OutputPublication, PublicationRecord>();
 const calls = new WeakMap<ResolvedServiceAuthorization, OutputPublication>();
@@ -25,8 +27,30 @@ export function createOutputPublication(): OutputPublication {
     pending: new Set(),
     stages: new Set(),
     resources: new Set(),
+    ledger: undefined,
   });
   return owner;
+}
+
+/** Installed before initial catalog/configuration capture; shared by ALL row owners. */
+export function createCollectionOutputLedger(owner: OutputPublication): OutputWorkLedger {
+  assertOutputPublication(owner);
+  const record = recordFor(owner);
+  if (record.ledger) authorizationError('collection ledger already installed');
+  const ledger: OutputWorkLedger = {
+    work: 0,
+    payload: 0,
+    failure: undefined,
+    check: () => assertOutputPublication(owner),
+    fail: (error) => failOutputPublication(owner, error),
+  };
+  record.ledger = ledger;
+  return ledger;
+}
+
+export function publicationOutputLedger(owner: OutputPublication): OutputWorkLedger | undefined {
+  assertOutputPublication(owner);
+  return recordFor(owner).ledger;
 }
 
 function recordFor(owner: OutputPublication): PublicationRecord {
@@ -80,7 +104,19 @@ export function retainPublicationResource(owner: OutputPublication, clear: () =>
 /** Track only admitted library work, never detached application closure activity. */
 export function trackPublicationWork<T>(owner: OutputPublication, work: Promise<T>): Promise<T> {
   assertOutputPublication(owner);
+  return trackAdmittedWork(owner, recordFor(owner), work);
+}
+
+/** Capture admission BEFORE invoking synchronous application code. Only an actual
+ * returned Promise needs tracking; poison during that invocation must still drain
+ * the already-admitted callback, without admitting another callback or new stage. */
+export function admitPublicationWork(owner: OutputPublication) {
+  assertOutputPublication(owner);
   const record = recordFor(owner);
+  return <T>(work: Promise<T>): Promise<T> => trackAdmittedWork(owner, record, work);
+}
+
+function trackAdmittedWork<T>(owner: OutputPublication, record: PublicationRecord, work: Promise<T>): Promise<T> {
   record.pending.add(work);
   void work.then(
     () => record.pending.delete(work),
@@ -97,6 +133,7 @@ export function createPublicationRowBudget(owner: OutputPublication): TrustedOut
   return createTrustedOutputBudget(
     (error) => failOutputPublication(owner, error),
     () => assertOutputPublication(owner),
+    recordFor(owner).ledger,
   );
 }
 
@@ -111,6 +148,7 @@ export async function closeOutputPublication(owner: OutputPublication, error?: u
   for (const clear of record.resources) clear();
   record.stages.clear();
   record.resources.clear();
+  record.ledger = undefined;
   if (record.failure !== undefined) throw record.failure;
 }
 

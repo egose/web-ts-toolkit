@@ -21,6 +21,7 @@ import Permission from '../src/permission';
 import { registerServiceExecutors, readServiceExecution } from '../src/acl/service-execution';
 import { prepareIncludeOutput } from '../src/output/include-output';
 import { createTrustedOutputBudget } from '../src/acl/trusted-output-materialization';
+import { ownedStageFixture } from './owned-stage-test-fixture';
 
 const controls = [
   'authorization',
@@ -120,6 +121,26 @@ function fixture() {
   return { service, target };
 }
 
+// By-ID orchestration is now lexical/private. Exercise its real receiving instance
+// and instrument the same immediately receiving persistence executor, not a forged
+// prototype that cannot possess the private class brand. The admission assertions
+// and forwarded request-only policy below are unchanged.
+function wrapperFixture(name: string) {
+  if (name !== 'read') return fixture();
+  const f = ownedStageFixture({ schema: { authorization: String } });
+  const service: ReturnType<typeof fixture>['service'] = f.public;
+  for (const key of ['find', 'findOne', 'findById', 'create', 'updateById', 'new', 'exists', 'distinct', 'count'])
+    vi.spyOn(service, key).mockResolvedValue(single);
+  vi.spyOn(service, 'genIDFilter').mockResolvedValue({ _id: 'id' });
+  vi.spyOn(service, 'decorate').mockImplementation((doc) => doc);
+  vi.spyOn(service, 'runTasks').mockImplementation((doc) => doc);
+  vi.spyOn(service, 'getAuthorizedTargetService').mockResolvedValue({});
+  vi.spyOn(service, 'findOnePrepared').mockImplementation((_execution, filter, args, options) =>
+    service.findById(filter, args, options),
+  );
+  return { service, target: {} };
+}
+
 const wrapperCalls = {
   list: (s, a, o) => s._list({}, a, o),
   read: (s, a, o) => s._read('id', a, o),
@@ -155,10 +176,10 @@ afterEach(() => {
 });
 
 describe('SVA-01A public wrapper admission', () => {
-  it.each(Object.entries(wrapperCalls))('%s rejects JS control slots before internal dispatch', async (_name, call) => {
+  it.each(Object.entries(wrapperCalls))('%s rejects JS control slots before internal dispatch', async (name, call) => {
     for (const key of controls) {
       for (const slot of ['args', 'options']) {
-        const { service } = fixture();
+        const { service } = wrapperFixture(name);
         // Even present-undefined controls reject; accepting only nonempty policy
         // objects would silently admit legacy/forged transport variants.
         const poison = { [key]: undefined };
@@ -188,7 +209,7 @@ describe('SVA-01A public wrapper admission', () => {
   it.each(Object.entries(wrapperCalls))(
     '%s dispatches a fresh request-only policy on successful admission',
     async (name, call) => {
-      const { service } = fixture();
+      const { service } = wrapperFixture(name);
       const options = { skim: true, lean: true, includePermissions: false, returningAll: false, unknownOption: true };
       expect(await call(service, { select: ['authorization'] }, options)).toMatchObject({ success: true });
       const [method, index] = (

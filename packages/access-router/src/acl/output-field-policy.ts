@@ -23,6 +23,7 @@ import {
 } from './field-authorization';
 import type { FieldAuthorizationState } from './field-authorization';
 import { isCatalogOutputPath } from './field-catalog';
+import { debitOutputWork } from './output-work-ledger';
 
 type RequestRuleClassification = ReturnType<typeof prepareRequestFieldRule>;
 export interface PreparedRequestRule {
@@ -47,6 +48,12 @@ interface CallFieldPolicy {
 }
 const fieldPolicies = new WeakMap<ResolvedServiceAuthorization, CallFieldPolicy>();
 
+export function clearOutputFieldPolicy(authorization: ResolvedServiceAuthorization): void {
+  const policy = fieldPolicies.get(authorization);
+  policy?.accesses.clear();
+  fieldPolicies.delete(authorization);
+}
+
 export function callFieldPolicy(
   authorization: ResolvedServiceAuthorization,
   binding: AuthorizationBinding,
@@ -55,6 +62,7 @@ export function callFieldPolicy(
   const owner = serviceOutputFieldPolicyOwner(authorization, binding);
   let policy = fieldPolicies.get(owner);
   if (!policy) {
+    debitOutputWork(); // call-owned preparation memo
     const view = readServiceOutputFieldAuthorization(authorization, binding);
     policy = {
       schema: view.permissionSchema as Record<string, unknown> | undefined,
@@ -116,6 +124,7 @@ export function prepareOutputPath(
 ): PreparedOutputPath {
   let cache = policy.accesses.get(access);
   if (!cache) {
+    debitOutputWork(); // access memo, not a row decision
     cache = new Map();
     policy.accesses.set(access, cache);
   }
@@ -123,14 +132,15 @@ export function prepareOutputPath(
   if (!prepared) {
     const invariant = invariantRuleLookup(policy.schema, path);
     const permissions = getAuthorizationPermissions(authorization, binding);
-    const entries: PreparedRequestRule[] = extractOutputFieldRuleEntries(policy.schema, path, access).map((entry) => ({
-      ...entry,
-      classifications: new WeakMap(),
-    }));
+    const entries: PreparedRequestRule[] = extractOutputFieldRuleEntries(policy.schema, path, access).map((entry) => {
+      debitOutputWork(); // classification memo allocation
+      return { ...entry, classifications: new WeakMap() };
+    });
     const classifications = entries.map((entry) =>
       requestRuleClassification(entry, authorization, permissions, policy.prefix),
     );
     const backendGrant = hasExplicitFieldGrant(policy.outputFields, path);
+    debitOutputWork(); // prepared-path memo allocation, before construction
     prepared = {
       entries,
       backendGrant,

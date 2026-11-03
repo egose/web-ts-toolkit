@@ -33,7 +33,9 @@ import type {
   OutputPlanningOptions,
 } from '../interfaces/service-authorization';
 import type { PopulatePlanningOptions } from '../interfaces/service';
+import type { FilteredOutput } from '../interfaces/filtered-output';
 import { assertFieldHelperCall } from '../acl/field-helper-options';
+import { authorizationError } from '../acl/authorization-snapshot';
 import {
   assertPublicAdmission,
   forwardPublicArgs,
@@ -443,6 +445,8 @@ import { withCapturedPopulateModel } from '../model';
 import type { Service } from './service';
 import {
   bindModelOwnerMethods,
+  assertOutputHelperServiceOwner,
+  registerOutputHelperServiceOwner,
   captureModelServiceOwner,
   hasModelCoreOwner,
   withCapturedModelOperationGuard,
@@ -550,6 +554,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     const owner = captureModelServiceOwner(req);
     this.requestRuntime = owner.runtime;
     this.requestCore = owner.core;
+    registerOutputHelperServiceOwner(this, owner, modelName);
     bindModelOwnerMethods(this, owner.runtime);
   }
 
@@ -666,6 +671,46 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
   ): Promise<T> {
     assertFieldHelperCall('pickAllowedFields', arguments.length, 3, options);
     return this.requestCore.pickAllowedFields<T, TModel, TVirtuals>(this.modelName, doc, access, options);
+  }
+
+  /**
+   * One fresh output-only collection operation; not N independent fresh picks.
+   * Initialized actor/model/catalog/scope/policy are captured once. Actor-view,
+   * schema and options changes after entry affect the NEXT call, not later rows;
+   * live req.user alone does not refresh initialized permissions. Closures and
+   * native normalization effects are not frozen or transactionally rolled back.
+   * Owns all sources before predicates; duplicates retain separate EMPTY-fact
+   * stages/decisions. No DB, document hooks, virtuals, row checks or restoration.
+   * Dense ordinary readonly/frozen arrays of 0–1,000 positions; stable order and
+   * one close/drain publication group. Callback body errors omit fields; structural,
+   * native or budget poison rejects the whole operation (400), even if caught.
+   * Per-row 20,000/depth-100 limits remain. One 200,000 work / 16 MiB cumulative
+   * payload ledger covers router-controlled admission/staging/traversal/copies ONLY.
+   * Opaque Mongoose/native normalization and dependency allocations/traversal,
+   * engine enumeration and arbitrary callback effects are excluded. Not a total
+   * memory/RSS/whole-normalization or sandbox bound. Returned normalized values
+   * are admitted before further router copies. No reusable output authority.
+   * Options are server-owned; scope grants stay model-relative, never request controls.
+   * Presentation subsets normally need zero helpers; current facts need a normal READ/LIST.
+   * @example
+   * ```ts
+   * import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+   * async function labels(req: ModelRequest, rows: readonly { label: string }[]) {
+   *   const output = await req.macl.getService<{ label: string }>('Employee')
+   *     .pickAllowedFieldsMany(rows, 'list');
+   *   return output.map(row => row.label?.toUpperCase());
+   * }
+   * void labels;
+   * ```
+   */
+  public async pickAllowedFieldsMany<T>(
+    rows: readonly T[],
+    access: SelectAccess,
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
+  ): Promise<readonly FilteredOutput<T>[]> {
+    if (arguments.length > 3) authorizationError('pickAllowedFieldsMany accepts no extra helper arguments');
+    assertOutputHelperServiceOwner(this);
+    return this.requestCore.pickAllowedFieldsMany<T, TModel, TVirtuals>(this.modelName, rows, access, options);
   }
 
   /** Alias of pickAllowedFields's output filter; never authorizes writes. */

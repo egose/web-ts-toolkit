@@ -43,6 +43,7 @@ import {
   AfterPersistAccess,
   Task,
   DocumentGrants,
+  FilteredOutput,
 } from './interfaces';
 import Permission, { Permissions } from './permission';
 import { Service, PublicService, Base } from './services';
@@ -96,7 +97,7 @@ import { captureRelatedTargets } from './acl/related-execution';
 import { copyAuthorizationValue } from './acl/authorization-snapshot';
 import { deepIsolateValue } from './helpers/document';
 import { resolveServiceAuthorization, type AuthorizationConfiguration } from './acl/service-authorization';
-import { filterModelOutputForHelper } from './acl/output-field-filter';
+import { filterModelOutputForHelper, filterModelOutputManyForHelper } from './acl/output-field-filter';
 import { getRequestWorkState } from './helpers/request-work';
 import { createModelOutputContext } from './output/model-output-context';
 import {
@@ -104,6 +105,7 @@ import {
   consumeCapturedModelOperationGuard,
   modelServicePopulatePolicyDefaults,
   registerModelCoreOwner,
+  assertOutputHelperCoreOwner,
   withCapturedModelOperationGuard,
 } from './acl/model-service-owner';
 
@@ -241,6 +243,42 @@ export class Core {
         permissions: this.getGlobalPermissions(),
       })
     ).output as T;
+  }
+
+  /**
+   * One output-only operation over a dense ordinary Array (0–1,000 positions).
+   * One capture, not N independent fresh picks; options remain server-owned.
+   * Captures initialized globals/model/catalog/policy once and isolates ALL row
+   * sources before the first field predicate. Each occurrence has independent
+   * EMPTY facts and decisions. Later actor/schema/options changes affect the next
+   * call, not later rows; callback closures/native effects are not frozen.
+   * Mutating req.user alone does not rerun the initialized permissions resolver.
+   * No DB, document hooks, virtual execution, row authority or omitted-field recovery.
+   * Shares bounded request hook scheduling and publishes ordered DATA all-or-nothing;
+   * structural/native/budget errors close/drain the group (400), body errors omit fields.
+   * Existing per-row 20,000/depth-100 owners plus ONE 200,000 router-work / 16 MiB
+   * cumulative router-payload ledger apply. Opaque Mongoose/native normalization,
+   * dependency allocations/traversal, engine enumeration and arbitrary callback
+   * effects are excluded: NOT a total-memory/RSS/whole-normalization/sandbox cap.
+   * Normalized results are admitted before subsequent router-owned copies.
+   */
+  async pickAllowedFieldsMany<T, TModel = unknown, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    rows: readonly T[],
+    access: SelectAccess,
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
+  ): Promise<readonly FilteredOutput<T>[]> {
+    const owner = assertOutputHelperCoreOwner(this);
+    return (await filterModelOutputManyForHelper({
+      request: owner.request,
+      runtime: owner.runtime,
+      modelName,
+      rows,
+      access,
+      options,
+      argumentCount: arguments.length,
+      permissions: () => this.getGlobalPermissions(),
+    })) as readonly FilteredOutput<T>[];
   }
 
   /** Alias of pickAllowedFields; performs no selection, getter invocation, row checks or write admission. */

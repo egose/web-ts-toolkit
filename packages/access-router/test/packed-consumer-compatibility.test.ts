@@ -17,7 +17,11 @@ import path from 'node:path';
 import { buildSync } from 'esbuild';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { assertMigrationDiagnostics, extractMigrationBlocks } from './migration-guide-fixture';
+import {
+  assertCollectionDiagnostics,
+  assertMigrationDiagnostics,
+  extractMigrationBlocks,
+} from './migration-guide-fixture';
 
 /**
  * Resolve the real production manifest transformer (`createPublishPackageJson`)
@@ -474,6 +478,8 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'private-populate-read-policy.types.fixture',
     'output-publication-fusion-withdrawal.types.fixture',
     'authorization-fast-path-consumer.types.fixture',
+    'owned-authorization-many.types.fixture',
+    'owned-authorization-many-consumer.types.fixture',
   ];
   for (const fixture of authorizationFixtures) {
     const snippet = readFileSync(path.resolve(packageRoot, `test/${fixture}.ts`), 'utf8')
@@ -516,6 +522,17 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     'utf8',
   );
   const guideBlocks = extractMigrationBlocks(migration);
+  for (const [name, marker] of [
+    ['collection-raw-recipe', 'export async function rawBefore('],
+    ['collection-presentation-recipe', 'export function presentationSubset('],
+    ['collection-current-recipe', 'export async function currentList('],
+  ]) {
+    const block = guideBlocks.find((block) => block.kind === 'partial' && block.source.includes(marker));
+    if (!block) throw new Error(`Missing exact shipped ${name}`);
+    authorizationFixtures.push(name);
+    for (const extension of ['ts', 'mts', 'cts'])
+      writeFileSync(path.resolve(consumerDir, `${name}.${extension}`), block.source);
+  }
   const javascriptErrors = migration.match(/<!-- doc-example: javascript-errors -->\s*```js\n([\s\S]*?)\n```/)?.[1];
   if (!javascriptErrors) throw new Error('Missing exact shipped JavaScript rejection example');
   writeFileSync(path.resolve(consumerDir, 'migration-errors.mjs'), javascriptErrors);
@@ -531,6 +548,7 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
   const negatives = [
     guideBlocks.find((block) => block.kind === 'expected-error')!.source,
     readFileSync(path.resolve(packageRoot, 'test/owned-authorization-migration.invalid.types.fixture.ts'), 'utf8'),
+    readFileSync(path.resolve(packageRoot, 'test/owned-authorization-many.invalid.types.fixture.ts'), 'utf8'),
   ];
   negatives.forEach((source, index) => {
     for (const extension of ['ts', 'mts', 'cts'])
@@ -545,6 +563,14 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
     writeFileSync(path.resolve(consumerDir, `private-populate.readme.${extension}`), privatePopulateExample);
   }
   for (const extension of ['mts', 'cts']) {
+    const collection = readFileSync(
+      path.resolve(packageRoot, 'test/owned-authorization-many-consumer.runtime.fixture.ts'),
+      'utf8',
+    );
+    writeFileSync(
+      path.resolve(consumerDir, `collection.runtime.${extension}`),
+      extension === 'cts' ? collection.replaceAll('-recipe.mjs', '-recipe.cjs') : collection,
+    );
     writeFileSync(path.resolve(consumerDir, `authorization.readme.${extension}`), authorizationExample);
     writeFileSync(
       path.resolve(consumerDir, `field-helper.runtime.${extension}`),
@@ -584,6 +610,8 @@ function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck
         'private-populate.runtime.cts',
         'authorization-fast-path.readme.mts',
         'authorization-fast-path.readme.cts',
+        'collection.runtime.mts',
+        'collection.runtime.cts',
       ],
     }),
   );
@@ -610,7 +638,9 @@ const assert = require('node:assert/strict');
          'isBorrowableAuthorizationRecord', 'prepareTrustedAuthorizationSource', 'createTrustedOutputBudget',
          'createTrustedOutputMemberBuilder', 'retainTrustedOutputMember', 'retainTrustedOutputSpine',
          'getIssuedEmbeddedDocumentAuthorization', 'isIssuedOutputMember', 'isTrustedAuthorizationOutput',
-         'materializeTrustedOutputValue',
+          'materializeTrustedOutputValue', 'FilteredOutput', 'OutputWorkLedger', 'createOutputWorkLedger',
+          'debitOutputWork', 'debitOutputPayload', 'admitOutputHelperRows', 'admitOutputHelperManyControls',
+          'filterModelOutputManyForHelper',
        'PopulatePolicyDefaultsToken', 'capturePopulatePolicyDefaults', 'getCapturedPopulatePolicyDefaults',
        'resolvePopulatePolicy', 'modelServicePopulatePolicyDefaults', 'capturePopulateTargetBinding',
        'setPopulateTargetMeta', 'withCapturedPopulateModel']) {
@@ -619,7 +649,8 @@ const assert = require('node:assert/strict');
   }
   for (const subpath of ['src/acl/service-authorization', 'src/acl/document-authorization',
      'src/acl/service-execution', 'src/acl/prepared-query', 'src/acl/populate-policy',
-      'src/options/populate-policy', 'src/acl/unsafe-snapshot-options', 'dist/index.js']) {
+       'src/options/populate-policy', 'src/acl/unsafe-snapshot-options', 'dist/index.js',
+       'src/acl/output-work-ledger', 'src/acl/output-helper-many-admission']) {
       // The exact entry map also excludes new private trusted/capture modules.
     assert.throws(() => require.resolve('@web-ts-toolkit/access-router/' + subpath),
       { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
@@ -1008,6 +1039,16 @@ void [acl, runtime, dataRouter, condition, MIDDLEWARE, out];
         'authorization-fast-path-consumer.types.fixture.cts',
         'authorization-fast-path.readme.mts',
         'authorization-fast-path.readme.cts',
+        'owned-authorization-many.types.fixture.mts',
+        'owned-authorization-many.types.fixture.cts',
+        'owned-authorization-many-consumer.types.fixture.mts',
+        'owned-authorization-many-consumer.types.fixture.cts',
+        'collection.runtime.mts',
+        'collection.runtime.cts',
+        ...['raw', 'presentation', 'current'].flatMap((name) => [
+          `collection-${name}-recipe.mts`,
+          `collection-${name}-recipe.cts`,
+        ]),
       ],
     }),
   );
@@ -1074,6 +1115,30 @@ function runMongoConsumer(file: string, consumerDir: string): Promise<string> {
 async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCheck: boolean }): Promise<void> {
   writeConsumerFiles(consumerDir, options);
   const migrationRuns: unknown[] = [];
+  const collectionRuns: unknown[] = [];
+  const runCollection = async (file: string) => {
+    const observed = JSON.parse(await runMongoConsumer(file, consumerDir));
+    expect(observed).toEqual({
+      guide: 'collection-alternatives',
+      statuses: [200],
+      reads: 4,
+      hooks: 8,
+      virtuals: 0,
+      observations: ['isolated', 'trusted'].map((mode) => ({
+        mode,
+        rawHelperCalls: { singles: 2, many: 1 },
+        rawFieldCallbacks: 4,
+        rawExtra: { reads: 0, hooks: 0 },
+        presentationExtra: { reads: 0, hooks: 0, helperCalls: 0 },
+        currentListExtra: { reads: 1, hooks: 2 },
+        visibleRows: 2,
+        nativeGettersAndCore: true,
+        rejectedControlsAndRows: 6,
+        proxyTraps: 0,
+      })),
+    });
+    collectionRuns.push({ file, ...observed });
+  };
   const runMigration = async (file: string) => {
     const observed = JSON.parse(await runMongoConsumer(file, consumerDir));
     expect(observed).toEqual({
@@ -1106,6 +1171,8 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   // conditions, not just a hand-maintained fixture or a NodeNext-only example.
   await runMigration('node16-out/authorization-fast-path.readme.mjs');
   await runMigration('node16-out/authorization-fast-path.readme.cjs');
+  await runCollection('node16-out/collection.runtime.mjs');
+  await runCollection('node16-out/collection.runtime.cjs');
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.emit.json'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.mjs'], consumerDir);
   run('node', ['nodenext-out/consumer.nodenext.cjs'], consumerDir);
@@ -1118,7 +1185,7 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
     ['Node16', 'mts', 'Node16'],
     ['Node16', 'cts', 'Node16'],
   ]) {
-    for (const index of [0, 1]) {
+    for (const index of [0, 1, 2]) {
       const file = `migration-negative-${index}.${extension}`;
       const source = readFileSync(path.resolve(consumerDir, file), 'utf8');
       const config = `tsconfig-migration-negative-${resolution}-${extension}-${index}.json`;
@@ -1152,7 +1219,8 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
         output = rejected.stdout + rejected.stderr;
       }
       expect(status).not.toBe(0);
-      assertMigrationDiagnostics(source, file, output);
+      if (index === 2) assertCollectionDiagnostics(source, file, output);
+      else assertMigrationDiagnostics(source, file, output);
       migrationDiagnostics.push({ resolution, extension, file, status, output });
     }
   }
@@ -1163,6 +1231,8 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
   await runMongoConsumer('authorization-out/authorization.readme.cjs', consumerDir);
   await runMigration('authorization-out/authorization-fast-path.readme.mjs');
   await runMigration('authorization-out/authorization-fast-path.readme.cjs');
+  await runCollection('authorization-out/collection.runtime.mjs');
+  await runCollection('authorization-out/collection.runtime.cjs');
   cpSync(
     path.resolve(packageRoot, 'test/authorization-fast-path-native.runtime.fixture.mjs'),
     path.resolve(consumerDir, 'authorization-fast-path-native.runtime.mjs'),
@@ -1205,6 +1275,18 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
     logLevel: 'silent',
   });
   await runMigration('authorization-fast-path.bundle.cjs');
+  buildSync({
+    absWorkingDir: consumerDir,
+    entryPoints: ['collection.runtime.mts'],
+    outfile: 'collection.bundle.cjs',
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    target: 'node22',
+    external: ['express', 'mongoose'],
+    logLevel: 'silent',
+  });
+  await runCollection('collection.bundle.cjs');
   // Optional repo-local evidence survives normal consumer scratch cleanup. It is
   // written only AFTER every real packed compile/runtime path above has passed.
   const evidenceRoot = process.env.WTT_ACCESS_ROUTER_CONSUMER_EVIDENCE_DIR;
@@ -1215,6 +1297,7 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
     const installed = path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router');
     cpSync(installed, path.resolve(evidence, 'installed'), { recursive: true, dereference: true });
     writeFileSync(path.resolve(evidence, 'migration-runs.json'), JSON.stringify(migrationRuns, null, 2));
+    writeFileSync(path.resolve(evidence, 'collection-runs.json'), JSON.stringify(collectionRuns, null, 2));
     writeFileSync(path.resolve(evidence, 'migration-diagnostics.json'), JSON.stringify(migrationDiagnostics, null, 2));
     const files = [
       'tsconfig.nodenext.json',
@@ -1233,6 +1316,19 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
       'authorization-fast-path.bundle.cjs',
       'private-exports.cjs',
       'migration-errors.mjs',
+      ...['ts', 'mts', 'cts'].flatMap((extension) => [
+        `owned-authorization-many.types.fixture.${extension}`,
+        `owned-authorization-many-consumer.types.fixture.${extension}`,
+        `migration-negative-2.${extension}`,
+        ...['raw', 'presentation', 'current'].map((name) => `collection-${name}-recipe.${extension}`),
+      ]),
+      'collection.runtime.mts',
+      'collection.runtime.cts',
+      'node16-out/collection.runtime.mjs',
+      'node16-out/collection.runtime.cjs',
+      'authorization-out/collection.runtime.mjs',
+      'authorization-out/collection.runtime.cjs',
+      'collection.bundle.cjs',
     ];
     const hashes: Record<string, string> = {};
     for (const file of files) {
@@ -1248,13 +1344,22 @@ async function runConsumerSmokeTests(consumerDir: string, options: { fullDeclara
       tarballs[name] = createHash('sha256').update(readFileSync(tarball)).digest('hex');
     }
     const consumer = JSON.parse(readFileSync(path.resolve(consumerDir, 'package.json'), 'utf8')) as PackageJson;
+    const consumerRequire = createRequire(path.resolve(consumerDir, 'package.json'));
+    const actualVersions = Object.fromEntries(
+      ['express', 'mongoose', 'typescript', '@types/node', '@types/express'].map((name) => [
+        name,
+        JSON.parse(readFileSync(consumerRequire.resolve(`${name}/package.json`), 'utf8')).version,
+      ]),
+    );
     writeFileSync(
       path.resolve(evidence, 'verification.json'),
       JSON.stringify(
         {
           passed: true,
           fullDeclarationCheck: options.fullDeclarationCheck,
-          peers: { express: consumer.dependencies!.express, mongoose: consumer.dependencies!.mongoose },
+          requestedPeers: { express: consumer.dependencies!.express, mongoose: consumer.dependencies!.mongoose },
+          peers: { express: actualVersions.express, mongoose: actualVersions.mongoose },
+          actualVersions,
           runtimePaths: files.filter((file) => /(?:node16-out\/|authorization-out\/|bundle\.cjs$)/.test(file)),
           hashes,
           tarballs,
@@ -1451,7 +1556,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
 
   it.each([
     ['minimum peers', '5.0.0', '8.0.0'],
-    ['current majors', '5.2.1', '9.8.0'],
+    ['current majors', '5.2.1', '9.11.4'],
   ])(
     'ARL-08 installs the numeric count API with %s in Bundler, NodeNext and Node16',
     (label, expressVersion, mongooseVersion) => {
@@ -1609,6 +1714,11 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     const packedRoot = unpackTarballToDir(packed.tarballs['@web-ts-toolkit/access-router']);
     const distRoot = path.resolve(packageRoot, 'dist');
     const emitted = readdirSync(distRoot).filter((file) => /\.(?:js|mjs|ts|mts)$/.test(file));
+    expect(emitted).toHaveLength(14);
+    expect(emitted.filter((file) => /\.d\.(?:ts|mts)$/.test(file))).toHaveLength(8);
+    expect(readdirSync(packedRoot).sort()).toEqual(
+      [...emitted, 'README.md', 'MIGRATION.md', 'llms.txt', 'LICENSE', 'package.json'].sort(),
+    );
     expect(emitted).toEqual(expect.arrayContaining(['index.mjs', 'index.d.mts', 'advanced.d.ts', 'processors.js']));
     for (const file of emitted) {
       const current = readFileSync(path.resolve(distRoot, file), 'utf8');
@@ -1625,7 +1735,9 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     const readme = readFileSync(path.resolve(packedRoot, 'README.md'), 'utf8');
     const llms = readFileSync(path.resolve(packedRoot, 'llms.txt'), 'utf8');
     const migration = readFileSync(path.resolve(packedRoot, 'MIGRATION.md'), 'utf8');
-    expect(extractMigrationBlocks(migration)).toHaveLength(6);
+    expect(extractMigrationBlocks(migration)).toHaveLength(10); // original seven purposes plus three executed alternatives
+    expect(migration).toContain('Model conditions are facts-only');
+    expect(migration).toContain('readEmployeeForBusinessWork');
     for (const mode of ['readAuthorizationMode', 'listAuthorizationMode']) {
       expect(readme).toContain(mode);
       expect(llms).toContain(mode);
@@ -1646,6 +1758,13 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
         'readAuthorizationFastPath',
         'unsafeAuthorizationFastPathOptions',
         'createTrustedOutputBudget',
+        'OutputWorkLedger',
+        'createOutputWorkLedger',
+        'debitOutputWork',
+        'debitOutputPayload',
+        'admitOutputHelperRows',
+        'admitOutputHelperManyControls',
+        'filterModelOutputManyForHelper',
       ])
         expect(declaration, `packed ${file}`).not.toMatch(new RegExp(`\\b${name}\\b`));
     }
@@ -1670,7 +1789,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
 
   it.each([
     ['minimum peers', '5.0.0', '8.0.0'],
-    ['current majors', '5.2.1', '9.8.0'],
+    ['current majors', '5.2.1', '9.11.4'],
   ])(
     'supports %s from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers',
     async (_label, expressVersion, mongooseVersion) => {
@@ -1683,7 +1802,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
 
   it.each([
     ['minimum peers', '5.0.0', '8.0.0'],
-    ['current majors', '5.2.1', '9.8.0'],
+    ['current majors', '5.2.1', '9.11.4'],
   ])(
     'supports %s from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers',
     async (_label, expressVersion, mongooseVersion) => {

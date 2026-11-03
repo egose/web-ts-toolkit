@@ -442,16 +442,15 @@ describe('OAR-05 DTOs, diagnostics and utility metadata are never authority', ()
   it.each(['strip', 'expose-none', 'forged', 'removed'] as const)(
     'private document guard uses fresh facts, not %s presentation',
     async (posture) => {
+      const decorate = vi.fn((doc, _p, context) => {
+        expect(Object.isFrozen(context)).toBe(true);
+        return posture === 'removed' ? {} : { ...doc, _permissions: { owner: true }, docPermissions: { owner: true } };
+      });
       const f = fixture('trusted', {
         stripPermissionsField: posture === 'strip',
         exposedDocPermissionKeys: posture === 'expose-none' ? [] : undefined,
         decorate: {
-          read: (doc, _p, context) => {
-            expect(Object.isFrozen(context)).toBe(true);
-            return posture === 'removed'
-              ? {}
-              : { ...doc, _permissions: { owner: true }, docPermissions: { owner: true } };
-          },
+          read: decorate,
         },
       });
       const next = vi.fn(),
@@ -464,6 +463,10 @@ describe('OAR-05 DTOs, diagnostics and utility metadata are never authority', ()
       expect(next.mock.calls[0][0]).toBeInstanceOf(JsonRouter.clientErrors.UnauthorizedError);
       expect(f.adapter.findOne).toHaveBeenCalledTimes(2);
       expect(f.hook).toHaveBeenCalledTimes(2);
+      expect(decorate).not.toHaveBeenCalled();
+      const normal = await f.publicService._read('same', undefined, quiet);
+      expect(normal.success).toBe(true);
+      expect(decorate).toHaveBeenCalledTimes(1);
     },
   );
 });

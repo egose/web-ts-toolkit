@@ -9,6 +9,12 @@ import { forEach, isArray, isEmpty, isObject, isPlainObject, isString } from '@w
 import { isSchema, isReference } from '../lib';
 import { FilterOperator } from '../enums';
 import type { RequestConcurrencyScheduler } from './concurrency';
+import {
+  currentOutputWorkLedger,
+  debitOutputPayload,
+  debitOutputWork,
+  outsideOutputWorkLedger,
+} from '../acl/output-work-ledger';
 
 type SchemaTree = Record<string, unknown>;
 type ReferenceMap = { [key: string]: string | ReferenceMap };
@@ -121,14 +127,27 @@ export async function iterateQuery(
 }
 
 export const createValidator = (fn: (key: string) => boolean) => {
-  const stringHandler = (key: string) =>
-    key
-      .trim()
-      .split(' ')
-      .every((v) => fn(v));
+  const ledger = currentOutputWorkLedger();
+  const stringHandler = (key: string) => {
+    if (!ledger)
+      return key
+        .trim()
+        .split(' ')
+        .every((v) => fn(v));
+    // Canonical grammar, but its explicit trim/split preparations belong to the
+    // router, not the opaque-normalization exclusion. Reserve BEFORE allocating.
+    debitOutputPayload(ledger, key);
+    const prepared = key.trim();
+    let slots = 1;
+    for (let index = 0; index < prepared.length; index++) if (prepared.charCodeAt(index) === 32) slots++;
+    debitOutputWork(ledger, slots);
+    debitOutputPayload(ledger, prepared);
+    return prepared.split(' ').every((value) => outsideOutputWorkLedger(() => fn(value)));
+  };
 
   const arrayHandler = (arr: string[] | string[][]): boolean =>
     arr.some((item) => {
+      if (ledger) debitOutputWork(ledger);
       if (isString(item)) return stringHandler(item);
       else if (isArray(item)) return arrayHandler(item);
       else return false;

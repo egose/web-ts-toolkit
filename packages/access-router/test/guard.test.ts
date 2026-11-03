@@ -90,10 +90,18 @@ describe('guard', () => {
       condition: 'edit.role',
     })(req, response, next);
 
-    expect(f.read).toHaveBeenCalledWith('user-1', undefined, {
-      includePermissions: false,
-      includeFieldPermissions: false,
-    });
+    expect(f.read).not.toHaveBeenCalled();
+    expect(f.adapter.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filter: { _id: 'user-1' },
+        lean: true,
+      }),
+    );
+    expect(f.hook).toHaveBeenCalledWith(
+      { _id: 'user-1', name: 'user' },
+      expect.anything(),
+      expect.objectContaining({ operation: 'read', outputAccess: 'read', docPermissions: {} }),
+    );
     expect(f.hook).toHaveBeenCalledTimes(1);
     expect(f.adapter.findOne).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();

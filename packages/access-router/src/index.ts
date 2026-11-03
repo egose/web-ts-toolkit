@@ -229,6 +229,7 @@ export type {
   PublicSubdocumentMutationOptions,
 } from './interfaces/service';
 export type { DataFieldOptions } from './interfaces/data';
+export type { FilteredOutput } from './interfaces/filtered-output';
 export type {
   SubdocumentGateAuthorization,
   SubdocumentOutputAuthorization,

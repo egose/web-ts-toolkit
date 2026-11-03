@@ -165,6 +165,13 @@ implicit output write; return the intended value. Trusted post-filter presentati
 callbacks may construct/replace data but run after stage closure, with **no automatic
 second authorization pass**. No callback sandbox, transaction or rollback is implied.
 
+**Model guards no longer construct an output document.** Business interception in
+an overridden `_read`, field callbacks, virtual getters, decorators, tasks or include
+attachment work no longer runs during `guard({ modelName, id, condition })`. Move
+security decisions to operation/row policy or the document-fact hook; move business
+validation/effects to an explicit application boundary. Ordinary DTO reads still run
+all selected-field checks, virtuals and presentation, with their normal errors.
+
 ## M3. Remove handles; choose presentation or a fresh normal query
 
 Before (historical):
@@ -188,6 +195,9 @@ accepted. `getDocPermissions` reads metadata **DATA**, not authority; changing
   **0 DB operations / 0 document hooks**, no row admission, hidden refresh, virtuals
   or omitted-field recovery. `!facts.suspended` may be true on empty facts; that is
   **not proof** the current document is unsuspended.
+- **Optional raw collection:** `pickAllowedFieldsMany` uses one deliberate capture
+  with separate isolated sources/stages/decisions, not N independently fresh picks.
+  It is not a default migration or a replacement for current document facts.
 - **Current document-dependent authorization:** issue a **new normal service READ
   or LIST**, with suitable selection/private hook inputs and normal row scope.
   One single-row refresh in the workflow adds **1 read / 1 document hook**. It is
@@ -211,6 +221,124 @@ async function presentContact(req: ModelRequest, contact: { email?: string; labe
 }
 void presentContact;
 ```
+
+### Optional raw collection, not N fresh calls
+
+Use this only for backend-held records whose output policy deliberately needs one
+capture. All row sources are owned before the first field predicate; duplicate
+references share no decisions. Actor/model/catalog/config/scope/output policy are
+captured before awaits or predicates. Later actor-view/schema/options changes affect
+the **next call**, not later rows; setting `req.user` alone does not refresh initialized
+permissions. Closures, live request state and native effects are not frozen.
+
+The following three exact target blocks are compiled and executed by installed
+consumer tests. They are application functions, not new library exports.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { FilteredOutput, OutputFieldOptions } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+export type Contact = { label: string; email: string; address: { city: string } };
+type Employee = { contacts: Contact[] };
+// Server-owned only: NEVER copy these controls from request input.
+const contactPolicy: OutputFieldOptions<Employee> = {
+  scopePath: ['contacts'],
+  authorization: { outputFields: { mode: 'grant', paths: ['contacts.label'] } },
+};
+export async function rawBefore(req: ModelRequest, rows: readonly Contact[]) {
+  const service = req.macl.getService<Employee>('Employee');
+  const output = [];
+  for (const row of rows) output.push(await service.pickAllowedFields(row, 'list', contactPolicy));
+  return output; // N independently fresh captures; existing Promise<T> does not prove field presence
+}
+export async function rawMany(
+  req: ModelRequest,
+  rows: readonly Contact[],
+): Promise<readonly FilteredOutput<Contact>[]> {
+  return req.macl.getService<Employee>('Employee').pickAllowedFieldsMany(rows, 'list', contactPolicy);
+  // ONE capture, not semantically equivalent to rawBefore. Every nested field can be omitted.
+}
+```
+
+The scope uses ordinary response segments; grant paths stay **model-relative**
+(`contacts.label`). One output-only policy applies to the whole call; row/input/
+related controls, selection, `purpose`, handles/tokens and modes reject. No DB,
+document hooks, virtuals, row/operation/target checks, reference provenance or omitted
+value restoration is added. Negative EMPTY predicates do not prove current facts.
+
+If existing DTOs only need a presentation subset, normally use **zero helpers**:
+
+<!-- doc-example: partial -->
+
+```ts
+export function presentationSubset(rows: readonly { readonly name?: string }[]) {
+  // Already-filtered DATA only. No current-permission assertion or omitted-field restoration.
+  return rows.map((row) => (Object.hasOwn(row, 'name') ? { name: row.name } : {}));
+  // Subset adds 0 reads / 0 document hooks / 0 helper captures.
+}
+```
+
+For current document-dependent facts, use a **new normal LIST**, not either raw
+recipe or an output grant. Configure `alwaysSelectFields`/declared dependencies for
+private hook inputs on the model; keep normal row policy. After an earlier LIST:
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+type Employee = { tenantId: string; name: string; salary: number; ownerId: string };
+export async function currentList(req: ModelRequest, tenantId: string) {
+  const current = await req.macl.getService<Employee>('Employee').find(
+    { tenantId }, // trusted application filter, still subject to normal row policy
+    { select: ['name', 'salary', '-_id'], limit: 100 },
+    { includePermissions: false, includeFieldPermissions: false },
+  );
+  if (!current.success) throw new Error(`Current LIST failed: ${current.code}`);
+  return current.data; // +1 explicit LIST; configured document hook runs per returned row
+}
+```
+
+The installed runtime test changes private owner facts between LISTs: presentation
+adds no work, while the fresh two-row LIST adds one query/two hooks and removes the
+now-denied salary. This is not a transaction or freshness guarantee after completion.
+
+Collection admission requires an ordinary dense Array of **0–1,000** positions;
+readonly/frozen is accepted, nullish positions preserved. Proxies reject before
+traps; subclasses, holes, accessor/non-enumerable indices, extra own strings/symbols
+and iterables reject without reading an iterator. Empty input still validates all
+controls/model/policy/catalog. Every row remains isolated in both source modes.
+Separate per-row source/fact/view/selected **20,000-slot / depth-100** owners remain,
+with native/embedded/metadata/copy/wire work sharing the relevant remainder.
+
+One **200,000 work-unit / 16 MiB cumulative payload** ledger covers the entire call's
+**router-controlled admission, staging, traversal and explicit copies**, including
+configuration/preparation and all rows/phases. No row/chunk transition resets it.
+**Excluded:** opaque Mongoose/native normalization internals and dependency-owned
+allocations/traversals, arbitrary trusted closure/callback effects and engine
+enumeration costs. This is **not** a total-memory/RSS, whole-normalization, CPU-operation
+or sandbox cap. Canonical normalization can copy 17 MiB and discard it into a tiny
+admitted row. A returned oversized normalized value rejects **before the next explicit
+router copy**; explicit router-owned native/wire preparation is not excluded.
+
+Bounded row scheduling uses the minimum row/scheduler/shared-hook-gate limits,
+retaining FIFO/reentry/depth, stable outer order and per-row field order/sync-until-async
+evaluation. Structural/native/router-budget poison is one controlled **400**, even if
+caught: close admission, drain admitted library work, clear state and prohibit late
+publication. Ordinary predicate-body failures omit fields. There is no partial result,
+callback-side-effect rollback, automatic retry, persistence permit while waiting or
+untracked detached-closure wait. Caller chunking starts new fresh operations, not one
+atomic batch. Existing singles retain their independent freshness and error contracts.
+
+The new root/advanced **type-only** `FilteredOutput<T>` makes string properties
+recursively optional/readonly, including `_id`. Arrays include null/undefined without
+tuple/cardinality inference; string Maps become readonly records; Date/RegExp/Buffer
+use canonical base types. Other BSON/hydrated values (including string-ID documents),
+unknown inputs and branches at depth eight are `unknown`: narrow/validate them.
+Readonly is not native freezing, an input validator, exact field inference or authority.
+Do not assign filtered rows to required `T[]` or cast away omissions. Both service
+getters and Core expose the method (Core prepends `modelName`); DataService, HTTP and
+clients do not. No new default migration, H3 replacement, gate waiver or speedup claim.
 
 ### Complete public workflow: facts, helper costs and checked refresh
 
@@ -383,10 +511,54 @@ void runOwnedAuthorizationExample().catch((error) => {
 });
 ```
 
+### Model conditions are facts-only, not an implicit DTO read
+
 `guard({ modelName, id, condition })` consumes a **private fresh read stage**, not
-metadata or post-decorate output, with one query and one owning document hook.
-Ordinary denied/missing guards are 401; invalid facts/structure are 400. Stripping,
-exposing no keys or forging metadata in presentation cannot authorize the guard.
+metadata or post-decorate output. A visible row and a fresh owning document hook are
+required even for a global-only condition. Strings/arrays keep the same grammar and
+look up global permission OR a literal-true document fact, without field prefixes.
+Stripping, exposing no keys or forging metadata cannot authorize the guard.
+
+The normal public by-ID defaults, identifier/query/row/sort admission, root DB
+projection, hydration and pre-output hook source remain the same. Ordinary/private
+populate preparation needed for that source retains target-local operation/row/mode
+admission and private-input masks. Include descriptors still undergo preflight, but
+**output-only include attachment queries and target DTO hooks do not run**.
+
+No DTO, field metadata, selected-output traversal, embedded/target DTO finalization,
+virtual getter, decoration or task is built/run. Thus an invalid virtual/output-only
+native return, throwing decorator or output-only include error no longer vetoes a
+guard. Source/fact/necessary-dependency structural failures still fail with controlled
+400 and cannot be caught to authorize. Ordinary denied/missing guards remain 401.
+
+A successful visible-row guard normally costs one root read/one root hook and **zero
+output-field callbacks**. An admitted miss may retry once using the captured LIST
+operation gate and initiating READ source mode; true and false conditions are both
+terminal, as are 400/403. Required dependency queries may add reads. This request-only
+service path, like direct `_read`, does **not** run the generated HTTP route's initial
+READ operation gate. Compose the appropriate existing route/global guard when both
+checks are required; generated routes retain their operation checks unchanged.
+
+If the caller also needs data or output/business effects, perform a separate ordinary
+authorized read, check `result.success`, and handle its errors. That adds its normal
+read/hook/output cost; the library does not silently fetch a second DTO for a guard.
+
+<!-- doc-example: partial -->
+
+```ts
+import { guard } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+const ownerCondition = guard({ modelName: 'Employee', id: { type: 'param', key: 'id' }, condition: 'owner' });
+async function readEmployeeForBusinessWork(req: ModelRequest, id: string) {
+  // Explicit additional ordinary read, not a reusable guard result/capability.
+  const result = await req.macl.getPublicService('Employee')._read(id, { select: ['name'] });
+  if (!result.success) throw new Error(`Employee read failed: ${result.code}`);
+  return result.data;
+}
+void ownerCondition;
+void readEmployeeForBusinessWork;
+```
+
 Related targets use **their own** captured policy/facts/mode; the unchanged
 README runnable service/related example demonstrates separate scoped policies.
 
@@ -504,6 +676,12 @@ revision, not adding removed flags to this version or assuming mixed rolling saf
 
 ## M5. Mechanical checklist, preserved APIs and errors
 
+Also audit model guards semantically: search for `_read` overrides and field/getter/
+decorate/task/include effects used as business checks. Those output effects no longer
+intercept a guard. Search alone cannot identify a security dependency on their side
+effects. Keep such decisions in operation/row/fact hooks, or explicitly run and check
+a normal DTO read at the application boundary (see M2/M3).
+
 Search application configuration, computed/spread defaults, wrappers, decorators,
 tests, generated clients and dependency adapters for:
 
@@ -541,6 +719,7 @@ exposure/include flags affect metadata, not internal fact resolution or enforcem
 `/advanced` export the same new types (`AuthorizationMode`, `DocumentGrants`,
 `FieldPermissionHook`, `FieldValidation`, `ModelOutputContext`, `ModelOutputHook`,
 `ModelOutputListHook`); `/processors` remains data transformation, not an issuer.
+`FilteredOutput<T>` is also available from root and `/advanced`, only as a type.
 There are no new entrypoints or legacy aliases. ESM imports select `.d.mts` +
 `.mjs`; CJS requires select `.d.ts` + `.js` (factory under `.default` / named
 `createAccessRuntime`). Use strict Bundler, Node16 or NodeNext module resolution.

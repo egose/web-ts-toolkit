@@ -29,3 +29,4 @@ export type {
   ServiceOutputDecorator,
 } from './service-authorization';
 export * from './data';
+export type { FilteredOutput } from './filtered-output';

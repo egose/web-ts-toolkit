@@ -32,6 +32,12 @@ import {
   serverAuthorizationControls,
 } from './authorization-modes';
 import type { AuthorizationMode } from '../interfaces/root';
+import {
+  currentOutputWorkLedger,
+  debitOutputPayload,
+  debitOutputWork,
+  outsideOutputWorkLedger,
+} from './output-work-ledger';
 export { ServiceAuthorizationError } from './authorization-snapshot';
 
 export interface AuthorizationBinding {
@@ -163,11 +169,18 @@ interface CallRecord {
   provenance: ResolvedServiceAuthorization;
   readonly queryOrigin?: 'read' | 'list';
   readonly sourceMode: AuthorizationMode;
+  readonly factOrigin: 'document' | 'output-helper';
   readonly fieldPolicyOwner?: ResolvedServiceAuthorization;
   view?: ServiceAuthorizationView;
 }
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
 const capturedActors = new WeakSet<AccessRouterPermissions>();
+
+/** Collection settlement only. No caller-visible capability or surviving preparation. */
+export function clearOutputHelperAuthorization(call: ResolvedServiceAuthorization): void {
+  if (callRecord(call).factOrigin !== 'output-helper') authorizationError('not output-helper preparation');
+  calls.delete(call);
+}
 
 /** Entry-owned actor view; internal dispatch can pass this same private capture once. */
 export function captureAuthorizationPermissions(
@@ -177,9 +190,18 @@ export function captureAuthorizationPermissions(
   // Raw helpers may already receive exact, privately immutable Permission data.
   // Normal operations retain their distinct actor view and internal-child reuse.
   if (capturedActors.has(permissions) || (outputOnly && isOwnedPermission(permissions))) return permissions;
-  const captured = new Permission(
-    Object.fromEntries(permissions.keys.map((key) => [key, permissions.has(key) === true])),
+  const ledger = currentOutputWorkLedger();
+  const keys = outsideOutputWorkLedger(() => permissions.keys);
+  // Non-owned views require actual key staging, record construction and the
+  // private Permission copy. Immutable already-owned views above do not repeat it.
+  if (ledger) debitOutputWork(ledger, keys.length * 3 + 2);
+  const entries = outsideOutputWorkLedger(() =>
+    keys.map((key) => {
+      debitOutputPayload(ledger, key);
+      return [key, permissions.has(key) === true];
+    }),
   );
+  const captured = new Permission(Object.fromEntries(entries));
   capturedActors.add(captured);
   return captured;
 }
@@ -538,6 +560,7 @@ export function deriveQueryAuthorization(
     provenance: parent.provenance,
     queryOrigin,
     sourceMode: edge.kind === 'related' ? modeFor(configuration, queryOrigin) : parent.sourceMode,
+    factOrigin: edge.kind === 'embedded' ? parent.factOrigin : 'document',
     fieldPolicyOwner: target ? call : (parent.fieldPolicyOwner ?? input.parent),
     view: undefined,
   });
@@ -608,6 +631,7 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
     provenance: input.parent ? callRecord(input.parent).provenance : call,
     queryOrigin,
     sourceMode,
+    factOrigin: !input.parent && input.applicability === 'output' ? 'output-helper' : 'document',
     fieldPolicyOwner: undefined,
     view: undefined,
   });
@@ -646,6 +670,15 @@ export function readServiceAuthorizationMode(
 ): AuthorizationMode {
   assertAuthorizationBinding(call, binding);
   return callRecord(call).sourceMode;
+}
+
+/** Private resolver provenance, never inferred from a DTO, supplied facts or a source mode. */
+export function isOutputHelperAuthorization(
+  call: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+): boolean {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).factOrigin === 'output-helper';
 }
 
 /** Hydration is open configuration: detach this slice, never the unrelated call graph. */

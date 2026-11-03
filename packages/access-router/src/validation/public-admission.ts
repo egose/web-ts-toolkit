@@ -2,6 +2,7 @@ import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { types } from 'node:util';
 import { isPlainObject } from '@web-ts-toolkit/utils';
 import { Codes } from '../enums';
+import { debitOutputWork } from '../acl/output-work-ledger';
 import {
   admitControlPrototypes,
   authorizationControlError,
@@ -145,6 +146,7 @@ function walkControlAdmission(
   const seen = new WeakMap<object, Set<ControlAdmissionKind>>();
   let slots = 1;
   while (pending.length) {
+    debitOutputWork();
     const { value, kind: slot, path, depth } = pending.pop()!;
     if (!value || (typeof value !== 'object' && typeof value !== 'function')) continue;
     // Trusted callbacks are callable leaves, not function-attached option bags.
@@ -164,6 +166,7 @@ function walkControlAdmission(
     };
     const record = value as Record<string, unknown>;
     const propertyKeys = slot === 'data' || slot === 'policies' ? [] : controlPropertyKeys(owners, reject);
+    debitOutputWork(undefined, propertyKeys.length);
     if (slot !== 'data' && slot !== 'policies' && slot !== 'model-options') check(record, path, propertyKeys);
     // Untyped bulk settings can contain literal dotted property names. Follow
     // only recognized control namespaces, never permission-schema/business paths.

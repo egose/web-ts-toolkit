@@ -8,7 +8,10 @@ import {
   createTrustedOutputBudget,
   materializeTrustedOutputValue,
   visitTrustedOutput,
+  prepareTrustedOutputPayload,
+  preloadTrustedOutputBudget,
 } from './trusted-output-materialization';
+import { currentOutputWorkLedger, outsideOutputWorkLedger } from './output-work-ledger';
 
 /** Private controlled error; services can map `result`, helpers can throw it. */
 export class ServiceAuthorizationError extends JsonRouter.clientErrors.BadRequestError {
@@ -63,25 +66,41 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
       authorizationError('functions are not policy values');
     }
     if (typeof input === 'symbol') authorizationError('symbols are not policy values');
-    if (input === null || typeof input !== 'object') return input;
+    if (input === null || typeof input !== 'object') {
+      if (typeof input === 'string') prepareTrustedOutputPayload(budget, input);
+      return input;
+    }
     if (types.isProxy(input)) authorizationError('proxy snapshot input');
     const ownedCatalog = configuration === true ? readOwnedAuthorizationCatalogWork(input) : undefined;
     if (ownedCatalog) {
       // Only fresh library-generated frozen primitive catalogs qualify. Charge
       // the exact omitted traversal in this SAME capture budget/depth owner;
       // arbitrary frozen objects/native leaves still detach normally below.
-      visitTrustedOutput(budget, depth + ownedCatalog.depth, ownedCatalog.slots - 1);
+      preloadTrustedOutputBudget(budget, depth + ownedCatalog.depth, ownedCatalog.slots - 1);
       return input;
     }
     if (active.has(input)) authorizationError('cyclic input');
     active.add(input);
     try {
-      if (input instanceof Date) return new Date(input.getTime());
-      if (Buffer.isBuffer(input)) return Buffer.from(input);
+      if (input instanceof Date) {
+        const time = outsideOutputWorkLedger(() => input.getTime());
+        prepareTrustedOutputPayload(budget, 8);
+        return outsideOutputWorkLedger(() => new Date(time));
+      }
+      if (Buffer.isBuffer(input)) {
+        if (!currentOutputWorkLedger()) return Buffer.from(input);
+        // Preserve Node's canonical valueOf/coercion behavior. This opaque API
+        // may normalize to different storage; raw-state scanning cannot predict
+        // it. Its RETURN is admitted before our explicit canonical byte copy.
+        const normalized = outsideOutputWorkLedger(() => Buffer.from(input));
+        return materializeTrustedOutputValue(normalized, '', budget, { keep: () => true }, depth, true);
+      }
       if (input instanceof RegExp) {
-        const result = new RegExp(input.source, input.flags);
+        const result = outsideOutputWorkLedger(() => new RegExp(input.source, input.flags));
         result.lastIndex = input.lastIndex;
-        return result;
+        return currentOutputWorkLedger()
+          ? materializeTrustedOutputValue(result, '', budget, { keep: () => true }, depth, true)
+          : result;
       }
       if (input instanceof mongo.BSON.BSONValue) {
         try {
@@ -120,6 +139,7 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
       for (const key of Reflect.ownKeys(input)) {
         if (array && key === 'length') continue;
         if (typeof key !== 'string' || unsafeKeys.has(key)) authorizationError('unsafe snapshot key');
+        prepareTrustedOutputPayload(budget, key);
         if (array && !/^(0|[1-9]\d*)$/.test(key)) authorizationError('invalid array property');
         const descriptor = Object.getOwnPropertyDescriptor(input, key)!;
         if (!('value' in descriptor) || (!descriptor.enumerable && configuration !== 'document'))

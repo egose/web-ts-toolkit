@@ -3,7 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { assertMigrationDiagnostics, extractMigrationBlocks } from './migration-guide-fixture';
+import {
+  assertCollectionDiagnostics,
+  assertMigrationDiagnostics,
+  extractMigrationBlocks,
+} from './migration-guide-fixture';
 
 const packageRoot = path.resolve(__dirname, '..');
 const workspaceRoot = path.resolve(packageRoot, '..', '..');
@@ -98,6 +102,57 @@ describe('ARF-14 strict packed-consumer types', () => {
   beforeAll(() => {
     consumerDir = stageConsumerDir();
   });
+
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ])(
+    'OAR-09F checks conservative collection types and real negative diagnostics (%s / %s)',
+    (resolution, extension, module) => {
+      const sources = ['owned-authorization-many.types.fixture', 'owned-authorization-many-consumer.types.fixture'];
+      for (const source of [...sources, 'owned-authorization-many.invalid.types.fixture'])
+        writeFileSync(
+          path.resolve(consumerDir, `${source}.${extension}`),
+          readFileSync(path.resolve(packageRoot, `test/${source}.ts`), 'utf8'),
+        );
+      const compile = (files: string[]) => {
+        const config = `tsconfig-many-${resolution}-${extension}.json`;
+        writeFileSync(
+          path.resolve(consumerDir, config),
+          JSON.stringify({
+            compilerOptions: {
+              target: 'ES2022',
+              module,
+              moduleResolution: resolution,
+              strict: true,
+              noUnusedLocals: true,
+              noUnusedParameters: true,
+              noEmit: true,
+              skipLibCheck: false,
+              esModuleInterop: true,
+              types: ['node'],
+            },
+            files,
+          }),
+        );
+        return run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+      };
+      const positive = compile(sources.map((source) => `${source}.${extension}`));
+      expect(positive.stdout + positive.stderr).toBe('');
+      expect(positive.status).toBe(0);
+      const file = `owned-authorization-many.invalid.types.fixture.${extension}`;
+      const negative = compile([file]);
+      expect(negative.status).not.toBe(0);
+      assertCollectionDiagnostics(
+        readFileSync(path.resolve(consumerDir, file), 'utf8'),
+        file,
+        negative.stdout + negative.stderr,
+      );
+    },
+  );
 
   it.each([
     ['Bundler', 'ts', 'ESNext'],

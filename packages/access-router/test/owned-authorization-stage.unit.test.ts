@@ -829,10 +829,11 @@ describe('OAR-03 private document guard and target-local source modes', () => {
   it.each(['strip', 'expose-none', 'ordinary'] as const)(
     'document guard survives %s metadata and presentation cannot forge a denial',
     async (posture) => {
+      const decorate = vi.fn((doc) => ({ ...doc, _permissions: { owner: true } }));
       const f = fixture('isolated', {
         stripPermissionsField: posture === 'strip',
         exposedDocPermissionKeys: posture === 'expose-none' ? [] : undefined,
-        decorate: { read: (doc) => ({ ...doc, _permissions: { owner: true } }) },
+        decorate: { read: decorate },
       });
       const middleware = guard({ modelName: f.Source.modelName, id: 'same', condition: 'reader owner' });
       const next = vi.fn();
@@ -844,6 +845,10 @@ describe('OAR-03 private document guard and target-local source modes', () => {
       await middleware(f.request, {} as never, next);
       expect(next.mock.calls[0][0]).toBeInstanceOf(JsonRouter.clientErrors.UnauthorizedError);
       expect(f.adapter.findOne).toHaveBeenCalledTimes(2);
+      expect(decorate).not.toHaveBeenCalled();
+      const normal = await f.public._read('same', undefined, quiet);
+      expect(normal.success).toBe(true);
+      expect(decorate).toHaveBeenCalledTimes(1);
     },
   );
 

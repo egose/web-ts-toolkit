@@ -195,12 +195,32 @@ export async function executePreparedFindOne<T, V extends object>(
   options: FindOneOptions<T, V> = {},
 ) {
   const { filter } = readPreparedModelQuery(receiver, execution, query);
-  const access = readServiceExecution(receiver, execution).access.rowAccess;
+  const state = readServiceExecution(receiver, execution);
+  if (state.purpose.kind !== 'dto') authorizationError('DTO findOne purpose mismatch');
+  const access = state.access.rowAccess;
   if (access !== 'read' && access !== 'list') authorizationError('findOne row access mismatch');
   return filter === false
     ? denied()
     : outputOperation(receiver, execution, () =>
         getServiceExecutors(receiver).findOne(execution, filter, args, { ...options, access }),
+      );
+}
+export async function executePreparedFindOneCondition<T, V extends object>(
+  receiver: Service<T, V>,
+  execution: ServiceExecutionContext,
+  query: PreparedModelQuery,
+  args: FindOneArgs<T> = {},
+  options: FindOneOptions<T, V> = {},
+) {
+  const { filter } = readPreparedModelQuery(receiver, execution, query);
+  const state = readServiceExecution(receiver, execution);
+  const access = state.access.rowAccess;
+  if (state.purpose.kind !== 'condition' || (access !== 'read' && access !== 'list'))
+    authorizationError('condition findOne purpose/access mismatch');
+  return filter === false
+    ? denied()
+    : outputOperation(receiver, execution, () =>
+        getServiceExecutors(receiver).findOneCondition(execution, filter, args, { ...options, access }),
       );
 }
 export async function executePreparedFind<T, V extends object>(

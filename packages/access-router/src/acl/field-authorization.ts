@@ -3,6 +3,7 @@ import { createValidator } from '../helpers';
 import type { FieldAuthorization } from '../interfaces/service-authorization';
 import type { DocumentGrants } from '../interfaces/access';
 import { EMPTY_DOCUMENT_GRANTS } from './document-grants';
+import { debitOutputWork } from './output-work-ledger';
 
 export type FieldAuthorizationState = 'granted' | 'deferred' | 'denied';
 export type FieldPermissions = { has(key: string): boolean };
@@ -36,6 +37,7 @@ export function extractOutputFieldRuleEntries(
   access: string,
   prefix = '',
 ): { path: string; rule: unknown }[] {
+  debitOutputWork();
   if (!schema) return [{ path: `${prefix}${path}`, rule: undefined }];
   if (Object.prototype.hasOwnProperty.call(schema, path))
     return [{ path: `${prefix}${path}`, rule: extractScopedOutputRule(schema, path, access) }];
@@ -55,7 +57,11 @@ export const stripModelPermissionPrefix = (key: string, prefix: string): string 
 export function hasExplicitFieldGrant(policy: FieldAuthorization | undefined, path: string): boolean {
   return (
     policy?.mode === 'unrestricted' ||
-    (policy?.mode === 'grant' && policy.paths.some((grant) => path === grant || path.startsWith(`${grant}.`)))
+    (policy?.mode === 'grant' &&
+      policy.paths.some((grant) => {
+        debitOutputWork();
+        return path === grant || path.startsWith(`${grant}.`);
+      }))
   );
 }
 

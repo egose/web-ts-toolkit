@@ -248,8 +248,9 @@ Express request. This includes scalar counts/distinct, ID lookups, mutations, in
 populate, subdocuments and field helpers. Services acquired later from a retained core
 also belong to that core. The request's current `macl` slot still belongs to the new
 runtime; acquiring a service there uses the new runtime's independent authority.
-Output handles remain bound to their original request/runtime/model/scope and cannot
-be reused by the replacement runtime.
+Each model authorization call and its private in-flight document stages remain owned
+by the originating request/runtime/model/scope. Published DTOs and diagnostic contexts
+are ordinary data, not reusable authority for either runtime.
 
 Route-shape keys (`modelName`/`dataName`, `basePath`, `parentPath`, `idParam`,
 `queryRouteSegment`, and model `mutationRouteSegment`) are fixed at construction;
@@ -1387,9 +1388,13 @@ hook, losing otherwise allowed persisted fields. Full internal document grants
 are now resolved once per projected document/access stage regardless of `skim`,
 `includePermissions`, `includeFieldPermissions`, stripping or exposed-key limits.
 Only serialized metadata changes with those settings. Configure required private
-hook inputs with `alwaysSelectFields`; same-execution handle picks retain the
-original decisions after those inputs and `_permissions` are removed. Temporary
-backend grants do not forge request-user `_view`/`_edit` or document-hook metadata.
+hook inputs with `alwaysSelectFields`; the published DTO is data, not an authorization
+certificate after those inputs and `_permissions` are removed. A later raw helper pick
+uses captured global permissions, frozen empty document facts and explicit output-only
+server policy, not retained document decisions. For current document-dependent facts,
+issue a new normal read/list with suitable selection/private hook inputs. This adds
+read/hook work; raw picks perform no hidden refresh. Temporary backend grants do not
+forge request-user `_view`/`_edit` or document-hook metadata.
 
 Output grants cannot write protected fields. Explicit model mutation `inputFields`
 and dedicated parent/child/visibility policies are independent opt-in capabilities;
@@ -1403,12 +1408,13 @@ valid under ordinary rules.
 Model `Base`/`Service`/`PublicService` expose these finite signatures; Core prepends
 `modelName`. The option types are exported from both the root and `/advanced`:
 
-| Helper                                                              | Supported final argument / default                                                                                        |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `genSelect(access, select?, options?)`, `genQuerySelect(...)`       | `OutputPlanningOptions<TModel, TVirtuals>`, defaults to `{}`                                                              |
-| `pickAllowedFields(doc, access, options?)`, `trimOutputFields(...)` | `OutputFieldOptions<TModel, TVirtuals>`, defaults to `{}`                                                                 |
-| `genAllowedFields(doc, access, options?)`                           | `AllowedOutputFieldOptions<TModel, TVirtuals>`, defaults to `{ purpose: 'output' }`; supplied objects require the purpose |
-| `genPopulate(access?, populate?, options?)`                         | Request-only `PopulatePlanningOptions`, defaults to `{}`; only `scopePath` is supported                                   |
+| Helper                                                              | Supported final argument / default                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `genSelect(access, select?, options?)`, `genQuerySelect(...)`       | `OutputPlanningOptions<TModel, TVirtuals>`, defaults to `{}`                                                                      |
+| `pickAllowedFields(doc, access, options?)`, `trimOutputFields(...)` | `OutputFieldOptions<TModel, TVirtuals>`, defaults to `{}`                                                                         |
+| `pickAllowedFieldsMany(rows, access, options?)`                     | `OutputFieldOptions<TModel, TVirtuals>`, defaults to `{}`; one explicit collection capture, `readonly FilteredOutput<T>[]` result |
+| `genAllowedFields(doc, access, options?)`                           | `AllowedOutputFieldOptions<TModel, TVirtuals>`, defaults to `{ purpose: 'output' }`; supplied objects require the purpose         |
+| `genPopulate(access?, populate?, options?)`                         | Request-only `PopulatePlanningOptions`, defaults to `{}`; only `scopePath` is supported                                           |
 
 **Default model calls changed.** There is no hidden no-option legacy path:
 
@@ -1420,11 +1426,12 @@ Model `Base`/`Service`/`PublicService` expose these finite signatures; Core prep
   that setting, still subject to request rules or explicit policy. It is no grant.
   A fetch projection never proves response or population permission.
 - Pick/trim isolate hydrated or plain inputs rather than mutating persistence
-  documents. Fresh raw input runs the document-permissions hook; serialized
-  `_permissions` cannot grant fields. Nested/array output rules, private `_id`
-  retention and configured metadata posture match named output behavior. On known
-  trimmed output, use its handle to retain document-dependent decisions. Unsupported
-  scalar/array documents reject. `genAllowedFields` only reports existing paths.
+  documents, using captured globals, frozen empty document facts and explicit server
+  output policy. They run **no document hooks or hidden reads**. Serialized
+  `_permissions` and already-trimmed DTOs carry no authority or reusable handle.
+  Nested/array output rules, private `_id` retention and configured metadata posture
+  still apply. Unsupported scalar/array root documents reject; an array inside a row
+  remains a value. `genAllowedFields` only reports existing paths.
 - Request/input and query-field checks remain separate. Migrate writes to service
   mutations with independent `authorization.inputFields`; output picks never admit
   writes. Distinct/sort and request-user `_view`/`_edit` do not inherit output grants.
@@ -1441,6 +1448,93 @@ backend target authority. The obsolete raw `buildVirtualPlan`/`buildSubVirtualPl
 service builders are removed; use named fetch helpers. Retained plans, private
 identity/metadata/join retention and document-result issuance belong to package execution.
 
+#### Optional raw collections: one deliberately shared capture
+
+`service.pickAllowedFieldsMany<T>(rows, access, options?)` returns
+`Promise<readonly FilteredOutput<T>[]>`. Both `getService` and `getPublicService`
+inherit it; `req.macl.pickAllowedFieldsMany(modelName, rows, access, options?)`
+is the Core form. There is no DataService member, generated route, client control,
+batch alias, reusable preparer or output capability. Existing single-row helpers
+remain independently fresh, including their weaker `Promise<T>` declarations
+(which never proved that required fields survived).
+
+Use this **optional** API for existing backend-held raw records only when the backend
+deliberately wants **one** initialized actor/model/catalog/configuration/scope/output
+policy capture before awaits or field predicates. It is **not semantically equivalent**
+to N fresh independent calls, nor a default handle/H3 migration recommendation.
+Later actor-view, schema or options changes apply to the next call, not later rows.
+Changing `req.user` alone does not rerun the initialized permission resolver. Trusted
+closures, live request properties, external state and native normalization effects
+are not frozen: this is not an atomic multi-object/database snapshot or sandbox.
+
+<!-- doc-example: partial -->
+
+```ts
+import type { FilteredOutput, OutputFieldOptions } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+type Contact = { label: string; email: string; address: { city: string } };
+type Employee = { contacts: Contact[] };
+async function filterRawContacts(req: ModelRequest, rows: readonly Contact[]) {
+  // Backend-owned policy, NEVER copied from request body/query/options.
+  const options: OutputFieldOptions<Employee> = {
+    scopePath: ['contacts'],
+    authorization: { outputFields: { mode: 'grant', paths: ['contacts.label'] } },
+  };
+  const result: readonly FilteredOutput<Contact>[] = await req.macl
+    .getService<Employee>('Employee')
+    .pickAllowedFieldsMany(rows, 'list', options);
+  return result.map((row) => row.label?.toUpperCase()); // nested fields can also be omitted
+}
+void filterRawContacts;
+```
+
+Scope paths use ordinary response segments; grants remain **model-relative**
+(`contacts.label`, not `label`). Only output policy is accepted, never row/input/
+related authority, selection, handles, tokens, `purpose` or mode controls. Every row
+occurrence gets an independent isolated source/stage/memo in **all modes**, including
+repeated references. All sources are owned before the **first** field predicate;
+field evaluations are not shared between rows. The helper uses globals + literal
+frozen EMPTY facts + explicit output policy: **0 DB operations / 0 document hooks**,
+no virtuals, row/operation/related checks, reference-provenance recovery or restoration.
+`!facts.suspended` on EMPTY is not current-document authority. Presentation subsets
+normally need **zero helpers**; current document facts require a **new normal READ/LIST**
+with normal row policy/private hook inputs. See the executable alternatives in
+[M3](MIGRATION.md#m3-remove-handles-choose-presentation-or-a-fresh-normal-query).
+
+- Outer input: dense ordinary Array, **0–1,000** positions, frozen/readonly accepted,
+  null/undefined positions preserved. Proxies (before traps), subclasses, holes,
+  accessor/non-enumerable indices, extra own string/symbol keys and iterables reject;
+  no iterator is used. Empty calls still validate receiver/controls/model/policy/catalog.
+- Separate per-row source/fact/view/selected **20,000-slot / depth-100** owners remain;
+  embedded/native/metadata/copy/wire work shares the relevant remainder. One whole-call
+  **200,000 work-unit / 16 MiB cumulative payload** ledger covers **router-controlled
+  admission, staging, traversal and explicit copies**, including preparation and all
+  rows/phases. It never resets per row or internal chunk. Caller chunking creates new
+  fresh operations, not one atomic collection operation.
+- **Excluded:** opaque Mongoose/native normalization internals and dependency-owned
+  allocations/traversals, arbitrary trusted callback/closure effects and engine
+  enumeration costs. This is **not** a total-memory/RSS, whole-normalization, CPU-operation
+  or sandbox cap. Canonical normalization may copy 17 MiB and discard it into a tiny
+  admitted row; a returned 17 MiB normalized value must reject **before the next explicit
+  router copy**. Explicit router native/wire preparation is still accounted for.
+- Row work uses the minimum row/scheduler/shared-hook-gate concurrency, preserving
+  FIFO/reentry/depth, stable outer order and each row's field order/sync-until-async
+  behavior; no unbounded Promise.all or persistence permit while waiting. Structural,
+  native or router-budget poison rejects the **whole** operation with controlled 400,
+  even if caught inside a callback. Admission closes, admitted library work drains,
+  private state clears and late work cannot publish. Ordinary predicate-body errors
+  omit their fields. No partial result, side-effect rollback, automatic retry or wait
+  for untracked detached closure work is promised.
+
+`FilteredOutput<T>` is a **type-only** root/advanced export: recursively optional
+readonly string properties (including `_id`), nullish array elements without tuple/
+cardinality inference, string Maps normalized to readonly records, and canonical
+Date/RegExp/Buffer base types. Other BSON, hydrated documents (including string-ID
+documents), unknown inputs and recursion at depth eight become `unknown`; narrow or
+validate them. Readonly does not freeze native methods. The type is not a supported-
+input validator, exact-selected-field inference or authority certificate. No speedup,
+old performance-gate substitution or performance acceptance is implied.
+
 #### Request-only data helpers
 
 `DataCore` keeps `genSelect`, `genAllowedFields`, and `pickAllowedFields` with a
@@ -1453,8 +1547,11 @@ Selection, input document and resulting field paths are relative to that scope.
 
 These helpers retain the **request-only data evaluator**: no Mongoose registration
 or catalog, model document hooks, virtual computation, or DataService authorization.
-Permission functions receive the original request as `this` and only its permissions
-argument. Allowed-fields returns a schema allowlist even with a null/empty document;
+Field permission functions receive the original request as `this` and
+`(permissions, grants)`: `grants` is the built-in frozen empty document-facts record. Request-only
+means no model document facts, not a one-argument field callback. Operation `GuardHook`
+remains separate: it receives only `permissions`, with the original request as `this`.
+Allowed-fields returns a schema allowlist even with a null/empty document;
 pick/trim select existing values from it. An allowed container remains a whole value;
 use a scoped helper to filter a child. `_id` and metadata require ordinary data-field
 rules, with no automatic retention.
@@ -2292,9 +2389,11 @@ Include output is tracked separately from the original projected source. Documen
 permission hooks and virtual dependencies see the source values even when a successful
 attachment replaces the same business field (for example, `restricted`). Only results
 actually produced by include execution are attached after source selection and field
-filtering, with the target's own authorization and document handle. A legacy read miss
-or omitted result never turns an existing source value into an attachment: that field
-still requires source selection and permission. Correlated empty results remain explicit
+filtering using the target's own captured policy, facts and output filtering during
+private in-flight construction. Attached results are ordinary DTO data, not reusable
+target authority. A legacy read miss or omitted result never turns an existing source
+value into an attachment: that field still requires source selection and permission.
+Correlated empty results remain explicit
 `null`/`[]`/`0` attachments. This separation also applies to nested targets and each list
 row; include output does not mutate fetched persistence documents.
 
@@ -3066,7 +3165,7 @@ view for every getter. Automatically fetched private-only refs are not added the
 an existing local `dependsOn` on that ref keeps its ordinary behavior. Each getter
 sees only its own resolved declarations and target selections in argument four.
 Private maps/raw targets are not implicitly attached to response DTOs, contexts,
-lifecycle snapshots, public permission hooks/metadata, document handles, or ordinary
+lifecycle snapshots, public permission hooks/metadata, or ordinary
 decorate/decorateAll/task inputs. **Only an authorized getter's deliberate return
 becomes computed output**; this is not a prohibition on returning derived values.
 
@@ -3110,7 +3209,7 @@ missing target IDs, order, duplicates, nulls, empty arrays and own absence. Stri
 private operation denial, private row/query failure, getter omission/failure and deferred
 virtual authorization denial cannot hide permitted IDs. Public list/custom population
 and scoped backend operation grants retain their own admission and target-owned output
-authority. Cleanup runs before output copying/handles and presentation hooks/tasks.
+authority. Cleanup runs before output publication and presentation hooks/tasks.
 
 #### Supported declarations and validation
 
@@ -3228,6 +3327,31 @@ filtered-array result. Consumers that relied on target-read denial to conceal ID
 deny the **source field** instead. Private inputs remain isolated fourth arguments,
 and registration, row, static-ref and hydration limitations remain mandatory. Plan this
 as a breaking application upgrade; no release/version automation is changed here.
+
+### Model-condition guards
+
+`guard({ modelName, id, condition })` requires a visible row and fresh document facts
+from the current actor. It uses the normal public by-ID defaults, query/projection,
+hydration and hook-source preparation, but **publishes no DTO**. Conditions use global
+permissions OR literal-true facts with the existing string/array grammar, not metadata.
+
+Guards do not run output-field callbacks, virtuals, embedded/populated-target DTO
+finalizers, output-only include attachments, metadata, decoration/tasks or `_read`
+overrides. Errors/effects solely in that work no longer veto a guard; ordinary DTO
+reads still perform it. Source/fact/necessary-dependency structural errors remain 400;
+ordinary missing/denied conditions remain 401. Descriptor preflight and any necessary
+target-input queries retain target-local admission and private-input masks.
+
+A visible-row guard normally performs one root read/hook and zero output callbacks.
+An admitted miss may retry once under captured LIST admission and initiating READ
+mode; a true/false condition and 400/403 are terminal. Like direct request-only `_read`,
+this is not the generated HTTP READ-route operation gate. Compose that existing
+route/global check when needed; generated routes retain their operation admission.
+
+Put security in operation/row/fact hooks, not output side effects. If a caller needs
+a DTO or business effects, perform a separate ordinary authorized read, check success
+and handle errors at its explicit additional read/hook/output cost. See the shipped
+[guard migration](MIGRATION.md#model-conditions-are-facts-only-not-an-implicit-dto-read).
 
 ### Hook admission and reentrant service calls
 

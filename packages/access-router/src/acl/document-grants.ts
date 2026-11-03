@@ -4,6 +4,7 @@ import type { DocumentGrants } from '../interfaces/access';
 import type { SharedHookGate } from '../helpers/concurrency';
 import { warn } from '../logger-helpers';
 import { authorizationError, ServiceAuthorizationError } from './authorization-snapshot';
+import { debitOutputWork } from './output-work-ledger';
 
 const protectedKeys = new Set([
   '__proto__',
@@ -22,6 +23,7 @@ owned.add(EMPTY_DOCUMENT_GRANTS);
 
 /** Descriptor-only admission: no getters, proxy traps, native methods or coercion. */
 export function normalizeDocumentGrants(value: unknown, metadataField = '_permissions'): DocumentGrants {
+  debitOutputWork();
   if (typeof metadataField !== 'string') authorizationError('invalid document permission field');
   if (value === null || typeof value !== 'object' || types.isProxy(value))
     authorizationError('document grants must be a plain boolean record');
@@ -36,6 +38,7 @@ export function normalizeDocumentGrants(value: unknown, metadataField = '_permis
   if (keys.length + 1 > 20000) authorizationError('document grants exceed structural limits');
   const facts = Object.create(null) as Record<string, boolean>;
   for (const key of keys) {
+    debitOutputWork();
     if (typeof key !== 'string' || protectedKeys.has(key) || key === metadataField)
       authorizationError('protected or symbol document grant key');
     const slot = Object.getOwnPropertyDescriptor(value, key)!;

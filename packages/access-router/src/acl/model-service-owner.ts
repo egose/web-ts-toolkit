@@ -6,6 +6,8 @@ import { getActiveRuntime, runWithRuntime } from '../runtime-context';
 import type { AccessRouterPermissions } from '../permission';
 import { captureAuthorizationPermissions } from './service-authorization';
 import { capturePopulatePolicyDefaults, type PopulatePolicyDefaultsToken } from './populate-policy';
+import { authorizationError } from './authorization-snapshot';
+import { types } from 'node:util';
 
 interface Owner {
   readonly request: ModelRequest;
@@ -13,6 +15,47 @@ interface Owner {
   readonly runtime: AccessRuntime;
 }
 const cores = new WeakMap<object, Owner>();
+const outputHelperServices = new WeakMap<object, Owner & { modelName: string; model?: object }>();
+
+function ownValue(receiver: object, key: string): unknown {
+  const slot = Object.getOwnPropertyDescriptor(receiver, key);
+  return slot && 'value' in slot ? slot.value : undefined;
+}
+
+/** Batch admission never trusts structurally copied receiver/request properties. */
+export function assertOutputHelperCoreOwner(receiver: object): Owner {
+  if (!receiver || types.isProxy(receiver)) authorizationError('invalid output-helper Core receiver');
+  const owner = cores.get(receiver);
+  if (
+    !owner ||
+    ownValue(receiver, 'req') !== owner.request ||
+    ownValue(receiver, 'requestRuntime') !== owner.runtime ||
+    types.isProxy(owner.request) ||
+    ownValue(owner.request, 'macl') !== receiver
+  )
+    authorizationError('output-helper receiving request/Core/runtime mismatch');
+  return owner;
+}
+
+export function registerOutputHelperServiceOwner(receiver: object, owner: Owner, modelName: string): void {
+  outputHelperServices.set(receiver, { ...owner, modelName, model: owner.runtime.getModelInstance(modelName) });
+}
+
+export function assertOutputHelperServiceOwner(receiver: object): void {
+  if (!receiver || types.isProxy(receiver)) authorizationError('invalid output-helper service receiver');
+  const owner = outputHelperServices.get(receiver);
+  if (
+    !owner ||
+    ownValue(receiver, 'req') !== owner.request ||
+    ownValue(receiver, 'requestCore') !== owner.core ||
+    ownValue(receiver, 'requestRuntime') !== owner.runtime ||
+    ownValue(receiver, 'modelName') !== owner.modelName
+  )
+    authorizationError('output-helper receiving service mismatch');
+  assertOutputHelperCoreOwner(owner.core);
+  if (!owner.model || owner.runtime.getModelInstance(owner.modelName) !== owner.model)
+    authorizationError('output-helper receiving model mismatch');
+}
 const construction = new AsyncLocalStorage<Owner>();
 const dispatch = new AsyncLocalStorage<{
   receiver: object;
@@ -81,6 +124,13 @@ export function captureModelServiceOwner(request: ModelRequest): Owner {
   );
 }
 
+/** A registered private entry is a new call even when invoked inside this receiver's hook. */
+export function runFreshModelServiceCall<T>(receiver: object, runtime: AccessRuntime, run: () => T): T {
+  return runWithRuntime(runtime, () =>
+    dispatch.run({ receiver, options: undefined, permissions: undefined, populatePolicyDefaults: undefined }, run),
+  );
+}
+
 /** Keep the real receiver (and WeakMap capability identity), including inherited public entries. */
 export function bindModelOwnerMethods(receiver: object, runtime: AccessRuntime): void {
   const seen = new Set<PropertyKey>(['constructor']);
@@ -102,7 +152,7 @@ export function bindModelOwnerMethods(receiver: object, runtime: AccessRuntime):
             const invoke = () => Reflect.apply(method, receiver, args);
             return dispatch.getStore()?.receiver === receiver && !queryEntries.has(key)
               ? invoke()
-              : dispatch.run({ receiver }, invoke);
+              : runFreshModelServiceCall(receiver, runtime, invoke);
           }),
       });
     }

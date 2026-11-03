@@ -7,6 +7,7 @@ import {
   assertAuthorizationBinding,
   getAuthorizationPermissions,
   getAuthorizationProvenance,
+  isOutputHelperAuthorization,
   readServiceAuthorizationAccess,
   readServiceAuthorizationMode,
   readServiceOutputMetadata,
@@ -15,14 +16,18 @@ import {
   type ResolvedServiceAuthorization,
 } from './service-authorization';
 import { authorizationError } from './authorization-snapshot';
-import { normalizeDocumentGrants } from './document-grants';
+import { EMPTY_DOCUMENT_GRANTS, normalizeDocumentGrants } from './document-grants';
 import {
   assertOutputPublication,
+  admitPublicationWork,
   bindOutputPublication,
   failOutputPublication,
   outputPublicationFor,
   retainPublicationStage,
   trackPublicationWork,
+  createPublicationRowBudget,
+  publicationOutputLedger,
+  retainPublicationResource,
   type OutputPublication,
 } from './output-publication';
 import {
@@ -34,6 +39,7 @@ import {
   visitTrustedOutput,
   type TrustedOutputBudget,
 } from './trusted-output-materialization';
+import { debitOutputWork, outsideOutputWorkLedger, withOutputWorkLedger } from './output-work-ledger';
 
 declare const documentStageBrand: unique symbol;
 export interface DocumentStage {
@@ -70,6 +76,7 @@ interface StageRecord {
   source?: Record<string, unknown>;
   borrowed: boolean;
   result?: Promise<DocumentGrants>;
+  emptyHelperFacts: boolean;
   grants?: DocumentGrants;
   access?: StageAccess;
   view?: StageAccess & { readonly grants: DocumentGrants };
@@ -159,12 +166,14 @@ function admitDocumentStage(
       authorizationError('unsupported borrowed embedded source');
     prepared = { source: input as Record<string, unknown>, borrowed: parent.borrowed };
   } else prepared = prepareQueryOutputSource(call, binding, input);
+  debitOutputWork(publicationOutputLedger(publication), 2); // distinct stage and memo container
   const stage = Object.freeze(Object.create(null)) as DocumentStage;
   const record: StageRecord = {
     state: 'created',
     generation: 0,
     failure: undefined,
     result: undefined,
+    emptyHelperFacts: false,
     grants: undefined,
     access: Object.freeze({ authorization: call, ...readServiceAuthorizationAccess(call, binding) }),
     view: undefined,
@@ -224,6 +233,39 @@ export function excludeDocumentStagePath(stage: DocumentStage, binding: Authoriz
   record.source = projected;
 }
 
+/** The single fact admission/commit primitive for built-in and real hook resolution. */
+function commitDocumentStageFacts(record: StageRecord, generation: number, value: unknown): DocumentGrants {
+  assertOpen(record, generation);
+  assertAuthorizationBinding(record.call!, record.binding!);
+  const facts = withOutputWorkLedger(publicationOutputLedger(record.publication!), () =>
+    normalizeDocumentGrants(value, readServiceOutputMetadata(record.call!, record.binding!).documentPermissionField),
+  );
+  assertOpen(record, generation);
+  assertAuthorizationBinding(record.call!, record.binding!);
+  record.grants = facts;
+  record.view = Object.freeze({ ...record.access!, grants: facts });
+  record.state = 'ready';
+  return facts;
+}
+
+/** Only a captured raw-helper resolver can issue built-in EMPTY. No callback or supplied grants. */
+export function resolveEmptyOutputHelperStage(stage: DocumentStage, binding: AuthorizationBinding): void {
+  if (arguments.length !== 2) authorizationError('output-helper facts accept no supplied grants or resolver');
+  const record = stageRecord(stage);
+  assertOpen(record);
+  if (!isOutputHelperAuthorization(record.call!, binding)) authorizationError('not an output-helper document stage');
+  if (record.state === 'ready' && record.emptyHelperFacts) return;
+  if (record.state !== 'created') authorizationError('output-helper facts must precede resolution/output');
+  try {
+    commitDocumentStageFacts(record, record.generation, EMPTY_DOCUMENT_GRANTS);
+    record.emptyHelperFacts = true;
+  } catch (error) {
+    record.failure = error;
+    failOutputPublication(record.publication!, error);
+    throw error;
+  }
+}
+
 /** Resolution owns one promise and facts. A synchronous fact map is never then-assimilated. */
 export function resolveDocumentStage(
   stage: DocumentStage,
@@ -233,6 +275,8 @@ export function resolveDocumentStage(
   const record = stageRecord(stage);
   assertOpen(record);
   if (record.result) return record.result;
+  // Preserve this API's shared Promise lazily; the built-in consumer never needs it.
+  if (record.emptyHelperFacts) return (record.result = Promise.resolve(record.grants!));
   const generation = record.generation;
   let fulfill!: (facts: DocumentGrants) => void, reject!: (error: unknown) => void;
   record.result = new Promise<DocumentGrants>((done, fail) => {
@@ -243,17 +287,7 @@ export function resolveDocumentStage(
   record.state = 'resolving';
   trackPublicationWork(record.publication!, record.result);
   const commit = (value: unknown) => {
-    assertOpen(record, generation);
-    assertAuthorizationBinding(record.call!, record.binding!);
-    const facts = normalizeDocumentGrants(
-      value,
-      readServiceOutputMetadata(record.call!, record.binding!).documentPermissionField,
-    );
-    assertOpen(record, generation);
-    record.grants = facts;
-    record.view = Object.freeze({ ...record.access!, grants: facts });
-    record.state = 'ready';
-    fulfill(facts);
+    fulfill(commitDocumentStageFacts(record, generation, value));
   };
   const fail = (error: unknown) => {
     record.failure = error;
@@ -339,6 +373,7 @@ export function memoizeStageFieldDecision(
   // actual async result or synchronous reentry into a pending decision.
   const previous = record.decisions.get(key);
   if (previous) return previous.state === 'fulfilled' ? previous.value! : pendingFieldDecision(previous);
+  debitOutputWork(publicationOutputLedger(record.publication!), 2); // memo allocation and attempted decision
   const decision: FieldDecision = {
     state: 'pending',
     // Own this lazy slot before application/native work can install an inherited setter.
@@ -347,6 +382,7 @@ export function memoizeStageFieldDecision(
     fulfill: undefined,
     reject: undefined,
   };
+  const track = admitPublicationWork(record.publication!);
   record.decisions.set(key, decision);
   const commit = (value: unknown): boolean => {
     assertOpen(record, generation);
@@ -367,7 +403,7 @@ export function memoizeStageFieldDecision(
     const value = evaluate.call(record.binding!.request, getAuthorizationPermissions(authorization, binding), grants);
     if (types.isPromise(value)) {
       const promise = pendingFieldDecision(decision);
-      trackPublicationWork(record.publication!, promise);
+      track(promise);
       void value.then((result) => {
         try {
           commit(result);
@@ -406,8 +442,8 @@ export function closeDocumentStage(stage: DocumentStage, error?: unknown, clear 
 }
 
 /** Each explicit callback exposure owns a bounded detached view, including native leaves. */
-export function copyDocumentView<T>(value: T): T {
-  return materializeTrustedOutputValue(value, '', createTrustedOutputBudget(), { keep: () => true }) as T;
+export function copyDocumentView<T>(value: T, budget = createTrustedOutputBudget()): T {
+  return materializeTrustedOutputValue(value, '', budget, { keep: () => true }) as T;
 }
 
 interface PreparedSource {
@@ -480,13 +516,18 @@ export function prepareQueryOutputSource(
   let raw: unknown = input;
   if (input instanceof Document) {
     try {
-      raw = input.toObject({ virtuals: false, flattenMaps: true });
+      // Canonical hydration remains opaque. Its allocations/traversal are NOT
+      // router-ledger work. The returned value is admitted by our copier below.
+      raw = outsideOutputWorkLedger(() => input.toObject({ virtuals: false, flattenMaps: true }));
     } catch {
       raw = (input as Document & { _doc: object })._doc;
     }
   }
   const borrowed = readServiceAuthorizationMode(call, binding) === 'trusted' && isBorrowableAuthorizationRecord(raw);
-  const source = borrowed ? (raw as Record<string, unknown>) : (copyDocumentView(raw) as Record<string, unknown>);
+  const publication = outputPublicationFor(call);
+  const source = borrowed
+    ? (raw as Record<string, unknown>)
+    : (copyDocumentView(raw, createPublicationRowBudget(publication)) as Record<string, unknown>);
   assertOutputPublication(outputPublicationFor(call));
   // The materializer already admitted every detached descriptor. Do not walk
   // that owned root again merely to prove the same shape after normalization.
@@ -501,14 +542,21 @@ export function prepareQueryOutputSource(
   let captures = sources.get(source);
   if (!captures) sources.set(source, (captures = new WeakMap()));
   captures.set(call, prepared);
+  if (publicationOutputLedger(publication))
+    retainPublicationResource(publication, () => {
+      captures!.delete(call);
+      originals.delete(source);
+      referenceOriginals.delete(source);
+    });
   if (source !== input) {
     originals.set(source, input);
-    captureReferenceOrigins(
-      input,
-      source,
-      readServiceOutputPolicy(call, binding).catalog.referencePaths ?? [],
-      createTrustedOutputBudget(),
-    );
+    if (!isOutputHelperAuthorization(call, binding))
+      captureReferenceOrigins(
+        input,
+        source,
+        readServiceOutputPolicy(call, binding).catalog.referencePaths ?? [],
+        createTrustedOutputBudget(),
+      );
   }
   return prepared;
 }
