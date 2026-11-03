@@ -614,7 +614,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           };
           defineTrustedOutputValue(metadata, '_view', await map('read', rowAccess.readIds?.has(id) ?? false));
           defineTrustedOutputValue(metadata, '_edit', await map('update', rowAccess.updateIds?.has(id) ?? false));
-        } else if (!args.includePermissions) {
+        } else if (!args.includePermissions && !configuration.disableFieldPermissions) {
           visitTrustedOutput(args.budget, metadataDepth + 1, 2);
           visitTrustedOutput(args.budget, metadataDepth + 2, 2);
           defineTrustedOutputValue(metadata, '_view', { $: '_' });

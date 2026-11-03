@@ -90,6 +90,12 @@ describe('actual owned LIST preparation, row facts and publication ordering', ()
         ['grants', {}, { ...quietOutput, includePermissions: true }],
         ['field maps', {}, { ...quietOutput, includeFieldPermissions: true }],
         ['disabled maps', { disableFieldPermissions: true }, { ...quietOutput, includeFieldPermissions: true }],
+        ['disabled quiet', { disableFieldPermissions: true }, quietOutput],
+        [
+          'disabled maps with grants',
+          { disableFieldPermissions: true },
+          { ...quietOutput, includePermissions: true, includeFieldPermissions: true },
+        ],
         ['stripped', { stripPermissionsField: true }, { ...quietOutput, includePermissions: true }],
         ['exposed subset', { exposedDocPermissionKeys: ['public'] }, { ...quietOutput, includePermissions: true }],
       ].map(([posture, modelOptions, options]) => ({ entry, posture, modelOptions, options })),
@@ -211,7 +217,13 @@ describe('actual owned LIST preparation, row facts and publication ordering', ()
             expect(metadata._edit).toEqual(metadata._view);
             expect(metadata._view).not.toHaveProperty('hidden');
           } else if (!(options as any).includePermissions)
-            expect(metadata).toEqual({ _view: { $: '_' }, _edit: { $: '_' } });
+            expect(metadata).toEqual(
+              (modelOptions as any).disableFieldPermissions ? {} : { _view: { $: '_' }, _edit: { $: '_' } },
+            );
+          if ((modelOptions as any).disableFieldPermissions) {
+            expect(metadata).not.toHaveProperty('_view');
+            expect(metadata).not.toHaveProperty('_edit');
+          }
           if ((modelOptions as any).exposedDocPermissionKeys) expect(metadata).toEqual({ public: true });
           else if ((options as any).includePermissions) expect(metadata.owner).toBe(index === 0);
         }

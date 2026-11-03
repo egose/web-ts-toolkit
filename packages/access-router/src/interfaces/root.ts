@@ -530,8 +530,10 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * When `true`, client `includeFieldPermissions` input (query params,
    * body/root-batch options and service-direct options) as well as
    * per-operation `defaults` are ignored and field maps (`_view`/`_edit`)
-   * are never computed. `docPermissions`-hook keys still follow
-   * `includePermissions`. Defaults to `false`.
+   * are neither computed nor emitted, including empty placeholders.
+   * `docPermissions`-hook keys still follow `includePermissions`; when none
+   * are included, the permissions field is an empty object. Use
+   * `stripPermissionsField` to remove the field entirely. Defaults to `false`.
    */
   disableFieldPermissions?: boolean;
   /**

@@ -614,6 +614,7 @@ describe('SVA-06 explicit related policies', () => {
         expect(children[0]).toMatchObject({ name: 'a', note: 'note-a' });
         expect(children[1]).not.toHaveProperty('name');
         if (posture === 'stripped') expect(children[0]).not.toHaveProperty('_permissions');
+        else if (posture === 'disabled') expect(children[0]._permissions).toEqual({});
         else expect(children[0]._permissions).toEqual({ _view: { $: '_' }, _edit: { $: '_' } });
         expect(children[0]).not.toHaveProperty('owner');
         const before = hook.mock.calls.length;
