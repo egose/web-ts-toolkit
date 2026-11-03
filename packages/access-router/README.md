@@ -176,7 +176,8 @@ package-managed execution, falling back to `defaultRuntime` outside it.
    `upsert` has `upsertArgs`/`upsertOptions`. There is no `publicUpsertOptions` bucket.
 5. **Metadata posture is absolute.** Model `stripPermissionsField: true` removes
    the entire output metadata field; `disableFieldPermissions: true` suppresses
-   `_view`/`_edit` computation. They win over per-call flags and method defaults.
+   `_view`/`_edit` computation and output, including placeholders. They win over
+   per-call flags and method defaults.
    Internal authorization and full document grants still run.
 
 The supported `Defaults` buckets are `findArgs`/`findOptions`,
@@ -2056,8 +2057,11 @@ Two router options lock down permission metadata regardless of client input or
 per-operation `defaults`: `stripPermissionsField: true` removes the whole
 permissions field from outputs (equivalent to `includePermissions: false` with
 the field — including its placeholder — deleted; enforcement still runs), and
-`disableFieldPermissions: true` never computes `_view`/`_edit` maps while still
-honoring `includePermissions` for `docPermissions`-hook keys.
+`disableFieldPermissions: true` neither computes nor emits `_view`/`_edit` maps
+(including placeholders) while still honoring `includePermissions` for
+`docPermissions`-hook keys. When no keys are included, the permissions field is
+an empty object; use `stripPermissionsField: true` to remove it entirely. This
+applies to regular model routes, root batch items, and direct service calls.
 
 ## Main Exports
 
