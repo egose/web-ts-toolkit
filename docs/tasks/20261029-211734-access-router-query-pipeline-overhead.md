@@ -3,6 +3,11 @@
 Created: 2026-10-29 21:17:34 PDT
 Status: completed
 
+Evidence preservation: selected historical measurement tables are available in
+`docs/task-artifacts/access-router/query-pipeline/remaining-summary.md` and its
+sibling Markdown reports. See the [archive scope](../task-artifacts/access-router/README.md);
+raw measurements and executable snapshots remain in the original ignored packet.
+
 Outcome: PIPE-01–06 completed, including evidence-backed no-change/defer outcomes
 for string evaluation and broader embedded reuse. Retained guarded record builders
 and amortized captured primitive catalog preparation. Final package/type/downstream,

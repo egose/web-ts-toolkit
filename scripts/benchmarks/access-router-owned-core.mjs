@@ -14,7 +14,26 @@ import {
   UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS,
 } from './access-router-core.mjs';
 
-export const SERIES = 'checked-each-response-v1';
+export const SERIES = 'checked-each-response-v2';
+export const GUARD_COUNT_REVISION = 'facts-only-v1';
+
+/** Benchmark correctness metadata, not a runtime selector or inferred mode capability. */
+export function verifyCountContract(target) {
+  if (target.profile.startsWith('current-')) {
+    assert.equal(target.countContract, undefined, 'Historical artifacts keep their sealed metadata guard contract');
+    return null;
+  }
+  const contract = target.countContract;
+  assert.deepEqual(
+    Object.keys(contract ?? {}).sort(),
+    ['artifactSha256', 'revision'],
+    'Explicit count contract required',
+  );
+  assert.equal(contract.revision, GUARD_COUNT_REVISION, 'Unsupported candidate guard count contract');
+  assert.match(target.distSha256, /^[a-f0-9]{64}$/);
+  assert.equal(contract.artifactSha256, target.distSha256, 'Guard count contract artifact mismatch');
+  return contract;
+}
 export const PRIMARY = Object.freeze(['plain-wide', 'document-rules', 'embedded']);
 export const GUARDS = Object.freeze([
   'plain-narrow',
@@ -111,6 +130,7 @@ export function validateJob(job) {
   } else
     for (const key of ['readAuthorizationMode', 'listAuthorizationMode'])
       if (job.target[key] !== job.target.profile) throw new Error('Owned profile label does not match actual mode.');
+  verifyCountContract(job.target);
   return job;
 }
 
@@ -144,6 +164,7 @@ export function expectedCounts(job) {
   if (job.family === 'retention') return { reads: 1, hooks: job.rows, getters: 0, callbacks: job.rows * job.fields };
   const old = job.target.profile.startsWith('current-');
   const recipe = job.scenario;
+  if (recipe === 'H4') verifyCountContract(job.target);
   const batch = recipe.startsWith('H3');
   const queries = ['H1', 'H1-scoped'].includes(recipe) ? 0 : ['H2', 'H3'].includes(recipe) && !old ? 2 : 1;
   return {
@@ -155,21 +176,24 @@ export function expectedCounts(job) {
         ? 3
         : ['H2', 'H2-query', 'H3', 'H3-query'].includes(recipe)
           ? queries * (batch ? job.rows : 1) * job.fields
-          : recipe === 'H4' && !old
-            ? job.fields
-            : 0,
+          : 0,
   };
 }
 
 export function verifyCounts(job, counts, operations = job.samples) {
-  for (const [key, value] of Object.entries(expectedCounts(job)))
-    assert.equal(counts[key] ?? 0, value * operations, `${job.id}: actual ${key} count mismatch`);
+  if (job.family === 'helper' && job.scenario === 'H4') verifyCountContract(job.target);
+  for (const [key, value] of Object.entries(expectedCounts(job))) {
+    assert.ok(Object.hasOwn(counts, key), `${job.id}: missing actual ${key} counter`);
+    assert.equal(counts[key], value * operations, `${job.id}: actual ${key} count mismatch`);
+  }
 }
 
 export function verifyResult(job, row) {
   assert.equal(row.status, 'ok', row.error);
   assert.equal(row.distSha256, job.target.distSha256);
   assert.equal(row.validationSeries, SERIES);
+  if (job.family === 'helper' && job.scenario === 'H4')
+    assert.deepEqual(row.countContract, verifyCountContract(job.target), 'Missing or contradictory H4 count proof');
   assert.match(row.outputFingerprint, /^[a-f0-9]{64}$/);
   assert.equal(row.responseFingerprints?.length, job.samples, 'Every measured response must have a fingerprint');
   for (const value of row.responseFingerprints) assert.match(value, /^[a-f0-9]{64}$/);

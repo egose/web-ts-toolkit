@@ -16,7 +16,7 @@ import {
   authorizationFastPathFlagOptions,
 } from './access-router-core.mjs';
 import { verifySnapshotFlagOptions } from './access-router-worker.mjs';
-import { validateJob, verifyCounts, SERIES } from './access-router-owned-core.mjs';
+import { validateJob, verifyCounts, verifyCountContract, SERIES } from './access-router-owned-core.mjs';
 
 export function checksum() {
   let value = 0x12345678;
@@ -553,6 +553,7 @@ export async function benchmarkOwned(input) {
       profile: job.target.profile,
       distSha256: hash,
       validationSeries: SERIES,
+      ...(job.scenario === 'H4' ? { countContract: verifyCountContract(job.target) } : {}),
       samplesMs,
       cpuMicroseconds: cpu,
       stats: summarize(samplesMs, elapsed, cpu.user + cpu.system),

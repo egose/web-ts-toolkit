@@ -1,0 +1,2242 @@
+{
+  "summary": {
+    "jobs": 124,
+    "responses": 12400,
+    "initialJobs": 64,
+    "repeatJobs": 60,
+    "repeatComparisons": 15,
+    "acceptanceGates": 0,
+    "allRawStatisticsFingerprintsCountsAndPairingMatch": true,
+    "freshnessComparatorsRemainDistinct": true
+  },
+  "descriptions": [
+    {
+      "id": "helper/B1-global-many/10/raw-only/isolated/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 0.27931475000008277,
+            "percent": 6.7147348072430155,
+            "alignedPairs": 1
+          },
+          "p95Ms": {
+            "ms": 0.08957499999996799,
+            "percent": 1.5731559209050165,
+            "alignedPairs": 1
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.25967999999999947,
+            "percent": 4.483837422367615,
+            "alignedPairs": 1
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 0.5905775000002222,
+              "percent": 14.212575624509821
+            },
+            "p95Ms": {
+              "ms": 0.5329859999999371,
+              "percent": 8.6928270550054
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.6380399999999993,
+              "percent": 10.95746434753935
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -0.03194800000005671,
+              "percent": -0.7831060100237898
+            },
+            "p95Ms": {
+              "ms": -0.35383600000000115,
+              "percent": -5.5465152131953674
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.11868000000000034,
+              "percent": -1.98978950280412
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 0.16478649999999107,
+            "percent": 4.164871936780546,
+            "alignedPairs": 3
+          },
+          "p95Ms": {
+            "ms": -0.5139139999999998,
+            "percent": -8.162298182876905,
+            "alignedPairs": 3
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.08094500000000027,
+            "percent": -1.3726837980552058,
+            "alignedPairs": 3
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 0.5905775000002222,
+              "percent": 14.212575624509821
+            },
+            "p95Ms": {
+              "ms": 0.5329859999999371,
+              "percent": 8.6928270550054
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.6380399999999993,
+              "percent": 10.95746434753935
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -0.03194800000005671,
+              "percent": -0.7831060100237898
+            },
+            "p95Ms": {
+              "ms": -0.35383600000000115,
+              "percent": -5.5465152131953674
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.11868000000000034,
+              "percent": -1.98978950280412
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.15586600000006,
+              "percent": 3.8730567904305633
+            },
+            "p95Ms": {
+              "ms": -0.6739919999999984,
+              "percent": -10.77808115255844
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.13924000000000092,
+              "percent": -2.3417856704379143
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.17370699999992212,
+              "percent": 4.45668708313053
+            },
+            "p95Ms": {
+              "ms": -1.5398869999999079,
+              "percent": -22.633850466576966
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.04321000000000019,
+              "percent": -0.7555780933062914
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/10/raw-only/isolated/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": -13.468358749999993,
+            "percent": -75.37354946397767,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -13.145788999999922,
+            "percent": -66.59438163164151,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -13.602129999999999,
+            "percent": -67.93466466657725,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -13.86591650000014,
+              "percent": -74.87807601174899
+            },
+            "p95Ms": {
+              "ms": -12.536708999999973,
+              "percent": -61.0307409879346
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.750809999999998,
+              "percent": -66.11563929816732
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.070800999999847,
+              "percent": -75.86902291620636
+            },
+            "p95Ms": {
+              "ms": -13.754868999999871,
+              "percent": -72.15802227534843
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.45345,
+              "percent": -69.75369003498716
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": -13.716085750000047,
+            "percent": -75.83533530919146,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -13.773669499999983,
+            "percent": -70.4737477277256,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": -13.759685000000001,
+            "percent": -69.20653325536611,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -13.86591650000014,
+              "percent": -74.87807601174899
+            },
+            "p95Ms": {
+              "ms": -12.536708999999973,
+              "percent": -61.0307409879346
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.750809999999998,
+              "percent": -66.11563929816732
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.070800999999847,
+              "percent": -75.86902291620636
+            },
+            "p95Ms": {
+              "ms": -13.754868999999871,
+              "percent": -72.15802227534843
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.45345,
+              "percent": -69.75369003498716
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.921169500000019,
+              "percent": -77.15914099382395
+            },
+            "p95Ms": {
+              "ms": -13.925165999999763,
+              "percent": -70.94208230080007
+            },
+            "cpuMsPerRequest": {
+              "ms": -14.21901,
+              "percent": -70.61988410976743
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.566254999999956,
+              "percent": -75.80164770217657
+            },
+            "p95Ms": {
+              "ms": -13.792470000000094,
+              "percent": -70.00541315465114
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.768560000000003,
+              "percent": -68.65937647574505
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/10/raw-only/trusted/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 0.4788094999998975,
+            "percent": 11.846297305561299,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": 0.02478449999989607,
+            "percent": 0.30245594323413805,
+            "alignedPairs": 1
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.4573649999999998,
+            "percent": 7.557656299016902,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 0.5155549999999494,
+              "percent": 11.88471466011452
+            },
+            "p95Ms": {
+              "ms": 1.088202999999794,
+              "percent": 16.723715968089163
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.6796600000000002,
+              "percent": 11.012310793250615
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.4420639999998457,
+              "percent": 11.807879951008077
+            },
+            "p95Ms": {
+              "ms": -1.0386340000000018,
+              "percent": -16.118804081620887
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.23506999999999945,
+              "percent": 4.103001804783189
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 0.39577399999984664,
+            "percent": 10.187824880692599,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -0.5616869999998926,
+            "percent": -8.772187994231746,
+            "alignedPairs": 3
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.2951749999999995,
+            "percent": 5.136573105654849,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 0.5155549999999494,
+              "percent": 11.88471466011452
+            },
+            "p95Ms": {
+              "ms": 1.088202999999794,
+              "percent": 16.723715968089163
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.6796600000000002,
+              "percent": 11.012310793250615
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.4420639999998457,
+              "percent": 11.807879951008077
+            },
+            "p95Ms": {
+              "ms": -1.0386340000000018,
+              "percent": -16.118804081620887
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.23506999999999945,
+              "percent": 4.103001804783189
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.3203125000002274,
+              "percent": 7.969920509184793
+            },
+            "p95Ms": {
+              "ms": -1.1531280000001516,
+              "percent": -16.494037273532157
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.13180999999999976,
+              "percent": 2.1998911820764153
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.3494839999998476,
+              "percent": 8.567769810377122
+            },
+            "p95Ms": {
+              "ms": -0.08473999999978332,
+              "percent": -1.425571906842605
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.3552799999999996,
+              "percent": 6.170144406526509
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/10/raw-only/trusted/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": -13.78106100000008,
+            "percent": -76.56024176065321,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -14.155430500000193,
+            "percent": -71.60666409239721,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -14.27353,
+            "percent": -70.88516383103834,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -14.245026499999994,
+              "percent": -77.40971806150698
+            },
+            "p95Ms": {
+              "ms": -14.940559000000121,
+              "percent": -73.08493212870029
+            },
+            "cpuMsPerRequest": {
+              "ms": -14.646239999999999,
+              "percent": -71.15538398306212
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.317095500000164,
+              "percent": -75.71076545979946
+            },
+            "p95Ms": {
+              "ms": -13.370302000000265,
+              "percent": -70.12839605609413
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.90082,
+              "percent": -70.61494367901457
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": -13.34832625000007,
+            "percent": -75.80520400349019,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -13.674796500000298,
+            "percent": -71.33741450472974,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": -13.88673,
+            "percent": -70.88516383103834,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -14.245026499999994,
+              "percent": -77.40971806150698
+            },
+            "p95Ms": {
+              "ms": -14.940559000000121,
+              "percent": -73.08493212870029
+            },
+            "cpuMsPerRequest": {
+              "ms": -14.646239999999999,
+              "percent": -71.15538398306212
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.317095500000164,
+              "percent": -75.71076545979946
+            },
+            "p95Ms": {
+              "ms": -13.370302000000265,
+              "percent": -70.12839605609413
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.90082,
+              "percent": -70.61494367901457
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.379556999999977,
+              "percent": -75.23871086740527
+            },
+            "p95Ms": {
+              "ms": -13.45396000000028,
+              "percent": -70.0556760470947
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.851469999999999,
+              "percent": -69.79881430194736
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -13.162947499999973,
+              "percent": -75.89964254718092
+            },
+            "p95Ms": {
+              "ms": -13.895633000000316,
+              "percent": -72.54643295336535
+            },
+            "cpuMsPerRequest": {
+              "ms": -13.87264,
+              "percent": -71.16338455745773
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/10/query-plus-helper/isolated/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": -0.22646800000006806,
+            "percent": -2.826753280026313,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -0.5812114999997675,
+            "percent": -5.303593189773971,
+            "alignedPairs": 1
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.7309450000000002,
+            "percent": -6.88148539556755,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -0.3619805000000724,
+              "percent": -4.517664364011565
+            },
+            "p95Ms": {
+              "ms": 0.05090899999981957,
+              "percent": 0.49638202451224994
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.659320000000001,
+              "percent": -6.238674825681034
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -0.0909555000000637,
+              "percent": -1.135842196041061
+            },
+            "p95Ms": {
+              "ms": -1.2133319999993546,
+              "percent": -11.103568404060193
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.8025699999999993,
+              "percent": -7.524295965454066
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": -0.036052250000011554,
+            "percent": -0.44284531009454864,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -0.47477200000002995,
+            "percent": -4.443774155733877,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.5990800000000007,
+            "percent": -5.778172250662648,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -0.3619805000000724,
+              "percent": -4.517664364011565
+            },
+            "p95Ms": {
+              "ms": 0.05090899999981957,
+              "percent": 0.49638202451224994
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.659320000000001,
+              "percent": -6.238674825681034
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -0.0909555000000637,
+              "percent": -1.135842196041061
+            },
+            "p95Ms": {
+              "ms": -1.2133319999993546,
+              "percent": -11.103568404060193
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.8025699999999993,
+              "percent": -7.524295965454066
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.0572114999997666,
+              "percent": 0.7548282309408602
+            },
+            "p95Ms": {
+              "ms": -1.0004529999998795,
+              "percent": -9.383930335980004
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.5388400000000004,
+              "percent": -5.31766967564426
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.018851000000040585,
+              "percent": 0.2501515758519637
+            },
+            "p95Ms": {
+              "ms": 0.0824110000003202,
+              "percent": 0.8278344270907101
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.11695999999999884,
+              "percent": -1.1884355144688046
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/10/query-plus-helper/isolated/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": -18.835589249999884,
+            "percent": -70.47775254037788,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -18.867313499999568,
+            "percent": -65.26201104666237,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -18.774990000000003,
+            "percent": -65.49803783702244,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -18.97518100000002,
+              "percent": -70.96535334331493
+            },
+            "p95Ms": {
+              "ms": -19.318676000000096,
+              "percent": -66.68944573406185
+            },
+            "cpuMsPerRequest": {
+              "ms": -19.09729,
+              "percent": -66.33958808733196
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -18.69599749999975,
+              "percent": -69.99015173744081
+            },
+            "p95Ms": {
+              "ms": -18.41595099999904,
+              "percent": -63.8345763592629
+            },
+            "cpuMsPerRequest": {
+              "ms": -18.45269,
+              "percent": -64.65648758671291
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": -18.835589249999884,
+            "percent": -70.41813445161885,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -19.379280999999878,
+            "percent": -66.90154641610482,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": -18.759855,
+            "percent": -65.40402542818455,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -18.97518100000002,
+              "percent": -70.96535334331493
+            },
+            "p95Ms": {
+              "ms": -19.318676000000096,
+              "percent": -66.68944573406185
+            },
+            "cpuMsPerRequest": {
+              "ms": -19.09729,
+              "percent": -66.33958808733196
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -18.69599749999975,
+              "percent": -69.99015173744081
+            },
+            "p95Ms": {
+              "ms": -18.41595099999904,
+              "percent": -63.8345763592629
+            },
+            "cpuMsPerRequest": {
+              "ms": -18.45269,
+              "percent": -64.65648758671291
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -18.55144499999983,
+              "percent": -69.54150601674576
+            },
+            "p95Ms": {
+              "ms": -19.43988599999966,
+              "percent": -67.1136470981478
+            },
+            "cpuMsPerRequest": {
+              "ms": -18.57419,
+              "percent": -64.9101544876627
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -19.038111500000014,
+              "percent": -70.8461171657969
+            },
+            "p95Ms": {
+              "ms": -20.26217799999995,
+              "percent": -67.49175180227896
+            },
+            "cpuMsPerRequest": {
+              "ms": -18.945520000000002,
+              "percent": -65.89789636870643
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/10/query-plus-helper/trusted/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 0.4924175000000446,
+            "percent": 6.758484105004271,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -0.35372449999977107,
+            "percent": -3.2625348667308027,
+            "alignedPairs": 1
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.002595000000000347,
+            "percent": 0.08871823030177439,
+            "alignedPairs": 1
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 0.48023799999998573,
+              "percent": 6.752205646742206
+            },
+            "p95Ms": {
+              "ms": -0.7312219999998888,
+              "percent": -6.750672715869323
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.2472000000000012,
+              "percent": 2.5697213640313983
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.5045970000001034,
+              "percent": 6.764762563266337
+            },
+            "p95Ms": {
+              "ms": 0.023773000000346656,
+              "percent": 0.22560298240771767
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.2420100000000005,
+              "percent": -2.3922849034278495
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 0.4924175000000446,
+            "percent": 6.758484105004271,
+            "alignedPairs": 3
+          },
+          "p95Ms": {
+            "ms": -0.35372449999977107,
+            "percent": -3.2625348667308027,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.14455000000000062,
+            "percent": -1.428671422779404,
+            "alignedPairs": 3
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 0.48023799999998573,
+              "percent": 6.752205646742206
+            },
+            "p95Ms": {
+              "ms": -0.7312219999998888,
+              "percent": -6.750672715869323
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.2472000000000012,
+              "percent": 2.5697213640313983
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.5045970000001034,
+              "percent": 6.764762563266337
+            },
+            "p95Ms": {
+              "ms": 0.023773000000346656,
+              "percent": 0.22560298240771767
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.2420100000000005,
+              "percent": -2.3922849034278495
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -0.22441299999979947,
+              "percent": -2.9596138323308714
+            },
+            "p95Ms": {
+              "ms": -0.9679949999999735,
+              "percent": -9.125345277793024
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.5408100000000005,
+              "percent": -5.411964142397676
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 0.5614979999998013,
+              "percent": 7.396059473484257
+            },
+            "p95Ms": {
+              "ms": 0.3522020000000339,
+              "percent": 3.546979741745034
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.04709000000000074,
+              "percent": -0.46505794213095836
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/10/query-plus-helper/trusted/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 1.2594229999999698,
+            "percent": 20.26486112676306,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": 0.5443704999999,
+            "percent": 6.232496833777186,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": 1.73334,
+            "percent": 22.566912076338177,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.4532025000002022,
+              "percent": 23.44276173713324
+            },
+            "p95Ms": {
+              "ms": 0.8409300000000712,
+              "percent": 9.573976108380402
+            },
+            "cpuMsPerRequest": {
+              "ms": 1.9691200000000002,
+              "percent": 25.71283813781973
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.0656434999997373,
+              "percent": 17.08696051639288
+            },
+            "p95Ms": {
+              "ms": 0.24781099999972866,
+              "percent": 2.891017559173971
+            },
+            "cpuMsPerRequest": {
+              "ms": 1.49756,
+              "percent": 19.42098601485662
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 1.22054549999973,
+            "percent": 19.307770495865746,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": 0.7528230000000349,
+            "percent": 8.437612533753931,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": 1.7355500000000013,
+            "percent": 22.316512522664375,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.4532025000002022,
+              "percent": 23.44276173713324
+            },
+            "p95Ms": {
+              "ms": 0.8409300000000712,
+              "percent": 9.573976108380402
+            },
+            "cpuMsPerRequest": {
+              "ms": 1.9691200000000002,
+              "percent": 25.71283813781973
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.0656434999997373,
+              "percent": 17.08696051639288
+            },
+            "p95Ms": {
+              "ms": 0.24781099999972866,
+              "percent": 2.891017559173971
+            },
+            "cpuMsPerRequest": {
+              "ms": 1.49756,
+              "percent": 19.42098601485662
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.073833999999806,
+              "percent": 17.217823747527234
+            },
+            "p95Ms": {
+              "ms": 0.6647159999999985,
+              "percent": 7.301248959127463
+            },
+            "cpuMsPerRequest": {
+              "ms": 1.5176600000000011,
+              "percent": 19.613813389232746
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.367256999999654,
+              "percent": 21.397717244204255
+            },
+            "p95Ms": {
+              "ms": 2.292131000000154,
+              "percent": 27.61071359738065
+            },
+            "cpuMsPerRequest": {
+              "ms": 1.9534400000000014,
+              "percent": 25.019211656096008
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/raw-only/isolated/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 1.5592610000002196,
+            "percent": 6.201485706961767,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -0.22413849999998092,
+            "percent": -0.748825837461716,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.7062800000000014,
+            "percent": -5.227708111054423,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.2981695000000855,
+              "percent": 5.070026356008462
+            },
+            "p95Ms": {
+              "ms": -0.21708799999987605,
+              "percent": -0.715224895972439
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.9192600000000013,
+              "percent": -5.82604493369712
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.8203525000003538,
+              "percent": 7.332945057915072
+            },
+            "p95Ms": {
+              "ms": -0.2311890000000858,
+              "percent": -0.7824267789509932
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.4933000000000014,
+              "percent": -4.629371288411726
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 1.5592610000002196,
+            "percent": 6.201485706961767,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -0.22413849999998092,
+            "percent": -0.748825837461716,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.7062800000000014,
+            "percent": -5.227708111054423,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.2981695000000855,
+              "percent": 5.070026356008462
+            },
+            "p95Ms": {
+              "ms": -0.21708799999987605,
+              "percent": -0.715224895972439
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.9192600000000013,
+              "percent": -5.82604493369712
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.8203525000003538,
+              "percent": 7.332945057915072
+            },
+            "p95Ms": {
+              "ms": -0.2311890000000858,
+              "percent": -0.7824267789509932
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.4933000000000014,
+              "percent": -4.629371288411726
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/raw-only/isolated/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": -137.72376775000043,
+            "percent": -83.31144084731741,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -160.86710400000038,
+            "percent": -84.32546600135254,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -150.54782999999998,
+            "percent": -82.35602301034633,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -139.86566750000065,
+              "percent": -83.50465442566859
+            },
+            "p95Ms": {
+              "ms": -164.80179000000044,
+              "percent": -84.69055670876662
+            },
+            "cpuMsPerRequest": {
+              "ms": -153.26371,
+              "percent": -82.88612719051278
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -135.5818680000002,
+              "percent": -83.11822726896625
+            },
+            "p95Ms": {
+              "ms": -156.93241800000033,
+              "percent": -83.96037529393847
+            },
+            "cpuMsPerRequest": {
+              "ms": -147.83194999999998,
+              "percent": -81.82591883017989
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": -139.23571774999937,
+            "percent": -83.50749551258373,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -163.25388100000032,
+            "percent": -84.56406657213688,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": -152.51417500000002,
+            "percent": -82.86320480589058,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -139.86566750000065,
+              "percent": -83.50465442566859
+            },
+            "p95Ms": {
+              "ms": -164.80179000000044,
+              "percent": -84.69055670876662
+            },
+            "cpuMsPerRequest": {
+              "ms": -153.26371,
+              "percent": -82.88612719051278
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -135.5818680000002,
+              "percent": -83.11822726896625
+            },
+            "p95Ms": {
+              "ms": -156.93241800000033,
+              "percent": -83.96037529393847
+            },
+            "cpuMsPerRequest": {
+              "ms": -147.83194999999998,
+              "percent": -81.82591883017989
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -140.14952200000016,
+              "percent": -83.89809891916532
+            },
+            "p95Ms": {
+              "ms": -167.37511299999915,
+              "percent": -85.39860944371007
+            },
+            "cpuMsPerRequest": {
+              "ms": -154.18001000000004,
+              "percent": -83.42805521142583
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -138.60576799999808,
+              "percent": -83.51033659949887
+            },
+            "p95Ms": {
+              "ms": -161.7059720000002,
+              "percent": -84.43757643550714
+            },
+            "cpuMsPerRequest": {
+              "ms": -151.76464,
+              "percent": -82.84028242126838
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/raw-only/trusted/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 0.20346649999976307,
+            "percent": 0.9730190488280139,
+            "alignedPairs": 1
+          },
+          "p95Ms": {
+            "ms": -2.137081500000022,
+            "percent": -6.234494759289899,
+            "alignedPairs": 1
+          },
+          "cpuMsPerRequest": {
+            "ms": -3.5305999999999997,
+            "percent": -10.108906111187272,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.6120084999997744,
+              "percent": 6.250900113235968
+            },
+            "p95Ms": {
+              "ms": 0.147139000000152,
+              "percent": 0.5077113367120449
+            },
+            "cpuMsPerRequest": {
+              "ms": -2.2474599999999967,
+              "percent": -6.761041149677214
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -1.2050755000002482,
+              "percent": -4.30486201557994
+            },
+            "p95Ms": {
+              "ms": -4.421302000000196,
+              "percent": -12.976700855291844
+            },
+            "cpuMsPerRequest": {
+              "ms": -4.813740000000003,
+              "percent": -13.45677107269733
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 1.3292179999998552,
+            "percent": 5.197023246627866,
+            "alignedPairs": 3
+          },
+          "p95Ms": {
+            "ms": -0.06401099999993676,
+            "percent": -0.21693680855951786,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -2.1234449999999985,
+            "percent": -6.463078989014525,
+            "alignedPairs": 3
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.6120084999997744,
+              "percent": 6.250900113235968
+            },
+            "p95Ms": {
+              "ms": 0.147139000000152,
+              "percent": 0.5077113367120449
+            },
+            "cpuMsPerRequest": {
+              "ms": -2.2474599999999967,
+              "percent": -6.761041149677214
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -1.2050755000002482,
+              "percent": -4.30486201557994
+            },
+            "p95Ms": {
+              "ms": -4.421302000000196,
+              "percent": -12.976700855291844
+            },
+            "cpuMsPerRequest": {
+              "ms": -4.813740000000003,
+              "percent": -13.45677107269733
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.0464274999999361,
+              "percent": 4.143146380019766
+            },
+            "p95Ms": {
+              "ms": -0.2751610000000255,
+              "percent": -0.9415849538310807
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.9994300000000003,
+              "percent": -6.165116828351836
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 3.5514135000000806,
+              "percent": 14.124281191201739
+            },
+            "p95Ms": {
+              "ms": 2.412543999999343,
+              "percent": 8.431969853625066
+            },
+            "cpuMsPerRequest": {
+              "ms": 1.3755400000000009,
+              "percent": 4.247331715760959
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/raw-only/trusted/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": -141.73968275000004,
+            "percent": -84.23612517457062,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -168.29483099999948,
+            "percent": -85.32953171710435,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -156.98161,
+            "percent": -83.76897177722591,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -141.46500450000053,
+              "percent": -84.00956552782728
+            },
+            "p95Ms": {
+              "ms": -167.55031999999937,
+              "percent": -84.88558053550551
+            },
+            "cpuMsPerRequest": {
+              "ms": -155.30778,
+              "percent": -83.46511974978701
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -142.01436099999955,
+              "percent": -84.46268482131396
+            },
+            "p95Ms": {
+              "ms": -169.03934199999958,
+              "percent": -85.7734828987032
+            },
+            "cpuMsPerRequest": {
+              "ms": -158.65544,
+              "percent": -84.07282380466481
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": -140.31285325000079,
+            "percent": -83.87592901725745,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -164.27540799999997,
+            "percent": -84.52506499118289,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": -154.04506500000002,
+            "percent": -83.25088148872535,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -141.46500450000053,
+              "percent": -84.00956552782728
+            },
+            "p95Ms": {
+              "ms": -167.55031999999937,
+              "percent": -84.88558053550551
+            },
+            "cpuMsPerRequest": {
+              "ms": -155.30778,
+              "percent": -83.46511974978701
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -142.01436099999955,
+              "percent": -84.46268482131396
+            },
+            "p95Ms": {
+              "ms": -169.03934199999958,
+              "percent": -85.7734828987032
+            },
+            "cpuMsPerRequest": {
+              "ms": -158.65544,
+              "percent": -84.07282380466481
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -137.53479449999963,
+              "percent": -83.2207693622317
+            },
+            "p95Ms": {
+              "ms": -158.3856410000003,
+              "percent": -83.6487050418483
+            },
+            "cpuMsPerRequest": {
+              "ms": -149.72179000000003,
+              "percent": -81.97066129253902
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -139.16070200000104,
+              "percent": -83.74229250668763
+            },
+            "p95Ms": {
+              "ms": -161.00049600000057,
+              "percent": -84.16454944686028
+            },
+            "cpuMsPerRequest": {
+              "ms": -152.78235,
+              "percent": -83.0366432276637
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/query-plus-helper/isolated/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 2.146967499999846,
+            "percent": 5.520017326251732,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -0.09358350000002247,
+            "percent": -0.11881115210835558,
+            "alignedPairs": 1
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.076475000000002,
+            "percent": -2.2011631035172012,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.9112200000001849,
+              "percent": 4.805692281935011
+            },
+            "p95Ms": {
+              "ms": -0.9597579999999653,
+              "percent": -1.9997234685214402
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.4154400000000038,
+              "percent": -2.858707805259526
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 2.382714999999507,
+              "percent": 6.234342370568452
+            },
+            "p95Ms": {
+              "ms": 0.7725909999999203,
+              "percent": 1.762101164304729
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.7375100000000003,
+              "percent": -1.5436184017748762
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 2.146967499999846,
+            "percent": 5.520017326251732,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": 0.34261900000001333,
+            "percent": 0.7835654035757021,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.076475000000002,
+            "percent": -2.2011631035172012,
+            "alignedPairs": 3
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.9112200000001849,
+              "percent": 4.805692281935011
+            },
+            "p95Ms": {
+              "ms": -0.9597579999999653,
+              "percent": -1.9997234685214402
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.4154400000000038,
+              "percent": -2.858707805259526
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 2.382714999999507,
+              "percent": 6.234342370568452
+            },
+            "p95Ms": {
+              "ms": 0.7725909999999203,
+              "percent": 1.762101164304729
+            },
+            "cpuMsPerRequest": {
+              "ms": -0.7375100000000003,
+              "percent": -1.5436184017748762
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.2353269999998702,
+              "percent": 3.1768083299423995
+            },
+            "p95Ms": {
+              "ms": 3.5843709999994644,
+              "percent": 8.080495315554957
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.4745699999999928,
+              "percent": -3.0372731628201715
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 3.6291849999997794,
+              "percent": 9.563354083356584
+            },
+            "p95Ms": {
+              "ms": -0.08735299999989365,
+              "percent": -0.1949703571533248
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.47823999999999245,
+              "percent": 1.00796334034969
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/query-plus-helper/isolated/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": -189.48041624999973,
+            "percent": -82.09024524894386,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -210.03894949999858,
+            "percent": -82.02106909734415,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -206.355785,
+            "percent": -81.11380099680127,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -191.3073274999997,
+              "percent": -82.03081563160349
+            },
+            "p95Ms": {
+              "ms": -214.5838259999996,
+              "percent": -82.03112210939406
+            },
+            "cpuMsPerRequest": {
+              "ms": -208.73971999999998,
+              "percent": -81.07129525841034
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -187.65350499999977,
+              "percent": -82.14967486628424
+            },
+            "p95Ms": {
+              "ms": -205.49407299999757,
+              "percent": -82.01101608529424
+            },
+            "cpuMsPerRequest": {
+              "ms": -203.97185000000002,
+              "percent": -81.1563067351922
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": -188.7433390000001,
+            "percent": -82.14287821838323,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -206.665299500002,
+            "percent": -82.18690007414733,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": -203.08040000000003,
+            "percent": -81.0402037192818,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": -191.3073274999997,
+              "percent": -82.03081563160349
+            },
+            "p95Ms": {
+              "ms": -214.5838259999996,
+              "percent": -82.03112210939406
+            },
+            "cpuMsPerRequest": {
+              "ms": -208.73971999999998,
+              "percent": -81.07129525841034
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -187.65350499999977,
+              "percent": -82.14967486628424
+            },
+            "p95Ms": {
+              "ms": -205.49407299999757,
+              "percent": -82.01101608529424
+            },
+            "cpuMsPerRequest": {
+              "ms": -203.97185000000002,
+              "percent": -81.1563067351922
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -189.83317300000044,
+              "percent": -82.24023481280567
+            },
+            "p95Ms": {
+              "ms": -207.71476200000234,
+              "percent": -82.42952770300823
+            },
+            "cpuMsPerRequest": {
+              "ms": -202.18895000000003,
+              "percent": -81.00911218015328
+            }
+          },
+          {
+            "medianMs": {
+              "ms": -187.45749600000045,
+              "percent": -82.13608157048223
+            },
+            "p95Ms": {
+              "ms": -205.61583700000165,
+              "percent": -82.34267803890059
+            },
+            "cpuMsPerRequest": {
+              "ms": -199.15175,
+              "percent": -80.61512503755462
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/query-plus-helper/trusted/current-independent",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 1.4710822500001086,
+            "percent": 3.93126756182784,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": -0.6198415000001205,
+            "percent": -1.3893556399563032,
+            "alignedPairs": 1
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.597365,
+            "percent": -3.3953805056585287,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.5666514999998071,
+              "percent": 4.190813902012515
+            },
+            "p95Ms": {
+              "ms": -2.3492940000005547,
+              "percent": -5.317975836458949
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.8876199999999983,
+              "percent": -4.023346930493344
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.37551300000041,
+              "percent": 3.671721221643165
+            },
+            "p95Ms": {
+              "ms": 1.1096110000003137,
+              "percent": 2.5392645565463425
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.3071100000000015,
+              "percent": -2.767414080823713
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 2.015203499999984,
+            "percent": 5.392361833402041,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": -0.4955015000005005,
+            "percent": -1.073143707708242,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.3255549999999978,
+            "percent": -2.8237714318624967,
+            "alignedPairs": 3
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 1.5666514999998071,
+              "percent": 4.190813902012515
+            },
+            "p95Ms": {
+              "ms": -2.3492940000005547,
+              "percent": -5.317975836458949
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.8876199999999983,
+              "percent": -4.023346930493344
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 1.37551300000041,
+              "percent": 3.671721221643165
+            },
+            "p95Ms": {
+              "ms": 1.1096110000003137,
+              "percent": 2.5392645565463425
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.3071100000000015,
+              "percent": -2.767414080823713
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 2.5342885000000024,
+              "percent": 6.879539752005911
+            },
+            "p95Ms": {
+              "ms": -1.8910610000002634,
+              "percent": -4.229533470220858
+            },
+            "cpuMsPerRequest": {
+              "ms": -1.343999999999994,
+              "percent": -2.8801287829012803
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 2.463755500000161,
+              "percent": 6.593909764791567
+            },
+            "p95Ms": {
+              "ms": 0.9000579999992624,
+              "percent": 2.083246054804374
+            },
+            "cpuMsPerRequest": {
+              "ms": 0.10900999999999783,
+              "percent": 0.233582879816986
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "acceptanceGate": false
+      }
+    },
+    {
+      "id": "helper/B1-global-many/100/query-plus-helper/trusted/historical",
+      "initial": {
+        "metrics": {
+          "medianMs": {
+            "ms": 11.442957250000063,
+            "percent": 41.58809174590078,
+            "alignedPairs": 2
+          },
+          "p95Ms": {
+            "ms": 12.57137799999964,
+            "percent": 41.4674066305664,
+            "alignedPairs": 2
+          },
+          "cpuMsPerRequest": {
+            "ms": 12.312189999999998,
+            "percent": 37.477308621858384,
+            "alignedPairs": 2
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 11.238805500000126,
+              "percent": 40.781459068581235
+            },
+            "p95Ms": {
+              "ms": 12.768742999999176,
+              "percent": 42.54972451422615
+            },
+            "cpuMsPerRequest": {
+              "ms": 12.266449999999992,
+              "percent": 37.33987076726568
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 11.647109,
+              "percent": 42.39472442322034
+            },
+            "p95Ms": {
+              "ms": 12.374013000000105,
+              "percent": 40.385088746906646
+            },
+            "cpuMsPerRequest": {
+              "ms": 12.357930000000003,
+              "percent": 37.614746476451096
+            }
+          }
+        ],
+        "repeat": true,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      },
+      "final": {
+        "metrics": {
+          "medianMs": {
+            "ms": 11.442957250000063,
+            "percent": 41.58809174590078,
+            "alignedPairs": 4
+          },
+          "p95Ms": {
+            "ms": 12.57137799999964,
+            "percent": 41.4674066305664,
+            "alignedPairs": 4
+          },
+          "cpuMsPerRequest": {
+            "ms": 12.312189999999998,
+            "percent": 37.477308621858384,
+            "alignedPairs": 4
+          }
+        },
+        "pairs": [
+          {
+            "medianMs": {
+              "ms": 11.238805500000126,
+              "percent": 40.781459068581235
+            },
+            "p95Ms": {
+              "ms": 12.768742999999176,
+              "percent": 42.54972451422615
+            },
+            "cpuMsPerRequest": {
+              "ms": 12.266449999999992,
+              "percent": 37.33987076726568
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 11.647109,
+              "percent": 42.39472442322034
+            },
+            "p95Ms": {
+              "ms": 12.374013000000105,
+              "percent": 40.385088746906646
+            },
+            "cpuMsPerRequest": {
+              "ms": 12.357930000000003,
+              "percent": 37.614746476451096
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 12.447507000000314,
+              "percent": 46.60632129633007
+            },
+            "p95Ms": {
+              "ms": 12.816904999999679,
+              "percent": 42.9448007958958
+            },
+            "cpuMsPerRequest": {
+              "ms": 13.136830000000003,
+              "percent": 40.89006850583573
+            }
+          },
+          {
+            "medianMs": {
+              "ms": 10.252531000000317,
+              "percent": 36.44804276557534
+            },
+            "p95Ms": {
+              "ms": 11.407039999999142,
+              "percent": 36.2405638093122
+            },
+            "cpuMsPerRequest": {
+              "ms": 11.11710999999999,
+              "percent": 33.18530392446586
+            }
+          }
+        ],
+        "repeat": false,
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "acceptanceGate": false
+      }
+    }
+  ]
+}

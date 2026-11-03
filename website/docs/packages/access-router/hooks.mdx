@@ -250,6 +250,23 @@ router.router.get('/admin', guard('isAdmin'), async () => {
 });
 ```
 
+Model conditions (`guard({ modelName, id, condition })`) require a visible row and
+fresh root document facts, using the same public by-ID defaults, DB projection,
+hydration and hook-source preparation as a normal read. They publish **no DTO**:
+field callbacks, virtuals, embedded/populated DTO output, output-only include
+attachments, metadata, decorate/tasks and `_read` overrides do not run. Their
+output-only errors no longer veto the condition. Source/fact/necessary-input
+structural errors still produce 400; ordinary missing/denied conditions produce 401.
+Include preflight and actual necessary target queries retain their admission/masks.
+
+This request-only service read does not imply generated HTTP READ-route operation
+admission; compose the appropriate route/global check when both are needed. A visible
+row normally costs one root read/hook; an admitted miss may retry once under captured
+LIST admission and READ mode. A true/false condition and 400/403 do not retry.
+Put security in operation/row/fact hooks, not output side effects. A caller requiring
+a DTO must separately perform a normal authorized read and handle its result and
+additional read/hook/output cost. See the installed package's `MIGRATION.md`, M2/M3/M5.
+
 ## Permissions Plugin
 
 `permissionsPlugin` adds only a hydrated Mongoose getter alias (default `permissions`)

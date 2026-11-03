@@ -1,0 +1,4258 @@
+{
+  "passed": true,
+  "measurement": "NOT_MEASURED",
+  "coreOutputs": 14,
+  "declarations": 8,
+  "npmPackedFiles": 19,
+  "assembledInstalledFiles": 19,
+  "assembledNote": "Actual assembler preserves the workspace manifest and dist/ (including build-copied MIGRATION.md), root docs and no per-package LICENSE. The test installs via local file overrides. 19 files, not the flattened production-rewritten npm layout; no CLI release/protocol claim.",
+  "noPrivateSourceTestFiles": true,
+  "guideBlocks": 10,
+  "originalGuideBlocksPreserved": 7,
+  "matrices": [
+    {
+      "evidence": "_tmp-oar09f-integration-ut0vgb6y/consumers/18-v3-full-core-final/packed-consumer-6Rx68b",
+      "layout": "npm-tarball",
+      "verificationSha256": "131a859da6d8ddd57a0c9ce25f40260ed2e482a405dd6220e4de1db978a11bfd",
+      "actualVersions": {
+        "express": "5.0.0",
+        "mongoose": "8.0.0",
+        "typescript": "6.0.3",
+        "@types/node": "26.6.6",
+        "@types/express": "5.0.6"
+      },
+      "skipLibCheck": true,
+      "strictConditions": [
+        [
+          "Bundler",
+          "ts"
+        ],
+        [
+          "Node16",
+          "cts"
+        ],
+        [
+          "Node16",
+          "mts"
+        ],
+        [
+          "NodeNext",
+          "cts"
+        ],
+        [
+          "NodeNext",
+          "mts"
+        ]
+      ],
+      "installedFiles": {
+        "llms.txt": "c27054eb9906b35348ec15dd5e10b541d01668a971dbf09faee1ca4a7c9267ae",
+        "advanced.js": "7ffc9e2330c86887d19e3b472203d81066df5a49b7955a8c06e707bf845bda18",
+        "README.md": "f7ef32eb5ac2cd111b04ecb0483442a5239ee37824af0e4f087d0144d9b3fa6b",
+        "processors.d.ts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "processors.mjs": "970733dcede647f5775d4776132625a8c7272fee35a571241354b6089787cf63",
+        "index.mjs": "e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e",
+        "parsers-BiFHfrNd.d.ts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "processors.js": "3fad60f317f17e45d9f903c8616e52a0abed2cbe67f1a9660847adbbf7d2b73e",
+        "advanced.d.mts": "86ba189d8c09b5f4c6ae4225b9a6ba0f34710be360a50821b366fd7ba6342766",
+        "MIGRATION.md": "30e24d23c1266ca0fb28906f93d49917f28ed0e3f3d4364de66fb238e79a5fcb",
+        "processors.d.mts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "index.d.mts": "651a8e80469716326ab3740945dcbb2d8ae1eabb99ea3aae8fe2c615fa8bcd24",
+        "index.js": "031040fd278e3087ebbd8236c6d5f4c3e4d8e741ca2e8448166230c61b05b65e",
+        "package.json": "9e89f95ff40a300c20a6853f5445e7ea469f9a7c26efe09064a78f1242e3e9ee",
+        "LICENSE": "dd76817fd6968bc0ffdfd4ba7d235395ab10eb50521e3d6e69e5f64f14d3fc8c",
+        "parsers-BiFHfrNd.d.mts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "advanced.d.ts": "99884a61033c9fff5acba90b6a5d5dcf56a4183c55e5119b17114b513e49d2d0",
+        "index.d.ts": "2de42a1d5bf56c9119a75fb7425ba8adf84f21b2f934b36e74bb1876d5f2e4a4",
+        "advanced.mjs": "22c676ce77fe3dd5bce47a7e16bc3db64d9834446167bbf757703feea674a32c"
+      },
+      "coreOutputsByteEqual": 14,
+      "declarations": 8,
+      "docsByteEqual": true,
+      "installedManifest": {
+        "name": "@web-ts-toolkit/access-router",
+        "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
+        "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
+        "version": "0.99.0-test",
+        "sideEffects": [
+          "./**/index.js",
+          "./**/index.mjs",
+          "./**/advanced.js",
+          "./**/advanced.mjs"
+        ],
+        "keywords": [
+          "express",
+          "mongoose",
+          "acl",
+          "crud",
+          "openapi",
+          "access-router",
+          "router"
+        ],
+        "main": "./index.js",
+        "module": "./index.mjs",
+        "types": "./index.d.ts",
+        "exports": {
+          ".": {
+            "types": {
+              "import": "./index.d.mts",
+              "require": "./index.d.ts",
+              "default": "./index.d.ts"
+            },
+            "import": "./index.mjs",
+            "require": "./index.js",
+            "default": "./index.js"
+          },
+          "./advanced": {
+            "types": {
+              "import": "./advanced.d.mts",
+              "require": "./advanced.d.ts",
+              "default": "./advanced.d.ts"
+            },
+            "import": "./advanced.mjs",
+            "require": "./advanced.js",
+            "default": "./advanced.js"
+          },
+          "./processors": {
+            "types": {
+              "import": "./processors.d.mts",
+              "require": "./processors.d.ts",
+              "default": "./processors.d.ts"
+            },
+            "import": "./processors.mjs",
+            "require": "./processors.js",
+            "default": "./processors.js"
+          }
+        },
+        "engines": {
+          "node": ">=22"
+        },
+        "dependencies": {
+          "@web-ts-toolkit/express-json-router": "0.99.0-test",
+          "@web-ts-toolkit/utils": "0.99.0-test",
+          "just-diff": "^6.0.2",
+          "mongoose-schema-jsonschema": "^4.0.1",
+          "sift": "^17.1.3",
+          "winston": "^3.19.0",
+          "zod": "^4.1.12"
+        },
+        "peerDependencies": {
+          "express": ">=5.0.0",
+          "mongoose": ">=8.0.0"
+        },
+        "files": [
+          "**/*",
+          "!**/*.map"
+        ],
+        "author": "Junmin Ahn",
+        "bugs": {
+          "url": "https://github.com/egose/web-ts-toolkit/issues"
+        },
+        "license": "Apache-2.0",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/egose/web-ts-toolkit.git",
+          "directory": "packages/access-router"
+        }
+      },
+      "manifestKind": "production-rewritten",
+      "configurations": {
+        "tsconfig.nodenext.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.nodenext.mts",
+            "consumer.nodenext.cts",
+            "service-authorization-consumer.types.fixture.mts",
+            "service-authorization-consumer.types.fixture.cts",
+            "service-authorization-boundary.types.fixture.mts",
+            "service-authorization-boundary.types.fixture.cts",
+            "service-authorization-migration.types.fixture.mts",
+            "service-authorization-migration.types.fixture.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "hydration-consumer.types.fixture.mts",
+            "hydration-consumer.types.fixture.cts",
+            "virtuals-populate-dependencies.types.fixture.mts",
+            "virtuals-populate-dependencies.types.fixture.cts",
+            "private-populate-read-policy.types.fixture.mts",
+            "private-populate-read-policy.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "hydration.readme.mts",
+            "hydration.readme.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts",
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts"
+          ]
+        },
+        "tsconfig.node16.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "Node16",
+            "moduleResolution": "Node16",
+            "strict": true,
+            "outDir": "node16-out",
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts"
+          ]
+        },
+        "tsconfig.bundler.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "ESNext",
+            "moduleResolution": "Bundler",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.bundler.ts",
+            "service-authorization-consumer.types.fixture.ts",
+            "service-authorization-boundary.types.fixture.ts",
+            "service-authorization-migration.types.fixture.ts",
+            "field-helper-migration.types.fixture.ts",
+            "grouped-count-consumer.types.fixture.ts",
+            "hydration-consumer.types.fixture.ts",
+            "virtuals-populate-dependencies.types.fixture.ts",
+            "private-populate-read-policy.types.fixture.ts",
+            "output-publication-fusion-withdrawal.types.fixture.ts",
+            "authorization-fast-path-consumer.types.fixture.ts",
+            "owned-authorization-many.types.fixture.ts",
+            "owned-authorization-many-consumer.types.fixture.ts",
+            "hydration.readme.ts",
+            "collection-raw-recipe.ts",
+            "collection-presentation-recipe.ts",
+            "collection-current-recipe.ts",
+            "migration-target-0.ts",
+            "migration-target-1.ts",
+            "migration-target-2.ts",
+            "migration-target-3.ts",
+            "migration-target-4.ts",
+            "migration-target-5.ts",
+            "migration-target-6.ts",
+            "migration-target-7.ts",
+            "authorization-fast-path.readme.ts",
+            "private-populate.readme.ts"
+          ]
+        },
+        "tsconfig.authorization.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noUnusedLocals": true,
+            "noUnusedParameters": true,
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "outDir": "authorization-out",
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "authorization.readme.mts",
+            "authorization.readme.cts",
+            "field-helper.runtime.mts",
+            "field-helper.runtime.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts",
+            "private-populate.runtime.mts",
+            "private-populate.runtime.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts"
+          ]
+        }
+      },
+      "runtimeCollectionRuns": [
+        {
+          "file": "node16-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "node16-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "collection.bundle.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        }
+      ],
+      "runtimeExistingGuideRuns": [
+        {
+          "file": "node16-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "node16-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-fast-path.bundle.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        }
+      ],
+      "negativeDiagnostics": [
+        {
+          "file": "migration-negative-0.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        }
+      ],
+      "tarballHashes": {
+        "@web-ts-toolkit/utils": "1edd94118fc646a5069c572ec799391822e7c39e085fda746f1b9395607b98b4",
+        "@web-ts-toolkit/http-errors": "9fa8dc7871f9b1ed66d046901cea78b975289f839d52a3d3ca04d73701f093a0",
+        "@web-ts-toolkit/express-response-handler": "34cbe702fa4ce67e6f353fa785768046462f6638fb3167cc604af31037b64ef9",
+        "@web-ts-toolkit/express-json-router": "05df15c1f7c8700c328a65da205cf5a0c4939d53485a094c2fc876917625a38d",
+        "@web-ts-toolkit/access-router": "e8ef637ab5a61c16d9f9d8c4e8f4b8209b1c04ca03e5281053fab278dd033005"
+      },
+      "preservedEvidenceHashes": {
+        "tsconfig.nodenext.json": "f2ba2ffe947ffbee5c8f7d63f1421a747ee1f7a1e11362826f11a53718d1a8dc",
+        "tsconfig.node16.json": "b7b450485b3785706271d6c4673fe758265006c6d9caaefca3d793a169235c0b",
+        "tsconfig.bundler.json": "02eca8073efbd7ecf21fb6d237d4161f942a82d2eda37374bf512f4bf7b6284d",
+        "tsconfig.authorization.json": "99ba73fd02b60e54606c3476a429593529d9102fb39c72835d7eb187c237699d",
+        "authorization-fast-path-consumer.types.fixture.ts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.ts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.ts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.mts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.mts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.mts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.cts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.cts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.cts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "node16-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "node16-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "authorization-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-fast-path.bundle.cjs": "ce338e1f6549589126acd33f556dc31ef9d704abb01e878ed3943d9bc11a52b5",
+        "private-exports.cjs": "648263b8620765e80bcbb26f8a4554791a3ff92b1940dc1e9febc77e30db641a",
+        "migration-errors.mjs": "1205647687b4c6f0cd422676176d2b9bd07a5f7b725367374b847b99e7120d92",
+        "owned-authorization-many.types.fixture.ts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.ts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.ts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.ts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.ts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.ts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.mts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.mts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.mts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.mts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.mts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.mts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.cts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.cts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.cts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.cts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.cts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.cts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "collection.runtime.mts": "e2451b494745a4e4cf9ff4bb81e4e5afb511417ab5706bc08f0353196edf9116",
+        "collection.runtime.cts": "392d96f7408645fa1a5d094bae0b9c9d344a0c2b0f00d750e2ee9e0e48428046",
+        "node16-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "node16-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "authorization-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "authorization-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "collection.bundle.cjs": "9acb819b6194f6b0fbe3b83b8d0b9ee65604a6ee6280c7dc3f5d8cefa9553b43"
+      }
+    },
+    {
+      "evidence": "_tmp-oar09f-integration-ut0vgb6y/consumers/18-v3-full-core-final/packed-consumer-CxQyFT",
+      "layout": "assembled-tree",
+      "verificationSha256": "a5a1523982cec02b4a6a2204f9787760d1189b5c4fd6b80911799fd2a3b847a1",
+      "actualVersions": {
+        "express": "5.0.0",
+        "mongoose": "8.0.0",
+        "typescript": "6.0.3",
+        "@types/node": "26.6.6",
+        "@types/express": "5.0.6"
+      },
+      "skipLibCheck": true,
+      "strictConditions": [
+        [
+          "Bundler",
+          "ts"
+        ],
+        [
+          "Node16",
+          "cts"
+        ],
+        [
+          "Node16",
+          "mts"
+        ],
+        [
+          "NodeNext",
+          "cts"
+        ],
+        [
+          "NodeNext",
+          "mts"
+        ]
+      ],
+      "installedFiles": {
+        "llms.txt": "c27054eb9906b35348ec15dd5e10b541d01668a971dbf09faee1ca4a7c9267ae",
+        "README.md": "f7ef32eb5ac2cd111b04ecb0483442a5239ee37824af0e4f087d0144d9b3fa6b",
+        "MIGRATION.md": "30e24d23c1266ca0fb28906f93d49917f28ed0e3f3d4364de66fb238e79a5fcb",
+        "package.json": "7c1b9b289aa465412cf5e64648ff82b436eef6caadc2389b9ddbeedbad5b5640",
+        "dist/advanced.js": "7ffc9e2330c86887d19e3b472203d81066df5a49b7955a8c06e707bf845bda18",
+        "dist/processors.d.ts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "dist/processors.mjs": "970733dcede647f5775d4776132625a8c7272fee35a571241354b6089787cf63",
+        "dist/index.mjs": "e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e",
+        "dist/parsers-BiFHfrNd.d.ts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "dist/processors.js": "3fad60f317f17e45d9f903c8616e52a0abed2cbe67f1a9660847adbbf7d2b73e",
+        "dist/advanced.d.mts": "86ba189d8c09b5f4c6ae4225b9a6ba0f34710be360a50821b366fd7ba6342766",
+        "dist/MIGRATION.md": "30e24d23c1266ca0fb28906f93d49917f28ed0e3f3d4364de66fb238e79a5fcb",
+        "dist/processors.d.mts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "dist/index.d.mts": "651a8e80469716326ab3740945dcbb2d8ae1eabb99ea3aae8fe2c615fa8bcd24",
+        "dist/index.js": "031040fd278e3087ebbd8236c6d5f4c3e4d8e741ca2e8448166230c61b05b65e",
+        "dist/parsers-BiFHfrNd.d.mts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "dist/advanced.d.ts": "99884a61033c9fff5acba90b6a5d5dcf56a4183c55e5119b17114b513e49d2d0",
+        "dist/index.d.ts": "2de42a1d5bf56c9119a75fb7425ba8adf84f21b2f934b36e74bb1876d5f2e4a4",
+        "dist/advanced.mjs": "22c676ce77fe3dd5bce47a7e16bc3db64d9834446167bbf757703feea674a32c"
+      },
+      "coreOutputsByteEqual": 14,
+      "declarations": 8,
+      "docsByteEqual": true,
+      "installedManifest": {
+        "name": "@web-ts-toolkit/access-router",
+        "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
+        "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
+        "version": "0.0.0-PLACEHOLDER",
+        "license": "PLACEHOLDER",
+        "sideEffects": [
+          "./**/index.js",
+          "./**/index.mjs",
+          "./**/advanced.js",
+          "./**/advanced.mjs"
+        ],
+        "repository": "PLACEHOLDER",
+        "keywords": [
+          "express",
+          "mongoose",
+          "acl",
+          "crud",
+          "openapi",
+          "access-router",
+          "router"
+        ],
+        "main": "dist/index.js",
+        "module": "dist/index.mjs",
+        "types": "dist/index.d.ts",
+        "exports": {
+          ".": {
+            "types": {
+              "import": "./dist/index.d.mts",
+              "require": "./dist/index.d.ts",
+              "default": "./dist/index.d.ts"
+            },
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js",
+            "default": "./dist/index.js"
+          },
+          "./advanced": {
+            "types": {
+              "import": "./dist/advanced.d.mts",
+              "require": "./dist/advanced.d.ts",
+              "default": "./dist/advanced.d.ts"
+            },
+            "import": "./dist/advanced.mjs",
+            "require": "./dist/advanced.js",
+            "default": "./dist/advanced.js"
+          },
+          "./processors": {
+            "types": {
+              "import": "./dist/processors.d.mts",
+              "require": "./dist/processors.d.ts",
+              "default": "./dist/processors.d.ts"
+            },
+            "import": "./dist/processors.mjs",
+            "require": "./dist/processors.js",
+            "default": "./dist/processors.js"
+          }
+        },
+        "scripts": {
+          "build": "tsup --config tsup.config.ts",
+          "typecheck": "pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json",
+          "test": "pnpm --filter @web-ts-toolkit/access-router... build && vitest run --config vitest.config.ts"
+        },
+        "files": [
+          "README.md",
+          "MIGRATION.md",
+          "llms.txt",
+          "dist"
+        ],
+        "engines": {
+          "node": ">=22"
+        },
+        "dependencies": {
+          "@web-ts-toolkit/express-json-router": "workspace:*",
+          "@web-ts-toolkit/utils": "workspace:*",
+          "just-diff": "^6.0.2",
+          "mongoose-schema-jsonschema": "^4.0.1",
+          "sift": "^17.1.3",
+          "winston": "^3.19.0",
+          "zod": "^4.1.12"
+        },
+        "peerDependencies": {
+          "express": ">=5.0.0",
+          "mongoose": ">=8.0.0"
+        },
+        "devDependencies": {
+          "@types/express": "^5.0.6",
+          "ajv": "^8.20.0",
+          "arktype": "^2.2.0",
+          "esbuild": "^0.28.0",
+          "express": "^5.2.1",
+          "mongodb-memory-server": "^11.2.0",
+          "mongoose": "^9.8.0",
+          "supertest": "^7.2.2"
+        }
+      },
+      "manifestKind": "assembler-preserved-workspace",
+      "configurations": {
+        "tsconfig.nodenext.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.nodenext.mts",
+            "consumer.nodenext.cts",
+            "service-authorization-consumer.types.fixture.mts",
+            "service-authorization-consumer.types.fixture.cts",
+            "service-authorization-boundary.types.fixture.mts",
+            "service-authorization-boundary.types.fixture.cts",
+            "service-authorization-migration.types.fixture.mts",
+            "service-authorization-migration.types.fixture.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "hydration-consumer.types.fixture.mts",
+            "hydration-consumer.types.fixture.cts",
+            "virtuals-populate-dependencies.types.fixture.mts",
+            "virtuals-populate-dependencies.types.fixture.cts",
+            "private-populate-read-policy.types.fixture.mts",
+            "private-populate-read-policy.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "hydration.readme.mts",
+            "hydration.readme.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts",
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts"
+          ]
+        },
+        "tsconfig.node16.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "Node16",
+            "moduleResolution": "Node16",
+            "strict": true,
+            "outDir": "node16-out",
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts"
+          ]
+        },
+        "tsconfig.bundler.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "ESNext",
+            "moduleResolution": "Bundler",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.bundler.ts",
+            "service-authorization-consumer.types.fixture.ts",
+            "service-authorization-boundary.types.fixture.ts",
+            "service-authorization-migration.types.fixture.ts",
+            "field-helper-migration.types.fixture.ts",
+            "grouped-count-consumer.types.fixture.ts",
+            "hydration-consumer.types.fixture.ts",
+            "virtuals-populate-dependencies.types.fixture.ts",
+            "private-populate-read-policy.types.fixture.ts",
+            "output-publication-fusion-withdrawal.types.fixture.ts",
+            "authorization-fast-path-consumer.types.fixture.ts",
+            "owned-authorization-many.types.fixture.ts",
+            "owned-authorization-many-consumer.types.fixture.ts",
+            "hydration.readme.ts",
+            "collection-raw-recipe.ts",
+            "collection-presentation-recipe.ts",
+            "collection-current-recipe.ts",
+            "migration-target-0.ts",
+            "migration-target-1.ts",
+            "migration-target-2.ts",
+            "migration-target-3.ts",
+            "migration-target-4.ts",
+            "migration-target-5.ts",
+            "migration-target-6.ts",
+            "migration-target-7.ts",
+            "authorization-fast-path.readme.ts",
+            "private-populate.readme.ts"
+          ]
+        },
+        "tsconfig.authorization.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noUnusedLocals": true,
+            "noUnusedParameters": true,
+            "skipLibCheck": true,
+            "esModuleInterop": true,
+            "outDir": "authorization-out",
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "authorization.readme.mts",
+            "authorization.readme.cts",
+            "field-helper.runtime.mts",
+            "field-helper.runtime.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts",
+            "private-populate.runtime.mts",
+            "private-populate.runtime.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts"
+          ]
+        }
+      },
+      "runtimeCollectionRuns": [
+        {
+          "file": "node16-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "node16-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "collection.bundle.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        }
+      ],
+      "runtimeExistingGuideRuns": [
+        {
+          "file": "node16-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "node16-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-fast-path.bundle.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        }
+      ],
+      "negativeDiagnostics": [
+        {
+          "file": "migration-negative-0.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        }
+      ],
+      "tarballHashes": {
+        "@web-ts-toolkit/utils": "1edd94118fc646a5069c572ec799391822e7c39e085fda746f1b9395607b98b4",
+        "@web-ts-toolkit/http-errors": "9fa8dc7871f9b1ed66d046901cea78b975289f839d52a3d3ca04d73701f093a0",
+        "@web-ts-toolkit/express-response-handler": "34cbe702fa4ce67e6f353fa785768046462f6638fb3167cc604af31037b64ef9",
+        "@web-ts-toolkit/express-json-router": "05df15c1f7c8700c328a65da205cf5a0c4939d53485a094c2fc876917625a38d",
+        "@web-ts-toolkit/access-router": "e8ef637ab5a61c16d9f9d8c4e8f4b8209b1c04ca03e5281053fab278dd033005"
+      },
+      "preservedEvidenceHashes": {
+        "tsconfig.nodenext.json": "f2ba2ffe947ffbee5c8f7d63f1421a747ee1f7a1e11362826f11a53718d1a8dc",
+        "tsconfig.node16.json": "b7b450485b3785706271d6c4673fe758265006c6d9caaefca3d793a169235c0b",
+        "tsconfig.bundler.json": "02eca8073efbd7ecf21fb6d237d4161f942a82d2eda37374bf512f4bf7b6284d",
+        "tsconfig.authorization.json": "99ba73fd02b60e54606c3476a429593529d9102fb39c72835d7eb187c237699d",
+        "authorization-fast-path-consumer.types.fixture.ts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.ts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.ts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.mts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.mts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.mts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.cts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.cts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.cts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "node16-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "node16-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "authorization-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-fast-path.bundle.cjs": "126bbebcb7313ac2d66ea28f11587e36ba1a52ced758eb04157cabc98d5b0db7",
+        "private-exports.cjs": "648263b8620765e80bcbb26f8a4554791a3ff92b1940dc1e9febc77e30db641a",
+        "migration-errors.mjs": "1205647687b4c6f0cd422676176d2b9bd07a5f7b725367374b847b99e7120d92",
+        "owned-authorization-many.types.fixture.ts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.ts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.ts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.ts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.ts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.ts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.mts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.mts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.mts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.mts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.mts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.mts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.cts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.cts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.cts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.cts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.cts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.cts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "collection.runtime.mts": "e2451b494745a4e4cf9ff4bb81e4e5afb511417ab5706bc08f0353196edf9116",
+        "collection.runtime.cts": "392d96f7408645fa1a5d094bae0b9c9d344a0c2b0f00d750e2ee9e0e48428046",
+        "node16-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "node16-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "authorization-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "authorization-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "collection.bundle.cjs": "97b82d7bb08c3580ecafb427df66a7bc5f1247ff74460e767babb789e8b0123d"
+      }
+    },
+    {
+      "evidence": "_tmp-oar09f-integration-ut0vgb6y/consumers/18-v3-full-core-final/packed-consumer-T9IRE6",
+      "layout": "assembled-tree",
+      "verificationSha256": "bf04398a09e00e5e691dccc09df485acf3c1b83a43889072e589c9c22e206027",
+      "actualVersions": {
+        "express": "5.2.1",
+        "mongoose": "9.11.4",
+        "typescript": "6.0.3",
+        "@types/node": "26.6.6",
+        "@types/express": "5.0.6"
+      },
+      "skipLibCheck": false,
+      "strictConditions": [
+        [
+          "Bundler",
+          "ts"
+        ],
+        [
+          "Node16",
+          "cts"
+        ],
+        [
+          "Node16",
+          "mts"
+        ],
+        [
+          "NodeNext",
+          "cts"
+        ],
+        [
+          "NodeNext",
+          "mts"
+        ]
+      ],
+      "installedFiles": {
+        "llms.txt": "c27054eb9906b35348ec15dd5e10b541d01668a971dbf09faee1ca4a7c9267ae",
+        "README.md": "f7ef32eb5ac2cd111b04ecb0483442a5239ee37824af0e4f087d0144d9b3fa6b",
+        "MIGRATION.md": "30e24d23c1266ca0fb28906f93d49917f28ed0e3f3d4364de66fb238e79a5fcb",
+        "package.json": "7c1b9b289aa465412cf5e64648ff82b436eef6caadc2389b9ddbeedbad5b5640",
+        "dist/advanced.js": "7ffc9e2330c86887d19e3b472203d81066df5a49b7955a8c06e707bf845bda18",
+        "dist/processors.d.ts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "dist/processors.mjs": "970733dcede647f5775d4776132625a8c7272fee35a571241354b6089787cf63",
+        "dist/index.mjs": "e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e",
+        "dist/parsers-BiFHfrNd.d.ts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "dist/processors.js": "3fad60f317f17e45d9f903c8616e52a0abed2cbe67f1a9660847adbbf7d2b73e",
+        "dist/advanced.d.mts": "86ba189d8c09b5f4c6ae4225b9a6ba0f34710be360a50821b366fd7ba6342766",
+        "dist/MIGRATION.md": "30e24d23c1266ca0fb28906f93d49917f28ed0e3f3d4364de66fb238e79a5fcb",
+        "dist/processors.d.mts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "dist/index.d.mts": "651a8e80469716326ab3740945dcbb2d8ae1eabb99ea3aae8fe2c615fa8bcd24",
+        "dist/index.js": "031040fd278e3087ebbd8236c6d5f4c3e4d8e741ca2e8448166230c61b05b65e",
+        "dist/parsers-BiFHfrNd.d.mts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "dist/advanced.d.ts": "99884a61033c9fff5acba90b6a5d5dcf56a4183c55e5119b17114b513e49d2d0",
+        "dist/index.d.ts": "2de42a1d5bf56c9119a75fb7425ba8adf84f21b2f934b36e74bb1876d5f2e4a4",
+        "dist/advanced.mjs": "22c676ce77fe3dd5bce47a7e16bc3db64d9834446167bbf757703feea674a32c"
+      },
+      "coreOutputsByteEqual": 14,
+      "declarations": 8,
+      "docsByteEqual": true,
+      "installedManifest": {
+        "name": "@web-ts-toolkit/access-router",
+        "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
+        "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
+        "version": "0.0.0-PLACEHOLDER",
+        "license": "PLACEHOLDER",
+        "sideEffects": [
+          "./**/index.js",
+          "./**/index.mjs",
+          "./**/advanced.js",
+          "./**/advanced.mjs"
+        ],
+        "repository": "PLACEHOLDER",
+        "keywords": [
+          "express",
+          "mongoose",
+          "acl",
+          "crud",
+          "openapi",
+          "access-router",
+          "router"
+        ],
+        "main": "dist/index.js",
+        "module": "dist/index.mjs",
+        "types": "dist/index.d.ts",
+        "exports": {
+          ".": {
+            "types": {
+              "import": "./dist/index.d.mts",
+              "require": "./dist/index.d.ts",
+              "default": "./dist/index.d.ts"
+            },
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js",
+            "default": "./dist/index.js"
+          },
+          "./advanced": {
+            "types": {
+              "import": "./dist/advanced.d.mts",
+              "require": "./dist/advanced.d.ts",
+              "default": "./dist/advanced.d.ts"
+            },
+            "import": "./dist/advanced.mjs",
+            "require": "./dist/advanced.js",
+            "default": "./dist/advanced.js"
+          },
+          "./processors": {
+            "types": {
+              "import": "./dist/processors.d.mts",
+              "require": "./dist/processors.d.ts",
+              "default": "./dist/processors.d.ts"
+            },
+            "import": "./dist/processors.mjs",
+            "require": "./dist/processors.js",
+            "default": "./dist/processors.js"
+          }
+        },
+        "scripts": {
+          "build": "tsup --config tsup.config.ts",
+          "typecheck": "pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json",
+          "test": "pnpm --filter @web-ts-toolkit/access-router... build && vitest run --config vitest.config.ts"
+        },
+        "files": [
+          "README.md",
+          "MIGRATION.md",
+          "llms.txt",
+          "dist"
+        ],
+        "engines": {
+          "node": ">=22"
+        },
+        "dependencies": {
+          "@web-ts-toolkit/express-json-router": "workspace:*",
+          "@web-ts-toolkit/utils": "workspace:*",
+          "just-diff": "^6.0.2",
+          "mongoose-schema-jsonschema": "^4.0.1",
+          "sift": "^17.1.3",
+          "winston": "^3.19.0",
+          "zod": "^4.1.12"
+        },
+        "peerDependencies": {
+          "express": ">=5.0.0",
+          "mongoose": ">=8.0.0"
+        },
+        "devDependencies": {
+          "@types/express": "^5.0.6",
+          "ajv": "^8.20.0",
+          "arktype": "^2.2.0",
+          "esbuild": "^0.28.0",
+          "express": "^5.2.1",
+          "mongodb-memory-server": "^11.2.0",
+          "mongoose": "^9.8.0",
+          "supertest": "^7.2.2"
+        }
+      },
+      "manifestKind": "assembler-preserved-workspace",
+      "configurations": {
+        "tsconfig.nodenext.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.nodenext.mts",
+            "consumer.nodenext.cts",
+            "service-authorization-consumer.types.fixture.mts",
+            "service-authorization-consumer.types.fixture.cts",
+            "service-authorization-boundary.types.fixture.mts",
+            "service-authorization-boundary.types.fixture.cts",
+            "service-authorization-migration.types.fixture.mts",
+            "service-authorization-migration.types.fixture.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "hydration-consumer.types.fixture.mts",
+            "hydration-consumer.types.fixture.cts",
+            "virtuals-populate-dependencies.types.fixture.mts",
+            "virtuals-populate-dependencies.types.fixture.cts",
+            "private-populate-read-policy.types.fixture.mts",
+            "private-populate-read-policy.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "hydration.readme.mts",
+            "hydration.readme.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts",
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts"
+          ]
+        },
+        "tsconfig.node16.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "Node16",
+            "moduleResolution": "Node16",
+            "strict": true,
+            "outDir": "node16-out",
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts"
+          ]
+        },
+        "tsconfig.bundler.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "ESNext",
+            "moduleResolution": "Bundler",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.bundler.ts",
+            "service-authorization-consumer.types.fixture.ts",
+            "service-authorization-boundary.types.fixture.ts",
+            "service-authorization-migration.types.fixture.ts",
+            "field-helper-migration.types.fixture.ts",
+            "grouped-count-consumer.types.fixture.ts",
+            "hydration-consumer.types.fixture.ts",
+            "virtuals-populate-dependencies.types.fixture.ts",
+            "private-populate-read-policy.types.fixture.ts",
+            "output-publication-fusion-withdrawal.types.fixture.ts",
+            "authorization-fast-path-consumer.types.fixture.ts",
+            "owned-authorization-many.types.fixture.ts",
+            "owned-authorization-many-consumer.types.fixture.ts",
+            "hydration.readme.ts",
+            "collection-raw-recipe.ts",
+            "collection-presentation-recipe.ts",
+            "collection-current-recipe.ts",
+            "migration-target-0.ts",
+            "migration-target-1.ts",
+            "migration-target-2.ts",
+            "migration-target-3.ts",
+            "migration-target-4.ts",
+            "migration-target-5.ts",
+            "migration-target-6.ts",
+            "migration-target-7.ts",
+            "authorization-fast-path.readme.ts",
+            "private-populate.readme.ts"
+          ]
+        },
+        "tsconfig.authorization.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noUnusedLocals": true,
+            "noUnusedParameters": true,
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "outDir": "authorization-out",
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "authorization.readme.mts",
+            "authorization.readme.cts",
+            "field-helper.runtime.mts",
+            "field-helper.runtime.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts",
+            "private-populate.runtime.mts",
+            "private-populate.runtime.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts"
+          ]
+        }
+      },
+      "runtimeCollectionRuns": [
+        {
+          "file": "node16-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "node16-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "collection.bundle.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        }
+      ],
+      "runtimeExistingGuideRuns": [
+        {
+          "file": "node16-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "node16-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-fast-path.bundle.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        }
+      ],
+      "negativeDiagnostics": [
+        {
+          "file": "migration-negative-0.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        }
+      ],
+      "tarballHashes": {
+        "@web-ts-toolkit/utils": "1edd94118fc646a5069c572ec799391822e7c39e085fda746f1b9395607b98b4",
+        "@web-ts-toolkit/http-errors": "9fa8dc7871f9b1ed66d046901cea78b975289f839d52a3d3ca04d73701f093a0",
+        "@web-ts-toolkit/express-response-handler": "34cbe702fa4ce67e6f353fa785768046462f6638fb3167cc604af31037b64ef9",
+        "@web-ts-toolkit/express-json-router": "05df15c1f7c8700c328a65da205cf5a0c4939d53485a094c2fc876917625a38d",
+        "@web-ts-toolkit/access-router": "e8ef637ab5a61c16d9f9d8c4e8f4b8209b1c04ca03e5281053fab278dd033005"
+      },
+      "preservedEvidenceHashes": {
+        "tsconfig.nodenext.json": "2c07a9e0d0355bb5cc223ef2f53a43a0d481dca1b166821e98cf18fef13207b0",
+        "tsconfig.node16.json": "e1df793c5254289bd97e446a0c291f89a8a5e274ad58ba8129c7c036b33f1fd8",
+        "tsconfig.bundler.json": "b889e4b67b20afb912bfb38625d1d9e876ccfa03b2cdf565b12e78ff78616d6f",
+        "tsconfig.authorization.json": "c5f55a5ed3df2c1561915b8949af3aff616aaabac41d6a82ec0a61c9dad9f267",
+        "authorization-fast-path-consumer.types.fixture.ts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.ts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.ts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.mts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.mts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.mts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.cts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.cts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.cts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "node16-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "node16-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "authorization-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-fast-path.bundle.cjs": "02e70fb7b0e8b1e89bed398054a460a74dfd1352c37b06663bb67fc092339b02",
+        "private-exports.cjs": "648263b8620765e80bcbb26f8a4554791a3ff92b1940dc1e9febc77e30db641a",
+        "migration-errors.mjs": "1205647687b4c6f0cd422676176d2b9bd07a5f7b725367374b847b99e7120d92",
+        "owned-authorization-many.types.fixture.ts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.ts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.ts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.ts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.ts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.ts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.mts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.mts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.mts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.mts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.mts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.mts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.cts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.cts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.cts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.cts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.cts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.cts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "collection.runtime.mts": "e2451b494745a4e4cf9ff4bb81e4e5afb511417ab5706bc08f0353196edf9116",
+        "collection.runtime.cts": "392d96f7408645fa1a5d094bae0b9c9d344a0c2b0f00d750e2ee9e0e48428046",
+        "node16-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "node16-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "authorization-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "authorization-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "collection.bundle.cjs": "c0ac674c84ae4bcc04644d049a4cfb719555da005dbd9ce20d1ee3cbe582690a"
+      }
+    },
+    {
+      "evidence": "_tmp-oar09f-integration-ut0vgb6y/consumers/18-v3-full-core-final/packed-consumer-Wpr8rI",
+      "layout": "npm-tarball",
+      "verificationSha256": "56530f02da35c8261ec015ff13f486275aca4c1d7a6151e18214542fb43e81b1",
+      "actualVersions": {
+        "express": "5.2.1",
+        "mongoose": "9.11.4",
+        "typescript": "6.0.3",
+        "@types/node": "26.6.6",
+        "@types/express": "5.0.6"
+      },
+      "skipLibCheck": false,
+      "strictConditions": [
+        [
+          "Bundler",
+          "ts"
+        ],
+        [
+          "Node16",
+          "cts"
+        ],
+        [
+          "Node16",
+          "mts"
+        ],
+        [
+          "NodeNext",
+          "cts"
+        ],
+        [
+          "NodeNext",
+          "mts"
+        ]
+      ],
+      "installedFiles": {
+        "llms.txt": "c27054eb9906b35348ec15dd5e10b541d01668a971dbf09faee1ca4a7c9267ae",
+        "advanced.js": "7ffc9e2330c86887d19e3b472203d81066df5a49b7955a8c06e707bf845bda18",
+        "README.md": "f7ef32eb5ac2cd111b04ecb0483442a5239ee37824af0e4f087d0144d9b3fa6b",
+        "processors.d.ts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "processors.mjs": "970733dcede647f5775d4776132625a8c7272fee35a571241354b6089787cf63",
+        "index.mjs": "e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e",
+        "parsers-BiFHfrNd.d.ts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "processors.js": "3fad60f317f17e45d9f903c8616e52a0abed2cbe67f1a9660847adbbf7d2b73e",
+        "advanced.d.mts": "86ba189d8c09b5f4c6ae4225b9a6ba0f34710be360a50821b366fd7ba6342766",
+        "MIGRATION.md": "30e24d23c1266ca0fb28906f93d49917f28ed0e3f3d4364de66fb238e79a5fcb",
+        "processors.d.mts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+        "index.d.mts": "651a8e80469716326ab3740945dcbb2d8ae1eabb99ea3aae8fe2c615fa8bcd24",
+        "index.js": "031040fd278e3087ebbd8236c6d5f4c3e4d8e741ca2e8448166230c61b05b65e",
+        "package.json": "9e89f95ff40a300c20a6853f5445e7ea469f9a7c26efe09064a78f1242e3e9ee",
+        "LICENSE": "dd76817fd6968bc0ffdfd4ba7d235395ab10eb50521e3d6e69e5f64f14d3fc8c",
+        "parsers-BiFHfrNd.d.mts": "40c5f8674d65d5f3931d639337623f642b84ed9b1f28e7d83a9b8189ed652fb6",
+        "advanced.d.ts": "99884a61033c9fff5acba90b6a5d5dcf56a4183c55e5119b17114b513e49d2d0",
+        "index.d.ts": "2de42a1d5bf56c9119a75fb7425ba8adf84f21b2f934b36e74bb1876d5f2e4a4",
+        "advanced.mjs": "22c676ce77fe3dd5bce47a7e16bc3db64d9834446167bbf757703feea674a32c"
+      },
+      "coreOutputsByteEqual": 14,
+      "declarations": 8,
+      "docsByteEqual": true,
+      "installedManifest": {
+        "name": "@web-ts-toolkit/access-router",
+        "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
+        "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
+        "version": "0.99.0-test",
+        "sideEffects": [
+          "./**/index.js",
+          "./**/index.mjs",
+          "./**/advanced.js",
+          "./**/advanced.mjs"
+        ],
+        "keywords": [
+          "express",
+          "mongoose",
+          "acl",
+          "crud",
+          "openapi",
+          "access-router",
+          "router"
+        ],
+        "main": "./index.js",
+        "module": "./index.mjs",
+        "types": "./index.d.ts",
+        "exports": {
+          ".": {
+            "types": {
+              "import": "./index.d.mts",
+              "require": "./index.d.ts",
+              "default": "./index.d.ts"
+            },
+            "import": "./index.mjs",
+            "require": "./index.js",
+            "default": "./index.js"
+          },
+          "./advanced": {
+            "types": {
+              "import": "./advanced.d.mts",
+              "require": "./advanced.d.ts",
+              "default": "./advanced.d.ts"
+            },
+            "import": "./advanced.mjs",
+            "require": "./advanced.js",
+            "default": "./advanced.js"
+          },
+          "./processors": {
+            "types": {
+              "import": "./processors.d.mts",
+              "require": "./processors.d.ts",
+              "default": "./processors.d.ts"
+            },
+            "import": "./processors.mjs",
+            "require": "./processors.js",
+            "default": "./processors.js"
+          }
+        },
+        "engines": {
+          "node": ">=22"
+        },
+        "dependencies": {
+          "@web-ts-toolkit/express-json-router": "0.99.0-test",
+          "@web-ts-toolkit/utils": "0.99.0-test",
+          "just-diff": "^6.0.2",
+          "mongoose-schema-jsonschema": "^4.0.1",
+          "sift": "^17.1.3",
+          "winston": "^3.19.0",
+          "zod": "^4.1.12"
+        },
+        "peerDependencies": {
+          "express": ">=5.0.0",
+          "mongoose": ">=8.0.0"
+        },
+        "files": [
+          "**/*",
+          "!**/*.map"
+        ],
+        "author": "Junmin Ahn",
+        "bugs": {
+          "url": "https://github.com/egose/web-ts-toolkit/issues"
+        },
+        "license": "Apache-2.0",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/egose/web-ts-toolkit.git",
+          "directory": "packages/access-router"
+        }
+      },
+      "manifestKind": "production-rewritten",
+      "configurations": {
+        "tsconfig.nodenext.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.nodenext.mts",
+            "consumer.nodenext.cts",
+            "service-authorization-consumer.types.fixture.mts",
+            "service-authorization-consumer.types.fixture.cts",
+            "service-authorization-boundary.types.fixture.mts",
+            "service-authorization-boundary.types.fixture.cts",
+            "service-authorization-migration.types.fixture.mts",
+            "service-authorization-migration.types.fixture.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "hydration-consumer.types.fixture.mts",
+            "hydration-consumer.types.fixture.cts",
+            "virtuals-populate-dependencies.types.fixture.mts",
+            "virtuals-populate-dependencies.types.fixture.cts",
+            "private-populate-read-policy.types.fixture.mts",
+            "private-populate-read-policy.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "hydration.readme.mts",
+            "hydration.readme.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts",
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts"
+          ]
+        },
+        "tsconfig.node16.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "Node16",
+            "moduleResolution": "Node16",
+            "strict": true,
+            "outDir": "node16-out",
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "migration-target-0.mts",
+            "migration-target-0.cts",
+            "migration-target-1.mts",
+            "migration-target-1.cts",
+            "migration-target-2.mts",
+            "migration-target-2.cts",
+            "migration-target-3.mts",
+            "migration-target-3.cts",
+            "migration-target-4.mts",
+            "migration-target-4.cts",
+            "migration-target-5.mts",
+            "migration-target-5.cts",
+            "migration-target-6.mts",
+            "migration-target-6.cts",
+            "migration-target-7.mts",
+            "migration-target-7.cts",
+            "field-helper-migration.types.fixture.mts",
+            "field-helper-migration.types.fixture.cts",
+            "grouped-count-consumer.types.fixture.mts",
+            "grouped-count-consumer.types.fixture.cts",
+            "output-publication-fusion-withdrawal.types.fixture.mts",
+            "output-publication-fusion-withdrawal.types.fixture.cts",
+            "authorization-fast-path-consumer.types.fixture.mts",
+            "authorization-fast-path-consumer.types.fixture.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "owned-authorization-many.types.fixture.mts",
+            "owned-authorization-many.types.fixture.cts",
+            "owned-authorization-many-consumer.types.fixture.mts",
+            "owned-authorization-many-consumer.types.fixture.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts",
+            "collection-raw-recipe.mts",
+            "collection-raw-recipe.cts",
+            "collection-presentation-recipe.mts",
+            "collection-presentation-recipe.cts",
+            "collection-current-recipe.mts",
+            "collection-current-recipe.cts"
+          ]
+        },
+        "tsconfig.bundler.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "ESNext",
+            "moduleResolution": "Bundler",
+            "strict": true,
+            "noEmit": true,
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "types": [
+              "node"
+            ]
+          },
+          "include": [
+            "consumer.bundler.ts",
+            "service-authorization-consumer.types.fixture.ts",
+            "service-authorization-boundary.types.fixture.ts",
+            "service-authorization-migration.types.fixture.ts",
+            "field-helper-migration.types.fixture.ts",
+            "grouped-count-consumer.types.fixture.ts",
+            "hydration-consumer.types.fixture.ts",
+            "virtuals-populate-dependencies.types.fixture.ts",
+            "private-populate-read-policy.types.fixture.ts",
+            "output-publication-fusion-withdrawal.types.fixture.ts",
+            "authorization-fast-path-consumer.types.fixture.ts",
+            "owned-authorization-many.types.fixture.ts",
+            "owned-authorization-many-consumer.types.fixture.ts",
+            "hydration.readme.ts",
+            "collection-raw-recipe.ts",
+            "collection-presentation-recipe.ts",
+            "collection-current-recipe.ts",
+            "migration-target-0.ts",
+            "migration-target-1.ts",
+            "migration-target-2.ts",
+            "migration-target-3.ts",
+            "migration-target-4.ts",
+            "migration-target-5.ts",
+            "migration-target-6.ts",
+            "migration-target-7.ts",
+            "authorization-fast-path.readme.ts",
+            "private-populate.readme.ts"
+          ]
+        },
+        "tsconfig.authorization.json": {
+          "compilerOptions": {
+            "target": "ES2022",
+            "module": "NodeNext",
+            "moduleResolution": "NodeNext",
+            "strict": true,
+            "noUnusedLocals": true,
+            "noUnusedParameters": true,
+            "skipLibCheck": false,
+            "esModuleInterop": true,
+            "outDir": "authorization-out",
+            "types": [
+              "node"
+            ]
+          },
+          "files": [
+            "authorization.readme.mts",
+            "authorization.readme.cts",
+            "field-helper.runtime.mts",
+            "field-helper.runtime.cts",
+            "private-populate.readme.mts",
+            "private-populate.readme.cts",
+            "private-populate.runtime.mts",
+            "private-populate.runtime.cts",
+            "authorization-fast-path.readme.mts",
+            "authorization-fast-path.readme.cts",
+            "collection.runtime.mts",
+            "collection.runtime.cts"
+          ]
+        }
+      },
+      "runtimeCollectionRuns": [
+        {
+          "file": "node16-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "node16-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.mjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "authorization-out/collection.runtime.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        },
+        {
+          "file": "collection.bundle.cjs",
+          "guide": "collection-alternatives",
+          "statuses": [
+            200
+          ],
+          "reads": 4,
+          "hooks": 8,
+          "virtuals": 0,
+          "observations": [
+            {
+              "mode": "isolated",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            },
+            {
+              "mode": "trusted",
+              "rawHelperCalls": {
+                "singles": 2,
+                "many": 1
+              },
+              "rawFieldCallbacks": 4,
+              "rawExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "presentationExtra": {
+                "reads": 0,
+                "hooks": 0,
+                "helperCalls": 0
+              },
+              "currentListExtra": {
+                "reads": 1,
+                "hooks": 2
+              },
+              "visibleRows": 2,
+              "nativeGettersAndCore": true,
+              "rejectedControlsAndRows": 6,
+              "proxyTraps": 0
+            }
+          ]
+        }
+      ],
+      "runtimeExistingGuideRuns": [
+        {
+          "file": "node16-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "node16-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.mjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-out/authorization-fast-path.readme.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        },
+        {
+          "file": "authorization-fast-path.bundle.cjs",
+          "guide": "owned-authorization",
+          "statuses": [
+            200,
+            200,
+            400
+          ],
+          "observations": [
+            {
+              "mode": "isolated",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            },
+            {
+              "mode": "trusted",
+              "initial": {
+                "reads": 1,
+                "hooks": 1
+              },
+              "helperExtra": {
+                "reads": 0,
+                "hooks": 0
+              },
+              "currentExtra": {
+                "reads": 1,
+                "hooks": 1
+              }
+            }
+          ],
+          "reads": 4,
+          "hooks": 4
+        }
+      ],
+      "negativeDiagnostics": [
+        {
+          "file": "migration-negative-0.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-0.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 8,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-1.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 44,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.ts",
+          "resolution": "Bundler",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "NodeNext",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.mts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        },
+        {
+          "file": "migration-negative-2.cts",
+          "resolution": "Node16",
+          "status": 2,
+          "actualDiagnostics": 20,
+          "sourceOnly": true,
+          "everyIntendedStatementRejected": true
+        }
+      ],
+      "tarballHashes": {
+        "@web-ts-toolkit/utils": "1edd94118fc646a5069c572ec799391822e7c39e085fda746f1b9395607b98b4",
+        "@web-ts-toolkit/http-errors": "9fa8dc7871f9b1ed66d046901cea78b975289f839d52a3d3ca04d73701f093a0",
+        "@web-ts-toolkit/express-response-handler": "34cbe702fa4ce67e6f353fa785768046462f6638fb3167cc604af31037b64ef9",
+        "@web-ts-toolkit/express-json-router": "05df15c1f7c8700c328a65da205cf5a0c4939d53485a094c2fc876917625a38d",
+        "@web-ts-toolkit/access-router": "e8ef637ab5a61c16d9f9d8c4e8f4b8209b1c04ca03e5281053fab278dd033005"
+      },
+      "preservedEvidenceHashes": {
+        "tsconfig.nodenext.json": "2c07a9e0d0355bb5cc223ef2f53a43a0d481dca1b166821e98cf18fef13207b0",
+        "tsconfig.node16.json": "e1df793c5254289bd97e446a0c291f89a8a5e274ad58ba8129c7c036b33f1fd8",
+        "tsconfig.bundler.json": "b889e4b67b20afb912bfb38625d1d9e876ccfa03b2cdf565b12e78ff78616d6f",
+        "tsconfig.authorization.json": "c5f55a5ed3df2c1561915b8949af3aff616aaabac41d6a82ec0a61c9dad9f267",
+        "authorization-fast-path-consumer.types.fixture.ts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.ts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.ts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.mts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.mts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.mts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "authorization-fast-path-consumer.types.fixture.cts": "cacf708be0fdfd5b4d04aa0d281470c947a3179909d6a01481d8aee82cae5e3f",
+        "authorization-fast-path.readme.cts": "98e92cfa674e82c21d11c54d83d4d7b5ca0270373009d32f491c3ab80e8af5c6",
+        "output-publication-fusion-withdrawal.types.fixture.cts": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341",
+        "node16-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "node16-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-out/authorization-fast-path.readme.mjs": "fb440ec7b9e7d838ef02c370cfa2e91a44e28b3421b9032479ccc4473c82da17",
+        "authorization-out/authorization-fast-path.readme.cjs": "afa083d70be46070153aa6ce972fb680e234324c44f29c764a3b0ad3d6a11687",
+        "authorization-fast-path.bundle.cjs": "86d2132b230d1437aadf79eeb9a7f6dcba8b8cca3ccf5ad630b42a8071c4667b",
+        "private-exports.cjs": "648263b8620765e80bcbb26f8a4554791a3ff92b1940dc1e9febc77e30db641a",
+        "migration-errors.mjs": "1205647687b4c6f0cd422676176d2b9bd07a5f7b725367374b847b99e7120d92",
+        "owned-authorization-many.types.fixture.ts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.ts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.ts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.ts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.ts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.ts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.mts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.mts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.mts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.mts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.mts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.mts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "owned-authorization-many.types.fixture.cts": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544",
+        "owned-authorization-many-consumer.types.fixture.cts": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb",
+        "migration-negative-2.cts": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9",
+        "collection-raw-recipe.cts": "7f82aab872021afe602f2193e187994509fb1ff7653f865836c9fef60dbc1ff7",
+        "collection-presentation-recipe.cts": "0f50e1e96ba19b9f452e1712fe6e790e24cb364d8006beda5577e80f96ba3751",
+        "collection-current-recipe.cts": "ce22235c2437c05996eb07614f3b8e4927c97103fdebcc228867175f8e7e07b8",
+        "collection.runtime.mts": "e2451b494745a4e4cf9ff4bb81e4e5afb511417ab5706bc08f0353196edf9116",
+        "collection.runtime.cts": "392d96f7408645fa1a5d094bae0b9c9d344a0c2b0f00d750e2ee9e0e48428046",
+        "node16-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "node16-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "authorization-out/collection.runtime.mjs": "cb8f94c5b4793fa37e4b33f7ff5ae68bc1ce3c218db878b3bcd18b660b936893",
+        "authorization-out/collection.runtime.cjs": "cc66670033220774d7fb3b042c09d64fbd60371ff62dda9a34eb2b844eab4cb9",
+        "collection.bundle.cjs": "f0a18748aaef011b5826a6a20fe4da22822b415c0be64d490c1d7ded19ef4f47"
+      }
+    }
+  ],
+  "actualRuntimeTotals": {
+    "collectionExecutions": 20,
+    "collectionHTTPOutcomes": 20,
+    "collectionReads": 80,
+    "collectionHooks": 160,
+    "collectionVirtuals": 0,
+    "collectionModeWorkflows": 40,
+    "namedRawSingleCalls": 80,
+    "namedRawManyCalls": 40,
+    "rawFieldCallbacks": 160,
+    "explicitRefreshExtraReads": 40,
+    "explicitRefreshExtraHooks": 80,
+    "runtimeRejectedControlsAndRows": 240,
+    "proxyTraps": 0,
+    "existingGuideExecutions": 20,
+    "existingGuideHTTPOutcomes": 60,
+    "existingGuideReads": 80,
+    "existingGuideHooks": 80
+  },
+  "actualNegativeTotals": {
+    "compilerDiagnostics": 1440,
+    "failingConsumerCompilations": 60,
+    "collectionRejectedStatementsAcrossCompilations": 320
+  },
+  "captureEvidenceLimit": "Installed recipe rawHelperCalls are explicit call-site counts, not instrumented capture/allocation counters. Actual one-vs-N preparation capture evidence is in the 52-case unit suite included in 17/18.",
+  "runtimeEvidenceLimit": "Counters cover recorded collection/existing-guide workflows only, not all smoke workflows or all full-suite I/O."
+}

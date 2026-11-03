@@ -1,0 +1,140 @@
+{
+  "status": "PASS",
+  "typescript": "6.0.3",
+  "conditions": [
+    {
+      "condition": "bundler",
+      "kind": "positive",
+      "diagnostics": 0,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.mts"
+      ]
+    },
+    {
+      "condition": "bundler",
+      "kind": "negative",
+      "diagnostics": 5,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.mts"
+      ]
+    },
+    {
+      "condition": "node16-esm",
+      "kind": "positive",
+      "diagnostics": 0,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.mts"
+      ]
+    },
+    {
+      "condition": "node16-esm",
+      "kind": "negative",
+      "diagnostics": 5,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.mts"
+      ]
+    },
+    {
+      "condition": "node16-cjs",
+      "kind": "positive",
+      "diagnostics": 0,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.ts"
+      ]
+    },
+    {
+      "condition": "node16-cjs",
+      "kind": "negative",
+      "diagnostics": 5,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.ts"
+      ]
+    },
+    {
+      "condition": "nodenext-esm",
+      "kind": "positive",
+      "diagnostics": 0,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.mts"
+      ]
+    },
+    {
+      "condition": "nodenext-esm",
+      "kind": "negative",
+      "diagnostics": 5,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.mts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.mts"
+      ]
+    },
+    {
+      "condition": "nodenext-cjs",
+      "kind": "positive",
+      "diagnostics": 0,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.ts"
+      ]
+    },
+    {
+      "condition": "nodenext-cjs",
+      "kind": "negative",
+      "diagnostics": 5,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "realCoreDeclarationsLoaded": [
+        "node_modules/@web-ts-toolkit/access-router/parsers-BiFHfrNd.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/index.d.ts",
+        "node_modules/@web-ts-toolkit/access-router/advanced.d.ts"
+      ]
+    }
+  ],
+  "positiveEqualitiesPerCondition": 8,
+  "negativeStatementsPerCondition": 5,
+  "noAnyCastsOrSuppressions": true,
+  "scope": "new extracted current production tarball; root/advanced imports; existing dependencies linked read-only; not new peer installation/matrix"
+}

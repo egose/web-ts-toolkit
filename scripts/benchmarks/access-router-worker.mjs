@@ -117,7 +117,10 @@ export async function benchmark(job) {
   const ownedOptions = owned ? authorizationModeOptions(job.target) : undefined;
   if (!owned && job.target.supportedAuthorizationModes?.length)
     throw new Error('Select an explicit owned authorization profile; no legacy fallback.');
-  if (job.validationSeries !== undefined && job.validationSeries !== 'checked-each-response-v1')
+  if (
+    job.validationSeries !== undefined &&
+    !['checked-each-response-v1', 'checked-each-response-v2'].includes(job.validationSeries)
+  )
     throw new Error('Unknown validation series.');
   const snapshotSkips = job.target.snapshotSkips ?? 'off';
   const initialOutputCopySkips = job.target.initialOutputCopySkips ?? 'off';

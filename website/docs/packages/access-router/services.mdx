@@ -12,6 +12,26 @@ Routers expose service access for custom routes and tests.
 `ModelRouter.getService(req)` returns the internal model service.
 `ModelRouter.getPublicService(req)` returns the public wrapper used by the built-in routes.
 
+Both model service getters also inherit the optional direct backend
+`pickAllowedFieldsMany(rows, access, options?)`; Core prepends `modelName`. It is
+not a generated HTTP/DataService/client method or a default migration: one deliberate
+actor/model/catalog/config/scope/output-policy capture is **not N fresh picks**.
+All raw/hydrated row sources are isolated before the first predicate, with separate
+EMPTY-fact stages/decisions; no DB/document hooks, virtuals or row/target authority.
+Presentation subsets normally need zero helpers; current document facts require a
+new checked normal READ/LIST with row policy/private hook inputs. Never accept helper
+output grants from request options; scope grants are model-relative.
+
+See the shipped core README/MIGRATION M3 for executable alternatives and the
+type-only root/advanced `FilteredOutput<T>` (deep optional/readonly, normalized native/
+Map/unknown branches). Dense arrays have 0–1,000 positions; row 20,000/depth-100 owners
+and one 200,000 work / 16 MiB cumulative **router-controlled** ledger remain. Opaque
+Mongoose/native internals/dependency allocations, trusted effects and engine enumeration
+are excluded, not a total-memory/RSS/whole-normalization/sandbox cap. Normalized
+returns are admitted before further router copies; explicit native/wire preparation
+still counts. Shared bounded scheduling and whole-call poison/close/drain/clear
+prevent partial publication, not callback-side-effect rollback. No speedup/gate waiver.
+
 Common public methods:
 
 - `_new()`

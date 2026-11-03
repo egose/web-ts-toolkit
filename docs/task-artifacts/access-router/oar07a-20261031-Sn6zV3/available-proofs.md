@@ -1,0 +1,1574 @@
+> Historical document preserved from ignored task scratch storage.
+> Scope and limitations: `docs/task-artifacts/access-router/README.md`. References to omitted
+> artifacts are historical, not available execution prerequisites.
+
+## packages/access-router/test/authorization-fast-path-native.unit.test.ts
+
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds all denied ordinary data keys before policy/value work
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds all denied Code data keys before policy/value work
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds all denied DBRef data keys before policy/value work
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds all denied wire data keys before policy/value work
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds denied ordinary accessor keys without reading values
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds denied Code accessor keys without reading values
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds denied DBRef accessor keys without reading values
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds denied wire accessor keys without reading values
+- passed: encountered selected key work, including denied values (FP06-R2 residual) checks a depleted budget before even the first denied native-key policy call and poisons the result
+- passed: encountered selected key work, including denied values (FP06-R2 residual) charges exactly one slot for a denied property, just like an accepted scalar, without visiting its huge child
+- passed: encountered selected key work, including denied values (FP06-R2 residual) charges protected object keys before skipping them, BSON=false
+- passed: encountered selected key work, including denied values (FP06-R2 residual) charges protected object keys before skipping them, BSON=true
+- passed: encountered selected key work, including denied values (FP06-R2 residual) charges every encountered protected named-Map field without reading its value
+- passed: encountered selected key work, including denied values (FP06-R2 residual) retains the denied Map bound and outer-ancestor cycle controls
+- passed: encountered selected key work, including denied values (FP06-R2 residual) rejects unknown wire keys through actual list with one document/wire hook and no partial data
+- passed: encountered selected key work, including denied values (FP06-R2 residual) rejects unknown wire keys through actual read with one document/wire hook and no partial data
+- passed: encountered selected key work, including denied values (FP06-R2 residual) rejects unknown wire keys through actual publicList with one document/wire hook and no partial data
+- passed: encountered selected key work, including denied values (FP06-R2 residual) rejects unknown wire keys through actual publicRead with one document/wire hook and no partial data
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds current wire keys in a fresh raw helper without rerunning the document hook
+- passed: encountered selected key work, including denied values (FP06-R2 residual) keeps whole-result budget failure for a native virtual return
+- passed: encountered selected key work, including denied values (FP06-R2 residual) budgets denied emitted-metadata keys against selected data work before reading their values
+- passed: encountered selected key work, including denied values (FP06-R2 residual) bounds current raw-helper metadata keys without observing their accessors
+- passed: selected native shared structural budget (FP06-R2) rejects 20,001 Code.scope entries through real Service list
+- passed: selected native shared structural budget (FP06-R2) rejects 20,001 Code.scope entries through real Service read
+- passed: selected native shared structural budget (FP06-R2) charges a native scope against the already-depleted shared budget
+- passed: selected native shared structural budget (FP06-R2) rejects a selected native scope deeper than 100
+- passed: selected native shared structural budget (FP06-R2) rejects a 21,000-accessor wire expansion before any serializer property reads
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded Code before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded DBRef fields before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded DBRef oid before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded wire Code before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded wire DBRef before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded nested native before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded child wire hook before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) bounds contained/wire-expanded wire depth before BSON serialization
+- passed: selected native shared structural budget (FP06-R2) admits depth 100, rejects depth 101, including a nested child native
+- passed: selected native shared structural budget (FP06-R2) charges native + scope + scalar once: exactly three remaining slots, not two
+- passed: selected native shared structural budget (FP06-R2) charges every emitted occurrence of aliased native containers, not just unique identities
+- passed: selected native shared structural budget (FP06-R2) supports read-only Code native/container state without source writes
+- passed: selected native shared structural budget (FP06-R2) supports read-only DBRef native/container state without source writes
+- passed: selected native shared structural budget (FP06-R2) rejects an oversized read-only native graph under the same budget without mutating it
+- passed: bounded wire preparation and native compatibility preserves ordinary ObjectId output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Long output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Timestamp output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Decimal128 output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Double output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Int32 output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Binary output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary UUID output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary BSONRegExp output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary BSONSymbol output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary MinKey output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary MaxKey output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Code without scope output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Code scope output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary DBRef fields output type/shape
+- passed: bounded wire preparation and native compatibility preserves ordinary Date output type/shape
+- passed: bounded wire preparation and native compatibility preserves wire normalization types and observes root/child data hooks once, with one native wire copy
+- passed: bounded wire preparation and native compatibility supports self-returning and inherited data hooks without repeating them
+- passed: bounded wire preparation and native compatibility supports a data hook on an ordinary wire-contained document exactly once
+- passed: bounded wire preparation and native compatibility prepares Maps, sparse arrays and nested binary/date values with actual BSON semantics
+- passed: bounded wire preparation and native compatibility does not read selected Code container accessors
+- passed: bounded wire preparation and native compatibility does not read selected DBRef container accessors
+- passed: bounded wire preparation and native compatibility does not read selected wire container accessors
+- passed: bounded wire preparation and native compatibility rejects a selected wire proxy without executing its traps
+- passed: bounded wire preparation and native compatibility rejects a selected scope proxy without executing its traps
+- passed: bounded wire preparation and native compatibility rejects a selected fields proxy without executing its traps
+- passed: bounded wire preparation and native compatibility rejects a selected child proxy without executing its traps
+- passed: bounded wire preparation and native compatibility rejects a selected prototype proxy without executing its traps
+- passed: bounded wire preparation and native compatibility rejects selected Code cycles with controlled errors
+- passed: bounded wire preparation and native compatibility rejects selected DBRef cycles with controlled errors
+- passed: bounded wire preparation and native compatibility rejects selected wire cycles with controlled errors
+- passed: bounded wire preparation and native compatibility drops unsafe/protected keys before reading them, including inside Code/DBRef and wire graphs
+- passed: bounded wire preparation and native compatibility fails closed for bare BSON tag rather than allowing the serializer to traverse it
+- passed: bounded wire preparation and native compatibility fails closed for unknown native family rather than allowing the serializer to traverse it
+- passed: bounded wire preparation and native compatibility fails closed for custom wire prototype rather than allowing the serializer to traverse it
+- passed: bounded wire preparation and native compatibility fails closed for wire symbol rather than allowing the serializer to traverse it
+- passed: bounded wire preparation and native compatibility fails closed for wire function rather than allowing the serializer to traverse it
+- passed: bounded wire preparation and native compatibility fails closed for chained hooks rather than allowing the serializer to traverse it
+- passed: bounded wire preparation and native compatibility does not execute accessor hooks/state or custom serializer overrides
+- passed: bounded wire preparation and native compatibility propagates controlled authorization errors and contains arbitrary hook errors
+- passed: bounded wire preparation and native compatibility keeps ordinary primitive/container wire normalization: null
+- passed: bounded wire preparation and native compatibility keeps ordinary primitive/container wire normalization: "normalized"
+- passed: bounded wire preparation and native compatibility keeps ordinary primitive/container wire normalization: 7
+- passed: bounded wire preparation and native compatibility keeps ordinary primitive/container wire normalization: "selected"
+- passed: bounded wire preparation and native compatibility keeps ordinary primitive/container wire normalization: {"selected":true}
+- passed: bounded wire preparation and native compatibility observes a BSON-contained Date normalization once and rejects a nonnumeric result
+- passed: bounded wire preparation and native compatibility does not execute inherited setters installed by a Code wire hook
+- passed: bounded wire preparation and native compatibility does not execute inherited setters installed by a DBRef wire hook
+- passed: bounded wire preparation and native compatibility does not execute inherited setters installed by a array wire hook
+- passed: bounded wire preparation and native compatibility shares the depleted budget across wire replacement and nested native preparation
+- passed: bounded wire preparation and native compatibility does not inherit a hook-installed Code.scope when the actual native has no scope
+- passed: bounded wire preparation and native compatibility retains nonmethod toBSON business properties in wire-contained records and Maps
+- passed: bounded wire preparation and native compatibility rejects a native-as-document scope root
+- passed: bounded wire preparation and native compatibility rejects a native-as-document fields root
+- passed: bounded wire preparation and native compatibility rejects a native-as-document normalized scope root
+- passed: native values on public services, fresh helpers and virtual return channels keeps ordinary BSON output on ordinary/hydrated rows with one hook per row and no fallback rehook
+- passed: native values on public services, fresh helpers and virtual return channels bounds DBRef fields through PublicService list with one actual hook
+- passed: native values on public services, fresh helpers and virtual return channels bounds DBRef fields through PublicService read with one actual hook
+- passed: native values on public services, fresh helpers and virtual return channels checks current selected native structure on fresh helpers without document hooks or cached decisions
+- passed: native values on public services, fresh helpers and virtual return channels poisons invalid selected native returns without reading accessors
+- passed: native values on public services, fresh helpers and virtual return channels never publishes partial output after exhausting the shared budget in a native virtual return
+
+## packages/access-router/test/authorization-fast-path-options.integration.test.ts
+
+- passed: real direct/public/root captured query selection selects independent mode pair=0 through reads/lists/retry and target-local/embedded scopes
+- passed: real direct/public/root captured query selection selects independent mode pair=1 through reads/lists/retry and target-local/embedded scopes
+- passed: real direct/public/root captured query selection selects independent mode pair=2 through reads/lists/retry and target-local/embedded scopes
+- passed: real direct/public/root captured query selection selects independent mode pair=3 through reads/lists/retry and target-local/embedded scopes
+- passed: real direct/public/root captured query selection captures list before a real awaited hook and retains source/target modes, not independent hook calls or DTO authority
+- passed: real direct/public/root captured query selection captures read before a real awaited hook and retains source/target modes, not independent hook calls or DTO authority
+- passed: real direct/public/root captured query selection does not activate for actual writes, write-derived reads, new output or dedicated subdocuments
+- passed: real direct/public/root captured query selection find reentry on the same receiver inside a document hook has its own post-rollback capture
+- passed: real direct/public/root captured query selection findOne reentry on the same receiver inside a document hook has its own post-rollback capture
+- passed: real direct/public/root captured query selection findById reentry on the same receiver inside a document hook has its own post-rollback capture
+- passed: real direct/public/root captured query selection _list reentry on the same receiver inside a document hook has its own post-rollback capture
+- passed: real direct/public/root captured query selection _read reentry on the same receiver inside a document hook has its own post-rollback capture
+- passed: real direct/public/root captured query selection _readFilter reentry on the same receiver inside a document hook has its own post-rollback capture
+- passed: real direct/public/root captured query selection an independent READ inside a write hook captures query settings, never write provenance
+- passed: real direct/public/root captured query selection isolated READ never retries BadRequest facts or Forbidden row admission as LIST
+- passed: real direct/public/root captured query selection trusted READ never retries BadRequest facts or Forbidden row admission as LIST
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipListDocumentSnapshotChecks controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipReadDocumentSnapshotChecks controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipListOutputSnapshotChecks controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipReadOutputSnapshotChecks controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipListNestedDocumentSnapshotChecks controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipReadNestedDocumentSnapshotChecks controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipListInitialOutputSnapshotCopy controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeSkipReadInitialOutputSnapshotCopy controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeUseListAuthorizationFastPath controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root unsafeUseReadAuthorizationFastPath controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root readAuthorizationMode controls before sibling dispatch, but not stored business fields
+- passed: real direct/public/root captured query selection rejects wire/root listAuthorizationMode controls before sibling dispatch, but not stored business fields
+
+## packages/access-router/test/authorization-fast-path-options.unit.test.ts
+
+- passed: captured source modes replace flags, prerequisites and dormant profiles has exactly two independent mode keys and ten rejection-only retired names
+- passed: captured source modes replace flags, prerequisites and dormant profiles captures read='isolated'/list='isolated' with embedded inheritance, own target modes and READ-origin retry
+- passed: captured source modes replace flags, prerequisites and dormant profiles captures read='isolated'/list='trusted' with embedded inheritance, own target modes and READ-origin retry
+- passed: captured source modes replace flags, prerequisites and dormant profiles captures read='trusted'/list='isolated' with embedded inheritance, own target modes and READ-origin retry
+- passed: captured source modes replace flags, prerequisites and dormant profiles captures read='trusted'/list='trusted' with embedded inheritance, own target modes and READ-origin retry
+- passed: captured source modes replace flags, prerequisites and dormant profiles authenticates every isolated mode read, repeated reads, receiving service and derived edge
+- passed: captured source modes replace flags, prerequisites and dormant profiles authenticates every trusted mode read, repeated reads, receiving service and derived edge
+- passed: captured source modes replace flags, prerequisites and dormant profiles requires actual target model identity, path, scope and unchanged embedded access
+- passed: captured source modes replace flags, prerequisites and dormant profiles new and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles create and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles update and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles upsert and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles delete and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles subRead and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles subList and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles readSub and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles listSub and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles count and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles distinct and write-derived reads do not gain trust through read-shaped output
+- passed: captured source modes replace flags, prerequisites and dormant profiles isolated changes only source borrowing; boolean facts, closure and raw helpers stay owned
+- passed: captured source modes replace flags, prerequisites and dormant profiles trusted changes only source borrowing; boolean facts, closure and raw helpers stay owned
+- passed: captured source modes replace flags, prerequisites and dormant profiles retains captured read in late embedded/retry stages, not fresh calls
+- passed: captured source modes replace flags, prerequisites and dormant profiles retains captured list in late embedded/retry stages, not fresh calls
+- passed: effective owner/access warnings and undefined restoration readAuthorizationMode warns only on an effective transition into trusted, never on calls or repeated assignment
+- passed: effective owner/access warnings and undefined restoration listAuthorizationMode warns only on an effective transition into trusted, never on calls or repeated assignment
+- passed: effective owner/access warnings and undefined restoration publishes all inheriting owners before any warning, preserving explicit isolation and runtime separation
+- passed: effective owner/access warnings and undefined restoration owns the entire warning transition before a logger reenters and tolerates logger failure after commit
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipListDocumentSnapshotChecks in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipReadDocumentSnapshotChecks in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipListOutputSnapshotChecks in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipReadOutputSnapshotChecks in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipListNestedDocumentSnapshotChecks in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipReadNestedDocumentSnapshotChecks in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipListInitialOutputSnapshotCopy in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeSkipReadInitialOutputSnapshotCopy in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeUseListAuthorizationFastPath in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects unsafeUseReadAuthorizationFastPath in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects readAuthorizationMode in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes rejects listAuthorizationMode in every control lane without observing slot values
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListDocumentSnapshotChecks on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadDocumentSnapshotChecks on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListOutputSnapshotChecks on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadOutputSnapshotChecks on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListNestedDocumentSnapshotChecks on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadNestedDocumentSnapshotChecks on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListInitialOutputSnapshotCopy on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadInitialOutputSnapshotCopy on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeUseListAuthorizationFastPath on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes unsafeUseReadAuthorizationFastPath on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes readAuthorizationMode on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes listAuthorizationMode on Object.prototype still rejects before copying erases it
+- passed: presence-based public/default/service/policy/helper lanes does not invoke default bucket accessors, and bounds cyclic/shared/deep/array admission
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListDocumentSnapshotChecks stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadDocumentSnapshotChecks stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListOutputSnapshotChecks stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadOutputSnapshotChecks stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListNestedDocumentSnapshotChecks stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadNestedDocumentSnapshotChecks stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipListInitialOutputSnapshotCopy stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeSkipReadInitialOutputSnapshotCopy stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeUseListAuthorizationFastPath stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes unsafeUseReadAuthorizationFastPath stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes readAuthorizationMode stays inert in business predicates, selection and scoped backend row filters
+- passed: presence-based public/default/service/policy/helper lanes listAuthorizationMode stays inert in business predicates, selection and scoped backend row filters
+
+## packages/access-router/test/authorization-fast-path-owner.unit.test.ts
+
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'list'/'isolated' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'list'/'isolated' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'list'/'isolated' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'list'/'isolated' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'list'/'trusted' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'list'/'trusted' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'list'/'trusted' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'list'/'trusted' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'read'/'isolated' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'read'/'isolated' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'read'/'isolated' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'read'/'isolated' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'read'/'trusted' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'request' for 'read'/'trusted' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'read'/'trusted' through 'resolve'
+- passed: owned related derivation retains exact parent and receiving ownership checks receiving 'runtime' for 'read'/'trusted' through 'derive'
+- passed: owned related derivation retains exact parent and receiving ownership authenticates the supplied source owner for 'list'/'isolated'
+- passed: owned related derivation retains exact parent and receiving ownership authenticates the supplied source owner for 'list'/'trusted'
+- passed: owned related derivation retains exact parent and receiving ownership authenticates the supplied source owner for 'read'/'isolated'
+- passed: owned related derivation retains exact parent and receiving ownership authenticates the supplied source owner for 'read'/'trusted'
+- passed: owned related derivation retains exact parent and receiving ownership does not trust a different target model/name/scope/path for list
+- passed: owned related derivation retains exact parent and receiving ownership does not trust a different target model/name/scope/path for read
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'request' receiver for 'list'/'isolated' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'runtime' receiver for 'list'/'isolated' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'request' receiver for 'list'/'trusted' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'runtime' receiver for 'list'/'trusted' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'request' receiver for 'read'/'isolated' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'runtime' receiver for 'read'/'isolated' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'request' receiver for 'read'/'trusted' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership rejects a registered foreign 'runtime' receiver for 'read'/'trusted' before dispatch
+- passed: owned related derivation retains exact parent and receiving ownership keeps genuine related/retry capture and target policy for 'list'/'isolated'
+- passed: owned related derivation retains exact parent and receiving ownership keeps genuine related/retry capture and target policy for 'list'/'trusted'
+- passed: owned related derivation retains exact parent and receiving ownership keeps genuine related/retry capture and target policy for 'read'/'isolated'
+- passed: owned related derivation retains exact parent and receiving ownership keeps genuine related/retry capture and target policy for 'read'/'trusted'
+
+## packages/access-router/test/authorization-fast-path-runtime.integration.test.ts
+
+- passed: owned real query assembly, targets, getters and private inputs isolated keeps READ metadata request-only even when backend output grants allow a denied document field
+- passed: owned real query assembly, targets, getters and private inputs trusted keeps READ metadata request-only even when backend output grants allow a denied document field
+- passed: owned real query assembly, targets, getters and private inputs 'isolated' retains target-own gates/facts, metadata/dotted includes and isolated per-parent values; hydrated=false
+- passed: owned real query assembly, targets, getters and private inputs 'isolated' retains target-own gates/facts, metadata/dotted includes and isolated per-parent values; hydrated=true
+- passed: owned real query assembly, targets, getters and private inputs 'trusted' retains target-own gates/facts, metadata/dotted includes and isolated per-parent values; hydrated=false
+- passed: owned real query assembly, targets, getters and private inputs 'trusted' retains target-own gates/facts, metadata/dotted includes and isolated per-parent values; hydrated=true
+- passed: owned real query assembly, targets, getters and private inputs 'isolated' shares only actual fetched populate construction, never returned DTO authority; hydrated=false
+- passed: owned real query assembly, targets, getters and private inputs 'isolated' shares only actual fetched populate construction, never returned DTO authority; hydrated=true
+- passed: owned real query assembly, targets, getters and private inputs 'trusted' shares only actual fetched populate construction, never returned DTO authority; hydrated=false
+- passed: owned real query assembly, targets, getters and private inputs 'trusted' shares only actual fetched populate construction, never returned DTO authority; hydrated=true
+- passed: owned real query assembly, targets, getters and private inputs isolated keeps private argument-four admission/isolation, public masks and child-before-parent views
+- passed: owned real query assembly, targets, getters and private inputs trusted keeps private argument-four admission/isolation, public masks and child-before-parent views
+- passed: owned real query assembly, targets, getters and private inputs isolated keeps legacy/correlated include source collisions separate from facts and preserves order/count semantics
+- passed: owned real query assembly, targets, getters and private inputs trusted keeps legacy/correlated include source collisions separate from facts and preserves order/count semantics
+- passed: owned real query assembly, targets, getters and private inputs isolated keeps ordinary READ/LIST/root selection and denials while publishing diagnostics only
+- passed: owned real query assembly, targets, getters and private inputs trusted keeps ordinary READ/LIST/root selection and denials while publishing diagnostics only
+
+## packages/access-router/test/authorization-fast-path-runtime.unit.test.ts
+
+- passed: owned query runtime: independent rows, safe publication and fresh helpers isolated overlapping direct/public calls keep same-ID facts independent and the captured hook gate finite
+- passed: owned query runtime: independent rows, safe publication and fresh helpers trusted overlapping direct/public calls keep same-ID facts independent and the captured hook gate finite
+- passed: owned query runtime: independent rows, safe publication and fresh helpers isolated returned descendants/replacements/metadata carry no facts into a fresh helper
+- passed: owned query runtime: independent rows, safe publication and fresh helpers trusted returned descendants/replacements/metadata carry no facts into a fresh helper
+- passed: owned query runtime: independent rows, safe publication and fresh helpers defines selected helper and virtual-return slots safely after native code installs inherited setters
+- passed: owned query runtime: independent rows, safe publication and fresh helpers publishes selected dotted metadata at meta.permissions without a child lookup or memo transfer
+- passed: owned query runtime: independent rows, safe publication and fresh helpers publishes selected dotted metadata at meta.child.permissions without a child lookup or memo transfer
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' rejects unsupported 'proxy' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' rejects unsupported 'symbol' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' rejects unsupported 'non-enumerable' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' rejects unsupported 'accessor' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' rejects unsupported 'proxy' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' rejects unsupported 'symbol' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' rejects unsupported 'non-enumerable' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' rejects unsupported 'accessor' roots before the document hook without fallback replay
+- passed: owned query runtime: independent rows, safe publication and fresh helpers isolated safely normalizes a protected source key without observing or publishing its value
+- passed: owned query runtime: independent rows, safe publication and fresh helpers trusted safely normalizes a protected source key without observing or publishing its value
+- passed: owned query runtime: independent rows, safe publication and fresh helpers isolated bounds a selected BSON wire expansion and publishes no partial row on overflow
+- passed: owned query runtime: independent rows, safe publication and fresh helpers trusted bounds a selected BSON wire expansion and publishes no partial row on overflow
+- passed: owned query runtime: independent rows, safe publication and fresh helpers fresh raw helpers and normal embedded queries both reject cycle replacements
+- passed: owned query runtime: independent rows, safe publication and fresh helpers fresh raw helpers and normal embedded queries both reject slots replacements
+- passed: owned query runtime: independent rows, safe publication and fresh helpers isolated converts an actual hydrated root once before its single document hook
+- passed: owned query runtime: independent rows, safe publication and fresh helpers trusted converts an actual hydrated root once before its single document hook
+- passed: owned query runtime: independent rows, safe publication and fresh helpers trusted selected native work never visits an unselected huge/cyclic/proxy source graph
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' selected 'proxy' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' selected 'custom' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' selected 'function' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' selected 'symbol' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' selected 'cycle' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' selected 'slots' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'isolated' selected 'depth' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' selected 'proxy' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' selected 'custom' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' selected 'function' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' selected 'symbol' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' selected 'cycle' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' selected 'slots' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers 'trusted' selected 'depth' returns controlled 400, bounded hook work and no partial publication
+- passed: owned query runtime: independent rows, safe publication and fresh helpers flattens selected Maps, filters protected keys and normalizes a supported Date subclass once
+- passed: owned query runtime: independent rows, safe publication and fresh helpers a named Map selection avoids unrelated proxy values; a fresh raw helper does not inherit trusted admission
+- passed: owned query runtime: independent rows, safe publication and fresh helpers isolated keeps disposable getter views, staged returns and immutable diagnostic facts
+- passed: owned query runtime: independent rows, safe publication and fresh helpers trusted keeps disposable getter views, staged returns and immutable diagnostic facts
+
+## packages/access-router/test/authorization-snapshot-copy-builder.unit.test.ts
+
+- passed: PIPE-02 observation-preserving snapshot record builder removes per-record-property descriptor materialization without dropping array definitions or freezes
+- passed: PIPE-02 observation-preserving snapshot record builder agrees with the independent original copier on 512 seeded graphs in all three modes
+- passed: PIPE-02 observation-preserving snapshot record builder does not invoke inherited setters and publishes normal-prototype frozen data properties
+- passed: PIPE-02 observation-preserving snapshot record builder rechecks inherited keys after native normalization installs a setter
+- passed: PIPE-02 observation-preserving snapshot record builder does not traverse a target prototype replaced during recursive native work
+- passed: PIPE-02 observation-preserving snapshot record builder retains native callback order before descriptor-safe proxy rejection in mode false
+- passed: PIPE-02 observation-preserving snapshot record builder retains native callback order before descriptor-safe proxy rejection in mode true
+- passed: PIPE-02 observation-preserving snapshot record builder retains native callback order before descriptor-safe proxy rejection in mode document
+- passed: PIPE-02 observation-preserving snapshot record builder keeps independent aliases, mutable leaves, Map/Set normalization and configuration functions
+- passed: PIPE-02 observation-preserving snapshot record builder rejects protected/symbol policy key __proto__ before value observation
+- passed: PIPE-02 observation-preserving snapshot record builder rejects protected/symbol policy key constructor before value observation
+- passed: PIPE-02 observation-preserving snapshot record builder rejects protected/symbol policy key prototype before value observation
+- passed: PIPE-02 observation-preserving snapshot record builder rejects protected/symbol policy key Symbol(own) before value observation
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: 01
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: -1
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: 1.0
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: extra
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: __proto__
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: constructor
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: prototype
+- passed: PIPE-02 observation-preserving snapshot record builder retains descriptor-safe invalid array property rejection: Symbol(array)
+- passed: PIPE-02 observation-preserving snapshot record builder rejects oversized sparse array index 2147483647 before getters without allocating its holes
+- passed: PIPE-02 observation-preserving snapshot record builder rejects oversized sparse array index 4294967294 before getters without allocating its holes
+- passed: PIPE-02 observation-preserving snapshot record builder retains a numeric non-index array data key 4294967295 without equality/getter traversal
+- passed: PIPE-02 observation-preserving snapshot record builder retains a numeric non-index array data key 999999999999999999999 without equality/getter traversal
+- passed: PIPE-02 observation-preserving snapshot record builder retains a numeric non-index array data key 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 without equality/getter traversal
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'depth 100'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'depth 101'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: '20,000 nodes'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: '20,001 nodes'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: '20,000 sparse length'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: '20,001 sparse length'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'repeated aliases within budget'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'repeated aliases exceed budget'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'Map exact remaining nodes'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'Map cannot reset nodes'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'Set exact remaining nodes'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'Set cannot reset nodes'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'Map cannot reset depth'
+- passed: PIPE-02 observation-preserving snapshot record builder retains bounded policy/configuration owner: 'Set cannot reset depth'
+- passed: PIPE-02 observation-preserving snapshot record builder rejects active Map cycles but preserves separately copied aliases
+- passed: PIPE-02 observation-preserving snapshot record builder rejects active Set cycles but preserves separately copied aliases
+- passed: PIPE-02 observation-preserving snapshot record builder bounds native wire expansion within the enclosing policy budget before library serialization
+
+## packages/access-router/test/authorization-snapshot.unit.test.ts
+
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'ObjectId 000000000000000000000000' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'ObjectId 0123456789abcdef01234567' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'ObjectId ffffffffffffffffffffffff' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 0' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 -0' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 1.20' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 12345678901234567890123456…' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 1E-6176' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 1E+6111' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 Infinity' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 -Infinity' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 NaN' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 raw bits/view 0' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 raw bits/view 1' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 raw bits/view 2' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 raw bits/view 3' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Decimal128 raw bits/view 4' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Long 0/0' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Long 1/0' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Long -1/-1' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Long -1/2147483647' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Long 0/-2147483648' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Long -2147483648/305419896' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots matches wire type/bits and owns each mutable 'Long 2147483647/-1' clone through serialization
+- passed: ARCPU-05 canonical BSON snapshots clones repeated canonical leaves separately in nested records, arrays, Maps and Sets
+- passed: ARCPU-05 canonical BSON snapshots does not preserve a stale ObjectId hex cache instead of its serialized bits
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'unsigned zero Long'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'unsigned maximum Long normalizes sign…'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'ObjectId subclass'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Decimal128 subclass'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Long subclass'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Timestamp remains unsigned'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Binary old byte-array subtype'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Binary custom subtype'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'UUID subtype'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Double NaN'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Double negative zero'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Int32'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'BSONRegExp'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Code with scope'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'DBRef'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'BSONSymbol'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'MinKey'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'MaxKey'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'id extra own field'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'id extra symbol'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'id frozen fields'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'id own toBSON normalization'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'decimal extra own field'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'decimal extra symbol'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'decimal frozen fields'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'decimal own toBSON normalization'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'long extra own field'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'long extra symbol'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'long frozen fields'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'long own toBSON normalization'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'ObjectId own serialization override'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Long own bit getter override'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Long malformed bit value'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Long negative-zero bit value'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Long non-boolean unsigned flag'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Decimal128 short bytes normalize with…'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Decimal128 oversized bytes normalize …'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Decimal128 byte-view subclass'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Decimal128 null-prototype byte record'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Decimal128 proxied byte view'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'ObjectId proxy'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Decimal128 proxy'
+- passed: bounded BSON input/policy normalization admits supported wire type/bits or rejects unproven native state before serialization: 'Long proxy'
+- passed: bounded BSON input/policy normalization keeps malformed native admission controlled without handing raw state to serialization: 'null Decimal128 bytes'
+- passed: bounded BSON input/policy normalization keeps malformed native admission controlled without handing raw state to serialization: 'missing ObjectId serializer'
+- passed: bounded BSON input/policy normalization keeps malformed native admission controlled without handing raw state to serialization: 'own BSON version slot is normalized a…'
+- passed: bounded BSON input/policy normalization retains wire normalization/rejection for malformed ObjectId words or the other BSON version's storage layout
+- passed: bounded BSON input/policy normalization rejects id required-state accessors before getters or serialization
+- passed: bounded BSON input/policy normalization rejects decimal required-state accessors before getters or serialization
+- passed: bounded BSON input/policy normalization rejects long required-state accessors before getters or serialization
+- passed: bounded BSON input/policy normalization does not inspect extra id own native getters
+- passed: bounded BSON input/policy normalization does not inspect extra decimal own native getters
+- passed: bounded BSON input/policy normalization does not inspect extra long own native getters
+- passed: bounded BSON input/policy normalization preserves wire semantics without reading an application byteLength accessor
+- passed: bounded BSON input/policy normalization rejects an inherited toBSON accessor before application observation or serialization
+- passed: bounded BSON input/policy normalization rejects a prototype serializer-method accessor without invoking it
+- passed: bounded BSON input/policy normalization retains serializer validation of a changed inherited BSON version getter
+- passed: bounded BSON input/policy normalization retains wire overrides installed before the snapshot module loaded: Long bits
+- passed: bounded BSON input/policy normalization retains wire overrides installed before the snapshot module loaded: ObjectId bytes
+- passed: bounded BSON input/policy normalization retains wire overrides installed before the snapshot module loaded: BSON version
+- passed: ARCPU-05 snapshot safeguards remain in force handles null/plain records through descriptors, not BSON-looking properties or application accessors
+- passed: ARCPU-05 snapshot safeguards remain in force retains non-enumerable data handling, unsafe-key/cycle rejection and structural limits around BSON leaves
+
+## packages/access-router/test/data-value-ownership.test.ts
+
+- passed: ARL-05 supported data ownership owns configured nested 'object' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Date' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Buffer' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Map' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Set' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'RegExp' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'ArrayBuffer' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'DataView' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Int8Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Uint8Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Uint8ClampedArray' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Int16Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Uint16Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Int32Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Uint32Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Float32Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'Float64Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'BigInt64Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership owns configured nested 'BigUint64Array' values, including frozen caller containers
+- passed: ARL-05 supported data ownership isolates 'object' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Date' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Buffer' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Map' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Set' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'RegExp' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'ArrayBuffer' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'DataView' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Int8Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Uint8Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Uint8ClampedArray' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Int16Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Uint16Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Int32Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Uint32Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Float32Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'Float64Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'BigInt64Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership isolates 'BigUint64Array' values through every public snapshot/getter surface
+- passed: ARL-05 supported data ownership returns independently mutable nested 'object' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Date' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Buffer' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Map' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Set' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'RegExp' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'ArrayBuffer' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'DataView' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Int8Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Uint8Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Uint8ClampedArray' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Int16Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Uint16Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Int32Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Uint32Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Float32Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'Float64Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'BigInt64Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership returns independently mutable nested 'BigUint64Array' values from find/findOne/findById
+- passed: ARL-05 supported data ownership preserves primitive values, null prototypes, sparse arrays, accessors and repeated references without JSON copying
+- passed: ARL-05 supported data ownership copies object Map keys and their aliases, and gives shared source rows independent outputs
+- passed: ARL-05 supported data ownership isolates Buffer backing memory and copies only a binary view's visible bytes
+- passed: ARL-05 data admission and replacement rejects 'function' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'symbol value' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'symbol key' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'class instance' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'Mongoose ObjectId' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'Date subclass' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'Array subclass' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'custom native property' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'WeakMap' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'WeakSet' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'Promise' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'Proxy' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'object cycle' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'array cycle' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'Map cycle' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'Set cycle' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'shared buffer' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'shared buffer view' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'resizable buffer' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'resizable buffer view' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects 'detached buffer' data atomically with a useful path
+- passed: ARL-05 data admission and replacement rejects non-array datasets (null) and accepts undefined to clear
+- passed: ARL-05 data admission and replacement rejects non-array datasets ({}) and accepts undefined to clear
+- passed: ARL-05 data admission and replacement rejects non-array datasets (records) and accepts undefined to clear
+- passed: ARL-05 data admission and replacement rejects non-array datasets (Set{}) and accepts undefined to clear
+- passed: ARL-05 data admission and replacement uses copy-on-write for array-index data setters, retains siblings, and owns replacement natives
+- passed: ARL-05 data admission and replacement protects bootstrap snapshots and validates restored data through the same ingress
+- passed: ARL-05 data admission and replacement retains hook, model, validator and runtime-handle identities outside data
+- passed: ARL-05 response decoration and concurrent versions native-only 'Date' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Buffer' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Map' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Set' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'RegExp' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'ArrayBuffer' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'DataView' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Int8Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Uint8Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Uint8ClampedArray' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Int16Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Uint16Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Int32Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Uint32Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Float32Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'Float64Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'BigInt64Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions native-only 'BigUint64Array' decoration cannot change subsequent reads
+- passed: ARL-05 response decoration and concurrent versions a decorator that rejects after native mutation leaves the next reader intact
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through basic list without changing later readers
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through advanced list without changing later readers
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through basic read without changing later readers
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through advanced read without changing later readers
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through filter read without changing later readers
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through root list without changing later readers
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through root read without changing later readers
+- passed: ARL-05 response decoration and concurrent versions supports in-place nested/native decorators through root filter read without changing later readers
+- passed: ARL-05 response decoration and concurrent versions keeps two held readers on the old native/plain version while replacement readers use the new one
+- passed: ARL-05 selected/page-only copy work copies only selected output values and returned rows, including natives, with zero copies for misses/denials
+
+## packages/access-router/test/default-model-options.integration.test.ts
+
+- passed: effective default source modes in generated HTTP routes updates inherited modes/posture without overriding explicit isolation/false or old snapshots
+
+## packages/access-router/test/default-model-options.unit.test.ts
+
+- passed: default-model options stay inherited unless explicitly overridden requireExplicitSelect applies before configuration and after a model was already configured
+- passed: default-model options stay inherited unless explicitly overridden stripDisallowedSort applies before configuration and after a model was already configured
+- passed: default-model options stay inherited unless explicitly overridden stripPermissionsField applies before configuration and after a model was already configured
+- passed: default-model options stay inherited unless explicitly overridden disableFieldPermissions applies before configuration and after a model was already configured
+- passed: default-model options stay inherited unless explicitly overridden requireExplicitSelect supports default-before-model setup and explicit false before defaults
+- passed: default-model options stay inherited unless explicitly overridden stripDisallowedSort supports default-before-model setup and explicit false before defaults
+- passed: default-model options stay inherited unless explicitly overridden stripPermissionsField supports default-before-model setup and explicit false before defaults
+- passed: default-model options stay inherited unless explicitly overridden disableFieldPermissions supports default-before-model setup and explicit false before defaults
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipListDocumentSnapshotChecks is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipReadDocumentSnapshotChecks is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipListOutputSnapshotChecks is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipReadOutputSnapshotChecks is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipListNestedDocumentSnapshotChecks is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipReadNestedDocumentSnapshotChecks is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipListInitialOutputSnapshotCopy is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeSkipReadInitialOutputSnapshotCopy is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeUseListAuthorizationFastPath is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden unsafeUseReadAuthorizationFastPath is rejected by presence without partial default/model changes or warnings
+- passed: default-model options stay inherited unless explicitly overridden readAuthorizationMode inherits across all getter forms and restores model/default undefined independently
+- passed: default-model options stay inherited unless explicitly overridden listAuthorizationMode inherits across all getter forms and restores model/default undefined independently
+- passed: default-model options stay inherited unless explicitly overridden inherits non-boolean defaults and replaces object/array overrides shallowly
+- passed: default-model options stay inherited unless explicitly overridden recomputes effective permission metadata when inherited schema or prefix changes
+- passed: default-model options stay inherited unless explicitly overridden preserves exact-key-only authorization fallback when operationAccess is explicitly cleared
+- passed: default-model options stay inherited unless explicitly overridden restores inheritance provenance in bootstrap snapshots, not just resolved values
+- passed: default-model options stay inherited unless explicitly overridden validates inherited changes atomically before publishing defaults, models or warnings
+- passed: default-model options stay inherited unless explicitly overridden validates private-populate targets against the entire proposed default/model graph
+- passed: default-model options stay inherited unless explicitly overridden publishes all effective models before invoking inherited trusted transition loggers
+- passed: default-model options stay inherited unless explicitly overridden captures inherited 'read' source modes before awaits without retaining output authority (trusted=false)
+- passed: default-model options stay inherited unless explicitly overridden captures inherited 'read' source modes before awaits without retaining output authority (trusted=true)
+- passed: default-model options stay inherited unless explicitly overridden captures inherited 'list' source modes before awaits without retaining output authority (trusted=false)
+- passed: default-model options stay inherited unless explicitly overridden captures inherited 'list' source modes before awaits without retaining output authority (trusted=true)
+- passed: default-model options stay inherited unless explicitly overridden keeps inheritance runtime-local even for the same Mongoose model
+- passed: default-model options stay inherited unless explicitly overridden clears dotted virtual overrides without deleting unrelated root siblings
+
+## packages/access-router/test/document-authorization-validation.unit.test.ts
+
+- passed: owned stage validation at real receiving and asynchronous boundaries isolated owner reads share immutable facts without observing source natives again
+- passed: owned stage validation at real receiving and asynchronous boundaries trusted owner reads share immutable facts without observing source natives again
+- passed: owned stage validation at real receiving and asynchronous boundaries isolated source identity is private stage input, not an equal-ID output certificate
+- passed: owned stage validation at real receiving and asynchronous boundaries trusted source identity is private stage input, not an equal-ID output certificate
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' rejects changed 'request' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' rejects changed 'runtime' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' rejects changed 'model' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' rejects changed 'modelName' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' rejects changed 'scopePath' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' rejects changed 'request' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' rejects changed 'runtime' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' rejects changed 'model' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' rejects changed 'modelName' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' rejects changed 'scopePath' before cold or settled memo work
+- passed: owned stage validation at real receiving and asynchronous boundaries retains a synchronous true memo without inventing an asynchronous validation window
+- passed: owned stage validation at real receiving and asynchronous boundaries retains a synchronous false memo without inventing an asynchronous validation window
+- passed: owned stage validation at real receiving and asynchronous boundaries checks a synchronous evaluator binding change immediately before memo commit
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' shares pending consumers but rejects changed 'request' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' shares pending consumers but rejects changed 'runtime' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' shares pending consumers but rejects changed 'model' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' shares pending consumers but rejects changed 'modelName' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'isolated' shares pending consumers but rejects changed 'scopePath' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' shares pending consumers but rejects changed 'request' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' shares pending consumers but rejects changed 'runtime' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' shares pending consumers but rejects changed 'model' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' shares pending consumers but rejects changed 'modelName' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries 'trusted' shares pending consumers but rejects changed 'scopePath' on actual async resume
+- passed: owned stage validation at real receiving and asynchronous boundaries isolated captures facts after a suspended hook without revalidating application source graphs
+- passed: owned stage validation at real receiving and asynchronous boundaries trusted captures facts after a suspended hook without revalidating application source graphs
+- passed: owned stage validation at real receiving and asynchronous boundaries does not mark a reentrant decision fulfilled before its original evaluator returns
+- passed: owned stage validation at real receiving and asynchronous boundaries pending facts rejection closes and drains the owner, never reruns failed work
+- passed: owned stage validation at real receiving and asynchronous boundaries pending decision rejection closes and drains the owner, never reruns failed work
+- passed: owned stage validation at real receiving and asynchronous boundaries rejects native fulfilled grants before any native method and never freezes the application map
+- passed: owned stage validation at real receiving and asynchronous boundaries native source reentry cannot confer authority on a different closed stage
+
+## packages/access-router/test/field-helper-removal.contract.test.ts
+
+- passed: SVA-F03 ESM finite helper boundaries core model helpers genSelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries core model helpers genQuerySelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries core model helpers genAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries core model helpers pickAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries core model helpers trimOutputFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries core model helpers genPopulate rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries service model helpers genSelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries service model helpers genQuerySelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries service model helpers genAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries service model helpers pickAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries service model helpers trimOutputFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries service model helpers genPopulate rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries publicService model helpers genSelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries publicService model helpers genQuerySelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries publicService model helpers genAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries publicService model helpers pickAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries publicService model helpers trimOutputFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries publicService model helpers genPopulate rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 ESM finite helper boundaries DataService.genSelect rejects removed forms without model authority
+- passed: SVA-F03 ESM finite helper boundaries DataService.genQuerySelect rejects removed forms without model authority
+- passed: SVA-F03 ESM finite helper boundaries DataService.genAllowedFields rejects removed forms without model authority
+- passed: SVA-F03 ESM finite helper boundaries DataService.pickAllowedFields rejects removed forms without model authority
+- passed: SVA-F03 ESM finite helper boundaries DataService.trimOutputFields rejects removed forms without model authority
+- passed: SVA-F03 ESM finite helper boundaries DataCore.genSelect rejects removed forms
+- passed: SVA-F03 ESM finite helper boundaries DataCore.genAllowedFields rejects removed forms
+- passed: SVA-F03 ESM finite helper boundaries DataCore.pickAllowedFields rejects removed forms
+- passed: SVA-F03 CJS finite helper boundaries core model helpers genSelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries core model helpers genQuerySelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries core model helpers genAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries core model helpers pickAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries core model helpers trimOutputFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries core model helpers genPopulate rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries service model helpers genSelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries service model helpers genQuerySelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries service model helpers genAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries service model helpers pickAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries service model helpers trimOutputFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries service model helpers genPopulate rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries publicService model helpers genSelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries publicService model helpers genQuerySelect rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries publicService model helpers genAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries publicService model helpers pickAllowedFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries publicService model helpers trimOutputFields rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries publicService model helpers genPopulate rejects retired JS forms before hooks or catalog work
+- passed: SVA-F03 CJS finite helper boundaries DataService.genSelect rejects removed forms without model authority
+- passed: SVA-F03 CJS finite helper boundaries DataService.genQuerySelect rejects removed forms without model authority
+- passed: SVA-F03 CJS finite helper boundaries DataService.genAllowedFields rejects removed forms without model authority
+- passed: SVA-F03 CJS finite helper boundaries DataService.pickAllowedFields rejects removed forms without model authority
+- passed: SVA-F03 CJS finite helper boundaries DataService.trimOutputFields rejects removed forms without model authority
+- passed: SVA-F03 CJS finite helper boundaries DataCore.genSelect rejects removed forms
+- passed: SVA-F03 CJS finite helper boundaries DataCore.genAllowedFields rejects removed forms
+- passed: SVA-F03 CJS finite helper boundaries DataCore.pickAllowedFields rejects removed forms
+- passed: SVA-F03 canonical model defaults and private request metadata omitted/undefined planning options equal named request planning and never run field/getter hooks
+- passed: SVA-F03 canonical model defaults and private request metadata defaults respect requireExplicitSelect, scope translation and additive selected grants
+- passed: SVA-F03 canonical model defaults and private request metadata default filtering isolates hydrated input, uses empty facts and keeps only existing paths
+- passed: SVA-F03 canonical model defaults and private request metadata omitted options preserve absent documents and reject unsupported raw values or missing explicit purpose
+- passed: SVA-F03 canonical model defaults and private request metadata request _view/_edit retain schema fields and serialized request grants without invoking output helpers/hooks
+- passed: SVA-F03 data request evaluator compatibility keeps schema allowlists, function arguments, scope and whole-container picks without a Mongoose catalog
+- passed: SVA-F03 data request evaluator compatibility preserves data empty-intersection service behavior and admitted-only selections
+- passed: SVA-F03 data request evaluator compatibility rejects data/populate capabilities and malformed named scopes without invoking rules
+
+## packages/access-router/test/field-helper-request-boundaries.integration.test.ts
+
+- passed: SVA-F03 private query-field and populate request boundaries distinct requires request-proven rules without fabricating document grants or invoking output helpers
+- passed: SVA-F03 private query-field and populate request boundaries output elevation does not broaden later distinct/sort admission or the actor
+- passed: SVA-F03 private query-field and populate request boundaries distinct preserves call-time request configuration on a reused service
+- passed: SVA-F03 private query-field and populate request boundaries private source fetch never grants request-only population
+- passed: SVA-F03 private query-field and populate request boundaries named scoped populate preserves target request fields, private fetch inputs and row scope in retained getParentDoc
+- passed: SVA-F03 private query-field and populate request boundaries request target operation denial and terminal row denial still omit the descriptor
+- passed: SVA-F03 private query-field and populate request boundaries scope-only populate rejects model authority and malformed scopes before field/target hooks
+
+## packages/access-router/test/finalizer-preparation.unit.test.ts
+
+- passed: owned finalizer preparation and disposable callback boundaries does not run unavailable getters or retain stale virtual values: none
+- passed: owned finalizer preparation and disposable callback boundaries does not run unavailable getters or retain stale virtual values: inactive
+- passed: owned finalizer preparation and disposable callback boundaries does not run unavailable getters or retain stale virtual values: missing
+- passed: owned finalizer preparation and disposable callback boundaries captures a document hook once per call and invokes it once for each of 1 row stages
+- passed: owned finalizer preparation and disposable callback boundaries captures a document hook once per call and invokes it once for each of 6 row stages
+- passed: owned finalizer preparation and disposable callback boundaries does not traverse unused lifecycle aliases or give callbacks a private configuration/native backing reference
+- passed: owned finalizer preparation and disposable callback boundaries function-attached hook lookup slots are not a live configuration API: read
+- passed: owned finalizer preparation and disposable callback boundaries function-attached hook lookup slots are not a live configuration API: custom.read
+- passed: owned finalizer preparation and disposable callback boundaries isolated captures getter dependency views before permission callbacks and never treats argument mutation as a return
+- passed: owned finalizer preparation and disposable callback boundaries trusted captures getter dependency views before permission callbacks and never treats argument mutation as a return
+- passed: owned finalizer preparation and disposable callback boundaries isolated retains lean/hydrated selection, dotted metadata, native isolation and a non-enumerable alias
+- passed: owned finalizer preparation and disposable callback boundaries trusted retains lean/hydrated selection, dotted metadata, native isolation and a non-enumerable alias
+- passed: owned finalizer preparation and disposable callback boundaries isolated same-ID rows retain disposable native hook/getter views and separate immutable diagnostic facts at concurrency one
+- passed: owned finalizer preparation and disposable callback boundaries embedded children finish before parent getters, share each owning row facts and receive separate disposable views
+- passed: owned finalizer preparation and disposable callback boundaries rejects changed binding before consuming another prepared row
+- passed: owned finalizer preparation and disposable callback boundaries rejects changed call before consuming another prepared row
+
+## packages/access-router/test/include-permission-metadata.integration.test.ts
+
+- passed: include authorization metadata boundary (ABB-01) rejects the positive-count permission attack after demonstrating denied and authorized controls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (_permissions) via direct-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (_permissions) via direct-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (_permissions) via direct-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (_permissions) via root-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (_permissions) via root-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (_permissions) via root-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (_permissions) via service before any target calls
+- passed: include authorization metadata boundary (ABB-01) preserves legacy unrelated paths, ordinary collisions and legitimate permissions (_permissions)
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (_permissions) via direct-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (_permissions) via direct-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (_permissions) via direct-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (_permissions) via root-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (_permissions) via root-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (_permissions) via root-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (_permissions) via service before any target calls
+- passed: include authorization metadata boundary (ABB-01) preserves correlated unrelated paths, ordinary collisions and legitimate permissions (_permissions)
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (auth.policy.permissions) via direct-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (auth.policy.permissions) via direct-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (auth.policy.permissions) via direct-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (auth.policy.permissions) via root-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (auth.policy.permissions) via root-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (auth.policy.permissions) via root-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects legacy metadata overlaps (auth.policy.permissions) via service before any target calls
+- passed: include authorization metadata boundary (ABB-01) preserves legacy unrelated paths, ordinary collisions and legitimate permissions (auth.policy.permissions)
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (auth.policy.permissions) via direct-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (auth.policy.permissions) via direct-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (auth.policy.permissions) via direct-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (auth.policy.permissions) via root-list before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (auth.policy.permissions) via root-read before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (auth.policy.permissions) via root-id before any target calls
+- passed: include authorization metadata boundary (ABB-01) rejects correlated metadata overlaps (auth.policy.permissions) via service before any target calls
+- passed: include authorization metadata boundary (ABB-01) preserves correlated unrelated paths, ordinary collisions and legitimate permissions (auth.policy.permissions)
+- passed: include authorization metadata boundary (ABB-01) honors nested target metadata for legacy/legacy and rejects before target or leaf queries
+- passed: include authorization metadata boundary (ABB-01) honors nested target metadata for legacy/correlated and rejects before target or leaf queries
+- passed: include authorization metadata boundary (ABB-01) honors nested target metadata for correlated/correlated and rejects before target or leaf queries
+- passed: include authorization metadata boundary (ABB-01) keeps BadRequest on read-only sources instead of entering unauthorized list fallback
+- passed: include authorization metadata boundary (ABB-01) returns controlled BadRequest when nested preflight encounters an unknown owning model
+
+## packages/access-router/test/list-snapshot-checks.integration.test.ts
+
+- passed: owned LIST source modes do not turn off ACL preserves row/document/field rules through direct, public and HTTP lists (mode=isolated)
+- passed: owned LIST source modes do not turn off ACL preserves row/document/field rules through direct, public and HTTP lists (mode=trusted)
+- passed: owned LIST source modes do not turn off ACL keeps root list output and denied root reads identical (mode=isolated)
+- passed: owned LIST source modes do not turn off ACL keeps root list output and denied root reads identical (mode=trusted)
+- passed: owned LIST source modes do not turn off ACL rejects retired client controls in body before document hooks
+- passed: owned LIST source modes do not turn off ACL rejects retired client controls in options before document hooks
+- passed: owned LIST source modes do not turn off ACL rejects retired client controls in root before document hooks
+- passed: owned LIST source modes do not turn off ACL rejects retired client controls in query before document hooks
+
+## packages/access-router/test/options-ownership.test.ts
+
+- passed: ART-10 configuration and data ownership isolates runtime options from original objects and fetched snapshots
+- passed: ART-10 configuration and data ownership recomputes model permission metadata for nested setter updates
+- passed: ART-10 configuration and data ownership serves data-router records from immutable configured snapshots
+- passed: ARH-11 data snapshot reuse and ownership keeps function identities and rejects fetched-snapshot mutation
+- passed: ARH-11 data snapshot reuse and ownership preserves in-flight snapshot consistency during replacement
+- passed: ARH-11 data snapshot reuse and ownership prevents decorators and response mutation from altering stored records
+
+## packages/access-router/test/output-field-policy-cache.unit.test.ts
+
+- passed: owned call preparation and stage-local field decisions isolated stage memo owns its value slot despite an inherited application setter
+- passed: owned call preparation and stage-local field decisions trusted stage memo owns its value slot despite an inherited application setter
+- passed: owned call preparation and stage-local field decisions prepares three static field rules once for 1 real row stages
+- passed: owned call preparation and stage-local field decisions prepares three static field rules once for 7 real row stages
+- passed: owned call preparation and stage-local field decisions uses an authenticated settled output memo before cold rule preparation, never across a wrong receiver
+- passed: owned call preparation and stage-local field decisions keeps global/document AND/OR decisions and backend output grants separate from request metadata
+- passed: owned call preparation and stage-local field decisions does not treat mutated fieldStates or appended plan paths as output authority
+- passed: owned call preparation and stage-local field decisions runs earlier ancestor callbacks before a static child denial and memoizes them across siblings
+- passed: owned call preparation and stage-local field decisions reuses exact request keys across nested lookup routes with decision=false
+- passed: owned call preparation and stage-local field decisions reuses exact request keys across nested lookup routes with decision=true
+- passed: owned call preparation and stage-local field decisions preserves dotted precedence without conflating distinct lookup routes, reverse=false
+- passed: owned call preparation and stage-local field decisions preserves dotted precedence without conflating distinct lookup routes, reverse=true
+- passed: owned call preparation and stage-local field decisions keeps read/update request keys, same-ID row stages and new calls independent
+- passed: owned call preparation and stage-local field decisions does not prepopulate later static keys past an earlier pending dynamic callback
+- passed: owned call preparation and stage-local field decisions shares pending request/output decisions and does not overwrite an already-settled conflicting request key
+- passed: owned field grammar, facts and native configuration capture defers functions before fetch and retains unprefixed document-grant fallback without inventing a native DSL
+- passed: owned field grammar, facts and native configuration capture isolated field callbacks share immutable boolean facts within one stage, not between rows
+- passed: owned field grammar, facts and native configuration capture trusted field callbacks share immutable boolean facts within one stage, not between rows
+- passed: owned field grammar, facts and native configuration capture captures native rule normalization once; changing its application wire method cannot grant a warmed/new stage
+- passed: owned field grammar, facts and native configuration capture captures ordinary access slots before callbacks, while function closures remain trusted application state
+- passed: owned field grammar, facts and native configuration capture raw DTO filtering uses fresh empty facts and backend output policy, not a retained stage or hook
+- passed: genuine embedded stages route ancestors to the owning actor/facts isolated shares parent facts/preparation but memoizes equal-ID child leaves separately
+- passed: genuine embedded stages route ancestors to the owning actor/facts trusted shares parent facts/preparation but memoizes equal-ID child leaves separately
+
+## packages/access-router/test/output-publication-fusion-withdrawal.unit.test.ts
+
+- passed: does not ship the former publication flags or completion issuers in declarations or installed documentation
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'isolated' 'direct-list' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'isolated' 'public-list' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'isolated' 'direct-read' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'isolated' 'public-read' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'trusted' 'direct-list' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'trusted' 'public-list' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'trusted' 'direct-read' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies 'trusted' 'public-read' publishes the actual completed private builder result once
+- passed: one completed ordinary DTO publication, without authority-transfer copies isolated normalizes selected native output without using its observations as later same-ID row authority
+- passed: one completed ordinary DTO publication, without authority-transfer copies trusted normalizes selected native output without using its observations as later same-ID row authority
+
+## packages/access-router/test/owned-authorization-boundaries.unit.test.ts
+
+- passed: OAR-02 fulfilled-result and utility boundaries document hooks receive frozen empty facts before resolution in output
+- passed: OAR-02 fulfilled-result and utility boundaries document hooks receive frozen empty facts before resolution in input
+- passed: OAR-02 fulfilled-result and utility boundaries document hooks receive frozen empty facts before resolution in core
+- passed: OAR-02 fulfilled-result and utility boundaries document hooks receive frozen empty facts before resolution in base
+- passed: OAR-02 fulfilled-result and utility boundaries document hooks receive frozen empty facts before resolution in finalizer-isolated
+- passed: OAR-02 fulfilled-result and utility boundaries document hooks receive frozen empty facts before resolution in finalizer-trusted
+- passed: OAR-02 fulfilled-result and utility boundaries normalizes genuine async fulfillment in output
+- passed: OAR-02 fulfilled-result and utility boundaries normalizes genuine async fulfillment in input
+- passed: OAR-02 fulfilled-result and utility boundaries normalizes genuine async fulfillment in core
+- passed: OAR-02 fulfilled-result and utility boundaries normalizes genuine async fulfillment in base
+- passed: OAR-02 fulfilled-result and utility boundaries normalizes genuine async fulfillment in finalizer-isolated
+- passed: OAR-02 fulfilled-result and utility boundaries normalizes genuine async fulfillment in finalizer-trusted
+- passed: OAR-02 fulfilled-result and utility boundaries does not swallow an invalid async fulfillment in output
+- passed: OAR-02 fulfilled-result and utility boundaries does not swallow an invalid async fulfillment in input
+- passed: OAR-02 fulfilled-result and utility boundaries does not swallow an invalid async fulfillment in core
+- passed: OAR-02 fulfilled-result and utility boundaries does not swallow an invalid async fulfillment in base
+- passed: OAR-02 fulfilled-result and utility boundaries does not swallow an invalid async fulfillment in finalizer-isolated
+- passed: OAR-02 fulfilled-result and utility boundaries does not swallow an invalid async fulfillment in finalizer-trusted
+- passed: OAR-02 fulfilled-result and utility boundaries rejects an accessor then without assimilation in output
+- passed: OAR-02 fulfilled-result and utility boundaries rejects an accessor then without assimilation in input
+- passed: OAR-02 fulfilled-result and utility boundaries rejects an accessor then without assimilation in core
+- passed: OAR-02 fulfilled-result and utility boundaries rejects an accessor then without assimilation in base
+- passed: OAR-02 fulfilled-result and utility boundaries rejects an accessor then without assimilation in finalizer-isolated
+- passed: OAR-02 fulfilled-result and utility boundaries rejects an accessor then without assimilation in finalizer-trusted
+- passed: OAR-02 fulfilled-result and utility boundaries uses empty facts and one fixed warning for a rejection in output
+- passed: OAR-02 fulfilled-result and utility boundaries uses empty facts and one fixed warning for a rejection in input
+- passed: OAR-02 fulfilled-result and utility boundaries uses empty facts and one fixed warning for a rejection in core
+- passed: OAR-02 fulfilled-result and utility boundaries uses empty facts and one fixed warning for a rejection in base
+- passed: OAR-02 fulfilled-result and utility boundaries uses empty facts and one fixed warning for a rejection in finalizer-isolated
+- passed: OAR-02 fulfilled-result and utility boundaries uses empty facts and one fixed warning for a rejection in finalizer-trusted
+- passed: OAR-02 fulfilled-result and utility boundaries does not turn a controlled utility admission error into an empty map or rerun the hook
+- passed: OAR-02 fulfilled-result and utility boundaries rejects function without native/coercion/then work
+- passed: OAR-02 fulfilled-result and utility boundaries rejects map without native/coercion/then work
+- passed: OAR-02 fulfilled-result and utility boundaries rejects set without native/coercion/then work
+- passed: OAR-02 fulfilled-result and utility boundaries rejects boxed without native/coercion/then work
+- passed: OAR-02 fulfilled-result and utility boundaries rejects BSON without native/coercion/then work
+- passed: OAR-02 fulfilled-result and utility boundaries rejects thenable without native/coercion/then work
+- passed: OAR-02 fulfilled-result and utility boundaries rejects revoked proxy without native/coercion/then work
+- passed: OAR-02 request-only evaluations and independent pre-write facts DataCore allowed passes the singleton frozen empty facts and original request
+- passed: OAR-02 request-only evaluations and independent pre-write facts DataCore pick passes the singleton frozen empty facts and original request
+- passed: OAR-02 request-only evaluations and independent pre-write facts DataCore select passes the singleton frozen empty facts and original request
+- passed: OAR-02 request-only evaluations and independent pre-write facts create and raw-input selection get empty facts, not serialized document metadata
+- passed: OAR-02 request-only evaluations and independent pre-write facts core standalone output evaluation uses empty facts and never invokes a document hook
+- passed: OAR-02 request-only evaluations and independent pre-write facts base standalone output evaluation uses empty facts and never invokes a document hook
+- passed: OAR-02 request-only evaluations and independent pre-write facts root input retains positive AND and negative pre-write predicates, independent of post-write facts
+- passed: OAR-02 request-only evaluations and independent pre-write facts children input retains positive AND and negative pre-write predicates, independent of post-write facts
+- passed: OAR-02 actor, configuration and actual fact-copy work core treats a bare function as a leaf without observing attached option getters
+- passed: OAR-02 actor, configuration and actual fact-copy work finalizer-isolated treats a bare function as a leaf without observing attached option getters
+- passed: OAR-02 actor, configuration and actual fact-copy work embedded scopes share only owning facts and related targets resolve their own facts with trusted source=false
+- passed: OAR-02 actor, configuration and actual fact-copy work embedded scopes share only owning facts and related targets resolve their own facts with trusted source=true
+- passed: OAR-02 actor, configuration and actual fact-copy work captures the actor once and shares it across internal children with trusted source=false
+- passed: OAR-02 actor, configuration and actual fact-copy work captures the actor once and shares it across internal children with trusted source=true
+- passed: OAR-02 actor, configuration and actual fact-copy work rejects a derived request mismatch before sharing the actor
+- passed: OAR-02 actor, configuration and actual fact-copy work rejects a derived runtime mismatch before sharing the actor
+- passed: OAR-02 actor, configuration and actual fact-copy work owns grammar before awaits with trusted source=false
+- passed: OAR-02 actor, configuration and actual fact-copy work owns grammar before awaits with trusted source=true
+- passed: OAR-02 actor, configuration and actual fact-copy work copies native row policy only at application exposure with trusted source=false
+- passed: OAR-02 actor, configuration and actual fact-copy work copies native row policy only at application exposure with trusted source=true
+- passed: OAR-02 actor, configuration and actual fact-copy work admits the fact map once, with zero full-map reads/copies per field with trusted source=false
+- passed: OAR-02 actor, configuration and actual fact-copy work admits the fact map once, with zero full-map reads/copies per field with trusted source=true
+- passed: OAR-02 actor, configuration and actual fact-copy work does not traverse grants while isolating per-virtual contexts, and decorations retain owned facts
+- passed: OAR-02 actor, configuration and actual fact-copy work retains async field callback truthiness/error-denial, not strict fact-value grammar
+- passed: OAR-02 actor, configuration and actual fact-copy work retains sync field callback truthiness/error-denial, not strict fact-value grammar
+
+## packages/access-router/test/owned-authorization-facts.unit.test.ts
+
+- passed: owned boolean document facts (OAR-02) owns one frozen fact identity with trusted source=false
+- passed: owned boolean document facts (OAR-02) owns one frozen fact identity with trusted source=true
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled undefined map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled null map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled array map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled native map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled nested map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled native value map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled undefined value map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled truthy value map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled symbol map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled non-enumerable map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled __proto__ map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled constructor map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled prototype map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled _doc map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled $__ map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled __v map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled _permissions map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled _view map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled _edit map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled meta.facts map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects the WHOLE fulfilled 20000 keys map in every hook lane
+- passed: owned boolean document facts (OAR-02) rejects sync accessor without observing getters/traps
+- passed: owned boolean document facts (OAR-02) rejects sync then without observing getters/traps
+- passed: owned boolean document facts (OAR-02) rejects sync proxy without observing getters/traps
+- passed: owned boolean document facts (OAR-02) accepts 19999 keys and null-prototype maps
+- passed: owned boolean document facts (OAR-02) distinguishes missing from invalid fulfillment and logger failure
+- passed: owned boolean document facts (OAR-02) distinguishes throw from invalid fulfillment and logger failure
+- passed: owned boolean document facts (OAR-02) distinguishes reject from invalid fulfillment and logger failure
+- passed: owned boolean document facts (OAR-02) distinguishes invalid from invalid fulfillment and logger failure
+- passed: owned boolean document facts (OAR-02) preserves normalized pre-write positive/string AND and negative function predicates
+- passed: owned actor and captured lookup slots (OAR-02) has actual private backing and stable frozen keys
+- passed: owned actor and captured lookup slots (OAR-02) does not recopy actor maps for internal reads or derived children
+- passed: owned actor and captured lookup slots (OAR-02) does not treat function-attached lookup slots as live option containers
+
+## packages/access-router/test/owned-authorization-helpers.unit.test.ts
+
+- passed: OAR-05 fresh helper policy and control boundaries isolated evaluates the actual grammar with empty facts, not imaginary document facts
+- passed: OAR-05 fresh helper policy and control boundaries trusted evaluates the actual grammar with empty facts, not imaginary document facts
+- passed: OAR-05 fresh helper policy and control boundaries core rejects every retired/new/handle control before policy, catalog or data work
+- passed: OAR-05 fresh helper policy and control boundaries service rejects every retired/new/handle control before policy, catalog or data work
+- passed: OAR-05 fresh helper policy and control boundaries publicService rejects every retired/new/handle control before policy, catalog or data work
+- passed: OAR-05 fresh helper policy and control boundaries pickAllowedFields rejects control slots inside output policy before callbacks or document work
+- passed: OAR-05 fresh helper policy and control boundaries trimOutputFields rejects control slots inside output policy before callbacks or document work
+- passed: OAR-05 fresh helper policy and control boundaries genAllowedFields rejects control slots inside output policy before callbacks or document work
+- passed: OAR-05 fresh helper policy and control boundaries pickAllowedFields admits scoped explicit output grants, never rows/input/related/metadata authority
+- passed: OAR-05 fresh helper policy and control boundaries trimOutputFields admits scoped explicit output grants, never rows/input/related/metadata authority
+- passed: OAR-05 fresh helper policy and control boundaries genAllowedFields admits scoped explicit output grants, never rows/input/related/metadata authority
+- passed: OAR-05 fresh helper policy and control boundaries pickAllowedFields captures scope once before application field callbacks can mutate options
+- passed: OAR-05 fresh helper policy and control boundaries trimOutputFields captures scope once before application field callbacks can mutate options
+- passed: OAR-05 fresh helper policy and control boundaries genAllowedFields captures scope once before application field callbacks can mutate options
+- passed: OAR-05 fresh helper policy and control boundaries rejects malformed helper options before touching a proxy or source accessors
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority same DTO has no reusable authority on any receiving request/runtime/model/access
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority spread DTO has no reusable authority on any receiving request/runtime/model/access
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority json DTO has no reusable authority on any receiving request/runtime/model/access
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority child-replaced DTO has no reusable authority on any receiving request/runtime/model/access
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority metadata DTO has no reusable authority on any receiving request/runtime/model/access
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority counts presentation +0, raw helpers +0, and a fresh current-document read +1 query/+1 hook
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority keeps explicit boolean metadata generation/read utilities as DATA, never helper facts
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority rejects malformed metadata before policy callbacks or utility existence queries
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority private document guard uses fresh facts, not strip presentation
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority private document guard uses fresh facts, not expose-none presentation
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority private document guard uses fresh facts, not forged presentation
+- passed: OAR-05 DTOs, diagnostics and utility metadata are never authority private document guard uses fresh facts, not removed presentation
+
+## packages/access-router/test/owned-authorization-modes.integration.test.ts
+
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipListDocumentSnapshotChecks before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipReadDocumentSnapshotChecks before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipListOutputSnapshotChecks before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipReadOutputSnapshotChecks before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipListNestedDocumentSnapshotChecks before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipReadNestedDocumentSnapshotChecks before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipListInitialOutputSnapshotCopy before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeSkipReadInitialOutputSnapshotCopy before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeUseListAuthorizationFastPath before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects unsafeUseReadAuthorizationFastPath before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects readAuthorizationMode before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work rejects listAuthorizationMode before model/root guards, hooks, adapters or valid siblings
+- passed: whole HTTP/root control admission before application work unsafeSkipListDocumentSnapshotChecks remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeSkipReadDocumentSnapshotChecks remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeSkipListOutputSnapshotChecks remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeSkipReadOutputSnapshotChecks remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeSkipListNestedDocumentSnapshotChecks remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeSkipReadNestedDocumentSnapshotChecks remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeSkipListInitialOutputSnapshotCopy remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeSkipReadInitialOutputSnapshotCopy remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeUseListAuthorizationFastPath remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work unsafeUseReadAuthorizationFastPath remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work readAuthorizationMode remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work listAuthorizationMode remains a persisted business field in predicates, selection and root data
+- passed: whole HTTP/root control admission before application work keeps valid root entries nontransactional after a successful whole-envelope preflight
+
+## packages/access-router/test/owned-authorization-modes.unit.test.ts
+
+- passed: exact server mode admission and atomic configuration accepts only the literal mode or restoration: undefined
+- passed: exact server mode admission and atomic configuration accepts only the literal mode or restoration: isolated
+- passed: exact server mode admission and atomic configuration accepts only the literal mode or restoration: trusted
+- passed: exact server mode admission and atomic configuration does not coerce null into a mode
+- passed: exact server mode admission and atomic configuration does not coerce false into a mode
+- passed: exact server mode admission and atomic configuration does not coerce true into a mode
+- passed: exact server mode admission and atomic configuration does not coerce 0 into a mode
+- passed: exact server mode admission and atomic configuration does not coerce 1 into a mode
+- passed: exact server mode admission and atomic configuration does not coerce "" into a mode
+- passed: exact server mode admission and atomic configuration does not coerce "true" into a mode
+- passed: exact server mode admission and atomic configuration does not coerce "ISOLATED" into a mode
+- passed: exact server mode admission and atomic configuration does not coerce undefined into a mode
+- passed: exact server mode admission and atomic configuration does not coerce {} into a mode
+- passed: exact server mode admission and atomic configuration does not coerce "trusted" into a mode
+- passed: exact server mode admission and atomic configuration readAuthorizationMode restores runtime inheritance and then built-in isolation independently
+- passed: exact server mode admission and atomic configuration listAuthorizationMode restores runtime inheritance and then built-in isolation independently
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipListDocumentSnapshotChecks before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipReadDocumentSnapshotChecks before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipListOutputSnapshotChecks before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipReadOutputSnapshotChecks before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipListNestedDocumentSnapshotChecks before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipReadNestedDocumentSnapshotChecks before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipListInitialOutputSnapshotCopy before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeSkipReadInitialOutputSnapshotCopy before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeUseListAuthorizationFastPath before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk unsafeUseReadAuthorizationFastPath before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk readAuthorizationMode before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects dotted bulk listAuthorizationMode before publishing either a model or defaults
+- passed: exact server mode admission and atomic configuration rejects malformed readAuthorizationMode slots and whole bulk changes without invoking them
+- passed: exact server mode admission and atomic configuration rejects malformed listAuthorizationMode slots and whole bulk changes without invoking them
+- passed: exact server mode admission and atomic configuration validates all proposed inherited models before default publication or warnings
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipListDocumentSnapshotChecks slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipReadDocumentSnapshotChecks slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipListOutputSnapshotChecks slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipReadOutputSnapshotChecks slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipListNestedDocumentSnapshotChecks slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipReadNestedDocumentSnapshotChecks slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipListInitialOutputSnapshotCopy slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeSkipReadInitialOutputSnapshotCopy slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeUseListAuthorizationFastPath slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects every legacy unsafeUseReadAuthorizationFastPath slot by presence, not truthiness
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipListDocumentSnapshotChecks global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipReadDocumentSnapshotChecks global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipListOutputSnapshotChecks global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipReadOutputSnapshotChecks global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipListNestedDocumentSnapshotChecks global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipReadNestedDocumentSnapshotChecks global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipListInitialOutputSnapshotCopy global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeSkipReadInitialOutputSnapshotCopy global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeUseListAuthorizationFastPath global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted unsafeUseReadAuthorizationFastPath global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted readAuthorizationMode global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration rejects nested/dotted listAuthorizationMode global/data/default control updates atomically
+- passed: exact server mode admission and atomic configuration preflights actual model constructor options without mistaking class/model business slots for controls
+- passed: exact server mode admission and atomic configuration rejects constructor/facade proxies and bad configuration bag shapes without traps or coercion
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipListDocumentSnapshotChecks controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipReadDocumentSnapshotChecks controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipListOutputSnapshotChecks controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipReadOutputSnapshotChecks controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipListNestedDocumentSnapshotChecks controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipReadNestedDocumentSnapshotChecks controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipListInitialOutputSnapshotCopy controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeSkipReadInitialOutputSnapshotCopy controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeUseListAuthorizationFastPath controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested unsafeUseReadAuthorizationFastPath controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested readAuthorizationMode controls before global/bootstrap changes
+- passed: exact server mode admission and atomic configuration snapshot restoration rejects nested listAuthorizationMode controls before global/bootstrap changes
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipListDocumentSnapshotChecks control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipReadDocumentSnapshotChecks control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipListOutputSnapshotChecks control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipReadOutputSnapshotChecks control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipListNestedDocumentSnapshotChecks control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipReadNestedDocumentSnapshotChecks control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipListInitialOutputSnapshotCopy control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeSkipReadInitialOutputSnapshotCopy control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeUseListAuthorizationFastPath control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects unsafeUseReadAuthorizationFastPath control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects readAuthorizationMode control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures raw parent query rejects listAuthorizationMode control slots while business predicates stay inert
+- passed: control bags are not business schemas or trusted callback closures dedicated options reject proxies and nested controls before raw policy/native observations
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipListDocumentSnapshotChecks before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipReadDocumentSnapshotChecks before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipListOutputSnapshotChecks before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipReadOutputSnapshotChecks before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipListNestedDocumentSnapshotChecks before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipReadNestedDocumentSnapshotChecks before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipListInitialOutputSnapshotCopy before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeSkipReadInitialOutputSnapshotCopy before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeUseListAuthorizationFastPath before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects unsafeUseReadAuthorizationFastPath before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects readAuthorizationMode before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures direct DataService rejects listAuthorizationMode before request hooks/field evaluation
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipListDocumentSnapshotChecks controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipReadDocumentSnapshotChecks controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipListOutputSnapshotChecks controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipReadOutputSnapshotChecks controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipListNestedDocumentSnapshotChecks controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipReadNestedDocumentSnapshotChecks controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipListInitialOutputSnapshotCopy controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeSkipReadInitialOutputSnapshotCopy controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeUseListAuthorizationFastPath controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service unsafeUseReadAuthorizationFastPath controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service readAuthorizationMode controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects dotted public/service listAuthorizationMode controls before hooks or adapters
+- passed: control bags are not business schemas or trusted callback closures rejects proxy prototypes and array accessors without traps, reads or sibling work
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipListDocumentSnapshotChecks on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipReadDocumentSnapshotChecks on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipListOutputSnapshotChecks on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipReadOutputSnapshotChecks on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipListNestedDocumentSnapshotChecks on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipReadNestedDocumentSnapshotChecks on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipListInitialOutputSnapshotCopy on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeSkipReadInitialOutputSnapshotCopy on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeUseListAuthorizationFastPath on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.unsafeUseReadAuthorizationFastPath on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.readAuthorizationMode on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures rejects service defaults.listAuthorizationMode on assignment before publication
+- passed: control bags are not business schemas or trusted callback closures never traverses arbitrary function-attached closure slots as policy bags
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipListDocumentSnapshotChecks remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipReadDocumentSnapshotChecks remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipListOutputSnapshotChecks remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipReadOutputSnapshotChecks remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipListNestedDocumentSnapshotChecks remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipReadNestedDocumentSnapshotChecks remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipListInitialOutputSnapshotCopy remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeSkipReadInitialOutputSnapshotCopy remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeUseListAuthorizationFastPath remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures unsafeUseReadAuthorizationFastPath remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures readAuthorizationMode remains inert in data, predicates and business field rules
+- passed: control bags are not business schemas or trusted callback closures listAuthorizationMode remains inert in data, predicates and business field rules
+- passed: actual source-mode capture through both model getter APIs 'bulk' getter retains 'isolated' 'read' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs 'bulk' getter retains 'isolated' 'list' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs 'bulk' getter retains 'trusted' 'read' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs 'bulk' getter retains 'trusted' 'list' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs 'key' getter retains 'isolated' 'read' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs 'key' getter retains 'isolated' 'list' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs 'key' getter retains 'trusted' 'read' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs 'key' getter retains 'trusted' 'list' across a hook await, while a new call refreshes
+- passed: actual source-mode capture through both model getter APIs bulk getter captures modes and actor before native configuration callbacks
+- passed: actual source-mode capture through both model getter APIs key getter captures modes and actor before native configuration callbacks
+- passed: actual source-mode capture through both model getter APIs raw Core output helpers stay isolated with empty facts under model isolated
+- passed: actual source-mode capture through both model getter APIs raw Core output helpers stay isolated with empty facts under model trusted
+
+## packages/access-router/test/owned-authorization-publication.unit.test.ts
+
+- passed: private publication handoffs (not result authority) commits output row arrays with own data slots after a callback installs an inherited setter
+- passed: private publication handoffs (not result authority) uses the preregistered occurrence plan even when a target hook changes a borrowed parent reference array
+- passed: private publication handoffs (not result authority) finalizes nested reference arrays and isolates native IDs before private completed handoff
+- passed: private publication handoffs (not result authority) rejects selected accessor BSON tags without observing them or issuing completed handoffs
+- passed: private publication handoffs (not result authority) copies a related attachment only once, then transfers its private parent-owned value without DTO walks
+- passed: private publication handoffs (not result authority) isolates shared included children per parent, finishes targets before parent getters, isolated
+- passed: private publication handoffs (not result authority) isolates shared included children per parent, finishes targets before parent getters, trusted
+- passed: private publication handoffs (not result authority) discards unattached null/missing join rows before output hooks/native traversal, isolated
+- passed: private publication handoffs (not result authority) discards unattached null/missing join rows before output hooks/native traversal, trusted
+- passed: private publication handoffs (not result authority) registers every shared target occurrence before native serialization, including repeated array members
+- passed: private publication handoffs (not result authority) uses the depleted receiving root before populate target policy/native work
+- passed: private publication handoffs (not result authority) uses the depleted receiving root before include target policy/native work
+- passed: private publication handoffs (not result authority) counts target/parent/native construction against the same remaining row, isolated
+- passed: private publication handoffs (not result authority) counts target/parent/native construction against the same remaining row, trusted
+- passed: private publication handoffs (not result authority) keeps sibling getter views and isolated hook views detached, isolated
+- passed: private publication handoffs (not result authority) keeps sibling getter views and isolated hook views detached, trusted
+- passed: private publication handoffs (not result authority) does not walk hidden trusted source graphs without a callback exposure
+- passed: private publication handoffs (not result authority) publishes frozen ordinary/native/Map/array controls without source writes, isolated
+- passed: private publication handoffs (not result authority) publishes frozen ordinary/native/Map/array controls without source writes, trusted
+- passed: private publication handoffs (not result authority) poisons the whole result when a getter catches selected structural admission failure, isolated
+- passed: private publication handoffs (not result authority) poisons the whole result when a getter catches selected structural admission failure, trusted
+- passed: private publication handoffs (not result authority) charges native values and unexposed boolean metadata names to the same row, isolated
+- passed: private publication handoffs (not result authority) charges native values and unexposed boolean metadata names to the same row, trusted
+- passed: private publication handoffs (not result authority) keeps custom dotted metadata and aliases as ordinary output data, isolated
+- passed: private publication handoffs (not result authority) keeps custom dotted metadata and aliases as ordinary output data, trusted
+- passed: private publication handoffs (not result authority) admits attempted field-metadata keys before even denied policy callbacks, isolated
+- passed: private publication handoffs (not result authority) admits attempted field-metadata keys before even denied policy callbacks, trusted
+- passed: private publication handoffs (not result authority) does not replenish the depleted selected budget on embedded native entry, isolated
+- passed: private publication handoffs (not result authority) does not replenish the depleted selected budget on embedded native entry, trusted
+- passed: private publication handoffs (not result authority) retains root-relative depth 100/101 through embedded Code scopes, isolated
+- passed: private publication handoffs (not result authority) retains root-relative depth 100/101 through embedded Code scopes, trusted
+- passed: private publication handoffs (not result authority) owns the full isolated embedded projection once, not again for each child stage
+- passed: private publication handoffs (not result authority) observes actual source/view/materialization work without a per-field whole-source copy, isolated
+- passed: private publication handoffs (not result authority) observes actual source/view/materialization work without a per-field whole-source copy, trusted
+- passed: exact selected resource owners and structural poison admits an empty ordinary at inclusive depth 100
+- passed: exact selected resource owners and structural poison admits an empty array at inclusive depth 100
+- passed: exact selected resource owners and structural poison admits an empty Map at inclusive depth 100
+- passed: exact selected resource owners and structural poison admits an empty Code at inclusive depth 100
+- passed: exact selected resource owners and structural poison bounds sparse selected arrays at the actual element depth without reading inherited holes
+- passed: exact selected resource owners and structural poison debits every receiving multiplicity/offset before ordinary policy work
+- passed: exact selected resource owners and structural poison debits every receiving multiplicity/offset before Code policy work
+- passed: exact selected resource owners and structural poison debits every receiving multiplicity/offset before DBRef policy work
+- passed: exact selected resource owners and structural poison debits every receiving multiplicity/offset before Map policy work
+- passed: exact selected resource owners and structural poison debits every receiving multiplicity/offset before array policy work
+- passed: exact selected resource owners and structural poison keeps proxy admission failure sticky even if application catches it
+- passed: exact selected resource owners and structural poison keeps symbol key admission failure sticky even if application catches it
+- passed: exact selected resource owners and structural poison keeps accessor admission failure sticky even if application catches it
+- passed: exact selected resource owners and structural poison keeps Date result admission failure sticky even if application catches it
+- passed: exact selected resource owners and structural poison keeps native scope admission failure sticky even if application catches it
+- passed: exact selected resource owners and structural poison rejects caught native inner failure before serialization of a subsequently small wire replacement
+
+## packages/access-router/test/owned-authorization-records.unit.test.ts
+
+- passed: private authority records own lazy slots before application/native work 'isolated' resolves facts once without observing an inherited 'result' slot
+- passed: private authority records own lazy slots before application/native work 'isolated' resolves facts once without observing an inherited 'grants' slot
+- passed: private authority records own lazy slots before application/native work 'trusted' resolves facts once without observing an inherited 'result' slot
+- passed: private authority records own lazy slots before application/native work 'trusted' resolves facts once without observing an inherited 'grants' slot
+- passed: private authority records own lazy slots before application/native work publication poison remains the exact failure despite an inherited failure setter
+- passed: private authority records own lazy slots before application/native work a caught selected overflow poisons its budget even with an inherited failure setter
+- passed: private authority records own lazy slots before application/native work related construction cannot lose its receiving depleted budget to an inherited recipients setter
+- passed: private authority records own lazy slots before application/native work root private call preparation cannot be replaced by an inherited view getter
+- passed: private authority records own lazy slots before application/native work embedded private call preparation cannot be replaced by an inherited view getter
+
+## packages/access-router/test/owned-authorization-runtime-profiles.unit.test.ts
+
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority 'isolated' six same-ID rows/24 fields resolve once, own facts once and retain embedded denial/selection
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority 'isolated' six same-ID rows/24 fields resolve once, own facts once and retain embedded denial/selection
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority 'trusted' six same-ID rows/24 fields resolve once, own facts once and retain embedded denial/selection
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority 'trusted' six same-ID rows/24 fields resolve once, own facts once and retain embedded denial/selection
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority isolated ordered async fields share immutable facts, not mutable native grants or stale DTO decisions
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority trusted ordered async fields share immutable facts, not mutable native grants or stale DTO decisions
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority isolated rejects rich/native fulfilled grants instead of a truthy/dormant/copy fallback
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority trusted rejects rich/native fulfilled grants instead of a truthy/dormant/copy fallback
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority Date fetch-only normalization is an intentional source-only mode difference, with literal facts in both
+- passed: semantic runtime-profile migration: source borrowing, never borrowed authority BSON fetch-only normalization is an intentional source-only mode difference, with literal facts in both
+
+## packages/access-router/test/owned-authorization-stage.unit.test.ts
+
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'isolated' rejects wrong 'request' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'isolated' rejects wrong 'runtime' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'isolated' rejects wrong 'model' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'isolated' rejects wrong 'modelName' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'isolated' rejects wrong 'scope' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'isolated' rejects wrong 'access' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'trusted' rejects wrong 'request' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'trusted' rejects wrong 'runtime' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'trusted' rejects wrong 'model' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'trusted' rejects wrong 'modelName' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'trusted' rejects wrong 'scope' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime 'trusted' rejects wrong 'access' before memo work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime isolated owns one resolution promise and direct synchronous memo hits
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime trusted owns one resolution promise and direct synchronous memo hits
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime isolated has distinct same-ID row facts and no memo sharing
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime trusted has distinct same-ID row facts and no memo sharing
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime rejects forged without inspecting binding getters or invoking work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime rejects closed without inspecting binding getters or invoking work
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime owning facts cannot bind to a wrong child scope
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime owning facts cannot bind to a wrong child access
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime owning facts cannot bind to a wrong child model
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime owning facts cannot bind to a wrong child request
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime closes before a late facts resume, drains it, and cannot revive
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime closes before a late field resume, drains it, and cannot revive
+- passed: OAR-03 private stage identity, synchronous memo and terminal lifetime row maps stop admission and drain surviving library workers before rejection
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'isolated' 'direct' 'read' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'isolated' 'direct' 'list' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'isolated' 'public' 'read' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'isolated' 'public' 'list' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'trusted' 'direct' 'read' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'trusted' 'direct' 'list' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'trusted' 'public' 'read' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers 'trusted' 'public' 'list' resolves per row, filters embedded data, and publishes diagnostics only
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers isolated source mode has actual source-only borrowing behavior, with immutable facts and actor
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers trusted source mode has actual source-only borrowing behavior, with immutable facts and actor
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers READ retry retains isolated READ mode despite an opposite LIST setting and an in-flight setter
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers READ retry retains trusted READ mode despite an opposite LIST setting and an in-flight setter
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers independent calls and DTO/spread/same-ID helpers use fresh facts, with zero hidden helper reads/hooks
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers one invalid LIST row is whole-operation 400 and surviving hooks drain before the result returns
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers invalid total count publishes no LIST and application decorators never run early
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers invalid fulfilled total count -1 is whole-operation 400
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers invalid fulfilled total count NaN is whole-operation 400
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers invalid fulfilled total count 1.5 is whole-operation 400
+- passed: OAR-03 actual direct/public/root operations and fresh raw helpers root entries use independent publications: one invalid entry does not poison its sibling
+- passed: OAR-03 live alternate output consumers without read-shaped trust new templates remain isolated with configured isolated READ/LIST modes
+- passed: OAR-03 live alternate output consumers without read-shaped trust new templates remain isolated with configured trusted READ/LIST modes
+- passed: OAR-03 live alternate output consumers without read-shaped trust create keeps input authority separate and output isolated with isolated query modes
+- passed: OAR-03 live alternate output consumers without read-shaped trust create keeps input authority separate and output isolated with trusted query modes
+- passed: OAR-03 live alternate output consumers without read-shaped trust update retains negative pre-write facts and mutable lifecycle context with isolated query modes
+- passed: OAR-03 live alternate output consumers without read-shaped trust update retains negative pre-write facts and mutable lifecycle context with trusted query modes
+- passed: OAR-03 live alternate output consumers without read-shaped trust dedicated list owns parent read facts and always uses isolated child output
+- passed: OAR-03 live alternate output consumers without read-shaped trust dedicated read owns parent read facts and always uses isolated child output
+- passed: OAR-03 live alternate output consumers without read-shaped trust dedicated post-save invalid facts report 400 without rollback, empty-output disguise or duplicate save
+- passed: OAR-03 private document guard and target-local source modes document guard survives strip metadata and presentation cannot forge a denial
+- passed: OAR-03 private document guard and target-local source modes document guard survives expose-none metadata and presentation cannot forge a denial
+- passed: OAR-03 private document guard and target-local source modes document guard survives ordinary metadata and presentation cannot forge a denial
+- passed: OAR-03 private document guard and target-local source modes document guard reports invalid fulfilled facts as 400, not ordinary Unauthorized
+- passed: OAR-03 private document guard and target-local source modes related targets select their own isolated mode, not the parent mode
+- passed: OAR-03 private document guard and target-local source modes related targets select their own trusted mode, not the parent mode
+- passed: OAR-03 private document guard and target-local source modes isolated LIST includes build a shared target once, hide transport FKs and finish before parent getters
+- passed: OAR-03 private document guard and target-local source modes trusted LIST includes build a shared target once, hide transport FKs and finish before parent getters
+- passed: OAR-03 private document guard and target-local source modes a depleted receiving root rejects selected target native work before its wire callback
+- passed: OAR-03 private document guard and target-local source modes authenticates actual receiving request at dispatch/related derivation
+- passed: OAR-03 private document guard and target-local source modes authenticates actual receiving runtime at dispatch/related derivation
+- passed: OAR-03 private document guard and target-local source modes authenticates actual receiving model at dispatch/related derivation
+- passed: OAR-03 private document guard and target-local source modes authenticates actual receiving modelName at dispatch/related derivation
+- passed: OAR-03 basic source-mode migration and selected-resource poison retained Code policy/input normalization bounds containers before BSON serialization
+- passed: OAR-03 basic source-mode migration and selected-resource poison retained DBRef policy/input normalization bounds containers before BSON serialization
+- passed: OAR-03 basic source-mode migration and selected-resource poison retained native snapshot rejects protected constructor instead of dropping a row constraint
+- passed: OAR-03 basic source-mode migration and selected-resource poison retained native snapshot rejects protected __proto__ instead of dropping a row constraint
+- passed: OAR-03 basic source-mode migration and selected-resource poison retained native snapshot rejects protected _doc instead of dropping a row constraint
+- passed: OAR-03 basic source-mode migration and selected-resource poison retained input/config snapshots support bounded native/Map/Set values without subclass iterators
+- passed: OAR-03 basic source-mode migration and selected-resource poison captures the source mode before a raw configuration native callback can change its slot
+- passed: OAR-03 basic source-mode migration and selected-resource poison package-controlled poison error results cannot be mutated into successful publication
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListDocumentSnapshotChecks'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListDocumentSnapshotChecks'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadDocumentSnapshotChecks'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadDocumentSnapshotChecks'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListOutputSnapshotChecks'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListOutputSnapshotChecks'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadOutputSnapshotChecks'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadOutputSnapshotChecks'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListNestedDocumentSnapshotC…'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListNestedDocumentSnapshotC…'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadNestedDocumentSnapshotC…'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadNestedDocumentSnapshotC…'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListInitialOutputSnapshotCo…'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipListInitialOutputSnapshotCo…'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadInitialOutputSnapshotCo…'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeSkipReadInitialOutputSnapshotCo…'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeUseListAuthorizationFastPath'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeUseListAuthorizationFastPath'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeUseReadAuthorizationFastPath'=false atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects retired 'unsafeUseReadAuthorizationFastPath'=undefined atomically by presence
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects inherited legacy controls without reading their value
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects non-enumerable legacy controls without reading their value
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects invalid mode null before bulk publication
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects invalid mode true before bulk publication
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects invalid mode TRUSTED before bulk publication
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects invalid mode {} before bulk publication
+- passed: OAR-03 basic source-mode migration and selected-resource poison rejects invalid mode undefined before bulk publication
+- passed: OAR-03 basic source-mode migration and selected-resource poison supports default inheritance/undefined restoration and committed transitions despite logger failure
+- passed: OAR-03 basic source-mode migration and selected-resource poison selected proxy failures remain poisoned even if caught
+- passed: OAR-03 basic source-mode migration and selected-resource poison selected accessor failures remain poisoned even if caught
+- passed: OAR-03 basic source-mode migration and selected-resource poison selected cycle failures remain poisoned even if caught
+- passed: OAR-03 basic source-mode migration and selected-resource poison shared related budgets debit all recipients before policy/native work, never replenish a depleted row
+- passed: OAR-03 basic source-mode migration and selected-resource poison getter BODY errors omit, but invalid selected returns poison publication
+- passed: OAR-03 basic source-mode migration and selected-resource poison a native callback cannot catch selected overflow and publish a small wire replacement
+- passed: OAR-03 basic source-mode migration and selected-resource poison safe dotted selected construction poison is sticky after a caught unsafe path
+- passed: OAR-03 basic source-mode migration and selected-resource poison a closed publication budget rejects late materialization before observing a native value
+- passed: OAR-03 basic source-mode migration and selected-resource poison a privately retained stage is already closed before actual application decorators
+
+## packages/access-router/test/owned-authorization-types.test.ts
+
+- passed: OAR-02 public owned-fact/field-hook declarations compiles root + advanced hooks through installed mts conditions, without casts
+- passed: OAR-02 public owned-fact/field-hook declarations compiles root + advanced hooks through installed cts conditions, without casts
+
+## packages/access-router/test/permission.test.ts
+
+- passed: Permission exposes keys without leaking mutable internal state
+- passed: Permission supports both variadic and array-based checks
+- passed: Permission treats reserved-looking keys as normal permission names
+
+## packages/access-router/test/query-snapshot-options.integration.test.ts
+
+- passed: source modes through real read/list, population, include and root execution retains permissions, target policy and selection, not reusable output handles, for mode pair=+0
+- passed: source modes through real read/list, population, include and root execution retains permissions, target policy and selection, not reusable output handles, for mode pair=1
+- passed: source modes through real read/list, population, include and root execution retains permissions, target policy and selection, not reusable output handles, for mode pair=2
+- passed: source modes through real read/list, population, include and root execution retains permissions, target policy and selection, not reusable output handles, for mode pair=3
+- passed: source modes through real read/list, population, include and root execution publishes ordinary selected output under isolated without DTO authority or helper hook reentry
+- passed: source modes through real read/list, population, include and root execution publishes ordinary selected output under trusted without DTO authority or helper hook reentry
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipListDocumentSnapshotChecks across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipReadDocumentSnapshotChecks across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipListOutputSnapshotChecks across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipReadOutputSnapshotChecks across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipListNestedDocumentSnapshotChecks across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipReadNestedDocumentSnapshotChecks across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipListInitialOutputSnapshotCopy across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeSkipReadInitialOutputSnapshotCopy across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeUseListAuthorizationFastPath across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects unsafeUseReadAuthorizationFastPath across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects readAuthorizationMode across HTTP and a root sibling preflight
+- passed: source modes through real read/list, population, include and root execution rejects listAuthorizationMode across HTTP and a root sibling preflight
+
+## packages/access-router/test/query-snapshot-options.unit.test.ts
+
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='isolated' and target read='isolated'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='isolated' and target read='isolated'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='isolated' and target read='trusted'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='isolated' and target read='trusted'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='trusted' and target read='isolated'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='trusted' and target read='isolated'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='trusted' and target read='trusted'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='isolated'/list='trusted' and target read='trusted'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='isolated' and target read='isolated'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='isolated' and target read='isolated'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='isolated' and target read='trusted'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='isolated' and target read='trusted'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='trusted' and target read='isolated'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='trusted' and target read='isolated'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='trusted' and target read='trusted'/list='isolated' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags uses source read='trusted'/list='trusted' and target read='trusted'/list='trusted' through every edge
+- passed: source-only modes: own target capture replaces origin-wide nested flags create descendants remain isolated even under trusted target/model configuration
+- passed: source-only modes: own target capture replaces origin-wide nested flags update descendants remain isolated even under trusted target/model configuration
+- passed: source-only modes: own target capture replaces origin-wide nested flags upsert descendants remain isolated even under trusted target/model configuration
+- passed: source-only modes: own target capture replaces origin-wide nested flags new descendants remain isolated even under trusted target/model configuration
+- passed: source-only modes: own target capture replaces origin-wide nested flags subRead descendants remain isolated even under trusted target/model configuration
+- passed: source-only modes: own target capture replaces origin-wide nested flags subList descendants remain isolated even under trusted target/model configuration
+- passed: source-only modes: own target capture replaces origin-wide nested flags shares facts only with a genuine owning embedded stage, never a target or equal-ID row
+- passed: source-only modes: own target capture replaces origin-wide nested flags keeps captured read source/target modes across await and rollback while independent calls refresh
+- passed: source-only modes: own target capture replaces origin-wide nested flags keeps captured list source/target modes across await and rollback while independent calls refresh
+- passed: source-only modes: own target capture replaces origin-wide nested flags rejects a foreign receiving target even when it has the same mode, model name or request actor
+
+## packages/access-router/test/read-snapshot-checks.integration.test.ts
+
+- passed: owned READ source modes retain ACL and public boundaries retains single-read field/row rules with read='isolated' and list='isolated'
+- passed: owned READ source modes retain ACL and public boundaries retains single-read field/row rules with read='isolated' and list='trusted'
+- passed: owned READ source modes retain ACL and public boundaries retains single-read field/row rules with read='trusted' and list='isolated'
+- passed: owned READ source modes retain ACL and public boundaries retains single-read field/row rules with read='trusted' and list='trusted'
+- passed: owned READ source modes retain ACL and public boundaries keeps list-access retry gates/rules with independent read='isolated' and list='isolated'
+- passed: owned READ source modes retain ACL and public boundaries keeps list-access retry gates/rules with independent read='isolated' and list='trusted'
+- passed: owned READ source modes retain ACL and public boundaries keeps list-access retry gates/rules with independent read='trusted' and list='isolated'
+- passed: owned READ source modes retain ACL and public boundaries keeps list-access retry gates/rules with independent read='trusted' and list='trusted'
+- passed: owned READ source modes retain ACL and public boundaries rejects retired client controls in query before document hooks
+- passed: owned READ source modes retain ACL and public boundaries rejects retired client controls in body before document hooks
+- passed: owned READ source modes retain ACL and public boundaries rejects retired client controls in options before document hooks
+- passed: owned READ source modes retain ACL and public boundaries rejects retired client controls in root before document hooks
+
+## packages/access-router/test/service-authorization-context.unit.test.ts
+
+- passed: owned private call policy and separate authority dimensions captures native policy/configuration once without replacing the original actor or exposing mutable backing storage
+- passed: owned private call policy and separate authority dimensions overlapping calls on one receiver do not inherit backend elevation or a replaced request actor
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: null
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: true
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: "unrestricted"
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: undefined
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"subdocuments":{}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"operation":{"mode":"grant"}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"extra":true}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":null}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":{"mode":"wrong"}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":{"mode":"request","filter":{}}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":{"mode":"scope"}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":{"mode":"scope","filter":null}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":{"mode":"scope"}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":{"mode":"scope","filter":true}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"rows":{"mode":"scope","filter":[]}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"outputFields":null}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"outputFields":{"mode":"wrong"}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"outputFields":{"mode":"grant"}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"outputFields":{"mode":"grant","paths":"status"}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"outputFields":{"mode":"request","paths":[]}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"outputFields":{"mode":"grant","paths":[null]}}
+- passed: owned private call policy and separate authority dimensions rejects malformed/unsupported policy before any execution: {"related":null}
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path -status
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path +status
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path contacts.sub.email
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path contacts..email
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path contacts.0.email
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path contacts[0].email
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path contacts.*
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path contacts.$email
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path contacts.__proto__.email
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path constructor
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path prototype.x
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path  status
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path _doc
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path __v
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path meta
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path meta.permissions
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path meta.permissions.owner
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path version
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path execution.token
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path customer.billingEmail
+- passed: owned private call policy and separate authority dimensions rejects unsafe/protected/out-of-catalog output grant path unknown
+- passed: owned private call policy and separate authority dimensions accepts false/empty inert row scopes, empty field grants, declared subtrees and business control-word paths
+- passed: owned private call policy and separate authority dimensions rejects cycles, unsupported policies, protected keys and accessors without calling application code
+- passed: owned private call policy and separate authority dimensions bounds recursive/sparse policy inputs and accepts shared acyclic values
+- passed: owned private call policy and separate authority dimensions captures nested target catalogs/policy and never treats parent output elevation as target authority
+- passed: owned private call policy and separate authority dimensions checks exact related target names/nesting/catalogs/count applicability
+- passed: owned private call policy and separate authority dimensions rejects wrong method authority dimensions even when undefined/request-only
+- passed: owned private call policy and separate authority dimensions authenticates captured call request on every private read
+- passed: owned private call policy and separate authority dimensions authenticates captured call runtime on every private read
+- passed: owned private call policy and separate authority dimensions authenticates captured call model on every private read
+- passed: owned private call policy and separate authority dimensions authenticates captured call modelName on every private read
+- passed: owned private call policy and separate authority dimensions authenticates captured call scopePath on every private read
+- passed: diagnostics are not document, input or output capabilities immutable diagnostics cannot change owning facts or reveal a source/native/lifecycle alias
+- passed: diagnostics are not document, input or output capabilities pre/post/effective-access stages on an equal source cannot impersonate each other
+- passed: diagnostics are not document, input or output capabilities normalizes only fresh output policies and rejects every handle/raw mixture and legacy bypass slot
+- passed: diagnostics are not document, input or output capabilities index ESM/CJS exports no stage, capture, issuer or reusable DTO authority
+- passed: diagnostics are not document, input or output capabilities advanced ESM/CJS exports no stage, capture, issuer or reusable DTO authority
+- passed: diagnostics are not document, input or output capabilities processors ESM/CJS exports no stage, capture, issuer or reusable DTO authority
+
+## packages/access-router/test/service-authorization-finalizer.unit.test.ts
+
+- passed: SVA-03 private finalizer and fresh output helpers selected grants survive a false request rule and absent serialized grants
+- passed: SVA-03 private finalizer and fresh output helpers selected grants survive a undefined request rule and absent serialized grants
+- passed: SVA-03 private finalizer and fresh output helpers selected grants survive a admin request rule and absent serialized grants
+- passed: SVA-03 private finalizer and fresh output helpers keeps immutable diagnostic facts after trim but fresh helpers cannot reuse closed stage decisions
+- passed: SVA-03 private finalizer and fresh output helpers fresh raw-policy calls use empty facts on untrimmed inputs and ignore forged _permissions
+- passed: SVA-03 private finalizer and fresh output helpers metadata posture {"stripPermissionsField":true} is independent of effective authority
+- passed: SVA-03 private finalizer and fresh output helpers metadata posture {"stripPermissionsField":false,"exposedDocPermissionKeys":[]} is independent of effective authority
+- passed: SVA-03 private finalizer and fresh output helpers metadata posture {"stripPermissionsField":false,"disableFieldPermissions":true} is independent of effective authority
+- passed: SVA-03 private finalizer and fresh output helpers metadata posture {"stripPermissionsField":false} is independent of effective authority
+- passed: SVA-03 private finalizer and fresh output helpers no metadata or virtuals still resolve private facts; no unbound supplied-grant utility survives
+- passed: SVA-03 private finalizer and fresh output helpers does not add unselected grants or fabricate missing values, even when privately fetched
+- passed: SVA-03 private finalizer and fresh output helpers DTO copies, equal IDs, changed values and other accesses carry no retained stage authority
+- passed: SVA-03 private finalizer and fresh output helpers rejects a retired context/handle attempt at another request receiver
+- passed: SVA-03 private finalizer and fresh output helpers rejects a retired context/handle attempt at another runtime receiver
+- passed: SVA-03 private finalizer and fresh output helpers rejects a retired context/handle attempt at another model receiver
+- passed: SVA-03 private finalizer and fresh output helpers separates list rows and calls with stable contexts, including equal IDs and limit 1
+- passed: SVA-03 private finalizer and fresh output helpers consumes a private pre-resolved stage once and rejects wrong source/call and closed-stage reuse
+- passed: SVA-03 private finalizer and fresh output helpers accepts distinct pre-resolved list stages and rejects reuse of one stage across equal rows
+- passed: SVA-03 private finalizer and fresh output helpers uses captured configuration/permissions/accesses despite later changes, and rejects mismatched finalizer access
+- passed: SVA-03 path-aware trimming and virtual output keeps minimal selected array paths for ["contacts.email"]
+- passed: SVA-03 path-aware trimming and virtual output keeps minimal selected array paths for ["contacts"]
+- passed: SVA-03 path-aware trimming and virtual output keeps minimal selected array paths for ["contacts.email"]
+- passed: SVA-03 path-aware trimming and virtual output keeps minimal selected array paths for ["contacts","-contacts.ssn"]
+- passed: SVA-03 path-aware trimming and virtual output descendant grants survive denied containers with/without virtuals and never retain siblings
+- passed: SVA-03 path-aware trimming and virtual output projects dotted object, Mixed and named Map branches; removes protected keys under unrestricted roots
+- passed: SVA-03 path-aware trimming and virtual output handles dotted permission metadata separately from business grants
+- passed: SVA-03 path-aware trimming and virtual output retains dotted metadata as data without handles, and copies hydrated/native Map branches safely
+- passed: SVA-03 path-aware trimming and virtual output memoizes ancestor and virtual permission functions once in their owning scope/stage
+- passed: SVA-03 path-aware trimming and virtual output bounds canonical document hooks and nested getters under one shared gate
+- passed: SVA-03 path-aware trimming and virtual output granted virtuals remain selected/applicable/dependency guarded; fresh picks never rerun getters
+- passed: SVA-03 path-aware trimming and virtual output finalizes authorized child fields before parent getters without exposing dependency-only fields
+- passed: SVA-03 path-aware trimming and virtual output private completed targets use their own policy/facts; raw DTOs and parent grants confer no target data
+- passed: SVA-03 path-aware trimming and virtual output isolates hydrated persistence documents and fresh current Date/Buffer/BSON values without certifying them
+- passed: SVA-03 path-aware trimming and virtual output isolates mutable RegExp dependencies between getters, raw input and authorized output
+- passed: SVA-03 path-aware trimming and virtual output fresh helpers isolate changed ObjectIds and equal nested replacements without reusable authority or hooks
+- passed: SVA-03 path-aware trimming and virtual output rejects unsupported named output options {"baseFields":["internalNote"]}
+- passed: SVA-03 path-aware trimming and virtual output rejects unsupported named output options {"skipChecks":true}
+- passed: SVA-03 path-aware trimming and virtual output rejects unsupported named output options {"authorization":{"rows":{"mode":"unrestricted"}}}
+- passed: SVA-03 path-aware trimming and virtual output rejects unsupported named output options {"documentAuthorization":{}}
+- passed: SVA-03 path-aware trimming and virtual output rejects unsupported named output options {"purpose":"input"}
+- passed: SVA-03 path-aware trimming and virtual output rejects unsupported named output options {"scopePath":["unknown"]}
+- passed: SVA-03 path-aware trimming and virtual output rejects unsupported named output options null
+- passed: SVA-03 path-aware trimming and virtual output defaults to request-mode output, rejects retired baseFields and keeps explicit output authority
+- passed: SVA-03 path-aware trimming and virtual output preserves absent documents without running hooks or fabricating an output object
+- passed: SVA-03 path-aware trimming and virtual output rejects non-document raw inputs instead of passing unfiltered arrays/values through
+
+## packages/access-router/test/service-authorization-reads.unit.test.ts
+
+- passed: owned primitive reads and native copies only at actual exposure shares validated primitive projections and the genuinely private immutable actor within a call
+- passed: owned primitive reads and native copies only at actual exposure rejects non-string catalog paths instead of retaining mutable or malformed leaves: Wed Dec 31 1969 16:00:00 GMT-0800 (Pacific Standard Time)
+- passed: owned primitive reads and native copies only at actual exposure rejects non-string catalog paths instead of retaining mutable or malformed leaves: 
+- passed: owned primitive reads and native copies only at actual exposure rejects non-string catalog paths instead of retaining mutable or malformed leaves: 6ae6dda57f9657be5ef0c812
+- passed: owned primitive reads and native copies only at actual exposure rejects non-string catalog paths instead of retaining mutable or malformed leaves: Map{}
+- passed: owned primitive reads and native copies only at actual exposure rejects non-string catalog paths instead of retaining mutable or malformed leaves: true
+- passed: owned primitive reads and native copies only at actual exposure rejects non-string catalog paths instead of retaining mutable or malformed leaves: undefined
+- passed: owned primitive reads and native copies only at actual exposure rejects sparse/native catalog arrays and non-string access tuple members before sharing
+- passed: owned primitive reads and native copies only at actual exposure authenticates every narrow read and cold/warm field lookup against changed request
+- passed: owned primitive reads and native copies only at actual exposure authenticates every narrow read and cold/warm field lookup against changed runtime
+- passed: owned primitive reads and native copies only at actual exposure authenticates every narrow read and cold/warm field lookup against changed model
+- passed: owned primitive reads and native copies only at actual exposure authenticates every narrow read and cold/warm field lookup against changed modelName
+- passed: owned primitive reads and native copies only at actual exposure authenticates every narrow read and cold/warm field lookup against changed scopePath
+- passed: owned primitive reads and native copies only at actual exposure isolated source mutations do not alter captured facts or revive memo/source comparison machinery
+- passed: owned primitive reads and native copies only at actual exposure trusted source mutations do not alter captured facts or revive memo/source comparison machinery
+- passed: owned primitive reads and native copies only at actual exposure shared fact/access reads do not re-traverse or copy source natives or owned facts
+- passed: owned primitive reads and native copies only at actual exposure adapter/query diagnostic native values are detached from private policy at their actual receiving boundary
+- passed: owned primitive reads and native copies only at actual exposure private rule/finalizer/metadata/full owner reads perform zero unrelated native graph copies
+- passed: owned primitive reads and native copies only at actual exposure prepares ordinary no-virtual output once for 1 authenticated row stages
+- passed: owned primitive reads and native copies only at actual exposure prepares ordinary no-virtual output once for 2 authenticated row stages
+- passed: owned primitive reads and native copies only at actual exposure prepares ordinary no-virtual output once for 7 authenticated row stages
+
+## packages/access-router/test/service-list-preparation.unit.test.ts
+
+- passed: actual owned LIST preparation, row facts and publication ordering direct amortizes primitive selected-path preparation without changing row/field output
+- passed: actual owned LIST preparation, row facts and publication ordering public amortizes primitive selected-path preparation without changing row/field output
+- passed: actual owned LIST preparation, row facts and publication ordering direct captures unrelated native configuration at entry, not once for every LIST row
+- passed: actual owned LIST preparation, row facts and publication ordering public captures unrelated native configuration at entry, not once for every LIST row
+- passed: actual owned LIST preparation, row facts and publication ordering 'direct' preserves same-ID facts, native views, diagnostics and metadata with 'quiet'
+- passed: actual owned LIST preparation, row facts and publication ordering 'direct' preserves same-ID facts, native views, diagnostics and metadata with 'grants'
+- passed: actual owned LIST preparation, row facts and publication ordering 'direct' preserves same-ID facts, native views, diagnostics and metadata with 'field maps'
+- passed: actual owned LIST preparation, row facts and publication ordering 'direct' preserves same-ID facts, native views, diagnostics and metadata with 'disabled maps'
+- passed: actual owned LIST preparation, row facts and publication ordering 'direct' preserves same-ID facts, native views, diagnostics and metadata with 'stripped'
+- passed: actual owned LIST preparation, row facts and publication ordering 'direct' preserves same-ID facts, native views, diagnostics and metadata with 'exposed subset'
+- passed: actual owned LIST preparation, row facts and publication ordering 'public' preserves same-ID facts, native views, diagnostics and metadata with 'quiet'
+- passed: actual owned LIST preparation, row facts and publication ordering 'public' preserves same-ID facts, native views, diagnostics and metadata with 'grants'
+- passed: actual owned LIST preparation, row facts and publication ordering 'public' preserves same-ID facts, native views, diagnostics and metadata with 'field maps'
+- passed: actual owned LIST preparation, row facts and publication ordering 'public' preserves same-ID facts, native views, diagnostics and metadata with 'disabled maps'
+- passed: actual owned LIST preparation, row facts and publication ordering 'public' preserves same-ID facts, native views, diagnostics and metadata with 'stripped'
+- passed: actual owned LIST preparation, row facts and publication ordering 'public' preserves same-ID facts, native views, diagnostics and metadata with 'exposed subset'
+- passed: actual owned LIST preparation, row facts and publication ordering direct retains in-flight policy/hook capture and observes replacement only on the next call
+- passed: actual owned LIST preparation, row facts and publication ordering public retains in-flight policy/hook capture and observes replacement only on the next call
+- passed: actual owned LIST preparation, row facts and publication ordering direct never reads function-attached per-row document hook selectors
+- passed: actual owned LIST preparation, row facts and publication ordering public never reads function-attached per-row document hook selectors

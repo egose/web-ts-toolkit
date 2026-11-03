@@ -20,6 +20,7 @@ import {
   pairOrder,
   GATES,
   SERIES,
+  verifyCountContract,
 } from './access-router-owned-core.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -110,6 +111,10 @@ export async function runProtocol(config, directory, { smoke = false, signal } =
     throw new Error('Unknown configuration key. Fixed settings cannot be overridden.');
   const baseline = await inspectBuild(config.baselineRoot, signal),
     candidate = await inspectBuild(config.candidateRoot, signal);
+  assert.ok(config.candidateSeal, 'Explicit sealed candidate count contract required, including smoke');
+  const candidateMetadata = JSON.parse(await readFile(config.candidateSeal, 'utf8'));
+  candidate.countContract = candidateMetadata.countContract;
+  verifyCountContract({ ...candidate, profile: 'isolated' });
   assert.equal(baseline.lockSha256, candidate.lockSha256, 'Dependency lock mismatch');
   const profiles = Object.fromEntries(
     ['current-default', 'current-active', 'isolated', 'trusted'].map((profile) => [

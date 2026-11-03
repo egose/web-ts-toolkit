@@ -1,0 +1,90 @@
+{
+  "status": "PASS",
+  "typescript": "6.0.3",
+  "actualDeclarations": "fresh extracted flattened production tarball, public imports only, eight real DTS files; current installed dependencies linked read-only",
+  "conditions": [
+    {
+      "condition": "bundler",
+      "kind": "positive",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 0,
+      "expectedNegativeStatements": 0
+    },
+    {
+      "condition": "bundler",
+      "kind": "negative",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 23,
+      "expectedNegativeStatements": 18
+    },
+    {
+      "condition": "node16-esm",
+      "kind": "positive",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 0,
+      "expectedNegativeStatements": 0
+    },
+    {
+      "condition": "node16-esm",
+      "kind": "negative",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 23,
+      "expectedNegativeStatements": 18
+    },
+    {
+      "condition": "node16-cjs",
+      "kind": "positive",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 0,
+      "expectedNegativeStatements": 0
+    },
+    {
+      "condition": "node16-cjs",
+      "kind": "negative",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 23,
+      "expectedNegativeStatements": 18
+    },
+    {
+      "condition": "nodenext-esm",
+      "kind": "positive",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 0,
+      "expectedNegativeStatements": 0
+    },
+    {
+      "condition": "nodenext-esm",
+      "kind": "negative",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 23,
+      "expectedNegativeStatements": 18
+    },
+    {
+      "condition": "nodenext-cjs",
+      "kind": "positive",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 0,
+      "expectedNegativeStatements": 0
+    },
+    {
+      "condition": "nodenext-cjs",
+      "kind": "negative",
+      "skipLibCheck": false,
+      "noUncheckedIndexedAccess": true,
+      "diagnostics": 23,
+      "expectedNegativeStatements": 18
+    }
+  ],
+  "positiveEqualitiesPerCondition": 13,
+  "negativeStatementsPerCondition": 18,
+  "castsOrSuppressions": false
+}

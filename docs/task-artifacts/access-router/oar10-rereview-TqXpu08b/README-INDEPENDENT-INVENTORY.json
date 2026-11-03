@@ -1,0 +1,429 @@
+{
+  "status": "no equivalent live F1/F2 contradiction found in examined contexts",
+  "readme": {
+    "sha256": "aff3e416addae22e65a80150f8279fe38ed15436062d50f581979d40902c1c46",
+    "bytes": 223025
+  },
+  "independentLexicalHits": 44,
+  "implementationLexicalHits": 37,
+  "sharedHits": 36,
+  "unionIndependentlyClassified": 45,
+  "supplementalPattern": "authoriz.{0,70}(context|cache|retain|replay|DTO|token|bound|same.execution)|(?:context|DTO|token|handle|pick|metadata).{0,70}(?:retain|reus|authority|fact|decision)|(?:retain|cache|memo).{0,70}(?:authoriz|fact|decision)|only.{0,40}(?:permission|argument)",
+  "supplementalHits": 22,
+  "additionalContextLines": 13,
+  "distinctReviewedMatchLines": 58,
+  "noBlanketWordBan": true,
+  "rows": [
+    {
+      "line": 137,
+      "text": "| Trusted per-call policy \u2014 `ServiceAuthorization`, `MutationAuthorization`, etc. | The internal service's final `options.authorization`                                                    | Server-owned, method-specific row/input/output/related authority. Absent dimensions use request authority. Never a router default, HTTP option or reusable permission mutation.                             |",
+      "classification": "non-authority",
+      "independentInterpretation": "Method-specific trusted policy is not reusable request-permission mutation.",
+      "blocking": false
+    },
+    {
+      "line": 210,
+      "text": "non-plain handles keep their identities, and the logger is retained by reference.",
+      "classification": "configuration identity",
+      "independentInterpretation": "Non-plain model/hook/logger identities; no output-document capability.",
+      "blocking": false
+    },
+    {
+      "line": 240,
+      "text": "data. Request permission initialization is reused within its owning request/runtime.",
+      "classification": "private request reuse",
+      "independentInterpretation": "Request actor initialization belongs to the owning request/runtime.",
+      "blocking": false
+    },
+    {
+      "line": 241,
+      "text": "Base-filter results are reused for the same model/access and policy function;",
+      "classification": "private cache reuse",
+      "independentInterpretation": "Base-filter reuse is model/access/policy-function scoped, not DTO authority.",
+      "blocking": false
+    },
+    {
+      "line": 253,
+      "text": "are ordinary data, not reusable authority for either runtime.",
+      "classification": "corrected F1",
+      "independentInterpretation": "Private calls/stages have owners; published DTOs and diagnostics are ordinary data in either runtime.",
+      "blocking": false
+    },
+    {
+      "line": 268,
+      "text": "flag combination, dormant mode, output handle or compatibility alias remains.",
+      "classification": "removed capability",
+      "independentInterpretation": "Explicit denial that any output handle or old mode remains.",
+      "blocking": false
+    },
+    {
+      "line": 569,
+      "text": "`documentAuthorization`, or private prepared/execution controls in their control",
+      "classification": "removed-name rejection",
+      "independentInterpretation": "Legacy documentAuthorization controls fail request admission.",
+      "blocking": false
+    },
+    {
+      "line": 600,
+      "text": "DATA; no child handles/lookups remain. A current target-dependent decision needs a",
+      "classification": "non-authority",
+      "independentInterpretation": "Related DATA has no child lookup; current target facts require a new read/list.",
+      "blocking": false
+    },
+    {
+      "line": 663,
+      "text": "stage is independent; genuine embedded scopes reuse their owner's facts. Returned",
+      "classification": "private stage reuse",
+      "independentInterpretation": "Only genuine embedded scopes use owning-stage facts before publication.",
+      "blocking": false
+    },
+    {
+      "line": 664,
+      "text": "DTOs carry **no capability**, hidden authority symbol or reusable document handle.",
+      "classification": "non-authority",
+      "independentInterpretation": "Explicitly excludes public or hidden reusable DTO handles.",
+      "blocking": false
+    },
+    {
+      "line": 694,
+      "text": "is DATA, not authority. Never replace a retired handle with unrestricted/client grants.",
+      "classification": "migration warning",
+      "independentInterpretation": "Metadata is DATA; do not replace old handles with unrestricted/client grants.",
+      "blocking": false
+    },
+    {
+      "line": 706,
+      "text": "policies reject. There is no helper handle option or child lookup.",
+      "classification": "removed capability",
+      "independentInterpretation": "Helper handle option and child lookup explicitly absent.",
+      "blocking": false
+    },
+    {
+      "line": 715,
+      "text": "targets and public options reject input authority, including reusable typed policies.",
+      "classification": "dimension rejection",
+      "independentInterpretation": "Input policies, even typed reusable ones, are not read/helper/public authority.",
+      "blocking": false
+    },
+    {
+      "line": 798,
+      "text": "does not become an output handle or forge `_view`/`_edit` permissions.",
+      "classification": "non-authority",
+      "independentInterpretation": "Pre-write facts are separate from fresh output and do not create handles or metadata authority.",
+      "blocking": false
+    },
+    {
+      "line": 897,
+      "text": "also retains the virtual-name scrub within Mixed/plain nesting; grants matching",
+      "classification": "input sanitation",
+      "independentInterpretation": "Virtual-name scrubbing in nested input, not retained output grants.",
+      "blocking": false
+    },
+    {
+      "line": 1120,
+      "text": "      assert.equal(Reflect.get(targetRaw, 'billingEmail'), undefined); // no retained target authority",
+      "classification": "executable negative",
+      "independentInterpretation": "A target DTO cannot preserve the original billingEmail grant for a later raw pick.",
+      "blocking": false
+    },
+    {
+      "line": 1250,
+      "text": "Private prepared execution reuses the authorized predicate for upsert's update",
+      "classification": "private prepared execution",
+      "independentInterpretation": "Identity-bound internal predicate reuse; no JSON/DTO/public prepared token.",
+      "blocking": false
+    },
+    {
+      "line": 1298,
+      "text": "  grants nor a prior document handle supplies distinct authority. Evaluation failures",
+      "classification": "scalar boundary",
+      "independentInterpretation": "A prior handle/doc hook/output grant cannot prove distinct disclosure.",
+      "blocking": false
+    },
+    {
+      "line": 1330,
+      "text": "| `overrides.filter: preparedPredicate` for package query reuse                                        | Package-owned upsert/includes/counts now use authenticated private prepared-query execution. Backend consumers pass ordinary predicates to service methods; no prepared/skip flag is exposed.                                                                             |",
+      "classification": "historical before-after",
+      "independentInterpretation": "Explicit Removed usage/Replacement table; new side exposes no prepared/skip flag.",
+      "blocking": false
+    },
+    {
+      "line": 1392,
+      "text": "certificate after those inputs and `_permissions` are removed. A later raw helper pick",
+      "classification": "corrected F1",
+      "independentInterpretation": "Published DTO is not a certificate after private inputs or metadata removal.",
+      "blocking": false
+    },
+    {
+      "line": 1394,
+      "text": "server policy, not retained document decisions. For current document-dependent facts,",
+      "classification": "corrected F1",
+      "independentInterpretation": "Raw pick uses globals, EMPTY and output policy; current facts need a new normal query at extra work.",
+      "blocking": false
+    },
+    {
+      "line": 1431,
+      "text": "  `_permissions` and already-trimmed DTOs carry no authority or reusable handle.",
+      "classification": "non-authority",
+      "independentInterpretation": "DTO and metadata cannot supply authority; raw picks perform no document hooks or hidden reads.",
+      "blocking": false
+    },
+    {
+      "line": 1457,
+      "text": "batch alias, reusable preparer or output capability. Existing single-row helpers",
+      "classification": "no capability",
+      "independentInterpretation": "Optional Many API is not a reusable preparer, route or output capability.",
+      "blocking": false
+    },
+    {
+      "line": 1464,
+      "text": "to N fresh independent calls, nor a default handle/H3 migration recommendation.",
+      "classification": "freshness limitation",
+      "independentInterpretation": "One capture is not N fresh calls or a default handle/H3 migration.",
+      "blocking": false
+    },
+    {
+      "line": 1493,
+      "text": "related authority, selection, handles, tokens, `purpose` or mode controls. Every row",
+      "classification": "control rejection",
+      "independentInterpretation": "Many accepts output-only policy, not handles/tokens/other authority.",
+      "blocking": false
+    },
+    {
+      "line": 1502,
+      "text": "[M3](MIGRATION.md#m3-remove-handles-choose-presentation-or-a-fresh-normal-query).",
+      "classification": "migration link",
+      "independentInterpretation": "M3 anchor names removed handles and explicit fresh-normal-query alternatives.",
+      "blocking": false
+    },
+    {
+      "line": 1535,
+      "text": "input validator, exact-selected-field inference or authority certificate. No speedup,",
+      "classification": "type limitation",
+      "independentInterpretation": "FilteredOutput is not an authority certificate, validation proof or speedup claim.",
+      "blocking": false
+    },
+    {
+      "line": 1552,
+      "text": "means no model document facts, not a one-argument field callback. Operation `GuardHook`",
+      "classification": "corrected F2",
+      "independentInterpretation": "Request-only field predicates still receive two arguments and frozen empty facts.",
+      "blocking": false
+    },
+    {
+      "line": 1553,
+      "text": "remains separate: it receives only `permissions`, with the original request as `this`.",
+      "classification": "guard distinction",
+      "independentInterpretation": "Separate operation GuardHook receives only permissions with original-request this.",
+      "blocking": false
+    },
+    {
+      "line": 1569,
+      "text": "bypass switch or data-grant capability. Model output policies/handles, positional",
+      "classification": "data-helper rejection",
+      "independentInterpretation": "Data helpers reject model output policies/handles and obsolete positional arguments.",
+      "blocking": false
+    },
+    {
+      "line": 1660,
+      "text": "hook functions, Mongoose models, validators and runtime handles in ordinary options.",
+      "classification": "configuration identity",
+      "independentInterpretation": "Ordinary hook/model/runtime identities are not DTO authority.",
+      "blocking": false
+    },
+    {
+      "line": 1666,
+      "text": "native identity across property reads is not stable. Repeated ordinary option/snapshot reads reuse the",
+      "classification": "immutable data view",
+      "independentInterpretation": "Safe option snapshot sharing; native getter copies are detached.",
+      "blocking": false
+    },
+    {
+      "line": 1712,
+      "text": "query params; only `includePermissions`/`includeFieldPermissions`/`populateAccess` (plus `returningAll` for update/upsert) are forwarded.",
+      "classification": "wire allowlist",
+      "independentInterpretation": "Only named presentation query settings are forwarded; no authority retention.",
+      "blocking": false
+    },
+    {
+      "line": 1816,
+      "text": "handling rather than permission fallback.",
+      "classification": "ordinary language",
+      "independentInterpretation": "Operational error handling in one-argument operation guard guidance.",
+      "blocking": false
+    },
+    {
+      "line": 1968,
+      "text": "  checks retain base accesses. A variant grant does not grant fields or bypass",
+      "classification": "base access preservation",
+      "independentInterpretation": "Route variants do not bypass field or target checks.",
+      "blocking": false
+    },
+    {
+      "line": 2131,
+      "text": "  rejections are observed to avoid unhandled rejection. Sync non-boolean results",
+      "classification": "lexical false positive",
+      "independentInterpretation": "Unhandled promise rejection, not an output handle.",
+      "blocking": false
+    },
+    {
+      "line": 2200,
+      "text": "uses its own base-filter cache; it never reuses A's permissions or cached filters, even when both runtimes use the",
+      "classification": "runtime separation",
+      "independentInterpretation": "B cannot reuse A permissions/base-filter cache.",
+      "blocking": false
+    },
+    {
+      "line": 2204,
+      "text": "runtime's middleware on one request reuses that runtime's state without rerunning its resolver. Permission maps (including",
+      "classification": "private request reuse",
+      "independentInterpretation": "Repeated same-runtime middleware uses its own initialized state.",
+      "blocking": false
+    },
+    {
+      "line": 2393,
+      "text": "private in-flight construction. Attached results are ordinary DTO data, not reusable",
+      "classification": "corrected F1",
+      "independentInterpretation": "Target policy/facts/filtering apply during construction; attached DTO is non-authoritative.",
+      "blocking": false
+    },
+    {
+      "line": 2652,
+      "text": "objects, and reuse the owning parent's internally computed grants; dedicated",
+      "classification": "embedded stage ownership",
+      "independentInterpretation": "Embedded scope shares owning parent facts; dedicated outputs finalize separately.",
+      "blocking": false
+    },
+    {
+      "line": 2681,
+      "text": "persisted projections, write admission, or sort/filter/distinct handling. A",
+      "classification": "ordinary language",
+      "independentInterpretation": "Sort/filter/distinct handling for virtual names; no handle feature.",
+      "blocking": false
+    },
+    {
+      "line": 3290,
+      "text": "slots or public authorization. Covered raw work can be reused only within its",
+      "classification": "private fetch batching",
+      "independentInterpretation": "Only covered raw work within captured private read family is reused; not public authorization.",
+      "blocking": false
+    },
+    {
+      "line": 3353,
+      "text": "and handle errors at its explicit additional read/hook/output cost. See the shipped",
+      "classification": "ordinary language",
+      "independentInterpretation": "Handle errors from an explicit additional authorized DTO read.",
+      "blocking": false
+    },
+    {
+      "line": 3374,
+      "text": "Its descendant hooks reuse the admitted chain through private async context.",
+      "classification": "private concurrency admission",
+      "independentInterpretation": "Descendant hook chain reentry, not document authority or DTO reuse.",
+      "blocking": false
+    },
+    {
+      "line": 3473,
+      "text": "must replace it explicitly in transform. Handle successful null/empty subdocument",
+      "classification": "ordinary language",
+      "independentInterpretation": "Handle successful null/empty completed writes; not an output capability.",
+      "blocking": false
+    }
+  ],
+  "supplementalRows": [
+    {
+      "line": 343,
+      "text": "| `requestPermissionField` / `documentPermissionField` / `docPermissions` | Request grant storage / serialized document metadata path / hook producing full internal document grants. Metadata flags affect exposure, not authority.                               |",
+      "independentInterpretation": "Options table explicitly distinguishes serialized metadata exposure from authority.",
+      "blocking": false
+    },
+    {
+      "line": 473,
+      "text": "| `getParentDoc(id, sub, args?, { access? })`, `findRawParentDoc({ filter, select, populate })` | Raw hydrated parent/null; not finalized DTOs or permission metadata. `getParentDoc` keeps its row/projection/populate checks; the low-level raw adapter helper is not an authorization boundary |",
+      "independentInterpretation": "Raw hydrated-parent helpers are not DTO/certificate helpers; low-level adapter is explicitly not an authorization boundary.",
+      "blocking": false
+    },
+    {
+      "line": 662,
+      "text": "memoizes field decisions only until publication. Each row/call/target/pre-/post-write",
+      "independentInterpretation": "Private field decision memoization ends at publication, not retained by DTO.",
+      "blocking": false
+    },
+    {
+      "line": 750,
+      "text": "`InputFieldPath<TModel>` and `InputFieldAuthorization<TModel>` use bounded persisted",
+      "independentInterpretation": "Bounded input field policy types and schema validation, not output retention.",
+      "blocking": false
+    },
+    {
+      "line": 776,
+      "text": "request authority: an already request-authorized container retains replacement",
+      "independentInterpretation": "Existing input container replacement semantics are not narrowed by an additive grant.",
+      "blocking": false
+    },
+    {
+      "line": 1052,
+      "text": "      // Already-filtered DTO is usable DATA, not current-document authority.",
+      "independentInterpretation": "Example treats filtered DTO as presentation data and raw pick does not reuse owner facts.",
+      "blocking": false
+    },
+    {
+      "line": 2078,
+      "text": "- virtual types (also `/advanced`): `ModelVirtualGetter`, `ModelVirtualDescriptor`, `ModelVirtualAccessRecord`, `ModelVirtualLeaf`, `ModelVirtuals`, `ModelVirtualDoc`, `ModelVirtualContext`, `ModelVirtualPopulateDependency`, `ModelVirtualPopulateInputs`. Explicit private target maps type only the fourth getter argument; see [Private populated dependencies](#private-populated-dependencies).",
+      "independentInterpretation": "Public virtual context/input types describe getter arguments, not a capability.",
+      "blocking": false
+    },
+    {
+      "line": 2080,
+      "text": "- named helper/result types (also `/advanced`): `OutputPlanningOptions`, `OutputFieldOptions`, `AllowedOutputFieldOptions`, `DocumentGrants`, `FieldPermissionHook`, `AuthorizationMode`, `ModelOutputContext`, `ModelOutputHook`, `ModelOutputListHook`, `ServiceOutputContext`, `ServiceOutputDecorator`, `AuthorizedSingleResult`, `AuthorizedListResult`, `NewArgs`, `NewOptions`. Acquire the service from a router/request; there is no standalone `Service` export or public issuer/execution/prepared API.",
+      "independentInterpretation": "Named diagnostic types; explicitly no standalone service or public issuer/prepared API.",
+      "blocking": false
+    },
+    {
+      "line": 2242,
+      "text": "`permissionsPlugin` only adds a Mongoose getter alias (default `permissions`) for",
+      "independentInterpretation": "Optional Mongoose getter merely aliases metadata and does not authenticate or compute grants.",
+      "blocking": false
+    },
+    {
+      "line": 2261,
+      "text": "from exposed metadata in both modes, without the plugin. The raw getter retains",
+      "independentInterpretation": "Finalized alias comes from exposed metadata; raw getter does literal stored lookup.",
+      "blocking": false
+    },
+    {
+      "line": 2343,
+      "text": "operation guard. The helper accepts no authorization-options or prepared-token",
+      "independentInterpretation": "Count helper rejects authorization/prepared-token options; not an output authority escape.",
+      "blocking": false
+    },
+    {
+      "line": 2763,
+      "text": "| false      | true            | Selected/authorized target DTO(s) | Omitted                       |",
+      "independentInterpretation": "Population may return selected/field-authorized DTOs when only the operation admission flag is skipped.",
+      "blocking": false
+    },
+    {
+      "line": 2765,
+      "text": "| false      | false           | Selected/authorized target DTO(s) | Computed from declared inputs |",
+      "independentInterpretation": "The separate public/private operation flags do not waive field/row/selection authority or issue reusable DTOs.",
+      "blocking": false
+    }
+  ],
+  "additionalCorrectedContexts": [
+    {
+      "lines": [
+        3163,
+        3170
+      ],
+      "interpretation": "No nonexistent document handles recipient; private maps do not leak implicitly, only deliberate authorized getter returns become output."
+    },
+    {
+      "lines": [
+        3204,
+        3212
+      ],
+      "interpretation": "Reference restoration retains target-owned construction authority; cleanup precedes output publication/presentation, not public handle copying."
+    }
+  ]
+}

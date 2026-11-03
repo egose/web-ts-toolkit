@@ -1,0 +1,1074 @@
+{
+  "correctnessAudit": "PASS",
+  "heap": [
+    {
+      "profile": "current-default",
+      "round": 1,
+      "fields": 4,
+      "before": 39539264,
+      "held": [
+        39796128,
+        39662072,
+        39685504,
+        39708224
+      ],
+      "released": [
+        39155136,
+        39166632,
+        39184792,
+        39195080
+      ],
+      "netMedianBytes": {
+        "held": 157600.0,
+        "released": -363552.0
+      },
+      "job": 169
+    },
+    {
+      "profile": "current-default",
+      "round": 1,
+      "fields": 24,
+      "before": 37014304,
+      "held": [
+        37980040,
+        37871080,
+        37873856,
+        37875536
+      ],
+      "released": [
+        36606088,
+        36627864,
+        36641688,
+        36643408
+      ],
+      "netMedianBytes": {
+        "held": 860392.0,
+        "released": -379528.0
+      },
+      "job": 173
+    },
+    {
+      "profile": "current-default",
+      "round": 1,
+      "fields": 48,
+      "before": 36674688,
+      "held": [
+        38509704,
+        38386232,
+        38417224,
+        38417624
+      ],
+      "released": [
+        36255648,
+        36260808,
+        36274368,
+        36291624
+      ],
+      "netMedianBytes": {
+        "held": 1742736.0,
+        "released": -407100.0
+      },
+      "job": 177
+    },
+    {
+      "profile": "current-default",
+      "round": 2,
+      "fields": 4,
+      "before": 39523840,
+      "held": [
+        39776064,
+        39644856,
+        39665840,
+        39689424
+      ],
+      "released": [
+        39135072,
+        39149416,
+        39165128,
+        39176280
+      ],
+      "netMedianBytes": {
+        "held": 153792.0,
+        "released": -366568.0
+      },
+      "job": 192
+    },
+    {
+      "profile": "current-default",
+      "round": 2,
+      "fields": 24,
+      "before": 36993192,
+      "held": [
+        37963960,
+        37835168,
+        37845784,
+        37847240
+      ],
+      "released": [
+        36580616,
+        36596256,
+        36613600,
+        36615248
+      ],
+      "netMedianBytes": {
+        "held": 853320.0,
+        "released": -388264.0
+      },
+      "job": 188
+    },
+    {
+      "profile": "current-default",
+      "round": 2,
+      "fields": 48,
+      "before": 36802032,
+      "held": [
+        38650000,
+        38540112,
+        38547184,
+        38559928
+      ],
+      "released": [
+        36396616,
+        36414720,
+        36405560,
+        36434656
+      ],
+      "netMedianBytes": {
+        "held": 1751524.0,
+        "released": -391892.0
+      },
+      "job": 184
+    },
+    {
+      "profile": "isolated",
+      "round": 1,
+      "fields": 4,
+      "before": 39139720,
+      "held": [
+        38957296,
+        38895512,
+        38957240,
+        38930032
+      ],
+      "released": [
+        38810656,
+        38821360,
+        38845184,
+        38858904
+      ],
+      "netMedianBytes": {
+        "held": -196084.0,
+        "released": -306448.0
+      },
+      "job": 170
+    },
+    {
+      "profile": "isolated",
+      "round": 1,
+      "fields": 24,
+      "before": 39477328,
+      "held": [
+        39337392,
+        39374432,
+        39424208,
+        39429920
+      ],
+      "released": [
+        39137904,
+        39145656,
+        39165824,
+        39174248
+      ],
+      "netMedianBytes": {
+        "held": -78008.0,
+        "released": -321588.0
+      },
+      "job": 174
+    },
+    {
+      "profile": "isolated",
+      "round": 1,
+      "fields": 48,
+      "before": 40052928,
+      "held": [
+        40059272,
+        40042768,
+        40123560,
+        40109808
+      ],
+      "released": [
+        39696632,
+        39719936,
+        39739400,
+        39754248
+      ],
+      "netMedianBytes": {
+        "held": 31612.0,
+        "released": -323260.0
+      },
+      "job": 178
+    },
+    {
+      "profile": "isolated",
+      "round": 2,
+      "fields": 4,
+      "before": 39126448,
+      "held": [
+        38941824,
+        38895504,
+        38957376,
+        38930488
+      ],
+      "released": [
+        38792688,
+        38806112,
+        38831016,
+        38845024
+      ],
+      "netMedianBytes": {
+        "held": -190292.0,
+        "released": -307884.0
+      },
+      "job": 191
+    },
+    {
+      "profile": "isolated",
+      "round": 2,
+      "fields": 24,
+      "before": 39500584,
+      "held": [
+        39369760,
+        39399200,
+        39437792,
+        39455320
+      ],
+      "released": [
+        39162472,
+        39170512,
+        39188248,
+        39200296
+      ],
+      "netMedianBytes": {
+        "held": -82088.0,
+        "released": -321204.0
+      },
+      "job": 187
+    },
+    {
+      "profile": "isolated",
+      "round": 2,
+      "fields": 48,
+      "before": 39697568,
+      "held": [
+        39697720,
+        39713776,
+        39769688,
+        39750624
+      ],
+      "released": [
+        39342920,
+        39364712,
+        39387296,
+        39404488
+      ],
+      "netMedianBytes": {
+        "held": 34632.0,
+        "released": -321564.0
+      },
+      "job": 183
+    },
+    {
+      "profile": "current-active",
+      "round": 1,
+      "fields": 4,
+      "before": 39668840,
+      "held": [
+        39948992,
+        39772328,
+        39776992,
+        39792936
+      ],
+      "released": [
+        39276656,
+        39285240,
+        39305088,
+        39320936
+      ],
+      "netMedianBytes": {
+        "held": 116124.0,
+        "released": -373676.0
+      },
+      "job": 171
+    },
+    {
+      "profile": "current-active",
+      "round": 1,
+      "fields": 24,
+      "before": 40069496,
+      "held": [
+        41021912,
+        40894608,
+        40844464,
+        40912544
+      ],
+      "released": [
+        39669712,
+        39674200,
+        39687168,
+        39688144
+      ],
+      "netMedianBytes": {
+        "held": 834080.0,
+        "released": -388812.0
+      },
+      "job": 175
+    },
+    {
+      "profile": "current-active",
+      "round": 1,
+      "fields": 48,
+      "before": 40598776,
+      "held": [
+        42390504,
+        42249432,
+        42281568,
+        42289104
+      ],
+      "released": [
+        40188528,
+        40190152,
+        40202472,
+        40226008
+      ],
+      "netMedianBytes": {
+        "held": 1686560.0,
+        "released": -402464.0
+      },
+      "job": 179
+    },
+    {
+      "profile": "current-active",
+      "round": 2,
+      "fields": 4,
+      "before": 39686208,
+      "held": [
+        39965560,
+        39787168,
+        39792440,
+        39808384
+      ],
+      "released": [
+        39298496,
+        39301776,
+        39320664,
+        39336512
+      ],
+      "netMedianBytes": {
+        "held": 114204.0,
+        "released": -374988.0
+      },
+      "job": 190
+    },
+    {
+      "profile": "current-active",
+      "round": 2,
+      "fields": 24,
+      "before": 40046736,
+      "held": [
+        40983704,
+        40862648,
+        40813448,
+        40880488
+      ],
+      "released": [
+        39638400,
+        39640544,
+        39656048,
+        39655752
+      ],
+      "netMedianBytes": {
+        "held": 824832.0,
+        "released": -398588.0
+      },
+      "job": 186
+    },
+    {
+      "profile": "current-active",
+      "round": 2,
+      "fields": 48,
+      "before": 40574528,
+      "held": [
+        42270800,
+        42226056,
+        42270024,
+        42260368
+      ],
+      "released": [
+        40165656,
+        40166808,
+        40180720,
+        40203112
+      ],
+      "netMedianBytes": {
+        "held": 1690668.0,
+        "released": -400764.0
+      },
+      "job": 182
+    },
+    {
+      "profile": "trusted",
+      "round": 1,
+      "fields": 4,
+      "before": 38725464,
+      "held": [
+        38596984,
+        38552608,
+        38577568,
+        38608992
+      ],
+      "released": [
+        38451904,
+        38465760,
+        38490424,
+        38502952
+      ],
+      "netMedianBytes": {
+        "held": -138188.0,
+        "released": -247372.0
+      },
+      "job": 172
+    },
+    {
+      "profile": "trusted",
+      "round": 1,
+      "fields": 24,
+      "before": 39042256,
+      "held": [
+        38974224,
+        39018264,
+        39022456,
+        39071960
+      ],
+      "released": [
+        38797688,
+        38806200,
+        38824552,
+        38831824
+      ],
+      "netMedianBytes": {
+        "held": -21896.0,
+        "released": -226880.0
+      },
+      "job": 176
+    },
+    {
+      "profile": "trusted",
+      "round": 1,
+      "fields": 48,
+      "before": 39583384,
+      "held": [
+        39619560,
+        39670224,
+        39710848,
+        39681456
+      ],
+      "released": [
+        39305544,
+        39328856,
+        39344520,
+        39356528
+      ],
+      "netMedianBytes": {
+        "held": 92456.0,
+        "released": -246696.0
+      },
+      "job": 180
+    },
+    {
+      "profile": "trusted",
+      "round": 2,
+      "fields": 4,
+      "before": 38658008,
+      "held": [
+        38573672,
+        38507360,
+        38512176,
+        38544296
+      ],
+      "released": [
+        38385952,
+        38400872,
+        38426264,
+        38438792
+      ],
+      "netMedianBytes": {
+        "held": -129772.0,
+        "released": -244440.0
+      },
+      "job": 189
+    },
+    {
+      "profile": "trusted",
+      "round": 2,
+      "fields": 24,
+      "before": 39018696,
+      "held": [
+        38962728,
+        38991352,
+        38998128,
+        39047672
+      ],
+      "released": [
+        38774568,
+        38781392,
+        38801032,
+        38808400
+      ],
+      "netMedianBytes": {
+        "held": -23956.0,
+        "released": -227484.0
+      },
+      "job": 185
+    },
+    {
+      "profile": "trusted",
+      "round": 2,
+      "fields": 48,
+      "before": 39739544,
+      "held": [
+        39779232,
+        39829800,
+        39870408,
+        39849392
+      ],
+      "released": [
+        39465216,
+        39488432,
+        39504080,
+        39517072
+      ],
+      "netMedianBytes": {
+        "held": 100052.0,
+        "released": -243288.0
+      },
+      "job": 181
+    }
+  ],
+  "finiteDifferenceSlopes": [
+    {
+      "profile": "current-default",
+      "round": 1,
+      "bytesPerAdditionalField": {
+        "held": [
+          35139.6,
+          36764.333333333336
+        ],
+        "released": [
+          -798.8,
+          -1148.8333333333333
+        ]
+      }
+    },
+    {
+      "profile": "current-default",
+      "round": 2,
+      "bytesPerAdditionalField": {
+        "held": [
+          34976.4,
+          37425.166666666664
+        ],
+        "released": [
+          -1084.8,
+          -151.16666666666666
+        ]
+      }
+    },
+    {
+      "profile": "isolated",
+      "round": 1,
+      "bytesPerAdditionalField": {
+        "held": [
+          5903.8,
+          4567.5
+        ],
+        "released": [
+          -757.0,
+          -69.66666666666667
+        ]
+      }
+    },
+    {
+      "profile": "isolated",
+      "round": 2,
+      "bytesPerAdditionalField": {
+        "held": [
+          5410.2,
+          4863.333333333333
+        ],
+        "released": [
+          -666.0,
+          -15.0
+        ]
+      }
+    },
+    {
+      "profile": "current-active",
+      "round": 1,
+      "bytesPerAdditionalField": {
+        "held": [
+          35897.8,
+          35520.0
+        ],
+        "released": [
+          -756.8,
+          -568.8333333333334
+        ]
+      }
+    },
+    {
+      "profile": "current-active",
+      "round": 2,
+      "bytesPerAdditionalField": {
+        "held": [
+          35531.4,
+          36076.5
+        ],
+        "released": [
+          -1180.0,
+          -90.66666666666667
+        ]
+      }
+    },
+    {
+      "profile": "trusted",
+      "round": 1,
+      "bytesPerAdditionalField": {
+        "held": [
+          5814.6,
+          4764.666666666667
+        ],
+        "released": [
+          1024.6,
+          -825.6666666666666
+        ]
+      }
+    },
+    {
+      "profile": "trusted",
+      "round": 2,
+      "bytesPerAdditionalField": {
+        "held": [
+          5290.8,
+          5167.0
+        ],
+        "released": [
+          847.8,
+          -658.5
+        ]
+      }
+    }
+  ],
+  "actualStructure": {
+    "current-default": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 24,
+        "counts": {
+          "copyAuthorizationValue": 1164,
+          "transferDocumentAuthorizationGraph": 114,
+          "createDocumentAuthorizationStage": 12,
+          "resolveDocumentAuthorization": 18,
+          "matchesAuthorizationSnapshot": 906,
+          "memoizeDocumentFieldDecision": 78,
+          "associateDocumentAuthorization": 24,
+          "transferDocumentAuthorization": 12
+        },
+        "sourceCopies": {
+          "copyAuthorizationValue": 741,
+          "matchesAuthorizationSnapshot": 723,
+          "transferDocumentAuthorizationGraph": 3
+        },
+        "grantCopies": {
+          "copyAuthorizationValue": 114
+        },
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 144,
+        "counts": {
+          "copyAuthorizationValue": 3084,
+          "transferDocumentAuthorizationGraph": 354,
+          "createDocumentAuthorizationStage": 12,
+          "resolveDocumentAuthorization": 18,
+          "matchesAuthorizationSnapshot": 2586,
+          "memoizeDocumentFieldDecision": 318,
+          "associateDocumentAuthorization": 24,
+          "transferDocumentAuthorization": 12
+        },
+        "sourceCopies": {
+          "copyAuthorizationValue": 2421,
+          "matchesAuthorizationSnapshot": 2403,
+          "transferDocumentAuthorizationGraph": 3
+        },
+        "grantCopies": {
+          "copyAuthorizationValue": 354
+        },
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 288,
+        "counts": {
+          "copyAuthorizationValue": 5388,
+          "transferDocumentAuthorizationGraph": 642,
+          "createDocumentAuthorizationStage": 12,
+          "resolveDocumentAuthorization": 18,
+          "matchesAuthorizationSnapshot": 4602,
+          "memoizeDocumentFieldDecision": 606,
+          "associateDocumentAuthorization": 24,
+          "transferDocumentAuthorization": 12
+        },
+        "sourceCopies": {
+          "copyAuthorizationValue": 4437,
+          "matchesAuthorizationSnapshot": 4419,
+          "transferDocumentAuthorizationGraph": 3
+        },
+        "grantCopies": {
+          "copyAuthorizationValue": 642
+        },
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ],
+    "current-active": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 6,
+        "counts": {
+          "copyAuthorizationValue": 7,
+          "resolveDocumentAuthorization": 12,
+          "memoizeDocumentFieldDecision": 78,
+          "memoizeTrustedFieldDecision": 78,
+          "associateDocumentAuthorization": 12
+        },
+        "sourceCopies": {},
+        "grantCopies": {},
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 6,
+        "counts": {
+          "copyAuthorizationValue": 7,
+          "resolveDocumentAuthorization": 12,
+          "memoizeDocumentFieldDecision": 318,
+          "memoizeTrustedFieldDecision": 318,
+          "associateDocumentAuthorization": 12
+        },
+        "sourceCopies": {},
+        "grantCopies": {},
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 6,
+        "counts": {
+          "copyAuthorizationValue": 7,
+          "resolveDocumentAuthorization": 12,
+          "memoizeDocumentFieldDecision": 606,
+          "memoizeTrustedFieldDecision": 606,
+          "associateDocumentAuthorization": 12
+        },
+        "sourceCopies": {},
+        "grantCopies": {},
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ],
+    "isolated": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 36,
+          "memoizeStageFieldDecision": 66,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6
+        },
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 156,
+          "memoizeStageFieldDecision": 306,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6
+        },
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 300,
+          "memoizeStageFieldDecision": 594,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6
+        },
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ],
+    "trusted": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 36,
+          "memoizeStageFieldDecision": 66,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {},
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 156,
+          "memoizeStageFieldDecision": 306,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {},
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 300,
+          "memoizeStageFieldDecision": 594,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {},
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ]
+  },
+  "allSixRetainedComparisonsBlocking": false,
+  "demonstratedSuperlinearCandidateRetainedFieldGraph": false,
+  "limitation": "Three field widths/two paired rounds and four GC cycles cannot prove general asymptotic complexity or absence of allocation. Negative net heap is possible after warmup/GC. Structural source/fact/catalog counts stay constant and field memo/evaluation counts scale affinely. Held/released retained bytes are not total allocations or an RSS cap."
+}

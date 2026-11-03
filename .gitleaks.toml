@@ -38,12 +38,14 @@ paths = [
 ]
 
 # Generated artifacts mirror the global `exclude` in .pre-commit-config.yaml:
-# dependency lockfiles and the generated changelog are never secret sources.
+# dependency lockfiles, the generated changelog and the curated (scrubbed)
+# task-evidence archive under docs/task-artifacts/ are never secret sources.
 [[allowlists]]
-description = "Lockfiles and generated artifacts"
+description = "Lockfiles, generated artifacts and curated task-evidence archive"
 paths = [
   '''pnpm-lock\.yaml$''',
   '''package-lock\.json$''',
   '''yarn\.lock$''',
   '''CHANGELOG\.md$''',
+  '''docs/task-artifacts/''',
 ]

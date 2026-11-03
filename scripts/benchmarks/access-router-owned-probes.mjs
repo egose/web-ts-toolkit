@@ -13,8 +13,202 @@ import {
   fingerprint,
 } from './access-router-core.mjs';
 import { verifySnapshotFlagOptions } from './access-router-worker.mjs';
+import { verifyCountContract } from './access-router-owned-core.mjs';
+
+/** Outside timing: exact public guard, full ordinary-DTO control and query/hook equality. */
+export async function probeDocumentCondition(target, { library, observe = () => ({}) } = {}) {
+  const contract = verifyCountContract(target);
+  if (!contract) return null; // historical probes below retain their own contract
+  const require = createRequire(resolve(target.root, 'packages/access-router/package.json'));
+  const mongoose = require('mongoose'),
+    express = require('express');
+  const { createAccessRuntime, guard } = library ?? (await import(pathToFileURL(target.entry)));
+  const api = createAccessRuntime(),
+    flags = authorizationModeOptions(target);
+  const fields = Array.from({ length: 24 }, (_, i) => `field${i}`);
+  const Source = mongoose.model(
+    'OwnedConditionProof',
+    new mongoose.Schema(
+      {
+        ordinal: Number,
+        ownerFlag: Boolean,
+        visible: Boolean,
+        hidden: String,
+        ...Object.fromEntries(fields.map((key) => [key, String])),
+      },
+      { versionKey: false },
+    ),
+  );
+  const id = '000000000000000000000064';
+  const row = {
+    _id: new mongoose.Types.ObjectId(id),
+    ordinal: 0,
+    ownerFlag: true,
+    visible: true,
+    hidden: 'never output',
+    ...Object.fromEntries(fields.map((key, i) => [key, `0:${i}:${'x'.repeat(32)}`])),
+  };
+  const counts = { reads: 0, hooks: 0, callbacks: 0, decorations: 0 };
+  const queries = [],
+    inputs = [];
+  let owner = true,
+    invalid = false,
+    server;
+  Source.Query.prototype.exec = async function () {
+    counts.reads++;
+    queries.push(
+      fingerprint({
+        filter: this.getFilter(),
+        projection: this.projection(),
+        options: this.getOptions(),
+        lean: this.mongooseOptions().lean,
+        populate: this.mongooseOptions().populate,
+      }),
+    );
+    return this.mongooseOptions().lean ? { ...row } : new Source(row);
+  };
+  api.setGlobalOptions({ globalPermissions: () => ({ reader: true, admin: false }), logger: { warn() {} } });
+  const quiet = {
+    includePermissions: false,
+    includeFieldPermissions: false,
+    includeCount: false,
+    tryList: false,
+    skim: false,
+  };
+  const router = api.createRouter(Source, {
+    basePath: '/condition-proof',
+    operationAccess: { read: true, list: true },
+    ...flags,
+    stripPermissionsField: false,
+    alwaysSelectFields: ['ownerFlag'],
+    hydration: { publicRead: 'lean', publicList: 'lean', find: 'lean', findOne: 'lean' },
+    modelPermissionPrefix: 'doc:',
+    permissionSchema: {
+      ordinal: true,
+      ownerFlag: false,
+      hidden: false,
+      ...Object.fromEntries(
+        fields.map((key) => [
+          key,
+          (_p, grants) => {
+            counts.callbacks++;
+            return grants.owner === true;
+          },
+        ]),
+      ),
+    },
+    docPermissions: {
+      read(doc, _permissions, context) {
+        counts.hooks++;
+        inputs.push(fingerprint({ doc, context }));
+        assert.deepEqual(Object.keys(context.docPermissions), []);
+        assert.ok(Object.isFrozen(context.docPermissions));
+        assert.ok(Object.isFrozen(context));
+        return { owner: invalid ? 1 : owner };
+      },
+    },
+    decorate: {
+      read(doc) {
+        counts.decorations++;
+        return doc;
+      },
+    },
+    defaults: { publicReadOptions: { ...quiet, includePermissions: true }, findOneOptions: quiet },
+  });
+  router.router.post('/_guard', guard({ modelName: Source.modelName, id, condition: 'reader owner' }), (_req, res) =>
+    res.json({ data: { allowed: true } }),
+  );
+  router.router.post('/_dto', async (req, res) => {
+    const result = await req.macl.getPublicService(Source.modelName)._read(id, undefined, quiet);
+    assert.equal(result.success, true, JSON.stringify(result));
+    res.json({ data: result.data });
+  });
+  const app = express().use(express.json()).use(router.routes);
+  app.use((error, req, res, next) =>
+    router.router.responseHandler.handleResponse(() => {
+      throw error;
+    })(req, res, next),
+  );
+  try {
+    server = await new Promise((done) => {
+      const s = app.listen(0, '127.0.0.1', () => done(s));
+    });
+    const post = async (path) => {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/condition-proof/${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', connection: 'close' },
+        body: '{"index":0}',
+      });
+      return { status: response.status, body: await response.json() };
+    };
+    const observations = [];
+    for (const hydration of ['lean', 'hydrated']) {
+      api.setModelOption(Source.modelName, 'hydration.publicRead', hydration);
+      const before = { ...counts },
+        stagesBefore = observe();
+      const positive = await post('_guard');
+      assert.deepEqual(
+        positive,
+        { status: 200, body: { data: { allowed: true } } },
+        JSON.stringify({ hydration, counts, queries, inputs, owner, invalid }),
+      );
+      const guardCounts = Object.fromEntries(Object.keys(counts).map((key) => [key, counts[key] - before[key]]));
+      assert.deepEqual(
+        guardCounts,
+        { reads: 1, hooks: 1, callbacks: 0, decorations: 0 },
+        'facts-only guard actual count mismatch',
+      );
+      const stagesAfter = observe();
+      const query = queries.at(-1),
+        input = inputs.at(-1),
+        dtoBefore = { ...counts };
+      const dto = await post('_dto');
+      assert.equal(dto.status, 200);
+      for (const key of fields) assert.equal(dto.body.data[key], row[key]);
+      assert.equal(dto.body.data.hidden, undefined);
+      assert.equal(counts.reads - dtoBefore.reads, 1);
+      assert.equal(counts.hooks - dtoBefore.hooks, 1);
+      assert.equal(counts.callbacks - dtoBefore.callbacks, 24);
+      assert.equal(counts.decorations - dtoBefore.decorations, 1);
+      assert.equal(queries.at(-1), query, 'Guard root query/projection differs from normal read');
+      assert.equal(inputs.at(-1), input, 'Guard pre-output hook input differs from normal read');
+      owner = false;
+      const negative = await post('_guard');
+      assert.equal(negative.status, 401);
+      invalid = true;
+      const malformed = await post('_guard');
+      assert.equal(malformed.status, 400);
+      invalid = false;
+      owner = true;
+      observations.push({
+        hydration,
+        guardCounts,
+        normalDtoCallbacks: 24,
+        normalDtoDecorations: 1,
+        query,
+        hookInput: input,
+        guardFingerprint: fingerprint(positive.body),
+        dtoFingerprint: fingerprint(dto.body),
+        negativeStatus: negative.status,
+        invalidFactsStatus: malformed.status,
+        stagesBefore,
+        stagesAfter,
+      });
+    }
+    return { contract, observations, label: 'UNTIMED public guard/DTO control; adapter reads, zero Mongo reads' };
+  } finally {
+    if (server)
+      await new Promise((done) => {
+        server.close(done);
+        server.closeAllConnections();
+      });
+    mongoose.deleteModel(Source.modelName);
+    api.runtime.clearOpenApiRoutes();
+  }
+}
 
 export async function probeOwned(target) {
+  const conditionProof = await probeDocumentCondition(target);
   const manifest = await verifySnapshotDeclarationManifest(target);
   const old = target.profile.startsWith('current-');
   const flags = old
@@ -491,6 +685,7 @@ export async function probeOwned(target) {
     }
     return {
       status: 'ok',
+      conditionProof,
       profile: target.profile,
       verification,
       observations,

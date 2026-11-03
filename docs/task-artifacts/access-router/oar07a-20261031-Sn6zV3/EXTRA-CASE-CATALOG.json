@@ -1,0 +1,1079 @@
+{
+  "packages/access-router/test/authorization-snapshot.unit.test.ts": {
+    "sha256": "88536997fbebfcdcec778cc03fa41c0c178e06c6ef9d2eaa8f545764ab02a230",
+    "bytes": 23109,
+    "lines": 507,
+    "caseTemplateCount": 15,
+    "cases": [
+      {
+        "id": "001",
+        "title": "matches wire type/bits and owns each mutable $name clone through serialization",
+        "registration": "it.each(canonicalCases)",
+        "line": 85,
+        "scopes": [
+          {
+            "title": "ARCPU-05 canonical BSON snapshots",
+            "registration": "describe",
+            "line": 84
+          }
+        ],
+        "originalCaseSource": "it.each(canonicalCases)(\n    'matches wire type/bits and owns each mutable $name clone through serialization',\n    ({ create }) => {\n      const source = create();\n      const expected = roundTrip(source);\n      const serialize = vi.spyOn(mongo.BSON, 'serialize');\n      const deserialize = vi.spyOn(mongo.BSON, 'deserialize');\n      const copies = [\n        copyAuthorizationValue(source),\n        copyAuthorizationValue(source, true),\n        copyAuthorizationValue(source, 'document'),\n      ];\n      for (const copy of copies) {\n        expect(copy).not.toBe(source);\n        expect(Object.getPrototypeOf(copy)).toBe(Object.getPrototypeOf(expected));\n        expect(isDeepStrictEqual(copy, expected)).toBe(true);\n        expect(copy._bsontype).toBe(source._bsontype);\n        if (copy instanceof bson.ObjectId || copy instanceof bson.Long) expect(copy.equals(source as never)).toBe(true);\n        if (copy instanceof bson.Decimal128) {\n          expect(copy.bytes).not.toBe((source as mongo.BSON.Decimal128).bytes);\n          expect(Buffer.isBuffer(copy.bytes)).toBe(true); // Deserialization normalizes Uint8Array payloads to Buffer.\n        }\n      }\n      mutate(copies[0]);\n      expect(isDeepStrictEqual(copies[0], expected)).toBe(false);\n      expect(isDeepStrictEqual(copies[1], expected)).toBe(true);\n      expect(matchesAuthorizationSnapshot(source, copies[1])).toBe(true);\n      mutate(source);\n      expect(matchesAuthorizationSnapshot(source, copies[1])).toBe(false);\n      expect(isDeepStrictEqual(copies[2], expected)).toBe(true);\n      // Constructor shortcuts are deferred: canonical shape cannot prove that\n      // mutable BSON wire hooks are unmodified, including before module import.\n      expect(serialize).toHaveBeenCalledTimes(5); // Three copies and two snapshot comparisons.\n      expect(deserialize).toHaveBeenCalledTimes(5);\n    },\n  )"
+      },
+      {
+        "id": "002",
+        "title": "clones repeated canonical leaves separately in nested records, arrays, Maps and Sets",
+        "registration": "it",
+        "line": 122,
+        "scopes": [
+          {
+            "title": "ARCPU-05 canonical BSON snapshots",
+            "registration": "describe",
+            "line": 84
+          }
+        ],
+        "originalCaseSource": "it('clones repeated canonical leaves separately in nested records, arrays, Maps and Sets', () => {\n    const leaves = {\n      id: new bson.ObjectId(hex),\n      decimal: bson.Decimal128.fromString('1.20'),\n      long: new bson.Long(-1, 3),\n    };\n    const input = { leaves, rows: [leaves, leaves], map: new Map([[leaves.id, leaves]]), set: new Set([leaves]) };\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    const copy = copyAuthorizationValue(input, true);\n    const peers = [copy.leaves, ...copy.rows, ...copy.map.values(), ...copy.set];\n    for (const peer of peers) {\n      expect(Object.isFrozen(peer)).toBe(true);\n      expect(peer.id).not.toBe(leaves.id);\n      expect(peer.decimal.bytes).not.toBe(leaves.decimal.bytes);\n      expect(peer.long).not.toBe(leaves.long);\n      expect(peer.id.equals(hex)).toBe(true);\n      expect(peer.decimal.toString()).toBe('1.20');\n      expect(peer.long.low).toBe(-1);\n    }\n    expect(new Set(peers.map((peer) => peer.id)).size).toBe(peers.length);\n    for (const leaf of Object.values(copy.leaves)) mutate(leaf);\n    expect(copy.rows[0].id.equals(hex)).toBe(true);\n    expect(copy.rows[0].decimal.toString()).toBe('1.20');\n    expect(copy.rows[0].long.low).toBe(-1);\n    expect([...copy.map.keys()][0].equals(hex)).toBe(true);\n    expect(leaves.id.equals(hex)).toBe(true);\n    expect(leaves.decimal.toString()).toBe('1.20');\n    expect(leaves.long.low).toBe(-1);\n    expect(serialize).toHaveBeenCalledTimes(16); // Each occurrence owns a separate wire-round-tripped leaf.\n  })"
+      },
+      {
+        "id": "003",
+        "title": "does not preserve a stale ObjectId hex cache instead of its serialized bits",
+        "registration": "it",
+        "line": 153,
+        "scopes": [
+          {
+            "title": "ARCPU-05 canonical BSON snapshots",
+            "registration": "describe",
+            "line": 84
+          }
+        ],
+        "originalCaseSource": "it('does not preserve a stale ObjectId hex cache instead of its serialized bits', () => {\n    const cache = bson.ObjectId.cacheHexString;\n    try {\n      bson.ObjectId.cacheHexString = true;\n      const source = new bson.ObjectId(hex.toUpperCase());\n      source.toHexString();\n      // In the byte-backed implementation this mutates bytes without refreshing the hex cache.\n      source.id[0] ^= 255;\n      const expected = roundTrip(source);\n      const serialize = vi.spyOn(mongo.BSON, 'serialize');\n      const copy = copyAuthorizationValue(source);\n      expect(isDeepStrictEqual(copy, expected)).toBe(true);\n      expect(copy.toHexString()).toBe((expected as mongo.BSON.ObjectId).toHexString());\n      expect(serialize).toHaveBeenCalledTimes(1);\n    } finally {\n      bson.ObjectId.cacheHexString = cache;\n    }\n  })"
+      },
+      {
+        "id": "004",
+        "title": "retains serializer normalization/type/subtype for $name",
+        "registration": "it.each(fallbackCases)",
+        "line": 252,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it.each(fallbackCases)('retains serializer normalization/type/subtype for $name', ({ create }) => {\n    const source = create();\n    const expected = roundTrip(source);\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    const deserialize = vi.spyOn(mongo.BSON, 'deserialize');\n    const copy = copyAuthorizationValue(source);\n    expect(isDeepStrictEqual(copy, expected)).toBe(true);\n    expect(copy === source).toBe(false); // Do not inspect a proxied typed-array payload in assertion diagnostics.\n    expect(Object.getPrototypeOf(copy)).toBe(Object.getPrototypeOf(expected));\n    expect(serialize).toHaveBeenCalledExactlyOnceWith({ value: source });\n    expect(deserialize).toHaveBeenCalledExactlyOnceWith(expect.any(Uint8Array), {\n      promoteValues: false,\n      bsonRegExp: true,\n    });\n  })"
+      },
+      {
+        "id": "005",
+        "title": "does not bypass serializer rejection of $name",
+        "registration": "it.each([\n    { name: 'null Decimal128 bytes', create: () => Object.assign(bson.Decimal128.fromString('1.2'), { bytes: null }) },\n    {\n      name: 'missing ObjectId serializer',\n      create: () => Object.assign(new bson.ObjectId(hex), { serializeInto: null }),\n    },\n    {\n      name: 'wrong BSON version',\n      create: () => Object.defineProperty(new bson.Long(1, 2), Symbol.for('@@mdb.bson.version'), { value: -1 }),\n    },\n  ])",
+        "line": 268,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it.each([\n    { name: 'null Decimal128 bytes', create: () => Object.assign(bson.Decimal128.fromString('1.2'), { bytes: null }) },\n    {\n      name: 'missing ObjectId serializer',\n      create: () => Object.assign(new bson.ObjectId(hex), { serializeInto: null }),\n    },\n    {\n      name: 'wrong BSON version',\n      create: () => Object.defineProperty(new bson.Long(1, 2), Symbol.for('@@mdb.bson.version'), { value: -1 }),\n    },\n  ])('does not bypass serializer rejection of $name', ({ create }) => {\n    const source = create();\n    expect(() => roundTrip(source)).toThrow();\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    expectAuthorizationError(() => copyAuthorizationValue(source), 'unsupported BSON snapshot');\n    expect(serialize).toHaveBeenCalledTimes(1);\n  })"
+      },
+      {
+        "id": "006",
+        "title": "retains wire normalization/rejection for malformed ObjectId words or the other BSON version's storage layout",
+        "registration": "it",
+        "line": 286,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it(\"retains wire normalization/rejection for malformed ObjectId words or the other BSON version's storage layout\", () => {\n    const malformed = new bson.ObjectId(hex);\n    const words = Object.hasOwn(malformed, 'i0');\n    if (words) Object.assign(malformed, { i0: 0x1000000 + 0x123456, i1: 1.5, i2: -1, i3: NaN });\n    else Object.assign(malformed, { buffer: Buffer.alloc(11) });\n    const otherLayout = new bson.ObjectId(hex);\n    for (const key of Reflect.ownKeys(otherLayout)) Reflect.deleteProperty(otherLayout, key);\n    Object.assign(otherLayout, words ? { buffer: Buffer.alloc(12, 1) } : { i0: 1, i1: 2, i2: 3, i3: 4 });\n    for (const source of [malformed, otherLayout]) {\n      let expected: unknown;\n      let rejected = false;\n      try {\n        expected = roundTrip(source);\n      } catch {\n        rejected = true;\n      }\n      const serialize = vi.spyOn(mongo.BSON, 'serialize');\n      if (rejected) expect(() => copyAuthorizationValue(source)).toThrow(ServiceAuthorizationError);\n      else expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);\n      expect(serialize).toHaveBeenCalledTimes(1);\n      serialize.mockRestore();\n    }\n  })"
+      },
+      {
+        "id": "007",
+        "title": "invokes %s own accessors only as required by serialization",
+        "registration": "it.each(['id', 'decimal', 'long'] as const)",
+        "line": 310,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it.each(['id', 'decimal', 'long'] as const)('invokes %s own accessors only as required by serialization', (kind) => {\n    const source =\n      kind === 'id'\n        ? new bson.ObjectId(hex)\n        : kind === 'decimal'\n          ? bson.Decimal128.fromString('1.2')\n          : new bson.Long(1, 2);\n    const key = kind === 'id' ? Reflect.ownKeys(source)[0] : kind === 'decimal' ? 'bytes' : 'low';\n    const value = Object.getOwnPropertyDescriptor(source, key)!.value;\n    const getter = vi.fn(() => value);\n    Object.defineProperty(source, key, { enumerable: true, configurable: true, get: getter });\n    const expected = roundTrip(source);\n    const calls = getter.mock.calls.length;\n    expect(calls).toBeGreaterThan(0);\n    getter.mockClear();\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);\n    expect(getter).toHaveBeenCalledTimes(calls);\n    expect(serialize).toHaveBeenCalledTimes(1);\n  })"
+      },
+      {
+        "id": "008",
+        "title": "does not inspect extra %s own native getters",
+        "registration": "it.each(['id', 'decimal', 'long'] as const)",
+        "line": 331,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it.each(['id', 'decimal', 'long'] as const)('does not inspect extra %s own native getters', (kind) => {\n    const source =\n      kind === 'id'\n        ? new bson.ObjectId(hex)\n        : kind === 'decimal'\n          ? bson.Decimal128.fromString('1.2')\n          : new bson.Long(1, 2);\n    const getter = vi.fn(() => {\n      throw new Error('must not inspect extra native fields');\n    });\n    Object.defineProperty(source, 'extra', { get: getter });\n    const expected = roundTrip(source);\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);\n    expect(getter).not.toHaveBeenCalled();\n    expect(serialize).toHaveBeenCalledTimes(1);\n  })"
+      },
+      {
+        "id": "009",
+        "title": "preserves wire semantics without reading an application byteLength accessor",
+        "registration": "it",
+        "line": 349,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it('preserves wire semantics without reading an application byteLength accessor', () => {\n    const source = bson.Decimal128.fromString('1.2');\n    const getter = vi.fn(() => {\n      throw new Error('must not inspect byteLength');\n    });\n    Object.defineProperty(source.bytes, 'byteLength', { get: getter });\n    const expected = roundTrip(source);\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);\n    expect(getter).not.toHaveBeenCalled();\n    expect(serialize).toHaveBeenCalledTimes(1);\n  })"
+      },
+      {
+        "id": "010",
+        "title": "retains inherited toBSON normalization without extra accessor calls",
+        "registration": "it",
+        "line": 362,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it('retains inherited toBSON normalization without extra accessor calls', () => {\n    const getter = vi.fn(() => () => new bson.Int32(321));\n    try {\n      Object.defineProperty(bson.Long.prototype, 'toBSON', { configurable: true, get: getter });\n      const source = new bson.Long(1, 2);\n      const expected = roundTrip(source);\n      const calls = getter.mock.calls.length;\n      getter.mockClear();\n      const serialize = vi.spyOn(mongo.BSON, 'serialize');\n      expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);\n      expect(getter).toHaveBeenCalledTimes(calls);\n      expect(serialize).toHaveBeenCalledTimes(1);\n    } finally {\n      Reflect.deleteProperty(bson.Long.prototype, 'toBSON');\n    }\n  })"
+      },
+      {
+        "id": "011",
+        "title": "does not bypass changed prototype wire methods or invoke their accessors twice",
+        "registration": "it",
+        "line": 379,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it('does not bypass changed prototype wire methods or invoke their accessors twice', () => {\n    const descriptor = Object.getOwnPropertyDescriptor(bson.Long.prototype, 'getLowBits')!;\n    const getter = vi.fn(() => () => 123);\n    try {\n      Object.defineProperty(bson.Long.prototype, 'getLowBits', { configurable: true, get: getter });\n      const source = new bson.Long(1, 2);\n      const expected = roundTrip(source);\n      const calls = getter.mock.calls.length;\n      getter.mockClear();\n      const serialize = vi.spyOn(mongo.BSON, 'serialize');\n      expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);\n      expect(getter).toHaveBeenCalledTimes(calls);\n      expect(serialize).toHaveBeenCalledTimes(1);\n    } finally {\n      Object.defineProperty(bson.Long.prototype, 'getLowBits', descriptor);\n    }\n  })"
+      },
+      {
+        "id": "012",
+        "title": "retains serializer validation of a changed inherited BSON version getter",
+        "registration": "it",
+        "line": 397,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it('retains serializer validation of a changed inherited BSON version getter', () => {\n    const version = Symbol.for('@@mdb.bson.version');\n    const descriptor = Object.getOwnPropertyDescriptor(bson.BSONValue.prototype, version)!;\n    const getter = vi.fn(() => -1);\n    try {\n      Object.defineProperty(bson.BSONValue.prototype, version, { configurable: true, get: getter });\n      const source = new bson.Long(1, 2);\n      expect(() => roundTrip(source)).toThrow();\n      const calls = getter.mock.calls.length;\n      expect(calls).toBeGreaterThan(0);\n      getter.mockClear();\n      const serialize = vi.spyOn(mongo.BSON, 'serialize');\n      expectAuthorizationError(() => copyAuthorizationValue(source), 'unsupported BSON snapshot');\n      expect(getter).toHaveBeenCalledTimes(calls);\n      expect(serialize).toHaveBeenCalledTimes(1);\n    } finally {\n      Object.defineProperty(bson.BSONValue.prototype, version, descriptor);\n    }\n  })"
+      },
+      {
+        "id": "013",
+        "title": "retains wire overrides installed before the snapshot module loaded: %s",
+        "registration": "it.each(['Long bits', 'ObjectId bytes', 'BSON version'] as const)",
+        "line": 417,
+        "scopes": [
+          {
+            "title": "ARCPU-05 BSON wire compatibility",
+            "registration": "describe",
+            "line": 251
+          }
+        ],
+        "originalCaseSource": "it.each(['Long bits', 'ObjectId bytes', 'BSON version'] as const)(\n    'retains wire overrides installed before the snapshot module loaded: %s',\n    async (kind) => {\n      const prototype =\n        kind === 'Long bits'\n          ? bson.Long.prototype\n          : kind === 'ObjectId bytes'\n            ? bson.ObjectId.prototype\n            : bson.BSONValue.prototype;\n      const key =\n        kind === 'Long bits'\n          ? 'getLowBits'\n          : kind === 'ObjectId bytes'\n            ? 'serializeInto'\n            : Symbol.for('@@mdb.bson.version');\n      const descriptor = Object.getOwnPropertyDescriptor(prototype, key)!;\n      try {\n        Object.defineProperty(\n          prototype,\n          key,\n          kind === 'BSON version'\n            ? { ...descriptor, get: () => -1 }\n            : {\n                ...descriptor,\n                value:\n                  kind === 'Long bits'\n                    ? () => 123\n                    : (buffer: Uint8Array, index: number) => {\n                        buffer.set(Buffer.alloc(12, 0x12), index);\n                        return 12;\n                      },\n              },\n        );\n        vi.resetModules();\n        const isolated = await import('../src/acl/authorization-snapshot');\n        const source = kind === 'ObjectId bytes' ? new bson.ObjectId(hex) : new bson.Long(1, 2);\n        if (kind === 'BSON version') {\n          expect(() => roundTrip(source)).toThrow();\n          expect(() => isolated.copyAuthorizationValue(source)).toThrow(isolated.ServiceAuthorizationError);\n          expect(isolated.matchesAuthorizationSnapshot(source, source)).toBe(false);\n        } else {\n          const expected = roundTrip(source);\n          expect(isDeepStrictEqual(isolated.copyAuthorizationValue(source), expected)).toBe(true);\n          expect(isolated.matchesAuthorizationSnapshot({ source }, { source: expected })).toBe(true);\n        }\n      } finally {\n        Object.defineProperty(prototype, key, descriptor);\n        vi.resetModules();\n      }\n    },\n  )"
+      },
+      {
+        "id": "014",
+        "title": "handles null/plain records through descriptors, not BSON-looking properties or application accessors",
+        "registration": "it",
+        "line": 471,
+        "scopes": [
+          {
+            "title": "ARCPU-05 snapshot safeguards remain in force",
+            "registration": "describe",
+            "line": 470
+          }
+        ],
+        "originalCaseSource": "it('handles null/plain records through descriptors, not BSON-looking properties or application accessors', () => {\n    const input = Object.assign(Object.create(null), { value: new bson.ObjectId(hex), _bsontype: 'ObjectId' });\n    expect(copyAuthorizationValue(input)).toEqual({ value: new bson.ObjectId(hex), _bsontype: 'ObjectId' });\n    expect(copyAuthorizationValue(null)).toBeNull();\n    const getter = vi.fn(() => new bson.ObjectId(hex));\n    for (const mode of [false, true, 'document'] as const) {\n      expect(() =>\n        copyAuthorizationValue(Object.defineProperty({}, 'value', { enumerable: true, get: getter }), mode),\n      ).toThrow(ServiceAuthorizationError);\n      expect(() => copyAuthorizationValue({ value: Object.create({ id: new bson.ObjectId(hex) }) }, mode)).toThrow(\n        ServiceAuthorizationError,\n      );\n    }\n    expect(getter).not.toHaveBeenCalled();\n  })"
+      },
+      {
+        "id": "015",
+        "title": "retains non-enumerable data handling, unsafe-key/cycle rejection and structural limits around BSON leaves",
+        "registration": "it",
+        "line": 487,
+        "scopes": [
+          {
+            "title": "ARCPU-05 snapshot safeguards remain in force",
+            "registration": "describe",
+            "line": 470
+          }
+        ],
+        "originalCaseSource": "it('retains non-enumerable data handling, unsafe-key/cycle rejection and structural limits around BSON leaves', () => {\n    const hidden = Object.defineProperty({}, 'value', { value: new bson.ObjectId(hex) });\n    expectAuthorizationError(() => copyAuthorizationValue(hidden), 'accessor/non-enumerable input');\n    expect(copyAuthorizationValue(hidden, 'document')).toEqual({ value: new bson.ObjectId(hex) });\n    expectAuthorizationError(() => copyAuthorizationValue(JSON.parse('{\"__proto__\":{}}')), 'unsafe snapshot key');\n    const cyclic: Record<string, unknown> = { id: new bson.ObjectId(hex) };\n    cyclic.self = cyclic;\n    expectAuthorizationError(() => copyAuthorizationValue(cyclic), 'cyclic input');\n    let nested: unknown = new bson.Long(1, 2);\n    for (let depth = 0; depth < 101; depth++) nested = { nested };\n    expectAuthorizationError(() => copyAuthorizationValue(nested), 'snapshot exceeds structural limits');\n    expectAuthorizationError(\n      () => copyAuthorizationValue(Array(20001).fill(new bson.Long(1, 2))),\n      'snapshot array exceeds structural limits',\n    );\n    expectAuthorizationError(\n      () => copyAuthorizationValue(Array(20000).fill(new bson.Long(1, 2))),\n      'snapshot exceeds structural limits',\n    );\n  })"
+      }
+    ],
+    "matrixLoops": [
+      {
+        "loop": "for (const copy of copies)",
+        "line": 97
+      },
+      {
+        "loop": "for (const peer of peers)",
+        "line": 132
+      },
+      {
+        "loop": "for (const leaf of Object.values(copy.leaves))",
+        "line": 142
+      },
+      {
+        "loop": "for (const key of Reflect.ownKeys(otherLayout))",
+        "line": 292
+      },
+      {
+        "loop": "for (const source of [malformed, otherLayout])",
+        "line": 294
+      },
+      {
+        "loop": "for (const mode of [false, true, 'document'] as const)",
+        "line": 476
+      },
+      {
+        "loop": "for (let depth = 0; depth < 101; depth++)",
+        "line": 496
+      }
+    ]
+  },
+  "packages/access-router/test/authorization-snapshot-copy-builder.unit.test.ts": {
+    "sha256": "db216c38850e370af9ff13311afec31c9784c4ea95c979b20f6498baf330ef46",
+    "bytes": 8366,
+    "lines": 207,
+    "caseTemplateCount": 7,
+    "cases": [
+      {
+        "id": "001",
+        "title": "removes per-record-property descriptor materialization without dropping array definitions or freezes",
+        "registration": "it",
+        "line": 19,
+        "scopes": [
+          {
+            "title": "PIPE-02 observation-preserving snapshot record builder",
+            "registration": "describe",
+            "line": 18
+          }
+        ],
+        "originalCaseSource": "it('removes per-record-property descriptor materialization without dropping array definitions or freezes', () => {\n    const value = {\n      rows: [\n        { a: 1, b: 2 },\n        { a: 3, b: 4 },\n      ],\n      meta: { visible: true },\n    };\n    const definitions = vi.spyOn(Object, 'defineProperty');\n    const before = legacy(value, 'document');\n    expect(definitions).toHaveBeenCalledTimes(9);\n    definitions.mockClear();\n    const after = copyAuthorizationValue(value, 'document');\n    expect(definitions).toHaveBeenCalledTimes(2); // Sparse/numeric array semantics retain the old builder.\n    expect(after).toEqual(before);\n    expect([after, after.rows, ...after.rows, after.meta].every(Object.isFrozen)).toBe(true);\n  })"
+      },
+      {
+        "id": "002",
+        "title": "agrees with the independent original copier on 512 seeded graphs in all three modes",
+        "registration": "it",
+        "line": 37,
+        "scopes": [
+          {
+            "title": "PIPE-02 observation-preserving snapshot record builder",
+            "registration": "describe",
+            "line": 18
+          }
+        ],
+        "originalCaseSource": "it('agrees with the independent original copier on 512 seeded graphs in all three modes', () => {\n    const primitives = [null, undefined, false, true, NaN, -0, 12n, '雪'];\n    for (let seed = 1; seed <= 512; seed++) {\n      let state = seed;\n      const next = () => (state = (Math.imul(state, 1664525) + 1013904223) >>> 0);\n      const aliases: unknown[] = [];\n      function generate(depth: number): unknown {\n        if (!depth || next() % 4 === 0) return primitives[next() % primitives.length];\n        if (aliases.length && next() % 7 === 0) return aliases[next() % aliases.length];\n        const array = next() % 2 === 0;\n        const value = array ? Array(next() % 5) : Object.create(next() % 2 ? Object.prototype : null);\n        for (let index = 0, length = array ? value.length : next() % 5; index < length; index++) {\n          if (array && next() % 3 === 0) continue;\n          Object.defineProperty(value, array ? String(index) : `field${index}`, {\n            value: generate(depth - 1),\n            enumerable: next() % 3 !== 0,\n          });\n        }\n        aliases.push(value);\n        return value;\n      }\n      const source = generate(4);\n      for (const mode of [false, true, 'document'] as const)\n        expect(outcome(copyAuthorizationValue, source, mode)).toEqual(outcome(legacy, source, mode));\n    }\n  })"
+      },
+      {
+        "id": "003",
+        "title": "does not invoke inherited setters and publishes normal-prototype frozen data properties",
+        "registration": "it",
+        "line": 64,
+        "scopes": [
+          {
+            "title": "PIPE-02 observation-preserving snapshot record builder",
+            "registration": "describe",
+            "line": 18
+          }
+        ],
+        "originalCaseSource": "it('does not invoke inherited setters and publishes normal-prototype frozen data properties', () => {\n    const key = 'pipe02InheritedSetter';\n    const setter = vi.fn(() => {\n      throw new Error('inherited setter must not run');\n    });\n    const previous = Object.getOwnPropertyDescriptor(Object.prototype, key);\n    try {\n      Object.defineProperty(Object.prototype, key, { configurable: true, set: setter });\n      const source = Object.defineProperty(Object.create(null), key, { value: { nested: 1 }, enumerable: true });\n      const value = copyAuthorizationValue(source, 'document');\n      expect(Object.getPrototypeOf(value)).toBe(Object.prototype);\n      expect(Object.getOwnPropertyDescriptor(value, key)).toEqual({\n        value: { nested: 1 },\n        enumerable: true,\n        writable: false,\n        configurable: false,\n      });\n      expect(setter).not.toHaveBeenCalled();\n    } finally {\n      if (previous) Object.defineProperty(Object.prototype, key, previous);\n      else Reflect.deleteProperty(Object.prototype, key);\n    }\n  })"
+      },
+      {
+        "id": "004",
+        "title": "rechecks inherited keys after native normalization installs a setter",
+        "registration": "it",
+        "line": 88,
+        "scopes": [
+          {
+            "title": "PIPE-02 observation-preserving snapshot record builder",
+            "registration": "describe",
+            "line": 18
+          }
+        ],
+        "originalCaseSource": "it('rechecks inherited keys after native normalization installs a setter', () => {\n    const key = 'pipe02DuringNormalization';\n    const setter = vi.fn(() => {\n      throw new Error('new inherited setter must not run');\n    });\n    const previous = Object.getOwnPropertyDescriptor(Object.prototype, key);\n    try {\n      const native = Object.assign(new mongo.BSON.ObjectId(), {\n        toBSON() {\n          Object.defineProperty(Object.prototype, key, { configurable: true, set: setter });\n          return 'normalized';\n        },\n      });\n      const source = { [key]: native };\n      const value = copyAuthorizationValue(source, 'document');\n      expect(value[key]).toBe('normalized');\n      expect(setter).not.toHaveBeenCalled();\n      expect(Object.getOwnPropertyDescriptor(value, key)).toEqual({\n        value: 'normalized',\n        enumerable: true,\n        writable: false,\n        configurable: false,\n      });\n    } finally {\n      if (previous) Object.defineProperty(Object.prototype, key, previous);\n      else Reflect.deleteProperty(Object.prototype, key);\n    }\n  })"
+      },
+      {
+        "id": "005",
+        "title": "does not traverse a target prototype replaced during recursive native work",
+        "registration": "it",
+        "line": 117,
+        "scopes": [
+          {
+            "title": "PIPE-02 observation-preserving snapshot record builder",
+            "registration": "describe",
+            "line": 18
+          }
+        ],
+        "originalCaseSource": "it('does not traverse a target prototype replaced during recursive native work', () => {\n    const run = (copy: typeof legacy) => {\n      let target: object | undefined;\n      const has = vi.fn(() => {\n        throw new Error('must not inspect replaced prototype');\n      });\n      const prototype = new Proxy({}, { has });\n      const define = Object.defineProperty;\n      const spy = vi.spyOn(Object, 'defineProperty').mockImplementation((object, key, descriptor) => {\n        if (key === 'toString') target = object;\n        return define(object, key, descriptor);\n      });\n      try {\n        const source = {\n          toString: 'data',\n          when: Object.assign(new Date(1), {\n            getTime() {\n              Object.setPrototypeOf(target!, prototype);\n              return 1;\n            },\n          }),\n        };\n        const value = copy(source, 'document');\n        expect(Object.getPrototypeOf(value)).toBe(prototype);\n        expect(Object.getOwnPropertyDescriptor(value, 'when')?.value).toEqual(new Date(1));\n        expect(has).not.toHaveBeenCalled();\n      } finally {\n        spy.mockRestore();\n      }\n    };\n    run(legacy);\n    run(copyAuthorizationValue);\n  })"
+      },
+      {
+        "id": "006",
+        "title": "retains wire/native/proxy observation order in mode %s",
+        "registration": "it.each([false, true, 'document'] as const)",
+        "line": 151,
+        "scopes": [
+          {
+            "title": "PIPE-02 observation-preserving snapshot record builder",
+            "registration": "describe",
+            "line": 18
+          }
+        ],
+        "originalCaseSource": "it.each([false, true, 'document'] as const)('retains wire/native/proxy observation order in mode %s', (mode) => {\n    const run = (copy: typeof legacy) => {\n      const events: string[] = [];\n      const source: Record<string, unknown> = { first: 'before' };\n      source.date = Object.assign(new Date(1), {\n        getTime() {\n          events.push('date');\n          return 1;\n        },\n      });\n      source.native = Object.assign(new mongo.BSON.ObjectId('0123456789abcdef01234567'), {\n        toBSON() {\n          events.push('wire');\n          source.first = 'changed';\n          source.later = 'changed later';\n          return 'normalized';\n        },\n      });\n      source.proxy = new Proxy(\n        { value: 1 },\n        {\n          getPrototypeOf(target) {\n            events.push('prototype');\n            return Reflect.getPrototypeOf(target);\n          },\n          ownKeys(target) {\n            events.push('keys');\n            return Reflect.ownKeys(target);\n          },\n          getOwnPropertyDescriptor(target, key) {\n            events.push(`descriptor:${String(key)}`);\n            return Reflect.getOwnPropertyDescriptor(target, key);\n          },\n        },\n      );\n      source.later = 'before';\n      return { result: outcome(copy, source, mode), events, final: source.first };\n    };\n    expect(run(copyAuthorizationValue)).toEqual(run(legacy));\n  })"
+      },
+      {
+        "id": "007",
+        "title": "keeps independent aliases, mutable leaves, Map/Set normalization and configuration functions",
+        "registration": "it",
+        "line": 192,
+        "scopes": [
+          {
+            "title": "PIPE-02 observation-preserving snapshot record builder",
+            "registration": "describe",
+            "line": 18
+          }
+        ],
+        "originalCaseSource": "it('keeps independent aliases, mutable leaves, Map/Set normalization and configuration functions', () => {\n    const shared = { when: new Date(1), bytes: Buffer.from([1]), id: new mongo.BSON.ObjectId() };\n    const fn = () => true;\n    const source = { first: shared, second: shared, map: new Map([[shared, shared]]), set: new Set([shared]), fn };\n    const value = copyAuthorizationValue(source, true);\n    expect(isDeepStrictEqual(value, legacy(source, true))).toBe(true);\n    expect(value.first).not.toBe(value.second);\n    expect(value.first.when).not.toBe(value.second.when);\n    expect(value.fn).toBe(fn);\n    value.first.when.setTime(9);\n    value.first.bytes[0] = 9;\n    expect(value.second.when.getTime()).toBe(1);\n    expect(value.second.bytes[0]).toBe(1);\n    expect(shared.when.getTime()).toBe(1);\n  })"
+      }
+    ],
+    "matrixLoops": [
+      {
+        "loop": "for (let seed = 1; seed <= 512; seed++)",
+        "line": 39
+      },
+      {
+        "loop": "for (let index = 0, length = array ? value.length : next() % 5; index < length; index++)",
+        "line": 48
+      },
+      {
+        "loop": "for (const mode of [false, true, 'document'] as const)",
+        "line": 59
+      }
+    ]
+  },
+  "packages/access-router/test/authorization-snapshot-differential.unit.test.ts": {
+    "sha256": "45d40b4c9576275bbdbe08bdf26d31a15652c3fd7071ec856e6ad1c892e94c7f",
+    "bytes": 48932,
+    "lines": 1250,
+    "caseTemplateCount": 44,
+    "cases": [
+      {
+        "id": "001",
+        "title": "agrees on 512 deterministic generated graphs, changed sources and changed snapshots",
+        "registration": "it",
+        "line": 44,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it('agrees on 512 deterministic generated graphs, changed sources and changed snapshots', () => {\n    const primitives = [null, undefined, false, true, 0, -0, NaN, Infinity, -Infinity, 123n, '', '雪'];\n    for (let seed = 1; seed <= 512; seed++) {\n      let state = seed;\n      const next = () => (state = (Math.imul(state, 1664525) + 1013904223) >>> 0);\n      const aliases: unknown[] = [];\n      function generate(depth: number): unknown {\n        if (!depth || next() % 4 === 0) return primitives[next() % primitives.length];\n        if (aliases.length && next() % 7 === 0) return aliases[next() % aliases.length];\n        let result: any;\n        if (next() % 2) {\n          result = Array(next() % 6);\n          for (let i = 0; i < result.length; i++) {\n            if (next() % 3)\n              Object.defineProperty(result, String(i), { value: generate(depth - 1), enumerable: !!(next() % 2) });\n          }\n        } else {\n          result = Object.create(next() % 2 ? Object.prototype : null);\n          for (let i = 0, count = next() % 5; i < count; i++) {\n            Object.defineProperty(result, `${next() % 2 ? 'field' : '雪'}${i}`, {\n              value: generate(depth - 1),\n              enumerable: !!(next() % 2),\n            });\n          }\n        }\n        if (next() % 3 === 0) Object.freeze(result);\n        aliases.push(result); // Only completed nodes: shared aliases, never active cycles.\n        return result;\n      }\n      const source = { payload: generate(4), stable: 'original' };\n      const snapshot = copyAuthorizationValue(source, 'document');\n      agrees(source, snapshot, true);\n      agrees(source, { ...snapshot, stable: 'different' }, false);\n      source.stable = 'changed';\n      agrees(source, snapshot, false);\n    }\n  })"
+      },
+      {
+        "id": "002",
+        "title": "$name",
+        "registration": "it.each([\n    { name: 'NaN', value: NaN, snapshot: NaN, expected: true },\n    { name: 'negative zero', value: -0, snapshot: 0, expected: false },\n    { name: 'bigint', value: 123n, snapshot: 123n, expected: true },\n    { name: 'undefined', value: { value: undefined }, snapshot: { value: undefined }, expected: true },\n    { name: 'missing vs undefined', value: {}, snapshot: { value: undefined }, expected: false },\n    { name: 'different key order', value: { b: 1, a: 2 }, snapshot: { a: 2, b: 1 }, expected: true },\n    { name: 'non-enumerable document data', value: hidden(1), snapshot: { hidden: 1 }, expected: true },\n    { name: 'snapshot non-enumerable data is not normalized', value: hidden(1), snapshot: hidden(1), expected: false },\n    { name: 'snapshot-only hidden data', value: {}, snapshot: hidden(1), expected: true },\n    {\n      name: 'null source prototype',\n      value: Object.assign(Object.create(null), { a: 1 }),\n      snapshot: { a: 1 },\n      expected: true,\n    },\n    {\n      name: 'null target prototype',\n      value: { a: 1 },\n      snapshot: Object.assign(Object.create(null), { a: 1 }),\n      expected: false,\n    },\n    { name: 'array holes', value: Array(3), snapshot: Array(3), expected: true },\n    { name: 'holes are not undefined', value: Array(1), snapshot: [undefined], expected: false },\n    { name: 'different array length', value: Array(2), snapshot: Array(3), expected: false },\n    {\n      name: 'hidden array index',\n      value: Object.defineProperty(Array(2), '1', { value: 1 }),\n      snapshot: Object.assign(Array(2), { 1: 1 }),\n      expected: true,\n    },\n    {\n      name: 'hidden target array index',\n      value: [1],\n      snapshot: Object.defineProperty(Array(1), '0', { value: 1 }),\n      expected: true,\n    },\n    { name: 'null array prototype', value: Object.setPrototypeOf([1], null), snapshot: [1], expected: true },\n    { name: 'array subclass', value: new (class extends Array {})(1, 2), snapshot: [1, 2], expected: true },\n    {\n      name: 'large non-index array property',\n      value: Object.assign([], { 4294967295: 1 }),\n      snapshot: Object.assign([], { 4294967295: 1 }),\n      expected: true,\n    },\n    {\n      name: 'huge numeric array property',\n      value: Object.assign([], { ['999999999999999999999']: 1 }),\n      snapshot: Object.assign([], { ['999999999999999999999']: 1 }),\n      expected: true,\n    },\n  ])",
+        "line": 82,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it.each([\n    { name: 'NaN', value: NaN, snapshot: NaN, expected: true },\n    { name: 'negative zero', value: -0, snapshot: 0, expected: false },\n    { name: 'bigint', value: 123n, snapshot: 123n, expected: true },\n    { name: 'undefined', value: { value: undefined }, snapshot: { value: undefined }, expected: true },\n    { name: 'missing vs undefined', value: {}, snapshot: { value: undefined }, expected: false },\n    { name: 'different key order', value: { b: 1, a: 2 }, snapshot: { a: 2, b: 1 }, expected: true },\n    { name: 'non-enumerable document data', value: hidden(1), snapshot: { hidden: 1 }, expected: true },\n    { name: 'snapshot non-enumerable data is not normalized', value: hidden(1), snapshot: hidden(1), expected: false },\n    { name: 'snapshot-only hidden data', value: {}, snapshot: hidden(1), expected: true },\n    {\n      name: 'null source prototype',\n      value: Object.assign(Object.create(null), { a: 1 }),\n      snapshot: { a: 1 },\n      expected: true,\n    },\n    {\n      name: 'null target prototype',\n      value: { a: 1 },\n      snapshot: Object.assign(Object.create(null), { a: 1 }),\n      expected: false,\n    },\n    { name: 'array holes', value: Array(3), snapshot: Array(3), expected: true },\n    { name: 'holes are not undefined', value: Array(1), snapshot: [undefined], expected: false },\n    { name: 'different array length', value: Array(2), snapshot: Array(3), expected: false },\n    {\n      name: 'hidden array index',\n      value: Object.defineProperty(Array(2), '1', { value: 1 }),\n      snapshot: Object.assign(Array(2), { 1: 1 }),\n      expected: true,\n    },\n    {\n      name: 'hidden target array index',\n      value: [1],\n      snapshot: Object.defineProperty(Array(1), '0', { value: 1 }),\n      expected: true,\n    },\n    { name: 'null array prototype', value: Object.setPrototypeOf([1], null), snapshot: [1], expected: true },\n    { name: 'array subclass', value: new (class extends Array {})(1, 2), snapshot: [1, 2], expected: true },\n    {\n      name: 'large non-index array property',\n      value: Object.assign([], { 4294967295: 1 }),\n      snapshot: Object.assign([], { 4294967295: 1 }),\n      expected: true,\n    },\n    {\n      name: 'huge numeric array property',\n      value: Object.assign([], { ['999999999999999999999']: 1 }),\n      snapshot: Object.assign([], { ['999999999999999999999']: 1 }),\n      expected: true,\n    },\n  ])('$name', ({ value, snapshot, expected }) => agrees(value, snapshot, expected))"
+      },
+      {
+        "id": "003",
+        "title": "rejects unsafe own key %s, even for identity/frozen targets",
+        "registration": "it.each(['__proto__', 'constructor', 'prototype', Symbol('own')])",
+        "line": 135,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it.each(['__proto__', 'constructor', 'prototype', Symbol('own')])(\n    'rejects unsafe own key %s, even for identity/frozen targets',\n    (key) => {\n      const source = Object.freeze(Object.defineProperty({}, key, { value: 1, enumerable: true }));\n      expect(() => copyAuthorizationValue(source, 'document')).toThrow(ServiceAuthorizationError);\n      agrees(source, source, false);\n      agrees({ nested: source }, { nested: source }, false);\n    },\n  )"
+      },
+      {
+        "id": "004",
+        "title": "rejects invalid array key %s",
+        "registration": "it.each(['01', '-1', '1.0', 'extra', '__proto__', 'constructor', 'prototype', Symbol('array')])",
+        "line": 145,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it.each(['01', '-1', '1.0', 'extra', '__proto__', 'constructor', 'prototype', Symbol('array')])(\n    'rejects invalid array key %s',\n    (key) => {\n      const source = Object.defineProperty([], key, { value: 1, enumerable: true });\n      agrees(source, source, false);\n    },\n  )"
+      },
+      {
+        "id": "005",
+        "title": "rejects unsupported input %#",
+        "registration": "it.each([\n    () => true,\n    Symbol('value'),\n    { value: () => true },\n    { value: Symbol('nested') },\n    Object.create({ value: 1 }),\n  ])",
+        "line": 153,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it.each([\n    () => true,\n    Symbol('value'),\n    { value: () => true },\n    { value: Symbol('nested') },\n    Object.create({ value: 1 }),\n  ])('rejects unsupported input %#', (source) => {\n    expect(() => copyAuthorizationValue(source, 'document')).toThrow(ServiceAuthorizationError);\n    agrees(source, source, false);\n  })"
+      },
+      {
+        "id": "006",
+        "title": "rejects %s-enumerable accessors without invoking them",
+        "registration": "it.each([false, true])",
+        "line": 164,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it.each([false, true])('rejects %s-enumerable accessors without invoking them', (enumerable) => {\n    const getter = vi.fn(() => {\n      throw new Error('must not execute');\n    });\n    for (const source of [\n      Object.defineProperty({}, 'value', { get: getter, enumerable }),\n      Object.defineProperty([], '0', { get: getter, enumerable }),\n    ]) {\n      agrees(source, source, false);\n      agrees({ nested: source }, {}, false);\n    }\n    expect(getter).not.toHaveBeenCalled();\n  })"
+      },
+      {
+        "id": "007",
+        "title": "tracks active cycles, not repeated aliases or snapshot identity",
+        "registration": "it",
+        "line": 178,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it('tracks active cycles, not repeated aliases or snapshot identity', () => {\n    const shared = { value: [1, NaN, -0] };\n    const source = { a: shared, b: shared };\n    agrees(source, copyAuthorizationValue(source, 'document'), true);\n    agrees(source, source, true);\n    const cyclic: any = { a: 1 };\n    cyclic.self = cyclic;\n    agrees(cyclic, cyclic, false);\n    const array: any[] = [];\n    array.push(array);\n    agrees(array, array, false);\n    agrees(source, { a: shared, b: cyclic }, false);\n  })"
+      },
+      {
+        "id": "008",
+        "title": "preserves $name",
+        "registration": "it.each([\n    { name: 'depth 100', source: () => nested(100), expected: true },\n    { name: 'depth 101', source: () => nested(101), expected: false },\n    { name: '20,000 total nodes', source: () => Array(19999).fill(0), expected: true },\n    { name: '20,001 total nodes', source: () => Array(20000).fill(0), expected: false },\n    { name: '20,000 sparse length', source: () => Array(20000), expected: true },\n    { name: '20,001 sparse length', source: () => Array(20001), expected: false },\n    { name: 'repeated aliases within budget', source: () => Array(9999).fill({ value: 0 }), expected: true },\n    { name: 'repeated aliases exceed budget', source: () => Array(10000).fill({ value: 0 }), expected: false },\n    {\n      name: 'Map shares enclosing node budget',\n      source: () => ({ prefix: Array(9998).fill(0), map: new Map([[0, Array(9997).fill(0)]]) }),\n      expected: true,\n    },\n    {\n      name: 'Map cannot reset enclosing node budget',\n      source: () => ({ prefix: Array(9998).fill(0), map: new Map([[0, Array(9998).fill(0)]]) }),\n      expected: false,\n    },\n    {\n      name: 'Set shares enclosing node budget',\n      source: () => ({ prefix: Array(9999).fill(0), set: new Set([Array(9997).fill(0)]) }),\n      expected: true,\n    },\n    {\n      name: 'Set cannot reset enclosing node budget',\n      source: () => ({ prefix: Array(9999).fill(0), set: new Set([Array(9998).fill(0)]) }),\n      expected: false,\n    },\n    { name: 'Map cannot reset depth', source: () => nested(100, new Map([[0, 1]])), expected: false },\n    { name: 'Set cannot reset depth', source: () => nested(100, new Set([0])), expected: false },\n  ])",
+        "line": 192,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 ordinary snapshot differential",
+            "registration": "describe",
+            "line": 43
+          }
+        ],
+        "originalCaseSource": "it.each([\n    { name: 'depth 100', source: () => nested(100), expected: true },\n    { name: 'depth 101', source: () => nested(101), expected: false },\n    { name: '20,000 total nodes', source: () => Array(19999).fill(0), expected: true },\n    { name: '20,001 total nodes', source: () => Array(20000).fill(0), expected: false },\n    { name: '20,000 sparse length', source: () => Array(20000), expected: true },\n    { name: '20,001 sparse length', source: () => Array(20001), expected: false },\n    { name: 'repeated aliases within budget', source: () => Array(9999).fill({ value: 0 }), expected: true },\n    { name: 'repeated aliases exceed budget', source: () => Array(10000).fill({ value: 0 }), expected: false },\n    {\n      name: 'Map shares enclosing node budget',\n      source: () => ({ prefix: Array(9998).fill(0), map: new Map([[0, Array(9997).fill(0)]]) }),\n      expected: true,\n    },\n    {\n      name: 'Map cannot reset enclosing node budget',\n      source: () => ({ prefix: Array(9998).fill(0), map: new Map([[0, Array(9998).fill(0)]]) }),\n      expected: false,\n    },\n    {\n      name: 'Set shares enclosing node budget',\n      source: () => ({ prefix: Array(9999).fill(0), set: new Set([Array(9997).fill(0)]) }),\n      expected: true,\n    },\n    {\n      name: 'Set cannot reset enclosing node budget',\n      source: () => ({ prefix: Array(9999).fill(0), set: new Set([Array(9998).fill(0)]) }),\n      expected: false,\n    },\n    { name: 'Map cannot reset depth', source: () => nested(100, new Map([[0, 1]])), expected: false },\n    { name: 'Set cannot reset depth', source: () => nested(100, new Set([0])), expected: false },\n  ])('preserves $name', ({ source: create, expected }) => {\n    const source = create();\n    if (expected) agrees(source, copyAuthorizationValue(source, 'document'), true);\n    else {\n      expect(() => copyAuthorizationValue(source, 'document')).toThrow(ServiceAuthorizationError);\n      agrees(source, source, false);\n    }\n  })"
+      },
+      {
+        "id": "009",
+        "title": "keeps actual index %s distinct from non-index properties without large allocation",
+        "registration": "it.each(['2147483647', '4294967294'])",
+        "line": 262,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 numeric non-index array fallback",
+            "registration": "describe",
+            "line": 261
+          }
+        ],
+        "originalCaseSource": "it.each(['2147483647', '4294967294'])(\n    'keeps actual index %s distinct from non-index properties without large allocation',\n    (key) => {\n      const snapshot = [1];\n      const getter = vi.fn(() => 1);\n      Object.defineProperty(snapshot, key, { enumerable: true, get: getter });\n      // Defining one sparse index changes length, but does not allocate its holes.\n      agrees([1], snapshot, false);\n      expect(operations(() => matchesAuthorizationSnapshot([1], snapshot))).toEqual({\n        result: false,\n        definitions: 1,\n        freezes: 1,\n      });\n      expect(getter).not.toHaveBeenCalled();\n      const oversized = Object.defineProperty([], key, { value: 1, enumerable: true });\n      expect(() => copyAuthorizationValue(oversized, 'document')).toThrow(ServiceAuthorizationError);\n      agrees(oversized, oversized, false); // The original 20,000-length limit remains.\n    },\n  )"
+      },
+      {
+        "id": "010",
+        "title": "delegates $name extra-property getters before $shape array indices",
+        "registration": "it.each(\n    nonIndexArrayKeys.flatMap(({ name, key }) =>\n      ['dense', 'sparse', 'hidden source', 'nested'].map((shape) => ({ name, key, shape })),\n    ),\n  )",
+        "line": 282,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 numeric non-index array fallback",
+            "registration": "describe",
+            "line": 261
+          }
+        ],
+        "originalCaseSource": "it.each(\n    nonIndexArrayKeys.flatMap(({ name, key }) =>\n      ['dense', 'sparse', 'hidden source', 'nested'].map((shape) => ({ name, key, shape })),\n    ),\n  )('delegates $name extra-property getters before $shape array indices', ({ key, shape }) => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const index = shape === 'sparse' ? 1 : 0;\n      const value = Array(index + 1);\n      const snapshot = Array(index + 1);\n      value[index] = 1;\n      snapshot[index] = 2;\n      Object.defineProperty(value, key, { value: 'extra', enumerable: shape !== 'hidden source' });\n      Object.defineProperty(snapshot, key, {\n        enumerable: true,\n        get() {\n          events.push('extra');\n          snapshot[index] = 1;\n          return 'extra';\n        },\n      });\n      return {\n        value: shape === 'nested' ? { rows: [{ value }] } : value,\n        snapshot: shape === 'nested' ? { rows: [{ value: snapshot }] } : snapshot,\n        events,\n        final: () => snapshot[index],\n      };\n    }, true);\n  })"
+      },
+      {
+        "id": "011",
+        "title": "handles a target-only $name extra (enumerable: $enumerable) before any fast index denial",
+        "registration": "it.each(nonIndexArrayKeys.flatMap(({ name, key }) => [false, true].map((enumerable) => ({ name, key, enumerable }))))",
+        "line": 312,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 numeric non-index array fallback",
+            "registration": "describe",
+            "line": 261
+          }
+        ],
+        "originalCaseSource": "it.each(nonIndexArrayKeys.flatMap(({ name, key }) => [false, true].map((enumerable) => ({ name, key, enumerable }))))(\n    'handles a target-only $name extra (enumerable: $enumerable) before any fast index denial',\n    ({ key, enumerable }) => {\n      for (const matchingIndex of [false, true]) {\n        const create = () => {\n          const events: string[] = [];\n          const snapshot = [matchingIndex ? 1 : 2];\n          Object.defineProperty(snapshot, key, {\n            enumerable,\n            get() {\n              events.push('unexpected extra');\n              snapshot[0] = 1;\n              return 'extra';\n            },\n          });\n          return { value: [1], snapshot, events, final: () => snapshot[0] };\n        };\n        const expected = !enumerable && matchingIndex;\n        differentialEffects(create, expected);\n        const fixture = create();\n        expect(operations(() => matchesAuthorizationSnapshot(fixture.value, fixture.snapshot))).toEqual({\n          result: expected,\n          definitions: 1,\n          freezes: 1,\n        });\n        expect(fixture.events).toEqual([]); // Missing/hidden extras do not invoke getters in Node.\n      }\n    },\n  )"
+      },
+      {
+        "id": "012",
+        "title": "normalizes a source-only hidden $name extra before Node checks index getters",
+        "registration": "it.each(nonIndexArrayKeys)",
+        "line": 342,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 numeric non-index array fallback",
+            "registration": "describe",
+            "line": 261
+          }
+        ],
+        "originalCaseSource": "it.each(nonIndexArrayKeys)(\n    'normalizes a source-only hidden $name extra before Node checks index getters',\n    ({ key }) => {\n      differentialEffects(() => {\n        const events: string[] = [];\n        const value = Object.defineProperty([1], key, { value: 'extra' });\n        const snapshot = Object.defineProperty([1], '0', {\n          enumerable: true,\n          get() {\n            events.push('unexpected index');\n            return 1;\n          },\n        });\n        return { value, snapshot, events };\n      }, false);\n    },\n  )"
+      },
+      {
+        "id": "013",
+        "title": "does not replay wire normalization when a hook introduces a $name extra",
+        "registration": "it.each(nonIndexArrayKeys)",
+        "line": 360,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 numeric non-index array fallback",
+            "registration": "describe",
+            "line": 261
+          }
+        ],
+        "originalCaseSource": "it.each(nonIndexArrayKeys)('does not replay wire normalization when a hook introduces a $name extra', ({ key }) => {\n    vi.spyOn(mongo, 'BSON', 'get').mockReturnValue({ ...bson });\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    const deserialize = vi.spyOn(mongo.BSON, 'deserialize');\n    function run(match: Matcher) {\n      const events: string[] = [];\n      const value = [1];\n      const snapshot = [2];\n      const native = Object.assign(new bson.ObjectId(hex), {\n        toBSON() {\n          events.push('wire');\n          Object.defineProperty(value, key, { value: 'extra', enumerable: true });\n          return 'wire';\n        },\n      });\n      Object.defineProperty(snapshot, key, {\n        enumerable: true,\n        get() {\n          events.push('extra');\n          snapshot[0] = 1;\n          return 'extra';\n        },\n      });\n      serialize.mockClear();\n      deserialize.mockClear();\n      const result = match({ native, value }, { native: 'wire', value: snapshot });\n      return {\n        result,\n        events,\n        first: snapshot[0],\n        serializations: serialize.mock.calls.length,\n        deserializations: deserialize.mock.calls.length,\n      };\n    }\n    const previous = run(oracle);\n    expect(previous).toEqual({\n      result: true,\n      events: ['wire', 'extra'],\n      first: 1,\n      serializations: 1,\n      deserializations: 1,\n    });\n    expect(run(matchesAuthorizationSnapshot)).toEqual(previous);\n  })"
+      },
+      {
+        "id": "014",
+        "title": "retains the conservative copy cost for a $name extra",
+        "registration": "it.each(nonIndexArrayKeys)",
+        "line": 405,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 numeric non-index array fallback",
+            "registration": "describe",
+            "line": 261
+          }
+        ],
+        "originalCaseSource": "it.each(nonIndexArrayKeys)('retains the conservative copy cost for a $name extra', ({ key }) => {\n    const value = Object.defineProperty([1], key, { value: 'extra', enumerable: true });\n    const snapshot = copyAuthorizationValue(value, 'document');\n    const previous = operations(() => oracle(value, snapshot));\n    expect(previous).toEqual({ result: true, definitions: 2, freezes: 1 });\n    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual(previous);\n  })"
+      },
+      {
+        "id": "015",
+        "title": "retains bounded %s array normalization after tape withdrawal",
+        "registration": "it.each(['dense', 'sparse'])",
+        "line": 413,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 numeric non-index array fallback",
+            "registration": "describe",
+            "line": 261
+          }
+        ],
+        "originalCaseSource": "it.each(['dense', 'sparse'])('retains bounded %s array normalization after tape withdrawal', (shape) => {\n    const value = shape === 'dense' ? [1, NaN, -0] : Object.assign(Array(3), { 0: 1, 2: undefined });\n    const snapshot = copyAuthorizationValue(value, 'document');\n    const allocation = { definitions: shape === 'dense' ? 3 : 2, freezes: 1 };\n    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual({\n      result: true,\n      ...allocation,\n    });\n    value[0] = 2;\n    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual({\n      result: false,\n      ...allocation,\n    });\n  })"
+      },
+      {
+        "id": "016",
+        "title": "does not inspect an arbitrary %s target before normalization completes",
+        "registration": "it.each(['plain', 'array', 'throw', 'constructor', 'tag', 'proxy'] as const)",
+        "line": 430,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each(['plain', 'array', 'throw', 'constructor', 'tag', 'proxy'] as const)(\n    'does not inspect an arbitrary %s target before normalization completes',\n    (kind) => {\n      differentialEffects(() => {\n        const events: string[] = [];\n        const id = Object.assign(new bson.ObjectId(hex), {\n          toBSON() {\n            events.push('wire');\n            return 'wire';\n          },\n        });\n        let snapshot: any = kind === 'array' ? ['wire'] : { id: 'wire' };\n        if (kind === 'plain' || kind === 'throw') {\n          Object.defineProperty(snapshot, 'id', {\n            enumerable: true,\n            get() {\n              events.push('target getter');\n              if (kind === 'throw') throw new Error('target');\n              return 'wire';\n            },\n          });\n        } else if (kind === 'constructor') {\n          Object.defineProperty(snapshot, 'constructor', {\n            get() {\n              events.push('target constructor');\n              return Object;\n            },\n          });\n        } else if (kind === 'tag') {\n          Object.defineProperty(snapshot, Symbol.toStringTag, {\n            get() {\n              events.push('target tag');\n              return undefined;\n            },\n          });\n        } else if (kind === 'proxy') {\n          snapshot = new Proxy(snapshot, {\n            get(target, key, receiver) {\n              events.push(`get:${String(key)}`);\n              return Reflect.get(target, key, receiver);\n            },\n            getPrototypeOf(target) {\n              events.push('prototype');\n              return Reflect.getPrototypeOf(target);\n            },\n            ownKeys(target) {\n              events.push('keys');\n              return Reflect.ownKeys(target);\n            },\n            getOwnPropertyDescriptor(target, key) {\n              events.push(`descriptor:${String(key)}`);\n              return Reflect.getOwnPropertyDescriptor(target, key);\n            },\n          });\n        }\n        return { value: kind === 'array' ? [id] : { id }, snapshot, events };\n      });\n    },\n  )"
+      },
+      {
+        "id": "017",
+        "title": "compares a snapshot-native accessor only during the original equality operation",
+        "registration": "it",
+        "line": 490,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('compares a snapshot-native accessor only during the original equality operation', () => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const value = new bson.Long(1, 2);\n      const snapshot = new bson.Long(1, 2);\n      Object.defineProperty(snapshot, 'low', {\n        enumerable: true,\n        get() {\n          events.push('snapshot low');\n          return 1;\n        },\n      });\n      return { value: { native: value }, snapshot: { native: snapshot }, events };\n    }, true);\n  })"
+      },
+      {
+        "id": "018",
+        "title": "retains equality callback/short-circuit order with %s",
+        "registration": "it.each([\n    'native allow',\n    'native deny',\n    'early deny',\n    'hidden later data',\n    'ignored getter',\n    'reordered getter',\n  ] as const)",
+        "line": 506,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each([\n    'native allow',\n    'native deny',\n    'early deny',\n    'hidden later data',\n    'ignored getter',\n    'reordered getter',\n  ] as const)('retains equality callback/short-circuit order with %s', (kind) => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const value = { first: 1, native: new bson.Long(1, 2), last: 1 };\n      const snapshot: any = {\n        first: kind === 'early deny' ? 2 : 1,\n        native: new bson.Long(kind === 'native deny' ? 2 : 1, 2),\n        last: 1,\n      };\n      if (kind === 'hidden later data') {\n        Object.defineProperty(snapshot, 'last', { enumerable: false });\n        Object.defineProperty(snapshot.native, 'low', {\n          enumerable: true,\n          get() {\n            events.push('native getter');\n            return 1;\n          },\n        });\n      } else if (kind === 'ignored getter') {\n        Object.defineProperty(snapshot, 'ignored', {\n          get() {\n            events.push('unexpected hidden getter');\n            throw new Error('ignored');\n          },\n        });\n      } else {\n        const getter = {\n          enumerable: true,\n          get() {\n            events.push('last getter');\n            return 1;\n          },\n        };\n        if (kind === 'reordered getter') {\n          delete snapshot.last;\n          const reordered: any = {};\n          Object.defineProperty(reordered, 'last', getter);\n          Object.assign(reordered, snapshot);\n          return { value, snapshot: reordered, events };\n        }\n        Object.defineProperty(snapshot, 'last', getter);\n      }\n      return { value, snapshot, events };\n    }, !['native deny', 'early deny', 'hidden later data'].includes(kind));\n  })"
+      },
+      {
+        "id": "019",
+        "title": "performs target constructor observations even when an ordinary field already differs",
+        "registration": "it",
+        "line": 559,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('performs target constructor observations even when an ordinary field already differs', () => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const snapshot = { first: 2 };\n      Object.defineProperty(snapshot, 'constructor', {\n        get() {\n          events.push('constructor');\n          return Object;\n        },\n      });\n      return { value: { first: 1 }, snapshot, events };\n    }, false);\n  })"
+      },
+      {
+        "id": "020",
+        "title": "does not inspect array index accessors when Node would reject the length first",
+        "registration": "it",
+        "line": 573,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('does not inspect array index accessors when Node would reject the length first', () => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const snapshot = Array(2);\n      Object.defineProperty(snapshot, '0', {\n        enumerable: true,\n        get() {\n          events.push('unexpected index getter');\n          throw new Error('index');\n        },\n      });\n      return { value: [new bson.Long(1, 2)], snapshot, events };\n    }, false);\n  })"
+      },
+      {
+        "id": "021",
+        "title": "retains exact %s source proxy observations on whole-tree fallback",
+        "registration": "it.each(['record', 'array'] as const)",
+        "line": 588,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each(['record', 'array'] as const)('retains exact %s source proxy observations on whole-tree fallback', (kind) => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const input = kind === 'record' ? { value: 1 } : [1];\n      const value = new Proxy(input, {\n        get(target, key, receiver) {\n          events.push(`get:${String(key)}`);\n          return Reflect.get(target, key, receiver);\n        },\n        getPrototypeOf(target) {\n          events.push('prototype');\n          return Reflect.getPrototypeOf(target);\n        },\n        ownKeys(target) {\n          events.push('keys');\n          return Reflect.ownKeys(target);\n        },\n        getOwnPropertyDescriptor(target, key) {\n          events.push(`descriptor:${String(key)}`);\n          return Reflect.getOwnPropertyDescriptor(target, key);\n        },\n      });\n      return { value: { nested: value }, snapshot: { nested: input }, events };\n    }, true);\n  })"
+      },
+      {
+        "id": "022",
+        "title": "does not reread an earlier primitive/record after a later wire hook mutates it",
+        "registration": "it",
+        "line": 614,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('does not reread an earlier primitive/record after a later wire hook mutates it', () => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const value = { before: { value: 'original' }, native: new bson.ObjectId(hex), after: 0 };\n      Object.assign(value.native, {\n        toBSON() {\n          events.push('wire');\n          value.before.value = 'changed';\n          value.after = 7;\n          return 'wire';\n        },\n      });\n      return {\n        value,\n        snapshot: { before: { value: 'original' }, native: 'wire', after: 7 },\n        events,\n        final: () => [value.before.value, value.after],\n      };\n    }, true);\n  })"
+      },
+      {
+        "id": "023",
+        "title": "compares earlier snapshot fields only after wire normalization has finished",
+        "registration": "it",
+        "line": 635,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('compares earlier snapshot fields only after wire normalization has finished', () => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const snapshot = { before: 'stale', native: 'wire' };\n      const value = { before: 'original', native: new bson.ObjectId(hex) };\n      Object.assign(value.native, {\n        toBSON() {\n          events.push('wire');\n          snapshot.before = 'original';\n          return 'wire';\n        },\n      });\n      return { value, snapshot, events, final: () => snapshot.before };\n    }, true);\n  })"
+      },
+      {
+        "id": "024",
+        "title": "retains array length %s assigned by a wire hook after earlier indices were normalized",
+        "registration": "it.each([0, 1, 3, 20001])",
+        "line": 651,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each([0, 1, 3, 20001])(\n    'retains array length %s assigned by a wire hook after earlier indices were normalized',\n    (length) => {\n      differentialEffects(() => {\n        const events: string[] = [];\n        const native = new bson.ObjectId(hex);\n        const value = [1, native];\n        Object.assign(value, { 4294967295: 'not an array index' });\n        Object.assign(native, {\n          toBSON() {\n            events.push('wire');\n            value.length = length;\n            return 'wire';\n          },\n        });\n        const snapshot: unknown[] = [1, 'wire'];\n        snapshot.length = length;\n        Object.assign(snapshot, { 4294967295: 'not an array index' });\n        return { value, snapshot, events, final: () => value.length };\n      }, true);\n    },\n  )"
+      },
+      {
+        "id": "025",
+        "title": "normalizes a proxy array final length (%s) before visiting the next field",
+        "registration": "it.each(['coercible', 'invalid', 'string'] as const)",
+        "line": 674,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each(['coercible', 'invalid', 'string'] as const)(\n    'normalizes a proxy array final length (%s) before visiting the next field',\n    (kind) => {\n      differentialEffects(() => {\n        const events: string[] = [];\n        let reads = 0;\n        const value = { array: [] as unknown[], after: 0, native: new bson.ObjectId(hex) };\n        value.array = new Proxy([1], {\n          get(target, key, receiver) {\n            if (key !== 'length') return Reflect.get(target, key, receiver);\n            events.push('length');\n            if (++reads === 1) return 1;\n            if (kind === 'invalid') return NaN;\n            if (kind === 'string') return '0';\n            return {\n              valueOf() {\n                events.push('length coercion');\n                value.after = 7;\n                return 0;\n              },\n            };\n          },\n        });\n        Object.assign(value.native, {\n          toBSON() {\n            events.push('wire');\n            return 'wire';\n          },\n        });\n        return { value, snapshot: { array: [], after: kind === 'coercible' ? 7 : 0, native: 'wire' }, events };\n      }, kind !== 'invalid');\n    },\n  )"
+      },
+      {
+        "id": "026",
+        "title": "handles a wire hook introducing a later %s without replaying earlier hooks",
+        "registration": "it.each(['Map', 'Set', 'Date', 'proxy', 'accessor', 'deleted', 'added', 'cycle'] as const)",
+        "line": 708,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each(['Map', 'Set', 'Date', 'proxy', 'accessor', 'deleted', 'added', 'cycle'] as const)(\n    'handles a wire hook introducing a later %s without replaying earlier hooks',\n    (kind) => {\n      differentialEffects(() => {\n        const events: string[] = [];\n        const value: any = { before: 1, native: new bson.ObjectId(hex), after: { value: 1 } };\n        let after: unknown = { value: 1 };\n        if (kind === 'Map') after = new Map([[{ key: 1 }, { value: 2 }]]);\n        else if (kind === 'Set') after = new Set([{ value: 2 }]);\n        else if (kind === 'Date') after = new Date(3);\n        Object.assign(value.native, {\n          toBSON() {\n            events.push('wire');\n            value.before = 2;\n            if (kind === 'proxy')\n              value.after = new Proxy(value.after, {\n                ownKeys(target) {\n                  events.push('source keys');\n                  return Reflect.ownKeys(target);\n                },\n              });\n            else if (kind === 'accessor')\n              Object.defineProperty(value, 'after', {\n                get() {\n                  events.push('unexpected getter');\n                  return 1;\n                },\n              });\n            else if (kind === 'deleted') delete value.after;\n            else if (kind === 'added') value.added = 'not in original ownKeys';\n            else if (kind === 'cycle') value.after = value;\n            else value.after = after;\n            return 'wire';\n          },\n        });\n        return { value, snapshot: { before: 1, native: 'wire', after }, events, final: () => value.before };\n      }, !['accessor', 'deleted', 'cycle'].includes(kind));\n    },\n  )"
+      },
+      {
+        "id": "027",
+        "title": "counts a native-introduced fallback subtree against already-visited nodes",
+        "registration": "it",
+        "line": 748,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('counts a native-introduced fallback subtree against already-visited nodes', () => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const after = new Set([Array(10000).fill(0)]);\n      const value = { prefix: Array(10000).fill(0), native: new bson.ObjectId(hex), after: new Set<unknown>() };\n      Object.assign(value.native, {\n        toBSON() {\n          events.push('wire');\n          value.after = after;\n          return 'wire';\n        },\n      });\n      return { value, snapshot: value, events };\n    }, false);\n  })"
+      },
+      {
+        "id": "028",
+        "title": "preserves %s eager iteration before entry normalization and unordered equality",
+        "registration": "it.each(['Map', 'Set'] as const)",
+        "line": 764,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each(['Map', 'Set'] as const)(\n    'preserves %s eager iteration before entry normalization and unordered equality',\n    (kind) => {\n      differentialEffects(() => {\n        const events: string[] = [];\n        const id = new bson.ObjectId(hex);\n        const input: Map<unknown, unknown> | Set<unknown> =\n          kind === 'Map'\n            ? new Map([\n                [id, 1],\n                ['second', 2],\n              ])\n            : new Set([id, 'second']);\n        Object.assign(id, {\n          toBSON() {\n            events.push('wire');\n            if (input instanceof Map) input.set('late', 3);\n            else input.add('late');\n            return 'wire';\n          },\n        });\n        const iterator = input[Symbol.iterator].bind(input);\n        Object.defineProperty(input, Symbol.iterator, {\n          value() {\n            events.push('iterate');\n            return iterator();\n          },\n        });\n        const snapshot =\n          kind === 'Map'\n            ? new Map<unknown, unknown>([\n                ['second', 2],\n                ['wire', 1],\n              ])\n            : new Set(['second', 'wire']);\n        return { value: { input }, snapshot: { input: snapshot }, events, final: () => input.size };\n      }, true);\n    },\n  )"
+      },
+      {
+        "id": "029",
+        "title": "retains live own-key iteration normalization: %s",
+        "registration": "it.each(['reordered', 'duplicate', 'omitted', 'changed list', 'hidden unsafe key', 'hidden symbol'] as const)",
+        "line": 804,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each(['reordered', 'duplicate', 'omitted', 'changed list', 'hidden unsafe key', 'hidden symbol'] as const)(\n    'retains live own-key iteration normalization: %s',\n    (kind) => {\n      function run(match: Matcher) {\n        const events: string[] = [];\n        const value: Record<PropertyKey, unknown> = { before: 1, middle: 2, after: 3 };\n        if (kind === 'hidden unsafe key') {\n          delete value.middle;\n          Object.defineProperty(value, 'constructor', { value: 2, enumerable: true });\n        } else if (kind === 'hidden symbol') {\n          delete value.middle;\n          value[Symbol('hidden')] = 2;\n        }\n        const snapshot = kind === 'reordered' ? { ...value } : { before: 1, after: 3 };\n        const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator)!;\n        try {\n          Object.defineProperty(Array.prototype, Symbol.iterator, {\n            ...descriptor,\n            value(this: PropertyKey[]) {\n              if (this.length !== 3 || this[0] !== 'before') return descriptor.value.call(this);\n              events.push('iterate own keys');\n              if (kind === 'changed list') this[1] = 'before';\n              const keys =\n                kind === 'reordered'\n                  ? ['after', 'middle', 'before']\n                  : kind === 'duplicate' || kind === 'changed list'\n                    ? ['before', 'before', 'after']\n                    : ['before', 'after'];\n              let index = 0;\n              return { next: () => ({ value: keys[index++], done: index > keys.length }) };\n            },\n          });\n          return { result: match(value, snapshot), events };\n        } finally {\n          Object.defineProperty(Array.prototype, Symbol.iterator, descriptor);\n        }\n      }\n      const previous = run(oracle);\n      expect(run(matchesAuthorizationSnapshot)).toEqual(previous);\n      expect(previous.result).toBe(true);\n    },\n  )"
+      },
+      {
+        "id": "030",
+        "title": "does not add $name application callbacks during comparison/fallback eligibility",
+        "registration": "it.each([\n    { name: 'Set.has', prototype: Set.prototype, key: 'has' },\n    { name: 'WeakSet.has', prototype: WeakSet.prototype, key: 'has' },\n    { name: 'WeakSet.add', prototype: WeakSet.prototype, key: 'add' },\n    { name: 'WeakSet.delete', prototype: WeakSet.prototype, key: 'delete' },\n  ])",
+        "line": 847,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each([\n    { name: 'Set.has', prototype: Set.prototype, key: 'has' },\n    { name: 'WeakSet.has', prototype: WeakSet.prototype, key: 'has' },\n    { name: 'WeakSet.add', prototype: WeakSet.prototype, key: 'add' },\n    { name: 'WeakSet.delete', prototype: WeakSet.prototype, key: 'delete' },\n  ])('does not add $name application callbacks during comparison/fallback eligibility', ({ prototype, key }) => {\n    function run(match: Matcher) {\n      const events: string[] = [];\n      const value = { first: 1, native: new bson.Long(1, 2), last: [1] };\n      const snapshot = copyAuthorizationValue(value, 'document');\n      const descriptor = Object.getOwnPropertyDescriptor(prototype, key)!;\n      try {\n        Object.defineProperty(prototype, key, {\n          ...descriptor,\n          value(this: unknown, entry: unknown) {\n            events[events.length] = typeof entry === 'string' ? entry : typeof entry;\n            return descriptor.value.call(this, entry);\n          },\n        });\n        return { result: match(value, snapshot), events };\n      } finally {\n        Object.defineProperty(prototype, key, descriptor);\n      }\n    }\n    const previous = run(oracle);\n    expect(run(matchesAuthorizationSnapshot)).toEqual(previous);\n    expect(previous.result).toBe(true);\n  })"
+      },
+      {
+        "id": "031",
+        "title": "retains native normalization to a large opaque wire value, not a reset or extra structural budget",
+        "registration": "it",
+        "line": 876,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('retains native normalization to a large opaque wire value, not a reset or extra structural budget', () => {\n    const native = Object.assign(new bson.ObjectId(hex), { toBSON: () => Array(20001).fill('value') });\n    const value = { native };\n    agrees(value, copyAuthorizationValue(value, 'document'), true);\n  })"
+      },
+      {
+        "id": "032",
+        "title": "retains Node equality for a prototype-replaced exotic target %#",
+        "registration": "it.each([\n    new Date(1),\n    /value/g,\n    new Number(1),\n    new String('s'),\n    new Boolean(true),\n    new Error('error'),\n    new ArrayBuffer(2),\n    new DataView(new ArrayBuffer(2)),\n    new Uint8Array(2),\n    new Map(),\n    new Set(),\n    new WeakMap(),\n    new WeakSet(),\n    Promise.resolve(1),\n  ])",
+        "line": 882,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each([\n    new Date(1),\n    /value/g,\n    new Number(1),\n    new String('s'),\n    new Boolean(true),\n    new Error('error'),\n    new ArrayBuffer(2),\n    new DataView(new ArrayBuffer(2)),\n    new Uint8Array(2),\n    new Map(),\n    new Set(),\n    new WeakMap(),\n    new WeakSet(),\n    Promise.resolve(1),\n  ])('retains Node equality for a prototype-replaced exotic target %#', (snapshot) => {\n    Object.setPrototypeOf(snapshot, Object.prototype);\n    const value: Record<string, unknown> = {};\n    for (const key of Object.keys(snapshot)) value[key] = (snapshot as any)[key];\n    agrees(value, snapshot);\n  })"
+      },
+      {
+        "id": "033",
+        "title": "delegates unusual target prototypes to Node, including its version-specific constructor comparison",
+        "registration": "it",
+        "line": 904,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it('delegates unusual target prototypes to Node, including its version-specific constructor comparison', () => {\n    agrees({ value: 1 }, Object.assign(Object.create({ constructor: Object }), { value: 1 }));\n    agrees([1], Object.setPrototypeOf([1], { constructor: Array }));\n  })"
+      },
+      {
+        "id": "034",
+        "title": "delegates a BSON-derived target opposite an ordinary %s-populated record to Node",
+        "registration": "it.each([false, true])",
+        "line": 909,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 normalization/equality observation order",
+            "registration": "describe",
+            "line": 429
+          }
+        ],
+        "originalCaseSource": "it.each([false, true])(\n    'delegates a BSON-derived target opposite an ordinary %s-populated record to Node',\n    (populated) => {\n      const prototype = Object.create(bson.BSONValue.prototype);\n      Object.defineProperty(prototype, 'constructor', { value: Object });\n      const snapshotValue = Object.create(prototype);\n      const sourceValue = populated ? { value: 1 } : {};\n      if (populated) snapshotValue.value = 1;\n      // The separate real native leaf permits passive BSON equality elsewhere;\n      // that does not prove matching prototype semantics for this ordinary slot.\n      agrees(\n        { native: new bson.Long(1, 2), value: sourceValue },\n        { native: new bson.Long(1, 2), value: snapshotValue },\n      );\n    },\n  )"
+      },
+      {
+        "id": "035",
+        "title": "retains exact nested $name proxy/wire observations without replay",
+        "registration": "it.each([\n    { name: 'ObjectId', create: () => new bson.ObjectId(hex) },\n    { name: 'Long', create: () => new bson.Long(1, 2) },\n    { name: 'Decimal128', create: () => bson.Decimal128.fromString('1.20') },\n  ])",
+        "line": 928,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 native differential",
+            "registration": "describe",
+            "line": 927
+          }
+        ],
+        "originalCaseSource": "it.each([\n    { name: 'ObjectId', create: () => new bson.ObjectId(hex) },\n    { name: 'Long', create: () => new bson.Long(1, 2) },\n    { name: 'Decimal128', create: () => bson.Decimal128.fromString('1.20') },\n  ])('retains exact nested $name proxy/wire observations without replay', ({ create }) => {\n    differentialEffects(() => {\n      const events: string[] = [];\n      const native = create();\n      const snapshot = copyAuthorizationValue(native, 'document');\n      const value = new Proxy(native, {\n        get(target, key, receiver) {\n          events.push(`get:${String(key)}`);\n          return Reflect.get(target, key, receiver);\n        },\n        getPrototypeOf(target) {\n          events.push('prototype');\n          return Reflect.getPrototypeOf(target);\n        },\n        ownKeys(target) {\n          events.push('keys');\n          return Reflect.ownKeys(target);\n        },\n        getOwnPropertyDescriptor(target, key) {\n          events.push(`descriptor:${String(key)}`);\n          return Reflect.getOwnPropertyDescriptor(target, key);\n        },\n      });\n      return { value: { native: value }, snapshot: { native: snapshot }, events };\n    }, true);\n  })"
+      },
+      {
+        "id": "036",
+        "title": "matches/mismatches normalized $name without changing ownership copying",
+        "registration": "it.each([\n    { name: 'ObjectId', create: () => new bson.ObjectId(hex) },\n    { name: 'ObjectId subclass', create: () => new (class extends bson.ObjectId {})(hex) },\n    { name: 'Long subclass', create: () => new (class extends bson.Long {})(1, 2, true) },\n    { name: 'Decimal128', create: () => bson.Decimal128.fromString('1.20') },\n    { name: 'Double NaN', create: () => new bson.Double(NaN) },\n    { name: 'Double -0', create: () => new bson.Double(-0) },\n    { name: 'Binary', create: () => new bson.Binary(Buffer.from([1, 2, 3]), 128) },\n    { name: 'Code with scope', create: () => new bson.Code('value', { nested: { value: new bson.Long(1, 2) } }) },\n    { name: 'BSON RegExp', create: () => new bson.BSONRegExp('value', 'mi') },\n    {\n      name: 'wire primitive string',\n      create: () => Object.assign(new bson.ObjectId(hex), { toBSON: () => 'normalized' }),\n    },\n    { name: 'wire primitive null', create: () => Object.assign(new bson.ObjectId(hex), { toBSON: () => null }) },\n    {\n      name: 'wire ordinary object',\n      create: () => Object.assign(new bson.ObjectId(hex), { toBSON: () => ({ value: 'normalized' }) }),\n    },\n    { name: 'Date', create: () => new Date(123) },\n    { name: 'invalid Date', create: () => new Date(NaN) },\n    { name: 'RegExp lastIndex', create: () => Object.assign(/abc/g, { lastIndex: 2 }) },\n    { name: 'Buffer', create: () => Buffer.from([1, 2, 3]) },\n    { name: 'Map', create: () => new Map([[{ value: 1 }, { values: [1, undefined] }]]) },\n    { name: 'Set', create: () => new Set([{ value: 1 }, { value: 2 }]) },\n  ])",
+        "line": 959,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 native differential",
+            "registration": "describe",
+            "line": 927
+          }
+        ],
+        "originalCaseSource": "it.each([\n    { name: 'ObjectId', create: () => new bson.ObjectId(hex) },\n    { name: 'ObjectId subclass', create: () => new (class extends bson.ObjectId {})(hex) },\n    { name: 'Long subclass', create: () => new (class extends bson.Long {})(1, 2, true) },\n    { name: 'Decimal128', create: () => bson.Decimal128.fromString('1.20') },\n    { name: 'Double NaN', create: () => new bson.Double(NaN) },\n    { name: 'Double -0', create: () => new bson.Double(-0) },\n    { name: 'Binary', create: () => new bson.Binary(Buffer.from([1, 2, 3]), 128) },\n    { name: 'Code with scope', create: () => new bson.Code('value', { nested: { value: new bson.Long(1, 2) } }) },\n    { name: 'BSON RegExp', create: () => new bson.BSONRegExp('value', 'mi') },\n    {\n      name: 'wire primitive string',\n      create: () => Object.assign(new bson.ObjectId(hex), { toBSON: () => 'normalized' }),\n    },\n    { name: 'wire primitive null', create: () => Object.assign(new bson.ObjectId(hex), { toBSON: () => null }) },\n    {\n      name: 'wire ordinary object',\n      create: () => Object.assign(new bson.ObjectId(hex), { toBSON: () => ({ value: 'normalized' }) }),\n    },\n    { name: 'Date', create: () => new Date(123) },\n    { name: 'invalid Date', create: () => new Date(NaN) },\n    { name: 'RegExp lastIndex', create: () => Object.assign(/abc/g, { lastIndex: 2 }) },\n    { name: 'Buffer', create: () => Buffer.from([1, 2, 3]) },\n    { name: 'Map', create: () => new Map([[{ value: 1 }, { values: [1, undefined] }]]) },\n    { name: 'Set', create: () => new Set([{ value: 1 }, { value: 2 }]) },\n  ])('matches/mismatches normalized $name without changing ownership copying', ({ name, create }) => {\n    const value = { before: 'unchanged', native: create(), after: [NaN, -0] };\n    const snapshot = copyAuthorizationValue(value, 'document');\n    // Node changed invalid-Date equality; follow the runtime's oracle, not a\n    // newer Node's result hardcoded into a package supporting Node 22 as well.\n    agrees(value, snapshot, name === 'invalid Date' ? undefined : true);\n    agrees(value, { ...snapshot, before: 'changed' }, false);\n    agrees(value, { ...snapshot, after: [NaN, 0] }, false);\n    agrees(value, { ...snapshot, native: 'wrong' }, false);\n  })"
+      },
+      {
+        "id": "037",
+        "title": "preserves overridden %s methods/accessors and rejection observations",
+        "registration": "it.each(['Date', 'RegExp', 'Buffer', 'ObjectId', 'Long', 'version rejection', 'malformed ObjectId'] as const)",
+        "line": 995,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 native differential",
+            "registration": "describe",
+            "line": 927
+          }
+        ],
+        "originalCaseSource": "it.each(['Date', 'RegExp', 'Buffer', 'ObjectId', 'Long', 'version rejection', 'malformed ObjectId'] as const)(\n    'preserves overridden %s methods/accessors and rejection observations',\n    (kind) => {\n      differentialEffects(() => {\n        const events: string[] = [];\n        let value: any;\n        let snapshot: unknown;\n        if (kind === 'Date') {\n          value = new Date(1);\n          Object.defineProperty(value, 'getTime', {\n            get() {\n              events.push('getTime');\n              return () => {\n                events.push('time');\n                return 7;\n              };\n            },\n          });\n          snapshot = new Date(7);\n        } else if (kind === 'RegExp') {\n          value = /original/g;\n          Object.defineProperty(value, 'source', {\n            get() {\n              events.push('source');\n              return 'normalized';\n            },\n          });\n          Object.defineProperty(value, 'flags', {\n            get() {\n              events.push('flags');\n              return 'i';\n            },\n          });\n          snapshot = /normalized/i;\n        } else if (kind === 'Buffer') {\n          value = Buffer.from([1, 2, 3]);\n          Object.defineProperty(value, 'valueOf', {\n            value() {\n              events.push('valueOf');\n              return this;\n            },\n          });\n          snapshot = Buffer.from([1, 2, 3]);\n        } else if (kind === 'Long') {\n          value = new bson.Long(1, 2);\n          Object.defineProperty(value, 'getLowBits', {\n            get() {\n              events.push('getLowBits');\n              return () => {\n                events.push('bits');\n                return 7;\n              };\n            },\n          });\n          snapshot = new bson.Long(7, 2);\n        } else {\n          value = new bson.ObjectId(hex);\n          if (kind === 'version rejection')\n            Object.defineProperty(value, Symbol.for('@@mdb.bson.version'), {\n              get() {\n                events.push('version');\n                return -1;\n              },\n            });\n          else\n            Object.defineProperty(value, 'serializeInto', {\n              get() {\n                events.push('serializeInto');\n                return kind === 'malformed ObjectId'\n                  ? null\n                  : (buffer: Uint8Array, index: number) => {\n                      events.push('bytes');\n                      buffer.set(Buffer.alloc(12, 0x12), index);\n                      return 12;\n                    };\n              },\n            });\n          snapshot = new bson.ObjectId('121212121212121212121212');\n        }\n        Object.defineProperty(value, 'extra', {\n          get() {\n            events.push('unexpected extra');\n            throw new Error('ignored native property');\n          },\n        });\n        return { value: { value }, snapshot: { value: snapshot }, events };\n      }, !['version rejection', 'malformed ObjectId'].includes(kind));\n    },\n  )"
+      },
+      {
+        "id": "038",
+        "title": "retains unsafe native-constructor normalization behavior rather than inventing a trusted-constructor path",
+        "registration": "it",
+        "line": 1085,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 native differential",
+            "registration": "describe",
+            "line": 927
+          }
+        ],
+        "originalCaseSource": "it('retains unsafe native-constructor normalization behavior rather than inventing a trusted-constructor path', () => {\n    const value = Object.assign(Object.create(Date.prototype), { getTime: () => 7 });\n    agrees({ value }, { value: new Date(7) }, true);\n    agrees(Object.create(Date.prototype), new Date(0), false);\n  })"
+      },
+      {
+        "id": "039",
+        "title": "delegates native inherited %s accessors without invoking them during eligibility",
+        "registration": "it.each(['constructor', 'tag'] as const)",
+        "line": 1091,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 native differential",
+            "registration": "describe",
+            "line": 927
+          }
+        ],
+        "originalCaseSource": "it.each(['constructor', 'tag'] as const)(\n    'delegates native inherited %s accessors without invoking them during eligibility',\n    (kind) => {\n      const prototype = bson.Long.prototype;\n      const key = kind === 'constructor' ? 'constructor' : Symbol.toStringTag;\n      const descriptor = Object.getOwnPropertyDescriptor(prototype, key);\n      let events: string[] = [];\n      try {\n        Object.defineProperty(prototype, key, {\n          configurable: true,\n          get() {\n            events.push(kind);\n            return kind === 'constructor' ? bson.Long : 'Object';\n          },\n        });\n        differentialEffects(() => {\n          events = [];\n          return { value: { native: new bson.Long(1, 2) }, snapshot: { native: new bson.Long(1, 2) }, events };\n        }, true);\n      } finally {\n        if (descriptor) Object.defineProperty(prototype, key, descriptor);\n        else Reflect.deleteProperty(prototype, key);\n      }\n    },\n  )"
+      },
+      {
+        "id": "040",
+        "title": "does not change acceptance/observations for an overridden BSON hasInstance returning %s",
+        "registration": "it.each([false, true])",
+        "line": 1117,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 native differential",
+            "registration": "describe",
+            "line": 927
+          }
+        ],
+        "originalCaseSource": "it.each([false, true])(\n    'does not change acceptance/observations for an overridden BSON hasInstance returning %s',\n    (accepted) => {\n      const descriptor = Object.getOwnPropertyDescriptor(bson.BSONValue, Symbol.hasInstance);\n      let events: string[] = [];\n      try {\n        Object.defineProperty(bson.BSONValue, Symbol.hasInstance, {\n          configurable: true,\n          value() {\n            events.push('hasInstance');\n            return accepted;\n          },\n        });\n        differentialEffects(() => {\n          events = [];\n          const value = accepted\n            ? {\n                toBSON() {\n                  events.push('wire');\n                  return 'normalized';\n                },\n              }\n            : new bson.Long(1, 2);\n          return { value, snapshot: 'normalized', events };\n        }, accepted);\n      } finally {\n        if (descriptor) Object.defineProperty(bson.BSONValue, Symbol.hasInstance, descriptor);\n        else Reflect.deleteProperty(bson.BSONValue, Symbol.hasInstance);\n      }\n    },\n  )"
+      },
+      {
+        "id": "041",
+        "title": "rejects active %s cycles but permits repeated aliased entries",
+        "registration": "it.each(['Map', 'Set'] as const)",
+        "line": 1149,
+        "scopes": [
+          {
+            "title": "SNAPCPU-04 native differential",
+            "registration": "describe",
+            "line": 927
+          }
+        ],
+        "originalCaseSource": "it.each(['Map', 'Set'] as const)('rejects active %s cycles but permits repeated aliased entries', (kind) => {\n    const cyclic: Map<unknown, unknown> | Set<unknown> = kind === 'Map' ? new Map() : new Set();\n    if (cyclic instanceof Map) cyclic.set('self', cyclic);\n    else cyclic.add(cyclic);\n    agrees(cyclic, cyclic, false);\n    const shared = { value: 1 };\n    const value = kind === 'Map' ? new Map([[shared, shared]]) : new Set([shared, { shared }]);\n    agrees(value, copyAuthorizationValue(value, 'document'), true);\n  })"
+      },
+      {
+        "id": "042",
+        "title": "keeps complete graph copies/freezes on matches and mismatches without per-record-key descriptors",
+        "registration": "it",
+        "line": 1175,
+        "scopes": [
+          {
+            "title": "PIPE-02 complete normalization with fewer record definitions",
+            "registration": "describe",
+            "line": 1174
+          }
+        ],
+        "originalCaseSource": "it('keeps complete graph copies/freezes on matches and mismatches without per-record-key descriptors', () => {\n    const value = {\n      rows: Array.from({ length: 24 }, (_, index) => ({ label: String(index), values: [index, NaN, -0, undefined] })),\n      meta: { nested: { ok: true } },\n    };\n    const snapshot = copyAuthorizationValue(value, 'document');\n    expect(operations(() => oracle(value, snapshot))).toEqual({ result: true, definitions: 172, freezes: 52 });\n    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual({\n      result: true,\n      definitions: 120, // All array definitions remain; absent record keys use guarded assignment.\n      freezes: 52,\n    });\n    const changed = { ...snapshot, meta: { nested: { ok: false } } };\n    expect(operations(() => matchesAuthorizationSnapshot(value, changed))).toEqual({\n      result: false,\n      definitions: 120,\n      freezes: 52,\n    });\n  })"
+      },
+      {
+        "id": "043",
+        "title": "keeps one detached $name wire clone per occurrence with the lower-allocation record builder",
+        "registration": "it.each([\n    { name: 'ObjectId', create: () => new bson.ObjectId(hex) },\n    { name: 'Long', create: () => new bson.Long(1, 2) },\n  ])",
+        "line": 1195,
+        "scopes": [
+          {
+            "title": "PIPE-02 complete normalization with fewer record definitions",
+            "registration": "describe",
+            "line": 1174
+          }
+        ],
+        "originalCaseSource": "it.each([\n    { name: 'ObjectId', create: () => new bson.ObjectId(hex) },\n    { name: 'Long', create: () => new bson.Long(1, 2) },\n  ])('keeps one detached $name wire clone per occurrence with the lower-allocation record builder', ({ create }) => {\n    vi.spyOn(mongo, 'BSON', 'get').mockReturnValue({ ...bson });\n    const native = create();\n    const value = { ids: [native, native], nested: { id: native } };\n    const snapshot = copyAuthorizationValue(value, 'document');\n    const allocation = { definitions: 2, freezes: 3 };\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    const deserialize = vi.spyOn(mongo.BSON, 'deserialize');\n    expect(operations(() => oracle(value, snapshot))).toEqual({ result: true, definitions: 5, freezes: 3 });\n    expect(serialize).toHaveBeenCalledTimes(3);\n    expect(deserialize).toHaveBeenCalledTimes(3);\n    serialize.mockClear();\n    deserialize.mockClear();\n    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual({\n      result: true,\n      ...allocation,\n    });\n    expect(serialize).toHaveBeenCalledTimes(3);\n    expect(deserialize).toHaveBeenCalledTimes(3);\n    for (let i = 0; i < 3; i++) {\n      const cloned = deserialize.mock.results[i].value.value;\n      expect(cloned).not.toBe(native);\n      expect(isDeepStrictEqual(cloned, snapshot.nested.id)).toBe(true);\n    }\n    expect(new Set(deserialize.mock.results.map((result) => result.value.value)).size).toBe(3);\n    serialize.mockClear();\n    deserialize.mockClear();\n    expect(operations(() => matchesAuthorizationSnapshot(value, { ids: [], nested: snapshot.nested }))).toEqual({\n      result: false,\n      ...allocation,\n    });\n    expect(serialize).toHaveBeenCalledTimes(3); // A mismatch never skips later wire hooks.\n    expect(deserialize).toHaveBeenCalledTimes(3);\n  })"
+      },
+      {
+        "id": "044",
+        "title": "normalizes a complex graph once without repeating native hooks or resetting limits",
+        "registration": "it",
+        "line": 1233,
+        "scopes": [
+          {
+            "title": "PIPE-02 complete normalization with fewer record definitions",
+            "registration": "describe",
+            "line": 1174
+          }
+        ],
+        "originalCaseSource": "it('normalizes a complex graph once without repeating native hooks or resetting limits', () => {\n    vi.spyOn(mongo, 'BSON', 'get').mockReturnValue({ ...bson });\n    const native = new bson.ObjectId(hex);\n    const value = { before: [1], native, complex: new Set([{ value: native }]) };\n    const snapshot = copyAuthorizationValue(value, 'document');\n    const serialize = vi.spyOn(mongo.BSON, 'serialize');\n    const previous = operations(() => oracle(value, snapshot));\n    expect(previous).toEqual({ result: true, definitions: 5, freezes: 3 });\n    expect(serialize).toHaveBeenCalledTimes(2);\n    serialize.mockClear();\n    expect(operations(() => matchesAuthorizationSnapshot(value, snapshot))).toEqual({\n      result: true,\n      definitions: 1,\n      freezes: previous.freezes,\n    });\n    expect(serialize).toHaveBeenCalledTimes(2);\n  })"
+      }
+    ],
+    "matrixLoops": [
+      {
+        "loop": "for (let i = 0; i < depth; i++)",
+        "line": 33
+      },
+      {
+        "loop": "for (let seed = 1; seed <= 512; seed++)",
+        "line": 46
+      },
+      {
+        "loop": "for (let i = 0; i < result.length; i++)",
+        "line": 56
+      },
+      {
+        "loop": "for (let i = 0, count = next() % 5; i < count; i++)",
+        "line": 62
+      },
+      {
+        "loop": "for (const source of [\n      Object.defineProperty({}, 'value', { get: getter, enumerable }),\n      Object.defineProperty([], '0', { get: getter, enumerable }),\n    ])",
+        "line": 168
+      },
+      {
+        "loop": "for (const matchingIndex of [false, true])",
+        "line": 315
+      },
+      {
+        "loop": "for (const key of Object.keys(snapshot))",
+        "line": 900
+      },
+      {
+        "loop": "for (let i = 0; i < 3; i++)",
+        "line": 1217
+      }
+    ]
+  },
+  "packages/access-router/test/snapshot-review-comparator-regressions.unit.test.ts": {
+    "sha256": "68ab304c947b8feb50202d1e84cd7c3ae16bc0e5a73394c5cb7bbf711f96a146",
+    "bytes": 1342,
+    "lines": 30,
+    "caseTemplateCount": 1,
+    "cases": [
+      {
+        "id": "001",
+        "title": "compares non-index numeric property $key before array indices (repair: $repairIndex)",
+        "registration": "it.each(\n    ['4294967295', '999999999999999999999'].flatMap((key) =>\n      [false, true].map((repairIndex) => ({ key, repairIndex })),\n    ),\n  )",
+        "line": 6,
+        "scopes": [
+          {
+            "title": "SNAPCPU-05 array comparison observation order",
+            "registration": "describe",
+            "line": 5
+          }
+        ],
+        "originalCaseSource": "it.each(\n    ['4294967295', '999999999999999999999'].flatMap((key) =>\n      [false, true].map((repairIndex) => ({ key, repairIndex })),\n    ),\n  )('compares non-index numeric property $key before array indices (repair: $repairIndex)', ({ key, repairIndex }) => {\n    function run(match: typeof matchesAuthorizationSnapshot) {\n      const events: string[] = [];\n      const value = Object.assign([1], { [key]: 'extra' });\n      const snapshot = [2];\n      Object.defineProperty(snapshot, key, {\n        enumerable: true,\n        get() {\n          events.push('extra getter');\n          if (repairIndex) snapshot[0] = 1;\n          return 'extra';\n        },\n      });\n      const result = match(value, snapshot);\n      return { result, events, first: snapshot[0] };\n    }\n    const previous = run((value, snapshot) => isDeepStrictEqual(copyAuthorizationValue(value, 'document'), snapshot));\n    expect(previous).toEqual({ result: repairIndex, events: ['extra getter'], first: repairIndex ? 1 : 2 });\n    expect(run(matchesAuthorizationSnapshot)).toEqual(previous);\n  })"
+      }
+    ],
+    "matrixLoops": []
+  },
+  "packages/access-router/test/query-snapshot-work.unit.test.ts": {
+    "sha256": "cf93e844866e866daf8f1957ea8ab0774cb87a93f5b9a9d8422ba450929a3db3",
+    "bytes": 6380,
+    "lines": 164,
+    "caseTemplateCount": 1,
+    "cases": [
+      {
+        "id": "001",
+        "title": "$operation/$entry/$placement: root=$root nested=$nested output=$output",
+        "registration": "it.each(\n    ['read', 'list'].flatMap((operation) =>\n      ['direct', 'public'].flatMap((entry) =>\n        ['model', 'default-before', 'default-after'].flatMap((placement) =>\n          Array.from({ length: 8 }, (_, mask) => ({\n            operation: operation as 'read' | 'list',\n            entry,\n            placement: placement as 'model' | 'default-before' | 'default-after',\n            root: !!(mask & 1),\n            nested: !!(mask & 2),\n            output: !!(mask & 4),\n          })),\n        ),\n      ),\n    ),\n  )",
+        "line": 103,
+        "scopes": [
+          {
+            "title": "real query/finalizer/helper snapshot comparisons",
+            "registration": "describe",
+            "line": 102
+          }
+        ],
+        "originalCaseSource": "it.each(\n    ['read', 'list'].flatMap((operation) =>\n      ['direct', 'public'].flatMap((entry) =>\n        ['model', 'default-before', 'default-after'].flatMap((placement) =>\n          Array.from({ length: 8 }, (_, mask) => ({\n            operation: operation as 'read' | 'list',\n            entry,\n            placement: placement as 'model' | 'default-before' | 'default-after',\n            root: !!(mask & 1),\n            nested: !!(mask & 2),\n            output: !!(mask & 4),\n          })),\n        ),\n      ),\n    ),\n  )(\n    '$operation/$entry/$placement: root=$root nested=$nested output=$output',\n    async ({ operation, entry, root, nested, output, placement }) => {\n      const f = fixture(operation, root, nested, output, placement);\n      const counts = { root: 0, nested: 0, output: 0 };\n      const matches = snapshots.matchesAuthorizationSnapshot;\n      vi.spyOn(snapshots, 'matchesAuthorizationSnapshot').mockImplementation((value, snapshot) => {\n        const kind = Object.hasOwn(value as object, 'rootNative')\n          ? 'root'\n          : Object.hasOwn(value as object, 'childNative')\n            ? 'nested'\n            : 'output';\n        counts[kind]++;\n        return matches(value, snapshot);\n      });\n      const args = { select: ['value', 'hidden', 'children.value', 'children.hidden', '-_id'] };\n      const result =\n        entry === 'public'\n          ? operation === 'list'\n            ? await f.public._list({}, args, quiet)\n            : await f.public._readFilter({}, args, quiet)\n          : operation === 'list'\n            ? await f.direct.find({}, args, quiet)\n            : await f.direct.findOne({}, args, quiet);\n      expect(result.success).toBe(true);\n      if (!result.success) throw new Error(result.code);\n      const data = operation === 'list' ? (result.data as unknown[])[0] : result.data;\n      const expected = { value: 'root', children: [{ value: 'first' }, { value: 'second' }] };\n      expect(data).toEqual(expected);\n      expect(f.hook).toHaveBeenCalledTimes(1); // Embedded stages still reuse owning grants.\n      expect(f.adapter[operation === 'list' ? 'find' : 'findOne']).toHaveBeenCalledTimes(1);\n      expect(f.adapter.countDocuments).not.toHaveBeenCalled();\n      expect(counts.root === 0).toBe(root);\n      expect(counts.nested === 0).toBe(nested);\n      expect(counts.output === 0).toBe(output);\n      const context =\n        operation === 'list'\n          ? (result as unknown as { contexts: ServiceOutputContext[] }).contexts[0]\n          : (result as unknown as { context: ServiceOutputContext }).context;\n      for (const child of (data as typeof expected).children)\n        expect(context.getDocumentAuthorization(child)).toBeDefined();\n      expect(\n        await f.direct.pickAllowedFields(data, operation, { documentAuthorization: context.documentAuthorization }),\n      ).toEqual(expected);\n    },\n  )"
+      }
+    ],
+    "matrixLoops": [
+      {
+        "loop": "for (const child of (data as typeof expected).children)",
+        "line": 157
+      }
+    ]
+  }
+}

@@ -11,6 +11,7 @@ import {
   initialOutputCopyFlagOptions,
   authorizationFastPathFlagOptions,
 } from './access-router-core.mjs';
+import { probeDocumentCondition } from './access-router-owned-probes.mjs';
 
 export function instrumentBundle(source, old) {
   const names = old
@@ -33,6 +34,17 @@ export function instrumentBundle(source, old) {
         'memoizeStageFieldDecision',
         'closeDocumentStage',
         'copyDocumentView',
+        'captureOutputHelperConfiguration',
+        'captureAuthorizationFieldCatalog',
+        'selectCatalogOutputShape',
+        'prepareExistingOutputShape',
+        'planAuthorizedModelProjection',
+        'planCatalogProjection',
+        'compactPersistedProjection',
+        'captureReferenceOrigins',
+        'resolveEmptyOutputHelperStage',
+        'evaluateAuthorizedOutputField',
+        'beginDocumentStageOutput',
       ];
   for (const name of names) {
     const expression = new RegExp(`(^function ${name}\\([^\\n]*\\) \\{)`, 'gm');
@@ -51,6 +63,11 @@ export function instrumentBundle(source, old) {
     const clear = /([\w]+)\.decisions\.clear\(\);/g;
     assert.equal([...source.matchAll(clear)].length, 1, 'Exactly one actual stage-clear seam required');
     source = source.replace(clear, '$&\n    globalThis.__oarStructureCleared($1);');
+    const promise = /record\d*\.result = new Promise/g;
+    assert.equal([...source.matchAll(promise)].length, 1, 'Exactly one real resolver Promise seam required');
+    source = source.replace(promise, "globalThis.__oarStructureObserve('resolverPromise', []);\n  $&");
+    // Instrumented-copy diagnostics only: never modify the artifact or its exports.
+    source += '\nexport { filterModelOutputForHelper as __oarHelper, permission_default as __oarPermission };\n';
   }
   return { source, names };
 }
@@ -73,7 +90,7 @@ export async function probeStructure(target, directory) {
   globalThis.__oarStructureCleared = (record) => {
     assert.equal(record.state, 'closed');
     assert.equal(record.decisions.size, 0);
-    for (const key of ['source', 'grants', 'call', 'binding', 'publication', 'owning', 'result'])
+    for (const key of ['source', 'grants', 'access', 'view', 'call', 'binding', 'publication', 'owning', 'result'])
       assert.equal(record[key], undefined, `Closed stage retained ${key}`);
     clearedRecords++;
   };
@@ -89,14 +106,15 @@ export async function probeStructure(target, directory) {
       if (name === 'createDocumentStage') {
         /* returned stage tracked at first resolve */
       }
-      if (name === 'resolveDocumentStage') stageIds.add(value);
+      if (name === 'resolveDocumentStage' || name === 'resolveEmptyOutputHelperStage') stageIds.add(value);
       if (name === 'closeDocumentStage') closed.add(value);
     }
   };
   const require = createRequire(resolve(target.root, 'packages/access-router/package.json'));
   const mongoose = require('mongoose'),
     express = require('express');
-  const { createAccessRuntime } = await import(pathToFileURL(entry));
+  const library = await import(pathToFileURL(entry));
+  const { createAccessRuntime } = library;
   const api = createAccessRuntime();
   const flags = old
     ? {
@@ -246,6 +264,85 @@ export async function probeStructure(target, directory) {
         ),
         'No per-field whole-document callback-view copies',
       );
+    const helpers = [];
+    let conditionProof = null;
+    if (!old) {
+      const Source = mongoose.model(
+        'OwnedStructureHelpers',
+        new mongoose.Schema({
+          _id: String,
+          ...Object.fromEntries(Array.from({ length: 24 }, (_, i) => [`field${i}`, String])),
+        }),
+      );
+      api.runtime.registerModelInstance(Source.modelName, Source);
+      api.setModelOptions(Source.modelName, {
+        ...flags,
+        stripPermissionsField: true,
+        permissionSchema: Object.fromEntries(Array.from({ length: 24 }, (_, i) => [`field${i}`, 'reader'])),
+      });
+      const permissions = new library.__oarPermission({ reader: true }),
+        request = {};
+      for (const width of [1, 10, 100]) {
+        for (const key of Object.keys(counts)) delete counts[key];
+        clearedRecords = 0;
+        stageIds.clear();
+        closed.clear();
+        const raw = {
+          _id: 'same',
+          ...Object.fromEntries(Array.from({ length: 24 }, (_, i) => [`field${i}`, `value:${i}`])),
+        };
+        for (let n = 0; n < width; n++) {
+          const result = await library.__oarHelper({
+            request,
+            runtime: api.runtime,
+            modelName: Source.modelName,
+            access: 'list',
+            permissions,
+            doc: raw,
+            options: {},
+          });
+          assert.deepEqual(result.output, raw);
+          assert.notEqual(result.output, raw);
+          assert.deepEqual(result.fields, [...Array.from({ length: 24 }, (_, i) => `field${i}`), '_id']);
+        }
+        for (const name of [
+          'captureOutputHelperConfiguration',
+          'captureAuthorizationFieldCatalog',
+          'createDocumentStage',
+          'resolveEmptyOutputHelperStage',
+          'selectCatalogOutputShape',
+          'prepareExistingOutputShape',
+          'copyDocumentView',
+        ])
+          assert.equal(counts[name], width, `Actual fresh helper work: ${name}`);
+        for (const name of [
+          'planAuthorizedModelProjection',
+          'planCatalogProjection',
+          'compactPersistedProjection',
+          'captureReferenceOrigins',
+          'resolveDocumentStage',
+          'resolverPromise',
+        ])
+          assert.equal(counts[name] ?? 0, 0, `Unexpected helper work: ${name}`);
+        assert.equal(counts.evaluateAuthorizedOutputField, 24 * width);
+        assert.equal(counts.memoizeStageFieldDecision, 24 * width);
+        assert.equal(clearedRecords, width);
+        assert.equal(closed.size, width);
+        helpers.push({ helpers: width, counts: { ...counts }, clearedRecords, outputFingerprint: fingerprint(raw) });
+      }
+      conditionProof = await probeDocumentCondition(target, {
+        library,
+        observe: () => ({ clearedRecords, outputBegins: counts.beginDocumentStageOutput ?? 0 }),
+      });
+      for (const proof of conditionProof.observations) {
+        assert.equal(proof.stagesAfter.clearedRecords - proof.stagesBefore.clearedRecords, 1);
+        assert.equal(
+          proof.stagesAfter.outputBegins,
+          proof.stagesBefore.outputBegins,
+          'Guard must never begin DTO construction',
+        );
+      }
+    }
     return {
       status: 'ok',
       profile: target.profile,
@@ -254,6 +351,8 @@ export async function probeStructure(target, directory) {
       instrumentedFingerprint: fingerprint(injected.source),
       instrumentedFunctions: injected.names,
       measurements,
+      helpers,
+      conditionProof,
     };
   } finally {
     if (server)

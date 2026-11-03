@@ -1,0 +1,7 @@
+{
+  "baselineRoot": "_tmp-oar01-20261031-153820/baseline-artifact",
+  "candidateRoot": "_tmp-oar09g-prepare-sb2406vf/candidate-artifact",
+  "baselineSeal": "_tmp-oar01-20261031-153820/baseline-metadata.json",
+  "candidateSeal": "_tmp-oar09g-prepare-sb2406vf/candidate-metadata.json",
+  "dependencySeal": "_tmp-oar01-20261031-153820/dependency-identities.json"
+}

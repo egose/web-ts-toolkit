@@ -1,14 +1,27 @@
 # Access-router owned authorization: breaking redesign and migration
 
 Created: 2026-10-31 15:30:20 PDT
-Status: blocked
+Status: completed
+
+Evidence preservation: [curated archive](../task-artifacts/access-router/README.md).
+Selected documents now use tracked paths. References to raw logs, builds, seals,
+original source snapshots and other omitted files still describe the original
+ignored packets, not files beside the archived documents. Historical commands,
+findings and statuses are unchanged; archived protocols are not runnable bundles.
 
 Execution paused at the user's request after OAR-03 completed, then resumed on the
-user's request to continue the remaining items. OAR-01–08 are complete; OAR-09 is
-blocked on residual trusted-mode performance gates after two bounded remediations;
-OAR-10 remains pending.
-Affected full-package verification passes; performance acceptance does not. Work
-remains uncommitted and is not an independently accepted release candidate.
+user's request to continue the remaining items. OAR-01–08 and the broader helper/guard
+redesign are complete; OAR-09 performance verification is delivered. The user explicitly
+accepted the documented residual costs/inconclusive results; OAR-10 is complete after
+independent review, separate documentation corrections and independent re-review.
+The optional collection helper and its approved router-controlled budget scope are
+implemented, documented and scoped-verified. The new tested artifact has now been
+measured separately; its earlier integration-only NOT_MEASURED seal remains historical.
+Affected full-package verification passes; numerical performance gates remain 70/90,
+with the remaining outcomes accepted by explicit user disposition, not relabeled. Work
+through OAR-09D was subsequently committed by the user; new work remains uncommitted.
+Scoped final review found no remaining blockers. No commit, publication, release or
+blanket security certification is authorized by this completion.
 
 ## Objective and authorization
 
@@ -28,8 +41,10 @@ Execution authorization: the user subsequently requested implementation sequenti
 by subagents. OAR-01–10 now run one child at a time, with a separate final independent
 reviewer. The coordinator owns task reconciliation; children return evidence without
 editing this document. No commits, publication, dependency changes or workspace-wide
-verification are authorized. Starting execution retains the two task-document changes
-from creation; HEAD remains `58b22c0d6d3abd4ecce03533e3867d148ff21233`.
+verification are authorized. Starting execution retained the two task-document changes
+from creation at `58b22c0d6d3abd4ecce03533e3867d148ff21233`. Before OAR-09E the user
+committed the preceding work; recovery entry is clean at
+`a1996e10f8339d89fc8a0aa2b10f7b531f5a07ca`. Preserve those commits without rewriting them.
 
 Do not build compatibility adapters, retain deprecated flag aliases, accept legacy
 capabilities through a hidden path, or keep the old authorization engine merely to
@@ -374,8 +389,9 @@ retained heap growth over 15% plus 1 MiB after GC or superlinear per-field graph
 is blocking; unsupported allocation counters stay unavailable. On a miss/sign disagreement/
 material adverse result, run exactly two more reversed paired rounds at original settings;
 after four, require three aligned pairs and median paired thresholds. No discards,
-sample increases or moving gates. Full protocol and baseline raw evidence are preserved
-in `_tmp-oar01-20261031-153820/PERFORMANCE-GATES.md` and `MEASUREMENT-PLAN.md`.
+sample increases or moving gates. The protocol is archived in
+`docs/task-artifacts/access-router/oar01-20261031-153820/PERFORMANCE-GATES.md` and
+`MEASUREMENT-PLAN.md`; baseline raw evidence remains in the original ignored packet.
 
 ## Breaking-change documentation required for consumers
 
@@ -579,7 +595,7 @@ Completion evidence:
   dependency bytes/lock unchanged. Fresh closure 134 packages/3,510 files, with the
   previous 134/3,500 manifest also verified and its generated/workspace-file difference
   enumerated. All 38,924 captured incoming product/evidence identities preserved.
-- Handoff `_tmp-oar01-20261031-153820/HANDOFF.md`, `ARCHITECTURE.md`,
+- Handoff `docs/task-artifacts/access-router/oar01-20261031-153820/HANDOFF.md`, `ARCHITECTURE.md`,
   `CONTRACT-AMENDMENTS.md`, `IMPLEMENTATION-HANDOFF.md`, `BASELINE.md` and sealed raw
   data. Initial evidence-fixture/audit-assumption failures preserved and corrected;
   no product feature edits, workspace-wide verification, candidate timing or owned jobs.
@@ -635,7 +651,7 @@ Recovery completion evidence:
   with migration causes/owners, not excluded or declared passing. Later engine/test/
   documentation owners must migrate them before full integration. No final benchmark,
   full V3/V4 or release-candidate claim. Earlier interruption logs remain unchanged.
-- Handoff `_tmp-oar02-recovery-20261031-171950/HANDOFF.md` and
+- Handoff `docs/task-artifacts/access-router/oar02-recovery-20261031-171950/HANDOFF.md` and
   `BROKEN-BEHAVIOR-LEDGER.md`; current ESM
   `51d126af84d64188a175b1db8a58f737fd9deec8b6c64964ed96510dac549005`.
   Baseline artifact/external dependency bytes/lock/task documents/old evidence
@@ -683,7 +699,7 @@ Completion evidence:
   errors omit; invalid selected return/controlled admission poisons the operation.
   Necessary input/policy native normalizers remain bounded. Broader native/batching/
   isolation matrices and unnecessary-copy removal belong to OAR-04, not claimed here.
-- Handoff `_tmp-oar03-20261031-181311/HANDOFF.md` and
+- Handoff `docs/task-artifacts/access-router/oar03-20261031-181311/HANDOFF.md` and
   `LEGACY-TEST-MIGRATION-LEDGER.md`; current root ESM
   `3c2e3232bc0be83613e80c5dd59fb520aaf0b98b71f6820692fd4398b4cdcc41`,
   CJS `e3e158677a04a255b01f2d7ca1092715fad94c1fa31aa21d32fe22f1a2f46c8a`.
@@ -738,7 +754,7 @@ Completion evidence:
 - Instrumented six-row comparisons retain 144 callbacks/read counts; isolated
   no-hook Date normalizations 18→12, shared-include 33→20; trusted include 19→13.
   These are structural observations, not candidate latency/CPU/allocation claims.
-- Handoff `_tmp-oar04-20261031-200901/HANDOFF.md` and migration ledger; ESM
+- Handoff `docs/task-artifacts/access-router/oar04-20261031-200901/HANDOFF.md` and migration ledger; ESM
   `2a307e6684f8976fcd4bcaba8661d77adb363b75fe777a6956ed206366ed0159`,
   packed tarball `d0feea01836d72fddf0ce9b28722517ae432fcded86d8731b99eb338ee7264e1`.
   Earlier evidence/task documents/baseline/134 dependencies/3,510 files/lock preserved;
@@ -793,7 +809,7 @@ Recovery completion evidence:
   the fixture now passes that original error through the existing public response
   handler. No synthetic response/product workaround/new factory. Earlier failure and
   transport/fixture correction logs remain preserved.
-- Handoff `_tmp-oar05-recovery-20261031-211235-c96711/NEWHANDOFF.md` and migration
+- Handoff `docs/task-artifacts/access-router/oar05-recovery-20261031-211235-c96711/NEWHANDOFF.md` and migration
   ledger; current ESM `84ba8393a1e0c24edb19130049329fae7fa3d1553817db98aa3da3691d5499e3`.
   47,746 captured prior paths/134 dependencies/3,510 files/baseline/lock unchanged,
   no owned jobs. Full legacy/config/write/deco/docs/peer/performance gates remain later.
@@ -835,7 +851,7 @@ Completion evidence:
   packed helper/native **60 HTTP requests** pass. Scoped builds/source TypeScript,
   current ESM/CJS consumer checks and changed-file lint/format/diff pass. Six core
   option suites and one deco suite are semantically migrated with preserved originals.
-- Handoff `_tmp-oar06-20261031-xqjTWI/NEWHANDOFF.md`, migration ledger and
+- Handoff `docs/task-artifacts/access-router/oar06-20261031-xqjTWI/NEWHANDOFF.md`, migration ledger and
   `remaining-deleted-module-imports.json`; current ESM
   `a022d0435303400f8edc72914fee6aab8da954fcdf86ed3c7b4336991ea2f77c`.
   51,699 prior paths/baseline/134 dependencies/3,510 files/lock preserved, no owned
@@ -913,7 +929,7 @@ Completion evidence:
 - **1,545 core cases / 39 full files**, 147 retained deco cases, scoped build/source
   types/deco types/lint/format/diff pass. Zero active deleted-module/comparator imports;
   eight declarations unchanged. No full V3/V4/V7/performance claim.
-- Handoff `_tmp-oar07a-20261031-Sn6zV3/NEWHANDOFF.md`, complete catalog/migration
+- Handoff `docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/NEWHANDOFF.md`, complete catalog/migration
   ledger/proof audits; ESM `4d1fedf96f945b88ce5c64a39d842359053ec9c85fcb0882574d03a1c9b78922`.
   Original bytes/54,584 prior paths/baseline/dependencies/lock preserved, no owned jobs.
   OAR-07B alternate integration remains; OAR-07 is not yet complete.
@@ -965,7 +981,7 @@ Recovery completion evidence:
   in `documentation-examples`, `export-contract`, `strict-consumer-types` and the
   four packed guide matrices; not a V3 pass. Offline install/artifact plumbing is
   corrected and minimum/current numeric consumer matrices pass.
-- Handoff `_tmp-oar07b-recovery-20261101-drdazhbz/NEWHANDOFF.md`, migration ledger,
+- Handoff `docs/task-artifacts/access-router/oar07b-recovery-20261101-drdazhbz/NEWHANDOFF.md`, migration ledger,
   `OAR08-REMAINING-FAILURES.md` and `FINAL-SEAL.json`; current ESM
   `cccf18704c7b0415704970044f55a87c3bd3b940161d563f1dc42bd6606077ab`.
   187,546 prior paths/baseline/134 dependencies/3,510 files/lock preserved; no owned
@@ -1021,7 +1037,7 @@ Recovery completion evidence:
 - All 14 core outputs/eight declarations/docs match installed bytes; 104 relative
   links resolve. Core tarball has 19 intended files, deco seven, no private/test leaks.
   83 original registration templates map to 85 current with no removal/skip.
-- Handoff `_tmp-oar08-recovery-20261101-16yIdWZ5/NEWHANDOFF.md`, ledger and
+- Handoff `docs/task-artifacts/access-router/oar08-recovery-20261101-16yIdWZ5/NEWHANDOFF.md`, ledger and
   `FINAL-SEAL.json`; current ESM
   `76c7019b1714d7ab312e86c51476b82006b35a2ddbb52872156dc44c0c90661d`.
   505,285 prior paths/851 archived originals/baseline/134 dependencies/3,510 files/
@@ -1029,7 +1045,7 @@ Recovery completion evidence:
 
 ### Task OAR-09: Measure final architecture and run scoped integration gates
 
-Status: blocked
+Status: completed
 Assigned: sequential benchmark-tooling/integration, then final measurement owners.
 Kind: investigation
 Priority: P1 — simplification is not proof of speed or retained protections.
@@ -1072,6 +1088,97 @@ confirmed adverse helper comparisons and ten unresolved-sign comparisons (one ov
 12 failed final gates). Stop here for an explicit choice of broader helper/guard
 redesign or acceptance of the documented residual costs/uncertainty before independent
 review. The earlier “yes please” authorized fixes, not silent performance exceptions.
+
+Broader-redesign authorization: the user selected option **1**, explicitly authorizing
+broader helper/guard redesign rather than accepting the residual costs. OAR-09E starts
+with a concrete architecture/contract review, then sequential implementation and full
+scoped verification, followed by fresh measurement. Original failed gates and campaigns
+remain intact; no performance waiver, workspace-wide checks or publication is implied.
+
+Latest disposition required after OAR-09E: the broader redesign, full integration and
+its fresh fixed campaign are delivered. The H4 guard adverse gate now passes under
+the explicitly accepted no-DTO contract. Two H3-global batch-helper comparisons remain
+confirmed adverse, and fifteen other comparisons have unresolved signs. Preserve these
+17 failures and pause for explicit performance exceptions or further helper-contract/
+architecture authorization. No release or independent acceptance follows automatically.
+
+Proposal authorization: the user selected **1 — propose helper API/contract changes**.
+OAR-09F below is design-only. This does not authorize implementing a new API, weakening
+freshness, replacing an existing workload, accepting residual costs or changing gates.
+The proposal is delivered; implementation awaits explicit user approval. OAR-09 remains
+blocked and OAR-10 pending, independently of that API decision.
+
+Implementation authorization: after presentation of OAR-09F, the user requested
+**please continue**, approving the proposed API contract and bounded implementation,
+tests and documentation. OAR-09F-I then OAR-09F-V run sequentially. This approval does
+not change migration policy, old workloads or performance criteria, authorize timing
+runs, dispose of the seventeen failed comparisons, or start OAR-10/release acceptance.
+The earlier proposal-only authorization and evidence remain historical records.
+The first implementation owner stopped before product changes at the demonstrated
+hydrated pre-copy accounting conflict below; a contract decision is now required.
+
+Budget-scope revision authorization: the user selected **1**, accepting the recommended
+explicit revision and continuation. The **200,000 work-unit / 16 MiB payload** limits
+cover router-controlled admission, staging, traversal and copies, not opaque hydrated/
+native normalization internals or their dependency-owned allocations. Normalized
+results must still pass router admission and debit subsequent router-controlled work
+before copying. This preserves hydrated support and is **not** a total-memory,
+whole-normalization work or callback-sandbox guarantee. All other approved API, row
+limits, freshness, isolation, publication and verification requirements remain intact;
+no dependency patch, replacement hydration engine, timing or gate change is authorized.
+
+Performance-verification authorization: the user subsequently requested **go with the
+performance-verification scope**. OAR-09G-A then OAR-09G-B below are authorized to
+prepare, correctness-check and measure the current tested build. Retain every original
+45-case workload / 90 comparison gate, threshold, setting, pairing, repeat and sign
+rule. Measure the new batch API as a separately labeled **report-only** supplement,
+not a replacement workload or a new acceptance rule. No migration-policy change,
+performance exception, additional optimization, product/dependency change, publication
+or OAR-10 acceptance is implied; historical failures remain visible.
+
+Latest disposition after OAR-09G: authorized measurements and raw audits are complete.
+The new e131 build passes **70/90** original gates (isolated **44/45**, trusted
+**26/45**). Three comparisons have confirmed adverse metrics and eighteen have
+unresolved signs, overlapping once: **20 failed gates**. All isolated primary benefits,
+heap gates and fresh-read allowances pass. The report-only batch API is not generally
+lower-latency than current independent helpers in this workload. Stop for explicit
+targeted investigation/optimization or acceptance of documented costs/uncertainties;
+no extra unchanged-artifact campaign, gate exception or OAR-10 is authorized by these
+results. See completed OAR-09G-B evidence below.
+
+Explicit user disposition and review authorization: after reviewing the reported
+results and the primary LIST gains, the user requested **“explicitly accept the
+documented performance costs and inconclusive results” and then move on**. OAR-09 is
+complete by that disposition; OAR-10 may start in a fresh independent session.
+
+- Scope: current tested/measured ESM
+  `e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e`,
+  OAR-09G-B's 70/90 numerical result, all three confirmed trusted adverse comparisons,
+  eighteen sign-unstable comparisons (one overlap), and documented report-only B1
+  costs/freshness differences. No universal speedup or statistical certainty is implied.
+- The twenty accepted failed comparison IDs are:
+  `trusted guard/plain-narrow/10`, `trusted guard/hydrated/10`,
+  `trusted guard/large-config/10`, `trusted guard/populate/10`,
+  `trusted guard/virtuals/10`, `trusted guard/hydrated/100`,
+  `trusted guard/large-config/100`, `trusted guard/virtuals/100`,
+  `trusted read/http-id/plain-wide/100`, `trusted read/http-id/document-rules/100`,
+  `trusted read/http-id/hydrated/100`, `trusted read/http-filter/document-rules/100`,
+  `trusted read/http-filter/embedded/100`, `trusted read/http-filter/virtuals/100`,
+  `trusted helper/H2-query/100`, `trusted helper/H2-global/100`,
+  `isolated helper/H4/100`, `trusted helper/H4/100`,
+  `trusted helper/H3-global/10`, `trusted helper/H3-global/100`.
+  Exact metrics/signs/deltas remain in the immutable G-B reports/raw audits.
+- B1 remains report-only, including its approximately 5–6% higher 100-row median latency
+  than current independent helpers and higher trusted query-plus-handle comparator
+  costs. This acceptance does not make the workflows authority/freshness-equivalent,
+  replace H3, recommend automatic migration or create a new B1 passing gate.
+- Preserve all five campaigns, original thresholds/settings/sign/repeat rules and
+  failed/inconclusive raw evidence unchanged. This is an explicit acceptance exception,
+  not a benchmark rewrite or permission for extra sampling/optimization.
+- No correctness, security, source isolation, public capability, bound, declaration,
+  documentation, identity, dependency or failed-test requirement is waived. Any newly
+  discovered review defect remains blocking. No commit, publication or release is
+  authorized; final review must independently verify the current bytes and evidence.
 
 Execution decomposition: run two fresh owners sequentially to keep benchmark
 implementation and long measurement runs independently auditable. OAR-09 completes
@@ -1119,9 +1226,9 @@ Recovery completion evidence:
   is explicitly not performance/retention evidence; all earlier failures preserved.
 - Post-gate six-package rebuild preserves **67 outputs**; all OAR-08 product bytes
   remain unchanged. Accepted candidate/config/runbook are **only**
-  `_tmp-oar09a-recovery-ot_jqpby/final-02/FINAL-PROTOCOL.{json,md}` and adjacent
+  `docs/task-artifacts/access-router/oar09a-recovery-ot_jqpby/final-02/FINAL-PROTOCOL.{json,md}` and adjacent
   candidate artifact/metadata. Earlier root seals/smokes are not accepted inputs.
-- Handoff `_tmp-oar09a-recovery-ot_jqpby/NEWHANDOFF.md`, final seal; candidate ESM
+- Handoff `docs/task-artifacts/access-router/oar09a-recovery-ot_jqpby/NEWHANDOFF.md`, final seal; candidate ESM
   `76c7019b1714d7ab312e86c51476b82006b35a2ddbb52872156dc44c0c90661d`.
   951,084 prior paths/116 archived originals, 134 dependency records/3,510 files,
   293 tool dependency records/10,545 files and baseline/lock preserved; no owned jobs.
@@ -1129,10 +1236,10 @@ Recovery completion evidence:
 
 #### Packet OAR-09B: Execute fixed performance protocol and artifact reconciliation
 
-Status: blocked
+Status: completed
 Kind: investigation
 Priority: P1 — default benefit and adverse costs remain unmeasured.
-Assigned: fresh remeasurement owner using accepted OAR-09D final-01 inputs.
+Assigned: fresh measurement owner using accepted OAR-09E H+G finalization inputs.
 Dependencies: OAR-09A.
 Primary ownership: new ignored raw timing/work/retention evidence, report and final
 identity audit; narrow demonstrated fixes require a newly named artifact/batch.
@@ -1171,7 +1278,7 @@ Delivered measurement evidence; acceptance blocked:
   per-field graph. Actual six fact normalizations/144 callbacks at 24 fields and all
   12 closed/cleared root/embedded stages are observed; allocation counters and Mongo
   CPU remain unavailable. These passing checks do not waive trusted latency/CPU gates.
-- Handoff `_tmp-oar09b-g28ar1zl/NEWHANDOFF.md`; quantitative `REPORT.md`,
+- Handoff `docs/task-artifacts/access-router/oar09b-g28ar1zl/NEWHANDOFF.md`; quantitative `REPORT.md`,
   `ALL-GATES.md`, `PAIR-DETAILS.md`, `REPEAT-ONLY-SUMMARY.md`, independent raw audits,
   `FINAL-SEAL.json` and `FINAL-CLOSURE.json` preserve the complete evidence.
 - Post-campaign six-package rebuild preserves all **67 outputs** and candidate ESM
@@ -1191,7 +1298,7 @@ new OAR-09C-artifact campaign. Do not repeat the completed original failed campa
 
 Remediated campaign delivered; fixed gates still not accepted:
 
-- Recovery `_tmp-oar09b-remediated-recovery-k7n4e2/NEWHANDOFF.md` and full reports
+- Recovery `docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/NEWHANDOFF.md` and full reports
   preserve one **444-job / 38,200-response** campaign, zero job/count/fingerprint
   failures. Independent audit verifies all settings/order/initial and repeated pairs;
   360 initial jobs plus exactly 84 jobs for 21 triggered trusted comparisons.
@@ -1213,7 +1320,7 @@ Remediated campaign delivered; fixed gates still not accepted:
 
 OAR-09D candidate campaign delivered; residual acceptance blocker:
 
-- `_tmp-oar09b-final-remediation-RJZ1phN3/NEWHANDOFF.md`, `REPORT.md`, all-gate/pair/
+- `docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/NEWHANDOFF.md`, `REPORT.md`, all-gate/pair/
   initial-repeat-final tables and independent raw audits preserve one **444-job /
   38,800-response** campaign. Zero job/count/fingerprint failures; 360 initial jobs
   and exactly 84 repeat jobs for 21 triggered comparisons. No campaign discarded.
@@ -1238,6 +1345,36 @@ OAR-09D candidate campaign delivered; residual acceptance blocker:
 - OAR-09 remains blocked on explicit user disposition. No third optimization attempt,
   unchanged-artifact resampling, threshold waiver or OAR-10 has started.
 
+Broader H+G redesign campaign delivered; current residual blocker:
+
+- Handoff `docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/NEWHANDOFF.md`, complete reports/raw audits
+  and closure preserve **one 440-job / 37,800-response** campaign. Zero job/count/
+  fingerprint failures; 360 initial jobs plus exactly 80 jobs for 20 triggered
+  comparisons. Every initial/repeat sample remains, with independently recomputed gates.
+- **73/90 fixed comparisons pass**: isolated **45/45**, trusted **28/45**. All primary
+  LIST comparisons and all six heap gates pass. Isolated primary latency savings are
+  63.67%, 92.35%, 96.20%; trusted primary savings 8.81%, 20.12%, 23.38%, against their
+  own interleaved matching old profiles. No cross-time sample pooling or causal claim.
+- H4 now passes: trusted CPU **+6.21% / +0.1409 ms**, median +2.98% / +0.0645 ms.
+  This uses the documented hash-bound `facts-only-v1` no-DTO guard contract; normal
+  reads still perform 24 callbacks. All earlier 24-callback candidate evidence remains
+  truthful. It is not a claim of identical guard output effects/errors.
+- Two confirmed trusted adverse cases remain: H3-global/10 CPU **+18.01% /
+  +1.2266 ms**; H3-global/100 median **+14.25% / +3.9816 ms**, CPU **+15.82% /
+  +5.3927 ms**, each confirmed metric adverse in all four pairs. H3/10 median and
+  H3/100 p95 do not meet both adverse thresholds and are not mislabeled. Fifteen
+  distinct comparisons remain sign-unstable; no tiny-effect exception was applied.
+- Raw/presentation helpers add zero reads/hooks; all six explicit fresh-authority
+  read allowances pass. Helper work probes retain 100 independent captures/catalogs/
+  stages and 2,400 checks with no query expansion or unused callback view. These
+  reductions do not silently waive the remaining batch-helper end-to-end cost.
+- Rebuilt all 67 outputs match ESM
+  `8a5ded622337bddd1b9ce31a95dc3a3dfb0b10e734db52c4b371c5d55cf5267e`.
+  Full **5,957 core / 742 deco / 45 runner** evidence remains valid/hash-verified;
+  1,627,782 earlier paths/source/artifacts/tools/dependencies/lock/user commits preserved,
+  no owned jobs. Four separate artifact campaigns remain 75/90, 81/90, 78/90, 73/90;
+  neither old v1 nor new v2 results are relabeled or pooled. OAR-10 was not started.
+
 #### Packet OAR-09C: Remove demonstrated trusted-path overhead without weakening ownership
 
 Status: completed
@@ -1250,7 +1387,7 @@ Primary ownership: narrow access-router query/helper/guard/publication hot paths
 regression/work-count tests; necessary affected-package verification and a new seal.
 Finding: original OAR-09B confirms nine trusted/old-active adverse comparisons,
 including 100-row global helper reuse at +62.12% median and virtual guards at +32.40%.
-References: `_tmp-oar09b-g28ar1zl/REPORT.md`, raw pairs and structural probes; C1–C6.
+References: `docs/task-artifacts/access-router/oar09b-g28ar1zl/REPORT.md`, raw pairs and structural probes; C1–C6.
 Requirements: profile actual redundant work, fix demonstrated causes without legacy
 handles, DTO authority, cross-call decisions, extra reads/hooks or weaker immutable
 actor/policy/fact/source/native/budget boundaries. Keep all benchmark workloads,
@@ -1279,9 +1416,9 @@ Completion evidence:
   **44 runner tests**, source/deco types, lint/format/diff and fresh installed V7.
   **180 correctness smoke jobs / 360 expected fingerprints** pass, not a performance
   gate. Post-gate six-package rebuild preserves all **67 outputs**.
-- Handoff `_tmp-oar09c-ckrmwpy3/NEWHANDOFF.md`, `WORK-REPORT.md`, regression/profile
+- Handoff `docs/task-artifacts/access-router/oar09c-ckrmwpy3/NEWHANDOFF.md`, `WORK-REPORT.md`, regression/profile
   evidence and final seal. New accepted candidate/config/runbook are **only**
-  `_tmp-oar09c-ckrmwpy3/final-01/FINAL-PROTOCOL.{json,md}` and adjacent artifact/seal;
+  `docs/task-artifacts/access-router/oar09c-ckrmwpy3/final-01/FINAL-PROTOCOL.{json,md}` and adjacent artifact/seal;
   ESM `1d3b509cbe2f34cfba076bbc10779091aef1592001914b37a700165987eea54e`.
   1,044,719 historical paths/421 originals, dependencies/tools/lock and the entire
   original failed campaign remain preserved; no owned jobs or publication.
@@ -1330,9 +1467,9 @@ Completion evidence:
   **44 runner tests**, types/lint/format/diff and actual packed module/peer/guide
   matrices. **180 smoke jobs / 360 expected fingerprints** and all eight preflights
   pass; post-gate necessary six-package rebuild preserves **67 outputs**.
-- Handoff `_tmp-oar09d-hVF7iALN/NEWHANDOFF.md`, `WORK-REPORT.md` and final seal.
+- Handoff `docs/task-artifacts/access-router/oar09d-hVF7iALN/NEWHANDOFF.md`, `WORK-REPORT.md` and final seal.
   Accepted next-campaign inputs are **only**
-  `_tmp-oar09d-hVF7iALN/final-01/FINAL-PROTOCOL.{json,md}` and adjacent artifact/metadata;
+  `docs/task-artifacts/access-router/oar09d-hVF7iALN/final-01/FINAL-PROTOCOL.{json,md}` and adjacent artifact/metadata;
   ESM `7faeb957631bd5761e8b828835f4b600634db1afa740e229549bfc4ba6a74a4f`.
   All public declarations, export sets and 13 benchmark tools remain unchanged.
 - 1,247,280 historical paths/422 archived streams, both previous failed campaigns,
@@ -1340,12 +1477,606 @@ Completion evidence:
   timings still show no proven gain. A fresh fixed campaign must test the new build;
   no adverse/sign gate is silently resolved by work-count improvements.
 
+#### Packet OAR-09E: Redesign fresh-helper and document-guard execution boundaries
+
+Status: completed
+Kind: improvement
+Priority: P1 — local reductions leave persistent helper/guard overhead.
+Assigned: sequential architecture owner, implementation owner and measurement owner;
+none is the final independent reviewer.
+Dependencies: OAR-09D. The completed failed campaign supplies the finding; performance
+acceptance is not a prerequisite for this explicitly authorized redesign.
+Primary ownership: private helper preparation/filtering and fresh document-condition
+execution, shared stage/publication integration, affected tests/docs and new artifacts.
+Finding: all three fixed campaigns retain confirmed H4 and H3-global overhead despite
+local improvements. Raw helpers still traverse general query/output planning machinery;
+the guard publishes a complete DTO only to consume a private fact decision.
+References: latest OAR-09B report, `acl/output-field-filter.ts:filterModelOutputForHelper`,
+`acl/model-output-planning.ts:captureOutputHelperConfiguration`, `acl/document-guard.ts`.
+Requirements: first document a concrete design and observable contract effects. Reuse
+the one private authorization engine and keep fresh call capture, immutable facts/actor,
+row/operation/target separation, bounded isolated helper input and exact scope/policy.
+No DTO authority, public capability, legacy engine/control, cross-call decision cache,
+hidden reads/hooks or replacement benchmark workload. Preserve all published DTO field
+checks. Any proposal to remove guard-only DTO construction must prove that no DTO is
+published and explicitly account for hook/error/callback semantics before implementation;
+do not silently drop the previously verified 24 callbacks or alter their counter.
+Acceptance criteria: architecture review identifies the required work versus redundant
+boundary work and a testable ownership proof; subsequent implementation has regression
+and work-reduction evidence, full scoped V1–V7 and a deterministic new seal. Required
+consumer/documentation changes ship. A fresh fixed V8 campaign follows, without changing
+thresholds, sample counts, pair/repeat rules or historical workloads. No gate waiver.
+Verification: design/caller/test review, focused adversarial/work tests, V1–V7 and new
+artifact identity, followed by independent raw recomputation of fresh V8 measurements.
+
+Architecture accepted for implementation:
+
+- `docs/task-artifacts/access-router/oar09e-design-kTiLZtLh/DESIGN.md` and `NEWHANDOFF.md` specify two private
+  consumers of the same stage/evaluator/materializer: helpers select existing admitted
+  values without query-fetch expansion or a disposable view for a built-in EMPTY
+  resolver; guards resolve a fresh document condition without publishing a DTO.
+- This is an explicit guard contract refinement: guards retain identifier/query/row
+  admission, captured actor/modes, unchanged fetch/hook-input preparation, one root
+  hook, condition grammar, retry and source/fact errors. Guards do **not** run output
+  field/virtual/embedded/target DTO finalization, output-only includes, metadata,
+  decoration/tasks or `_read` overrides. Errors/effects solely in that omitted output
+  work are no longer guard vetoes. Normal DTO reads retain every output check.
+- Preserve the inspected distinction between direct request-only `_read` admission
+  and the generated HTTP READ-route operation gate; do not silently add/remove an
+  operation check. LIST retry and actual queried-target admission remain mandatory.
+- The same H4 route/body/seed/selection/fetch/hook/condition/response and one read/hook
+  remain the workload. Candidate field-callback proof explicitly becomes **0 rather
+  than 24**, because no DTO is constructed. Record a new counted mechanism series,
+  hash-bound artifact proof and actual untimed preflight; normal DTO controls must
+  still observe 24. No thresholds, samples, paired/sign/repeat rules change, and all
+  prior tools/24-callback evidence remain sealed and truthful.
+- Ship the guard effect/error/override/include changes in installed migration guidance
+  and public hook/guard documentation, with positive/negative/query-equivalence tests.
+  No new public selector/capability or hidden refresh. Helper policy/capture, EMPTY
+  semantics, isolation and every selected-value check remain unchanged.
+- Design-only probes confirm 100 helpers currently perform 100 unused query expansions,
+  200 compactions and 200 source views for 2,400 evaluations. The second view has no
+  application consumer. Current guard output/effect probes are saved as before evidence.
+  No implementation or timing acceptance follows from these observations.
+- Entry matches user commit `a1996e10…`; one formatting-only committed test line-wrap
+  differs from the older 09D source seal and is preserved, not reverted. Runtime,
+  declarations and tool bytes still match that seal. No owned jobs remain.
+
+Execute the following implementation packets sequentially to bound shared-file work;
+OAR-09E completes only after both and full integration. No extra independent engine.
+
+##### Packet OAR-09E-H: Implement the existing-value helper consumer
+
+Status: completed
+Kind: improvement
+Priority: P1 — eliminates fetch planning and unused hook views from raw helpers.
+Assigned: fresh helper-consumer implementation owner.
+Dependencies: OAR-09D and accepted OAR-09E architecture above.
+Primary ownership: shared output-selection extraction, private helper fact origin/
+synchronous EMPTY admission, existing-value sync/async filter and focused tests.
+Requirements: implement DESIGN H1–H3 with identical query plans/helper shapes and
+field semantics; retain fresh capture, isolated source/native/selected budgets and
+authenticated stage lifecycle. No guard/tool changes in this packet.
+Acceptance criteria: retained planner/field-memo/native/helper/ownership suites pass;
+actual 100-helper probe retains 100 captures/2,400 checks with no query expansion or
+unused callback view. Save exact before/after evidence and originals. Full V1–V7/seal
+follow in OAR-09E-G after its dependent implementation, not claimed here.
+Verification: scoped build/source types, full focused planner/helper/stage/native files,
+changed lint/format/diff and work/security probes; no timing campaign.
+
+Completion evidence:
+
+- Shared selection kernel extracted; query fetch expansion consumes the same shape.
+  Authenticated helper-origin EMPTY resolution and sync-until-async existing-value
+  filtering use the same stage/evaluator/materializer. Source admission remains
+  isolated; selected denied/protected root charging and already-admitted async drain
+  receive new regression proof, with saved failures/unhandled-rejection diagnostics.
+- **27 new tests**, no existing test changes; **1,062 cases / 31 complete files**,
+  scoped build/core+deco source types and changed lint/format/diff pass. **60 query
+  plans** and ordered helper results match before/after; eight declarations and exact
+  public ESM/CJS export sets remain unchanged. Guard implementation is untouched.
+- At 100 independent helpers: 100 fresh captures/catalogs/stages and 2,400 checks
+  remain; query expansions **100→0**, compactions **200→0**, source/view copies
+  **200→100**, query provenance and built-in resolver promises **100→0**. All actual
+  stage pointers clear. This is work evidence, not latency/CPU acceptance.
+- Handoff `docs/task-artifacts/access-router/oar09e-helper-zZn7qh3h/NEWHANDOFF.md`; current intermediate ESM
+  `c668ed6c179af90750691a8803b55d1ae4a72bd9db0d1280458a930a057c17e5`.
+  1,421,442 historical paths, old candidate/baseline/dependencies/tools/lock and user
+  committed test formatting remain preserved; no owned jobs. Full V1–V7, guard/docs/
+  tool integration and the new seal remain OAR-09E-G; no full/performance acceptance.
+
+##### Packet OAR-09E-G: Implement private condition reads and integrate the redesign
+
+Status: completed
+Kind: improvement
+Priority: P1 — guard authorization should not publish and discard a full DTO.
+Assigned: fresh OAR-09E-G finalization owner after interrupted recovery.
+Dependencies: OAR-09E-H.
+Primary ownership: shared by-ID/query/fetch prefix, exact private reader/purpose,
+condition stage lifecycle, guard semantic tests/docs and versioned benchmark proofs.
+Requirements: implement accepted DESIGN G1–G5 without ambient suppression escaping
+to nested reads; preserve query/hook-source/target/retry admission and close/drain.
+Migrate old mechanism assertions only with concrete retained-security mappings;
+ship explicit semantic changes and hash-bound actual 0-callback guard proof.
+Acceptance criteria: focused guard faults/async/target/budget tests and full scoped
+V1–V7 pass on both implementation packets; deterministic newly named candidate and
+tool seals, full correctness smoke, installed guidance and public surfaces agree.
+Verification: V1–V7, query/hook before/after equality, normal DTO controls, post-gate
+rebuild identity and new protocol/runbook. Fresh OAR-09B measurement follows acceptance.
+
+Interrupted execution: preserve `_tmp-oar09e-guard-DmgmtvWS/` and its partial private
+reader/execution/fetch-prefix implementation and guard tests. The first owner stopped
+on a usage-limit tool error. Latest focused run is **216 passed / five failed** across
+five files; failures include a malformed new sort fixture and controlled-error message
+expectations. Earlier type diagnostics may predate partial corrections and need rerun.
+New actual-Mongo guard integration tests have not run; docs, hash-bound mechanism
+tooling, full V1–V7 and sealing are unfinished. No owned jobs remain at recovery entry.
+
+Recovery progress (not final acceptance): preserve
+`_tmp-oar09e-guard-recovery-sw7YfO16/`. It passes **5,957 core cases / 185 files**,
+**742 deco / 23 files**, **45 runner tests**, source/deco types, scoped lint/format/
+diff and actual packed consumers after retained initial failures. Accepted guard
+semantics/docs and hash-bound `facts-only-v1` / checked-response-v2 tools are present.
+Final snapshot fails declaration reconciliation for `index.d.mts`; deterministic
+rebuild, complete seal, 180-job correctness smoke, preservation/migration ledger and
+handoff remain unfinished. No candidate timing campaign or owned jobs remain.
+
+Finalization completion evidence:
+
+- The accepted exact-receiver condition reader and purpose share ordinary by-ID/
+  query/fetch/hook-input preparation, then resolve a private boolean without publishing
+  a DTO. Nested normal reads remain fresh DTO calls. Installed migration/README/llms,
+  guard JSDoc, deco/website and CHANGELOG ship the explicit output-effect/error/override/
+  include changes and direct-service versus HTTP route admission distinction.
+- Full scoped gates pass **5,957 core / 185 files**, **742 deco / 23 files**, **45
+  runner tests**, types/lint/format/diff and actual V7. Fresh **180 smoke jobs / eight
+  preflights / 360 independently reconstructed expected fingerprints** pass; no timing
+  acceptance. Post-gate necessary six-package rebuild preserves all **67 outputs**.
+- New guard tests prove one query/hook, zero output callbacks/decorations, normal DTO
+  controls still 24/one, query/hook-input equality in lean/hydrated modes, source/fact
+  errors and actual stage close/clear. Original test purposes are mapped in a ledger;
+  new suites are 27 helper, 46 guard unit and 14 actual-Mongo cases. H runtime files
+  remain unchanged from first G entry, retaining helper work reductions/query plans.
+- Candidate-only `facts-only-v1` is bound to the actual artifact SHA256 and untimed
+  counted proof under `checked-each-response-v2`; a falsely claimed authentic old
+  24-callback artifact rejects. Worker workloads/settings/gates/pair/sign/repeat code
+  are audited unchanged. All three old campaigns/tools keep their v1 meaning.
+- Declaration reconciliation requires no product fix: TS AST/token evidence permits
+  only JSDoc/trivia, shared chunk names, private brand markers and an explicit constructor
+  equal to the inherited signature; no private reader/purpose/shape/fact issuer leaks.
+  Real packed outputs/docs/eight declarations match, exact public exports remain 46/48/6.
+- Accepted inputs are **only**
+  `docs/task-artifacts/access-router/oar09e-guard-final-ncHxXYjL/final-01/FINAL-PROTOCOL.{json,md}` and adjacent
+  candidate artifact/metadata. Handoff `docs/task-artifacts/access-router/oar09e-guard-final-ncHxXYjL/NEWHANDOFF.md`,
+  seals/closure; current ESM
+  `8a5ded622337bddd1b9ce31a95dc3a3dfb0b10e734db52c4b371c5d55cf5267e`.
+  626 copied files/579 source records/13 tools pinned; 1,625,642 historical paths and
+  dependencies/tools/lock/user commits preserved, no owned jobs. OAR-09B must measure
+  this new candidate; OAR-09/10 acceptance is not established by integration or smoke.
+
+#### Packet OAR-09F: Propose an explicit collection-helper API and freshness contract
+
+Status: completed
+Kind: investigation
+Priority: P1 — remaining per-row fresh-helper cost requires a consumer-level decision.
+Assigned: fresh helper-API contract proposal owner, sequential; no implementation.
+Dependencies: OAR-09E; its delivered measurement supplies the remaining finding.
+Primary ownership: read-only public helper/caller/type/bounds review and a new ignored
+proposal/handoff; coordinator records the recommendation and user decision here.
+Finding: H3-global reauthorizes every already-returned row through a separate fresh
+helper call. The new contract intentionally cannot reuse old document handles; all
+100 captures and checks remain even after internal boundary simplification.
+References: latest `docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/REPORT.md`, public output-helper
+interfaces, `Core`/`Base` helper methods, C2/C3/C5 and installed migration M3.
+Requirements: compare a distinct batch output-only API, existing single-row helpers
+and presentation-only reuse. Propose concrete TypeScript signatures, capture timing,
+per-row decisions/isolation, collection/native/output bounds, all-or-nothing errors,
+async drain and migration. No reusable public preparation/capability, DTO authority,
+hidden DB/document hooks or unacknowledged loss of per-call freshness. A batch is one
+explicit operation, not secretly 100 fresh independent calls. Do not conflate existing
+array-valued documents with an array of root rows. Keep global/EMPTY facts separate
+from document-dependent authorization requiring a normal read/list.
+Acceptance criteria: a concrete recommended API and alternatives, compatibility/
+semantic costs, implementation/test outline and honest benchmark disposition are
+documented for user approval. New labeled batch measurements cannot erase old H3
+failures, and the fifteen sign-unstable comparisons need separate explicit disposition.
+Verification: focused source/caller/type review and optional bounded scratch-only
+probes; no product edits, full gates, timing campaign, threshold changes or publication.
+
+Completion evidence and recommendation (design only):
+
+- Delivered `docs/task-artifacts/access-router/oar09f-proposal-jjv0s8q7/PROPOSAL.md`,
+  `MEASUREMENT-APPROVAL-CHECKLIST.md` and `NEWHANDOFF.md`. The coordinator reviewed the
+  proposal, focused source references and scoped closure before recording completion.
+- Recommend one additive `pickAllowedFieldsMany<T>(rows, access, options?)` returning
+  `Promise<readonly FilteredOutput<T>[]>`. Core prepends `modelName`; Base supplies the
+  inherited Service/PublicService member. Reuse `OutputFieldOptions`, export the new
+  conservative result type from root and `/advanced`, and add no aliases, transport
+  route, public preparation/session/token or cross-call cache. Existing helpers retain
+  their independently fresh semantics and existing declarations.
+- One batch captures the effective actor/model/catalog/config/scope/output policy once
+  before awaits or field callbacks, and owns every row source before the first field
+  callback. Every occurrence retains a separate isolated source/stage/memo/EMPTY facts
+  and all field evaluations; duplicate references share no decisions. Later actor-view,
+  schema or option changes apply to the next call, not later rows. Capture does not
+  freeze callback closures, live external state or native normalization effects.
+- Proposed fixed limits: **1,000 outer positions / 200,000 aggregate structural-work
+  units / 16 MiB cumulative copied/prepared payload**, in addition to the existing
+  per-row **20,000-slot / depth-100** owners. Dense ordinary arrays only, bounded shared
+  scheduling, stable output order and one close/drain publication group. Structural,
+  native or budget poison rejects the whole batch with controlled 400 and no partial
+  result; callback-body failures still omit their fields. No side-effect rollback.
+- `FilteredOutput<T>` makes fields recursively optional, handles arrays/Map-to-record
+  normalization conservatively, retains canonical Date/RegExp/Buffer types, and falls
+  back to `unknown` for other BSON/hydrated/deep shapes. It supplies neither authority
+  nor a supported-input validator. Presentation subsets usually need no helper;
+  current document-dependent authority still requires a normal fresh READ/LIST.
+- Scratch checks passed **three recipes / 18 type assertions against proposed
+  declaration stubs only**; no shipped API, runtime or installed-consumer verification
+  is claimed. Focused incoming hashes/status and evidence identities remained unchanged;
+  no product edits, timing, full gates or owned jobs. Future authorized docs work must
+  correct stale hook/handle prose at `packages/access-router/README.md:1422–1427`.
+- No speedup is measured or promised. New `helper/B1-global-many/{10,100}` recipes
+  would be separately labeled one-capture workflows, not replacements for existing H3.
+  Both confirmed adverse H3 comparisons and all fifteen unstable-sign comparisons
+  remain blocking. API implementation, migration recommendation, old-gate disposition
+  and new measurements require their own explicit approvals; no such approval is
+  recorded. Next action: user API/contract and bounded implementation decision.
+- Coordinator task-only verification (repo root):
+  `pnpm exec prettier --check docs/tasks/20261031-153020-access-router-owned-authorization-redesign.md` and
+  `git diff --check -- docs/tasks/20261031-153020-access-router-owned-authorization-redesign.md`
+  passed. No product tests or timing were rerun for this design reconciliation.
+
+##### Packet OAR-09F-I: Implement the approved collection helper and regression coverage
+
+Status: completed
+Kind: improvement
+Priority: P1 — the approved collection contract needs one bounded runtime owner.
+Assigned: fresh sequential collection-helper implementation owner.
+Dependencies: OAR-09F and subsequent explicit implementation authorization above.
+Primary ownership: Core/Base forwarding, public result type/exports, private helper/
+stage/publication/materialization admission and targeted runtime/source-type tests.
+Finding: the proposed collection operation is not implemented; independent single-row
+calls cannot share preparation without changing their existing freshness contract.
+References: `docs/task-artifacts/access-router/oar09f-proposal-jjv0s8q7/PROPOSAL.md`, C1–C6, OAR-09F evidence.
+Requirements: implement the approved one-capture, all-source-first, separate-row/EMPTY
+operation through the existing evaluator/materializer. Enforce dense outer admission,
+fixed collection/aggregate/payload limits in addition to existing row owners, bounded
+shared scheduling, sticky all-or-nothing publication and drain/clear. Export only the
+new conservative `FilteredOutput<T>` type and canonical method; preserve all existing
+single-row APIs, facts-only guards, mandatory dimensions and user work. No benchmark,
+dependency/lock, task-status, old-evidence, commit or publication changes by the owner.
+Acceptance criteria: actual runtime tests cover captures/field counts, independent
+calls, mutation/preflight, repeated references, EMPTY/scoped policy, receiver/control
+admission, nullish/empty/dense/limit cases, native/aggregate/row budgets, ordering,
+caught poison, drain/late work and clear. Source types exercise optional results and
+both service getters/Core. No public issuer or second evaluator is added.
+Verification: serialized necessary affected builds, targeted helper/stage/publication/
+native/control tests, source types and changed-file lint/format/diff; retain failed
+attempts and exact passing scope in a new ignored evidence packet. Full scoped gates,
+installed documentation and actual packed consumers belong to OAR-09F-V.
+
+Blocked evidence and required decision:
+
+- `docs/task-artifacts/access-router/oar09f-implementation-ppphro5o/{NEWHANDOFF,BLOCKER}.md` records the first
+  implementation attempt. The coordinator reviewed its probes and actual source
+  boundary. No product/type/test/docs/benchmark change or new API was delivered.
+- `prepareQueryOutputSource` in `packages/access-router/src/acl/document-stage.ts`
+  calls hydrated `toObject` before `copyDocumentView` admits the normalized source.
+  Canonical Mongoose normalization can copy native storage before an application
+  transform discards it; the router's later ledger cannot observe or pre-debit that
+  copy. Initial raw-state prescanning is insufficient because an earlier normalization
+  effect can replace a later value before Mongoose performs its canonical copy.
+- Three untimed investigation tests pass: one actual **17 MiB** native copy before
+  a tiny admitted result; five independent existing calls observe **20 MiB** total
+  native copies; and initially **1 byte** of stored payload is replaced with a
+  preexisting native before a canonical **17 MiB** copy. These are specific observed
+  copies, not total allocations/RSS, a batch implementation or a timing comparison.
+  Command (repo root):
+  `pnpm exec vitest run --config _tmp-oar09f-implementation-ppphro5o/vitest.config.ts`.
+  Result: **one investigation file / three passed tests**; warnings and both probe
+  runs are retained. No product builds/full gates/source types/pack checks ran.
+- All **383 saved originals** and entry git status are unchanged; HEAD, lock and
+  current root ESM retain their incoming identities. No owned jobs remain. F-V is
+  not unblocked by these probes, and old full-gate results are not new API evidence.
+- User decision needed: either explicitly scope aggregate work/payload guarantees
+  to router-controlled admission/copying, excluding opaque hydrated normalization
+  and its internal copies, or authorize a different supported-input/normalization
+  contract capable of admission before those copies. The former preserves current
+  hydrated behavior but is **not** a whole-normalization memory/work cap. Neither
+  weakening the approved guarantee, silently rejecting supported hydrated inputs,
+  post-copy accounting, dependency patching nor a replacement hydration engine is
+  authorized by the implementation request. No such change has been made.
+
+Blocker disposition: the subsequent user choice **1** approves the scoped-budget
+revision above. A fresh sequential implementation owner resumes F-I under that
+contract. Keep the original proposal, blocker and three probes unchanged as historical
+evidence. Account explicit router-owned work/copies without hiding them inside the
+normalization exclusion; validate/admit normalization results before subsequent owned
+copying. Tests and shipped guidance must prove/disclose the exclusion rather than
+claiming a cap on Mongoose/native normalization internals or arbitrary callbacks.
+
+Completion evidence under the approved revision:
+
+- Handoff `docs/task-artifacts/access-router/oar09f-implementation-scoped-dk9f56lo/NEWHANDOFF.md`, incoming-relative
+  diff and identities record **24 paths / 18 modified originals / six new files**.
+  Core/Base implement the one canonical inherited method, and root/advanced expose
+  the conservative type. No public issuer, alias, route, second evaluator/normalizer
+  or DataService helper is added; inherited H+G and single-row purposes remain.
+- One configuration/catalog capture serves 1/10/100-row calls; the 100-row all-function
+  fixture retains **100 independent sources/stages/memos / 2,400 callbacks**. All
+  sources precede the first field predicate. Tests cover duplicate native isolation,
+  next-call freshness, scoped/EMPTY rules, strict receiver/control/array admission,
+  scheduler reentry/order, caught poison, drain/late work and actual cleared state.
+- Actual helper calls reach **exactly 200,000 router work units** and **exactly
+  16 MiB router payload**; the next unit/native byte rejects. UTF-8/native/source/
+  output/config/rule/path/memo preparation is admitted before explicit router copies.
+  Existing row 20,000/depth-100 owners persist. Hydration regressions expressly permit
+  opaque 17 MiB copies discarded before tiny normalized input, but reject oversized
+  normalized returns before the next explicit router copy. This is not an RSS cap.
+- Necessary affected builds, source types, changed-file lint/format/diff pass. Final
+  targeted run passes **772/772 tests / 15 files**, including **76 new cases**. Strict
+  local declaration fixtures pass 14 type equalities and 15 intended negative checks;
+  these use the existing skipLibCheck setting, not the future strict installed matrix.
+  Runtime export sets remain **46/48/6** with new root/advanced types in both DTS forms.
+- Failed source/fixture/observer/strict-internal attempts and a failed worker-OOM run
+  remain in the packet; corrected large-Buffer observation retains boundary purposes
+  without changing heap/product limits. Final passing checks are on delivered bytes.
+  Focused preservation verifies 2,184 unique records with exactly 18 authorized
+  overlays, no outside changes/missing originals, unchanged lock/user HEAD/old packets
+  and no owned jobs. No installed docs or benchmark files changed in F-I.
+- Current core ESM is `a4534cf36ec1dad15adb68459aba285b1509118deed262accdfca53d76493e51`,
+  not a deterministic final seal. Actual installed Mongoose is **9.11.4**; old current
+  peer evidence at 9.8.0 is not relabeled. F-V must run full current affected gates,
+  actual installed matrices/docs and a new tested seal. No timing or acceptance claim.
+
+##### Packet OAR-09F-V: Ship collection-helper guidance and verify the affected artifact
+
+Status: completed
+Kind: improvement
+Priority: P1 — installed declarations, examples and runtime must agree after approval.
+Assigned: fresh sequential docs/packed-consumer integration owner, not OAR-10.
+Dependencies: OAR-09F-I.
+Primary ownership: installed README/MIGRATION/llms/JSDoc/CHANGELOG, corresponding website/
+deco guidance where needed, executable public examples, actual pack/type/consumer
+assertions and affected integration gates. Narrow implementation fixes only if needed.
+Finding: proposal stubs are not installed-consumer evidence; current README also retains
+obsolete raw-hook/handle claims at its helper-default paragraph.
+References: OAR-09F proposal sections 6–8, public package exports, shared V1–V7.
+Requirements: document the optional API's one-operation freshness, bounds, conservative
+types, scheduling/failure grouping and no-document-authority limits. Preserve ordinary
+presentation projection and fresh normal READ/LIST alternatives; do not recommend this
+as a default migration or substitute it for H3. Correct stale prose, retain guard
+refinement and all old performance evidence. Verify real root/advanced/processors
+ESM/CJS declarations/exports and strict minimum/current peer/module consumers. Seal
+new tested bytes separately without claiming the old measured seal covers the API.
+Document the subsequently approved router-controlled budget scope and explicit opaque
+normalization exclusions; the original unqualified pre-copy proposal is superseded.
+Acceptance criteria: affected core/deco checks, types, changed-file lint/format/diff
+and actual installed consumer/migration recipes pass; deterministic necessary rebuild
+and isolated evidence identify exact tested bytes and no private export/job leakage.
+OAR-09 stays blocked and OAR-10 pending; no new timing/workload/gate changes occur.
+Verification: serialized scoped V1–V7 and untimed operation-count/lifecycle evidence;
+no workspace-wide verification or performance campaign. Coordinator reconciles results.
+
+Completion evidence:
+
+- `_tmp-oar09f-integration-ut0vgb6y/` preserves the interrupted integration's work and
+  all failed/passing attempts. Recovery handoff
+  `docs/task-artifacts/access-router/oar09f-final-hh7rwm51/NEWHANDOFF.md`, `GATES.{json,md}`, `DOCS-COVERAGE.md`,
+  `FINAL-SEAL.json`, `PACKET-SEAL.json` and `CLOSURE.json` complete finalization.
+  Actual F-V delta versus F-I entry is **18 paths / 15 modified originals / three new
+  consumer fixtures**; recovery made no product edits or redundant full-suite repeats.
+- Installed README/MIGRATION/llms, CHANGELOG, Core/Base/type JSDoc, deco/site guidance
+  teach the optional one-capture method and conservative type. Obsolete raw-hook/
+  retained-handle prose is corrected. All seven previous exact migration TS blocks
+  remain, with three new executable raw-batch/presentation/fresh-LIST alternatives.
+  The approved opaque-normalization exclusion is explicit, not a total-memory cap;
+  no automatic migration, current-document proof, H3 replacement or speedup is claimed.
+- A genuine F-I field-catalog regression exposed by the first full run was fixed:
+  direct native split call sites/order/errors are preserved while buffers remain
+  pre-admitted. The original regression/oracle was unchanged. Final current-byte
+  checks pass **827 targeted / 16 files**, **6,046 core / 187 files**, **742 deco /
+  23 files**, **45 runner tests**, source/downstream types and scoped lint/format/diff.
+  Full core includes all 76 many-helper cases. Earlier failures remain historical,
+  including initial 6,045/6,046 and corrected consumer/auditor observer assumptions.
+- Actual installed V7 passes **four peer/layout matrices × five compiler conditions**:
+  tarball and real assembled tree, minimum Express 5.0.0/Mongoose 8.0.0 with documented
+  skipLibCheck=true, current Express 5.2.1/Mongoose 9.11.4 with false. Both ESM/CJS
+  forms, Bundler/Node16/NodeNext, all 14 core JS/declaration outputs/eight declarations
+  and shipped docs match actual tested bytes. The distinct tarball/assembled layouts
+  each contain 19 intended files; no private/test/source surface leaks. Runtime export
+  sets remain **46/48/6**, and new result/type/member JSDoc is present in both DTS forms.
+- Saved consumer records prove **20 original-guide + 20 collection executions**,
+  **80 HTTP outcomes / 160 reads / 240 document hooks** from explicit normal queries;
+  raw helpers add zero reads/hooks. Named collection workflows observe 80 independent
+  raw calls versus 40 Many calls, with no presentation helper work; these are call-site
+  counts, not allocation/capture instrumentation. Unit tests supply actual capture/
+  isolation proof. Sixty negative compiles retain 1,440 source-only diagnostics and
+  reject all 16 new invalid statements in all 20 matrix/condition combinations.
+- Finalization audits a post-gate **609-file source snapshot**, with chronology/diff/
+  installed-byte support rather than inventing a pre-run seal. A fresh serial necessary
+  six-package rebuild reproduces **all 67 dist-tree files byte-for-byte**. Current core
+  ESM is `e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e`;
+  the seal is explicitly **NOT_MEASURED**, not a release/benchmark protocol. Coordinator
+  independently rehashed all 609 source and 67 dist records plus 16 seal bindings before
+  this task-only status reconciliation; sealed snapshots/evidence remain unchanged.
+- Focused preservation covers 606 earlier originals, all 609 recovery-entry files,
+  545 protected evidence records and 13 unchanged benchmark files, with explicit scope
+  rather than a universal historical/cache/dependency audit. User HEAD/lock/inherited
+  work and every failed attempt are preserved; no owned jobs remain. Coordinator task
+  notes after sealing are not product edits or new passing test evidence.
+- OAR-09 remains blocked: the latest **measured old build** still has two confirmed H3
+  adverse comparisons and fifteen sign-unstable comparisons. The new build was not
+  measured, no old workload/gate was replaced or waived, and no B1/180-job/timing run,
+  migration-policy change, OAR-10 independent acceptance, commit or publication occurred.
+
+#### Packet OAR-09G-A: Prepare truthful performance verification for the batch build
+
+Status: completed
+Kind: investigation
+Priority: P1 — the tested build has no valid measurement protocol or batch comparator.
+Assigned: fresh sequential benchmark preparation/correctness owner, not timing owner.
+Dependencies: OAR-09F-V.
+Primary ownership: additive benchmark tooling/tests/guidance, untimed correctness/work
+proofs, new isolated runnable candidate/dependency/tool seals and predeclared runbook.
+Finding: the current tested core ESM is
+`e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e`;
+the F-V integration seal is explicitly NOT_MEASURED and cannot reuse the old 8a5
+candidate protocol. Existing H3 still means N independent fresh helpers, not Many.
+References: F-V handoff/seals, original OAR-01 PERFORMANCE-GATES/MEASUREMENT-PLAN,
+OAR-09F approval checklist, current 45-case checked-response-v2 runner and H4 contract.
+Requirements: preserve all old workload/gate/worker meanings. Add separately named
+`helper/B1-global-many/{10,100}` report-only raw-only and query-plus-helper workflows,
+comparing actual current independent raw calls, actual old raw global-only calls with
+no hook, and old query-plus-handle flow as distinct labeled comparators. There is no
+historical Many API to invent. Predeclare matrix, seed/output/count checks and bounded
+pair/repeat settings before timing; keep initial query costs and freshness differences
+visible. Any numerical threshold flags on B1 are descriptive, not new pass/fail gates.
+Prove one versus N captures without skipping N row checks; retain an untimed all-function
+control separately from timed string/global-only rules. Validate full output fingerprints,
+DB/hook/virtual counts, ordering, actor binding, EMPTY facts and actual stage clear before
+timing. Keep approved router-budget scope and accepted H4 no-DTO semantics unchanged.
+Acceptance criteria: new candidate bytes match the tested F-V product/docs/tests and
+all 67 outputs; original baseline/dependencies/binaries are reverified, fresh metadata
+binds H4 count contract to the actual current ESM, supplemental tools/tests/correctness
+and original runner tests pass, and an exclusive runbook accurately distinguishes all
+old gates from report-only B1. No product edits or final timing campaign by this owner.
+Verification: affected benchmark tests/lint/format, bounded correctness smoke and actual
+untimed capture/count/lifecycle probes; reuse unchanged current product V1–V7 evidence
+only with hash/identity proof. No workspace-wide checks or old evidence/cache writes.
+
+Completion evidence and accepted measurement inputs:
+
+- `docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/NEWHANDOFF.md`, `EXACTREADYPROTOCOLS.md`,
+  `DESIGN/PERFORMANCE-SCOPE.md`, plans, audits and seals deliver preparation only.
+  Source delta is six additive batch benchmark files and benchmark README additions;
+  all 12 incoming benchmark code/test files and the entire old README prefix remain
+  byte-identical. Product/package/docs/tests, user work, lock and old evidence are intact.
+- **54/54 runner tests** pass (45 original + nine new), along with scoped lint/format/
+  diff, **180 original correctness jobs / eight preflights**, **32 B1 correctness
+  jobs** and independent calculation of full expected responses/counts/order/hydration/
+  raw summaries. Fifty untimed copied-artifact observations directly inspect capture,
+  stage/source/memo independence, actual clear, poison/drain and normalization scope.
+  These smoke/probe results are not performance or retention acceptance.
+- Many versus independent 100-row calls observes **one versus 100 catalog/config
+  captures**, with 100 source/stage/memo owners and 2,400 business checks in both.
+  Separate all-function async controls retain 2,400 callbacks; observed explicit
+  Promise constructors are 4,800 versus 4,800 and Permission-map constructions one
+  versus one. Binding/receiver literals are two versus 200. These are seam counts,
+  not total allocations or assumed implicit Promise/actor-map speedups.
+- B1's immutable report-only plan has **16 comparisons / 64 initial jobs / 128 max**:
+  10/100 rows, raw-only versus full initial-query workflows, both current modes,
+  matching current-independent and actual historical raw/query-handle comparators.
+  Same 24 fields/32 bytes/one client/hook concurrency 10/five warmups/100 samples,
+  two reversed pairs and exactly two further pairs on predeclared descriptive
+  sign/absolute-material flags. It has **zero acceptance gates** and cannot replace H3.
+  Original 45 cases / 90 gates / 360 initial jobs and all fixed rules are unchanged.
+- Accepted current ESM remains
+  `e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e`.
+  `candidate-metadata.json` binds actual `facts-only-v1` under checked-response-v2,
+  681 copied files/48 links, **614 source / 19 tool pins**, all 67 F-V outputs and
+  full original 134-package/3,510-file plus 293-package/10,545-file tool identities.
+  Only the shared coordinator task is excluded from measured source pins and is
+  separately protected. Actual original benchmark Mongoose is already 9.11.4.
+- The coordinator read the plan/runbook and reran read-only `verify-ready.py`: all
+  614 source/19 tool/681 artifact/48 link/67 dist/39 seal bindings and 5,055 packet
+  entries validate, with 191 focused protected old evidence records unchanged.
+  Current F-V 6,046 core/742 deco and installed matrices retain their byte linkage,
+  not invented reruns. No final campaign or owned jobs remain; all failed authoring/
+  capability/observer/binary-shim attempts are retained with corrected final evidence.
+- Use **only** this packet's `ORIGINAL-PROTOCOL.json` and `B1-PROTOCOL.json` with
+  `EXACTREADYPROTOCOLS.md` for fresh G-B execution. Metadata SHA256 is
+  `3d08714129ed5e0996628648a2cdf000681ac62805bb2675e131503b8cd8fb5c`;
+  both config files have SHA256
+  `b7f12a2af8e409a9be5e65e1784fffd2bd9021859b7f54426cdd6f330adbef83`
+  but invoke different fixed original/report-only CLIs. No new final timing,
+  migration/gate disposition, optimization, OAR-10 or release acceptance is delivered.
+
+#### Packet OAR-09G-B: Measure and independently audit the new sealed build
+
+Status: completed
+Kind: investigation
+Priority: P1 — measurements, not API naming or test counts, determine performance status.
+Assigned: fresh sequential measurement/raw-audit owner after G-A reconciliation.
+Dependencies: OAR-09G-A.
+Primary ownership: one fixed original campaign, separately predeclared report-only B1
+measurements, independent raw reconstruction, preservation/rebuild evidence and reports.
+Finding: the latest historical measured build passed 73/90 with two confirmed H3 adverse
+comparisons and fifteen sign-unstable comparisons; the new build has not been measured.
+References: accepted G-A runbook, original fixed gates and all four preserved campaigns.
+Requirements: run the original full 45 cases/four profiles/two reversed rounds once,
+with exactly the permitted additional pairs at unchanged settings on triggers. Run B1
+separately under its predeclared descriptive protocol. Retain all samples/failures,
+actual counters, fingerprints and paired CPU/median/p95 deltas; do not pool across
+campaigns, subtract query p95, discard adverse runs or increase samples after seeing
+results. Audit raw data independently of benchmark-module calculations. No source/tool/
+dependency/build changes during timing, no automatic optimization or additional campaign.
+Acceptance criteria: all planned jobs/correctness/identity/rebuild evidence is reconciled,
+original 90 gate results and each B1 comparator are reported separately, actual residual
+failures/sign uncertainty remain blocking without explicit disposition, and no owned jobs
+remain. B1 cannot erase old-H3 failures or grant document authority. OAR-10 stays pending
+until the original requirements or explicitly approved dispositions are actually satisfied.
+Verification: predeclared foreground serial protocol, independent raw audit, exact source/
+dist/artifact/dependency/tool/runtime preservation and necessary six-package deterministic
+post-gate rebuild only; no workspace-wide checks, commit, publication or gate changes.
+
+Completion evidence — measurement delivered, performance acceptance failed:
+
+- `docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/NEWHANDOFF.md`, `REPORT.md`, `ALL-GATES.md`, both
+  paired-detail/raw-audit sets, historical/former-fifteen tables and final seals
+  preserve exactly **one original campaign / 456 jobs / 39,200 responses** and
+  **one B1 supplement / 124 jobs / 12,400 responses**. Original repeats are 96 jobs
+  for 24 triggers; B1 repeats are 60 jobs for 15 descriptive triggers. All original/
+  repeated samples remain. Zero job, missing-job, count/fingerprint/hydration/getter
+  or identity failures; original exit 1 correctly means failed performance gates.
+- Independent Python calculations, importing no benchmark calculation module,
+  reconstruct all expected full response hashes, raw CPU/median/nearest-rank p95,
+  settings/order/repeat triggers and all **90 unchanged original gates**. This is
+  independent calculation by the measurement owner, not OAR-10 independent review.
+  **70 pass / 20 fail**: isolated 44/45, trusted 26/45. Three confirmed-adverse and
+  eighteen sign-unstable comparisons overlap once. All primary isolated benefit,
+  six heap and six explicit fresh-authority read allowances pass.
+- Confirmed trusted adverse results: `guard/virtuals/100` median **+15.87% /
+  +2.7914 ms**, p95 **+17.51% / +3.6618 ms**; `helper/H3-global/10` CPU **+19.48% /
+  +1.7608 ms**; `helper/H3-global/100` median **+25.12% / +8.5167 ms**, p95 **+27.41% /
+  +10.6866 ms**, CPU **+26.32% / +10.9531 ms**. H4's accepted facts-only semantics
+  remain; both modes now fail only sign stability, not confirmed material regression.
+  Former fifteen IDs are reconciled individually without relabeling old samples.
+- B1 retains **zero acceptance gates**. At 100 rows, Many versus current independent
+  helpers is **+6.20% isolated / +5.20% trusted raw median latency** and **+5.52% /
+  +5.39% query-plus-helper latency**. CPU is lower by **5.23% / 6.46% raw** and
+  **2.20% / 2.82% query**; ten-row results are mixed and CPU is not uniformly lower.
+  Versus actual historical raw helpers, Many median is 76–84% lower; versus old
+  query-plus-handles it is lower in isolated mode but **+19.31% / +41.59% trusted
+  latency** at 10/100 rows. These distinct freshness/authority workflows are not
+  equivalence, a universal speedup or a default migration recommendation.
+- Fresh actual preflight/counter proofs retain one versus N captures with independent
+  row checks/clear; all-function controls retain 2,400 callbacks and observed explicit
+  Promise/map counts, not inferred total allocation reductions. Raw helpers add zero
+  reads/hooks; explicit current-authority READ/LIST costs are disclosed. No component
+  p95 arithmetic, cross-campaign pooling, sample discard or noise exception occurred.
+- Current measured ESM remains
+  `e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e`.
+  A necessary serial six-package rebuild after both campaigns reproduces **all 67
+  outputs exactly**. Source/tool/artifact/link/baseline/dependency/runtime/lock and
+  protected old evidence match all four identity boundaries. Current F-V 6,046 core/
+  742 deco/installed matrix proof remains unchanged-byte evidence, not fresh reruns.
+  No product/tool/dependency edits, optimization, task edit, commit or publication by
+  the measurement owner. Failed audit-authoring evidence is retained; no owned jobs.
+- Coordinator reconciliation reverified **2,518 packet files / seven links / 67 seal
+  bindings / 67 current outputs**, plus the accepted read-only full G-A verifier.
+  Only subsequent coordinator task notes differ from protected measurement-entry
+  prose, excluded explicitly from measured product pins. Five separate original
+  campaigns remain **75/90, 81/90, 78/90, 73/90, 70/90**, not pooled causal pairs.
+  OAR-09 remains blocked on explicit disposition; OAR-10 is still pending.
+
 ### Task OAR-10: Independently accept ownership, public changes and migration evidence
 
-Status: pending
+Status: completed
 Kind: investigation
 Priority: P1 — deliberate breaking contracts still require independent security review.
-Suggested agent: fresh independent reviewer, not a runtime implementer or final integrator.
+Assigned: fresh independent reviewer, not any runtime implementer, integrator or measurer.
 Dependencies: OAR-09.
 Primary ownership: read-only source/diff/public/packed/migration/measurement review,
 new focused adversarial fixtures; implementers fix findings sequentially.
@@ -1364,6 +2095,172 @@ statuses only after required verification; no implementation claim from this pla
 Verification: independent source/diff/evidence/consumer review, relevant V2/V5/V6/V7,
 raw V8 audit; report retained risks and unmeasured application behavior.
 
+Review-entry disposition: OAR-09 is complete under the explicit user acceptance above,
+not a claim that the twenty numerical misses disappeared. Review correctness/security,
+public/installed contract agreement, measurement honesty and identity as mandatory;
+report performance exceptions as retained limitations rather than reopening them as an
+unapproved optimization or timing campaign. Reviewer edits only new ignored fixtures/
+evidence, not product/task/old packets; implementation owners resolve any findings
+sequentially, with independent re-review before completion.
+
+Independent review delivered — documentation blockers, not performance:
+
+- Interrupted reviewer evidence `_tmp-oar10-review-DulhqHnt/` is preserved. Fresh
+  independent finalization `docs/task-artifacts/access-router/oar10-final-x4mMa3Th/{REVIEW,NEWHANDOFF}.md` reports
+  **F1/F2, P2 required-documentation blockers**; no product fix or task edit was made.
+- F1: live `packages/access-router/README.md:251–252,1390–1391,2384` promises output
+  handles/same-execution retained decisions, with related terminology at line 3202.
+  These statements ship byte-identically in actual package layouts and contradict
+  removed public capabilities plus raw-helper EMPTY/fresh-query semantics (C5/M3).
+- F2: `packages/access-router/README.md:1545–1546` says request-only data field
+  callbacks receive only permissions. Actual callbacks receive permissions plus
+  frozen EMPTY facts; operation GuardHook remains separately one-argument (C3/M5).
+  Neither finding is a demonstrated runtime bypass or an accepted performance issue.
+- Fresh reviewer checks pass **26 packed public-API/real-Mongo tests**, **405 focused
+  source cases / four complete files**, and five strict installed compiler conditions
+  with 13 equalities/18 negative statements each. Fresh independent raw calculation
+  reproduces 456 original jobs/39,200 responses, 70/90 and exactly the twenty accepted
+  IDs, plus 124 B1 jobs/12,400 responses with zero acceptance gates. All numerical
+  failures remain preserved and accepted at the disposition layer only.
+- Current reviewed/tested/measured ESM remains
+  `e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e`.
+  Entry/exit preserve 1,999 source files, 67 dist outputs, 69 status paths and focused
+  earlier/reviewer evidence. No owned jobs or product edits. Full prior gates/matrices
+  are audited reuse, not new full-suite/registry runs or security certification.
+- OAR-10 remains in progress while a separate owner corrects the mandatory guidance
+  and adds focused regressions/actual packed-doc verification. The independent reviewer
+  must then re-review those changes; accepting performance does not waive F1/F2.
+
+#### Packet OAR-10-D: Correct shipped handle and data-callback guidance
+
+Status: completed
+Kind: defect
+Priority: P2 — installed consumers receive contradictory authorization instructions.
+Assigned: fresh sequential documentation-remediation owner, not the reviewer.
+Dependencies: delivered OAR-10 findings F1/F2; parent review completion is not required.
+Primary ownership: `packages/access-router/README.md`, focused documentation/data-field
+callback regression tests and new isolated packed-document/evidence identities.
+Finding: the exact live prose and impact are recorded above and in the independent
+`docs/task-artifacts/access-router/oar10-final-x4mMa3Th/REVIEW.md`; public implementation/types already disagree.
+Requirements: replace live retained-handle promises with private stage/ordinary DTO/
+fresh-query guidance, preserving labeled historical examples and unrelated semantics.
+State original-request `this` and `(permissions, EMPTY facts)` for request-only data
+field callbacks, retaining the separate one-argument operation guard. Audit remaining
+live README references and add focused positive/negative prose/runtime/type coverage.
+No runtime/declaration, performance, contract, dependency/lock, old evidence, task-status,
+commit or publication changes by the owner. Preserve all incoming user work.
+Acceptance criteria: exact F1/F2 statements and equivalent live contradictions are
+corrected; actual newly packed README and public callback behavior/types agree. All
+67 runtime/declaration/guide dist files and e131 ESM stay unchanged. New docs/test-only
+identities are recorded separately without rewriting old tested/measured artifacts or
+claiming that old README hashes certify the corrected prose.
+Verification: focused complete affected documentation/data callback tests, new packed
+docs/type/runtime checks, scoped lint/format/diff and explicit unchanged-runtime/source
+delta audit. No full 6,046/742 rerun, timing or workspace-wide checks without a material
+reason; mandatory independent re-review belongs to OAR-10-R.
+
+Implementation evidence (not finding closure):
+
+- `docs/task-artifacts/access-router/oar10-docfix-oig00aqf/NEWHANDOFF.md`, incoming-relative diff and doc-only
+  seal record exactly **one modified README + one new focused test file**. Six live
+  prose locations now describe private ownership/ordinary DTOs, raw EMPTY/fresh-query
+  semantics, target-private construction, publication and the two-argument data field
+  contract versus one-argument operation guards. A 37-match inventory retains valid
+  historical/rejection/configuration/private-reuse references without blanket deletion.
+- **24/24 focused tests** pass: five positive/negative prose regressions, 18 actual
+  data helper/alias paths and one operation guard. Before-fix evidence retains five
+  prose failures. Fresh actual packed verification passes **7/7 tests**, including
+  both ESM/CJS callback paths and real-Mongo isolated/trusted replay/fresh-query controls.
+  Five strict installed compiler conditions pass eight equalities and five intended
+  unsuppressed negative statements each. Scoped lint/format/diff pass.
+- A newly production-transformed actual 19-member tarball differs from the previous
+  e131 package **only in README**; the other 18 members, all 14 JS/DTS/eight declarations,
+  MIGRATION/llms/license/manifest remain byte-identical. Current source/tar/extracted
+  README SHA256 is `aff3e416addae22e65a80150f8279fe38ed15436062d50f581979d40902c1c46`.
+  Old and intermediate document/package hashes remain preserved, not certifications
+  of corrected prose. No runtime/declaration/build/timing change occurred.
+- Exact source-delta/new 615-pin doc-only evidence records one intentional README
+  difference against the old 614 measured pins plus the additive regression test.
+  The old verifier is not falsely claimed current after that documentation correction.
+  All 67 dist outputs, e131 runtime, lock, task and 1,998 other incoming records remain
+  unchanged; 10,786 protected prior evidence records are intact. Failed setup/fixture/
+  inventory/audit attempts and canonical-normalization versus callback-test distinctions
+  remain explicit. No owned jobs. Independent review must still close F1/F2.
+
+#### Packet OAR-10-R: Independently re-review corrected installed documentation
+
+Status: completed
+Kind: investigation
+Priority: P1 — blocking findings cannot be closed by their implementer.
+Assigned: independent reviewer, never the OAR-10-D implementation owner.
+Dependencies: OAR-10-D and the delivered OAR-10 review/evidence above.
+Primary ownership: read-only correction diff/prose/public types/runtime/packed-doc
+evidence review, new proportionate probes and final review/identity/closure report.
+Finding: F1/F2 block final acceptance despite passing runtime checks; correcting prose
+must not restore removed capabilities or conflate data field callbacks with guards.
+Requirements: independently verify each resolution and remaining live README guidance,
+actual newly packed docs, regressions and exact approved docs/test-only deltas. Reuse
+the previous independent source/raw/type/runtime review with explicit byte/evidence
+linkage; no relabeling numerical misses, old docs or recorded checks as new passes.
+Acceptance criteria: no unresolved blocking finding within the reviewed scope; exact
+reviewed code matches e131 tested/measured bytes and corrected installed documentation.
+Report accepted performance limitations, normalization/trusted-code non-promises and
+review coverage limits; no security certification or commit/release authorization.
+Verification: proportionate focused/packed checks plus hashes/actual recorded results,
+preserved old evidence and no owned jobs. Coordinator alone reconciles OAR-10 status.
+
+Independent completion evidence:
+
+- `docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/{REREVIEW,NEWHANDOFF}.md` reports **no blocking
+  findings in scoped final review** and independently resolves F1/F2. The reviewer
+  is separate from the documentation implementer and reuses its own earlier deep
+  source/public/raw review, not an implementation-owner acceptance claim. The blocked
+  original review, failed attempts and old package identities remain unchanged.
+- Independent contextual review covers the owner's 37 references, 44 reviewer lexical
+  matches (45 union lines), plus thirteen additional semantic contexts: **58 distinct
+  matched lines**. No equivalent live handle/DTO-certificate or one-argument data-field
+  promise remains in that examined guidance. Valid historical/rejected/configuration/
+  private-reuse language is retained; this is semantic review, not a word-ban proof.
+- Fresh re-review runs pass the complete **24-case guidance file**, **seven actual
+  packed-runtime tests** and **five strict public compiler conditions**. Each condition
+  checks eight equalities and five unsuppressed negatives, skipLibCheck=false, without
+  positive/negative fixture casts, any or suppressions. Real-Mongo tests cover both
+  modes, zero raw-helper reads/hooks and the explicit fresh read/hook alternative.
+  Copied final implementation fixtures were inspected and independently executed,
+  not mislabeled newly authored cases. No nonzero re-review command or owned job.
+- Prior independent **26 packed runtime / 405 cross-path source / five broader strict
+  conditions** and full original/B1 raw recalculations remain reused through unchanged
+  byte/evidence linkage. The earlier **6,046 core / 742 deco**, peer/layout matrices,
+  runner/correctness/counter proofs are not claimed as new re-review runs. Their
+  post-gate source-snapshot chronology and missing transient-peer-tree limitations
+  remain explicit. No workspace-wide/full-suite rerun, rebuild or timing occurred.
+- Final source/tar/installed README is
+  `aff3e416addae22e65a80150f8279fe38ed15436062d50f581979d40902c1c46`;
+  actual final core tarball is
+  `39cf36e02155e6c0d000d1958306375bcef03726a79e15fb0ac07faacb1fe1a9`.
+  Its nineteen members differ from the previous package only in README; all other
+  eighteen, including fourteen JS/DTS/eight declarations, remain byte-identical.
+  Five final tarballs were independently extracted, not repacked/released.
+- Current reviewed/tested/measured runtime remains
+  `e131659e5cdd9f5052cd15060b498669f5e044c559b35f3abbe0780f18753f4e`,
+  with **all 67 dist outputs unchanged**. New doc-only evidence binds 615 source pins;
+  the old 614 pins retain exactly one intentional README difference plus the additive
+  test outside them. Old seals are preserved, not falsely made current for new prose.
+- Entry/exit protect 2,000 source records, 70 status paths, 813 focused old records,
+  runtime/dependency/tool/binary/lock identities and five predecessor manifests. The
+  coordinator independently reverified **161 re-review files / 37 links / 37 seal
+  bindings / 615 current source pins / 67 outputs**, including the final tarball and
+  README. Initial coordinator cross-packet-path/patch-context lookups were corrected;
+  they caused no source/evidence change. Subsequent task-only reconciliation is
+  separate from product/review snapshots. User commits/uncommitted work are preserved.
+- **70/90 remains the numerical result**, with exactly the twenty explicitly accepted
+  failed/inconclusive IDs; B1 remains report-only and freshness-distinct. No failed
+  metric was relabeled, no extra timing/optimization was authorized and no promise of
+  universal speedup, exact allocation/RSS bounds, application/database freshness,
+  automatic presentation re-filtering or exhaustive security certification is made.
+  OAR-01–10 are complete within that explicit disposition and reviewed scope; new work
+  remains local/uncommitted, with no commit, publication or release authorization.
+
 ## Definition of done and present verification status
 
 Done means one owned-stage authorization engine, immutable boolean facts and captured
@@ -1372,6 +2269,11 @@ adapters, bounded output/native algorithms, preserved mandatory security dimensi
 complete installed breaking documentation, scoped passing gates, demonstrated benefit
 under the preselected criteria and independent acceptance. Reduced line count, renamed
 checks, TypeScript readonly or a large test count alone do not establish this outcome.
+
+Current performance completion uses the explicit user disposition recorded under
+OAR-09; all numerical measurements and their failures remain unchanged. Mandatory
+correctness/security/public-contract verification and independent acceptance still
+apply, and this task does not authorize a commit or release.
 
 At task creation no new implementation, build, product tests or performance measurement
 had run for this proposal. Prior results above belong to the completed fast-path task. At creation,

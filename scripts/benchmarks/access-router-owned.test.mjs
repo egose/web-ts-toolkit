@@ -26,6 +26,8 @@ import {
   retainedComparison,
   SERIES,
   GATES,
+  verifyCountContract,
+  GUARD_COUNT_REVISION,
 } from './access-router-owned-core.mjs';
 import { parseArgs, inspectBuild, initialJobs, repeatJobs, verifyCandidateContext } from './access-router-owned.mjs';
 import { instrumentBundle } from './access-router-owned-structure.mjs';
@@ -352,6 +354,40 @@ test('checksum workload is fixed, deterministic, used as a boolean unused fact a
 test('structural instrumentation fails closed when real function seams disappear', () => {
   assert.throws(() => instrumentBundle('export {};', false), /exactly one real/);
 });
+test('facts-only count contracts require an exact artifact hash, never public mode/declaration inference or 0-or-24 tolerance', () => {
+  const candidate = {
+    profile: 'isolated',
+    distSha256: 'c'.repeat(64),
+    countContract: { revision: GUARD_COUNT_REVISION, artifactSha256: 'c'.repeat(64) },
+  };
+  assert.deepEqual(verifyCountContract(candidate), candidate.countContract);
+  for (const patch of [
+    { countContract: undefined },
+    { countContract: { ...candidate.countContract, revision: 'full-dto-v1' } },
+    { countContract: { ...candidate.countContract, artifactSha256: 'd'.repeat(64) } },
+    { countContract: { ...candidate.countContract, callbacks: 24 } },
+  ])
+    assert.throws(() => verifyCountContract({ ...candidate, ...patch }));
+  const h4 = { ...job(), ...workloads().find((c) => c.id === 'helper/H4/100'), target: candidate, samples: 1 };
+  assert.deepEqual(expectedCounts(h4), { reads: 1, hooks: 1, getters: 0, callbacks: 0 });
+  assert.doesNotThrow(() => verifyCounts(h4, { reads: 1, hooks: 1, getters: 0, callbacks: 0 }));
+  assert.throws(() => verifyCounts(h4, { reads: 1, hooks: 1, getters: 0 }), /missing actual callbacks counter/);
+  assert.throws(
+    () => verifyCounts(h4, { reads: 1, hooks: 1, getters: 0, callbacks: 24 }),
+    /actual callbacks count mismatch/,
+  );
+  assert.throws(
+    () => verifyCounts({ ...h4, target: { ...candidate, countContract: undefined } }, { reads: 1, hooks: 1 }),
+    /contract required/,
+  );
+  const historical = { ...h4, target };
+  assert.deepEqual(expectedCounts(historical), { reads: 1, hooks: 1, getters: 0, callbacks: 0 });
+  assert.equal(verifyCountContract(target), null);
+  assert.throws(
+    () => verifyCountContract({ ...target, countContract: candidate.countContract }),
+    /Historical artifacts/,
+  );
+});
 test(
   'public correctness and structural probes run against both actual artifact families (NO timing acceptance)',
   { timeout: 600000 },
@@ -360,6 +396,8 @@ test(
     assert.ok(oldRoot, 'WTT_BENCH_LEGACY_ROOT must name the sealed old build for historical compatibility tests');
     const old = await inspectBuild(oldRoot),
       current = await inspectBuild(process.env.WTT_BENCH_CANDIDATE_ROOT ?? root);
+    // Explicit test contract, validated by actual guard counts in the child, not inferred from modes.
+    current.countContract = { revision: GUARD_COUNT_REVISION, artifactSha256: current.distSha256 };
     for (const profile of ['current-default', 'isolated', 'current-active', 'trusted']) {
       const selected = profileTarget(profile.startsWith('current-') ? old : current, profile);
       const input = resolve(home, profile + '.json'),
@@ -379,6 +417,14 @@ test(
         assert.match(denial.outputFingerprint, /^[a-f0-9]{64}$/);
       }
       if (!profile.startsWith('current-')) {
+        assert.deepEqual(probe.conditionProof.contract, current.countContract);
+        assert.equal(probe.conditionProof.observations.length, 2);
+        for (const proof of probe.conditionProof.observations) {
+          assert.deepEqual(proof.guardCounts, { reads: 1, hooks: 1, callbacks: 0, decorations: 0 });
+          assert.equal(proof.normalDtoCallbacks, 24);
+          assert.equal(proof.negativeStatus, 401);
+          assert.equal(proof.invalidFactsStatus, 400);
+        }
         const modes = probe.observations.filter((o) => o.kind === 'source/target actual callback mutation');
         assert.equal(modes.length, 4);
         assert.ok(modes.every((o) => o.embeddedInheritedOwnerMode && o.independentReadListModes));
@@ -400,6 +446,15 @@ test(
       const exact = result.measurements.find((m) => m.fields === 24);
       assert.equal(exact.callbacks, 144);
       assert.equal(exact.hooks, 6);
+      if (!profile.startsWith('current-')) {
+        const helper = result.helpers.find((m) => m.helpers === 100);
+        assert.equal(helper.counts.evaluateAuthorizedOutputField, 2400);
+        assert.equal(helper.counts.captureOutputHelperConfiguration, 100);
+        assert.equal(helper.counts.selectCatalogOutputShape, 100);
+        assert.equal(helper.counts.copyDocumentView, 100);
+        assert.equal(helper.counts.captureReferenceOrigins ?? 0, 0);
+        assert.equal(helper.clearedRecords, 100);
+      }
     }
   },
 );

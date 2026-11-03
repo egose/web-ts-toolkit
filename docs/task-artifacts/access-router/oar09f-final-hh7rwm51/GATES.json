@@ -1,0 +1,1961 @@
+{
+  "measurement": "NOT_MEASURED",
+  "reuse": "Completed foreground integration commands, not rerun in recovery",
+  "commands": [
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/01-format.result.json",
+      "resultSha256": "9a5a72f405fd9ecf4a59f924250de5c3f44d04824539c8ccefc32a4bbcb4dd1d",
+      "logSha256": "7989879b0fb206ab16b0d05dc86a59e75532c4d9bd9d09ecc9faa91cecadea12",
+      "argv": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--write",
+        "packages/access-router-deco/README.md",
+        "packages/access-router/README.md",
+        "packages/access-router/MIGRATION.md",
+        "packages/access-router/llms.txt",
+        "packages/access-router/src/core.ts",
+        "packages/access-router/src/services/base.ts",
+        "packages/access-router/src/interfaces/filtered-output.ts",
+        "packages/access-router/test/documentation-examples.test.ts",
+        "packages/access-router/test/export-contract.test.ts",
+        "packages/access-router/test/migration-guide-fixture.ts",
+        "packages/access-router/test/owned-authorization-many-consumer.runtime.fixture.ts",
+        "packages/access-router/test/owned-authorization-many-consumer.types.fixture.ts",
+        "packages/access-router/test/owned-authorization-many.invalid.types.fixture.ts",
+        "packages/access-router/test/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/strict-consumer-types.test.ts",
+        "website/docs/packages/access-router/services.mdx"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:13:35.262455+00:00",
+      "finishedAt": "2026-11-02T18:13:36.948119+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/02-v1-affected-build.result.json",
+      "resultSha256": "b9c370bb0a67fc7d6841cc3bd3a9fcfae9030e0fb547cafa4f661386c1f2c9eb",
+      "logSha256": "fd31f8c1cd2386f4b4102cb8256d39b1d0189304d113c9987e996786c5946f16",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router...",
+        "--workspace-concurrency=1",
+        "build"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:13:44.929637+00:00",
+      "finishedAt": "2026-11-02T18:13:59.677602+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/03-v2-exports-strict.result.json",
+      "resultSha256": "b0df319cf0a13b0b69d4195880f5d057483029b118f8badd5e2d93e43add4542",
+      "logSha256": "33be4b10ecd9554bbf471b3e6cca4af498102c8fcdb643b55f3176def7d4b630",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/export-contract.test.ts",
+        "test/strict-consumer-types.test.ts",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T18:14:07.919496+00:00",
+      "finishedAt": "2026-11-02T18:16:34.978509+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/04-v2-packed-current.result.json",
+      "resultSha256": "fe3dc0a7d2e1dba3f6e39f6f9b348a1f1f4f5d82e7ec3885af1a878797fbad1b",
+      "logSha256": "275d1041c59dcd4a9e07ed2070da9e2f19cc7b12ce21c42f9fc1bf60b1171825",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/packed-consumer-compatibility.test.ts",
+        "-t",
+        "supports current majors from release-artifact tarballs",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T18:17:07.536160+00:00",
+      "finishedAt": "2026-11-02T18:17:24.165262+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/05-v2-packed-current.result.json",
+      "resultSha256": "4018718d138fb70a5948ce7f59f0d923e652b60d4e928a5bf120b48b79cd01d5",
+      "logSha256": "581c07ad3e1466f20250e9c7b50ad3db8b25790974512dd6a2d046de685f89c4",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/packed-consumer-compatibility.test.ts",
+        "-t",
+        "supports current majors from release-artifact tarballs",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T18:17:52.392856+00:00",
+      "finishedAt": "2026-11-02T18:18:07.532742+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/06-v2-packed-current.result.json",
+      "resultSha256": "fb30ecb73ca146f3dbed264a4b4a81f25f848e07d74f3a83fb4daa7da668038f",
+      "logSha256": "7cbde8cd09b3c353dd665340ef5d9f1bf6beac5e95d225968be4cba4f5e4c020",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/packed-consumer-compatibility.test.ts",
+        "-t",
+        "supports current majors from release-artifact tarballs",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T18:18:30.540343+00:00",
+      "finishedAt": "2026-11-02T18:18:47.083505+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/07-v2-packed-current.result.json",
+      "resultSha256": "018d3b4b384d9a2bd0a5e0e8afd5275eda5fcc4e63f8562c375278acff00449b",
+      "logSha256": "11b949cec2c756a444048bcec6056d4542c92e473b5c8f08661e6fa6c5bf9413",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/packed-consumer-compatibility.test.ts",
+        "-t",
+        "supports current majors from release-artifact tarballs",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T18:19:12.110921+00:00",
+      "finishedAt": "2026-11-02T18:19:28.760008+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/08-v2-packed-current.result.json",
+      "resultSha256": "506f8cc1d0a66796ddf2591eb8febb6045a4f52494796d353a7bf6186b3e8808",
+      "logSha256": "1391e814edbe4b121e81a9fe5cd5afab2b366c5420bcb5c75af99717162a8cd1",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/packed-consumer-compatibility.test.ts",
+        "-t",
+        "supports current majors from release-artifact tarballs",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:19:49.831993+00:00",
+      "finishedAt": "2026-11-02T18:21:16.377860+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/09-format.result.json",
+      "resultSha256": "7a055e8fbb87d6fbce96a554baa2a7b44b895e4ba3da9689938e43518e8d2cd9",
+      "logSha256": "1b271721372b1e8dc44c47a7ff24f3014e225a966f79f32f9b3d09fb76abe99a",
+      "argv": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--write",
+        "packages/access-router/test/documentation-examples.test.ts",
+        "packages/access-router/test/export-contract.test.ts",
+        "packages/access-router/test/migration-guide-fixture.ts",
+        "packages/access-router/test/owned-authorization-many-consumer.runtime.fixture.ts",
+        "packages/access-router/test/owned-authorization-many-consumer.types.fixture.ts",
+        "packages/access-router/test/owned-authorization-many.invalid.types.fixture.ts",
+        "packages/access-router/test/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/strict-consumer-types.test.ts"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:21:31.753603+00:00",
+      "finishedAt": "2026-11-02T18:21:32.554498+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/10-v2-docs-exports-strict.result.json",
+      "resultSha256": "13cba98a7a2fe28b1bb4e405a8d366681a102e8a8dfbedea9830546c7f855a7e",
+      "logSha256": "5fee2c6d229b9e0d9a82ee47cd75f08655a77d62ca508bdf75081cf50cbd9c9f",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/documentation-examples.test.ts",
+        "test/export-contract.test.ts",
+        "test/strict-consumer-types.test.ts",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T18:21:36.507613+00:00",
+      "finishedAt": "2026-11-02T18:24:06.642929+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/11-v2-docs.result.json",
+      "resultSha256": "6b6159e37f9d6b06aee60de5ad8c1218ca718f619865874cddf3bbce42eb630e",
+      "logSha256": "5ed06fa841f71de74ae6175ff10412325356fa915cd3aaede5b070de94048553",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/documentation-examples.test.ts",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:24:32.084839+00:00",
+      "finishedAt": "2026-11-02T18:28:24.114798+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/12-format.result.json",
+      "resultSha256": "f302199173ec7fa540542d8fbbf7e908d1f375f7d35c0560f30e5b415ae2b1df",
+      "logSha256": "7b02c377190e4eebaa37917b6f71b62d2ab676073824343921b3cca07461e172",
+      "argv": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--write",
+        "packages/access-router/test/documentation-examples.test.ts",
+        "packages/access-router/test/owned-authorization-many-consumer.runtime.fixture.ts"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:28:32.545767+00:00",
+      "finishedAt": "2026-11-02T18:28:33.246569+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/13-v5-eslint.result.json",
+      "resultSha256": "14a1c2b704e3f46401abb4e94bb3c40cf3af9d7f52d5beb272ca911bc575ee8d",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "--no-cache",
+        "packages/access-router/src",
+        "packages/access-router/test",
+        "packages/access-router-deco/src",
+        "packages/access-router-deco/test",
+        "scripts/benchmarks"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:28:36.460490+00:00",
+      "finishedAt": "2026-11-02T18:28:43.193588+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/14-v1-final.result.json",
+      "resultSha256": "134773771b73544d082edc9c1096cb3d0d79776e58377d2b8a7a2e720b9c97b9",
+      "logSha256": "1de96f08c164487ef044dab37fd78fbbce72ba6514820efa0d1cb21e0d4cc1e7",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router...",
+        "--workspace-concurrency=1",
+        "build"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:29:05.907123+00:00",
+      "finishedAt": "2026-11-02T18:29:20.458010+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/15-v3-full-core.result.json",
+      "resultSha256": "b0953a54d67e30f5e798124358f699fc3120386a35160fffe4ad94d7916d826b",
+      "logSha256": "3a342955052a4dcd65b9614ae62481666315d57b4eeae287ed8cf476239cba5d",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test",
+        "--reporter=verbose",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T18:29:23.654240+00:00",
+      "finishedAt": "2026-11-02T18:50:04.768281+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/16-v1-final.result.json",
+      "resultSha256": "82ea5536b5f38f6b6f2ac0747181037b02f7dba418e2c9cca967be6d359cc8b6",
+      "logSha256": "959433404809baf07e83edcbd029b531890541220f3f98312fb78e3056f25bce",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router...",
+        "--workspace-concurrency=1",
+        "build"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:50:54.447663+00:00",
+      "finishedAt": "2026-11-02T18:51:09.410483+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/17-v2-current-runtime.result.json",
+      "resultSha256": "161d98cb1496a14cecf68080701228b7b24e3a9abbe086541e5ac08f207844bb",
+      "logSha256": "45888b244f730239911c66f409031c72ed168b2a82367b8b5eb38142a870feef",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "test/field-catalog.unit.test.ts",
+        "test/authorization-fast-path-native.unit.test.ts",
+        "test/concurrency.test.ts",
+        "test/field-helper-removal.contract.test.ts",
+        "test/hook-concurrency.test.ts",
+        "test/output-publication-fusion-withdrawal.unit.test.ts",
+        "test/owned-authorization-boundaries.unit.test.ts",
+        "test/owned-authorization-facts.unit.test.ts",
+        "test/owned-authorization-helpers.unit.test.ts",
+        "test/owned-authorization-many-bounds.unit.test.ts",
+        "test/owned-authorization-many.unit.test.ts",
+        "test/owned-authorization-modes.unit.test.ts",
+        "test/owned-authorization-publication.unit.test.ts",
+        "test/owned-authorization-stage.unit.test.ts",
+        "test/owned-authorization-work.unit.test.ts",
+        "test/service-authorization-boundary-admission.contract.test.ts",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:51:13.810129+00:00",
+      "finishedAt": "2026-11-02T18:51:28.300604+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/18-v3-full-core-final.result.json",
+      "resultSha256": "5fdd9db6ea11d2b4ada80408b52e23e60ba7fc6904633a05ebed8436e63de6c0",
+      "logSha256": "b6fe079e71b7a928eabdc201ab0cdc998fa872d565c4cbb314d979cd2368a339",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test",
+        "--reporter=verbose",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T18:51:36.758693+00:00",
+      "finishedAt": "2026-11-02T19:11:49.842495+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/19-v3-source-types.result.json",
+      "resultSha256": "1ddc8754a579b3e5bb823027a382b0938125d674bcab67f1cd94a27fe63ab30e",
+      "logSha256": "26a0d2140a3929ed04890a169a054098760271a9a2b32a64db7b4ab999c4aa66",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T19:11:59.775139+00:00",
+      "finishedAt": "2026-11-02T19:12:18.623211+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/20-v4-full-deco.result.json",
+      "resultSha256": "1d85be5606f7f87ac41e321ff58de75b1c45e029495a72fbc9142d32b60d0306",
+      "logSha256": "72020200e8b7fbcc4bf60b4c2e99acc0453ad4ffdee10dd05b3e64f2a762b473",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router-deco",
+        "test",
+        "--no-file-parallelism",
+        "--maxWorkers=1",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile=<machine-local-path>"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T19:12:21.418866+00:00",
+      "finishedAt": "2026-11-02T19:14:27.713748+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/21-v4-downstream-types.result.json",
+      "resultSha256": "6704dfafc5cbb5f99181108571375cfad78edc0ffd60164ee20085acc971079f",
+      "logSha256": "1e7364545b505adc6ef70012ce70f69a90a7eb05ebb0a0886a63cceb701bcb27",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router-deco",
+        "typecheck"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T19:14:55.817066+00:00",
+      "finishedAt": "2026-11-02T19:14:59.702459+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/22-v5-eslint-final.result.json",
+      "resultSha256": "db2ca25fe18300b940d8820dc2580d64a86e83a9c23931cb2a97ae1583845c92",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "--no-cache",
+        "packages/access-router/src",
+        "packages/access-router/test",
+        "packages/access-router-deco/src",
+        "packages/access-router-deco/test",
+        "scripts/benchmarks"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T19:15:04.229316+00:00",
+      "finishedAt": "2026-11-02T19:15:10.326056+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/23-v5-format-final.result.json",
+      "resultSha256": "993c08b474f11708fff61c0d92ee9769b13d925641e70a0f4c66c8c761008621",
+      "logSha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b",
+      "argv": [
+        "python3",
+        "_tmp-oar09f-integration-ut0vgb6y/format-check.py"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T19:15:17.425141+00:00",
+      "finishedAt": "2026-11-02T19:15:18.386315+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/24-v5-diff-final.result.json",
+      "resultSha256": "482d7dbec1d34bfe61e4663557641a3cb6cb3f744e555c7f85dee445a0a7e1c6",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T19:15:20.991286+00:00",
+      "finishedAt": "2026-11-02T19:15:21.020840+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/25-v6-all-runner-tests.result.json",
+      "resultSha256": "87eb2e825cb9cca343edc8cd9eceb5f51578a501dbf495ae9f35b3ae0046264f",
+      "logSha256": "5c3ca8d3d4d96769ca05870aa09ba57d855cdd1058e51d33e62077513a87bcc2",
+      "argv": [
+        "node",
+        "--test",
+        "--test-concurrency=1",
+        "scripts/benchmarks/access-router.test.mjs",
+        "scripts/benchmarks/access-router.integration.test.mjs",
+        "scripts/benchmarks/access-router-owned.test.mjs"
+      ],
+      "exit": 0,
+      "startedAt": "2026-11-02T19:15:23.593809+00:00",
+      "finishedAt": "2026-11-02T19:16:16.435549+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/26-public-surface-environment.result.json",
+      "resultSha256": "aebca35ba804c18061a545dbdd2a72999ee941af6ec23bb5bab73641b6bfc42b",
+      "logSha256": "af2b813974496521d8a7bd9e74db3f31443c50109cd76f84f4c870639c214293",
+      "argv": [
+        "node",
+        "_tmp-oar09f-integration-ut0vgb6y/surface.mjs"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T19:19:03.735797+00:00",
+      "finishedAt": "2026-11-02T19:19:04.826786+00:00"
+    },
+    {
+      "result": "_tmp-oar09f-integration-ut0vgb6y/logs/27-public-surface-environment.result.json",
+      "resultSha256": "b370e41c88be8e867c40da0e1599d2d639f0ccab6a99799e3486cb97af6c433a",
+      "logSha256": "bdcf9e0a2e4138828b883098b32ed79f705c181491b5bac64daefead4655fc7e",
+      "argv": [
+        "node",
+        "_tmp-oar09f-integration-ut0vgb6y/surface.mjs"
+      ],
+      "exit": 1,
+      "startedAt": "2026-11-02T19:19:14.551729+00:00",
+      "finishedAt": "2026-11-02T19:19:15.614718+00:00"
+    }
+  ],
+  "requiredPassingLabels": [
+    "16-v1-final",
+    "17-v2-current-runtime",
+    "18-v3-full-core-final",
+    "19-v3-source-types",
+    "20-v4-full-deco",
+    "21-v4-downstream-types",
+    "22-v5-eslint-final",
+    "23-v5-format-final",
+    "24-v5-diff-final",
+    "25-v6-all-runner-tests"
+  ],
+  "summaries": {
+    "15": {
+      "report": "_tmp-oar09f-integration-ut0vgb6y/logs/15-results.json",
+      "sha256": "6a7f8f06e1702dd32398d4fa466d33d09c750142719d0f5f4a28047b2d1eb51f",
+      "success": false,
+      "files": 187,
+      "tests": 6046,
+      "passed": 6045,
+      "failed": 1,
+      "pending": 0,
+      "actualAssertionStatuses": {
+        "passed": 6045,
+        "failed": 1
+      }
+    },
+    "17": {
+      "report": "_tmp-oar09f-integration-ut0vgb6y/logs/17-results.json",
+      "sha256": "95cc9ad909c9c7853d15e48ac681f191151b60776bcb58142f47257f62f2e8bb",
+      "success": true,
+      "files": 16,
+      "tests": 827,
+      "passed": 827,
+      "failed": 0,
+      "pending": 0,
+      "actualAssertionStatuses": {
+        "passed": 827
+      }
+    },
+    "18": {
+      "report": "_tmp-oar09f-integration-ut0vgb6y/logs/18-results.json",
+      "sha256": "e92c8161be16d3fe937a1ee00b894b818d2fedc71f446525ee4fa1e560c10fe4",
+      "success": true,
+      "files": 187,
+      "tests": 6046,
+      "passed": 6046,
+      "failed": 0,
+      "pending": 0,
+      "actualAssertionStatuses": {
+        "passed": 6046
+      }
+    },
+    "20": {
+      "report": "_tmp-oar09f-integration-ut0vgb6y/logs/20-results.json",
+      "sha256": "7a98b33ba05578f03b6f2c9e5902ad117b17de65d72dd2858bece6960c4ab7ba",
+      "success": true,
+      "files": 23,
+      "tests": 742,
+      "passed": 742,
+      "failed": 0,
+      "pending": 0,
+      "actualAssertionStatuses": {
+        "passed": 742
+      }
+    }
+  },
+  "fullCurrentScope": {
+    "documentation-examples.test.ts": {
+      "tests": 80,
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "README.md-block-1-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-2-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-3-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-4-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-5-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-6-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-7-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-8-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-9-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-9-of-31 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-10-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-11-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-12-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-13-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-14-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-15-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-16-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-17-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-18-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-19-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-20-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-20-of-31 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-21-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-21-of-31 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-22-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-22-of-31 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-23-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-23-of-31 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-24-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-25-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-26-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-27-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-28-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-29-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-30-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-30-of-31 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-31-of-31 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README.md-block-31-of-31 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-1-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-2-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-3-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-4-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-5-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-6-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-7-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "configuration.mdx-block-8-of-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "routing.mdx-block-1-of-1 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "services.mdx-block-1-of-4 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "services.mdx-block-2-of-4 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "services.mdx-block-3-of-4 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "services.mdx-block-4-of-4 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "hooks.mdx-block-1-of-1 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "DefaultModelRouterOptions-index.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "listAuthorizationMode-index.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "readAuthorizationMode-index.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "pickAllowedFieldsMany-index.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "DefaultModelRouterOptions-index.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "listAuthorizationMode-index.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "readAuthorizationMode-index.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "pickAllowedFieldsMany-index.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "DefaultModelRouterOptions-advanced.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "listAuthorizationMode-advanced.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "readAuthorizationMode-advanced.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "pickAllowedFieldsMany-advanced.d.ts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "DefaultModelRouterOptions-advanced.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "listAuthorizationMode-advanced.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "readAuthorizationMode-advanced.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "pickAllowedFieldsMany-advanced.d.mts satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-1 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-2 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-3 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-4 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-5 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-6 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-7 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-7 executes as a complete runtime workflow against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-8 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "MIGRATION-block-9 satisfies full strict TS semantic compile against the packed access-router",
+          "status": "passed"
+        },
+        {
+          "title": "README quick start connects to MongoDB before calling app.listen (startup ordering invariant)",
+          "status": "passed"
+        },
+        {
+          "title": "every import and identifier referenced in llms.txt resolves (no unresolved names remaining)",
+          "status": "passed"
+        }
+      ]
+    },
+    "export-contract.test.ts": {
+      "tests": 47,
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "declares root, /advanced, and /processors subpaths",
+          "status": "passed"
+        },
+        {
+          "title": "selects ESM/CJS declarations under their respective conditions (ARH-09)",
+          "status": "passed"
+        },
+        {
+          "title": "declares all files published by the tarball",
+          "status": "passed"
+        },
+        {
+          "title": "does not publish src/",
+          "status": "passed"
+        },
+        {
+          "title": "declares sideEffects accurately (only entries that perform runtime mutation)",
+          "status": "passed"
+        },
+        {
+          "title": "every sideEffects path resolves to an emitted package entry (ARF-15)",
+          "status": "passed"
+        },
+        {
+          "title": "resolves the default export in ESM and CJS",
+          "status": "passed"
+        },
+        {
+          "title": "resolves the named `acl` export identically in ESM and CJS",
+          "status": "passed"
+        },
+        {
+          "title": "exports the runtime and helpers from ESM",
+          "status": "passed"
+        },
+        {
+          "title": "exports router classes",
+          "status": "passed"
+        },
+        {
+          "title": "exports validation adapters",
+          "status": "passed"
+        },
+        {
+          "title": "CJS exports a default that matches the ESM default",
+          "status": "passed"
+        },
+        {
+          "title": "exports guard input types as type-only exports",
+          "status": "passed"
+        },
+        {
+          "title": "exports the request root options interfaces as type-only exports",
+          "status": "passed"
+        },
+        {
+          "title": "resolves ESM and CJS forms",
+          "status": "passed"
+        },
+        {
+          "title": "exports low-level parser hooks, symbols, and enums not on the root",
+          "status": "passed"
+        },
+        {
+          "title": "CJS advanced module matches ESM exports structurally",
+          "status": "passed"
+        },
+        {
+          "title": "resolves copyAndDepopulate in ESM and CJS",
+          "status": "passed"
+        },
+        {
+          "title": "exports ProcessCopy and CopyAndDepopulateOptions type-only",
+          "status": "passed"
+        },
+        {
+          "title": "invokes copyAndDepopulate consistently across module systems",
+          "status": "passed"
+        },
+        {
+          "title": "type-only ProcessCopy import is identical to runtime type export",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 ships truthful modes/facts/diagnostic hover without private issuers in d.ts",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 ships truthful modes/facts/diagnostic hover without private issuers in d.mts",
+          "status": "passed"
+        },
+        {
+          "title": "every declared dist file in exports resolves on disk",
+          "status": "passed"
+        },
+        {
+          "title": "preserves processor output and error JSDoc in published declarations",
+          "status": "passed"
+        },
+        {
+          "title": "OAV-06 exposes route/field shapes and useful editor hover in d.ts",
+          "status": "passed"
+        },
+        {
+          "title": "OAV-06 exposes route/field shapes and useful editor hover in d.mts",
+          "status": "passed"
+        },
+        {
+          "title": "MPO-03 exports precise target/default populate policies and editor hover in d.ts",
+          "status": "passed"
+        },
+        {
+          "title": "MPO-03 exports precise target/default populate policies and editor hover in d.mts",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-10 exports consumer policy/diagnostic types with editor JSDoc in d.ts",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-10 exports consumer policy/diagnostic types with editor JSDoc in d.mts",
+          "status": "passed"
+        },
+        {
+          "title": "compiles a TypeScript snippet against published declarations without error",
+          "status": "passed"
+        },
+        {
+          "title": "rejects nonexistent exports from published declarations",
+          "status": "passed"
+        },
+        {
+          "title": "reports a missing consumer source instead of passing silently",
+          "status": "passed"
+        },
+        {
+          "title": "does not publish undeclared source files in the tarball list",
+          "status": "passed"
+        },
+        {
+          "title": "serializers construct public DTOs that drop internal metadata",
+          "status": "passed"
+        },
+        {
+          "title": "serializer output is assignable to public DTOs at the type level and internal results are not",
+          "status": "passed"
+        },
+        {
+          "title": "root entry runtime export shape matches the recorded snapshot",
+          "status": "passed"
+        },
+        {
+          "title": "does not leak low-level internals from the root entry",
+          "status": "passed"
+        },
+        {
+          "title": "advanced entry exports low-level symbols but not root-level router creation",
+          "status": "passed"
+        },
+        {
+          "title": "processors entry exports only copyAndDepopulate-derived symbols",
+          "status": "passed"
+        },
+        {
+          "title": "ARF-09 root entry exports exactly the recorded public surface (no additions, no removals)",
+          "status": "passed"
+        },
+        {
+          "title": "ARF-09 /advanced entry exports exactly the recorded public surface (no additions, no removals)",
+          "status": "passed"
+        },
+        {
+          "title": "ARF-09 /processors entry exports exactly the recorded public surface (no additions, no removals)",
+          "status": "passed"
+        },
+        {
+          "title": "describes peerDependencies for express and mongoose",
+          "status": "passed"
+        },
+        {
+          "title": "does not depend on workspace packages that fail to resolve from a packed tarball",
+          "status": "passed"
+        },
+        {
+          "title": "the dist directory contains the published entries",
+          "status": "passed"
+        }
+      ]
+    },
+    "field-catalog.unit.test.ts": {
+      "tests": 55,
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "matches \"name\" against \"name\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"name\" against \"name.child\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"name\" against \"name.child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"name\" against \"nameSibling\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"name.child\" against \"name\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"\" against \"\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"\" against \".child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"\" against \"child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"name.\" against \"name..child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"name.\" against \"name.child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"a..b\" against \"a..b.child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"a..b\" against \"a.b.child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"\u96ea.\ud83d\ude00\" against \"\u96ea.\ud83d\ude00.\u8449\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"\u00e9\" against \"e\u0301\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"map.$*.value\" against \"map.key.value\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"map.$*.value\" against \"map..value\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"map.$*.value\" against \"map.key.value.child\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"map.$*.value\" against \"map.key.value.child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"map.$*.value\" against \"map.key.valueSibling\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"$*.$*\" against \"a.b\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"$*\" against \"\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"$*\" against \"\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"a$*\" against \"anything\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"a$*\" against \"a$*.child\" (descendants true)",
+          "status": "passed"
+        },
+        {
+          "title": "matches \"$**\" against \"key\" (descendants false)",
+          "status": "passed"
+        },
+        {
+          "title": "agrees with segment matching across literal, malformed, Unicode and wildcard paths",
+          "status": "passed"
+        },
+        {
+          "title": "preserves descendant-argument truthiness for runtime callers",
+          "status": "passed"
+        },
+        {
+          "title": "avoids both split allocations for literal primitive comparisons only",
+          "status": "passed"
+        },
+        {
+          "title": "preserves custom split observations for non-primitive pattern",
+          "status": "passed"
+        },
+        {
+          "title": "preserves custom split observations for non-primitive path",
+          "status": "passed"
+        },
+        {
+          "title": "preserves custom split observations for non-primitive both",
+          "status": "passed"
+        },
+        {
+          "title": "preserves split order, errors and non-string runtime fallback",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for meta.permissions",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for meta.permissions.private",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for meta.permissionsExtra",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for customer",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for customer.value",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for customerExtra",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for labels.work",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for labels.work.value",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for labelsExtra.work",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for mixed.safe.deep",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for mixed..deep",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for mixed.__proto__.value",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for records.work.value",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for records.work.ref",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for records.work.ref.value",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for records.work.refExtra",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for records.work.revision",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for records.work.revision.value",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for summary",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for summary.value",
+          "status": "passed"
+        },
+        {
+          "title": "keeps protected/reference/map/virtual boundary for summaryExtra",
+          "status": "passed"
+        },
+        {
+          "title": "keeps input metadata ancestors and virtuals excluded without excluding sibling prefixes",
+          "status": "passed"
+        },
+        {
+          "title": "retains exclusions and protected descendants under an opaque output grant",
+          "status": "passed"
+        }
+      ]
+    },
+    "owned-authorization-many-bounds.unit.test.ts": {
+      "tests": 24,
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "retains inclusive 20,000 source/selected slots; another row never replenishes one row",
+          "status": "passed"
+        },
+        {
+          "title": "retains depth 100, including source/native/metadata work, before any field predicate",
+          "status": "passed"
+        },
+        {
+          "title": "individually admitted rows can exhaust cumulative work without publishing a partial collection",
+          "status": "passed"
+        },
+        {
+          "title": "exact aggregate boundary and next debit share all row owners, with no recipient double debit",
+          "status": "passed"
+        },
+        {
+          "title": "an ACTUAL whole helper reaches exactly 200,000 and one extra outer slot rejects publication",
+          "status": "passed"
+        },
+        {
+          "title": "initial catalog/config capture participates, and ordinary singles keep their independent limits",
+          "status": "passed"
+        },
+        {
+          "title": "a branded catalog preload keeps its capture allowance but does not bill the SAME omitted visit twice",
+          "status": "passed"
+        },
+        {
+          "title": "UTF-8 payload is cumulative across real source and output string preparations",
+          "status": "passed"
+        },
+        {
+          "title": "debits native bytes BEFORE the actual router Buffer.from, including a later output copy",
+          "status": "passed"
+        },
+        {
+          "title": "exact payload boundary is inclusive and no later preparation can replenish it",
+          "status": "passed"
+        },
+        {
+          "title": "an ACTUAL whole helper reaches exactly 16 MiB, and the next native byte fails before copying",
+          "status": "passed"
+        },
+        {
+          "title": "Code work uses the same depleted row/aggregate/native-wire owner",
+          "status": "passed"
+        },
+        {
+          "title": "DBRef work uses the same depleted row/aggregate/native-wire owner",
+          "status": "passed"
+        },
+        {
+          "title": "Map work uses the same depleted row/aggregate/native-wire owner",
+          "status": "passed"
+        },
+        {
+          "title": "holes work uses the same depleted row/aggregate/native-wire owner",
+          "status": "passed"
+        },
+        {
+          "title": "opaque native normalization cannot reset the remaining source/aggregate/payload budgets",
+          "status": "passed"
+        },
+        {
+          "title": "aggregate exhaustion caught by a callback remains sticky and prevents later copying",
+          "status": "passed"
+        },
+        {
+          "title": "explicit router rule split buffers are admitted BEFORE allocation, not hidden as opaque normalization",
+          "status": "passed"
+        },
+        {
+          "title": "explicit router grant split buffers are admitted BEFORE allocation, not hidden as opaque normalization",
+          "status": "passed"
+        },
+        {
+          "title": "canonical native configuration normalization (tiny return) is admitted before the explicit router copy",
+          "status": "passed"
+        },
+        {
+          "title": "canonical native configuration normalization (oversized return) is admitted before the explicit router copy",
+          "status": "passed"
+        },
+        {
+          "title": "real opaque Mongoose copies (1 \u00d7 17825792 bytes) discarded to tiny results may pass",
+          "status": "passed"
+        },
+        {
+          "title": "real opaque Mongoose copies (5 \u00d7 4194304 bytes) discarded to tiny results may pass",
+          "status": "passed"
+        },
+        {
+          "title": "an oversized normalized result fails BEFORE the next explicit router native copy",
+          "status": "passed"
+        }
+      ]
+    },
+    "owned-authorization-many.unit.test.ts": {
+      "tests": 52,
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "1 rows capture once but retain every row/function evaluation",
+          "status": "passed"
+        },
+        {
+          "title": "10 rows capture once but retain every row/function evaluation",
+          "status": "passed"
+        },
+        {
+          "title": "100 rows capture once but retain every row/function evaluation",
+          "status": "passed"
+        },
+        {
+          "title": "owns every later original before the FIRST synchronous predicate",
+          "status": "passed"
+        },
+        {
+          "title": "duplicates share no native leaves, source, stage or decisions",
+          "status": "passed"
+        },
+        {
+          "title": "synchronous actor/schema/options mutation affects only the next independent call",
+          "status": "passed"
+        },
+        {
+          "title": "await boundaries keep captured globals/policy/catalog, but not live closures or request.user",
+          "status": "passed"
+        },
+        {
+          "title": "captures actor primitives before native CONFIGURATION exposure",
+          "status": "passed"
+        },
+        {
+          "title": "admits non-owned initialized actor copies before constructing their router buffers",
+          "status": "passed"
+        },
+        {
+          "title": "charges large custom-access memo strings BEFORE their router construction or predicates",
+          "status": "passed"
+        },
+        {
+          "title": "does not await or cancel detached arbitrary closure effects",
+          "status": "passed"
+        },
+        {
+          "title": "core retains EMPTY/scoped policy without row/hooks/DB/virtual authority",
+          "status": "passed"
+        },
+        {
+          "title": "service retains EMPTY/scoped policy without row/hooks/DB/virtual authority",
+          "status": "passed"
+        },
+        {
+          "title": "publicService retains EMPTY/scoped policy without row/hooks/DB/virtual authority",
+          "status": "passed"
+        },
+        {
+          "title": "owns genuine embedded subtrees and retains nested-array value semantics",
+          "status": "passed"
+        },
+        {
+          "title": "retains ordinary Map-to-record and canonical native value normalization",
+          "status": "passed"
+        },
+        {
+          "title": "bad later source fails before ANY predicate, including a synchronous first-row one",
+          "status": "passed"
+        },
+        {
+          "title": "empty/nullish/frozen/1,000 positions validate fully, without row stages for nullish positions",
+          "status": "passed"
+        },
+        {
+          "title": "rejects proxy outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects subclass outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects hole outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects accessor outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects hidden outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects symbol outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects extra outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects iterable outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects stream outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects oversize outer input without iterator/getter/proxy observations",
+          "status": "passed"
+        },
+        {
+          "title": "rejects proxy row roots before predicates",
+          "status": "passed"
+        },
+        {
+          "title": "rejects cycle row roots before predicates",
+          "status": "passed"
+        },
+        {
+          "title": "rejects array row roots before predicates",
+          "status": "passed"
+        },
+        {
+          "title": "rejects scalar row roots before predicates",
+          "status": "passed"
+        },
+        {
+          "title": "rejects symbol row roots before predicates",
+          "status": "passed"
+        },
+        {
+          "title": "rejects accessor row roots before predicates",
+          "status": "passed"
+        },
+        {
+          "title": "core rejects the complete control-presence matrix before native data work",
+          "status": "passed"
+        },
+        {
+          "title": "service rejects the complete control-presence matrix before native data work",
+          "status": "passed"
+        },
+        {
+          "title": "publicService rejects the complete control-presence matrix before native data work",
+          "status": "passed"
+        },
+        {
+          "title": "rejects proxy options, nested policy getters, sparse scopes and forged/cross-request receivers",
+          "status": "passed"
+        },
+        {
+          "title": "rejects tampered request service ownership before native source effects",
+          "status": "passed"
+        },
+        {
+          "title": "rejects tampered core service ownership before native source effects",
+          "status": "passed"
+        },
+        {
+          "title": "rejects tampered runtime service ownership before native source effects",
+          "status": "passed"
+        },
+        {
+          "title": "rejects tampered modelName service ownership before native source effects",
+          "status": "passed"
+        },
+        {
+          "title": "rejects tampered model service ownership before native source effects",
+          "status": "passed"
+        },
+        {
+          "title": "maps an invalid native configuration preparation to controlled 400, even for an empty array",
+          "status": "passed"
+        },
+        {
+          "title": "does not observe an inherited ledger getter while rejecting polluted control prototypes",
+          "status": "passed"
+        },
+        {
+          "title": "bounds shared hook branches and keeps stable indexed positions",
+          "status": "passed"
+        },
+        {
+          "title": "retains field order, sync-until-async, body throw/reject omission and shared-gate reentry",
+          "status": "passed"
+        },
+        {
+          "title": "shares root FIFO with other hook chains, not a private batch-only gate",
+          "status": "passed"
+        },
+        {
+          "title": "hook depth admission is controlled failure, not a false permission body",
+          "status": "passed"
+        },
+        {
+          "title": "success actually closes and clears private sources/memos/preparation",
+          "status": "passed"
+        },
+        {
+          "title": "failure actually closes and clears private sources/memos/preparation",
+          "status": "passed"
+        },
+        {
+          "title": "caught native poison stops new fields/rows, drains admitted work and cannot publish late",
+          "status": "passed"
+        }
+      ]
+    },
+    "packed-consumer-compatibility.test.ts": {
+      "tests": 13,
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "OAR-05 verifies fresh helpers, current-document reads and private guards on a fresh public tarball",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-04 rejects overbound native scopes on packed public LIST/READ in both source modes and retains ordinary Code/DBRef",
+          "status": "passed"
+        },
+        {
+          "title": "ARL-08 installs the numeric count API with minimum peers in Bundler, NodeNext and Node16",
+          "status": "passed"
+        },
+        {
+          "title": "ARL-08 installs the numeric count API with current majors in Bundler, NodeNext and Node16",
+          "status": "passed"
+        },
+        {
+          "title": "applies the real `@repo-toolkit/publish-package` manifest transformation to the access-router tarball",
+          "status": "passed"
+        },
+        {
+          "title": "rewrites every internal workspace dependency to the test version in all packed tarballs",
+          "status": "passed"
+        },
+        {
+          "title": "packs the current JavaScript, declaration graph and shipped docs",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 packs the linked executable guide without private authority or test files",
+          "status": "passed"
+        },
+        {
+          "title": "assembles the current JavaScript, declaration graph and shipped docs in the artifact",
+          "status": "passed"
+        },
+        {
+          "title": "supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers",
+          "status": "passed"
+        },
+        {
+          "title": "supports current majors from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers",
+          "status": "passed"
+        },
+        {
+          "title": "supports minimum peers from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers",
+          "status": "passed"
+        },
+        {
+          "title": "supports current majors from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers",
+          "status": "passed"
+        }
+      ]
+    },
+    "strict-consumer-types.test.ts": {
+      "tests": 49,
+      "status": "passed",
+      "assertions": [
+        {
+          "title": "OAR-09F checks conservative collection types and real negative diagnostics (Bundler / ts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-09F checks conservative collection types and real negative diagnostics (NodeNext / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-09F checks conservative collection types and real negative diagnostics (NodeNext / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-09F checks conservative collection types and real negative diagnostics (Node16 / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-09F checks conservative collection types and real negative diagnostics (Node16 / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 checks installed modes, immutable diagnostics and exact guide workflow (Bundler / ts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 checks installed modes, immutable diagnostics and exact guide workflow (NodeNext / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 checks installed modes, immutable diagnostics and exact guide workflow (NodeNext / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 checks installed modes, immutable diagnostics and exact guide workflow (Node16 / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 checks installed modes, immutable diagnostics and exact guide workflow (Node16 / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 retires ten flags and keeps unshipped fusion controls absent (Bundler / ts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 retires ten flags and keeps unshipped fusion controls absent (NodeNext / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 retires ten flags and keeps unshipped fusion controls absent (NodeNext / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 retires ten flags and keeps unshipped fusion controls absent (Node16 / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 retires ten flags and keeps unshipped fusion controls absent (Node16 / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 compiles every guide target and separately rejects every old statement (Bundler / ts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 compiles every guide target and separately rejects every old statement (NodeNext / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 compiles every guide target and separately rejects every old statement (NodeNext / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 compiles every guide target and separately rejects every old statement (Node16 / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAR-08 compiles every guide target and separately rejects every old statement (Node16 / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "DPV-01 checks private populated getter inputs (ts)",
+          "status": "passed"
+        },
+        {
+          "title": "DPV-01 checks private populated getter inputs (mts)",
+          "status": "passed"
+        },
+        {
+          "title": "DPV-01 checks private populated getter inputs (cts)",
+          "status": "passed"
+        },
+        {
+          "title": "MPO-03 checks precise optional target/default populate flags and caller boundaries (ts)",
+          "status": "passed"
+        },
+        {
+          "title": "MPO-03 checks precise optional target/default populate flags and caller boundaries (mts)",
+          "status": "passed"
+        },
+        {
+          "title": "MPO-03 checks precise optional target/default populate flags and caller boundaries (cts)",
+          "status": "passed"
+        },
+        {
+          "title": "ARL-08 checks installed numeric count API (Bundler / ts)",
+          "status": "passed"
+        },
+        {
+          "title": "ARL-08 checks installed numeric count API (NodeNext / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "ARL-08 checks installed numeric count API (NodeNext / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "ARL-08 checks installed numeric count API (Node16 / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "ARL-08 checks installed numeric count API (Node16 / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-F03 checks finite named helper migrations (Bundler / ts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-F03 checks finite named helper migrations (NodeNext / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-F03 checks finite named helper migrations (NodeNext / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-F03 checks finite named helper migrations (Node16 / mts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-F03 checks finite named helper migrations (Node16 / cts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-10 checks installed authorization types and public boundaries (ts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-10 checks installed authorization types and public boundaries (mts)",
+          "status": "passed"
+        },
+        {
+          "title": "SVA-10 checks installed authorization types and public boundaries (cts)",
+          "status": "passed"
+        },
+        {
+          "title": "rejects the removed service overrides surface (ts)",
+          "status": "passed"
+        },
+        {
+          "title": "rejects the removed service overrides surface (mts)",
+          "status": "passed"
+        },
+        {
+          "title": "rejects the removed service overrides surface (cts)",
+          "status": "passed"
+        },
+        {
+          "title": "accepts real AJV overloads and rejects unsupported structural validators (ts)",
+          "status": "passed"
+        },
+        {
+          "title": "accepts real AJV overloads and rejects unsupported structural validators (mts)",
+          "status": "passed"
+        },
+        {
+          "title": "accepts real AJV overloads and rejects unsupported structural validators (cts)",
+          "status": "passed"
+        },
+        {
+          "title": "accepts valid filters/projections/runtime calls and rejects invalid ones across public subpaths",
+          "status": "passed"
+        },
+        {
+          "title": "OAV-01 accepts route variants and real typed setter paths (ts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAV-01 accepts route variants and real typed setter paths (mts)",
+          "status": "passed"
+        },
+        {
+          "title": "OAV-01 accepts route variants and real typed setter paths (cts)",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "runnerTests": 45,
+  "retainedFirstFullFailure": [
+    {
+      "file": "field-catalog.unit.test.ts",
+      "title": "preserves split order, errors and non-string runtime fallback",
+      "messages": [
+        "AssertionError: expected { error: 'TypeError', \u2026(2) } to deeply equal { error: 'TypeError', \u2026(2) }\n    at <machine-local-path>    at file://<machine-local-path>    at file://<machine-local-path>    at file://<machine-local-path>    at new Promise (<anonymous>)\n    at runWithCancel (file://<machine-local-path>)\n    at file://<machine-local-path>    at new Promise (<anonymous>)\n    at runWithTimeout (file://<machine-local-path>)\n    at file://<machine-local-path>"
+      ]
+    }
+  ],
+  "chronology": {
+    "fullCoreStartedAt": "2026-11-02T18:51:36.758693+00:00",
+    "scopedSourceFiles": 609,
+    "sourceMtimesAfterStart": [],
+    "entryHashesUnchanged": true,
+    "oldIncomingRelativeDiffReproduced": true,
+    "snapshotReconstructedAfterGates": true,
+    "evidenceLimit": "No pre-run sealed source manifest existed; reuse rests on mtime chronology, reproduced incoming-relative diff, passing original records and installed-byte comparison, not an invented historical attestation"
+  }
+}

@@ -230,20 +230,20 @@ The runner awaits one child at a time and stops its one disposable Mongo in fina
 
 The fixed catalog (`--plan` writes every ID) is:
 
-| Family                | Actual API/work                                                                                                                                  | Reads and document hooks per operation                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| primary               | Original plain-wide, document-rules, embedded HTTP LIST; 100 rows/24 fields/32 bytes                                                             | 1 read; document-rules 100 hooks, others 0                                                                                                              |
-| guard                 | All six original guards at 10/100 rows                                                                                                           | 1 read (populate 2); virtuals 2 getters/row; no doc hooks                                                                                               |
-| read                  | Generated POST `/bench/__query/<id>` and `/bench/__query/__filter`; cycle 100 persisted IDs; wide/document/embedded plus hydrated/virtual guards | 1 `findOne`, 1 returned row; document case 1 hook, virtual case 2 getters; no counts                                                                    |
-| H0                    | Packed direct `findById` then ordinary presentation subset, in an HTTP workflow wrapper                                                          | 1 initial read, subset +0 reads/hooks                                                                                                                   |
-| H1 / H1-scoped        | `pickAllowedFields`, `trimOutputFields`, `genAllowedFields(...,{purpose:'output'})`; global functions and explicit scoped output policy          | 0 DB operations/hooks/virtuals; new hooks observe frozen EMPTY facts                                                                                    |
-| H2 / H2-query         | Old initial `findById` + actual context handle pick versus new initial + fresh `findById`; matching normal query alone is separate               | old 1 read/hook; new 2 reads/hooks; query component 1/1                                                                                                 |
-| H3 / H3-query         | Same migration via `find` at 10/100 rows and actual old per-row `contexts[i]` handles                                                            | old 1 batched read/rows hooks; new 2 batched reads/2×rows hooks, **not per-row queries**                                                                |
-| H2-global / H3-global | Old handle reuse versus new fresh raw helper on global-only rules                                                                                | 1 initial read; helper +0 reads/hooks                                                                                                                   |
-| H4                    | Actual exported `guard({modelName,id,condition})`                                                                                                | 1 normal read/hook. Metadata enabled on BOTH artifacts for comparable old guard behavior; separate new guard security coverage is in full package tests |
-| native-adapter        | Packed direct `findById` / `find` with bounded Date/Buffer/ObjectId/Code.scope/DBRef.fields and nested Map/array                                 | **0 Mongo reads**; explicit Query adapter 1 call; 1 or 100 hooks. This is NOT Mongo timing                                                              |
-| facts                 | Own owner-only baseline versus identical used owner + unused boolean checksum fact, 100 rows/24 fields                                           | 1 read, 100 hooks, exactly 100 × 10,000 checksum iterations in expensive case, independent of selected fields                                           |
-| retention             | `--expose-gc`, fixed 100 rows at 4/24/48 fields, five warmups; four cycles of five operations, held/released result and three GCs/observation    | retained bytes, **NOT allocation counts**; true allocation counters unavailable                                                                         |
+| Family                | Actual API/work                                                                                                                                  | Reads and document hooks per operation                                                                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| primary               | Original plain-wide, document-rules, embedded HTTP LIST; 100 rows/24 fields/32 bytes                                                             | 1 read; document-rules 100 hooks, others 0                                                                                                                                       |
+| guard                 | All six original guards at 10/100 rows                                                                                                           | 1 read (populate 2); virtuals 2 getters/row; no doc hooks                                                                                                                        |
+| read                  | Generated POST `/bench/__query/<id>` and `/bench/__query/__filter`; cycle 100 persisted IDs; wide/document/embedded plus hydrated/virtual guards | 1 `findOne`, 1 returned row; document case 1 hook, virtual case 2 getters; no counts                                                                                             |
+| H0                    | Packed direct `findById` then ordinary presentation subset, in an HTTP workflow wrapper                                                          | 1 initial read, subset +0 reads/hooks                                                                                                                                            |
+| H1 / H1-scoped        | `pickAllowedFields`, `trimOutputFields`, `genAllowedFields(...,{purpose:'output'})`; global functions and explicit scoped output policy          | 0 DB operations/hooks/virtuals; new hooks observe frozen EMPTY facts                                                                                                             |
+| H2 / H2-query         | Old initial `findById` + actual context handle pick versus new initial + fresh `findById`; matching normal query alone is separate               | old 1 read/hook; new 2 reads/hooks; query component 1/1                                                                                                                          |
+| H3 / H3-query         | Same migration via `find` at 10/100 rows and actual old per-row `contexts[i]` handles                                                            | old 1 batched read/rows hooks; new 2 batched reads/2×rows hooks, **not per-row queries**                                                                                         |
+| H2-global / H3-global | Old handle reuse versus new fresh raw helper on global-only rules                                                                                | 1 initial read; helper +0 reads/hooks                                                                                                                                            |
+| H4                    | Actual exported `guard({modelName,id,condition})`                                                                                                | 1 root read/hook; new candidate facts-only consumer has 0 output callbacks. Metadata configuration remains enabled on BOTH artifacts for the unchanged historical guard workload |
+| native-adapter        | Packed direct `findById` / `find` with bounded Date/Buffer/ObjectId/Code.scope/DBRef.fields and nested Map/array                                 | **0 Mongo reads**; explicit Query adapter 1 call; 1 or 100 hooks. This is NOT Mongo timing                                                                                       |
+| facts                 | Own owner-only baseline versus identical used owner + unused boolean checksum fact, 100 rows/24 fields                                           | 1 read, 100 hooks, exactly 100 × 10,000 checksum iterations in expensive case, independent of selected fields                                                                    |
+| retention             | `--expose-gc`, fixed 100 rows at 4/24/48 fields, five warmups; four cycles of five operations, held/released result and three GCs/observation    | retained bytes, **NOT allocation counts**; true allocation counters unavailable                                                                                                  |
 
 All ordinary families have 100 samples, guards 50, one client, hook concurrency 10,
 five warmups. `current-default` (ten OFF) and `current-active` (ten ON) are **the SAME
@@ -251,7 +251,22 @@ sealed old build**, not versions/new source modes. Paired comparisons are
 isolated/default and trusted/active. Round two reverses both case and profile order.
 
 Every measured response is fully checked on BOTH artifacts, plus before/after checks.
-This is `checked-each-response-v1`, **not** the old row-count-only timing series.
+This is `checked-each-response-v2`, **not** the old row-count-only timing series or
+the sealed `checked-each-response-v1` full-DTO guard mechanism. New candidate metadata
+must explicitly bind `countContract: { revision: 'facts-only-v1', artifactSha256 }`
+to its exact root ESM hash. Modes/declarations do not prove this revision. The new
+runner rejects absent/mismatched contracts and an actual 24-callback H4 candidate;
+there is no 0-or-24 fallback. Historical metadata guards still actually perform zero
+callbacks; prior owned candidates and their tools/reports still truthfully mean 24.
+
+The H4 route/body/seed/selection/fetch/hook/condition/response and one root read/hook
+are unchanged, but the accepted facts-only consumer constructs no DTO and performs
+**zero output callbacks**. Outside timing, new counted guard controls compare actual
+root query/projection and hook inputs against ordinary DTO reads (still 24 callbacks),
+in lean/hydrated modes, with true/false/invalid facts and actual closed/cleared stage
+observations. Helper probes instrument the real shared selection/reference-origin
+seams, retain 100 fresh captures and 2,400 field evaluations, and fail if seams vanish.
+No workload, gate, sample count, paired sign rule or exactly-two-repeat rule changes.
 Original LIST request latency excludes the post-response deep check; its process CPU
 includes it. New workflow latencies include their checks. Never pool these APIs/series.
 Raw samples, each fingerprint, actual Node user/system CPU totals and elapsed time are
@@ -303,3 +318,70 @@ These encode the pre-candidate OAR-01 protocol, not tuned thresholds:
 nearest-rank per job. Two rounds are a reproducibility screen: no CI/significance or
 universal speed/security-equivalence claim. Product timings are not established by
 unit tests, correctness runs or OAR-09A smokes.
+
+### Additive B1 collection-helper supplement (report only)
+
+`access-router-owned-batch.mjs` is a **separate** driver. It never adds B1 to the
+45-case catalog or its 90 retention comparisons. In particular, old
+`helper/H3-global/100` still queries and then performs **100 independent fresh raw
+helper calls**, not one `pickAllowedFieldsMany`. Historical failures remain visible.
+
+The B1 config has exactly the original five artifact/seal paths; no case, setting,
+strategy, sample, gate or repeat overrides are accepted. From the repo root:
+
+```sh
+node scripts/benchmarks/access-router-owned-batch.mjs --plan B1-PROTOCOL.json NEW-plan-directory
+node scripts/benchmarks/access-router-owned-batch.mjs --smoke B1-PROTOCOL.json NEW-correctness-directory
+```
+
+Replace those paths with the accepted preparation packet's repo-relative paths.
+The separate fresh measurement owner may use `--run` **only after coordinator
+reconciliation**. Preparation owners must not start either final campaign.
+
+The full predeclared B1 matrix has **16 comparisons**: 10/100 rows × raw-only /
+query-plus-helper × isolated/default or trusted/active pairing × two comparators:
+
+| Candidate                  | Current-build comparator                      | Historical matching-profile comparator                          |
+| -------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
+| Raw-only Many              | N independent raw picks, no query             | N actual old raw picks, no document hook configured, zero reads |
+| Actual initial LIST + Many | Actual initial LIST + N independent raw picks | Actual initial LIST + N actual issued row-handle picks          |
+
+All variants use H3's deterministic ordinal plus 24 business fields, 32-byte payload
+suffix, string/global rules, zero function callbacks, one client, hook concurrency
+10, five warmups and 100 samples. Raw-only prepares its rows outside the operation
+and performs no query inside it. Query variants time their **whole actual workflow**;
+no query subtraction, component latency synthesis or sum of component p95s.
+Each HTTP operation has a fresh original request/Core. Equal constant global values
+do **not** equate one entry capture with N independent freshness boundaries or
+historical issued authority. This is not a migration/default recommendation.
+
+Each comparison starts with two reversed paired rounds; round two also reverses
+comparison order. Any initial metric sign disagreement (including tiny/zero effects)
+or absolute material delta (>10% AND >1 ms median, >15% AND >2 ms p95, >10% AND
+
+> 0.5 ms CPU) triggers **exactly** rounds 3 and 4 for that entire comparison, with
+> reversed pair order. These flags govern **descriptive stability only**, not any new
+> acceptance rule. No selective extra sampling or discards: 64 initial jobs, at most
+> 64 additional, **128 maximum**. Smoke is one pair/two samples/one warmup: 32 jobs,
+> not performance, retention, sign or gate evidence. The original sign/noise/gates
+> remain unchanged and apply only through the original driver.
+
+Every B1 response is fully checked (all values, row order, private-field absence)
+and fingerprinted. Reports retain all latency samples, actual process CPU user/system
+and elapsed totals, directly observed nearest-rank p95, actual DB/hook/virtual and
+API-call counts. Allocation totals and DB CPU remain unavailable. A separate compiler
+child verifies publicly reachable Core/Base methods and root/advanced result types
+in both declaration conditions. Both models' exact/bulk runtime getters must agree.
+
+Untimed copied-artifact probes prove one versus N helper configuration/catalog
+captures, distinct N source/stage/memo owners, 24×N string-rule business checks,
+and a separate 24×N **all-function** control with original-request `this`, captured
+globals and frozen EMPTY facts. Repeated references, all-source-first admission,
+scope/policy validation, actual hydrated normalization, sticky caught poison/drain,
+late-closed access, and actual private record clearing are checked. Explicit Promise
+constructors, binding object seams and Permission map constructors are observed,
+not inferred from helper counts; they are not total engine allocation counters.
+The approved 200,000 work / 16 MiB caps cover **router-controlled** work/copies only;
+opaque Mongoose/native normalization internals, dependency allocations, engine
+enumeration and arbitrary trusted callbacks are excluded. Per-row 20,000/depth-100
+limits remain. Never time an instrumented entry or an overflowing fixture.

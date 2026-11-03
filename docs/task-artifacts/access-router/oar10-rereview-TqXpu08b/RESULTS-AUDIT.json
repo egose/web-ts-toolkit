@@ -1,0 +1,63 @@
+{
+  "status": "PASS",
+  "freshExecuted": {
+    "completePermanentFile": {
+      "tests": 24,
+      "prose": 5,
+      "dataPaths": 18,
+      "guard": 1,
+      "failed": 0,
+      "pending": 0
+    },
+    "packedRuntime": {
+      "tests": 7,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "esmAndCjsDataPaths": 36,
+      "guardControls": 2,
+      "realMongoModes": [
+        "isolated",
+        "trusted"
+      ],
+      "newMongoDirectory": "_tmp-oar10-rereview-TqXpu08b/mongo-data-final"
+    },
+    "strictPublicTypes": {
+      "conditions": 5,
+      "equalitiesEach": 8,
+      "positiveDiagnostics": 0,
+      "unsuppressedNegativeStatementsEach": 5,
+      "negativeDiagnosticsEach": 5,
+      "totalExpectedNegativeDiagnostics": 25,
+      "allEightShippedDeclarationBytesUnchanged": true,
+      "actualLoadedDeclarationsEach": 3,
+      "skipLibCheck": false,
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "noAnyCastsOrSuppressions": true
+    }
+  },
+  "copiedFinalFixturesByteIdentical": true,
+  "installedClosureUnchangedAfterExecution": {
+    "files": 81,
+    "dependencyLinks": 37
+  },
+  "independentReadmeInventory": {
+    "lexical": 44,
+    "ownerLexical": 37,
+    "union": 45,
+    "supplementalNewLines": 13,
+    "distinctMatchedLines": 58,
+    "equivalentLiveContradictionsFound": 0
+  },
+  "packetIgnored": true,
+  "checksNotRerun": [
+    "prior 26 packed tests",
+    "prior 405 cross-path tests",
+    "prior five broader strict conditions",
+    "6046 core / 742 deco full suites",
+    "full peer matrices",
+    "timing campaigns / independent raw mathematics"
+  ],
+  "freshNonzeroCommands": []
+}

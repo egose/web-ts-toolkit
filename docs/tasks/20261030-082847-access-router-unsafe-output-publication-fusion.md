@@ -3,6 +3,11 @@
 Created: 2026-10-30 08:28:47 PDT
 Status: completed
 
+Evidence preservation: [curated archive](../task-artifacts/access-router/README.md).
+Selected documents now use tracked paths. References to raw logs, builds, seals
+and other omitted files still describe the original ignored packets; they are not
+included beside the archived handoffs. Historical findings/statuses are unchanged.
+
 Outcome: FUSE-01–06 executed sequentially, including independent review and a
 sequential packed-Node16 coverage fix/re-review. The unshipped FUSE-02–04
 prototype, both new options and the third benchmark group were **withdrawn by
@@ -242,6 +247,8 @@ Completion evidence:
   the intentional denial-to-allowance risk, not equivalent authorization.
 - New ignored evidence tree:
   `_tmp-publication-fusion-fuse01-seam-baseline-20261030-a1f4/`.
+  Preserved narrative: `docs/task-artifacts/access-router/publication-fusion-fuse01-seam-baseline-20261030-a1f4/seam-findings.md`
+  and its sibling `coordinator-notes.md`; executable artifacts remain ignored.
   Official before artifact is `before-v1/` (not the incomplete `before/`);
   `before-metadata.json`, `seam-findings.md`, `coordinator-notes.md` and
   `timings/summary.json` retain detailed identities/raw evidence. Verified 14 dist
@@ -321,8 +328,8 @@ Completion evidence:
   passed. Scoped ESLint, changed-source/test Prettier and diff checks passed.
   **16 declaration/JSDoc checks** passed across CJS/ESM root/advanced options;
   runtime/public type export-name sets remain unchanged.
-- Ignored handoff/logs:
-  `_tmp-publication-fusion-fuse02-config-20261030-b73c/coordinator-notes.md`.
+- Preserved handoff (raw logs remain in the original ignored packet):
+  `docs/task-artifacts/access-router/publication-fusion-fuse02-config-20261030-b73c/coordinator-notes.md`.
   FUSE-01 artifact, earlier evidence, runtime dependencies, worker/core, package
   metadata and lock verified unchanged. No active jobs or FUSE-02 blocker.
   Full package/types/downstream/packed/docs/runner/performance await later tasks.
@@ -403,8 +410,10 @@ Completion evidence (prototype only; retention is not established):
 - Minimal independent worker/core third-group declaration/mode/getter plumbing
   moved forward as authorized. Workload definitions/response checks remain unchanged;
   FUSE-04 still owns interactive selection, reports, committed tests and docs.
-- Ignored handoff/artifact: `_tmp-publication-fusion-fuse03-runtime-20261030-c92e/`,
-  `coordinator-notes.md`, final `candidate-v3/` and `pilot-v3/summary.json`.
+- Preserved handoff:
+  `docs/task-artifacts/access-router/publication-fusion-fuse03-runtime-20261030-c92e/coordinator-notes.md`.
+  Final `candidate-v3/` and `pilot-v3/summary.json` remain in the original ignored
+  `_tmp-publication-fusion-fuse03-runtime-20261030-c92e/` packet.
   All 14 live dist files match that candidate; ESM SHA-256
   `6a25bd0d008333f4261bda6f58285456501c56a573456f863c047a8aacae0ec4`.
   Before artifacts, dependencies, lock and earlier phase evidence remain unchanged.
@@ -481,8 +490,8 @@ Completion evidence (provisional feature; final retention awaits FUSE-05):
 - Scoped ESLint/changed-file Prettier/diff checks passed. Historical whole CHANGELOG
   formatting failure is demonstrated against the original; only the new entry is
   formatted, without unrelated churn. Coordinator task-file Prettier also passed.
-- Ignored handoff/logs:
-  `_tmp-publication-fusion-fuse04-consumer-runner-20261030-d84f/coordinator-notes.md`.
+- Preserved handoff (raw logs remain in the original ignored packet):
+  `docs/task-artifacts/access-router/publication-fusion-fuse04-consumer-runner-20261030-d84f/coordinator-notes.md`.
   All 14 live dist files still match FUSE-03 `candidate-v3`; protected runtime/
   dependency/lock/earlier evidence files unchanged. No active jobs or FUSE-04 blocker.
   Full package/types/downstream/final performance and independent review remain.
@@ -575,8 +584,8 @@ Completion evidence — withdrawal, not a delivered optimization:
   runner declaration hash
   `85a7fa10ea3fb85b55523f746015f99944aebc753548a6c710d42d562fd8f65e`;
   lock/dependency identities unchanged. Earlier evidence/user work was preserved.
-- Ignored detailed handoff:
-  `_tmp-publication-fusion-fuse05-integration-20261030-112318-e5b7/coordinator-notes.md`;
+- Preserved detailed handoff:
+  `docs/task-artifacts/access-router/publication-fusion-fuse05-integration-20261030-112318-e5b7/coordinator-notes.md`;
   `timings-overview.md`/JSON and six timing summaries retain full median/p95/CPU/raw
   evidence. Prototype `candidate-current-v1/` still matches FUSE-03 candidate-v3;
   `withdrawn-final-v1/` matches live/before. Frozen diagnostic worker/core permit
@@ -651,11 +660,11 @@ Completion evidence:
   fixture selection. No full-workspace, prototype security-equivalence, application
   or v0.51.0 performance claim is made; no active relevant jobs remain.
 - Detailed independent report:
-  `_tmp-review-fuse06-withdrawal-20261030-125920-c19a/coordinator-review.md`.
+  `docs/task-artifacts/access-router/review-fuse06-withdrawal-20261030-125920-c19a/coordinator-review.md`.
   P3 fix evidence:
-  `_tmp-fuse06-node16-followup-20261030-131813-f60d/coordinator-followup.md`.
+  `docs/task-artifacts/access-router/fuse06-node16-followup-20261030-131813-f60d/coordinator-followup.md`.
   Independent closure:
-  `_tmp-review-fuse06-node16-rereview-20261030-132617-b82e/coordinator-rereview.md`.
+  `docs/task-artifacts/access-router/review-fuse06-node16-rereview-20261030-132617-b82e/coordinator-rereview.md`.
   Coordinator reconciled all statuses/dispositions; FUSE-02–04 are cancelled as
   retained-feature deliveries, with implementation/risk/timing history preserved.
 
