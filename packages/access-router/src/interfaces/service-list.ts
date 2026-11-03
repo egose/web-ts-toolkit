@@ -22,6 +22,8 @@ export interface PublicListOptions {
    * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`
    * when omitted. `includePermissions: true` + `includeFieldPermissions: false`
    * keeps `docPermissions`-hook keys but omits `_view`/`_edit` entirely.
+   * Requires model `disableFieldPermissions: false`; otherwise ignored (the
+   * model option defaults to `true`).
    * Full internal document grants resolve independently of both metadata flags
    * and skim. These maps describe request-user permissions, never backend grants.
    */

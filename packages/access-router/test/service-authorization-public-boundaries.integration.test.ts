@@ -1033,7 +1033,12 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
     'public DTOs preserve business names/options and user metadata without internal authority (strip=%s)',
     async (stripPermissionsField) => {
       const f = await fixture(
-        { stripPermissionsField, docPermissions: () => ({ mayReadNote: false }), hydration: { findOne: 'lean' } },
+        {
+          stripPermissionsField,
+          disableFieldPermissions: false,
+          docPermissions: () => ({ mayReadNote: false }),
+          hydration: { findOne: 'lean' },
+        },
         { operationAccess: true, baseFilter: {}, permissionSchema: { name: true, next: true, internalNote: false } },
       );
       await f.execute(async (req) => {

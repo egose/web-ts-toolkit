@@ -139,6 +139,13 @@ limits. These switches govern request-user metadata serialization; temporary bac
 never forge `_view`/`_edit`. `overrideFilter` remains the query-transform hook and runs once
 even in unrestricted row mode; scope/unrestricted replace only `baseFilter` authority.
 
+`disableFieldPermissions` defaults to `true`: `_view`/`_edit` maps and placeholders
+are neither computed nor emitted, regardless of client flags or method defaults.
+Set it to `false` on the model or runtime model defaults to allow field maps;
+`includeFieldPermissions` then controls whether they are requested. This does not
+change permission enforcement or `docPermissions`-hook keys. Use
+`stripPermissionsField: true` to remove the metadata field entirely.
+
 `skim` is a deprecated compatibility no-op in canonical model operations. True, false
 and omission all retain authorization, document grants, virtuals and decoration.
 Server model `hydration` separately chooses Mongoose materialization; there is no

@@ -34,6 +34,7 @@ const createExposureApp = async (options: Record<string, unknown>) => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/exposure-users',
+    disableFieldPermissions: false,
     operationAccess: { list: true, read: true },
     modelPermissionPrefix: 'm::',
     permissionSchema: {

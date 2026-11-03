@@ -201,6 +201,7 @@ describe('owned finalizer preparation and disposable callback boundaries', () =>
           documentPermissionField: 'meta.permissions',
           exposedDocPermissionKeys: ['visible'],
           stripPermissionsField: false,
+          disableFieldPermissions: false,
         },
         select: ['value', 'when', '-_id'],
       });

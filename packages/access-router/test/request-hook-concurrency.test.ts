@@ -271,6 +271,8 @@ describe('ARL-07 request/runtime-owned hook admission', () => {
     'limit-one nested service/fan-out from %s completes with bounded leaves',
     async (kind) => {
       const f = fixture(1, 1);
+      // Retain field-metadata row queries in this nested persistence-admission case.
+      f.api.setDefaultModelOptions({ disableFieldPermissions: false });
       const leafProbe = new HookProbe();
       let frames = 0;
       let framePeak = 0;

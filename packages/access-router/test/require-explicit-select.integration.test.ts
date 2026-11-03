@@ -32,6 +32,7 @@ const createRequireSelectApp = async (options: Record<string, unknown>) => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/require-select-users',
+    disableFieldPermissions: false,
     operationAccess: { list: true, read: true },
     permissionSchema: {
       name: { list: true, read: true },

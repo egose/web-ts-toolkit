@@ -208,9 +208,10 @@ describe('SVA-03 private finalizer and fresh output helpers', () => {
 
   it.each([
     { stripPermissionsField: true },
-    { stripPermissionsField: false, exposedDocPermissionKeys: [] },
+    { stripPermissionsField: false, exposedDocPermissionKeys: [], disableFieldPermissions: false },
     { stripPermissionsField: false, disableFieldPermissions: true },
     { stripPermissionsField: false },
+    { stripPermissionsField: false, disableFieldPermissions: false },
   ])('metadata posture %j is independent of effective authority', async (posture) => {
     const f = fixture(posture);
     const metadata = { owner: false, _view: { status: false }, _edit: { internalNote: false } };
@@ -226,7 +227,7 @@ describe('SVA-03 private finalizer and fresh output helpers', () => {
     expect(picked).toHaveProperty('internalNote', 'note');
     expect(picked).not.toHaveProperty('status');
     if (posture.stripPermissionsField) expect(output).not.toHaveProperty('_permissions');
-    else if (posture.disableFieldPermissions) expect(output._permissions).toEqual({ owner: false });
+    else if (posture.disableFieldPermissions !== false) expect(output._permissions).toEqual({ owner: false });
     else if (posture.exposedDocPermissionKeys)
       expect(output._permissions).toEqual({ _view: metadata._view, _edit: metadata._edit });
     else expect(output._permissions).toEqual(metadata);
@@ -544,6 +545,7 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       documentPermissionField: 'meta.permissions',
       stripPermissionsField: false,
       exposedDocPermissionKeys: [],
+      disableFieldPermissions: false,
     });
     const metadata = { owner: false, _view: { status: false } };
     const { output, context } = await f.finalize(

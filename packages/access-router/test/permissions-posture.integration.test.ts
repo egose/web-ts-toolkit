@@ -151,9 +151,9 @@ describe('stripPermissionsField', () => {
   });
 });
 
-describe('disableFieldPermissions', () => {
+describe.each([undefined, true])('disableFieldPermissions (%s)', (disableFieldPermissions) => {
   it('list keeps doc hook keys but never emits field maps', async () => {
-    const { app, basePath } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions: true });
+    const { app, basePath } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
 
     const res = await request(app)
       .get(`${basePath}?include_permissions=true&include_field_permissions=true`)
@@ -165,7 +165,7 @@ describe('disableFieldPermissions', () => {
   it('read and update keep doc hook keys but never emit field maps', async () => {
     const { app, basePath, id } = await createPostureApp({
       prefix: 'AclPostureDisable',
-      disableFieldPermissions: true,
+      disableFieldPermissions,
     });
 
     const read = await request(app)
@@ -184,7 +184,7 @@ describe('disableFieldPermissions', () => {
   it('client field flags stay disabled even when owner defaults enable permissions', async () => {
     const { app, basePath } = await createPostureApp({
       prefix: 'AclPostureDisable',
-      disableFieldPermissions: true,
+      disableFieldPermissions,
       defaults: { publicListOptions: { includePermissions: true } },
     });
 
@@ -194,7 +194,7 @@ describe('disableFieldPermissions', () => {
 
     // Without owner defaults, an explicit client field flag is still ignored:
     // both flags resolve false, and disabled field maps have no placeholders.
-    const plain = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions: true });
+    const plain = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
     const explicit = await request(plain.app).get(`${plain.basePath}?include_field_permissions=true`).expect(200);
     expect(explicit.body.data[0]._permissions).toEqual({});
   });
@@ -205,7 +205,7 @@ describe('disableFieldPermissions', () => {
     '?include_permissions=false&include_field_permissions=true',
     '?include_permissions=false&include_field_permissions=false',
   ])('list omits placeholders when doc permissions are not requested: %s', async (query) => {
-    const { app, basePath } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions: true });
+    const { app, basePath } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
 
     const res = await request(app).get(`${basePath}${query}`).expect(200);
     expect(res.body.data).toHaveLength(1);
@@ -215,7 +215,7 @@ describe('disableFieldPermissions', () => {
   });
 
   it('root batch field flags are ignored', async () => {
-    const { app, modelName } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions: true });
+    const { app, modelName } = await createPostureApp({ prefix: 'AclPostureDisable', disableFieldPermissions });
 
     const res = await request(app)
       .post('/root')
@@ -240,7 +240,7 @@ describe('disableFieldPermissions', () => {
   ])('root batch omits placeholders with $label', async ({ options }) => {
     const { app, modelName, id } = await createPostureApp({
       prefix: 'AclPostureDisable',
-      disableFieldPermissions: true,
+      disableFieldPermissions,
     });
     const entries = [
       { op: 'list' },

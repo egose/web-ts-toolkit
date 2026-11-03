@@ -597,7 +597,7 @@ describe('SVA-06 explicit related policies', () => {
         ...(posture === 'stripped'
           ? { stripPermissionsField: true }
           : posture === 'limited'
-            ? { exposedDocPermissionKeys: ['other'] }
+            ? { exposedDocPermissionKeys: ['other'], disableFieldPermissions: false }
             : { disableFieldPermissions: true }),
       });
       await f.execute(async (req) => {

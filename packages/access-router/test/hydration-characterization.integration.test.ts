@@ -560,7 +560,10 @@ describe('server-owned hydration compatibility characterization', () => {
         hydration: { publicList: mode(lean), publicRead: mode(lean), findOne: mode(lean) },
         exposedDocPermissionKeys: ['allowed'],
       });
-      f.api.runtime.setModelOptions(f.targetName, { documentPermissionField: 'meta.grants' });
+      f.api.runtime.setModelOptions(f.targetName, {
+        documentPermissionField: 'meta.grants',
+        disableFieldPermissions: false,
+      });
       const alias = (row: Row) => {
         expect(row.permissions).toBe(row.meta.grants);
         expect(Object.getOwnPropertyDescriptor(row, 'permissions')).toMatchObject({

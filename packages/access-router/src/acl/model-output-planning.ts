@@ -97,7 +97,7 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
     docPermissions,
     exposedDocPermissionKeys: options.exposedDocPermissionKeys,
     stripPermissionsField: options.stripPermissionsField,
-    disableFieldPermissions: options.disableFieldPermissions,
+    disableFieldPermissions: options.disableFieldPermissions ?? true,
     readAuthorizationMode,
     listAuthorizationMode,
     overrideFilter: options.overrideFilter,
@@ -129,7 +129,7 @@ export function captureOutputHelperConfiguration(
   const modelPermissionPrefix = runtime.getExactModelOption(modelName, 'modelPermissionPrefix');
   const exposedDocPermissionKeys = runtime.getExactModelOption(modelName, 'exposedDocPermissionKeys');
   const stripPermissionsField = runtime.getExactModelOption(modelName, 'stripPermissionsField');
-  const disableFieldPermissions = runtime.getExactModelOption(modelName, 'disableFieldPermissions');
+  const disableFieldPermissions = runtime.getExactModelOption(modelName, 'disableFieldPermissions') ?? true;
   const permissionSchema = runtime.getExactModelOption(modelName, 'permissionSchema');
   const virtuals = runtime.getExactModelOption(modelName, 'virtuals') as Record<string, unknown> | undefined;
   return captureAuthorizationConfiguration({

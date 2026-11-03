@@ -228,6 +228,7 @@ describe('owned real query assembly, targets, getters and private inputs', () =>
     '%s keeps READ metadata request-only even when backend output grants allow a denied document field',
     async (mode) => {
       const f = await fixture(false, true, mode);
+      f.api.setModelOption(f.Source.modelName, 'disableFieldPermissions', false);
       await f.execute(async (req) => {
         const result = await req.macl.getService(f.Source.modelName).find({}, f.args, {
           ...quiet,

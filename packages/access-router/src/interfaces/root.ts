@@ -527,7 +527,9 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * are neither computed nor emitted, including empty placeholders.
    * `docPermissions`-hook keys still follow `includePermissions`; when none
    * are included, the permissions field is an empty object. Use
-   * `stripPermissionsField` to remove the field entirely. Defaults to `false`.
+   * `stripPermissionsField` to remove the field entirely. Defaults to `true`;
+   * set `false` on the model or runtime model defaults to allow field maps.
+   * Permission enforcement is unaffected.
    */
   disableFieldPermissions?: boolean;
   /**

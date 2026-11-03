@@ -516,6 +516,7 @@ export class AccessRuntime {
   >({
     listHardLimit: DEFAULT_LIST_HARD_LIMIT,
     documentPermissionField: '_permissions',
+    disableFieldPermissions: true,
     idParam: 'id',
     idField: '_id',
     parentPath: '/',

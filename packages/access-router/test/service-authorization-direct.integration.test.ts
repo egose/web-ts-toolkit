@@ -82,7 +82,11 @@ describe('SVA-05 direct authorized execution', () => {
   it.each([
     ['skim', {}, quiet],
     ['non-skim', {}, { ...quiet, skim: false }],
-    ['metadata enabled', {}, { ...quiet, includePermissions: true, includeFieldPermissions: true }],
+    [
+      'metadata enabled',
+      { disableFieldPermissions: false },
+      { ...quiet, includePermissions: true, includeFieldPermissions: true },
+    ],
     [
       'maps disabled',
       { disableFieldPermissions: true },

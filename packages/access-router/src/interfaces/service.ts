@@ -30,6 +30,7 @@ export interface NewOptions<TModel = unknown, TVirtuals extends object = Record<
   /** @deprecated Compatibility no-op. Authorization, document grants, virtuals and decoration always run. */
   skim?: boolean;
   includePermissions?: boolean;
+  /** Ignored unless the model opts into field maps with disableFieldPermissions: false. */
   includeFieldPermissions?: boolean;
   /** Trusted server-only output authority; no persistence or target dispatch is authorized. */
   readonly authorization?: OutputAuthorization<TModel, TVirtuals>;

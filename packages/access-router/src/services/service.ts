@@ -362,7 +362,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   public getPermissionsPosture(): { stripPermissionsField: boolean; disableFieldPermissions: boolean } {
     return {
       stripPermissionsField: this.options.stripPermissionsField ?? false,
-      disableFieldPermissions: this.options.disableFieldPermissions ?? false,
+      disableFieldPermissions: this.options.disableFieldPermissions ?? true,
     };
   }
 
@@ -698,7 +698,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         documentPermissionField: (o.documentPermissionField as string | undefined) ?? '_permissions',
         exposedDocPermissionKeys: o.exposedDocPermissionKeys as string[] | undefined,
         stripPermissionsField: (o.stripPermissionsField as boolean | undefined) ?? false,
-        disableFieldPermissions: (o.disableFieldPermissions as boolean | undefined) ?? false,
+        disableFieldPermissions: (o.disableFieldPermissions as boolean | undefined) ?? true,
       },
       true,
     );

@@ -815,6 +815,7 @@ describe('F01 independent persisted input authority', () => {
     });
     const f = await fixture({
       permissionSchema: { status: true, hookOnly: { read: 'owner', update: 'owner' }, internalNote: false },
+      disableFieldPermissions: false,
       docPermissions: { update: hook },
       validate: { update: validate },
       transform: { update: transform },

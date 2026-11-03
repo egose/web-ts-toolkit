@@ -10,6 +10,17 @@ its diagnostic context have **no reusable authorization authority**. Neither mod
 is a callback sandbox, database transaction, rollback mechanism, external-cache
 freshness guarantee, blanket security-equivalence claim or performance promise.
 
+## Field permission maps are disabled by default
+
+`disableFieldPermissions` now defaults to `true`. `_view`/`_edit` maps and their
+placeholders are no longer computed or emitted, even when a request or method
+default sets `includeFieldPermissions: true`. Permission enforcement and
+`docPermissions`-hook keys (controlled by `includePermissions`) are unchanged.
+
+To retain field maps, explicitly set `disableFieldPermissions: false` on the model
+or use `api.setDefaultModelOptions({ disableFieldPermissions: false })` for runtime
+model defaults. Use `stripPermissionsField: true` to remove the metadata field entirely.
+
 ## Replace global private-fetch inputs with document-permission descriptors
 
 `alwaysSelectFields` is removed entirely: no option, dotted option, fluent setter,

@@ -175,9 +175,10 @@ package-managed execution, falling back to `defaultRuntime` outside it.
    Public `_upsert` uses the public create or update bucket for its branch; trusted
    `upsert` has `upsertArgs`/`upsertOptions`. There is no `publicUpsertOptions` bucket.
 5. **Metadata posture is absolute.** Model `stripPermissionsField: true` removes
-   the entire output metadata field; `disableFieldPermissions: true` suppresses
-   `_view`/`_edit` computation and output, including placeholders. They win over
-   per-call flags and method defaults.
+   the entire output metadata field; `disableFieldPermissions` defaults to `true`
+   and suppresses `_view`/`_edit` computation and output, including placeholders. They win over
+   per-call flags and method defaults. Set `disableFieldPermissions: false` on a
+   model or with `setDefaultModelOptions` to allow field maps.
    Internal authorization and full document grants still run.
 
 The supported `Defaults` buckets are `findArgs`/`findOptions`,
@@ -2127,11 +2128,13 @@ Two router options lock down permission metadata regardless of client input or
 per-operation `defaults`: `stripPermissionsField: true` removes the whole
 permissions field from outputs (equivalent to `includePermissions: false` with
 the field — including its placeholder — deleted; enforcement still runs), and
-`disableFieldPermissions: true` neither computes nor emits `_view`/`_edit` maps
-(including placeholders) while still honoring `includePermissions` for
+`disableFieldPermissions: true` (the default) neither computes nor emits
+`_view`/`_edit` maps (including placeholders) while still honoring `includePermissions` for
 `docPermissions`-hook keys. When no keys are included, the permissions field is
 an empty object; use `stripPermissionsField: true` to remove it entirely. This
-applies to regular model routes, root batch items, and direct service calls.
+applies to regular model routes, root batch items, and direct service calls. Set
+`disableFieldPermissions: false` on the model or runtime model defaults to opt in
+to field maps; `includeFieldPermissions` then controls whether they are requested.
 
 ## Main Exports
 
