@@ -383,7 +383,8 @@ describe.each([true, false])('POP-07 actual target binding (Q=%s)', (required) =
       const release = deferred();
       const contexts: unknown[] = [];
       f.api.setModelOption(f.Target.modelName, 'docPermissions.read', (_doc, _permissions, context) => {
-        contexts.push(context.mongooseModel);
+        expect(context).not.toHaveProperty('mongooseModel');
+        contexts.push(context.modelName);
         return {};
       });
       f.api.setModelOption(f.Source.modelName, 'overrideFilter.read', async () => {
@@ -403,7 +404,7 @@ describe.each([true, false])('POP-07 actual target binding (Q=%s)', (required) =
         const result = await pending;
         expectTarget(f, (result as any).data.ref);
         expect(contexts.length).toBeGreaterThan(0);
-        expect(contexts.every((model) => model === f.TargetA)).toBe(true);
+        expect(contexts.every((name) => name === f.TargetA.modelName)).toBe(true);
         expect(f.readsA).toHaveBeenCalledTimes(1);
         expect(f.readsB).not.toHaveBeenCalled();
         expect(await service.findOne({ _id: f.parent._id }, args, quiet)).toEqual(invalidTarget);
@@ -469,7 +470,7 @@ describe.each([true, false])('POP-07 actual target binding (Q=%s)', (required) =
           select: ['ref', 'computed'],
           populate: [{ path: 'ref', select: ['name', 'secret'] }],
         });
-        for (const result of [read, created, child]) expect(result.success).toBe(true);
+        for (const result of [read, created, child]) expect(result.success, JSON.stringify(result)).toBe(true);
         for (const output of [(read as any).data, (created as any).data[0], (child as any).data]) {
           expectTarget(f, output.ref);
           expect(output.computed).toBe('private-input');

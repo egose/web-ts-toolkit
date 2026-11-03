@@ -5,15 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../dist/index.mjs';
 import type { ModelRequest, ModelRouterOptions, ServiceOutputContext } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
+import { authorizationModeKeys, serverAuthorizationControls } from '../src/acl/authorization-modes';
 
 useMongoTestDatabase();
-const flags = [
-  'unsafeSkipListOutputSnapshotChecks',
-  'unsafeSkipReadOutputSnapshotChecks',
-  'unsafeSkipListNestedDocumentSnapshotChecks',
-  'unsafeSkipReadNestedDocumentSnapshotChecks',
-] as const;
-const copyFlags = ['unsafeSkipListInitialOutputSnapshotCopy', 'unsafeSkipReadInitialOutputSnapshotCopy'] as const;
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
 let serial = 0;
 
@@ -59,9 +53,10 @@ async function fixture(options: ModelRouterOptions = {}) {
     alwaysSelectFields: ['owner'],
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
-    // Target flags must not choose the origin's mode, including include LIST under READ.
-    ...Object.fromEntries(flags.map((key) => [key, options[key] !== true])),
-    ...Object.fromEntries(copyFlags.map((key) => [key, options[key] !== true])),
+    // A related target chooses its own captured mode at its effective access.
+    ...Object.fromEntries(
+      authorizationModeKeys.map((key) => [key, options[key] === 'trusted' ? 'isolated' : 'trusted']),
+    ),
   });
   const router = api.createRouter(Root, {
     basePath: '/snapshots',
@@ -78,8 +73,6 @@ async function fixture(options: ModelRouterOptions = {}) {
     docPermissions: { read: docHook, list: docHook },
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
-    unsafeSkipReadDocumentSnapshotChecks: true,
-    unsafeSkipListDocumentSnapshotChecks: true,
     ...options,
   });
   const targetRows = await Target.insertMany([
@@ -154,96 +147,95 @@ afterEach(() => {
   mongoose.deleteModel(/^QuerySnapshotHttp/);
 });
 
-describe('query snapshot switches through real read/list, population, include and root execution', () => {
+describe('source modes through real read/list, population, include and root execution', () => {
   it.each(
-    Array.from({ length: 16 }, (_, mask) => ({
+    Array.from({ length: 4 }, (_, mask) => ({
       mask,
-      options: Object.fromEntries(flags.map((key, index) => [key, !!(mask & (1 << index))])),
+      options: Object.fromEntries(
+        authorizationModeKeys.map((key, index) => [key, mask & (1 << index) ? 'trusted' : 'isolated']),
+      ) as ModelRouterOptions,
     })),
-  )('retains permissions, filters and captured output handles for mask=$mask', async ({ options }) => {
-    const f = await fixture(options);
-    await f.execute(async (req) => {
-      const svc = req.macl.getService(f.Root.modelName),
-        pub = req.macl.getPublicService(f.Root.modelName),
-        target = req.macl.getService(f.Target.modelName);
-      for (const operation of ['read', 'list', 'retry'] as const) {
-        const result =
-          operation === 'list'
-            ? await svc.find({}, f.args, quiet)
-            : operation === 'read'
-              ? await svc.findById(String(f.rows[0]._id), f.args, quiet)
-              : await pub._read(String(f.rows[1]._id), f.args, quiet);
-        expect(result.success).toBe(true);
-        if (!result.success) throw new Error(result.code);
-        const output = (operation === 'list' ? (result.data as unknown[])[0] : result.data) as ReturnType<
-          typeof f.expected
-        >;
-        const context =
-          operation === 'list'
-            ? (result as unknown as { contexts: ServiceOutputContext[] }).contexts[0]
-            : (result as unknown as { context: ServiceOutputContext }).context;
-        expect(output).toEqual(f.expected(operation === 'read' ? 'read' : 'list'));
-        const refHandle = context.getDocumentAuthorization(output.ref)!;
-        const includeHandle = context.getDocumentAuthorization(output.items[0])!;
-        const childHandle = context.getDocumentAuthorization(output.children[0])!;
-        expect(refHandle).toBeDefined();
-        expect(includeHandle).toBeDefined();
-        expect(childHandle).toBeDefined();
-        expect(await target.pickAllowedFields(output.ref, 'read', { documentAuthorization: refHandle })).toEqual(
-          output.ref,
-        );
-        expect(
-          await target.pickAllowedFields(output.items[0], 'list', { documentAuthorization: includeHandle }),
-        ).toEqual(output.items[0]);
-        const skip =
-          options[operation === 'list' ? 'unsafeSkipListOutputSnapshotChecks' : 'unsafeSkipReadOutputSnapshotChecks'];
-        output.value = 'changed';
-        output.ref.name = 'changed';
-        const pick = svc.pickAllowedFields(output, operation === 'read' ? 'read' : 'list', {
-          documentAuthorization: context.documentAuthorization,
-        });
-        if (skip) {
-          await expect(pick).resolves.toMatchObject({ value: 'changed', ref: { name: 'changed', secret: 'allowed' } });
-          expect(context.getDocumentAuthorization(output.ref)).toBe(refHandle);
-        } else {
-          await expect(pick).rejects.toThrow();
-          expect(context.getDocumentAuthorization(output.ref)).toBeUndefined();
+  )(
+    'retains permissions, target policy and selection, not reusable output handles, for mode pair=$mask',
+    async ({ options }) => {
+      const f = await fixture(options);
+      await f.execute(async (req) => {
+        const svc = req.macl.getService(f.Root.modelName),
+          pub = req.macl.getPublicService(f.Root.modelName),
+          target = req.macl.getService(f.Target.modelName);
+        for (const operation of ['read', 'list', 'retry'] as const) {
+          const result =
+            operation === 'list'
+              ? await svc.find({}, f.args, quiet)
+              : operation === 'read'
+                ? await svc.findById(String(f.rows[0]._id), f.args, quiet)
+                : await pub._read(String(f.rows[1]._id), f.args, quiet);
+          expect(result.success).toBe(true);
+          if (!result.success) throw new Error(result.code);
+          const output = (operation === 'list' ? (result.data as unknown[])[0] : result.data) as ReturnType<
+            typeof f.expected
+          >;
+          const context =
+            operation === 'list'
+              ? (result as unknown as { contexts: ServiceOutputContext[] }).contexts[0]
+              : (result as unknown as { context: ServiceOutputContext }).context;
+          expect(output).toEqual(f.expected(operation === 'read' ? 'read' : 'list'));
+          expect(context).not.toHaveProperty('documentAuthorization');
+          expect(context).not.toHaveProperty('getDocumentAuthorization');
+          expect(context.docPermissions).toEqual({ owner: true });
+          expect(Object.isFrozen(context.docPermissions)).toBe(true);
+          const hookCount = f.docHook.mock.calls.length;
+          expect(await target.pickAllowedFields(output.ref, 'read')).toEqual({ name: 'owned' });
+          expect(await target.pickAllowedFields(output.items[0], 'list')).toEqual({ name: 'owned' });
+          expect(
+            await target.pickAllowedFields(output.ref, 'read', {
+              authorization: { outputFields: { mode: 'grant', paths: ['secret'] } },
+            }),
+          ).toEqual(output.ref);
+          output.value = 'changed';
+          output.ref.name = 'changed';
+          expect(await svc.pickAllowedFields(output, operation === 'read' ? 'read' : 'list')).toHaveProperty(
+            'value',
+            'changed',
+          );
+          expect(await target.pickAllowedFields(output.ref, 'read')).toEqual({ name: 'changed' });
+          expect(f.docHook).toHaveBeenCalledTimes(hookCount);
         }
-      }
-    });
-    const response = await request(f.app)
-      .post('/root')
-      .send([
-        {
-          target: 'model',
-          name: f.Root.modelName,
-          op: 'read',
-          id: String(f.rows[1]._id),
-          args: f.args,
-          options: quiet,
-        },
-        { target: 'model', name: f.Root.modelName, op: 'list', args: f.args, options: quiet },
-      ])
-      .expect(200);
-    expect(response.body[0].result.data).toEqual(f.expected('list'));
-    expect(response.body[1].result.data).toEqual([f.expected('list')]);
-    f.targetRouter.setOption('operationAccess.read', false);
-    await f.execute(async (req) => {
-      const result = await req.macl.getService(f.Root.modelName).findOne({}, f.args, quiet);
-      expect(result.success).toBe(true);
-      if (result.success)
-        expect((result.data as { ref: unknown }).ref).not.toEqual({ name: 'owned', secret: 'allowed' });
-    });
-    f.router.setOption('operationAccess.read', false);
-    await request(f.app).get(`/snapshots/${f.rows[0]._id}`).expect(401);
-  });
+      });
+      const response = await request(f.app)
+        .post('/root')
+        .send([
+          {
+            target: 'model',
+            name: f.Root.modelName,
+            op: 'read',
+            id: String(f.rows[1]._id),
+            args: f.args,
+            options: quiet,
+          },
+          { target: 'model', name: f.Root.modelName, op: 'list', args: f.args, options: quiet },
+        ])
+        .expect(200);
+      expect(response.body[0].result.data).toEqual(f.expected('list'));
+      expect(response.body[1].result.data).toEqual([f.expected('list')]);
+      f.targetRouter.setOption('operationAccess.read', false);
+      await f.execute(async (req) => {
+        const result = await req.macl.getService(f.Root.modelName).findOne({}, f.args, quiet);
+        expect(result.success).toBe(true);
+        if (result.success)
+          expect((result.data as { ref: unknown }).ref).not.toEqual({ name: 'owned', secret: 'allowed' });
+      });
+      f.router.setOption('operationAccess.read', false);
+      await request(f.app).get(`/snapshots/${f.rows[0]._id}`).expect(401);
+    },
+  );
 
-  it.each(Array.from({ length: 4 }, (_, mask) => mask))(
-    'retains output-copy ownership through real READ/LIST/retry descendants (mask=%s)',
-    async (mask) => {
+  it.each(['isolated', 'trusted'] as const)(
+    'publishes ordinary selected output under %s without DTO authority or helper hook reentry',
+    async (mode) => {
       const options = {
-        ...Object.fromEntries(flags.map((key) => [key, true])),
-        ...Object.fromEntries(copyFlags.map((key, index) => [key, !!(mask & (1 << index))])),
+        readAuthorizationMode: mode,
+        listAuthorizationMode: mode,
       };
       const f = await fixture(options);
       await f.execute(async (req) => {
@@ -266,29 +258,30 @@ describe('query snapshot switches through real read/list, population, include an
               ? (result as unknown as { contexts: ServiceOutputContext[] }).contexts[0]
               : (result as unknown as { context: ServiceOutputContext }).context;
           expect(output).toEqual(f.expected(operation === 'read' ? 'read' : 'list'));
-          for (const child of [output.children[0], output.ref, ...output.items]) {
-            expect(context.getDocumentAuthorization(child)).toBeDefined();
-          }
-          const key = operation === 'list' ? copyFlags[0] : copyFlags[1];
-          expect(f.api.getModelOption(f.Target.modelName, key)).toBe(!options[key]);
-          // Rollback applies to new calls, not previously issued contexts/handles.
-          f.api.setModelOption(f.Root.modelName, key, false);
+          expect(context).not.toHaveProperty('documentAuthorization');
+          expect(context).not.toHaveProperty('getDocumentAuthorization');
+          const key = operation === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
+          expect(f.api.getModelOption(f.Target.modelName, key)).toBe(mode === 'trusted' ? 'isolated' : 'trusted');
+          // Switching changes new calls; a DTO never retains authority to replay.
+          f.api.setModelOption(f.Root.modelName, key, 'isolated');
           output.value = 'changed';
-          const picked = await svc.pickAllowedFields(output, operation === 'read' ? 'read' : 'list', {
-            documentAuthorization: context.documentAuthorization,
-          });
-          // A field helper uses the receiving model's catalog; it is not include
-          // assembly and does not invent the non-schema `items` attachment.
-          const { items: _items, ...expectedPick } = output;
-          expect(picked).toEqual(expectedPick);
+          const hooks = f.docHook.mock.calls.length;
+          const picked = await svc.pickAllowedFields(output, operation === 'read' ? 'read' : 'list');
+          expect(picked).toHaveProperty('value', 'changed');
+          expect(picked).not.toHaveProperty('items');
           expect(picked).not.toBe(output);
           output.children[0] = { ...output.children[0] };
-          expect(context.getDocumentAuthorization(output.ref)).toBeUndefined();
+          expect(await req.macl.getService(f.Target.modelName).pickAllowedFields({ ...output.ref }, 'read')).toEqual({
+            name: 'owned',
+          });
           await expect(
             svc.pickAllowedFields(output, operation === 'read' ? 'read' : 'list', {
-              documentAuthorization: context.documentAuthorization,
-            }),
-          ).rejects.toThrow();
+              documentAuthorization: context,
+            } as never),
+          ).rejects.toMatchObject({
+            result: { code: 'bad_request', errors: [{ detail: expect.stringContaining('removed') }] },
+          });
+          expect(f.docHook).toHaveBeenCalledTimes(hooks);
           f.api.setModelOption(f.Root.modelName, key, options[key]);
         }
       });
@@ -312,7 +305,7 @@ describe('query snapshot switches through real read/list, population, include an
     },
   );
 
-  it.each([...flags, ...copyFlags])('rejects %s across HTTP and a root sibling preflight', async (key) => {
+  it.each(serverAuthorizationControls)('rejects %s across HTTP and a root sibling preflight', async (key) => {
     const f = await fixture();
     for (const operation of ['read', 'list']) {
       await request(f.app)
@@ -332,6 +325,8 @@ describe('query snapshot switches through real read/list, population, include an
       ])
       .expect(400);
     expect(f.docHook).not.toHaveBeenCalled();
-    expect(f.api.getModelOption(f.Root.modelName, key)).toBe(false);
+    if ((authorizationModeKeys as readonly string[]).includes(key))
+      expect(f.api.getModelOption(f.Root.modelName, key)).toBe('isolated');
+    else expect(f.api.getModelOptions(f.Root.modelName)).not.toHaveProperty(key);
   });
 });

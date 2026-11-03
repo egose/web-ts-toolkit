@@ -1,6 +1,9 @@
 /** Shared model output rules. Input/data admission retains its request-only evaluator. */
 import { createValidator } from '../helpers';
 import type { FieldAuthorization } from '../interfaces/service-authorization';
+import type { DocumentGrants } from '../interfaces/access';
+import { EMPTY_DOCUMENT_GRANTS } from './document-grants';
+import { debitOutputWork } from './output-work-ledger';
 
 export type FieldAuthorizationState = 'granted' | 'deferred' | 'denied';
 export type FieldPermissions = { has(key: string): boolean };
@@ -34,12 +37,14 @@ export function extractOutputFieldRuleEntries(
   access: string,
   prefix = '',
 ): { path: string; rule: unknown }[] {
+  debitOutputWork();
   if (!schema) return [{ path: `${prefix}${path}`, rule: undefined }];
   if (Object.prototype.hasOwnProperty.call(schema, path))
     return [{ path: `${prefix}${path}`, rule: extractScopedOutputRule(schema, path, access) }];
   const [head, ...rest] = path.split('.');
   const rule = extractScopedOutputRule(schema, head, access);
-  const raw = schema[head] as { sub?: Record<string, unknown> } | undefined;
+  const value = schema[head];
+  const raw = value && typeof value === 'object' ? (value as { sub?: Record<string, unknown> }) : undefined;
   const entry = { path: `${prefix}${head}`, rule };
   if (!rest.length || !raw?.sub) return [entry];
   return [entry, ...extractOutputFieldRuleEntries(raw.sub, rest.join('.'), access, `${prefix}${head}.`)];
@@ -52,7 +57,11 @@ export const stripModelPermissionPrefix = (key: string, prefix: string): string 
 export function hasExplicitFieldGrant(policy: FieldAuthorization | undefined, path: string): boolean {
   return (
     policy?.mode === 'unrestricted' ||
-    (policy?.mode === 'grant' && policy.paths.some((grant) => path === grant || path.startsWith(`${grant}.`)))
+    (policy?.mode === 'grant' &&
+      policy.paths.some((grant) => {
+        debitOutputWork();
+        return path === grant || path.startsWith(`${grant}.`);
+      }))
   );
 }
 
@@ -118,12 +127,14 @@ export async function evaluateScopedAccessRule(args: {
   req: unknown;
   rule: unknown;
   globalPermissions: FieldPermissions | null | undefined;
-  docPermissions: Record<string, unknown> | null | undefined;
+  docPermissions: DocumentGrants | null | undefined;
   modelPermissionPrefix: string;
 }): Promise<boolean> {
   if (typeof args.rule !== 'function') return evaluateNonFunctionAccessRule(args);
   try {
-    return Boolean(await args.rule.call(args.req, args.globalPermissions, args.docPermissions));
+    return Boolean(
+      await args.rule.call(args.req, args.globalPermissions, args.docPermissions ?? EMPTY_DOCUMENT_GRANTS),
+    );
   } catch {
     return false;
   }
@@ -135,7 +146,7 @@ type ScopedAccessRuleArgs = Parameters<typeof evaluateScopedAccessRule>[0];
 export function evaluateScopedAccessRuleValue(args: ScopedAccessRuleArgs): boolean | Promise<boolean> {
   if (typeof args.rule !== 'function') return evaluateNonFunctionAccessRule(args);
   try {
-    const value = args.rule.call(args.req, args.globalPermissions, args.docPermissions);
+    const value = args.rule.call(args.req, args.globalPermissions, args.docPermissions ?? EMPTY_DOCUMENT_GRANTS);
     if (value && typeof value.then === 'function')
       return (async () => {
         try {
@@ -177,7 +188,7 @@ export async function evaluateEffectiveFieldAuthorization(args: {
   outputFields?: FieldAuthorization;
   req: unknown;
   globalPermissions: FieldPermissions;
-  docPermissions: Record<string, unknown>;
+  docPermissions: DocumentGrants;
   modelPermissionPrefix: string;
   evaluateRule?: (rule: unknown, index: number) => Promise<boolean>;
 }): Promise<boolean> {

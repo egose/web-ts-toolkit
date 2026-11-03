@@ -40,6 +40,8 @@ export const UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS = Object.freeze([
   'unsafeUseReadAuthorizationFastPath',
 ]);
 
+export const AUTHORIZATION_MODE_OPTIONS = Object.freeze(['readAuthorizationMode', 'listAuthorizationMode']);
+
 /** Inspect actual model-option declarations, not comments or similarly named internal fields. */
 async function supportedOptionFlags(declarations, flagNames) {
   // Only preparation parses types. Benchmark workers must not load the compiler
@@ -147,6 +149,83 @@ async function publishedModelOptionFlags(root, declarations) {
   ].filter((flag) => conditions.length > 0 && conditions.every((found) => found.has(flag)));
 }
 
+/** Resolve aliases/inheritance through actual exported root types in BOTH module conditions. */
+async function publishedAuthorizationModes(root, declarations) {
+  const { default: ts } = await import('typescript');
+  const directory = resolve(root, 'packages/access-router/dist');
+  const program = ts.createProgram(
+    declarations.map(([name]) => resolve(directory, name)),
+    {
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      strictNullChecks: true,
+      skipLibCheck: true,
+      types: [],
+    },
+  );
+  if (program.getSyntacticDiagnostics().length) return [];
+  const checker = program.getTypeChecker();
+  const conditions = ['index.d.ts', 'index.d.mts'].map((entry) => {
+    const source = program.getSourceFile(resolve(directory, entry));
+    const module = source && checker.getSymbolAtLocation(source);
+    const found = new Set();
+    if (!module) return found;
+    const optionTypes = [];
+    for (let symbol of checker.getExportsOfModule(module)) {
+      if (!['DefaultModelRouterOptions', 'ModelRouterOptions'].includes(symbol.name)) continue;
+      if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+      const supported = new Set();
+      for (const property of checker.getDeclaredTypeOfSymbol(symbol).getProperties()) {
+        const declaration = property.valueDeclaration ?? property.declarations?.[0];
+        if (!declaration || property.declarations?.length !== 1 || !(property.flags & ts.SymbolFlags.Optional))
+          continue;
+        const type = checker.getTypeOfSymbolAtLocation(property, declaration);
+        if (!type.isUnion() || type.types.length !== 3) continue;
+        const values = type.types.map((entry) =>
+          entry.flags === ts.TypeFlags.Undefined ? undefined : entry.isStringLiteral() ? entry.value : null,
+        );
+        if (values.includes(undefined) && values.includes('isolated') && values.includes('trusted'))
+          supported.add(property.name);
+      }
+      optionTypes.push(supported);
+    }
+    if (optionTypes.length === 2)
+      for (const key of AUTHORIZATION_MODE_OPTIONS) if (optionTypes.every((keys) => keys.has(key))) found.add(key);
+    return found;
+  });
+  return AUTHORIZATION_MODE_OPTIONS.filter((key) => conditions.every((found) => found.has(key)));
+}
+
+export function authorizationModeOptions(target) {
+  if (
+    canonicalJson(target.supportedAuthorizationModes) !== canonicalJson(AUTHORIZATION_MODE_OPTIONS) ||
+    !['isolated', 'trusted'].includes(target.readAuthorizationMode) ||
+    !['isolated', 'trusted'].includes(target.listAuthorizationMode)
+  )
+    throw new Error('Candidate requires both actual published authorization modes; no legacy fallback.');
+  if (['snapshotSkips', 'initialOutputCopySkips', 'authorizationFastPaths'].some((key) => target[key] !== undefined))
+    throw new Error('New authorization modes cannot be combined with historical flag profiles.');
+  return Object.fromEntries(AUTHORIZATION_MODE_OPTIONS.map((key) => [key, target[key]]));
+}
+
+/** Same-mode BOTH is two profiles, not aliases for the historical ten switches. */
+export function authorizationModeCandidates(target, setting) {
+  if (!['isolated', 'trusted', 'both'].includes(setting)) throw new Error('Invalid authorization mode selection.');
+  return (setting === 'both' ? ['isolated', 'trusted'] : [setting]).map((mode) => {
+    const candidate = {
+      ...target,
+      id: `${target.id}-owned-${mode}`,
+      buildId: target.id,
+      buildLabel: target.label,
+      readAuthorizationMode: mode,
+      listAuthorizationMode: mode,
+      label: `${target.label} · READ/LIST ${mode} (verified getters required; LIST timed)`,
+    };
+    authorizationModeOptions(candidate);
+    return candidate;
+  });
+}
+
 /** tsup may put the actual options in a shared declaration chunk instead of index.d.ts. */
 async function readSnapshotDeclarations(root) {
   const directory = resolve(root, 'packages/access-router/dist');
@@ -171,6 +250,7 @@ export async function inspectSnapshotDeclarations(root) {
   const declarations = await readSnapshotDeclarations(root);
   const published = await publishedModelOptionFlags(root, declarations);
   return {
+    supportedAuthorizationModes: await publishedAuthorizationModes(root, declarations),
     supportedSnapshotFlags: (await supportedSnapshotFlags(declarations)).filter((flag) => published.includes(flag)),
     supportedInitialOutputCopyFlags: (await supportedInitialOutputCopyFlags(declarations)).filter((flag) =>
       published.includes(flag),
@@ -218,6 +298,7 @@ export async function verifySnapshotDeclarationManifest(target) {
     'supportedSnapshotFlags',
     'supportedInitialOutputCopyFlags',
     'supportedAuthorizationFastPathFlags',
+    'supportedAuthorizationModes',
   ]) {
     if (target[key] !== undefined && canonicalJson(target[key]) !== canonicalJson(actual[key]))
       throw new Error(`Prepared declaration manifest has fake or inconsistent ${key}.`);
@@ -620,6 +701,7 @@ function caseKey(row) {
 }
 
 function verifiedFastPathModeLabel(target, row, origin) {
+  if (target?.readAuthorizationMode !== undefined) return 'N/A (owned engine)';
   const supported = target?.supportedAuthorizationFastPathFlags;
   if (!Array.isArray(supported)) return 'unknown (unverified)';
   try {
@@ -675,7 +757,33 @@ export function reportRows(report) {
         (origin) => verifiedFastPathModeLabel(referenceTarget, reference, origin) === 'unknown (unverified)',
       );
     const sameOutputs = reference && reference.outputFingerprint === row.outputFingerprint;
-    const comparable = row.status === 'ok' && !unverified && !unverifiedBaseline && sameOutputs;
+    const ownedLabel = (entry, result, key) => {
+      if (entry?.readAuthorizationMode === undefined) return 'N/A (historical)';
+      try {
+        const expected = authorizationModeOptions(entry);
+        const proof = result.authorizationModeVerification;
+        if (proof?.kind !== 'server-option-getters') return 'unknown (unverified)';
+        for (const role of ['source', 'target'])
+          for (const [name, value] of Object.entries(expected))
+            for (const getter of ['getModelOption', 'getModelOptions'])
+              if (proof.models?.[role]?.[getter]?.[name] !== value) return 'unknown (unverified)';
+        return expected[key];
+      } catch {
+        return 'unknown (unverified)';
+      }
+    };
+    const ownedUnverified = ['readAuthorizationMode', 'listAuthorizationMode'].some(
+      (key) =>
+        ownedLabel(target, row, key) === 'unknown (unverified)' ||
+        (reference && ownedLabel(referenceTarget, reference, key) === 'unknown (unverified)'),
+    );
+    const comparable =
+      row.status === 'ok' &&
+      !unverified &&
+      !unverifiedBaseline &&
+      !ownedUnverified &&
+      sameOutputs &&
+      (reference.validationSeries ?? 'historical-row-count-v1') === (row.validationSeries ?? 'historical-row-count-v1');
     let requestedFastMode = 'unknown (unverified)';
     if (hasFastGroup) {
       try {
@@ -688,6 +796,12 @@ export function reportRows(report) {
       comparable && reference.stats.medianMs > 0 ? row.stats.medianMs / reference.stats.medianMs : undefined;
     return {
       version: target?.buildLabel ?? target?.label ?? row.targetId,
+      ...(report.targets.some((entry) => entry.readAuthorizationMode !== undefined)
+        ? {
+            'READ source mode (not timed; verified config)': ownedLabel(target, row, 'readAuthorizationMode'),
+            'LIST source mode (verified config)': ownedLabel(target, row, 'listAuthorizationMode'),
+          }
+        : {}),
       'snapshot skips': snapshotModeLabel(target),
       ...(report.targets.some((entry) => entry.initialOutputCopySkips !== undefined)
         ? { 'initial output copy skips': initialOutputCopyModeLabel(target) }
@@ -704,7 +818,7 @@ export function reportRows(report) {
       rows: row.rows,
       clients: row.concurrency,
       status:
-        row.status === 'ok' && unverified
+        row.status === 'ok' && (unverified || ownedUnverified)
           ? 'UNVERIFIED CONFIG'
           : row.status === 'ok' && reference && !sameOutputs
             ? 'OUTPUT DIFF'
@@ -737,7 +851,8 @@ export async function saveReport(directory, report) {
     'Initial output copy skips are a separate UNSAFE group: ON requires the matching output-comparison skip, otherwise it is dormant. With the new authorization fast path OFF/dormant, eligible graphs still retain bounded shape admission and graph identities; other copies remain.',
     'Authorization fast paths are a third independent experimental UNSAFE group. ON requires all four matching document/output/nested comparison skips and initial-copy skip; otherwise dormant, without enabling prerequisites. Requested/configured modes are not verified modes: unknown/unverified results are never labeled active.',
     'Verified fast-path modes describe server configuration from both getter paths on both actual models, NOT per-row borrowing or runtime omission counts. Trusted rows borrow source/grants/context and omit descendant graph checks; copied/value/getter fallbacks remain. Mutation, stale decisions and omitted native observations can turn denial into allowance. No security equivalence, universal gain or v0.51.0 parity is claimed.',
-    'All current workloads time LIST only. READ configuration is verified but READ is not timed. Runtime omission counts are not instrumented in timing workers; measure them separately. Matching fingerprints validate only this fixture, not the weaker authorization contract.',
+    'All current workloads time LIST only. READ configuration is verified but READ is not timed HERE. The separate access-router-owned.mjs driver measures explicitly selected READ/helper/native/fact families, never this historical table. Runtime omission counts are not instrumented in timing workers; measure them separately. Matching fingerprints validate only this fixture, not security equivalence.',
+    'Owned isolated/trusted are new source-isolation modes, NOT aliases for the old ten flags. Both getters on source and target must verify both modes. Checked-each-response-v1 is a separate timing series from historical row-count-only measurements.',
     'HTTP timing includes loopback transport, response serialization and parsing. Setup, seeding and warmup are excluded.',
     'CPU is the Node worker (HTTP server + client), not the separate MongoDB process. Read counts use Mongoose debug operations.',
     'Each tag uses its own frozen lockfile: dependency-version changes can affect results. Sequential ordering and JIT/OS noise can bias small runs.',

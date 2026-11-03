@@ -1,11 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { mongo } from 'mongoose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  copyAuthorizationValue,
-  matchesAuthorizationSnapshot,
-  ServiceAuthorizationError,
-} from '../src/acl/authorization-snapshot';
+import { copyAuthorizationValue, ServiceAuthorizationError } from '../src/acl/authorization-snapshot';
 
 const bson = mongo.BSON;
 const hex = '0123456789abcdef01234567';
@@ -108,14 +104,14 @@ describe('ARCPU-05 canonical BSON snapshots', () => {
       mutate(copies[0]);
       expect(isDeepStrictEqual(copies[0], expected)).toBe(false);
       expect(isDeepStrictEqual(copies[1], expected)).toBe(true);
-      expect(matchesAuthorizationSnapshot(source, copies[1])).toBe(true);
       mutate(source);
-      expect(matchesAuthorizationSnapshot(source, copies[1])).toBe(false);
+      expect(isDeepStrictEqual(copies[1], expected)).toBe(true);
+      expect(isDeepStrictEqual(source, expected)).toBe(false);
       expect(isDeepStrictEqual(copies[2], expected)).toBe(true);
-      // Constructor shortcuts are deferred: canonical shape cannot prove that
-      // mutable BSON wire hooks are unmodified, including before module import.
-      expect(serialize).toHaveBeenCalledTimes(5); // Three copies and two snapshot comparisons.
-      expect(deserialize).toHaveBeenCalledTimes(5);
+      // The retained input/policy copier still owns one wire clone per occurrence;
+      // there is deliberately no graph comparison or reusable result certificate.
+      expect(serialize).toHaveBeenCalledTimes(3);
+      expect(deserialize).toHaveBeenCalledTimes(3);
     },
   );
 
@@ -248,22 +244,48 @@ const fallbackCases: Array<{ name: string; create: () => object }> = [
   { name: 'Long proxy', create: () => new Proxy(new bson.Long(1, 2), {}) },
 ];
 
-describe('ARCPU-05 BSON wire compatibility', () => {
-  it.each(fallbackCases)('retains serializer normalization/type/subtype for $name', ({ create }) => {
-    const source = create();
-    const expected = roundTrip(source);
-    const serialize = vi.spyOn(mongo.BSON, 'serialize');
-    const deserialize = vi.spyOn(mongo.BSON, 'deserialize');
-    const copy = copyAuthorizationValue(source);
-    expect(isDeepStrictEqual(copy, expected)).toBe(true);
-    expect(copy === source).toBe(false); // Do not inspect a proxied typed-array payload in assertion diagnostics.
-    expect(Object.getPrototypeOf(copy)).toBe(Object.getPrototypeOf(expected));
-    expect(serialize).toHaveBeenCalledExactlyOnceWith({ value: source });
-    expect(deserialize).toHaveBeenCalledExactlyOnceWith(expect.any(Uint8Array), {
-      promoteValues: false,
-      bsonRegExp: true,
-    });
-  });
+const rejectedFallbackNames = new Set([
+  'ObjectId own serialization override',
+  'Long own bit getter override',
+  'Long malformed bit value',
+  'Long non-boolean unsigned flag',
+  'Decimal128 short bytes normalize with zeros',
+  'Decimal128 oversized bytes normalize to 16',
+  'Decimal128 null-prototype byte record',
+  'Decimal128 proxied byte view',
+  'ObjectId proxy',
+  'Decimal128 proxy',
+  'Long proxy',
+]);
+
+describe('bounded BSON input/policy normalization', () => {
+  it.each(fallbackCases)(
+    'admits supported wire type/bits or rejects unproven native state before serialization: $name',
+    ({ name, create }) => {
+      const source = create();
+      if (rejectedFallbackNames.has(name)) {
+        const serialize = vi.spyOn(mongo.BSON, 'serialize');
+        expect(() => copyAuthorizationValue(source)).toThrow(ServiceAuthorizationError);
+        expect(serialize).not.toHaveBeenCalled();
+        return;
+      }
+      const expected = roundTrip(source);
+      const serialize = vi.spyOn(mongo.BSON, 'serialize');
+      const deserialize = vi.spyOn(mongo.BSON, 'deserialize');
+      const copy = copyAuthorizationValue(source);
+      expect(isDeepStrictEqual(copy, expected)).toBe(true);
+      expect(copy === source).toBe(false); // Do not inspect a proxied typed-array payload in assertion diagnostics.
+      expect(Object.getPrototypeOf(copy)).toBe(Object.getPrototypeOf(expected));
+      expect(serialize).toHaveBeenCalledTimes(1);
+      // Native admission stages bounded canonical state/bytes, never the application's
+      // containers, extra slots, hooks or subclass methods, for the one wire copy.
+      expect(serialize.mock.calls[0][0].value).not.toBe(source);
+      expect(deserialize).toHaveBeenCalledExactlyOnceWith(expect.any(Uint8Array), {
+        promoteValues: false,
+        bsonRegExp: true,
+      });
+    },
+  );
 
   it.each([
     { name: 'null Decimal128 bytes', create: () => Object.assign(bson.Decimal128.fromString('1.2'), { bytes: null }) },
@@ -272,16 +294,25 @@ describe('ARCPU-05 BSON wire compatibility', () => {
       create: () => Object.assign(new bson.ObjectId(hex), { serializeInto: null }),
     },
     {
-      name: 'wrong BSON version',
+      name: 'own BSON version slot is normalized away with other non-wire extras',
       create: () => Object.defineProperty(new bson.Long(1, 2), Symbol.for('@@mdb.bson.version'), { value: -1 }),
     },
-  ])('does not bypass serializer rejection of $name', ({ create }) => {
-    const source = create();
-    expect(() => roundTrip(source)).toThrow();
-    const serialize = vi.spyOn(mongo.BSON, 'serialize');
-    expectAuthorizationError(() => copyAuthorizationValue(source), 'unsupported BSON snapshot');
-    expect(serialize).toHaveBeenCalledTimes(1);
-  });
+  ])(
+    'keeps malformed native admission controlled without handing raw state to serialization: $name',
+    ({ name, create }) => {
+      const source = create();
+      const serialize = vi.spyOn(mongo.BSON, 'serialize');
+      if (name.startsWith('own BSON version')) {
+        const copy = copyAuthorizationValue(source);
+        expect(isDeepStrictEqual(copy, new bson.Long(1, 2))).toBe(true);
+        expect(Object.hasOwn(copy, Symbol.for('@@mdb.bson.version'))).toBe(false);
+        expect(serialize).toHaveBeenCalledTimes(1);
+      } else {
+        expect(() => copyAuthorizationValue(source)).toThrow(ServiceAuthorizationError);
+        expect(serialize).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it("retains wire normalization/rejection for malformed ObjectId words or the other BSON version's storage layout", () => {
     const malformed = new bson.ObjectId(hex);
@@ -307,26 +338,25 @@ describe('ARCPU-05 BSON wire compatibility', () => {
     }
   });
 
-  it.each(['id', 'decimal', 'long'] as const)('invokes %s own accessors only as required by serialization', (kind) => {
-    const source =
-      kind === 'id'
-        ? new bson.ObjectId(hex)
-        : kind === 'decimal'
-          ? bson.Decimal128.fromString('1.2')
-          : new bson.Long(1, 2);
-    const key = kind === 'id' ? Reflect.ownKeys(source)[0] : kind === 'decimal' ? 'bytes' : 'low';
-    const value = Object.getOwnPropertyDescriptor(source, key)!.value;
-    const getter = vi.fn(() => value);
-    Object.defineProperty(source, key, { enumerable: true, configurable: true, get: getter });
-    const expected = roundTrip(source);
-    const calls = getter.mock.calls.length;
-    expect(calls).toBeGreaterThan(0);
-    getter.mockClear();
-    const serialize = vi.spyOn(mongo.BSON, 'serialize');
-    expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);
-    expect(getter).toHaveBeenCalledTimes(calls);
-    expect(serialize).toHaveBeenCalledTimes(1);
-  });
+  it.each(['id', 'decimal', 'long'] as const)(
+    'rejects %s required-state accessors before getters or serialization',
+    (kind) => {
+      const source =
+        kind === 'id'
+          ? new bson.ObjectId(hex)
+          : kind === 'decimal'
+            ? bson.Decimal128.fromString('1.2')
+            : new bson.Long(1, 2);
+      const key = kind === 'id' ? Reflect.ownKeys(source)[0] : kind === 'decimal' ? 'bytes' : 'low';
+      const value = Object.getOwnPropertyDescriptor(source, key)!.value;
+      const getter = vi.fn(() => value);
+      Object.defineProperty(source, key, { enumerable: true, configurable: true, get: getter });
+      const serialize = vi.spyOn(mongo.BSON, 'serialize');
+      expect(() => copyAuthorizationValue(source)).toThrow(ServiceAuthorizationError);
+      expect(getter).not.toHaveBeenCalled();
+      expect(serialize).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(['id', 'decimal', 'long'] as const)('does not inspect extra %s own native getters', (kind) => {
     const source =
@@ -359,36 +389,30 @@ describe('ARCPU-05 BSON wire compatibility', () => {
     expect(serialize).toHaveBeenCalledTimes(1);
   });
 
-  it('retains inherited toBSON normalization without extra accessor calls', () => {
+  it('rejects an inherited toBSON accessor before application observation or serialization', () => {
     const getter = vi.fn(() => () => new bson.Int32(321));
     try {
       Object.defineProperty(bson.Long.prototype, 'toBSON', { configurable: true, get: getter });
       const source = new bson.Long(1, 2);
-      const expected = roundTrip(source);
-      const calls = getter.mock.calls.length;
-      getter.mockClear();
       const serialize = vi.spyOn(mongo.BSON, 'serialize');
-      expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);
-      expect(getter).toHaveBeenCalledTimes(calls);
-      expect(serialize).toHaveBeenCalledTimes(1);
+      expect(() => copyAuthorizationValue(source)).toThrow(ServiceAuthorizationError);
+      expect(getter).not.toHaveBeenCalled();
+      expect(serialize).not.toHaveBeenCalled();
     } finally {
       Reflect.deleteProperty(bson.Long.prototype, 'toBSON');
     }
   });
 
-  it('does not bypass changed prototype wire methods or invoke their accessors twice', () => {
+  it('rejects a prototype serializer-method accessor without invoking it', () => {
     const descriptor = Object.getOwnPropertyDescriptor(bson.Long.prototype, 'getLowBits')!;
     const getter = vi.fn(() => () => 123);
     try {
       Object.defineProperty(bson.Long.prototype, 'getLowBits', { configurable: true, get: getter });
       const source = new bson.Long(1, 2);
-      const expected = roundTrip(source);
-      const calls = getter.mock.calls.length;
-      getter.mockClear();
       const serialize = vi.spyOn(mongo.BSON, 'serialize');
-      expect(isDeepStrictEqual(copyAuthorizationValue(source), expected)).toBe(true);
-      expect(getter).toHaveBeenCalledTimes(calls);
-      expect(serialize).toHaveBeenCalledTimes(1);
+      expect(() => copyAuthorizationValue(source)).toThrow(ServiceAuthorizationError);
+      expect(getter).not.toHaveBeenCalled();
+      expect(serialize).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(bson.Long.prototype, 'getLowBits', descriptor);
     }
@@ -406,7 +430,7 @@ describe('ARCPU-05 BSON wire compatibility', () => {
       expect(calls).toBeGreaterThan(0);
       getter.mockClear();
       const serialize = vi.spyOn(mongo.BSON, 'serialize');
-      expectAuthorizationError(() => copyAuthorizationValue(source), 'unsupported BSON snapshot');
+      expectAuthorizationError(() => copyAuthorizationValue(source), 'unsupported selected BSON value');
       expect(getter).toHaveBeenCalledTimes(calls);
       expect(serialize).toHaveBeenCalledTimes(1);
     } finally {
@@ -453,12 +477,11 @@ describe('ARCPU-05 BSON wire compatibility', () => {
         if (kind === 'BSON version') {
           expect(() => roundTrip(source)).toThrow();
           expect(() => isolated.copyAuthorizationValue(source)).toThrow(isolated.ServiceAuthorizationError);
-          expect(isolated.matchesAuthorizationSnapshot(source, source)).toBe(false);
         } else {
           const expected = roundTrip(source);
           expect(isDeepStrictEqual(isolated.copyAuthorizationValue(source), expected)).toBe(true);
-          expect(isolated.matchesAuthorizationSnapshot({ source }, { source: expected })).toBe(true);
         }
+        expect(isolated).not.toHaveProperty('matchesAuthorizationSnapshot');
       } finally {
         Object.defineProperty(prototype, key, descriptor);
         vi.resetModules();
@@ -494,14 +517,14 @@ describe('ARCPU-05 snapshot safeguards remain in force', () => {
     expectAuthorizationError(() => copyAuthorizationValue(cyclic), 'cyclic input');
     let nested: unknown = new bson.Long(1, 2);
     for (let depth = 0; depth < 101; depth++) nested = { nested };
-    expectAuthorizationError(() => copyAuthorizationValue(nested), 'snapshot exceeds structural limits');
+    expectAuthorizationError(() => copyAuthorizationValue(nested), 'selected output exceeds structural limits');
     expectAuthorizationError(
       () => copyAuthorizationValue(Array(20001).fill(new bson.Long(1, 2))),
       'snapshot array exceeds structural limits',
     );
     expectAuthorizationError(
       () => copyAuthorizationValue(Array(20000).fill(new bson.Long(1, 2))),
-      'snapshot exceeds structural limits',
+      'selected output exceeds structural limits',
     );
   });
 });

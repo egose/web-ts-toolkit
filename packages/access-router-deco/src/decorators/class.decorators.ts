@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { types } from 'node:util';
+import { assertNoProxyConfiguration } from '../authorization-modes';
 import type { RootRouterOptions, ModelRouterOptions } from '@web-ts-toolkit/access-router';
 import type { DefaultModelRouterOptions } from '@web-ts-toolkit/access-router/advanced';
 import { ModuleMetadata, type RouterModel } from '../interfaces';
@@ -35,12 +37,12 @@ export function Module(metadata: ModuleMetadata): ClassDecorator {
 function createRootRouter(options: RootRouterOptions): ClassDecorator {
   return (target: object) => {
     Reflect.defineMetadata(ROOT_ROUTER_WATERMARK, true, target);
-    Reflect.defineMetadata(ROUTER_OPTIONS, options || {}, target);
+    Reflect.defineMetadata(ROUTER_OPTIONS, options === undefined ? {} : options, target);
   };
 }
 
 const isMongooseModel = (value: unknown): value is Exclude<RouterModel, string> =>
-  typeof value === 'function' && value !== null && 'modelName' in value && 'schema' in value;
+  typeof value === 'function' && value !== null && !types.isProxy(value) && 'modelName' in value && 'schema' in value;
 
 function assertValidRouterModel(model: RouterModel, decoratorName: string) {
   if (typeof model === 'string') {
@@ -58,7 +60,7 @@ function createModelRouter(model: RouterModel, options?: ModelRouterOptions): Cl
   return (target: object) => {
     Reflect.defineMetadata(ROUTER_WATERMARK, true, target);
     Reflect.defineMetadata(ROUTER_MODEL, model, target);
-    Reflect.defineMetadata(ROUTER_OPTIONS, options || {}, target);
+    Reflect.defineMetadata(ROUTER_OPTIONS, options === undefined ? {} : options, target);
   };
 }
 
@@ -84,6 +86,7 @@ export const Router = function Router(
   modelNameOrOptions: RouterModel | RootRouterOptions,
   options?: ModelRouterOptions,
 ): ClassDecorator {
+  assertNoProxyConfiguration(modelNameOrOptions);
   if (typeof modelNameOrOptions === 'string' || isMongooseModel(modelNameOrOptions)) {
     return createModelRouter(modelNameOrOptions, options);
   }
@@ -107,7 +110,7 @@ export const Router = function Router(
 function createDefaultModelRouterOptions(options: DefaultModelRouterOptions): ClassDecorator {
   return (target: object) => {
     Reflect.defineMetadata(DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK, true, target);
-    Reflect.defineMetadata(ROUTER_OPTIONS, options || {}, target);
+    Reflect.defineMetadata(ROUTER_OPTIONS, options === undefined ? {} : options, target);
   };
 }
 
@@ -116,7 +119,7 @@ function createModelRouterOptions(model: RouterModel, options?: ModelRouterOptio
   return (target: object) => {
     Reflect.defineMetadata(MODEL_ROUTER_OPTIONS_WATERMARK, true, target);
     Reflect.defineMetadata(ROUTER_MODEL, model, target);
-    Reflect.defineMetadata(ROUTER_OPTIONS, options || {}, target);
+    Reflect.defineMetadata(ROUTER_OPTIONS, options === undefined ? {} : options, target);
   };
 }
 
@@ -141,6 +144,7 @@ export const RouterOptions = function RouterOptions(
   modelNameOrOptions: RouterModel | DefaultModelRouterOptions,
   options?: ModelRouterOptions,
 ): ClassDecorator {
+  assertNoProxyConfiguration(modelNameOrOptions);
   if (typeof modelNameOrOptions === 'string' || isMongooseModel(modelNameOrOptions)) {
     return createModelRouterOptions(modelNameOrOptions, options);
   }

@@ -11,6 +11,8 @@ import {
   readVirtualPopulateInputs,
 } from '../src/acl/virtual-populate-execution';
 import { finalizeModelOutput } from '../src/output/finalize-model-output';
+import { createTrustedOutputBudget, createReceivingOutputBudget } from '../src/acl/trusted-output-materialization';
+import { outputPublicationFor, runOutputPublication } from '../src/acl/output-publication';
 import type { FinalizeSnapshot } from '../src/output/finalize-model-output';
 import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
@@ -19,101 +21,99 @@ useMongoTestDatabase();
 let serial = 0;
 
 describe('DPV-04 explicit package traversal ownership', () => {
-  it.each([false, true])('retains each related target token before cloning (custom traversal=%s)', async (custom) => {
-    const api = createAccessRuntime();
-    const n = ++serial;
-    const Account = mongoose.model(`DpvTraversalAccount${n}`, new mongoose.Schema({ balance: Number }));
-    const Target = mongoose.model(
-      `DpvTraversalTarget${n}`,
-      new mongoose.Schema({ account: { type: mongoose.Schema.Types.ObjectId, ref: Account.modelName } }),
-    );
-    const Parent = mongoose.model(
-      `DpvTraversalParent${n}`,
-      new mongoose.Schema({ targets: [{ type: mongoose.Schema.Types.ObjectId, ref: Target.modelName }] }),
-    );
-    api.setGlobalOptions({ requestComplexity: { maxHookConcurrency: 1, maxBulkConcurrency: 1 } } as never);
-    api.createRouter(Account, { operationAccess: { read: true }, permissionSchema: { balance: false } } as never);
-    api.createRouter(Target, {
-      operationAccess: { read: true },
-      permissionSchema: { value: true },
-      virtuals: {
-        value: {
-          get: (_doc, _permissions, _context, inputs) => (inputs as any).account.balance,
-          dependsOnPopulate: [{ path: 'account', select: 'balance -_id' }],
+  it.each([false, true])(
+    'retains each target private-input row through explicit completed output (explicit row=%s)',
+    async (explicit) => {
+      const api = createAccessRuntime();
+      const n = ++serial;
+      const Account = mongoose.model(`DpvTraversalAccount${n}`, new mongoose.Schema({ balance: Number }));
+      const Target = mongoose.model(
+        `DpvTraversalTarget${n}`,
+        new mongoose.Schema({ account: { type: mongoose.Schema.Types.ObjectId, ref: Account.modelName } }),
+      );
+      const Parent = mongoose.model(
+        `DpvTraversalParent${n}`,
+        new mongoose.Schema({ targets: [{ type: mongoose.Schema.Types.ObjectId, ref: Target.modelName }] }),
+      );
+      api.setGlobalOptions({ requestComplexity: { maxHookConcurrency: 1, maxBulkConcurrency: 1 } } as never);
+      api.createRouter(Account, { operationAccess: { read: true }, permissionSchema: { balance: false } } as never);
+      api.createRouter(Target, {
+        operationAccess: { read: true },
+        permissionSchema: { value: true },
+        virtuals: {
+          value: {
+            get: (_doc, _permissions, _context, inputs) => (inputs as any).account.balance,
+            dependsOnPopulate: [{ path: 'account', select: 'balance -_id' }],
+          },
         },
-      },
-    } as never);
-    api.createRouter(Parent, { operationAccess: { read: true }, permissionSchema: { targets: true } } as never);
-    const accounts = await Account.create([{ balance: 10 }, { balance: 20 }]);
-    const raw = await Target.create(accounts.map((account) => ({ account: account._id })));
-    const req = {} as ModelRequest;
-    const access = {
-      operation: 'read',
-      rowAccess: 'read',
-      virtualAccess: 'read',
-      outputAccess: 'read',
-      docPermissionsAccess: 'read',
-    };
-    const permissions = new Permission({});
-    const plan = (model: typeof Parent | typeof Target, parent?: ReturnType<typeof resolveServiceAuthorization>) => {
-      const binding = { request: req, runtime: api.runtime, model, modelName: model.modelName };
-      const configuration = captureModelAuthorizationConfiguration(api.runtime, model.modelName);
-      const authorization = resolveServiceAuthorization({
-        binding,
-        configuration,
-        access,
-        requestPermissions: permissions,
-        parent,
+      } as never);
+      api.createRouter(Parent, { operationAccess: { read: true }, permissionSchema: { targets: true } } as never);
+      const accounts = await Account.create([{ balance: 10 }, { balance: 20 }]);
+      const raw = await Target.create(accounts.map((account) => ({ account: account._id })));
+      const req = {} as ModelRequest;
+      const access = {
+        operation: 'read',
+        rowAccess: 'read',
+        virtualAccess: 'read',
+        outputAccess: 'read',
+        docPermissionsAccess: 'read',
+      };
+      const permissions = new Permission({});
+      const plan = (model: typeof Parent | typeof Target, parent?: ReturnType<typeof resolveServiceAuthorization>) => {
+        const binding = { request: req, runtime: api.runtime, model, modelName: model.modelName };
+        const configuration = captureModelAuthorizationConfiguration(api.runtime, model.modelName);
+        const authorization = resolveServiceAuthorization({
+          binding,
+          configuration,
+          access,
+          requestPermissions: permissions,
+          parent,
+        });
+        return planAuthorizedModelProjection({ binding, authorization });
+      };
+      const parentPlan = plan(Parent);
+      const targetPlan = plan(Target, parentPlan.authorization);
+      const targetSnapshot = captureModelAuthorizationConfiguration(api.runtime, Target.modelName) as FinalizeSnapshot;
+      const targets = await loadVirtualPopulateOutputRows(
+        { request: req, runtime: api.runtime, family: {}, permissions, hydration: 'hydrated' },
+        raw,
+        targetPlan,
+      );
+      const budget = createTrustedOutputBudget();
+      const publication = outputPublicationFor(parentPlan.authorization!);
+      const output = await runOutputPublication(publication, async () => {
+        const completed = [];
+        for (const input of targets)
+          completed.push(
+            await finalizeModelOutput({
+              receivingModelName: Target.modelName,
+              request: req,
+              ...access,
+              plan: targetPlan,
+              snapshot: targetSnapshot,
+              input,
+              outputBudget: createReceivingOutputBudget([{ budget, depth: 2 }]),
+              publication,
+              ...(explicit ? { virtualPopulateRow: getVirtualPopulateRow(input) } : {}),
+            }),
+          );
+        return finalizeModelOutput({
+          input: { targets },
+          receivingModelName: Parent.modelName,
+          request: req,
+          ...access,
+          plan: parentPlan,
+          snapshot: captureModelAuthorizationConfiguration(api.runtime, Parent.modelName) as FinalizeSnapshot,
+          outputBudget: budget,
+          publication,
+          completedReferences: new Map([['targets', completed]]),
+        });
       });
-      return planAuthorizedModelProjection({ binding, authorization });
-    };
-    const parentPlan = plan(Parent);
-    const targetPlan = plan(Target, parentPlan.authorization);
-    const targetSnapshot = captureModelAuthorizationConfiguration(api.runtime, Target.modelName) as FinalizeSnapshot;
-    const targets = await loadVirtualPopulateOutputRows(
-      { request: req, runtime: api.runtime, family: {}, permissions, hydration: 'hydrated' },
-      raw,
-      targetPlan,
-    );
-    const related = {
-      path: 'targets',
-      plan: targetPlan,
-      snapshot: targetSnapshot,
-      virtualAccess: 'read',
-      outputAccess: 'read',
-      docPermissionsAccess: 'read',
-    };
-    const output = await finalizeModelOutput({
-      input: { targets },
-      receivingModelName: Parent.modelName,
-      request: req,
-      ...access,
-      plan: parentPlan,
-      snapshot: captureModelAuthorizationConfiguration(api.runtime, Parent.modelName) as FinalizeSnapshot,
-      related: [related],
-      ...(custom
-        ? {
-            traversal: {
-              finalizeRelatedValue: ({ rawValue, parentArgs, target }) =>
-                finalizeModelOutput({
-                  ...parentArgs,
-                  input: rawValue,
-                  receivingModelName: Target.modelName,
-                  plan: target.plan,
-                  snapshot: target.snapshot,
-                  related: [],
-                  traversal: undefined,
-                  scopePath: [],
-                  docPermissions: undefined,
-                }),
-            },
-          }
-        : {}),
-    });
-    expect((output.targets as any[]).map((target) => target.value)).toEqual([10, 20]);
-    expect((output.targets as any[]).every((target) => !Object.hasOwn(target, 'account'))).toBe(true);
-    api.runtime.clearOpenApiRoutes();
-  });
+      expect((output.targets as any[]).map((target) => target.value)).toEqual([10, 20]);
+      expect((output.targets as any[]).every((target) => !Object.hasOwn(target, 'account'))).toBe(true);
+      api.runtime.clearOpenApiRoutes();
+    },
+  );
 
   it.each(['lean', 'hydrated'] as const)(
     'reuses only covered captured work, isolates modes/rows and evicts failures (%s)',

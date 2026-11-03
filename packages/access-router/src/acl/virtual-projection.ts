@@ -41,6 +41,7 @@ import type {
   ResolvedServiceAuthorization,
 } from './service-authorization';
 import { compactPersistedProjection, planCatalogProjection } from './output-projection';
+import type { OutputSelectionShape } from './output-selection';
 import {
   getScopeVirtualsObject,
   isVirtualContainerValue,
@@ -106,7 +107,7 @@ export interface PlanVirtualCandidate {
   outputAccess: VirtualProjectionAccess;
 }
 
-export interface VirtualProjectionPlan {
+export interface VirtualProjectionPlan extends OutputSelectionShape {
   /** Present on the canonical schema-backed plan; private, never DTO metadata. */
   authorization?: ResolvedServiceAuthorization;
   authorizationBinding?: AuthorizationBinding;

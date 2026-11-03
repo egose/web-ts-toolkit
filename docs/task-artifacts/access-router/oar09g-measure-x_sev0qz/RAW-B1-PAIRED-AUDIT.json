@@ -1,0 +1,4394 @@
+{
+  "summary": {
+    "correctnessAudit": "PASS",
+    "acceptanceGate": false,
+    "performanceOutcome": "REPORT ONLY; no B1 pass/fail",
+    "startedAt": "2026-11-02T22:04:46.457Z",
+    "finishedAt": "2026-11-02T22:17:06.353Z",
+    "comparisons": 16,
+    "initialJobs": 64,
+    "totalJobs": 124,
+    "repeatJobs": 60,
+    "repeatedComparisons": 15,
+    "measuredResponses": 12400,
+    "fullFingerprintsIndependentlyReconstructed": 12400,
+    "jobFailures": 0,
+    "exactOrdering": true,
+    "exactRepeatTriggers": true,
+    "rawStatsAndPairDeltasMatch": true,
+    "actualCountsAndGetters": true,
+    "sourceStagesAndClearProofs": 50,
+    "declarationConditions": 2,
+    "roundJobs": {
+      "1": 32,
+      "2": 32,
+      "3": 30,
+      "4": 30
+    },
+    "reportSha256": "dd8652a2561fc235441a6b75881c6bf760059bfd44c7414b4d7bac21c013325d",
+    "scriptSha256": "27637b71b0bc675a299bcff5f7465de964c455dffa3e5719e60ff89ccdd69e63",
+    "benchmarkModuleImports": false,
+    "historicalManyApiInvented": false,
+    "originalGatesReplaced": false
+  },
+  "descriptions": [
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/raw-only/isolated/current-independent",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "raw-only",
+        "profile": "isolated",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "isolated"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 2,
+            "comparatorJob": 1,
+            "candidate": {
+              "medianMs": 4.745894000000135,
+              "p95Ms": 6.664316999999983,
+              "cpuMsPerRequest": 6.46092
+            },
+            "comparator": {
+              "medianMs": 4.155316499999913,
+              "p95Ms": 6.131331000000046,
+              "cpuMsPerRequest": 5.82288
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.5905775000002222,
+                "percent": 14.212575624509821
+              },
+              "p95Ms": {
+                "ms": 0.5329859999999371,
+                "percent": 8.6928270550054
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.6380400000000002,
+                "percent": 10.957464347539366
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 63,
+            "comparatorJob": 64,
+            "candidate": {
+              "medianMs": 4.047704000000067,
+              "p95Ms": 6.025593000000072,
+              "cpuMsPerRequest": 5.84577
+            },
+            "comparator": {
+              "medianMs": 4.079652000000124,
+              "p95Ms": 6.379429000000073,
+              "cpuMsPerRequest": 5.96445
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -0.03194800000005671,
+                "percent": -0.7831060100237897
+              },
+              "p95Ms": {
+                "ms": -0.35383600000000115,
+                "percent": -5.5465152131953674
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.11868000000000034,
+                "percent": -1.98978950280412
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 0.27931475000008277,
+            "percent": 6.7147348072430155,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": 0.08957499999996799,
+            "percent": 1.5731559209050165,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.2596799999999999,
+            "percent": 4.483837422367623,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 2,
+            "comparatorJob": 1,
+            "candidate": {
+              "medianMs": 4.745894000000135,
+              "p95Ms": 6.664316999999983,
+              "cpuMsPerRequest": 6.46092
+            },
+            "comparator": {
+              "medianMs": 4.155316499999913,
+              "p95Ms": 6.131331000000046,
+              "cpuMsPerRequest": 5.82288
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.5905775000002222,
+                "percent": 14.212575624509821
+              },
+              "p95Ms": {
+                "ms": 0.5329859999999371,
+                "percent": 8.6928270550054
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.6380400000000002,
+                "percent": 10.957464347539366
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 63,
+            "comparatorJob": 64,
+            "candidate": {
+              "medianMs": 4.047704000000067,
+              "p95Ms": 6.025593000000072,
+              "cpuMsPerRequest": 5.84577
+            },
+            "comparator": {
+              "medianMs": 4.079652000000124,
+              "p95Ms": 6.379429000000073,
+              "cpuMsPerRequest": 5.96445
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -0.03194800000005671,
+                "percent": -0.7831060100237897
+              },
+              "p95Ms": {
+                "ms": -0.35383600000000115,
+                "percent": -5.5465152131953674
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.11868000000000034,
+                "percent": -1.98978950280412
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 66,
+            "comparatorJob": 65,
+            "candidate": {
+              "medianMs": 4.180232499999988,
+              "p95Ms": 5.579365999999936,
+              "cpuMsPerRequest": 5.80665
+            },
+            "comparator": {
+              "medianMs": 4.024366499999928,
+              "p95Ms": 6.253357999999935,
+              "cpuMsPerRequest": 5.94589
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.15586600000006,
+                "percent": 3.8730567904305633
+              },
+              "p95Ms": {
+                "ms": -0.6739919999999984,
+                "percent": -10.77808115255844
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.13924000000000003,
+                "percent": -2.341785670437899
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 67,
+            "comparatorJob": 68,
+            "candidate": {
+              "medianMs": 4.071377999999868,
+              "p95Ms": 5.263582000000042,
+              "cpuMsPerRequest": 5.67559
+            },
+            "comparator": {
+              "medianMs": 3.8976709999999457,
+              "p95Ms": 6.80346899999995,
+              "cpuMsPerRequest": 5.7188
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.17370699999992212,
+                "percent": 4.45668708313053
+              },
+              "p95Ms": {
+                "ms": -1.5398869999999079,
+                "percent": -22.633850466576966
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.04321000000000019,
+                "percent": -0.7555780933062914
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 0.16478649999999107,
+            "percent": 4.164871936780546,
+            "alignedPairs": 3,
+            "lowerPairs": 1,
+            "higherPairs": 3,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.5139139999999998,
+            "percent": -8.162298182876905,
+            "alignedPairs": 3,
+            "lowerPairs": 3,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.08094500000000027,
+            "percent": -1.3726837980552058,
+            "alignedPairs": 3,
+            "lowerPairs": 3,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/raw-only/isolated/historical",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "raw-only",
+        "profile": "isolated",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "old-raw",
+            "profile": "current-default"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 4,
+            "comparatorJob": 3,
+            "candidate": {
+              "medianMs": 4.652076000000079,
+              "p95Ms": 8.004921000000195,
+              "cpuMsPerRequest": 7.04731
+            },
+            "comparator": {
+              "medianMs": 18.51799250000022,
+              "p95Ms": 20.54163000000017,
+              "cpuMsPerRequest": 20.79812
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.86591650000014,
+                "percent": -74.87807601174899
+              },
+              "p95Ms": {
+                "ms": -12.536708999999973,
+                "percent": -61.03074098793461
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.750810000000001,
+                "percent": -66.11563929816734
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 61,
+            "comparatorJob": 62,
+            "candidate": {
+              "medianMs": 4.157312000000047,
+              "p95Ms": 5.307279000000108,
+              "cpuMsPerRequest": 5.83363
+            },
+            "comparator": {
+              "medianMs": 17.228112999999894,
+              "p95Ms": 19.06214799999998,
+              "cpuMsPerRequest": 19.28708
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.070800999999847,
+                "percent": -75.86902291620636
+              },
+              "p95Ms": {
+                "ms": -13.754868999999871,
+                "percent": -72.15802227534843
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.45345,
+                "percent": -69.75369003498716
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -13.468358749999993,
+            "percent": -75.37354946397767,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -13.145788999999922,
+            "percent": -66.59438163164151,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -13.60213,
+            "percent": -67.93466466657725,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 4,
+            "comparatorJob": 3,
+            "candidate": {
+              "medianMs": 4.652076000000079,
+              "p95Ms": 8.004921000000195,
+              "cpuMsPerRequest": 7.04731
+            },
+            "comparator": {
+              "medianMs": 18.51799250000022,
+              "p95Ms": 20.54163000000017,
+              "cpuMsPerRequest": 20.79812
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.86591650000014,
+                "percent": -74.87807601174899
+              },
+              "p95Ms": {
+                "ms": -12.536708999999973,
+                "percent": -61.03074098793461
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.750810000000001,
+                "percent": -66.11563929816734
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 61,
+            "comparatorJob": 62,
+            "candidate": {
+              "medianMs": 4.157312000000047,
+              "p95Ms": 5.307279000000108,
+              "cpuMsPerRequest": 5.83363
+            },
+            "comparator": {
+              "medianMs": 17.228112999999894,
+              "p95Ms": 19.06214799999998,
+              "cpuMsPerRequest": 19.28708
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.070800999999847,
+                "percent": -75.86902291620636
+              },
+              "p95Ms": {
+                "ms": -13.754868999999871,
+                "percent": -72.15802227534843
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.45345,
+                "percent": -69.75369003498716
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 70,
+            "comparatorJob": 69,
+            "candidate": {
+              "medianMs": 4.120982499999968,
+              "p95Ms": 5.703756000000112,
+              "cpuMsPerRequest": 5.91556
+            },
+            "comparator": {
+              "medianMs": 18.042151999999987,
+              "p95Ms": 19.628921999999875,
+              "cpuMsPerRequest": 20.13457
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.921169500000019,
+                "percent": -77.15914099382395
+              },
+              "p95Ms": {
+                "ms": -13.925165999999763,
+                "percent": -70.94208230080007
+              },
+              "cpuMsPerRequest": {
+                "ms": -14.21901,
+                "percent": -70.61988410976744
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 71,
+            "comparatorJob": 72,
+            "candidate": {
+              "medianMs": 4.330789999999979,
+              "p95Ms": 5.909535000000005,
+              "cpuMsPerRequest": 6.28487
+            },
+            "comparator": {
+              "medianMs": 17.897044999999935,
+              "p95Ms": 19.7020050000001,
+              "cpuMsPerRequest": 20.05343
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.566254999999956,
+                "percent": -75.80164770217657
+              },
+              "p95Ms": {
+                "ms": -13.792470000000094,
+                "percent": -70.00541315465114
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.768559999999999,
+                "percent": -68.65937647574505
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -13.716085750000047,
+            "percent": -75.83533530919146,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -13.773669499999983,
+            "percent": -70.4737477277256,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -13.759685000000001,
+            "percent": -69.20653325536611,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/raw-only/trusted/current-independent",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "raw-only",
+        "profile": "trusted",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "trusted"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 6,
+            "comparatorJob": 5,
+            "candidate": {
+              "medianMs": 4.853522000000112,
+              "p95Ms": 7.595147999999881,
+              "cpuMsPerRequest": 6.85148
+            },
+            "comparator": {
+              "medianMs": 4.337967000000162,
+              "p95Ms": 6.506945000000087,
+              "cpuMsPerRequest": 6.17182
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.5155549999999494,
+                "percent": 11.88471466011452
+              },
+              "p95Ms": {
+                "ms": 1.088202999999794,
+                "percent": 16.723715968089163
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.6796599999999993,
+                "percent": 11.012310793250602
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 59,
+            "comparatorJob": 60,
+            "candidate": {
+              "medianMs": 4.1858689999999115,
+              "p95Ms": 5.404982999999902,
+              "cpuMsPerRequest": 5.96429
+            },
+            "comparator": {
+              "medianMs": 3.7438050000000658,
+              "p95Ms": 6.443616999999904,
+              "cpuMsPerRequest": 5.72922
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.4420639999998457,
+                "percent": 11.807879951008077
+              },
+              "p95Ms": {
+                "ms": -1.0386340000000018,
+                "percent": -16.118804081620887
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.23507000000000033,
+                "percent": 4.103001804783205
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 0.4788094999998975,
+            "percent": 11.846297305561299,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": 0.02478449999989607,
+            "percent": 0.30245594323413805,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.4573649999999998,
+            "percent": 7.557656299016903,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 6,
+            "comparatorJob": 5,
+            "candidate": {
+              "medianMs": 4.853522000000112,
+              "p95Ms": 7.595147999999881,
+              "cpuMsPerRequest": 6.85148
+            },
+            "comparator": {
+              "medianMs": 4.337967000000162,
+              "p95Ms": 6.506945000000087,
+              "cpuMsPerRequest": 6.17182
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.5155549999999494,
+                "percent": 11.88471466011452
+              },
+              "p95Ms": {
+                "ms": 1.088202999999794,
+                "percent": 16.723715968089163
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.6796599999999993,
+                "percent": 11.012310793250602
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 59,
+            "comparatorJob": 60,
+            "candidate": {
+              "medianMs": 4.1858689999999115,
+              "p95Ms": 5.404982999999902,
+              "cpuMsPerRequest": 5.96429
+            },
+            "comparator": {
+              "medianMs": 3.7438050000000658,
+              "p95Ms": 6.443616999999904,
+              "cpuMsPerRequest": 5.72922
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.4420639999998457,
+                "percent": 11.807879951008077
+              },
+              "p95Ms": {
+                "ms": -1.0386340000000018,
+                "percent": -16.118804081620887
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.23507000000000033,
+                "percent": 4.103001804783205
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 74,
+            "comparatorJob": 73,
+            "candidate": {
+              "medianMs": 4.3393300000002455,
+              "p95Ms": 5.838053000000173,
+              "cpuMsPerRequest": 6.12347
+            },
+            "comparator": {
+              "medianMs": 4.019017500000018,
+              "p95Ms": 6.991181000000324,
+              "cpuMsPerRequest": 5.99166
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.3203125000002274,
+                "percent": 7.969920509184793
+              },
+              "p95Ms": {
+                "ms": -1.1531280000001516,
+                "percent": -16.494037273532154
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.13180999999999976,
+                "percent": 2.1998911820764153
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 75,
+            "comparatorJob": 76,
+            "candidate": {
+              "medianMs": 4.428538500000059,
+              "p95Ms": 5.859541000000263,
+              "cpuMsPerRequest": 6.11333
+            },
+            "comparator": {
+              "medianMs": 4.079054500000211,
+              "p95Ms": 5.944281000000046,
+              "cpuMsPerRequest": 5.75805
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.3494839999998476,
+                "percent": 8.567769810377122
+              },
+              "p95Ms": {
+                "ms": -0.08473999999978332,
+                "percent": -1.425571906842605
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.3552800000000005,
+                "percent": 6.170144406526524
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 0.39577399999984664,
+            "percent": 10.187824880692599,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.5616869999998926,
+            "percent": -8.772187994231746,
+            "alignedPairs": 3,
+            "lowerPairs": 3,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.2951750000000004,
+            "percent": 5.136573105654865,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/raw-only/trusted/historical",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "raw-only",
+        "profile": "trusted",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "old-raw",
+            "profile": "current-active"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 8,
+            "comparatorJob": 7,
+            "candidate": {
+              "medianMs": 4.157089999999926,
+              "p95Ms": 5.502175999999963,
+              "cpuMsPerRequest": 5.93722
+            },
+            "comparator": {
+              "medianMs": 18.40211649999992,
+              "p95Ms": 20.442735000000084,
+              "cpuMsPerRequest": 20.58346
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -14.245026499999994,
+                "percent": -77.40971806150698
+              },
+              "p95Ms": {
+                "ms": -14.940559000000121,
+                "percent": -73.08493212870029
+              },
+              "cpuMsPerRequest": {
+                "ms": -14.646239999999999,
+                "percent": -71.15538398306212
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 57,
+            "comparatorJob": 58,
+            "candidate": {
+              "medianMs": 4.272338999999988,
+              "p95Ms": 5.695158999999876,
+              "cpuMsPerRequest": 5.78456
+            },
+            "comparator": {
+              "medianMs": 17.589434500000152,
+              "p95Ms": 19.06546100000014,
+              "cpuMsPerRequest": 19.68538
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.317095500000164,
+                "percent": -75.71076545979946
+              },
+              "p95Ms": {
+                "ms": -13.370302000000265,
+                "percent": -70.12839605609415
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.90082,
+                "percent": -70.61494367901459
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -13.78106100000008,
+            "percent": -76.56024176065321,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -14.155430500000193,
+            "percent": -71.60666409239721,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -14.27353,
+            "percent": -70.88516383103835,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 8,
+            "comparatorJob": 7,
+            "candidate": {
+              "medianMs": 4.157089999999926,
+              "p95Ms": 5.502175999999963,
+              "cpuMsPerRequest": 5.93722
+            },
+            "comparator": {
+              "medianMs": 18.40211649999992,
+              "p95Ms": 20.442735000000084,
+              "cpuMsPerRequest": 20.58346
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -14.245026499999994,
+                "percent": -77.40971806150698
+              },
+              "p95Ms": {
+                "ms": -14.940559000000121,
+                "percent": -73.08493212870029
+              },
+              "cpuMsPerRequest": {
+                "ms": -14.646239999999999,
+                "percent": -71.15538398306212
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 57,
+            "comparatorJob": 58,
+            "candidate": {
+              "medianMs": 4.272338999999988,
+              "p95Ms": 5.695158999999876,
+              "cpuMsPerRequest": 5.78456
+            },
+            "comparator": {
+              "medianMs": 17.589434500000152,
+              "p95Ms": 19.06546100000014,
+              "cpuMsPerRequest": 19.68538
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.317095500000164,
+                "percent": -75.71076545979946
+              },
+              "p95Ms": {
+                "ms": -13.370302000000265,
+                "percent": -70.12839605609415
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.90082,
+                "percent": -70.61494367901459
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 78,
+            "comparatorJob": 77,
+            "candidate": {
+              "medianMs": 4.40325299999995,
+              "p95Ms": 5.7507080000000315,
+              "cpuMsPerRequest": 5.99338
+            },
+            "comparator": {
+              "medianMs": 17.782809999999927,
+              "p95Ms": 19.20466800000031,
+              "cpuMsPerRequest": 19.84485
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.379556999999977,
+                "percent": -75.23871086740527
+              },
+              "p95Ms": {
+                "ms": -13.45396000000028,
+                "percent": -70.0556760470947
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.85147,
+                "percent": -69.79881430194736
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 79,
+            "comparatorJob": 80,
+            "candidate": {
+              "medianMs": 4.179620999999997,
+              "p95Ms": 5.258489999999938,
+              "cpuMsPerRequest": 5.62143
+            },
+            "comparator": {
+              "medianMs": 17.34256849999997,
+              "p95Ms": 19.154123000000254,
+              "cpuMsPerRequest": 19.49407
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -13.162947499999973,
+                "percent": -75.89964254718092
+              },
+              "p95Ms": {
+                "ms": -13.895633000000316,
+                "percent": -72.54643295336535
+              },
+              "cpuMsPerRequest": {
+                "ms": -13.87264,
+                "percent": -71.16338455745773
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -13.34832625000007,
+            "percent": -75.80520400349019,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -13.674796500000298,
+            "percent": -71.33741450472975,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -13.88673,
+            "percent": -70.88516383103835,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/query-plus-helper/isolated/current-independent",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "query-plus-helper",
+        "profile": "isolated",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "isolated"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 10,
+            "comparatorJob": 9,
+            "candidate": {
+              "medianMs": 7.6505779999997685,
+              "p95Ms": 10.306920999999875,
+              "cpuMsPerRequest": 9.90895
+            },
+            "comparator": {
+              "medianMs": 8.012558499999841,
+              "p95Ms": 10.256012000000055,
+              "cpuMsPerRequest": 10.56827
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -0.3619805000000724,
+                "percent": -4.517664364011565
+              },
+              "p95Ms": {
+                "ms": 0.05090899999981957,
+                "percent": 0.49638202451224994
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.6593199999999992,
+                "percent": -6.2386748256810165
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 55,
+            "comparatorJob": 56,
+            "candidate": {
+              "medianMs": 7.916802999999845,
+              "p95Ms": 9.714074000000437,
+              "cpuMsPerRequest": 9.86381
+            },
+            "comparator": {
+              "medianMs": 8.007758499999909,
+              "p95Ms": 10.927405999999792,
+              "cpuMsPerRequest": 10.66638
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -0.0909555000000637,
+                "percent": -1.1358421960410612
+              },
+              "p95Ms": {
+                "ms": -1.2133319999993546,
+                "percent": -11.103568404060193
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.8025699999999993,
+                "percent": -7.5242959654540655
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -0.22646800000006806,
+            "percent": -2.826753280026313,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.5812114999997675,
+            "percent": -5.303593189773971,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.7309449999999993,
+            "percent": -6.881485395567541,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 10,
+            "comparatorJob": 9,
+            "candidate": {
+              "medianMs": 7.6505779999997685,
+              "p95Ms": 10.306920999999875,
+              "cpuMsPerRequest": 9.90895
+            },
+            "comparator": {
+              "medianMs": 8.012558499999841,
+              "p95Ms": 10.256012000000055,
+              "cpuMsPerRequest": 10.56827
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -0.3619805000000724,
+                "percent": -4.517664364011565
+              },
+              "p95Ms": {
+                "ms": 0.05090899999981957,
+                "percent": 0.49638202451224994
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.6593199999999992,
+                "percent": -6.2386748256810165
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 55,
+            "comparatorJob": 56,
+            "candidate": {
+              "medianMs": 7.916802999999845,
+              "p95Ms": 9.714074000000437,
+              "cpuMsPerRequest": 9.86381
+            },
+            "comparator": {
+              "medianMs": 8.007758499999909,
+              "p95Ms": 10.927405999999792,
+              "cpuMsPerRequest": 10.66638
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -0.0909555000000637,
+                "percent": -1.1358421960410612
+              },
+              "p95Ms": {
+                "ms": -1.2133319999993546,
+                "percent": -11.103568404060193
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.8025699999999993,
+                "percent": -7.5242959654540655
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 82,
+            "comparatorJob": 81,
+            "candidate": {
+              "medianMs": 7.636617999999771,
+              "p95Ms": 9.660890000000109,
+              "cpuMsPerRequest": 9.59417
+            },
+            "comparator": {
+              "medianMs": 7.579406500000005,
+              "p95Ms": 10.661342999999988,
+              "cpuMsPerRequest": 10.13301
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.0572114999997666,
+                "percent": 0.7548282309408602
+              },
+              "p95Ms": {
+                "ms": -1.0004529999998795,
+                "percent": -9.383930335980004
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.5388400000000004,
+                "percent": -5.31766967564426
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 83,
+            "comparatorJob": 84,
+            "candidate": {
+              "medianMs": 7.554681999999957,
+              "p95Ms": 10.037420999999995,
+              "cpuMsPerRequest": 9.72455
+            },
+            "comparator": {
+              "medianMs": 7.5358309999999165,
+              "p95Ms": 9.955009999999675,
+              "cpuMsPerRequest": 9.84151
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.018851000000040585,
+                "percent": 0.2501515758519637
+              },
+              "p95Ms": {
+                "ms": 0.0824110000003202,
+                "percent": 0.8278344270907101
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.11695999999999884,
+                "percent": -1.1884355144688046
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -0.036052250000011554,
+            "percent": -0.44284531009454875,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.47477200000002995,
+            "percent": -4.443774155733877,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.5990799999999998,
+            "percent": -5.778172250662639,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/query-plus-helper/isolated/historical",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "query-plus-helper",
+        "profile": "isolated",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "old-query-handles",
+            "profile": "current-default"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 12,
+            "comparatorJob": 11,
+            "candidate": {
+              "medianMs": 7.7634740000000875,
+              "p95Ms": 9.649439999999913,
+              "cpuMsPerRequest": 9.68988
+            },
+            "comparator": {
+              "medianMs": 26.738655000000108,
+              "p95Ms": 28.96811600000001,
+              "cpuMsPerRequest": 28.78717
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -18.97518100000002,
+                "percent": -70.96535334331493
+              },
+              "p95Ms": {
+                "ms": -19.318676000000096,
+                "percent": -66.68944573406186
+              },
+              "cpuMsPerRequest": {
+                "ms": -19.09729,
+                "percent": -66.33958808733198
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 53,
+            "comparatorJob": 54,
+            "candidate": {
+              "medianMs": 8.0163285000001,
+              "p95Ms": 10.433541000000332,
+              "cpuMsPerRequest": 10.08689
+            },
+            "comparator": {
+              "medianMs": 26.712325999999848,
+              "p95Ms": 28.849491999999373,
+              "cpuMsPerRequest": 28.53958
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -18.69599749999975,
+                "percent": -69.99015173744083
+              },
+              "p95Ms": {
+                "ms": -18.41595099999904,
+                "percent": -63.8345763592629
+              },
+              "cpuMsPerRequest": {
+                "ms": -18.45269,
+                "percent": -64.65648758671291
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -18.835589249999884,
+            "percent": -70.47775254037788,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -18.867313499999568,
+            "percent": -65.26201104666238,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -18.774990000000003,
+            "percent": -65.49803783702245,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 12,
+            "comparatorJob": 11,
+            "candidate": {
+              "medianMs": 7.7634740000000875,
+              "p95Ms": 9.649439999999913,
+              "cpuMsPerRequest": 9.68988
+            },
+            "comparator": {
+              "medianMs": 26.738655000000108,
+              "p95Ms": 28.96811600000001,
+              "cpuMsPerRequest": 28.78717
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -18.97518100000002,
+                "percent": -70.96535334331493
+              },
+              "p95Ms": {
+                "ms": -19.318676000000096,
+                "percent": -66.68944573406186
+              },
+              "cpuMsPerRequest": {
+                "ms": -19.09729,
+                "percent": -66.33958808733198
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 53,
+            "comparatorJob": 54,
+            "candidate": {
+              "medianMs": 8.0163285000001,
+              "p95Ms": 10.433541000000332,
+              "cpuMsPerRequest": 10.08689
+            },
+            "comparator": {
+              "medianMs": 26.712325999999848,
+              "p95Ms": 28.849491999999373,
+              "cpuMsPerRequest": 28.53958
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -18.69599749999975,
+                "percent": -69.99015173744083
+              },
+              "p95Ms": {
+                "ms": -18.41595099999904,
+                "percent": -63.8345763592629
+              },
+              "cpuMsPerRequest": {
+                "ms": -18.45269,
+                "percent": -64.65648758671291
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 86,
+            "comparatorJob": 85,
+            "candidate": {
+              "medianMs": 8.125350000000026,
+              "p95Ms": 9.525736999999936,
+              "cpuMsPerRequest": 10.04104
+            },
+            "comparator": {
+              "medianMs": 26.676794999999856,
+              "p95Ms": 28.965622999999596,
+              "cpuMsPerRequest": 28.61523
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -18.55144499999983,
+                "percent": -69.54150601674576
+              },
+              "p95Ms": {
+                "ms": -19.43988599999966,
+                "percent": -67.1136470981478
+              },
+              "cpuMsPerRequest": {
+                "ms": -18.57419,
+                "percent": -64.9101544876627
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 87,
+            "comparatorJob": 88,
+            "candidate": {
+              "medianMs": 7.834372499999972,
+              "p95Ms": 9.759532000000036,
+              "cpuMsPerRequest": 9.80429
+            },
+            "comparator": {
+              "medianMs": 26.872483999999986,
+              "p95Ms": 30.021709999999985,
+              "cpuMsPerRequest": 28.74981
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -19.038111500000014,
+                "percent": -70.8461171657969
+              },
+              "p95Ms": {
+                "ms": -20.26217799999995,
+                "percent": -67.49175180227896
+              },
+              "cpuMsPerRequest": {
+                "ms": -18.945520000000002,
+                "percent": -65.89789636870644
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -18.835589249999884,
+            "percent": -70.41813445161887,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -19.379280999999878,
+            "percent": -66.90154641610482,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -18.759855,
+            "percent": -65.40402542818457,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/query-plus-helper/trusted/current-independent",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "query-plus-helper",
+        "profile": "trusted",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "trusted"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 14,
+            "comparatorJob": 13,
+            "candidate": {
+              "medianMs": 7.592551000000071,
+              "p95Ms": 10.100617000000057,
+              "cpuMsPerRequest": 9.86692
+            },
+            "comparator": {
+              "medianMs": 7.112313000000086,
+              "p95Ms": 10.831838999999945,
+              "cpuMsPerRequest": 9.61972
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.48023799999998573,
+                "percent": 6.752205646742206
+              },
+              "p95Ms": {
+                "ms": -0.7312219999998888,
+                "percent": -6.750672715869323
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.2472000000000012,
+                "percent": 2.5697213640313983
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 51,
+            "comparatorJob": 52,
+            "candidate": {
+              "medianMs": 7.963794500000176,
+              "p95Ms": 10.561311000000387,
+              "cpuMsPerRequest": 9.87426
+            },
+            "comparator": {
+              "medianMs": 7.459197500000073,
+              "p95Ms": 10.53753800000004,
+              "cpuMsPerRequest": 10.11627
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.5045970000001034,
+                "percent": 6.764762563266337
+              },
+              "p95Ms": {
+                "ms": 0.023773000000346656,
+                "percent": 0.22560298240771767
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.2420100000000005,
+                "percent": -2.392284903427849
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 0.4924175000000446,
+            "percent": 6.758484105004271,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.35372449999977107,
+            "percent": -3.2625348667308027,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 0.002595000000000347,
+            "percent": 0.08871823030177461,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 14,
+            "comparatorJob": 13,
+            "candidate": {
+              "medianMs": 7.592551000000071,
+              "p95Ms": 10.100617000000057,
+              "cpuMsPerRequest": 9.86692
+            },
+            "comparator": {
+              "medianMs": 7.112313000000086,
+              "p95Ms": 10.831838999999945,
+              "cpuMsPerRequest": 9.61972
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.48023799999998573,
+                "percent": 6.752205646742206
+              },
+              "p95Ms": {
+                "ms": -0.7312219999998888,
+                "percent": -6.750672715869323
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.2472000000000012,
+                "percent": 2.5697213640313983
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 51,
+            "comparatorJob": 52,
+            "candidate": {
+              "medianMs": 7.963794500000176,
+              "p95Ms": 10.561311000000387,
+              "cpuMsPerRequest": 9.87426
+            },
+            "comparator": {
+              "medianMs": 7.459197500000073,
+              "p95Ms": 10.53753800000004,
+              "cpuMsPerRequest": 10.11627
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.5045970000001034,
+                "percent": 6.764762563266337
+              },
+              "p95Ms": {
+                "ms": 0.023773000000346656,
+                "percent": 0.22560298240771767
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.2420100000000005,
+                "percent": -2.392284903427849
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 90,
+            "comparatorJob": 89,
+            "candidate": {
+              "medianMs": 7.3580965000001015,
+              "p95Ms": 9.639768000000004,
+              "cpuMsPerRequest": 9.45205
+            },
+            "comparator": {
+              "medianMs": 7.582509499999901,
+              "p95Ms": 10.607762999999977,
+              "cpuMsPerRequest": 9.99286
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -0.22441299999979947,
+                "percent": -2.9596138323308714
+              },
+              "p95Ms": {
+                "ms": -0.9679949999999735,
+                "percent": -9.125345277793024
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.5408100000000005,
+                "percent": -5.411964142397677
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 91,
+            "comparatorJob": 92,
+            "candidate": {
+              "medianMs": 8.153351499999872,
+              "p95Ms": 10.281833000000006,
+              "cpuMsPerRequest": 10.07853
+            },
+            "comparator": {
+              "medianMs": 7.59185350000007,
+              "p95Ms": 9.929630999999972,
+              "cpuMsPerRequest": 10.12562
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 0.5614979999998013,
+                "percent": 7.396059473484256
+              },
+              "p95Ms": {
+                "ms": 0.3522020000000339,
+                "percent": 3.546979741745034
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.047089999999998966,
+                "percent": -0.46505794213094076
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 0.4924175000000446,
+            "percent": 6.758484105004271,
+            "alignedPairs": 3,
+            "lowerPairs": 1,
+            "higherPairs": 3,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.35372449999977107,
+            "percent": -3.2625348667308027,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.14454999999999973,
+            "percent": -1.4286714227793949,
+            "alignedPairs": 3,
+            "lowerPairs": 3,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/10/query-plus-helper/trusted/historical",
+        "caseId": "helper/B1-global-many/10",
+        "rows": 10,
+        "workflow": "query-plus-helper",
+        "profile": "trusted",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "old-query-handles",
+            "profile": "current-active"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 16,
+            "comparatorJob": 15,
+            "candidate": {
+              "medianMs": 7.652141500000084,
+              "p95Ms": 9.62442800000008,
+              "cpuMsPerRequest": 9.62724
+            },
+            "comparator": {
+              "medianMs": 6.198938999999882,
+              "p95Ms": 8.783498000000009,
+              "cpuMsPerRequest": 7.65812
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.4532025000002022,
+                "percent": 23.44276173713324
+              },
+              "p95Ms": {
+                "ms": 0.8409300000000712,
+                "percent": 9.573976108380402
+              },
+              "cpuMsPerRequest": {
+                "ms": 1.9691200000000002,
+                "percent": 25.712838137819727
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 49,
+            "comparatorJob": 50,
+            "candidate": {
+              "medianMs": 7.3022324999999455,
+              "p95Ms": 8.81956799999989,
+              "cpuMsPerRequest": 9.2086
+            },
+            "comparator": {
+              "medianMs": 6.236589000000208,
+              "p95Ms": 8.571757000000161,
+              "cpuMsPerRequest": 7.71104
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.0656434999997373,
+                "percent": 17.08696051639288
+              },
+              "p95Ms": {
+                "ms": 0.24781099999972866,
+                "percent": 2.891017559173971
+              },
+              "cpuMsPerRequest": {
+                "ms": 1.497560000000001,
+                "percent": 19.420986014856634
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 1.2594229999999698,
+            "percent": 20.26486112676306,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": 0.5443704999999,
+            "percent": 6.232496833777186,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 1.7333400000000005,
+            "percent": 22.56691207633818,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 16,
+            "comparatorJob": 15,
+            "candidate": {
+              "medianMs": 7.652141500000084,
+              "p95Ms": 9.62442800000008,
+              "cpuMsPerRequest": 9.62724
+            },
+            "comparator": {
+              "medianMs": 6.198938999999882,
+              "p95Ms": 8.783498000000009,
+              "cpuMsPerRequest": 7.65812
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.4532025000002022,
+                "percent": 23.44276173713324
+              },
+              "p95Ms": {
+                "ms": 0.8409300000000712,
+                "percent": 9.573976108380402
+              },
+              "cpuMsPerRequest": {
+                "ms": 1.9691200000000002,
+                "percent": 25.712838137819727
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 49,
+            "comparatorJob": 50,
+            "candidate": {
+              "medianMs": 7.3022324999999455,
+              "p95Ms": 8.81956799999989,
+              "cpuMsPerRequest": 9.2086
+            },
+            "comparator": {
+              "medianMs": 6.236589000000208,
+              "p95Ms": 8.571757000000161,
+              "cpuMsPerRequest": 7.71104
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.0656434999997373,
+                "percent": 17.08696051639288
+              },
+              "p95Ms": {
+                "ms": 0.24781099999972866,
+                "percent": 2.891017559173971
+              },
+              "cpuMsPerRequest": {
+                "ms": 1.497560000000001,
+                "percent": 19.420986014856634
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 94,
+            "comparatorJob": 93,
+            "candidate": {
+              "medianMs": 7.310591999999815,
+              "p95Ms": 9.768857000000025,
+              "cpuMsPerRequest": 9.25537
+            },
+            "comparator": {
+              "medianMs": 6.236758000000009,
+              "p95Ms": 9.104141000000027,
+              "cpuMsPerRequest": 7.73771
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.073833999999806,
+                "percent": 17.217823747527234
+              },
+              "p95Ms": {
+                "ms": 0.6647159999999985,
+                "percent": 7.301248959127463
+              },
+              "cpuMsPerRequest": {
+                "ms": 1.5176599999999993,
+                "percent": 19.613813389232725
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 95,
+            "comparatorJob": 96,
+            "candidate": {
+              "medianMs": 7.75698999999986,
+              "p95Ms": 10.593731000000162,
+              "cpuMsPerRequest": 9.7612
+            },
+            "comparator": {
+              "medianMs": 6.389733000000206,
+              "p95Ms": 8.301600000000008,
+              "cpuMsPerRequest": 7.80776
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.367256999999654,
+                "percent": 21.397717244204255
+              },
+              "p95Ms": {
+                "ms": 2.292131000000154,
+                "percent": 27.61071359738065
+              },
+              "cpuMsPerRequest": {
+                "ms": 1.9534400000000005,
+                "percent": 25.01921165609599
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 1.22054549999973,
+            "percent": 19.307770495865746,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": 0.7528230000000349,
+            "percent": 8.437612533753931,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 1.73555,
+            "percent": 22.316512522664357,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/raw-only/isolated/current-independent",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "raw-only",
+        "profile": "isolated",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "isolated"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 18,
+            "comparatorJob": 17,
+            "candidate": {
+              "medianMs": 26.902957499999957,
+              "p95Ms": 30.13532299999997,
+              "cpuMsPerRequest": 31.0235
+            },
+            "comparator": {
+              "medianMs": 25.60478799999987,
+              "p95Ms": 30.352410999999847,
+              "cpuMsPerRequest": 32.94276
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.2981695000000855,
+                "percent": 5.070026356008462
+              },
+              "p95Ms": {
+                "ms": -0.21708799999987605,
+                "percent": -0.715224895972439
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.9192600000000013,
+                "percent": -5.82604493369712
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 47,
+            "comparatorJob": 48,
+            "candidate": {
+              "medianMs": 26.644655500000226,
+              "p95Ms": 29.316495999999916,
+              "cpuMsPerRequest": 30.76378
+            },
+            "comparator": {
+              "medianMs": 24.824302999999873,
+              "p95Ms": 29.547685,
+              "cpuMsPerRequest": 32.25708
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.8203525000003538,
+                "percent": 7.332945057915073
+              },
+              "p95Ms": {
+                "ms": -0.2311890000000858,
+                "percent": -0.7824267789509932
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.4933000000000014,
+                "percent": -4.629371288411726
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 1.5592610000002196,
+            "percent": 6.201485706961767,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.22413849999998092,
+            "percent": -0.748825837461716,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.7062800000000014,
+            "percent": -5.227708111054423,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      },
+      "final": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 18,
+            "comparatorJob": 17,
+            "candidate": {
+              "medianMs": 26.902957499999957,
+              "p95Ms": 30.13532299999997,
+              "cpuMsPerRequest": 31.0235
+            },
+            "comparator": {
+              "medianMs": 25.60478799999987,
+              "p95Ms": 30.352410999999847,
+              "cpuMsPerRequest": 32.94276
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.2981695000000855,
+                "percent": 5.070026356008462
+              },
+              "p95Ms": {
+                "ms": -0.21708799999987605,
+                "percent": -0.715224895972439
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.9192600000000013,
+                "percent": -5.82604493369712
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 47,
+            "comparatorJob": 48,
+            "candidate": {
+              "medianMs": 26.644655500000226,
+              "p95Ms": 29.316495999999916,
+              "cpuMsPerRequest": 30.76378
+            },
+            "comparator": {
+              "medianMs": 24.824302999999873,
+              "p95Ms": 29.547685,
+              "cpuMsPerRequest": 32.25708
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.8203525000003538,
+                "percent": 7.332945057915073
+              },
+              "p95Ms": {
+                "ms": -0.2311890000000858,
+                "percent": -0.7824267789509932
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.4933000000000014,
+                "percent": -4.629371288411726
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 1.5592610000002196,
+            "percent": 6.201485706961767,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.22413849999998092,
+            "percent": -0.748825837461716,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.7062800000000014,
+            "percent": -5.227708111054423,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/raw-only/isolated/historical",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "raw-only",
+        "profile": "isolated",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "old-raw",
+            "profile": "current-default"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 20,
+            "comparatorJob": 19,
+            "candidate": {
+              "medianMs": 27.62878950000004,
+              "p95Ms": 29.791086000000178,
+              "cpuMsPerRequest": 31.64505
+            },
+            "comparator": {
+              "medianMs": 167.4944570000007,
+              "p95Ms": 194.59287600000062,
+              "cpuMsPerRequest": 184.90876
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -139.86566750000065,
+                "percent": -83.50465442566859
+              },
+              "p95Ms": {
+                "ms": -164.80179000000044,
+                "percent": -84.69055670876664
+              },
+              "cpuMsPerRequest": {
+                "ms": -153.26371,
+                "percent": -82.88612719051277
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 45,
+            "comparatorJob": 46,
+            "candidate": {
+              "medianMs": 27.537428999999975,
+              "p95Ms": 29.980059999999867,
+              "cpuMsPerRequest": 32.83446
+            },
+            "comparator": {
+              "medianMs": 163.1192970000002,
+              "p95Ms": 186.9124780000002,
+              "cpuMsPerRequest": 180.66641
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -135.5818680000002,
+                "percent": -83.11822726896627
+              },
+              "p95Ms": {
+                "ms": -156.93241800000033,
+                "percent": -83.96037529393845
+              },
+              "cpuMsPerRequest": {
+                "ms": -147.83195,
+                "percent": -81.82591883017989
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -137.72376775000043,
+            "percent": -83.31144084731743,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -160.86710400000038,
+            "percent": -84.32546600135254,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -150.54783,
+            "percent": -82.35602301034632,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 20,
+            "comparatorJob": 19,
+            "candidate": {
+              "medianMs": 27.62878950000004,
+              "p95Ms": 29.791086000000178,
+              "cpuMsPerRequest": 31.64505
+            },
+            "comparator": {
+              "medianMs": 167.4944570000007,
+              "p95Ms": 194.59287600000062,
+              "cpuMsPerRequest": 184.90876
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -139.86566750000065,
+                "percent": -83.50465442566859
+              },
+              "p95Ms": {
+                "ms": -164.80179000000044,
+                "percent": -84.69055670876664
+              },
+              "cpuMsPerRequest": {
+                "ms": -153.26371,
+                "percent": -82.88612719051277
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 45,
+            "comparatorJob": 46,
+            "candidate": {
+              "medianMs": 27.537428999999975,
+              "p95Ms": 29.980059999999867,
+              "cpuMsPerRequest": 32.83446
+            },
+            "comparator": {
+              "medianMs": 163.1192970000002,
+              "p95Ms": 186.9124780000002,
+              "cpuMsPerRequest": 180.66641
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -135.5818680000002,
+                "percent": -83.11822726896627
+              },
+              "p95Ms": {
+                "ms": -156.93241800000033,
+                "percent": -83.96037529393845
+              },
+              "cpuMsPerRequest": {
+                "ms": -147.83195,
+                "percent": -81.82591883017989
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 98,
+            "comparatorJob": 97,
+            "candidate": {
+              "medianMs": 26.897793499999807,
+              "p95Ms": 28.617671999999402,
+              "cpuMsPerRequest": 30.62594
+            },
+            "comparator": {
+              "medianMs": 167.04731549999997,
+              "p95Ms": 195.99278499999855,
+              "cpuMsPerRequest": 184.80595
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -140.14952200000016,
+                "percent": -83.89809891916532
+              },
+              "p95Ms": {
+                "ms": -167.37511299999915,
+                "percent": -85.39860944371007
+              },
+              "cpuMsPerRequest": {
+                "ms": -154.18000999999998,
+                "percent": -83.42805521142581
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 99,
+            "comparatorJob": 100,
+            "candidate": {
+              "medianMs": 27.3686174999998,
+              "p95Ms": 29.803518000000167,
+              "cpuMsPerRequest": 31.43686
+            },
+            "comparator": {
+              "medianMs": 165.97438549999788,
+              "p95Ms": 191.50949000000037,
+              "cpuMsPerRequest": 183.2015
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -138.60576799999808,
+                "percent": -83.51033659949887
+              },
+              "p95Ms": {
+                "ms": -161.7059720000002,
+                "percent": -84.43757643550714
+              },
+              "cpuMsPerRequest": {
+                "ms": -151.76464,
+                "percent": -82.84028242126838
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -139.23571774999937,
+            "percent": -83.50749551258373,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -163.25388100000032,
+            "percent": -84.56406657213688,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -152.51417500000002,
+            "percent": -82.86320480589058,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/raw-only/trusted/current-independent",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "raw-only",
+        "profile": "trusted",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "trusted"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 22,
+            "comparatorJob": 21,
+            "candidate": {
+              "medianMs": 27.400430499999857,
+              "p95Ms": 29.1279770000001,
+              "cpuMsPerRequest": 30.99387
+            },
+            "comparator": {
+              "medianMs": 25.788422000000082,
+              "p95Ms": 28.98083799999995,
+              "cpuMsPerRequest": 33.24133
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.6120084999997744,
+                "percent": 6.250900113235967
+              },
+              "p95Ms": {
+                "ms": 0.147139000000152,
+                "percent": 0.5077113367120449
+              },
+              "cpuMsPerRequest": {
+                "ms": -2.2474599999999967,
+                "percent": -6.761041149677214
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 43,
+            "comparatorJob": 44,
+            "candidate": {
+              "medianMs": 26.788283999999976,
+              "p95Ms": 29.649777000000086,
+              "cpuMsPerRequest": 30.95814
+            },
+            "comparator": {
+              "medianMs": 27.993359500000224,
+              "p95Ms": 34.07107900000028,
+              "cpuMsPerRequest": 35.77188
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -1.2050755000002482,
+                "percent": -4.30486201557994
+              },
+              "p95Ms": {
+                "ms": -4.421302000000196,
+                "percent": -12.976700855291842
+              },
+              "cpuMsPerRequest": {
+                "ms": -4.813740000000003,
+                "percent": -13.456771072697332
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 0.20346649999976307,
+            "percent": 0.9730190488280135,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -2.137081500000022,
+            "percent": -6.234494759289898,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -3.5305999999999997,
+            "percent": -10.108906111187274,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 22,
+            "comparatorJob": 21,
+            "candidate": {
+              "medianMs": 27.400430499999857,
+              "p95Ms": 29.1279770000001,
+              "cpuMsPerRequest": 30.99387
+            },
+            "comparator": {
+              "medianMs": 25.788422000000082,
+              "p95Ms": 28.98083799999995,
+              "cpuMsPerRequest": 33.24133
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.6120084999997744,
+                "percent": 6.250900113235967
+              },
+              "p95Ms": {
+                "ms": 0.147139000000152,
+                "percent": 0.5077113367120449
+              },
+              "cpuMsPerRequest": {
+                "ms": -2.2474599999999967,
+                "percent": -6.761041149677214
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 43,
+            "comparatorJob": 44,
+            "candidate": {
+              "medianMs": 26.788283999999976,
+              "p95Ms": 29.649777000000086,
+              "cpuMsPerRequest": 30.95814
+            },
+            "comparator": {
+              "medianMs": 27.993359500000224,
+              "p95Ms": 34.07107900000028,
+              "cpuMsPerRequest": 35.77188
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -1.2050755000002482,
+                "percent": -4.30486201557994
+              },
+              "p95Ms": {
+                "ms": -4.421302000000196,
+                "percent": -12.976700855291842
+              },
+              "cpuMsPerRequest": {
+                "ms": -4.813740000000003,
+                "percent": -13.456771072697332
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 102,
+            "comparatorJob": 101,
+            "candidate": {
+              "medianMs": 26.303258999999798,
+              "p95Ms": 28.948011999999835,
+              "cpuMsPerRequest": 30.43191
+            },
+            "comparator": {
+              "medianMs": 25.256831499999862,
+              "p95Ms": 29.22317299999986,
+              "cpuMsPerRequest": 32.43134
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.0464274999999361,
+                "percent": 4.143146380019766
+              },
+              "p95Ms": {
+                "ms": -0.2751610000000255,
+                "percent": -0.9415849538310807
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.9994300000000003,
+                "percent": -6.165116828351836
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 103,
+            "comparatorJob": 104,
+            "candidate": {
+              "medianMs": 28.695443499999783,
+              "p95Ms": 31.024410999999873,
+              "cpuMsPerRequest": 33.76152
+            },
+            "comparator": {
+              "medianMs": 25.144029999999702,
+              "p95Ms": 28.61186700000053,
+              "cpuMsPerRequest": 32.38598
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 3.5514135000000806,
+                "percent": 14.12428119120174
+              },
+              "p95Ms": {
+                "ms": 2.412543999999343,
+                "percent": 8.431969853625066
+              },
+              "cpuMsPerRequest": {
+                "ms": 1.3755399999999938,
+                "percent": 4.247331715760936
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 1.3292179999998552,
+            "percent": 5.197023246627866,
+            "alignedPairs": 3,
+            "lowerPairs": 1,
+            "higherPairs": 3,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.06401099999993676,
+            "percent": -0.21693680855951786,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -2.1234449999999985,
+            "percent": -6.463078989014525,
+            "alignedPairs": 3,
+            "lowerPairs": 3,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": true
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/raw-only/trusted/historical",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "raw-only",
+        "profile": "trusted",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "old-raw",
+            "profile": "current-active"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 24,
+            "comparatorJob": 23,
+            "candidate": {
+              "medianMs": 26.92653949999999,
+              "p95Ms": 29.833403999999973,
+              "cpuMsPerRequest": 30.76729
+            },
+            "comparator": {
+              "medianMs": 168.39154400000052,
+              "p95Ms": 197.38372399999935,
+              "cpuMsPerRequest": 186.07507
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -141.46500450000053,
+                "percent": -84.00956552782726
+              },
+              "p95Ms": {
+                "ms": -167.55031999999937,
+                "percent": -84.88558053550551
+              },
+              "cpuMsPerRequest": {
+                "ms": -155.30778,
+                "percent": -83.46511974978701
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 41,
+            "comparatorJob": 42,
+            "candidate": {
+              "medianMs": 26.124221499999976,
+              "p95Ms": 28.03711599999997,
+              "cpuMsPerRequest": 30.05648
+            },
+            "comparator": {
+              "medianMs": 168.13858249999953,
+              "p95Ms": 197.07645799999955,
+              "cpuMsPerRequest": 188.71192
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -142.01436099999955,
+                "percent": -84.46268482131396
+              },
+              "p95Ms": {
+                "ms": -169.03934199999958,
+                "percent": -85.7734828987032
+              },
+              "cpuMsPerRequest": {
+                "ms": -158.65544,
+                "percent": -84.07282380466481
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -141.73968275000004,
+            "percent": -84.23612517457062,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -168.29483099999948,
+            "percent": -85.32953171710435,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -156.98161,
+            "percent": -83.76897177722591,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 24,
+            "comparatorJob": 23,
+            "candidate": {
+              "medianMs": 26.92653949999999,
+              "p95Ms": 29.833403999999973,
+              "cpuMsPerRequest": 30.76729
+            },
+            "comparator": {
+              "medianMs": 168.39154400000052,
+              "p95Ms": 197.38372399999935,
+              "cpuMsPerRequest": 186.07507
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -141.46500450000053,
+                "percent": -84.00956552782726
+              },
+              "p95Ms": {
+                "ms": -167.55031999999937,
+                "percent": -84.88558053550551
+              },
+              "cpuMsPerRequest": {
+                "ms": -155.30778,
+                "percent": -83.46511974978701
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 41,
+            "comparatorJob": 42,
+            "candidate": {
+              "medianMs": 26.124221499999976,
+              "p95Ms": 28.03711599999997,
+              "cpuMsPerRequest": 30.05648
+            },
+            "comparator": {
+              "medianMs": 168.13858249999953,
+              "p95Ms": 197.07645799999955,
+              "cpuMsPerRequest": 188.71192
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -142.01436099999955,
+                "percent": -84.46268482131396
+              },
+              "p95Ms": {
+                "ms": -169.03934199999958,
+                "percent": -85.7734828987032
+              },
+              "cpuMsPerRequest": {
+                "ms": -158.65544,
+                "percent": -84.07282380466481
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 106,
+            "comparatorJob": 105,
+            "candidate": {
+              "medianMs": 27.73019350000004,
+              "p95Ms": 30.960555000000113,
+              "cpuMsPerRequest": 32.93111
+            },
+            "comparator": {
+              "medianMs": 165.26498799999968,
+              "p95Ms": 189.34619600000042,
+              "cpuMsPerRequest": 182.6529
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -137.53479449999963,
+                "percent": -83.2207693622317
+              },
+              "p95Ms": {
+                "ms": -158.3856410000003,
+                "percent": -83.64870504184829
+              },
+              "cpuMsPerRequest": {
+                "ms": -149.72179,
+                "percent": -81.97066129253902
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 107,
+            "comparatorJob": 108,
+            "candidate": {
+              "medianMs": 27.016623499999696,
+              "p95Ms": 30.292034000000058,
+              "cpuMsPerRequest": 31.21154
+            },
+            "comparator": {
+              "medianMs": 166.17732550000073,
+              "p95Ms": 191.29253000000062,
+              "cpuMsPerRequest": 183.99389
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -139.16070200000104,
+                "percent": -83.74229250668763
+              },
+              "p95Ms": {
+                "ms": -161.00049600000057,
+                "percent": -84.16454944686028
+              },
+              "cpuMsPerRequest": {
+                "ms": -152.78235,
+                "percent": -83.0366432276637
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -140.31285325000079,
+            "percent": -83.87592901725745,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -164.27540799999997,
+            "percent": -84.52506499118289,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -154.04506500000002,
+            "percent": -83.25088148872535,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/query-plus-helper/isolated/current-independent",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "query-plus-helper",
+        "profile": "isolated",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "isolated"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 26,
+            "comparatorJob": 25,
+            "candidate": {
+              "medianMs": 41.68114050000008,
+              "p95Ms": 47.03477799999973,
+              "cpuMsPerRequest": 48.09784
+            },
+            "comparator": {
+              "medianMs": 39.7699204999999,
+              "p95Ms": 47.9945359999997,
+              "cpuMsPerRequest": 49.51328
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.9112200000001849,
+                "percent": 4.805692281935011
+              },
+              "p95Ms": {
+                "ms": -0.9597579999999653,
+                "percent": -1.9997234685214402
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.4154400000000038,
+                "percent": -2.858707805259526
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 39,
+            "comparatorJob": 40,
+            "candidate": {
+              "medianMs": 40.601902499999596,
+              "p95Ms": 44.61746300000004,
+              "cpuMsPerRequest": 47.04049
+            },
+            "comparator": {
+              "medianMs": 38.21918750000009,
+              "p95Ms": 43.84487200000012,
+              "cpuMsPerRequest": 47.778
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 2.382714999999507,
+                "percent": 6.234342370568453
+              },
+              "p95Ms": {
+                "ms": 0.7725909999999203,
+                "percent": 1.762101164304729
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.7375100000000003,
+                "percent": -1.5436184017748762
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 2.146967499999846,
+            "percent": 5.5200173262517325,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.09358350000002247,
+            "percent": -0.11881115210835558,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.076475000000002,
+            "percent": -2.2011631035172012,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 26,
+            "comparatorJob": 25,
+            "candidate": {
+              "medianMs": 41.68114050000008,
+              "p95Ms": 47.03477799999973,
+              "cpuMsPerRequest": 48.09784
+            },
+            "comparator": {
+              "medianMs": 39.7699204999999,
+              "p95Ms": 47.9945359999997,
+              "cpuMsPerRequest": 49.51328
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.9112200000001849,
+                "percent": 4.805692281935011
+              },
+              "p95Ms": {
+                "ms": -0.9597579999999653,
+                "percent": -1.9997234685214402
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.4154400000000038,
+                "percent": -2.858707805259526
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 39,
+            "comparatorJob": 40,
+            "candidate": {
+              "medianMs": 40.601902499999596,
+              "p95Ms": 44.61746300000004,
+              "cpuMsPerRequest": 47.04049
+            },
+            "comparator": {
+              "medianMs": 38.21918750000009,
+              "p95Ms": 43.84487200000012,
+              "cpuMsPerRequest": 47.778
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 2.382714999999507,
+                "percent": 6.234342370568453
+              },
+              "p95Ms": {
+                "ms": 0.7725909999999203,
+                "percent": 1.762101164304729
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.7375100000000003,
+                "percent": -1.5436184017748762
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 110,
+            "comparatorJob": 109,
+            "candidate": {
+              "medianMs": 40.12111649999997,
+              "p95Ms": 47.94267899999977,
+              "cpuMsPerRequest": 47.07457
+            },
+            "comparator": {
+              "medianMs": 38.8857895000001,
+              "p95Ms": 44.35830800000031,
+              "cpuMsPerRequest": 48.54914
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.2353269999998702,
+                "percent": 3.1768083299423995
+              },
+              "p95Ms": {
+                "ms": 3.5843709999994644,
+                "percent": 8.080495315554957
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.47457,
+                "percent": -3.0372731628201857
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 111,
+            "comparatorJob": 112,
+            "candidate": {
+              "medianMs": 41.578056999999944,
+              "p95Ms": 44.71586800000023,
+              "cpuMsPerRequest": 47.92441
+            },
+            "comparator": {
+              "medianMs": 37.948872000000165,
+              "p95Ms": 44.80322100000012,
+              "cpuMsPerRequest": 47.44617
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 3.6291849999997794,
+                "percent": 9.563354083356584
+              },
+              "p95Ms": {
+                "ms": -0.08735299999989365,
+                "percent": -0.19497035715332478
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.47823999999999955,
+                "percent": 1.0079633403497048
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 2.146967499999846,
+            "percent": 5.5200173262517325,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": 0.34261900000001333,
+            "percent": 0.7835654035757021,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.076475000000002,
+            "percent": -2.2011631035172012,
+            "alignedPairs": 3,
+            "lowerPairs": 3,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/query-plus-helper/isolated/historical",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "query-plus-helper",
+        "profile": "isolated",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "isolated"
+          },
+          "comparator": {
+            "strategy": "old-query-handles",
+            "profile": "current-default"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 28,
+            "comparatorJob": 27,
+            "candidate": {
+              "medianMs": 41.90664949999973,
+              "p95Ms": 47.00448399999959,
+              "cpuMsPerRequest": 48.73701
+            },
+            "comparator": {
+              "medianMs": 233.21397699999943,
+              "p95Ms": 261.5883099999992,
+              "cpuMsPerRequest": 257.47673
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -191.3073274999997,
+                "percent": -82.03081563160349
+              },
+              "p95Ms": {
+                "ms": -214.5838259999996,
+                "percent": -82.03112210939405
+              },
+              "cpuMsPerRequest": {
+                "ms": -208.73971999999998,
+                "percent": -81.07129525841033
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 37,
+            "comparatorJob": 38,
+            "candidate": {
+              "medianMs": 40.77528099999972,
+              "p95Ms": 45.07479300000023,
+              "cpuMsPerRequest": 47.36025
+            },
+            "comparator": {
+              "medianMs": 228.4287859999995,
+              "p95Ms": 250.5688659999978,
+              "cpuMsPerRequest": 251.3321
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -187.65350499999977,
+                "percent": -82.14967486628423
+              },
+              "p95Ms": {
+                "ms": -205.49407299999757,
+                "percent": -82.01101608529424
+              },
+              "cpuMsPerRequest": {
+                "ms": -203.97185,
+                "percent": -81.1563067351922
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -189.48041624999973,
+            "percent": -82.09024524894386,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -210.03894949999858,
+            "percent": -82.02106909734414,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -206.35578499999997,
+            "percent": -81.11380099680127,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 28,
+            "comparatorJob": 27,
+            "candidate": {
+              "medianMs": 41.90664949999973,
+              "p95Ms": 47.00448399999959,
+              "cpuMsPerRequest": 48.73701
+            },
+            "comparator": {
+              "medianMs": 233.21397699999943,
+              "p95Ms": 261.5883099999992,
+              "cpuMsPerRequest": 257.47673
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -191.3073274999997,
+                "percent": -82.03081563160349
+              },
+              "p95Ms": {
+                "ms": -214.5838259999996,
+                "percent": -82.03112210939405
+              },
+              "cpuMsPerRequest": {
+                "ms": -208.73971999999998,
+                "percent": -81.07129525841033
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 37,
+            "comparatorJob": 38,
+            "candidate": {
+              "medianMs": 40.77528099999972,
+              "p95Ms": 45.07479300000023,
+              "cpuMsPerRequest": 47.36025
+            },
+            "comparator": {
+              "medianMs": 228.4287859999995,
+              "p95Ms": 250.5688659999978,
+              "cpuMsPerRequest": 251.3321
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -187.65350499999977,
+                "percent": -82.14967486628423
+              },
+              "p95Ms": {
+                "ms": -205.49407299999757,
+                "percent": -82.01101608529424
+              },
+              "cpuMsPerRequest": {
+                "ms": -203.97185,
+                "percent": -81.1563067351922
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 114,
+            "comparatorJob": 113,
+            "candidate": {
+              "medianMs": 40.99444249999988,
+              "p95Ms": 44.27595999999994,
+              "cpuMsPerRequest": 47.39896
+            },
+            "comparator": {
+              "medianMs": 230.82761550000032,
+              "p95Ms": 251.99072200000228,
+              "cpuMsPerRequest": 249.58791
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -189.83317300000044,
+                "percent": -82.24023481280565
+              },
+              "p95Ms": {
+                "ms": -207.71476200000234,
+                "percent": -82.42952770300823
+              },
+              "cpuMsPerRequest": {
+                "ms": -202.18894999999998,
+                "percent": -81.00911218015328
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 115,
+            "comparatorJob": 116,
+            "candidate": {
+              "medianMs": 40.770454999999856,
+              "p95Ms": 44.09165600000006,
+              "cpuMsPerRequest": 47.88843
+            },
+            "comparator": {
+              "medianMs": 228.2279510000003,
+              "p95Ms": 249.7074930000017,
+              "cpuMsPerRequest": 247.04018
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": -187.45749600000045,
+                "percent": -82.13608157048222
+              },
+              "p95Ms": {
+                "ms": -205.61583700000165,
+                "percent": -82.3426780389006
+              },
+              "cpuMsPerRequest": {
+                "ms": -199.15175,
+                "percent": -80.61512503755462
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -188.7433390000001,
+            "percent": -82.14287821838323,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -206.665299500002,
+            "percent": -82.18690007414733,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -203.0804,
+            "percent": -81.0402037192818,
+            "alignedPairs": 4,
+            "lowerPairs": 4,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/query-plus-helper/trusted/current-independent",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "query-plus-helper",
+        "profile": "trusted",
+        "comparator": "current-independent",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "independent",
+            "profile": "trusted"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 30,
+            "comparatorJob": 29,
+            "candidate": {
+              "medianMs": 38.94964049999976,
+              "p95Ms": 41.82717599999978,
+              "cpuMsPerRequest": 45.02904
+            },
+            "comparator": {
+              "medianMs": 37.38298899999995,
+              "p95Ms": 44.176470000000336,
+              "cpuMsPerRequest": 46.91666
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.5666514999998071,
+                "percent": 4.190813902012515
+              },
+              "p95Ms": {
+                "ms": -2.3492940000005547,
+                "percent": -5.317975836458949
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.8876199999999983,
+                "percent": -4.023346930493343
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 35,
+            "comparatorJob": 36,
+            "candidate": {
+              "medianMs": 38.837861500000145,
+              "p95Ms": 44.807736000000205,
+              "cpuMsPerRequest": 45.92507
+            },
+            "comparator": {
+              "medianMs": 37.462348499999734,
+              "p95Ms": 43.69812499999989,
+              "cpuMsPerRequest": 47.23218
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.37551300000041,
+                "percent": 3.671721221643165
+              },
+              "p95Ms": {
+                "ms": 1.1096110000003137,
+                "percent": 2.5392645565463425
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.3071100000000015,
+                "percent": -2.767414080823713
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 1.4710822500001086,
+            "percent": 3.93126756182784,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.6198415000001205,
+            "percent": -1.3893556399563032,
+            "alignedPairs": 1,
+            "lowerPairs": 1,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.597365,
+            "percent": -3.395380505658528,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 0,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 30,
+            "comparatorJob": 29,
+            "candidate": {
+              "medianMs": 38.94964049999976,
+              "p95Ms": 41.82717599999978,
+              "cpuMsPerRequest": 45.02904
+            },
+            "comparator": {
+              "medianMs": 37.38298899999995,
+              "p95Ms": 44.176470000000336,
+              "cpuMsPerRequest": 46.91666
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.5666514999998071,
+                "percent": 4.190813902012515
+              },
+              "p95Ms": {
+                "ms": -2.3492940000005547,
+                "percent": -5.317975836458949
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.8876199999999983,
+                "percent": -4.023346930493343
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 35,
+            "comparatorJob": 36,
+            "candidate": {
+              "medianMs": 38.837861500000145,
+              "p95Ms": 44.807736000000205,
+              "cpuMsPerRequest": 45.92507
+            },
+            "comparator": {
+              "medianMs": 37.462348499999734,
+              "p95Ms": 43.69812499999989,
+              "cpuMsPerRequest": 47.23218
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 1.37551300000041,
+                "percent": 3.671721221643165
+              },
+              "p95Ms": {
+                "ms": 1.1096110000003137,
+                "percent": 2.5392645565463425
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.3071100000000015,
+                "percent": -2.767414080823713
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 118,
+            "comparatorJob": 117,
+            "candidate": {
+              "medianMs": 39.37234149999995,
+              "p95Ms": 42.81980399999975,
+              "cpuMsPerRequest": 45.32058
+            },
+            "comparator": {
+              "medianMs": 36.838052999999945,
+              "p95Ms": 44.71086500000001,
+              "cpuMsPerRequest": 46.66458
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 2.5342885000000024,
+                "percent": 6.879539752005911
+              },
+              "p95Ms": {
+                "ms": -1.8910610000002634,
+                "percent": -4.229533470220858
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.3440000000000012,
+                "percent": -2.880128782901295
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 119,
+            "comparatorJob": 120,
+            "candidate": {
+              "medianMs": 39.82786250000004,
+              "p95Ms": 44.10465199999999,
+              "cpuMsPerRequest": 46.77767
+            },
+            "comparator": {
+              "medianMs": 37.364106999999876,
+              "p95Ms": 43.204594000000725,
+              "cpuMsPerRequest": 46.66866
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 2.463755500000161,
+                "percent": 6.593909764791567
+              },
+              "p95Ms": {
+                "ms": 0.9000579999992624,
+                "percent": 2.083246054804374
+              },
+              "cpuMsPerRequest": {
+                "ms": 0.10900999999999783,
+                "percent": 0.233582879816986
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 2.015203499999984,
+            "percent": 5.392361833402041,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": -0.4955015000005005,
+            "percent": -1.073143707708242,
+            "alignedPairs": 2,
+            "lowerPairs": 2,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": -1.3255550000000014,
+            "percent": -2.823771431862504,
+            "alignedPairs": 3,
+            "lowerPairs": 3,
+            "higherPairs": 1,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": false,
+          "signDisagreement": true
+        },
+        "repeatRequired": false
+      }
+    },
+    {
+      "comparison": {
+        "id": "helper/B1-global-many/100/query-plus-helper/trusted/historical",
+        "caseId": "helper/B1-global-many/100",
+        "rows": 100,
+        "workflow": "query-plus-helper",
+        "profile": "trusted",
+        "comparator": "historical",
+        "strategies": {
+          "candidate": {
+            "strategy": "many",
+            "profile": "trusted"
+          },
+          "comparator": {
+            "strategy": "old-query-handles",
+            "profile": "current-active"
+          }
+        },
+        "fields": 24,
+        "bytes": 32,
+        "concurrency": 1,
+        "hookConcurrency": 10,
+        "warmup": 5,
+        "samples": 100,
+        "validationSeries": "checked-each-response-v2",
+        "supplement": "B1-report-only-v1"
+      },
+      "initial": {
+        "n": 2,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 32,
+            "comparatorJob": 31,
+            "candidate": {
+              "medianMs": 38.797420999999986,
+              "p95Ms": 42.77773399999978,
+              "cpuMsPerRequest": 45.11726
+            },
+            "comparator": {
+              "medianMs": 27.55861549999986,
+              "p95Ms": 30.008991000000606,
+              "cpuMsPerRequest": 32.85081
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 11.238805500000126,
+                "percent": 40.781459068581235
+              },
+              "p95Ms": {
+                "ms": 12.768742999999176,
+                "percent": 42.54972451422615
+              },
+              "cpuMsPerRequest": {
+                "ms": 12.266449999999999,
+                "percent": 37.3398707672657
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 33,
+            "comparatorJob": 34,
+            "candidate": {
+              "medianMs": 39.12012400000003,
+              "p95Ms": 43.01406700000007,
+              "cpuMsPerRequest": 45.21188
+            },
+            "comparator": {
+              "medianMs": 27.473015000000032,
+              "p95Ms": 30.640053999999964,
+              "cpuMsPerRequest": 32.85395
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 11.647109,
+                "percent": 42.39472442322034
+              },
+              "p95Ms": {
+                "ms": 12.374013000000105,
+                "percent": 40.385088746906646
+              },
+              "cpuMsPerRequest": {
+                "ms": 12.357930000000003,
+                "percent": 37.614746476451096
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 11.442957250000063,
+            "percent": 41.58809174590078,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": 12.57137799999964,
+            "percent": 41.4674066305664,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 12.312190000000001,
+            "percent": 37.4773086218584,
+            "alignedPairs": 2,
+            "lowerPairs": 0,
+            "higherPairs": 2,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": true
+      },
+      "final": {
+        "n": 4,
+        "acceptanceGate": false,
+        "pairs": [
+          {
+            "round": 1,
+            "candidateJob": 32,
+            "comparatorJob": 31,
+            "candidate": {
+              "medianMs": 38.797420999999986,
+              "p95Ms": 42.77773399999978,
+              "cpuMsPerRequest": 45.11726
+            },
+            "comparator": {
+              "medianMs": 27.55861549999986,
+              "p95Ms": 30.008991000000606,
+              "cpuMsPerRequest": 32.85081
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 11.238805500000126,
+                "percent": 40.781459068581235
+              },
+              "p95Ms": {
+                "ms": 12.768742999999176,
+                "percent": 42.54972451422615
+              },
+              "cpuMsPerRequest": {
+                "ms": 12.266449999999999,
+                "percent": 37.3398707672657
+              }
+            }
+          },
+          {
+            "round": 2,
+            "candidateJob": 33,
+            "comparatorJob": 34,
+            "candidate": {
+              "medianMs": 39.12012400000003,
+              "p95Ms": 43.01406700000007,
+              "cpuMsPerRequest": 45.21188
+            },
+            "comparator": {
+              "medianMs": 27.473015000000032,
+              "p95Ms": 30.640053999999964,
+              "cpuMsPerRequest": 32.85395
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 11.647109,
+                "percent": 42.39472442322034
+              },
+              "p95Ms": {
+                "ms": 12.374013000000105,
+                "percent": 40.385088746906646
+              },
+              "cpuMsPerRequest": {
+                "ms": 12.357930000000003,
+                "percent": 37.614746476451096
+              }
+            }
+          },
+          {
+            "round": 3,
+            "candidateJob": 122,
+            "comparatorJob": 121,
+            "candidate": {
+              "medianMs": 39.15527250000014,
+              "p95Ms": 42.66197299999976,
+              "cpuMsPerRequest": 45.26402
+            },
+            "comparator": {
+              "medianMs": 26.707765499999823,
+              "p95Ms": 29.845068000000083,
+              "cpuMsPerRequest": 32.12719
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 12.447507000000314,
+                "percent": 46.60632129633008
+              },
+              "p95Ms": {
+                "ms": 12.816904999999679,
+                "percent": 42.9448007958958
+              },
+              "cpuMsPerRequest": {
+                "ms": 13.136830000000003,
+                "percent": 40.89006850583573
+              }
+            }
+          },
+          {
+            "round": 4,
+            "candidateJob": 123,
+            "comparatorJob": 124,
+            "candidate": {
+              "medianMs": 38.38169850000031,
+              "p95Ms": 42.88292999999976,
+              "cpuMsPerRequest": 44.61721
+            },
+            "comparator": {
+              "medianMs": 28.129167499999994,
+              "p95Ms": 31.475890000000618,
+              "cpuMsPerRequest": 33.5001
+            },
+            "deltas": {
+              "medianMs": {
+                "ms": 10.252531000000317,
+                "percent": 36.44804276557534
+              },
+              "p95Ms": {
+                "ms": 11.407039999999142,
+                "percent": 36.240563809312206
+              },
+              "cpuMsPerRequest": {
+                "ms": 11.117109999999997,
+                "percent": 33.185303924465885
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": 11.442957250000063,
+            "percent": 41.58809174590078,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          },
+          "p95Ms": {
+            "ms": 12.57137799999964,
+            "percent": 41.4674066305664,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          },
+          "cpuMsPerRequest": {
+            "ms": 12.312190000000001,
+            "percent": 37.4773086218584,
+            "alignedPairs": 4,
+            "lowerPairs": 0,
+            "higherPairs": 4,
+            "zeroPairs": 0
+          }
+        },
+        "descriptiveTriggers": {
+          "materialAbsoluteDelta": true,
+          "signDisagreement": false
+        },
+        "repeatRequired": false
+      }
+    }
+  ]
+}

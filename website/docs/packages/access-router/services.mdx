@@ -12,6 +12,26 @@ Routers expose service access for custom routes and tests.
 `ModelRouter.getService(req)` returns the internal model service.
 `ModelRouter.getPublicService(req)` returns the public wrapper used by the built-in routes.
 
+Both model service getters also inherit the optional direct backend
+`pickAllowedFieldsMany(rows, access, options?)`; Core prepends `modelName`. It is
+not a generated HTTP/DataService/client method or a default migration: one deliberate
+actor/model/catalog/config/scope/output-policy capture is **not N fresh picks**.
+All raw/hydrated row sources are isolated before the first predicate, with separate
+EMPTY-fact stages/decisions; no DB/document hooks, virtuals or row/target authority.
+Presentation subsets normally need zero helpers; current document facts require a
+new checked normal READ/LIST with row policy/private hook inputs. Never accept helper
+output grants from request options; scope grants are model-relative.
+
+See the shipped core README/MIGRATION M3 for executable alternatives and the
+type-only root/advanced `FilteredOutput<T>` (deep optional/readonly, normalized native/
+Map/unknown branches). Dense arrays have 0–1,000 positions; row 20,000/depth-100 owners
+and one 200,000 work / 16 MiB cumulative **router-controlled** ledger remain. Opaque
+Mongoose/native internals/dependency allocations, trusted effects and engine enumeration
+are excluded, not a total-memory/RSS/whole-normalization/sandbox cap. Normalized
+returns are admitted before further router copies; explicit native/wire preparation
+still counts. Shared bounded scheduling and whole-call poison/close/drain/clear
+prevent partial publication, not callback-side-effect rollback. No speedup/gate waiver.
+
 Common public methods:
 
 - `_new()`
@@ -42,7 +62,7 @@ no recursive `subdocuments` tree on model-root authorization.
 All authorization input is **trusted server-only**. Use `router.getService(req)` or
 `req.macl.getService(...)` after the owning runtime's middleware initializes the request.
 There is no standalone `Service` export. Root and `/advanced` expose the policy types
-and opaque consumer handles, while issuers, resolved execution and prepared queries
+and immutable diagnostic contexts, while stage owners, resolved execution and prepared queries
 remain private. The installed package README contains a complete runnable Mongo/Express
 example and the full breaking-release migration table.
 
@@ -71,9 +91,10 @@ const result = await service.findOne(
   },
 );
 if (result.success) {
-  const reuse = { documentAuthorization: result.context.documentAuthorization };
-  const picked = await service.pickAllowedFields(result.data, 'read', reuse);
-  await service.trimOutputFields(picked, 'read', reuse);
+  console.log({ internalNote: result.data.internalNote }); // already-filtered presentation DATA
+  const current = await service.findById(orderId, { select: ['status', 'internalNote'] });
+  if (!current.success) throw new Error(`Refresh failed: ${current.code}`);
+  console.log(current.data); // fresh normal row/document authorization, extra read/hook
 }
 ```
 
@@ -233,22 +254,15 @@ hook inputs (for example `ownerId`) with `alwaysSelectFields`; full document gra
 once even with skim or disabled/stripped/limited metadata. `_view`/`_edit` and hook metadata
 still describe request permissions, not backend grants.
 
-Successful single results expose `context.documentAuthorization`; lists/create expose one
-`contexts[index]` per row. The non-enumerable opaque handle is outside `data` and preserves
-owner-dependent `status` and a granted note after `ownerId` and `_permissions` are trimmed.
-Default/copied handles accept only unchanged original or package-created same-stage copies, not caller spreads,
-matching IDs, another row/call, or pre-/post-write stage reuse. `getDocumentAuthorization(child)`
-looks up an unchanged registered child in the original result graph.
-
-With an actually active unsafe READ/LIST authorization fast path, trusted handles
-instead require exact associated roots and issued-document membership, **not current
-descendant integrity**. Removed original children may remain discoverable; replacements
-get no child handle. Root helpers can filter changed descendants with stale memo/shared
-grants after rollback, while fresh raw helpers stay strict. Diagnostic context/grant
-leaves may be borrowed, not detached snapshots. See
-[configuration](./configuration.mdx#experimental-unsafe-readlist-authorization-fast-paths)
-and the shipped README before opting in; source/grant mutation or changed native
-observations can turn denial into allowance.
+Successful single results expose frozen diagnostic `context`; lists/create expose
+aligned `contexts[index]`. DTOs, copies and metadata are DATA, not reusable authority.
+DocumentAuthorization, the helper option and child lookup are removed entirely.
+Raw helpers evaluate globals + frozen empty facts and explicit scoped output policy,
+with zero database operations/document hooks, no rows/virtuals/omitted-value recovery.
+For current document-dependent authorization issue a new normal read/list; do not
+replace a handle with unrestricted/client grants. For presentation use the filtered
+DTO without a query or claim of current checks. See the shipped
+[migration guide](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md).
 
 Named `pickAllowedFields`/`trimOutputFields` and `genAllowedFields(..., { purpose: 'output', ... })`
 accept either raw **output-only** authorization or the handle, never both. Raw policy is a

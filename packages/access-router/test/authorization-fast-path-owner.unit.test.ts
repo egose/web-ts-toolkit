@@ -15,15 +15,12 @@ import {
   getServiceExecutors,
   readServiceExecution,
 } from '../src/acl/service-execution';
-import { authorizationFastPathPrerequisites, unsafeSnapshotOptions } from '../src/acl/unsafe-snapshot-options';
+import { sourceModes } from './owned-stage-test-fixture';
 
-const originalOn = Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, true]));
-const selections = (['list', 'read'] as const).flatMap((origin) =>
-  (['off', 'dormant', 'active'] as const).map((mode) => ({ origin, mode })),
-);
+const selections = (['list', 'read'] as const).flatMap((origin) => sourceModes.map((mode) => ({ origin, mode })));
 const entries = {
   resolve: calls.resolveServiceAuthorization,
-  derive: calls.deriveTrustedQueryAuthorization,
+  derive: calls.deriveQueryAuthorization,
 };
 const access = (operation: string, effective = operation) => ({
   operation,
@@ -51,7 +48,7 @@ function services(runtime: AccessRuntime, source: string, target: string, reques
   }
 }
 
-function fixture(origin: 'list' | 'read', mode: 'off' | 'dormant' | 'active') {
+function fixture(origin: 'list' | 'read', mode: (typeof sourceModes)[number]) {
   const n = ++sequence;
   const Target = mongoose.model(`FastOwnerTarget${n}`, new mongoose.Schema({ name: String, hidden: String }));
   const Source = mongoose.model(
@@ -62,14 +59,15 @@ function fixture(origin: 'list' | 'read', mode: 'off' | 'dormant' | 'active') {
   runtime.setGlobalOptions({ logger: { warn: vi.fn() } });
   for (const model of [Source, Target]) runtime.registerModelInstance(model.modelName, model);
   runtime.setModelOptions(Source.modelName, {
-    ...originalOn,
-    [origin === 'list' ? 'unsafeUseListAuthorizationFastPath' : 'unsafeUseReadAuthorizationFastPath']: mode !== 'off',
-    [authorizationFastPathPrerequisites(origin)[2]]: mode !== 'dormant',
+    readAuthorizationMode: mode,
+    listAuthorizationMode: mode,
     permissionSchema: { name: true, ref: true },
   });
   runtime.setModelOptions(Target.modelName, {
     permissionSchema: { name: 'reader', hidden: false },
     operationAccess: { read: true, list: true },
+    readAuthorizationMode: 'trusted',
+    listAuthorizationMode: 'isolated',
   });
   const owned = services(runtime, Source.modelName, Target.modelName);
   const targets = captureRelatedTargets(runtime, Source.modelName, { populate: 'ref' });
@@ -89,7 +87,7 @@ function fixture(origin: 'list' | 'read', mode: 'off' | 'dormant' | 'active') {
     targets,
   );
   const state = readServiceExecution(owned.source, execution);
-  expect(calls.readAuthorizationFastPath(state.authorization, state.binding)?.mode).toBe(mode);
+  expect(calls.readServiceAuthorizationMode(state.authorization, state.binding)).toBe(mode);
   return { ...owned, Source, Target, runtime, execution, state, targets };
 }
 
@@ -125,7 +123,7 @@ afterEach(() => {
   mongoose.deleteModel(/^FastOwner/);
 });
 
-describe('trusted related derivation retains cheap parent ownership (FP06-R1)', () => {
+describe('owned related derivation retains exact parent and receiving ownership', () => {
   it.each(
     selections.flatMap((selection) =>
       (['request', 'runtime'] as const).flatMap((changed) =>
@@ -139,9 +137,7 @@ describe('trusted related derivation retains cheap parent ownership (FP06-R1)', 
     // Keep the legitimate parent binding and exact captured target; only the
     // receiving request/runtime differs, so target/source authentication is not
     // a substitute for comparing the receiving owner with its parent.
-    if (entry === 'derive' && mode !== 'active') {
-      expect(entries[entry](foreign)).toBeUndefined(); // Existing strict fallback, never shared issuance.
-    } else expectOwnerRejection(() => entries[entry](foreign));
+    expectOwnerRejection(() => entries[entry](foreign));
     expect(calls.getAuthorizationPermissions(f.state.authorization, f.state.binding).has('reader')).toBe(true);
   });
 
@@ -163,20 +159,20 @@ describe('trusted related derivation retains cheap parent ownership (FP06-R1)', 
   });
 
   it.each(['list', 'read'] as const)('does not trust a different target model/name/scope/path for %s', (origin) => {
-    const f = fixture(origin, 'active');
+    const f = fixture(origin, 'trusted');
     const input = relatedInput(f);
     for (const binding of [
       { ...input.binding, model: {} },
       { ...input.binding, modelName: f.Source.modelName },
       { ...input.binding, scopePath: ['child'] },
     ])
-      expect(calls.deriveTrustedQueryAuthorization({ ...input, binding })).toBeUndefined();
-    expect(
-      calls.deriveTrustedQueryAuthorization({
+      expect(() => calls.deriveQueryAuthorization({ ...input, binding })).toThrow(calls.ServiceAuthorizationError);
+    expect(() =>
+      calls.deriveQueryAuthorization({
         ...input,
         snapshotDerivation: { ...input.snapshotDerivation!, path: 'missing' },
       }),
-    ).toBeUndefined();
+    ).toThrow(calls.ServiceAuthorizationError);
   });
 
   it.each(
@@ -216,10 +212,9 @@ describe('trusted related derivation retains cheap parent ownership (FP06-R1)', 
         ? readServiceExecution(f.source, deriveServiceExecution(f.source, f.execution, access('read', 'list')))
         : f.state;
     const captured = calls.readServiceAuthorization(parent.authorization, parent.binding);
-    const capture = calls.readAuthorizationFastPath(parent.authorization, parent.binding);
     f.runtime.setModelOptions(f.Source.modelName, {
-      unsafeUseListAuthorizationFastPath: false,
-      unsafeUseReadAuthorizationFastPath: false,
+      readAuthorizationMode: mode === 'isolated' ? 'trusted' : 'isolated',
+      listAuthorizationMode: mode === 'isolated' ? 'trusted' : 'isolated',
     });
     f.runtime.setModelOptions(f.Target.modelName, { permissionSchema: { name: false, hidden: true } });
     const copies = vi.spyOn(snapshots, 'copyAuthorizationValue');
@@ -234,7 +229,10 @@ describe('trusted related derivation retains cheap parent ownership (FP06-R1)', 
       ),
     );
     const view = calls.readServiceAuthorization(child.authorization, child.binding);
-    expect(calls.readAuthorizationFastPath(child.authorization, child.binding)).toBe(capture);
+    expect(calls.readServiceAuthorizationMode(parent.authorization, parent.binding)).toBe(mode);
+    expect(calls.readServiceAuthorizationMode(child.authorization, child.binding)).toBe(
+      origin === 'list' ? 'trusted' : 'isolated',
+    );
     expect(calls.getAuthorizationProvenance(child.authorization)).toBe(
       calls.getAuthorizationProvenance(parent.authorization),
     );
@@ -242,23 +240,24 @@ describe('trusted related derivation retains cheap parent ownership (FP06-R1)', 
     expect(view.configuration.permissionSchema).toEqual({ name: 'reader', hidden: false });
     expect(view.authorization.rows).toEqual(captured.authorization.related.ref.rows);
     expect(view.authorization.outputFields).toEqual({ mode: 'grant', paths: ['name'] });
-    if (mode === 'active') {
-      expect(view.configuration).toBe(captured.relatedTargets[0].configuration);
-      expect(calls.serviceOutputFieldPolicyOwner(child.authorization, child.binding)).toBe(child.authorization);
-      for (const entry of Object.values(entries)) {
-        const direct = entry({
-          ...relatedInput(f),
-          parent: parent.authorization,
-          snapshotDerivation: { kind: 'related', parentBinding: parent.binding, path: 'ref' },
-          configuration: { catalog: { paths: ['hidden'] }, permissionSchema: { hidden: true } },
-          authorization: { outputFields: { mode: 'unrestricted' } },
-        })!;
-        const directView = calls.readServiceAuthorization(direct, child.binding);
-        expect(directView.configuration).toBe(view.configuration);
-        expect(directView.authorization).toBe(view.authorization);
-        expect(calls.getAuthorizationPermissions(direct, child.binding).has('reader')).toBe(true);
-      }
-      expect(copies).not.toHaveBeenCalled();
+    expect(view.configuration).toBe(captured.relatedTargets[0].configuration);
+    expect(calls.serviceOutputFieldPolicyOwner(child.authorization, child.binding)).toBe(child.authorization);
+    for (const entry of Object.values(entries)) {
+      const direct = entry({
+        ...relatedInput(f),
+        access: access(origin === 'list' ? 'read' : 'list'),
+        parent: parent.authorization,
+        snapshotDerivation: { kind: 'related', parentBinding: parent.binding, path: 'ref' },
+        configuration: { catalog: { paths: ['hidden'] }, permissionSchema: { hidden: true } },
+        authorization: { outputFields: { mode: 'unrestricted' } },
+      })!;
+      const directView = calls.readServiceAuthorization(direct, child.binding);
+      expect(directView.configuration).toBe(view.configuration);
+      expect(directView.authorization).toBe(view.authorization);
+      expect(calls.getAuthorizationPermissions(direct, child.binding)).toBe(
+        calls.getAuthorizationPermissions(parent.authorization, parent.binding),
+      );
     }
+    expect(copies).not.toHaveBeenCalled();
   });
 });

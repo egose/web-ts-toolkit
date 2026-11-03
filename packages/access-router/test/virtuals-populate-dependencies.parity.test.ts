@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime, permissionsPlugin } from '../dist/index.mjs';
 import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 type Row = Record<string, any>;
@@ -568,7 +569,8 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 related and nested parity (
       matches: 1,
     });
     expect(result.data.account).not.toHaveProperty('account');
-    expect(f.total.mock.calls[0][0]).not.toHaveProperty('account');
+    // Parent presentation sees the completed include; hook authorization still uses the original projection.
+    expect(f.total.mock.calls[0][0].account).toMatchObject({ name: 'member', total: 'read:10' });
     expect(f.total.mock.calls[0][3]).toEqual({ account: { balance: 10 } });
     expect(f.parentHook.mock.calls[0][0]).not.toHaveProperty('account');
     expect(f.parentHook.mock.calls[0][0].key).toBe('join');
@@ -1120,8 +1122,8 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 / POP-03 denied-read ID ret
           if (!result.success) throw new Error(result.code);
           const row = Array.isArray(result.data) ? result.data[0] : result.data;
           assertRow(row, index === 1 || index === 2 ? 'update' : 'create', f.b._id, 20);
-          if ('contexts' in result) expect(result.contexts[0].finalDocumentSnapshot.account).toEqual(f.b._id);
-          else if (index !== 4) expect(result.context.finalDocumentSnapshot.account).toEqual(f.b._id);
+          const context = 'contexts' in result ? result.contexts[0] : result.context;
+          expectOutputContext(context);
         }
       });
       expect(await f.Parent.countDocuments()).toBe(3);

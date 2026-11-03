@@ -1,0 +1,70 @@
+> Historical document preserved from ignored task scratch storage.
+> Scope and limitations: `docs/task-artifacts/access-router/README.md`. References to omitted
+> artifacts are historical, not available execution prerequisites.
+
+# All triggered comparisons: initial, repeat-only and final
+
+Negative = candidate lower. Repeat-only N=2 is descriptive, NEVER a substitute for the all-four gate. No data discarded. Individual pairs are in PAIR-DETAILS.md. No repeat means final N=2.
+
+| Case | Profile | Metric | Initial N=2 | Trigger | Repeat-only N | Repeat-only delta | Final N | Final delta | Final outcome |
+|---|---|---|---|---|---|---|---|---|---|
+| guard/plain-narrow/10 | trusted | medianMs | -2.38% / -0.0908 ms | mixed signs: medianMs, mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | -7.72% / -0.2332 ms | 4 | -7.72% / -0.2332 ms | FAIL: unresolved sign instability: p95Ms, unresolved sign instability: cpuMsPerRequest |
+| guard/plain-narrow/10 | trusted | p95Ms | +0.49% / +0.0220 ms | mixed signs: medianMs, mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | -0.71% / -0.0569 ms | 4 | +0.49% / +0.0220 ms | FAIL: unresolved sign instability: p95Ms, unresolved sign instability: cpuMsPerRequest |
+| guard/plain-narrow/10 | trusted | cpuMsPerRequest | +0.29% / -0.0003 ms | mixed signs: medianMs, mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | +2.68% / +0.1033 ms | 4 | +0.80% / +0.0277 ms | FAIL: unresolved sign instability: p95Ms, unresolved sign instability: cpuMsPerRequest |
+| guard/hydrated/10 | trusted | medianMs | -7.46% / -0.3160 ms | mixed signs: cpuMsPerRequest, material adverse pair: cpuMsPerRequest | 2 | -2.43% / -0.0966 ms | 4 | -2.43% / -0.0966 ms | FAIL: unresolved sign instability: cpuMsPerRequest |
+| guard/hydrated/10 | trusted | p95Ms | -3.93% / -0.2599 ms | mixed signs: cpuMsPerRequest, material adverse pair: cpuMsPerRequest | 2 | -2.60% / -0.1524 ms | 4 | -3.81% / -0.2196 ms | FAIL: unresolved sign instability: cpuMsPerRequest |
+| guard/hydrated/10 | trusted | cpuMsPerRequest | -1.06% / -0.1075 ms | mixed signs: cpuMsPerRequest, material adverse pair: cpuMsPerRequest | 2 | -0.73% / -0.0866 ms | 4 | -1.06% / -0.1075 ms | FAIL: unresolved sign instability: cpuMsPerRequest |
+| guard/large-config/10 | trusted | medianMs | -6.80% / -0.2868 ms | mixed signs: cpuMsPerRequest | 2 | -4.01% / -0.1669 ms | 4 | -6.68% / -0.2697 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/large-config/10 | trusted | p95Ms | +3.19% / +0.1652 ms | mixed signs: cpuMsPerRequest | 2 | -6.81% / -0.3805 ms | 4 | -0.89% / -0.0697 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/large-config/10 | trusted | cpuMsPerRequest | +4.10% / +0.2066 ms | mixed signs: cpuMsPerRequest | 2 | -4.55% / -0.2492 ms | 4 | -2.09% / -0.1141 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/populate/10 | trusted | medianMs | +2.95% / +0.1469 ms | mixed signs: p95Ms | 2 | -2.55% / -0.1367 ms | 4 | -0.02% / -0.0012 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| guard/populate/10 | trusted | p95Ms | -0.84% / -0.0545 ms | mixed signs: p95Ms | 2 | +0.70% / +0.0490 ms | 4 | +0.25% / +0.0181 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| guard/populate/10 | trusted | cpuMsPerRequest | +5.74% / +0.3481 ms | mixed signs: p95Ms | 2 | +8.72% / +0.5388 ms | 4 | +8.72% / +0.5388 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| guard/plain-narrow/100 | trusted | medianMs | -11.24% / -0.7200 ms | mixed signs: p95Ms | 2 | -10.24% / -0.6616 ms | 4 | -10.25% / -0.6616 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/plain-narrow/100 | trusted | p95Ms | +5.76% / +0.4623 ms | mixed signs: p95Ms | 2 | +3.59% / +0.2959 ms | 4 | +3.59% / +0.2959 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/plain-narrow/100 | trusted | cpuMsPerRequest | -11.03% / -0.9388 ms | mixed signs: p95Ms | 2 | -10.43% / -0.9010 ms | 4 | -10.96% / -0.9388 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/populate/100 | trusted | medianMs | -5.08% / -0.7587 ms | mixed signs: p95Ms | 2 | -3.69% / -0.5580 ms | 4 | -5.08% / -0.7587 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/populate/100 | trusted | p95Ms | -1.88% / -0.3425 ms | mixed signs: p95Ms | 2 | -1.87% / -0.3260 ms | 4 | -1.87% / -0.3260 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/populate/100 | trusted | cpuMsPerRequest | -14.68% / -3.0159 ms | mixed signs: p95Ms | 2 | -10.64% / -2.1110 ms | 4 | -13.76% / -2.7805 ms | FAIL: unresolved sign instability: p95Ms |
+| guard/virtuals/100 | trusted | medianMs | +7.13% / +1.0610 ms | mixed signs: p95Ms | 2 | +3.86% / +0.5991 ms | 4 | +4.34% / +0.6611 ms | PASS |
+| guard/virtuals/100 | trusted | p95Ms | -0.49% / -0.1341 ms | mixed signs: p95Ms | 2 | +5.47% / +1.0017 ms | 4 | +5.26% / +0.9507 ms | PASS |
+| guard/virtuals/100 | trusted | cpuMsPerRequest | -3.58% / -0.7392 ms | mixed signs: p95Ms | 2 | -4.93% / -1.0352 ms | 4 | -4.81% / -1.0002 ms | PASS |
+| read/http-id/document-rules/100 | trusted | medianMs | +0.23% / +0.0061 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | +2.54% / +0.0648 ms | 4 | +0.59% / +0.0143 ms | FAIL: unresolved sign instability: medianMs |
+| read/http-id/document-rules/100 | trusted | p95Ms | +6.36% / +0.2155 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | -5.42% / -0.2128 ms | 4 | -1.30% / -0.0488 ms | FAIL: unresolved sign instability: medianMs |
+| read/http-id/document-rules/100 | trusted | cpuMsPerRequest | +2.58% / +0.0724 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | +2.04% / +0.0658 ms | 4 | +2.58% / +0.0724 ms | FAIL: unresolved sign instability: medianMs |
+| read/http-id/virtuals/100 | trusted | medianMs | +2.17% / +0.0560 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | +3.09% / +0.0836 ms | 4 | +2.18% / +0.0563 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-id/virtuals/100 | trusted | p95Ms | -4.34% / -0.1757 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | +3.91% / +0.1672 ms | 4 | -0.57% / -0.0235 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-id/virtuals/100 | trusted | cpuMsPerRequest | -2.18% / -0.0708 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | -4.91% / -0.1780 ms | 4 | -2.18% / -0.0708 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/plain-wide/100 | trusted | medianMs | -2.36% / -0.0630 ms | mixed signs: p95Ms | 2 | -0.30% / -0.0093 ms | 4 | -2.36% / -0.0630 ms | PASS |
+| read/http-filter/plain-wide/100 | trusted | p95Ms | -2.37% / -0.0943 ms | mixed signs: p95Ms | 2 | +5.80% / +0.2157 ms | 4 | +3.60% / +0.1345 ms | PASS |
+| read/http-filter/plain-wide/100 | trusted | cpuMsPerRequest | -2.32% / -0.0690 ms | mixed signs: p95Ms | 2 | -2.82% / -0.0979 ms | 4 | -2.32% / -0.0690 ms | PASS |
+| read/http-filter/document-rules/100 | trusted | medianMs | -0.46% / -0.0124 ms | mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | +3.38% / +0.0873 ms | 4 | +0.11% / +0.0031 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/document-rules/100 | trusted | p95Ms | +5.01% / +0.1836 ms | mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | +1.08% / +0.0440 ms | 4 | +3.34% / +0.1278 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/document-rules/100 | trusted | cpuMsPerRequest | +1.13% / +0.0283 ms | mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | +2.69% / +0.0773 ms | 4 | +2.69% / +0.0773 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/embedded/100 | trusted | medianMs | +5.49% / +0.1526 ms | mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | -3.10% / -0.0920 ms | 4 | +2.15% / +0.0588 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/embedded/100 | trusted | p95Ms | -0.27% / -0.0117 ms | mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | -3.69% / -0.1549 ms | 4 | -0.61% / -0.0255 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/embedded/100 | trusted | cpuMsPerRequest | +0.15% / +0.0049 ms | mixed signs: p95Ms, mixed signs: cpuMsPerRequest | 2 | -5.29% / -0.1835 ms | 4 | -3.53% / -0.1192 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/hydrated/100 | trusted | medianMs | +2.35% / +0.0610 ms | mixed signs: medianMs, mixed signs: cpuMsPerRequest | 2 | -0.27% / -0.0071 ms | 4 | +0.24% / +0.0065 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/hydrated/100 | trusted | p95Ms | +3.93% / +0.1416 ms | mixed signs: medianMs, mixed signs: cpuMsPerRequest | 2 | -4.65% / -0.1906 ms | 4 | +0.25% / +0.0101 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/hydrated/100 | trusted | cpuMsPerRequest | +4.47% / +0.1307 ms | mixed signs: medianMs, mixed signs: cpuMsPerRequest | 2 | +5.58% / +0.1695 ms | 4 | +5.48% / +0.1615 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| read/http-filter/virtuals/100 | trusted | medianMs | +3.29% / +0.0894 ms | mixed signs: cpuMsPerRequest | 2 | +0.70% / +0.0181 ms | 4 | +2.13% / +0.0575 ms | FAIL: unresolved sign instability: p95Ms |
+| read/http-filter/virtuals/100 | trusted | p95Ms | -1.45% / -0.0576 ms | mixed signs: cpuMsPerRequest | 2 | +2.17% / +0.0851 ms | 4 | -0.11% / -0.0043 ms | FAIL: unresolved sign instability: p95Ms |
+| read/http-filter/virtuals/100 | trusted | cpuMsPerRequest | +3.81% / +0.1190 ms | mixed signs: cpuMsPerRequest | 2 | -5.54% / -0.1915 ms | 4 | -1.85% / -0.0583 ms | FAIL: unresolved sign instability: p95Ms |
+| helper/H0/100 | trusted | medianMs | +0.42% / +0.0110 ms | mixed signs: medianMs, mixed signs: cpuMsPerRequest | 2 | +0.12% / +0.0014 ms | 4 | +0.41% / +0.0087 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| helper/H0/100 | trusted | p95Ms | +4.01% / +0.1493 ms | mixed signs: medianMs, mixed signs: cpuMsPerRequest | 2 | -4.39% / -0.1647 ms | 4 | -0.19% / -0.0063 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| helper/H0/100 | trusted | cpuMsPerRequest | +4.45% / +0.1271 ms | mixed signs: medianMs, mixed signs: cpuMsPerRequest | 2 | -4.67% / -0.1347 ms | 4 | -3.50% / -0.1008 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| helper/H2-query/100 | trusted | medianMs | -3.23% / -0.0849 ms | mixed signs: cpuMsPerRequest | 2 | -5.97% / -0.1579 ms | 4 | -4.31% / -0.1118 ms | FAIL: unresolved sign instability: p95Ms |
+| helper/H2-query/100 | trusted | p95Ms | +2.34% / +0.0833 ms | mixed signs: cpuMsPerRequest | 2 | -5.92% / -0.2214 ms | 4 | -1.45% / -0.0542 ms | FAIL: unresolved sign instability: p95Ms |
+| helper/H2-query/100 | trusted | cpuMsPerRequest | +2.23% / +0.0597 ms | mixed signs: cpuMsPerRequest | 2 | -4.95% / -0.1460 ms | 4 | -2.82% / -0.0865 ms | FAIL: unresolved sign instability: p95Ms |
+| helper/H2-global/100 | trusted | medianMs | +9.29% / +0.2507 ms | material adverse pair: cpuMsPerRequest | 2 | +1.35% / +0.0348 ms | 4 | +6.35% / +0.1688 ms | PASS |
+| helper/H2-global/100 | trusted | p95Ms | +8.86% / +0.3373 ms | material adverse pair: cpuMsPerRequest | 2 | +2.60% / +0.1017 ms | 4 | +5.19% / +0.2007 ms | PASS |
+| helper/H2-global/100 | trusted | cpuMsPerRequest | +14.16% / +0.4425 ms | material adverse pair: cpuMsPerRequest | 2 | +2.80% / +0.0876 ms | 4 | +6.76% / +0.2109 ms | PASS |
+| helper/H3-global/10 | trusted | medianMs | +13.60% / +0.7256 ms | material adverse pair: cpuMsPerRequest | 2 | +12.30% / +0.6637 ms | 4 | +12.57% / +0.6701 ms | FAIL: confirmed adverse: cpuMsPerRequest |
+| helper/H3-global/10 | trusted | p95Ms | +10.97% / +0.7887 ms | material adverse pair: cpuMsPerRequest | 2 | +3.99% / +0.2903 ms | 4 | +7.16% / +0.5174 ms | FAIL: confirmed adverse: cpuMsPerRequest |
+| helper/H3-global/10 | trusted | cpuMsPerRequest | +19.11% / +1.2989 ms | material adverse pair: cpuMsPerRequest | 2 | +16.16% / +1.1350 ms | 4 | +18.01% / +1.2266 ms | FAIL: confirmed adverse: cpuMsPerRequest |
+| helper/H3-global/100 | trusted | medianMs | +14.25% / +3.9816 ms | material adverse pair: medianMs, material adverse pair: p95Ms, material adverse pair: cpuMsPerRequest | 2 | +14.68% / +4.1353 ms | 4 | +14.25% / +3.9816 ms | FAIL: confirmed adverse: medianMs, confirmed adverse: cpuMsPerRequest |
+| helper/H3-global/100 | trusted | p95Ms | +18.07% / +5.5002 ms | material adverse pair: medianMs, material adverse pair: p95Ms, material adverse pair: cpuMsPerRequest | 2 | +12.27% / +3.8772 ms | 4 | +14.28% / +4.4523 ms | FAIL: confirmed adverse: medianMs, confirmed adverse: cpuMsPerRequest |
+| helper/H3-global/100 | trusted | cpuMsPerRequest | +18.45% / +6.1730 ms | material adverse pair: medianMs, material adverse pair: p95Ms, material adverse pair: cpuMsPerRequest | 2 | +13.97% / +4.8879 ms | 4 | +15.82% / +5.3927 ms | FAIL: confirmed adverse: medianMs, confirmed adverse: cpuMsPerRequest |
+| native-adapter/direct-read/100 | trusted | medianMs | -1.70% / -0.0350 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | -4.74% / -0.1081 ms | 4 | -1.96% / -0.0409 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| native-adapter/direct-read/100 | trusted | p95Ms | -6.91% / -0.2529 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | -4.28% / -0.1820 ms | 4 | -5.01% / -0.2009 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |
+| native-adapter/direct-read/100 | trusted | cpuMsPerRequest | -7.20% / -0.2112 ms | mixed signs: medianMs, mixed signs: p95Ms | 2 | -8.14% / -0.2607 ms | 4 | -7.20% / -0.2112 ms | FAIL: unresolved sign instability: medianMs, unresolved sign instability: p95Ms |

@@ -11,6 +11,7 @@ import {
 import { copyOutputValue } from '../src/acl/output-field-filter';
 import { planAuthorizedModelProjection } from '../src/acl/output-projection';
 import { resolveServiceAuthorization } from '../src/acl/service-authorization';
+import { createTrustedOutputBudget } from '../src/acl/trusted-output-materialization';
 
 /** Pre-fast-path contract; deliberately retain segment parsing as the oracle. */
 function referenceMatch(pattern: string, path: string, descendants = false): boolean {
@@ -262,7 +263,7 @@ describe('catalog path boundaries', () => {
       private: { value: 'protected' },
       privateExtra: { value: 'public' },
     };
-    const copied = copyOutputValue(value, plan, 'mixed');
+    const copied = copyOutputValue(value, plan, 'mixed', { budget: createTrustedOutputBudget(), depth: 0 });
     expect(copied).toEqual({ secretExtra: 'public', privateExtra: { value: 'public' } });
     expect(copied).not.toBe(value);
     expect((copied as typeof value).privateExtra).not.toBe(value.privateExtra);

@@ -24,7 +24,7 @@ describe('SVA-05 direct authorized execution', () => {
         expect(result.query.select).toEqual(expect.arrayContaining(['status', 'internalNote', '_id']));
         expect(
           await service.pickAllowedFields(result.data, 'read', {
-            documentAuthorization: result.context.documentAuthorization,
+            authorization: noteGrant,
           }),
         ).toMatchObject({ status: 'ready', internalNote: 'note-a' });
         expect(Object.keys(result.context)).not.toContain('documentAuthorization');
@@ -36,10 +36,13 @@ describe('SVA-05 direct authorized execution', () => {
         const denied = await service.findOne({}, { select: ['status', 'internalNote'] }, quiet);
         if (!denied.success) throw new Error(denied.code);
         expect(denied.data).not.toHaveProperty('internalNote');
+        expect(await service.pickAllowedFields(denied.data, 'read', { authorization: noteGrant })).not.toHaveProperty(
+          'internalNote',
+        );
         await expect(
           service.pickAllowedFields(denied.data, 'read', {
-            documentAuthorization: result.context.documentAuthorization,
-          }),
+            documentAuthorization: {},
+          } as never),
         ).rejects.toThrow();
       });
     },
@@ -88,47 +91,58 @@ describe('SVA-05 direct authorized execution', () => {
     ['stripped', { stripPermissionsField: true }, { ...quiet, includePermissions: true }],
     ['exposed subset', { exposedDocPermissionKeys: ['public'] }, { ...quiet, includePermissions: true }],
     ['dotted stripped', { documentPermissionField: 'meta.permissions', stripPermissionsField: true }, quiet],
-  ] as const)('retains ordinary grants and handles with %s', async (_name, posture, options) => {
-    const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice', public: true }));
-    const decision = vi.fn((_permissions, grants) => grants.owner === true);
-    const f = await authorizationFixture({
-      permissionSchema: { status: { read: decision, list: decision }, internalNote: false },
-      alwaysSelectFields: { read: ['ownerId'], list: ['ownerId'] },
-      docPermissions: { read: hook, list: hook },
-      ...posture,
-    });
-    await f.execute(async (req) => {
-      const service = req.macl.getService(f.modelName);
-      const result = await service.findOne(
-        { _id: f.rows[0]._id },
-        { select: ['status', 'internalNote'] },
-        { ...options, authorization: noteGrant },
-      );
-      expect(result).toMatchObject({ success: true, data: { status: 'ready', internalNote: 'note-a' } });
-      if (!result.success) throw new Error(result.code);
-      expect(f.projections[0]).toMatchObject({ ownerId: 1, status: 1, internalNote: 1 });
-      expect(result.data).not.toHaveProperty('ownerId');
-      expect(hook).toHaveBeenCalledTimes(1);
-      expect(decision).toHaveBeenCalledTimes(1);
-      result.context.docPermissions = { owner: false };
-      const handle = result.context.documentAuthorization;
-      const picked = await service.pickAllowedFields(result.data, 'read', { documentAuthorization: handle });
-      expect(await service.trimOutputFields(picked, 'read', { documentAuthorization: handle })).toMatchObject({
-        status: 'ready',
-        internalNote: 'note-a',
+  ] as const)(
+    'retains ordinary stage facts independently of metadata and fresh helpers with %s',
+    async (_name, posture, options) => {
+      const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice', public: true }));
+      const decision = vi.fn((_permissions, grants) => grants.owner === true);
+      const f = await authorizationFixture({
+        permissionSchema: { status: { read: decision, list: decision }, internalNote: false },
+        alwaysSelectFields: { read: ['ownerId'], list: ['ownerId'] },
+        docPermissions: { read: hook, list: hook },
+        ...posture,
       });
-      expect(result.context.getDocumentAuthorization(result.data)).toBe(handle);
-      expect(await service.pickAllowedFields(result.data, 'read', {})).not.toHaveProperty('status');
-      expect(hook).toHaveBeenCalledTimes(1);
-      expect(decision).toHaveBeenCalledTimes(1);
-      await expect(
-        service.pickAllowedFields({ ...result.data }, 'read', { documentAuthorization: handle }),
-      ).rejects.toThrow();
-      await expect(service.pickAllowedFields(result.data, 'list', { documentAuthorization: handle })).rejects.toThrow();
-      if ('_permissions' in result.data && options.includeFieldPermissions)
-        expect(result.data._permissions).not.toHaveProperty('_view.internalNote');
-    });
-  });
+      await f.execute(async (req) => {
+        const service = req.macl.getService(f.modelName);
+        const result = await service.findOne(
+          { _id: f.rows[0]._id },
+          { select: ['status', 'internalNote'] },
+          { ...options, authorization: noteGrant },
+        );
+        expect(result).toMatchObject({ success: true, data: { status: 'ready', internalNote: 'note-a' } });
+        if (!result.success) throw new Error(result.code);
+        expect(f.projections[0]).toMatchObject({ ownerId: 1, status: 1, internalNote: 1 });
+        expect(result.data).not.toHaveProperty('ownerId');
+        expect(hook).toHaveBeenCalledTimes(1);
+        expect(decision).toHaveBeenCalledTimes(1);
+        expect(() => {
+          (result.context as any).docPermissions = { owner: false };
+        }).toThrow(TypeError);
+        expect(result.context.docPermissions.owner).toBe(true);
+        expect(result.context).not.toHaveProperty('documentAuthorization');
+        expect(result.context).not.toHaveProperty('getDocumentAuthorization');
+        const picked = await service.pickAllowedFields(result.data, 'read', { authorization: noteGrant });
+        expect(await service.trimOutputFields(picked, 'read', { authorization: noteGrant })).toMatchObject({
+          internalNote: 'note-a',
+        });
+        expect(picked).not.toHaveProperty('status');
+        expect(await service.pickAllowedFields(result.data, 'read', {})).not.toHaveProperty('status');
+        expect(hook).toHaveBeenCalledTimes(1);
+        expect(decision).toHaveBeenCalledTimes(3);
+        expect(
+          decision.mock.calls.slice(1).every(([, facts]) => Object.isFrozen(facts) && Object.keys(facts).length === 0),
+        ).toBe(true);
+        await expect(
+          service.pickAllowedFields({ ...result.data }, 'read', { documentAuthorization: {} } as never),
+        ).rejects.toThrow();
+        await expect(
+          service.pickAllowedFields(result.data, 'list', { documentAuthorization: undefined } as never),
+        ).rejects.toThrow();
+        if ('_permissions' in result.data && options.includeFieldPermissions)
+          expect(result.data._permissions).not.toHaveProperty('_view.internalNote');
+      });
+    },
+  );
 
   it('isolates list rows, calls, requests and public wrappers; count shares the prepared scope', async () => {
     const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice' }));
@@ -153,11 +167,12 @@ describe('SVA-05 direct authorized execution', () => {
       expect(hook).toHaveBeenCalledTimes(2);
       expect(list.data[0]).toHaveProperty('status', 'ready');
       expect(list.data[1]).not.toHaveProperty('status');
-      expect(list.contexts[0].documentAuthorization).not.toBe(list.contexts[1].documentAuthorization);
+      expect(list.contexts[0].docPermissions).not.toBe(list.contexts[1].docPermissions);
+      expect(list.contexts.map((context) => context.docPermissions.owner)).toEqual([true, false]);
       await expect(
         service.pickAllowedFields(list.data[1], 'list', {
-          documentAuthorization: list.contexts[0].documentAuthorization,
-        }),
+          documentAuthorization: list.contexts[0].docPermissions,
+        } as never),
       ).rejects.toThrow();
       const scoped = await service.find(
         {},
@@ -173,8 +188,8 @@ describe('SVA-05 direct authorized execution', () => {
     await f.execute(async (req) => {
       await expect(
         req.macl.getService(f.modelName).pickAllowedFields(previous.data[0], 'list', {
-          documentAuthorization: previous.contexts[0].documentAuthorization,
-        }),
+          documentAuthorization: previous.contexts[0].docPermissions,
+        } as never),
       ).rejects.toThrow();
     });
   });
@@ -204,7 +219,7 @@ describe('SVA-05 direct authorized execution', () => {
     });
   });
 
-  it('returns embedded handles through a metadata-cleaned output copy', async () => {
+  it('returns filtered embedded DTOs without handles through metadata cleanup', async () => {
     const f = await authorizationFixture({ stripPermissionsField: true });
     await f.execute(async (req) => {
       const service = req.macl.getService(f.modelName);
@@ -217,17 +232,18 @@ describe('SVA-05 direct authorized execution', () => {
       const child = result.data.contacts[0];
       expect(child).toHaveProperty('email', 'a@x');
       expect(child).not.toHaveProperty('ssn');
-      const handle = result.context.getDocumentAuthorization(child);
-      expect(handle).toBeDefined();
-      expect(await service.pickAllowedFields(child, 'read', { documentAuthorization: handle! })).toHaveProperty(
-        'email',
-        'a@x',
-      );
+      expect(result.context).not.toHaveProperty('getDocumentAuthorization');
+      expect(
+        await service.pickAllowedFields(child, 'read', {
+          scopePath: ['contacts'],
+          authorization: { outputFields: { mode: 'grant', paths: ['contacts.email'] } },
+        }),
+      ).toHaveProperty('email', 'a@x');
     });
   });
 
   it.each(['legacy', 'correlated'] as const)(
-    'preserves %s target handles through include pairing and metadata copies',
+    'preserves %s target-local facts through include pairing without transporting handles',
     async (mode) => {
       const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'alice' }));
       const f = await authorizationFixture({
@@ -259,14 +275,11 @@ describe('SVA-05 direct authorized execution', () => {
         const result = await service.findOne({ _id: f.rows[0]._id }, { select: ['status'], include }, quiet);
         if (!result.success) throw new Error(result.code);
         const child = result.data.children[0];
-        const handle = result.context.getDocumentAuthorization(child);
-        expect(handle).toBeDefined();
+        expect(result.context).not.toHaveProperty('getDocumentAuthorization');
         expect(child).not.toHaveProperty('ownerId');
         expect(child).not.toHaveProperty('slug');
-        expect(await service.pickAllowedFields(child, 'list', { documentAuthorization: handle! })).toHaveProperty(
-          'status',
-          'ready',
-        );
+        expect(child).toHaveProperty('status', 'ready');
+        expect(await service.pickAllowedFields(child, 'list')).not.toHaveProperty('status');
         expect(hook).toHaveBeenCalledTimes(2);
       });
     },

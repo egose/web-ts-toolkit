@@ -595,7 +595,9 @@ describe('SVA-02 named model helpers and isolated request admission', () => {
         functionArgs: [permissions],
       }),
     ).toEqual(['yes']);
-    expect(rule).toHaveBeenCalledWith(permissions);
+    expect(rule).toHaveBeenCalledWith(permissions, expect.any(Object));
+    expect(rule.mock.calls[0][1]).toEqual({});
+    expect(Object.isFrozen(rule.mock.calls[0][1])).toBe(true);
   });
 
   it('request-only catalog plans use the same classification as named helpers', () => {

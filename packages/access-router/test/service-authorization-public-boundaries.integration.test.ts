@@ -390,7 +390,7 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
     await request(f.app)
       .post('/sources/__mutation')
       .send({ data: { internalNote: 'attack' }, options: { authorization } })
-      .expect(401);
+      .expect(400); // Invalid authority envelopes reject before route work, even on a denied operation.
     await request(f.app).patch(`/sources/${f.rows[0]._id}`).send({ internalNote: 'attack' }).expect(401);
     const root = await request(f.app)
       .post('/root')
@@ -521,8 +521,10 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
       f.clear();
       const saved = svc.defaults;
       for (const [key, value] of Object.entries(controls)) {
-        svc.defaults = { ...saved, findOneOptions: { [key]: value } } as never;
-        expect(await svc._read(String(f.rows[0]._id))).toMatchObject(badRequest);
+        expect(() => {
+          svc.defaults = { ...saved, findOneOptions: { [key]: value } } as never;
+        }).toThrow();
+        expect(svc.defaults).toEqual(saved);
         f.noWork();
       }
       svc.defaults = saved;
@@ -626,16 +628,14 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
         for (const row of (granted.data as any).items) {
           if (path !== 'group') expect(row).not.toHaveProperty('group');
           expect(row[path]).not.toHaveProperty('group');
-          const handle = granted.context.getDocumentAuthorization(row[path]);
-          expect(handle).toBeDefined();
+          expect(granted.context).not.toHaveProperty('getDocumentAuthorization');
           expect(
-            await req.macl
-              .getService(f.targetName)
-              .pickAllowedFields(row[path], 'read', { documentAuthorization: handle! }),
+            await req.macl.getService(f.targetName).pickAllowedFields(row[path], 'read', { authorization: noteGrant }),
           ).toHaveProperty('internalNote', 'target-note');
         }
         expect(getter).toHaveBeenCalledTimes(2);
-        expect(groups).toEqual([undefined, undefined]);
+        if (path === 'group') expect(groups).toEqual((granted.data as any).items.map((row) => row.group));
+        else expect(groups).toEqual([undefined, undefined]);
         assertPrivateFree(granted.data);
         f.clear();
         for (const [key, value] of Object.entries({ ...controls, authorization: f.targetPolicy })) {
@@ -953,7 +953,7 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
     },
   );
 
-  it('issued document state authenticates only its output; same request calls re-evaluate documents, rows and prepared predicates', async () => {
+  it('diagnostics cannot authenticate output; same request calls re-evaluate documents, rows and prepared predicates', async () => {
     const hook = vi.fn((doc) => ({ owner: doc.owner === 'alice' }));
     const transform = vi.fn((filter) => filter);
     const f = await fixture({
@@ -969,9 +969,10 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
       const granted = await svc.findOne({ _id: f.rows[0]._id }, args, { ...quiet, authorization: noteGrant });
       expect(granted).toMatchObject({ success: true, data: { status: 'owned', internalNote: 'source-note' } });
       if (!granted.success) throw new Error(granted.code);
-      const handle = granted.context.documentAuthorization;
-      expect(JSON.stringify(handle)).toBe('{}');
-      expect(await svc.pickAllowedFields(granted.data, 'read', { documentAuthorization: handle })).toHaveProperty(
+      const diagnostics = granted.context.docPermissions;
+      expect(diagnostics).toEqual({ owner: true });
+      expect(granted.context).not.toHaveProperty('documentAuthorization');
+      expect(await svc.pickAllowedFields(granted.data, 'read', { authorization: noteGrant })).toHaveProperty(
         'internalNote',
         'source-note',
       );
@@ -979,9 +980,9 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
       assertPrivateFree(granted.data);
       f.clear();
       for (const state of [
-        handle,
-        JSON.parse(JSON.stringify(handle)),
-        { ...handle },
+        diagnostics,
+        JSON.parse(JSON.stringify(diagnostics)),
+        { ...diagnostics },
         { _id: f.rows[0]._id, grants: { owner: true } },
       ]) {
         expect(await svc._read(String(f.rows[0]._id), {}, { documentAuthorization: state } as never)).toMatchObject(
@@ -994,7 +995,7 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
         f.noWork();
       }
       await expect(
-        svc.pickAllowedFields({ ...granted.data }, 'read', { documentAuthorization: handle }),
+        svc.pickAllowedFields({ ...granted.data }, 'read', { documentAuthorization: diagnostics } as never),
       ).rejects.toThrow();
       await expect(
         svc.pickAllowedFields(granted.data, 'read', { documentAuthorization: {} } as never),
@@ -1008,7 +1009,9 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
       expect(ordinary.data).not.toHaveProperty('status');
       expect(ordinary.data).not.toHaveProperty('internalNote');
       expect(hook).toHaveBeenCalledTimes(2);
-      await expect(svc.pickAllowedFields(ordinary.data, 'read', { documentAuthorization: handle })).rejects.toThrow();
+      await expect(
+        svc.pickAllowedFields(ordinary.data, 'read', { documentAuthorization: diagnostics } as never),
+      ).rejects.toThrow();
       const elevated = await svc.findOne({ _id: f.rows[1]._id }, args, {
         ...quiet,
         authorization: { ...noteGrant, rows: { mode: 'unrestricted' } },
@@ -1056,11 +1059,9 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
         }
         expect(req.macl.getPermissions()).toBe(actor);
         expect(Object.keys(result.context)).not.toContain('documentAuthorization');
-        expect(Object.getOwnPropertyDescriptor(result.context, 'documentAuthorization')).toMatchObject({
-          enumerable: false,
-          writable: false,
-        });
-        expect(result.context.getDocumentAuthorization((result.data as any).ref)).toBeDefined();
+        expect(Object.getOwnPropertyDescriptor(result.context, 'documentAuthorization')).toBeUndefined();
+        expect(result.context).not.toHaveProperty('getDocumentAuthorization');
+        expect(Object.isFrozen(result.context)).toBe(true);
         assertPrivateFree(result.data);
         const dto = toPublicServiceResult(result);
         expect(dto).toMatchObject({ data: { internalNote: 'source-note', ref: { internalNote: 'target-note' } } });

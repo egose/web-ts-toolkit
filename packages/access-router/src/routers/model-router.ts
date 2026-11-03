@@ -20,6 +20,12 @@ import { defaultRuntime } from '../runtime';
 import { runWithRuntime } from '../runtime-context';
 import { PublicService, Service } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
+import { assertAuthorizationModeOptions } from '../acl/authorization-modes';
+import {
+  assertNoServerModelControls,
+  assertPublicAdmission,
+  assertPublicDefaults,
+} from '../validation/public-admission';
 import { accessRouterResponseHandler } from './index';
 import { setModelCollectionRoutes } from './model-router-collection-routes';
 import { setModelDocumentRoutes } from './model-router-document-routes';
@@ -86,6 +92,15 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
     initialOptions: ModelRouterOptions<TModel, TVirtuals>,
     runtime: AccessRuntime = defaultRuntime,
   ): ModelRouter<TModel, TVirtuals> {
+    assertAuthorizationModeOptions(initialOptions, true);
+    assertNoServerModelControls(
+      initialOptions,
+      (detail) => {
+        throw new TypeError(detail);
+      },
+      'model-options',
+    );
+    assertPublicDefaults(initialOptions.defaults);
     const modelName = String(model.modelName);
     runtime.registerModelInstance(modelName, model);
     return new ModelRouter<TModel, TVirtuals>(modelName, initialOptions, runtime);
@@ -101,8 +116,8 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
   /**
    * Acquire the model-generic internal service after this runtime's middleware
    * initializes req.macl. Supply trusted per-call authorization in service options;
-   * selection/query args stay separate. Successful results carry opaque document
-   * handles in context(s), never data. Use getPublicService for request-only wrappers.
+   * selection/query args stay separate. Successful results carry immutable diagnostic
+   * context(s), never reusable authority on data. Use getPublicService for request-only wrappers.
    */
   getService(req: ModelRequest): Service<TModel, TVirtuals> {
     return req.macl.getService<TModel, TVirtuals>(this.modelName);
@@ -113,6 +128,10 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
   }
 
   private async assertAllowed(req: ModelRequest, baseAccess: string, variant?: RouteVariant) {
+    assertPublicAdmission(req.query);
+    const operation = baseAccess.split('.').at(-1);
+    const businessBody = variant !== 'advanced' && ['create', 'update', 'upsert'].includes(operation!);
+    assertPublicAdmission(req.body, businessBody ? 'data' : 'envelope');
     const allowed =
       variant === undefined
         ? await req.macl.isAllowed(this.modelName, baseAccess)
@@ -204,6 +223,7 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
     keyOrOptions: K | ModelRouterOptions<TModel, TVirtuals>,
     value?: unknown,
   ) {
+    if (arguments.length === 1) assertAuthorizationModeOptions(keyOrOptions, true);
     if (arguments.length === 2 && isString(keyOrOptions)) {
       assertMutableRouterOption('model', keyOrOptions as string);
       this.runtime.setModelOption(

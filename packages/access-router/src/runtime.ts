@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { assertPublicDefaults } from './validation/public-admission';
+import { assertNoServerModelControls, assertPublicDefaults } from './validation/public-admission';
 import { normalizeHydration, normalizeHydrationUpdate } from './options/hydration';
 import {
   assertNoGlobalPopulatePolicy,
@@ -47,10 +47,11 @@ import {
 } from './acl/virtual-descriptor';
 import { captureVirtualPopulateDependencies } from './acl/virtual-populate-dependencies';
 import {
-  authorizationFastPathPrerequisites,
-  captureAuthorizationFastPath,
-  unsafeServerOptions,
-} from './acl/unsafe-snapshot-options';
+  assertAuthorizationModeKey,
+  assertAuthorizationModeOptions,
+  admitControlPrototypes,
+  authorizationModeKeys,
+} from './acl/authorization-modes';
 
 type ModelReferenceMap = {
   [key: string]: string | ModelReferenceMap;
@@ -86,7 +87,6 @@ const modelOverrides = (options: ModelRouterOptions): ModelRouterOptions => {
       ([key, value]) => value !== undefined || key === 'operationAccess' || isPopulatePolicyKey(key),
     ),
   );
-  for (const key of unsafeServerOptions) if (key in result) result[key] = result[key] === true;
   return cloneOptionsSnapshot(result) as ModelRouterOptions;
 };
 
@@ -531,6 +531,10 @@ export class AccessRuntime {
   private readonly allowGlobalModelLookup: boolean;
 
   constructor(options: { allowGlobalModelLookup?: boolean } = {}) {
+    assertAuthorizationModeOptions(options, false);
+    assertNoServerModelControls(options, (detail) => {
+      throw new TypeError(detail);
+    });
     this.allowGlobalModelLookup = options.allowGlobalModelLookup ?? false;
     ensureMongooseJsonSchemaInitialized();
   }
@@ -560,21 +564,13 @@ export class AccessRuntime {
     requireOperationAccessForPopulateQueries: true,
     requireOperationAccessForPopulateDependencies: true,
     modelPermissionPrefix: '',
-    unsafeSkipListDocumentSnapshotChecks: false,
-    unsafeSkipReadDocumentSnapshotChecks: false,
-    unsafeSkipListOutputSnapshotChecks: false,
-    unsafeSkipReadOutputSnapshotChecks: false,
-    unsafeSkipListNestedDocumentSnapshotChecks: false,
-    unsafeSkipReadNestedDocumentSnapshotChecks: false,
-    unsafeSkipListInitialOutputSnapshotCopy: false,
-    unsafeSkipReadInitialOutputSnapshotCopy: false,
-    unsafeUseListAuthorizationFastPath: false,
-    unsafeUseReadAuthorizationFastPath: false,
+    readAuthorizationMode: 'isolated',
+    listAuthorizationMode: 'isolated',
   }).build();
 
   private readonly modelOptions: Record<string, OptionsManager<any, any>> = {};
   private readonly modelOptionOverrides: Record<string, ModelRouterOptions> = {};
-  private pendingSnapshotWarnings?: Array<{ modelName: string; key: string }>;
+  private publishingAuthorizationModes = false;
   private readonly modelJsonSchemas: Record<string, Record<string, unknown>> = {};
   private readonly dataOptions: Record<string, OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>> = {};
   private readonly modelRefs: Record<string, ModelReferenceMap> = {};
@@ -704,6 +700,51 @@ export class AccessRuntime {
   }
 
   restoreBootstrapSnapshot(snapshot: ReturnType<AccessRuntime['createBootstrapSnapshot']>): void {
+    assertAuthorizationModeOptions(snapshot, false);
+    const reject = (detail: string): never => {
+      throw new TypeError(detail);
+    };
+    // Check the complete configuration envelope before any restore can change
+    // globals, drop descriptor presence or invoke a supplied getter/proxy trap.
+    for (const key of [
+      'globalOptions',
+      'defaultModelOptions',
+      'modelOptions',
+      'modelOptionOverrides',
+      'dataOptions',
+      'modelInstances',
+      'modelJsonSchemas',
+      'modelRefs',
+      'modelSubs',
+      'modelAtts',
+      'openApi',
+    ]) {
+      const slot = Object.getOwnPropertyDescriptor(snapshot, key);
+      if (!slot || !('value' in slot) || !slot.enumerable) reject(`Invalid bootstrap snapshot slot: ${key}`);
+      if (!slot!.value || typeof slot!.value !== 'object' || Array.isArray(slot!.value))
+        reject(`Invalid bootstrap snapshot object: ${key}`);
+      admitControlPrototypes(slot!.value, reject);
+      if (key === 'globalOptions' || key === 'defaultModelOptions' || key === 'openApi') continue;
+      for (const entry of Reflect.ownKeys(slot!.value)) {
+        const item = Object.getOwnPropertyDescriptor(slot!.value, entry)!;
+        if (typeof entry !== 'string' || !('value' in item) || !item.enumerable)
+          reject(`Invalid bootstrap snapshot entry: ${key}`);
+      }
+    }
+    assertAuthorizationModeOptions(snapshot.globalOptions, false);
+    assertNoServerModelControls(snapshot.globalOptions, reject);
+    assertAuthorizationModeOptions(snapshot.defaultModelOptions, true);
+    assertNoServerModelControls(snapshot.defaultModelOptions, reject, 'model-options');
+    assertPublicDefaults((snapshot.defaultModelOptions as ModelRouterOptions).defaults);
+    for (const options of [...Object.values(snapshot.modelOptions), ...Object.values(snapshot.modelOptionOverrides)]) {
+      assertAuthorizationModeOptions(options, true);
+      assertNoServerModelControls(options, reject, 'model-options');
+      assertPublicDefaults(options.defaults);
+    }
+    for (const options of Object.values(snapshot.dataOptions)) {
+      assertAuthorizationModeOptions(options, false);
+      assertNoServerModelControls(options, reject, 'data-options');
+    }
     this.globalOptions.restore(snapshot.globalOptions as any);
     this.defaultModelOptions.restore(snapshot.defaultModelOptions as any);
     for (const name of Object.keys(this.modelOptionOverrides)) delete this.modelOptionOverrides[name];
@@ -778,12 +819,22 @@ export class AccessRuntime {
 
   /** Shallowly replace supplied global values; nested objects such as requestComplexity are not deep-merged. */
   setGlobalOptions(options: GlobalOptions) {
+    assertAuthorizationModeOptions(options, false);
+    assertNoServerModelControls(options, (detail) => {
+      throw new TypeError(detail);
+    });
     for (const key of populatePolicyKeys) if (key in options) assertNoGlobalPopulatePolicy(key);
     this.globalOptions.assign({ ...options });
   }
 
   setGlobalOption<K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]) {
+    assertAuthorizationModeKey(key, false);
     assertNoGlobalPopulatePolicy(String(key));
+    const proposed = {};
+    set(proposed, key, value);
+    assertNoServerModelControls(proposed, (detail) => {
+      throw new TypeError(detail);
+    });
     this.globalOptions.set(key, value);
   }
 
@@ -797,6 +848,17 @@ export class AccessRuntime {
 
   /** Update inherited model defaults shallowly. Explicit model values and captured calls are unchanged. */
   setDefaultModelOptions(options: DefaultModelRouterOptions) {
+    assertAuthorizationModeOptions(options, true);
+    assertNoServerModelControls(
+      options,
+      (detail) => {
+        throw new TypeError(detail);
+      },
+      'model-options',
+    );
+    options = { ...options };
+    for (const key of authorizationModeKeys)
+      if (key in options && options[key] === undefined) options[key] = 'isolated';
     assertPublicDefaults((options as ModelRouterOptions).defaults);
     if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
     const draft = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>(
@@ -810,14 +872,34 @@ export class AccessRuntime {
     key: K,
     value: ExtendedDefaultModelRouterOptions[K],
   ) {
-    const keyStr = String(key);
+    assertAuthorizationModeKey(key, true);
+    const keyStr = key as string;
+    if ((authorizationModeKeys as readonly string[]).includes(keyStr)) {
+      this.setDefaultModelOptions({ [keyStr]: value } as DefaultModelRouterOptions);
+      return;
+    }
     // Inspect the supplied defaults value before OptionsManager's clone can drop
     // non-enumerable controls or execute a getter. Dotted setters have the same
     // admission boundary as setDefaultModelOptions/setModelOption.
-    if (keyStr === 'defaults') assertPublicDefaults(value);
-    else if (keyStr.startsWith('defaults.')) {
+    if (keyStr === 'defaults') {
+      assertNoServerModelControls(
+        value,
+        (detail) => {
+          throw new TypeError(detail);
+        },
+        'defaults',
+      );
+      assertPublicDefaults(value);
+    } else if (keyStr.startsWith('defaults.')) {
       const proposed = {};
       set(proposed, keyStr.slice('defaults.'.length), value);
+      assertNoServerModelControls(
+        proposed,
+        (detail) => {
+          throw new TypeError(detail);
+        },
+        'defaults',
+      );
       assertPublicDefaults(proposed);
     }
     const draft = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>(
@@ -856,7 +938,6 @@ export class AccessRuntime {
     for (const key of populatePolicyKeys) delete inherited[key];
     const effective = { ...defaultModelOptions, ...inherited, ...overrides, modelName };
     effective.basePath = normalizeBasePath(modelName, effective.basePath);
-    for (const key of unsafeServerOptions) effective[key] = effective[key] === true;
     refreshPermissionMetadata(effective);
     return cloneOptionsSnapshot(effective);
   }
@@ -877,132 +958,53 @@ export class AccessRuntime {
 
   private publishDefaultModelOptions(options: DefaultModelRouterOptions): void {
     const next = { ...options };
-    for (const key of unsafeServerOptions) if (key in next) next[key] = next[key] === true;
     const defaults = cloneOptionsSnapshot(next);
     const models = new Map(
       Object.keys(this.modelOptions).map((name) => [name, this.resolveModelOptions(name, undefined, defaults)]),
     );
     // Validate the entire proposed graph without making provisional policy visible to callbacks.
     for (const [name, options] of models) this.validateModelOptions(name, options, { defaults, models });
-    this.deferSnapshotWarnings(() => {
+    this.publishAuthorizationModes(() => {
       this.defaultModelOptions.restore(defaults);
       for (const [name, options] of models) this.modelOptions[name].restore(options);
     });
   }
 
-  private warnSnapshotFlag(modelName: string, key: string): void {
-    if (this.pendingSnapshotWarnings) {
-      this.pendingSnapshotWarnings.push({ modelName, key });
-      return;
-    }
-    const operation = key.startsWith('unsafeSkipRead') ? 'read' : 'list';
-    const category = key.includes('NestedDocument')
-      ? 'nested-document'
-      : key.includes('Output')
-        ? 'output'
-        : 'document';
-    const risk = category === 'output' ? 'output mutation' : 'source mutation';
-    try {
-      this.getGlobalOption('logger')?.warn?.(
-        `UNSAFE: ${operation} ${category} snapshot checks disabled; ${risk} can leave stale authorization decisions. Restore ${key}=false after the temporary workaround.`,
-        { modelName },
-      );
-    } catch {
-      // Logging must not change publication of an explicitly selected server mode.
-    }
-  }
-
-  private deferSnapshotWarnings<T>(publish: () => T): T {
-    if (this.pendingSnapshotWarnings) return publish();
-    // Compare coherent before/after model pairs, not transient per-key listener
-    // states. A dormant request can become active when its prerequisite changes.
-    const copyModes = this.initialOutputCopyModes();
-    const fastModes = this.authorizationFastPathModes();
-    const pending: Array<{ modelName: string; key: string }> = [];
-    this.pendingSnapshotWarnings = pending;
+  /** Warn only on effective transitions into trusted, after the entire update commits. */
+  private publishAuthorizationModes<T>(publish: () => T): T {
+    if (this.publishingAuthorizationModes) return publish();
+    const capture = () =>
+      new Map([
+        ['default-model', this.getDefaultModelOptions()],
+        ...Object.entries(this.modelOptions).map(([name, manager]) => [name, manager.fetch()] as const),
+      ]);
+    const before = capture();
+    this.publishingAuthorizationModes = true;
     let result: T;
     try {
       result = publish();
     } finally {
-      this.pendingSnapshotWarnings = undefined;
+      this.publishingAuthorizationModes = false;
     }
-    const nextCopyModes = this.initialOutputCopyModes();
-    // Own the whole published signature before any logger callback can reenter
-    // setters. Loggers observe publication; they are not part of its transaction.
-    const nextFastModes = this.authorizationFastPathModes();
-    for (const { modelName, key } of pending) this.warnSnapshotFlag(modelName, key);
-    for (const [modelName, modes] of nextCopyModes) {
-      for (const operation of ['List', 'Read'] as const) {
-        const mode = modes[operation];
-        if (mode === 'off' || mode === copyModes.get(modelName)?.[operation]) continue;
-        const key = `unsafeSkip${operation}InitialOutputSnapshotCopy`;
-        const prerequisite = `unsafeSkip${operation}OutputSnapshotChecks`;
+    const after = capture();
+    for (const [modelName, options] of after) {
+      for (const key of authorizationModeKeys) {
+        if (options[key] !== 'trusted' || before.get(modelName)?.[key] === 'trusted') continue;
         try {
           this.getGlobalOption('logger')?.warn?.(
-            mode === 'active'
-              ? `UNSAFE: ${operation.toLowerCase()} initial output snapshot copying disabled for eligible graphs; omitted native normalization/validation can change side effects and authorization outcomes. Restore ${key}=false after the temporary workaround.`
-              : `UNSAFE: ${key} is dormant; requires ${prerequisite}=true. Initial copying and output comparisons remain enabled. Restore ${key}=false if not intended.`,
-            { modelName },
+            'Trusted authorization source mode enabled; projected source/document-hook input may be borrowed. Actor, policy, facts, getter views and selected output bounds remain owned.',
+            {
+              modelName,
+              access: key === 'readAuthorizationMode' ? 'read' : 'list',
+              category: 'trustedAuthorizationSource',
+            },
           );
         } catch {
-          // An unavailable logger must not undo explicitly selected server options.
-        }
-      }
-    }
-    for (const [modelName, modes] of nextFastModes) {
-      for (const origin of ['list', 'read'] as const) {
-        const captured = modes[origin];
-        const previous = fastModes.get(modelName)?.[origin];
-        if (
-          captured.mode === 'off' ||
-          (captured.mode === previous?.mode &&
-            (captured.mode !== 'dormant' || captured.prerequisites === previous.prerequisites))
-        )
-          continue;
-        const key = origin === 'read' ? 'unsafeUseReadAuthorizationFastPath' : 'unsafeUseListAuthorizationFastPath';
-        const missing = authorizationFastPathPrerequisites(origin).filter(
-          (_, index) => !(captured.prerequisites & (1 << index)),
-        );
-        try {
-          this.getGlobalOption('logger')?.warn?.(
-            captured.mode === 'active'
-              ? `UNSAFE: ${origin} authorization fast path active (${key}=true); eligible query rows borrow source/grant/context leaves and omit repeated snapshots, isolation and descendant graph checks. Borrowed source/grant mutation, stale decisions, descendant replacement, lost native normalization/validation observations and loss of full unvisited source shape/bounds can change authorization outcomes, including denial becoming allowance. Actual operation/row/field rules, document hooks/getters, request/work limits and cheap exact root authority remain; shallow-unproven rows retain compatible copies and graph checks. Restore ${key}=false after the temporary workaround.`
-              : `UNSAFE: ${key} is dormant; requires ${missing.map((flag) => `${flag}=true`).join(', ')}. Original snapshot flag behavior remains unchanged. Restore ${key}=false if not intended.`,
-            { modelName },
-          );
-        } catch {
-          // Publication already succeeded. Logger failure is not a new activation.
+          /* committed configuration is independent of logger failure */
         }
       }
     }
     return result;
-  }
-
-  private authorizationFastPathModes() {
-    return new Map(
-      Object.entries(this.modelOptions).map(([modelName, manager]) => {
-        const options = manager.fetch();
-        return [
-          modelName,
-          { list: captureAuthorizationFastPath(options, 'list'), read: captureAuthorizationFastPath(options, 'read') },
-        ] as const;
-      }),
-    );
-  }
-
-  private initialOutputCopyModes() {
-    type Mode = 'off' | 'dormant' | 'active';
-    return new Map(
-      Object.entries(this.modelOptions).map(([modelName, options]) => {
-        const mode = (operation: 'List' | 'Read'): Mode =>
-          options.get(`unsafeSkip${operation}InitialOutputSnapshotCopy`) !== true
-            ? 'off'
-            : options.get(`unsafeSkip${operation}OutputSnapshotChecks`) === true
-              ? 'active'
-              : 'dormant';
-        return [modelName, { List: mode('List'), Read: mode('Read') }] as const;
-      }),
-    );
   }
 
   private createModelOptions(modelName: string, options = this.resolveModelOptions(modelName)) {
@@ -1016,13 +1018,6 @@ export class AccessRuntime {
 
     const manager = new OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>(options);
 
-    const snapshotFlagChanged = (newValue: unknown, key: string, target: ModelRouterOptions, oldValue: unknown) => {
-      // Only an explicit server boolean opts out; truthy JS values are not authority.
-      (target as Record<string, unknown>)[key] = newValue === true;
-      if (newValue !== true || oldValue === true) return;
-      this.warnSnapshotFlag(modelName, key);
-    };
-
     manager
       .onchange('permissionSchema', function (_newval, _key, target) {
         refreshPermissionMetadata(target);
@@ -1030,12 +1025,6 @@ export class AccessRuntime {
       .onchange('modelPermissionPrefix', function (_newval, _key, target) {
         refreshPermissionMetadata(target);
       })
-      .onchange('unsafeSkipListDocumentSnapshotChecks', snapshotFlagChanged)
-      .onchange('unsafeSkipReadDocumentSnapshotChecks', snapshotFlagChanged)
-      .onchange('unsafeSkipListOutputSnapshotChecks', snapshotFlagChanged)
-      .onchange('unsafeSkipReadOutputSnapshotChecks', snapshotFlagChanged)
-      .onchange('unsafeSkipListNestedDocumentSnapshotChecks', snapshotFlagChanged)
-      .onchange('unsafeSkipReadNestedDocumentSnapshotChecks', snapshotFlagChanged)
       .onchange('basePath', function (newval, key, target) {
         (target as Record<string, unknown>)[key] = normalizeBasePath(
           modelName,
@@ -1053,7 +1042,7 @@ export class AccessRuntime {
   ) {
     let manager = this.modelOptions[modelName];
     if (!manager) {
-      manager = this.deferSnapshotWarnings(() => {
+      manager = this.publishAuthorizationModes(() => {
         const created = this.createModelOptions(modelName);
         this.modelOptions[modelName] = created;
         return created;
@@ -1078,13 +1067,21 @@ export class AccessRuntime {
     modelName: string,
     options: ModelRouterOptions<TModel, TVirtuals>,
   ) {
+    assertAuthorizationModeOptions(options, true);
+    assertNoServerModelControls(
+      options,
+      (detail) => {
+        throw new TypeError(detail);
+      },
+      'model-options',
+    );
     assertPublicDefaults(options.defaults);
     options = normalizePopulatePolicyOptions(options);
     if ('hydration' in options) options = { ...options, hydration: normalizeHydration(options.hydration) };
     const overrides = modelOverrides({ ...this.modelOptionOverrides[modelName], ...options } as ModelRouterOptions);
     const effective = this.resolveModelOptions(modelName, overrides);
     this.validateModelOptions(modelName, effective);
-    this.deferSnapshotWarnings(() => {
+    this.publishAuthorizationModes(() => {
       const manager = this.modelOptions[modelName];
       if (manager) manager.restore(effective);
       else this.modelOptions[modelName] = this.createModelOptions(modelName, effective);
@@ -1097,7 +1094,8 @@ export class AccessRuntime {
     TModel = unknown,
     TVirtuals extends object = Record<never, never>,
   >(modelName: string, key: K, value: ExtendedModelRouterOptions<TModel, TVirtuals>[K]) {
-    const keyStr = String(key);
+    assertAuthorizationModeKey(key, true);
+    const keyStr = key as string;
 
     if (keyStr === 'hydration' || keyStr.startsWith('hydration.')) {
       const hydration = normalizeHydrationUpdate(this.resolveModelOptions(modelName).hydration, keyStr, value);
@@ -1105,10 +1103,25 @@ export class AccessRuntime {
       return;
     }
 
-    if (keyStr === 'defaults') assertPublicDefaults(value);
-    else if (keyStr.startsWith('defaults.')) {
+    if (keyStr === 'defaults') {
+      assertNoServerModelControls(
+        value,
+        (detail) => {
+          throw new TypeError(detail);
+        },
+        'defaults',
+      );
+      assertPublicDefaults(value);
+    } else if (keyStr.startsWith('defaults.')) {
       const proposed = {};
       set(proposed, keyStr.slice('defaults.'.length), value);
+      assertNoServerModelControls(
+        proposed,
+        (detail) => {
+          throw new TypeError(detail);
+        },
+        'defaults',
+      );
       assertPublicDefaults(proposed);
     }
 
@@ -1262,6 +1275,14 @@ export class AccessRuntime {
   }
 
   setDataOptions<TData = unknown>(dataName: string, options: DataRouterOptions<TData>) {
+    assertAuthorizationModeOptions(options, false);
+    assertNoServerModelControls(
+      options,
+      (detail) => {
+        throw new TypeError(detail);
+      },
+      'data-options',
+    );
     const manager = this.getOrCreateDataOptions<TData>(dataName);
     // Data admission owns records once. Shallow assignment avoids traversing the
     // dataset on unrelated option updates; getters reuse its safe frozen view.
@@ -1273,6 +1294,16 @@ export class AccessRuntime {
     key: K,
     value: ExtendedDataRouterOptions<TData>[K],
   ) {
+    assertAuthorizationModeKey(key, false);
+    const proposed = {};
+    set(proposed, key, value);
+    assertNoServerModelControls(
+      proposed,
+      (detail) => {
+        throw new TypeError(detail);
+      },
+      'data-options',
+    );
     const manager = this.getOrCreateDataOptions<TData>(dataName);
 
     manager.set(key, value);

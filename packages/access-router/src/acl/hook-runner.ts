@@ -4,7 +4,7 @@ import type {
   DataHookContext,
   DecorateAccess,
   DecorateAllAccess,
-  ModelHookContext,
+  ModelOutputContext,
 } from '../interfaces';
 import type { Permissions } from '../permission';
 import type { AccessRuntime } from '../runtime';
@@ -24,7 +24,7 @@ export async function runDecorateHook<TDoc>({
   hook: Function | Function[];
   doc: TDoc;
   permissions: Permissions;
-  context: ModelHookContext | DataHookContext;
+  context: ModelOutputContext | DataHookContext;
 }) {
   return getRequestWorkState(req, runtime).hookGate.run(() => callHookChain(req, hook, doc, permissions, context));
 }
@@ -42,7 +42,7 @@ export async function runDecorateAllHook<TDoc>({
   hook: Function | Function[];
   docs: TDoc[];
   permissions: Permissions;
-  context: ModelHookContext | DataHookContext;
+  context: ModelOutputContext | DataHookContext;
 }) {
   return getRequestWorkState(req, runtime).hookGate.run(() => callHookChain(req, hook, docs, permissions, context));
 }

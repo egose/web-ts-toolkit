@@ -3,20 +3,15 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../src/index';
-import type { ModelRequest } from '../src/interfaces';
-import { unsafeSnapshotOptions } from '../src/acl/unsafe-snapshot-options';
-import { readDocumentAuthorization, readDocumentAuthorizationAccess } from '../src/acl/document-authorization';
-import { readAuthorizationFastPath } from '../src/acl/service-authorization';
-import { getServiceExecutors } from '../src/acl/service-execution';
+import type { AuthorizationMode, ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
-const originalOn = Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, true]));
-const active = { ...originalOn, unsafeUseListAuthorizationFastPath: true, unsafeUseReadAuthorizationFastPath: true };
+const modes = ['isolated', 'trusted'] as const;
 let serial = 0;
 
-async function fixture(hydrated = false, metadata = false, enabled = true) {
+async function fixture(hydrated = false, metadata = false, mode: AuthorizationMode = 'trusted') {
   const api = createAccessRuntime(),
     n = ++serial;
   api.setGlobalOptions({
@@ -61,6 +56,7 @@ async function fixture(hydrated = false, metadata = false, enabled = true) {
     actors.push(this);
     order.push(`source:${doc.name}`);
     expect(doc.ref?.balance).toBeUndefined();
+    expect(typeof doc.owner).toBe('boolean'); // Include attachments are not this stage's source facts.
     return { owner: doc.owner === true };
   });
   const targetHook = vi.fn(function (this: ModelRequest, doc: Record<string, any>) {
@@ -78,7 +74,12 @@ async function fixture(hydrated = false, metadata = false, enabled = true) {
     expect(doc.ref?.balance).toBeUndefined();
     expect(doc.ref?.hidden).toBeUndefined();
     expect(doc.children.every((child: object) => !('hidden' in child))).toBe(true);
-    expect(context.docPermissions.owner).toBe(doc.owner === true);
+    expect(context.docPermissions.owner).toBe(doc.name === 'root:1');
+    if (Array.isArray(doc.owner)) {
+      // Getters see completed child output; a colliding presentation key is not
+      // the original source Boolean and cannot replace immutable owning facts.
+      expect(doc.owner.map((target: any) => target.name)).toEqual(['owned', 'unowned']);
+    } else expect(context.docPermissions.owner).toBe(doc.owner === true);
     return `${doc.name}:${doc.ref?.name ?? 'id'}`;
   });
   const privateFirst = vi.fn((_doc, _p, _context, populated) => {
@@ -100,10 +101,9 @@ async function fixture(hydrated = false, metadata = false, enabled = true) {
     docPermissions: { list: targetHook, read: targetHook },
     virtuals: { targetView: { dependsOn: ['name'], get: targetGetter } },
     stripPermissionsField: true,
-    // Opposite/dormant live target flags do NOT select the inherited origin's mode.
-    ...Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, false])),
-    unsafeUseListAuthorizationFastPath: true,
-    unsafeUseReadAuthorizationFastPath: true,
+    // Each target owns its captured source mode; a trusted parent cannot lower it.
+    readAuthorizationMode: 'isolated',
+    listAuthorizationMode: 'isolated',
   });
   const router = api.createRouter(Source, {
     basePath: `/fast-runtime-${n}`,
@@ -137,7 +137,8 @@ async function fixture(hydrated = false, metadata = false, enabled = true) {
     stripPermissionsField: !metadata,
     documentPermissionField: 'meta.permissions',
     exposedDocPermissionKeys: ['owner'],
-    ...(enabled ? active : originalOn),
+    readAuthorizationMode: mode,
+    listAuthorizationMode: mode,
   });
   const targetRows = await Target.create([
     { name: 'owned', secret: 'allowed', group: 'g', tenant: 'allowed', owner: true, balance: 42 },
@@ -187,7 +188,7 @@ async function fixture(hydrated = false, metadata = false, enabled = true) {
     localField: 'group',
     foreignField: 'group',
     // Target.create saves these rows concurrently, so natural insertion order is
-    // not an ordering contract for this include or its issued-member assertions.
+    // not an ordering contract for this include's output assertions.
     args: { select: ['name', 'secret', 'targetView', '-_id'], sort: 'name' },
   };
   return {
@@ -218,10 +219,11 @@ afterEach(() => {
   mongoose.deleteModel(/^FastRuntimeHttp/);
 });
 
-describe('active real query assembly, targets, getters and private inputs', () => {
-  it('keeps READ metadata request-only even when backend output grants allow a denied document field', async () => {
-    for (const enabled of [false, true]) {
-      const f = await fixture(false, true, enabled);
+describe('owned real query assembly, targets, getters and private inputs', () => {
+  it.each(modes)(
+    '%s keeps READ metadata request-only even when backend output grants allow a denied document field',
+    async (mode) => {
+      const f = await fixture(false, true, mode);
       await f.execute(async (req) => {
         const result = await req.macl.getService(f.Source.modelName).find({}, f.args, {
           ...quiet,
@@ -237,13 +239,13 @@ describe('active real query assembly, targets, getters and private inputs', () =
         expect(second.meta.permissions._view.conditional).toBe(true);
         expect(f.sourceHook).toHaveBeenCalledTimes(2);
       });
-    }
-  });
+    },
+  );
 
-  it.each([false, true])(
-    'retains target-own gates/grants, metadata/dotted includes and builder-known membership; hydrated=%s',
-    async (hydrated) => {
-      const f = await fixture(hydrated, true);
+  it.each(modes.flatMap((mode) => [false, true].map((hydrated) => ({ mode, hydrated }))))(
+    '$mode retains target-own gates/facts, metadata/dotted includes and isolated per-parent values; hydrated=$hydrated',
+    async ({ mode, hydrated }) => {
+      const f = await fixture(hydrated, true, mode);
       await f.execute(async (req) => {
         const service = req.macl.getService(f.Source.modelName),
           target = req.macl.getService(f.Target.modelName);
@@ -269,25 +271,23 @@ describe('active real query assembly, targets, getters and private inputs', () =
         expect(b.ref).toEqual({ name: 'unowned', targetView: 'target:unowned' });
         expect(JSON.stringify(result.data)).not.toContain('never');
         expect(JSON.stringify(result.data)).not.toContain('outside');
-        expect(ca.getDocumentAuthorization(a.ref)).toBeDefined();
-        expect(ca.getDocumentAuthorization(b.ref)).toBeUndefined();
-        expect(ca.getDocumentAuthorization(a.meta.items[0])).toBe(cb.getDocumentAuthorization(b.meta.items[0]));
-        expect(a.meta.items[0]).toBe(b.meta.items[0]);
+        expect(ca.docPermissions.owner).toBe(false);
+        expect(cb.docPermissions.owner).toBe(true);
+        expect(ca).not.toHaveProperty('getDocumentAuthorization');
+        expect(ca).not.toHaveProperty('documentAuthorization');
+        expect(a.meta.items[0]).not.toBe(b.meta.items[0]);
         expect(a.permissions).toBe(a.meta.permissions);
-        const issued = a.ref,
-          issuedHandle = ca.getDocumentAuthorization(issued)!;
-        const targetBinding = getServiceExecutors(target).binding();
-        const state = readDocumentAuthorization(issuedHandle, targetBinding);
-        expect(state.sourceState).toBe('trusted');
-        expect(readAuthorizationFastPath(state.authorization, targetBinding)?.mode).toBe('active');
+        const previouslyFiltered = a.ref;
         a.ref = { _id: f.targetRows[1]._id, name: 'forged', secret: 'forged' };
-        expect(ca.getDocumentAuthorization(a.ref)).toBeUndefined();
-        expect(ca.getDocumentAuthorization(issued)).toBe(issuedHandle);
-        const picked = (await service.pickAllowedFields(a, 'list', {
-          documentAuthorization: ca.documentAuthorization,
-        })) as any;
+        const picked = (await service.pickAllowedFields(a, 'list')) as any;
         expect(String(picked.ref)).toBe(String(f.targetRows[1]._id));
         expect(picked.ref).not.toHaveProperty('secret');
+        expect(await target.pickAllowedFields(previouslyFiltered, 'read')).toEqual({
+          name: 'owned',
+          targetView: 'target:owned',
+        });
+        a.meta.items[0].name = 'parent-specific presentation';
+        expect(b.meta.items[0].name).toBe('owned');
         expect(f.sourceHook).toHaveBeenCalledTimes(2);
         expect(f.targetHook).toHaveBeenCalledTimes(4);
         expect(f.actors.every((actor) => actor === req)).toBe(true);
@@ -297,20 +297,21 @@ describe('active real query assembly, targets, getters and private inputs', () =
     },
   );
 
-  it.each([false, true])(
-    'shares only an actual fetched populate target, including one hydrated conversion; hydrated=%s',
-    async (hydrated) => {
-      const f = await fixture(hydrated);
+  it.each(modes.flatMap((mode) => [false, true].map((hydrated) => ({ mode, hydrated }))))(
+    '$mode shares only actual fetched populate construction, never returned DTO authority; hydrated=$hydrated',
+    async ({ mode, hydrated }) => {
+      const f = await fixture(hydrated, false, mode);
       await f.Source.updateMany({}, { ref: f.targetRows[0]._id });
       await f.execute(async (req) => {
         const result = await req.macl.getService(f.Source.modelName).find({}, f.args, quiet);
         expect(result.success).toBe(true);
         if (!result.success) throw new Error(result.code);
         const [a, b] = result.data as any[];
-        expect(a.ref).toBe(b.ref);
-        expect(result.contexts[0].getDocumentAuthorization(a.ref)).toBe(
-          result.contexts[1].getDocumentAuthorization(b.ref),
-        );
+        expect(a.ref).toEqual(b.ref);
+        expect(a.ref).not.toBe(b.ref);
+        expect(result.contexts[0]).not.toHaveProperty('getDocumentAuthorization');
+        a.ref.name = 'one-parent-only';
+        expect(b.ref.name).toBe('owned');
         expect(f.targetHook).toHaveBeenCalledTimes(1);
         expect(f.targetGetter).toHaveBeenCalledTimes(1);
         expect(f.sourceHook).toHaveBeenCalledTimes(2);
@@ -318,77 +319,84 @@ describe('active real query assembly, targets, getters and private inputs', () =
     },
   );
 
-  it('keeps private argument-four admission/isolation, public masks and child-before-parent views', async () => {
-    const f = await fixture();
-    await f.execute(async (req) => {
-      const service = req.macl.getService(f.Source.modelName);
-      const result = await service.find({}, { ...f.args, select: [...f.args.select, 'first', 'second'] }, quiet);
-      expect(result.success).toBe(true);
-      if (!result.success) throw new Error(result.code);
-      expect((result.data as any[]).map((row) => [row.first, row.second])).toEqual([
-        [42, 42],
-        [24, 24],
-      ]);
-      for (const row of result.data as any[]) expect(row.ref).not.toHaveProperty('balance');
-      expect(f.privateFirst).toHaveBeenCalledTimes(2);
-      expect(f.privateSecond).toHaveBeenCalledTimes(2);
-      expect(f.sourceHook).toHaveBeenCalledTimes(2);
-      expect(f.targetHook).toHaveBeenCalledTimes(2);
-      f.api.setModelOptions(f.Target.modelName, {
-        operationAccess: { read: false },
-        requireOperationAccessForPopulateQueries: false,
-      });
-      const unavailable = await service.find({}, { ...f.args, select: [...f.args.select, 'first', 'second'] }, quiet);
-      expect(unavailable.success).toBe(true);
-      if (!unavailable.success) throw new Error(unavailable.code);
-      for (const row of unavailable.data as any[]) {
-        expect(row).not.toHaveProperty('first');
-        expect(row).not.toHaveProperty('second');
-        expect(row.ref).not.toHaveProperty('balance');
-      }
-      expect(f.privateFirst).toHaveBeenCalledTimes(2);
-      expect(f.privateSecond).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  it('keeps legacy/correlated include source collisions separate from grants and preserves order/count semantics', async () => {
-    const f = await fixture(false, true);
-    await f.execute(async (req) => {
-      const service = req.macl.getService(f.Source.modelName);
-      for (const correlated of [false, true]) {
-        const { localField: _local, foreignField: _foreign, ...common } = f.include;
-        const include = correlated
-          ? { ...common, path: 'owner', mode: 'correlated', filter: { group: { $parent: 'group' } } }
-          : { ...f.include, path: 'owner' };
-        const result = await service.find(
-          {},
-          {
-            ...f.args,
-            include: [
-              include,
-              { model: f.Target.modelName, op: 'count', path: 'count', localField: 'group', foreignField: 'group' },
-            ],
-          } as never,
-          { ...quiet, includePermissions: true },
-        );
-        expect(result.success, JSON.stringify(result)).toBe(true);
+  it.each(modes)(
+    '%s keeps private argument-four admission/isolation, public masks and child-before-parent views',
+    async (mode) => {
+      const f = await fixture(false, false, mode);
+      await f.execute(async (req) => {
+        const service = req.macl.getService(f.Source.modelName);
+        const result = await service.find({}, { ...f.args, select: [...f.args.select, 'first', 'second'] }, quiet);
+        expect(result.success).toBe(true);
         if (!result.success) throw new Error(result.code);
-        const [a, b] = result.data as any[];
-        expect(a.owner).toHaveLength(2);
-        expect(a.meta.permissions.owner).toBe(false);
-        expect(a).not.toHaveProperty('conditional');
-        expect(b).toHaveProperty('conditional', 'conditional:1');
-        expect(a.count).toBe(2);
-        expect(b.count).toBe(2);
-        expect(a.view).toBe('root:0:owned');
-        expect(b.view).toBe('root:1:unowned');
-      }
-    });
-  });
+        expect((result.data as any[]).map((row) => [row.first, row.second])).toEqual([
+          [42, 42],
+          [24, 24],
+        ]);
+        for (const row of result.data as any[]) expect(row.ref).not.toHaveProperty('balance');
+        expect(f.privateFirst).toHaveBeenCalledTimes(2);
+        expect(f.privateSecond).toHaveBeenCalledTimes(2);
+        expect(f.sourceHook).toHaveBeenCalledTimes(2);
+        expect(f.targetHook).toHaveBeenCalledTimes(2);
+        f.api.setModelOptions(f.Target.modelName, {
+          operationAccess: { read: false },
+          requireOperationAccessForPopulateQueries: false,
+        });
+        const unavailable = await service.find({}, { ...f.args, select: [...f.args.select, 'first', 'second'] }, quiet);
+        expect(unavailable.success).toBe(true);
+        if (!unavailable.success) throw new Error(unavailable.code);
+        for (const row of unavailable.data as any[]) {
+          expect(row).not.toHaveProperty('first');
+          expect(row).not.toHaveProperty('second');
+          expect(row.ref).not.toHaveProperty('balance');
+        }
+        expect(f.privateFirst).toHaveBeenCalledTimes(2);
+        expect(f.privateSecond).toHaveBeenCalledTimes(2);
+      });
+    },
+  );
 
-  it('matches current all-eight ON ordinary READ/LIST/root output while retaining actual active handles', async () => {
-    for (const enabled of [false, true]) {
-      const f = await fixture(false, false, enabled);
+  it.each(modes)(
+    '%s keeps legacy/correlated include source collisions separate from facts and preserves order/count semantics',
+    async (mode) => {
+      const f = await fixture(false, true, mode);
+      await f.execute(async (req) => {
+        const service = req.macl.getService(f.Source.modelName);
+        for (const correlated of [false, true]) {
+          const { localField: _local, foreignField: _foreign, ...common } = f.include;
+          const include = correlated
+            ? { ...common, path: 'owner', mode: 'correlated', filter: { group: { $parent: 'group' } } }
+            : { ...f.include, path: 'owner' };
+          const result = await service.find(
+            {},
+            {
+              ...f.args,
+              include: [
+                include,
+                { model: f.Target.modelName, op: 'count', path: 'count', localField: 'group', foreignField: 'group' },
+              ],
+            } as never,
+            { ...quiet, includePermissions: true },
+          );
+          expect(result.success, JSON.stringify(result)).toBe(true);
+          if (!result.success) throw new Error(result.code);
+          const [a, b] = result.data as any[];
+          expect(a.owner).toHaveLength(2);
+          expect(a.meta.permissions.owner).toBe(false);
+          expect(a).not.toHaveProperty('conditional');
+          expect(b).toHaveProperty('conditional', 'conditional:1');
+          expect(a.count).toBe(2);
+          expect(b.count).toBe(2);
+          expect(a.view).toBe('root:0:owned');
+          expect(b.view).toBe('root:1:unowned');
+        }
+      });
+    },
+  );
+
+  it.each(modes)(
+    '%s keeps ordinary READ/LIST/root selection and denials while publishing diagnostics only',
+    async (mode) => {
+      const f = await fixture(false, false, mode);
       await f.execute(async (req) => {
         const service = req.macl.getService(f.Source.modelName);
         for (const origin of ['list', 'read'] as const) {
@@ -405,11 +413,11 @@ describe('active real query assembly, targets, getters and private inputs', () =
             ref: { name: 'owned', secret: 'allowed', targetView: 'target:owned' },
             view: 'root:0:owned',
           });
-          const context = 'contexts' in result ? result.contexts[0] : result.context,
-            binding = getServiceExecutors(service).binding();
-          const state = readDocumentAuthorizationAccess(context.documentAuthorization, binding);
-          expect(state.sourceState).toBe(enabled ? 'trusted' : 'copied');
-          expect(readAuthorizationFastPath(state.authorization, binding)?.mode).toBe(enabled ? 'active' : 'off');
+          const context = 'contexts' in result ? result.contexts[0] : result.context;
+          expect(context.docPermissions).toEqual({ owner: false });
+          expect(Object.isFrozen(context)).toBe(true);
+          expect(context).not.toHaveProperty('documentAuthorization');
+          expect(context).not.toHaveProperty('originalDocumentSnapshot');
         }
       });
       const response = await request(f.app)
@@ -419,6 +427,7 @@ describe('active real query assembly, targets, getters and private inputs', () =
       expect(response.body[0].statusCode).toBe(200);
       expect(response.body[0].result.data.map((row: any) => row.name)).toEqual(['root:0', 'root:1']);
       expect(JSON.stringify(response.body)).not.toContain('never');
-    }
-  });
+      expect(response.body[0].result).not.toHaveProperty('contexts');
+    },
+  );
 });

@@ -9,18 +9,13 @@ const results = [];
 let server;
 let hookCalls = 0;
 let wireHookCalls = 0;
+const wireToken = new B.ObjectId();
+const previousWireHook = Object.getOwnPropertyDescriptor(B.ObjectId.prototype, 'toBSON');
 // Preallocate denied expansion outside the hook: this tests library-owned key
 // filtering work, not arbitrary computation inside application serialization code.
 const deniedExpansion = Object.fromEntries(Array.from({ length: 21000 }, (_, index) => [`hidden${index}`, 'never']));
-const documentHook = (doc) => {
+const documentHook = () => {
   hookCalls++;
-  if (doc.name === 'wire-denied-keys')
-    Object.defineProperty(doc.token, 'toBSON', {
-      value: () => {
-        wireHookCalls++;
-        return deniedExpansion;
-      },
-    });
   return {};
 };
 await mongoose.connect(process.env.MONGODB_URL, { dbName: 'packed_fast_path_native' });
@@ -39,16 +34,8 @@ try {
     operationAccess: { list: true, read: true },
     permissionSchema: { name: true, value: true, token: true },
     stripPermissionsField: true,
-    unsafeSkipListDocumentSnapshotChecks: true,
-    unsafeSkipListOutputSnapshotChecks: true,
-    unsafeSkipListNestedDocumentSnapshotChecks: true,
-    unsafeSkipListInitialOutputSnapshotCopy: true,
-    unsafeSkipReadDocumentSnapshotChecks: true,
-    unsafeSkipReadOutputSnapshotChecks: true,
-    unsafeSkipReadNestedDocumentSnapshotChecks: true,
-    unsafeSkipReadInitialOutputSnapshotCopy: true,
-    unsafeUseListAuthorizationFastPath: true,
-    unsafeUseReadAuthorizationFastPath: true,
+    readAuthorizationMode: 'trusted',
+    listAuthorizationMode: 'trusted',
     docPermissions: {
       list: documentHook,
       read: documentHook,
@@ -61,7 +48,7 @@ try {
   // The Mongo driver's deserializer can return DBRef even from an ordinary BSON
   // document. Persist actual BSON values rather than inventing tags in JSON requests.
   await Model.create([
-    { name: 'wire-denied-keys', token: new B.ObjectId() },
+    { name: 'wire-denied-keys', token: wireToken },
     { name: 'ordinary', value: ordinary },
     { name: 'code-overbound', value: new B.Code('return 1', { expanded: Array(20001).fill('selected') }) },
     {
@@ -69,55 +56,71 @@ try {
       value: new B.DBRef('collection', new B.ObjectId(), 'db', { expanded: Array(20001).fill('selected') }),
     },
   ]);
+  // Real database values cannot persist a JS method. Install a native data hook
+  // only after persistence, keyed to the selected token, not to output authority.
+  // In trusted mode its unknown wire keys are denied by the ObjectId catalog;
+  // isolated mode must reject during its earlier bounded source admission.
+  Object.defineProperty(B.ObjectId.prototype, 'toBSON', {
+    configurable: true,
+    value() {
+      if (this.toHexString() !== wireToken.toHexString()) return this;
+      wireHookCalls++;
+      return deniedExpansion;
+    },
+  });
   const app = express().use(express.json()).use(router.routes);
   server = await new Promise((resolve) => {
     const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
   });
-  for (const name of ['ordinary', 'code-overbound', 'dbref-overbound', 'wire-denied-keys']) {
-    for (const [origin, suffix] of [
-      ['list', '/__query'],
-      ['read', '/__query/__filter'],
-    ]) {
-      const response = await fetch(`http://127.0.0.1:${server.address().port}/native-budget${suffix}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          filter: { name },
-          select: ['name', name === 'wire-denied-keys' ? 'token' : 'value', '-_id'],
-          limit: 1,
-          options: { includePermissions: false, includeFieldPermissions: false, includeCount: false },
-        }),
-      });
-      const body = await response.json();
-      const row = origin === 'list' ? body.data?.[0] : body;
-      results.push({
-        name,
-        origin,
-        status: response.status,
-        selectedScopeSlots: row?.value?.scope?.expanded?.length ?? null,
-      });
-      if (name === 'ordinary') {
-        assert.equal(response.status, 200);
-        assert.equal(row.name, name);
-        assert.equal(row.value.code, 'return 1');
-        assert.equal(row.value.scope.selected, 'yes');
-        assert.deepEqual(row.value.scope.child, {
-          $ref: 'collection',
-          $id: '000000000000000000000001',
-          selected: true,
-          $db: 'db',
+  for (const mode of ['isolated', 'trusted']) {
+    api.setModelOptions(Model.modelName, { readAuthorizationMode: mode, listAuthorizationMode: mode });
+    for (const name of ['ordinary', 'code-overbound', 'dbref-overbound', 'wire-denied-keys']) {
+      for (const [origin, suffix] of [
+        ['list', '/__query'],
+        ['read', '/__query/__filter'],
+      ]) {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/native-budget${suffix}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            filter: { name },
+            select: ['name', name === 'wire-denied-keys' ? 'token' : 'value', '-_id'],
+            limit: 1,
+            options: { includePermissions: false, includeFieldPermissions: false, includeCount: false },
+          }),
         });
-      } else {
-        assert.equal(response.status, 400, `${origin} ${name} must reject selected native expansion`);
-        assert.equal(row?.value, undefined);
-        assert.equal(row?.token, undefined);
-        assert.equal(body.data, undefined, 'no partial row publication');
-        assert.ok(JSON.stringify(body).includes('Service authorization:'), 'controlled authorization failure');
+        const body = await response.json();
+        const row = origin === 'list' ? body.data?.[0] : body;
+        results.push({
+          name,
+          mode,
+          origin,
+          status: response.status,
+          selectedScopeSlots: row?.value?.scope?.expanded?.length ?? null,
+        });
+        if (name === 'ordinary') {
+          assert.equal(response.status, 200);
+          assert.equal(row.name, name);
+          assert.equal(row.value.code, 'return 1');
+          assert.equal(row.value.scope.selected, 'yes');
+          assert.deepEqual(row.value.scope.child, {
+            $ref: 'collection',
+            $id: '000000000000000000000001',
+            selected: true,
+            $db: 'db',
+          });
+        } else {
+          assert.equal(response.status, 400, `${origin} ${name} must reject selected native expansion`);
+          assert.equal(row?.value, undefined);
+          assert.equal(row?.token, undefined);
+          assert.equal(body.data, undefined, 'no partial row publication');
+          assert.ok(JSON.stringify(body).includes('Service authorization:'), 'controlled authorization failure');
+        }
       }
     }
   }
-  assert.equal(hookCalls, 8);
-  assert.equal(wireHookCalls, 2);
+  assert.equal(hookCalls, 10); // isolated overbound sources reject before the document hook
+  assert.equal(wireHookCalls, 4);
   console.log(
     JSON.stringify({
       results,
@@ -128,6 +131,8 @@ try {
     }),
   );
 } finally {
+  if (previousWireHook) Object.defineProperty(B.ObjectId.prototype, 'toBSON', previousWireHook);
+  else Reflect.deleteProperty(B.ObjectId.prototype, 'toBSON');
   if (server)
     await new Promise((resolve) => {
       server.close(resolve);

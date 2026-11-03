@@ -12,7 +12,7 @@ export function assertFieldHelperCall(
 ): void {
   const replacement =
     family === 'model'
-      ? 'Use named output options (authorization.outputFields or documentAuthorization), and scopePath for scope.'
+      ? 'Use named output options (authorization.outputFields), and scopePath for scope.'
       : family === 'data'
         ? 'Use named DataFieldOptions ({ scopePath }); data helpers are request-only and legacy elevation is unsupported.'
         : 'Use named PopulatePlanningOptions ({ scopePath }); genPopulate is request-only.';

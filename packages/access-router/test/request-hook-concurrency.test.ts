@@ -311,9 +311,7 @@ describe('ARL-07 request/runtime-owned hook admission', () => {
           for (const entry of result) {
             expect(entry.success).toBe(true);
             if (entry.success) {
-              const picked = await this.macl
-                .getService(middle.name)
-                .pickAllowedFields(entry.data, 'read', { documentAuthorization: entry.context.documentAuthorization });
+              const picked = await this.macl.getService(middle.name).pickAllowedFields(entry.data, 'read');
               expect(picked).toHaveProperty('key');
               expect(picked).not.toHaveProperty('secret');
             }

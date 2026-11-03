@@ -4,8 +4,9 @@ import { isArray, isFunction, isPlainObject, isString } from '@web-ts-toolkit/ut
 import { setCore } from './core';
 import Permission from './permission';
 import { AccessRouterBaseRequest, GuardHook, ModelRequest } from './interfaces';
-import { createValidator, getDocPermissions } from './helpers';
-import { getModelOption } from './options';
+import { createValidator } from './helpers';
+import { evaluateDocumentGuard } from './acl/document-guard';
+import { Codes } from './enums';
 import { PERMISSIONS } from './symbols';
 
 export default function macl() {
@@ -25,6 +26,14 @@ export interface GuardModelCondition {
   condition: string | string[];
 }
 
+/**
+ * Request permission middleware. Model conditions require a visible row and fresh
+ * document facts, but publish no DTO: field/virtual/include output, decorate/tasks
+ * and `_read` overrides do not run or veto the condition. Source/fact errors remain
+ * BadRequest. This request-only read does not imply the generated HTTP READ gate;
+ * an admitted miss may retry once under captured LIST admission and READ mode.
+ * Put security in operation/row/fact hooks; use a separate normal read for a DTO.
+ */
 export function guard(condition: string): RequestHandler;
 export function guard(conditions: string[]): RequestHandler;
 export function guard(conditionFunc: GuardHook<ModelRequest>): RequestHandler;
@@ -39,7 +48,6 @@ export function guard(condition: unknown) {
     if (isPlainObject(condition)) {
       const { modelName, id, condition: _cond } = condition as unknown as GuardModelCondition;
       const svc = req.macl.getPublicService(modelName);
-      const select = getModelOption(modelName, `alwaysSelectFields.read`, undefined);
 
       let _id: string | null = isString(id) ? id : null;
       if (isPlainObject(id)) {
@@ -60,14 +68,11 @@ export function guard(condition: unknown) {
         return next(new JsonRouter.clientErrors.BadRequestError());
       }
 
-      const result = await svc._read(_id, { select });
-      if (!result.success) {
-        return next(new JsonRouter.clientErrors.UnauthorizedError());
-      }
-
-      const docPermissions = getDocPermissions(modelName, result.data);
-      phas = (key) => permissions.has(key) || Boolean(docPermissions[key]);
-      cond = _cond;
+      const result = await evaluateDocumentGuard(svc, _id, _cond);
+      if (result === true) return next();
+      if (result && typeof result === 'object' && result.code === Codes.BadRequest)
+        return next(new JsonRouter.clientErrors.BadRequestError());
+      return next(new JsonRouter.clientErrors.UnauthorizedError());
     }
 
     const { stringHandler, arrayHandler } = createValidator(phas);

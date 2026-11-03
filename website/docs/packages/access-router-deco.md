@@ -188,6 +188,46 @@ After provisioning `welcome`, `GET /api/articles/welcome` returns its public fie
 
 This package is a good fit when you like `access-router`'s hooks and configuration model but want to express them through decorators and classes instead of building option objects manually.
 
+## Owned authorization: breaking migration
+
+Use the installed server's [M1–M5 migration guide](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md)
+and the deco [executable owned-authorization module](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router-deco/README.md#owned-authorization-breaking-migration).
+`DocumentGrants` is an immutable literal-boolean map, not a rich/native object.
+An empty fact map never revokes a global grant. ESM imports select deco's `.d.mts`
+and CJS requires its `.d.ts`, matching access-router's declaration conditions.
+Missing hooks yield empty facts; thrown/rejected hooks also warn. Invalid fulfilled
+maps fail the whole operation with 400. Existing-document input keeps pre-write facts;
+post-write output has a separate stage. Data/raw/new-input evaluation has empty facts.
+
+Configure independent `readAuthorizationMode` / `listAuthorizationMode` on server
+model/default options, including `Router`, `RouterOptions`, scoped option properties
+or factory `defaultModelOptions`. Literal `isolated` is the default; `trusted` may
+borrow an admitted ordinary projected source only. Actor/policy/facts stay owned,
+targets select their own mode, embedded scopes inherit their owner, READ retries
+retain READ mode, and writes/new/dedicated origins stay isolated. Undefined restores
+inheritance. All ten retired unsafe keys reject by presence (even false/undefined/
+inherited/non-enumerable); global/module/root/per-call/wire/default-method placements
+reject. Bulk updates are atomic; logger failures do not change committed settings.
+
+Decorated methods keep class-instance `this`, unlike ordinary field predicates'
+original-request `this`; inject the original request with `@Request()` and never
+store request authority on shared class fields. Doc/virtual/decorate contexts are
+frozen `ModelOutputContext`, not raw model/source/snapshot/query-filter/lifecycle
+aliases. Genuine prepare/transform/save/change `ModelHookContext` remains mutable.
+Getter mutations are not implicit writes; return values are staged. Presentation
+runs after stage closure with no automatic second authorization pass.
+
+DTOs/metadata/`getDocPermissions` are DATA. `DocumentAuthorization`, the helper
+option, context handles and child lookup are removed without aliases. Raw helpers
+use global permissions, empty facts and explicit scoped server output policy, with
+zero reads/hooks/row checks/virtuals. A presentation subset needs no read; a current
+document-dependent decision needs a fresh checked normal query (+1 read/hook for a
+single row). Negative empty-fact predicates are not current-document proof. Retain
+separate rows/input/output/related policy, selection, hydration and raw-parent APIs.
+Post-save 400 may follow persistence: no rollback or automatic retry. Deploy/roll
+back matching tested library/application revisions; modes affect new calls only.
+Neither mode is a callback sandbox, external-freshness or performance guarantee.
+
 ## Runtime Ownership
 
 `EgoseFactory` is a compatibility singleton bound to the default `access-router` runtime. Use it only when your application intentionally shares that default runtime.
@@ -484,22 +524,22 @@ Migration note (BDECO-05 — fail-fast decorator targets): hook, parameter, and 
 
 Migration note (PDEC-02 — accessor hooks): method-hook decorators also reject getters, setters, missing descriptors, and non-callable or malformed method descriptors before writing hook metadata, without invoking getters. Legacy TypeScript descriptor typing can accept a callable getter such as `@RouteGuard('read') get guard() { return () => false; }`, but this now throws at decoration time instead of silently losing the policy. Use an instance method: `@RouteGuard('read') guard() { return false; }`. Ordinary, inherited, symbol-keyed, and wrapped instance methods remain supported.
 
-| Decorator              | Maps to             | Scope / Valid Class Role                                           | Operations                                                                                    | Result Shape (`MaybePromise<…>`)                                                                                                       |
-| ---------------------- | ------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `@GlobalPermissions()` | `globalPermissions` | `@Module` only                                                     | —                                                                                             | `GlobalPermissionValue` (`string \| string[] \| Record<string,boolean> \| null \| undefined`)                                          |
-| `@DocPermissions(op)`  | `docPermissions.*`  | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`, `list`, `read`                                                 | `Record<string,unknown>` — per-document map, OR-combined with global grants; empty map grants nothing and never revokes a global grant |
-| `@BaseFilter(op)`      | `baseFilter.*`      | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter \| true \| null \| undefined` — filter restricts; only `false` denies; `null`/`undefined`/`true`/`{}` add no base restriction  |
-| `@OverrideFilter(op)`  | `overrideFilter.*`  | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter`                                                                                                                               |
-| `@Validate(op)`        | `validate.*`        | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `boolean \| unknown[]` — `true` passes, `false` / non-empty array → `400` controlled failure; returning the document is a type error   |
-| `@Prepare(op)`         | `prepare.*`         | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `TValue` (prepared document)                                                                                                           |
-| `@Transform(op)`       | `transform.*`       | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`                                                                           | `ModelDocument<TValue>`                                                                                                                |
-| `@AfterPersist(op)`    | `afterPersist.*`    | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `ModelDocument<TValue>`                                                                                                                |
-| `@Decorate(op)`        | `decorate.*`        | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`, `list`, `read`                                                 | `TValue`                                                                                                                               |
-| `@DecorateAll(op)`     | `decorateAll.*`     | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `list`                                                                             | `TValue[]`                                                                                                                             |
-| `@RouteGuard(op)`      | `operationAccess.*` | `@Router(Model)` / `@RouterOptions(Model)` / default model options | `default`, `new`, `list`, `create`, `read`, `update`, `upsert`, `delete`, `distinct`, `count` | `boolean`                                                                                                                              |
-| `@Identifier()`        | `resolveIdFilter`   | `@Router(Model)` / `@RouterOptions(Model)` / default               | —                                                                                             | `Filter`                                                                                                                               |
-| `@BeforeDelete()`      | `beforeDelete`      | `@Router(Model)` / `@RouterOptions(Model)`                         | —                                                                                             | `void`                                                                                                                                 |
-| `@AfterDelete()`       | `afterDelete`       | `@Router(Model)` / `@RouterOptions(Model)`                         | —                                                                                             | `void`                                                                                                                                 |
+| Decorator              | Maps to             | Scope / Valid Class Role                                           | Operations                                                                                    | Result Shape (`MaybePromise<…>`)                                                                                                      |
+| ---------------------- | ------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `@GlobalPermissions()` | `globalPermissions` | `@Module` only                                                     | —                                                                                             | `GlobalPermissionValue` (`string \| string[] \| Record<string,boolean> \| null \| undefined`)                                         |
+| `@DocPermissions(op)`  | `docPermissions.*`  | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`, `list`, `read`                                                 | `DocumentGrants` — immutable literal-boolean facts; empty facts never revoke a global grant                                           |
+| `@BaseFilter(op)`      | `baseFilter.*`      | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter \| true \| null \| undefined` — filter restricts; only `false` denies; `null`/`undefined`/`true`/`{}` add no base restriction |
+| `@OverrideFilter(op)`  | `overrideFilter.*`  | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter`                                                                                                                              |
+| `@Validate(op)`        | `validate.*`        | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `boolean \| unknown[]` — `true` passes, `false` / non-empty array → `400` controlled failure; returning the document is a type error  |
+| `@Prepare(op)`         | `prepare.*`         | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `TValue` (prepared document)                                                                                                          |
+| `@Transform(op)`       | `transform.*`       | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`                                                                           | `ModelDocument<TValue>`                                                                                                               |
+| `@AfterPersist(op)`    | `afterPersist.*`    | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `ModelDocument<TValue>`                                                                                                               |
+| `@Decorate(op)`        | `decorate.*`        | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`, `list`, `read`                                                 | `TValue`                                                                                                                              |
+| `@DecorateAll(op)`     | `decorateAll.*`     | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `list`                                                                             | `TValue[]`                                                                                                                            |
+| `@RouteGuard(op)`      | `operationAccess.*` | `@Router(Model)` / `@RouterOptions(Model)` / default model options | `default`, `new`, `list`, `create`, `read`, `update`, `upsert`, `delete`, `distinct`, `count` | `boolean`                                                                                                                             |
+| `@Identifier()`        | `resolveIdFilter`   | `@Router(Model)` / `@RouterOptions(Model)` / default               | —                                                                                             | `Filter`                                                                                                                              |
+| `@BeforeDelete()`      | `beforeDelete`      | `@Router(Model)` / `@RouterOptions(Model)`                         | —                                                                                             | `void`                                                                                                                                |
+| `@AfterDelete()`       | `afterDelete`       | `@Router(Model)` / `@RouterOptions(Model)`                         | —                                                                                             | `void`                                                                                                                                |
 
 Most decorators take the same operation names you would use in plain `access-router` options, such as `create`, `read`, `update`, `list`, or `delete`. Scalar hooks (`globalPermissions`, `docPermissions`, `baseFilter`, `overrideFilter`, `validate`, `routeGuard`, `identifier`, `beforeDelete`, `afterDelete`) reject duplicate keys on the same class; array hooks (`prepare`, `transform`, `afterPersist`, `decorate`, `decorateAll`) compose base→derived.
 
@@ -524,7 +564,7 @@ Hook methods can declare only the inputs they need. Injection is **explicit**: u
 - `@Request()` injects the active request (`AccessRouterRequest`) — valid on any hook
 - `@Document()` injects the document / allowed data — valid on model hooks (`docPermissions`, `validate`, `prepare`, `transform`, `decorate`, `before/afterDelete`, etc.)
 - `@Permissions()` injects resolved permissions — valid on `@RouteGuard`, `@BaseFilter`, `@DocPermissions`, `@Validate`, etc.
-- `@Context()` injects the `ModelHookContext` from `access-router` — valid on model hooks
+- `@Context()` injects frozen `ModelOutputContext` for document/virtual/decoration hooks; mutable `ModelHookContext` is retained only for genuine mutation lifecycle work
 - `@Filter()` injects the current filter — valid only on `@OverrideFilter(...)` hooks
 - `@Id()` injects the route identifier string — valid only on `@Identifier()` hooks
 

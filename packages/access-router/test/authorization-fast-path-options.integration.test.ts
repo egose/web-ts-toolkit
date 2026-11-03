@@ -5,16 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../src/index';
 import type { ModelRequest, ModelRouterOptions } from '../src/interfaces';
 import * as authorization from '../src/acl/service-authorization';
-import { readDocumentAuthorization } from '../src/acl/document-authorization';
-import { getServiceExecutors } from '../src/acl/service-execution';
-import {
-  unsafeAuthorizationFastPathOptions as fastFlags,
-  unsafeSnapshotOptions,
-} from '../src/acl/unsafe-snapshot-options';
+import { authorizationModeKeys, serverAuthorizationControls } from '../src/acl/authorization-modes';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
-const originalOn = Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, true]));
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
 let serial = 0;
 
@@ -40,8 +34,7 @@ async function fixture(options: ModelRouterOptions = {}) {
         owner: Boolean,
         children: [new mongoose.Schema({ label: String, hidden: String }, { _id: false })],
         ref: { type: mongoose.Schema.Types.ObjectId, ref: Target.modelName },
-        unsafeUseListAuthorizationFastPath: Boolean,
-        unsafeUseReadAuthorizationFastPath: Boolean,
+        ...Object.fromEntries(serverAuthorizationControls.map((key) => [key, Boolean])),
       },
       { versionKey: false },
     ),
@@ -56,8 +49,9 @@ async function fixture(options: ModelRouterOptions = {}) {
     alwaysSelectFields: ['owner'],
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
-    ...Object.fromEntries(unsafeSnapshotOptions.map((key) => [key, false])),
-    ...Object.fromEntries(fastFlags.map((key) => [key, options[key] !== true])),
+    ...Object.fromEntries(
+      authorizationModeKeys.map((key) => [key, options[key] === 'trusted' ? 'isolated' : 'trusted']),
+    ),
   });
   const router = api.createRouter(Root, {
     basePath: '/fast-options',
@@ -67,8 +61,7 @@ async function fixture(options: ModelRouterOptions = {}) {
       hidden: false,
       ref: true,
       children: { read: true, list: true, sub: { label: 'doc:owner', hidden: false } },
-      unsafeUseListAuthorizationFastPath: true,
-      unsafeUseReadAuthorizationFastPath: true,
+      ...Object.fromEntries(serverAuthorizationControls.map((key) => [key, true])),
     },
     virtuals: { children: { sub: {} } },
     baseFilter: { read: () => ({ tenant: 'read' }), list: () => ({ tenant: 'list' }) },
@@ -76,7 +69,6 @@ async function fixture(options: ModelRouterOptions = {}) {
     docPermissions: { read: rootHook, list: rootHook },
     modelPermissionPrefix: 'doc:',
     stripPermissionsField: true,
-    ...originalOn,
     ...options,
   });
   const targetRows = await Target.insertMany([
@@ -93,8 +85,7 @@ async function fixture(options: ModelRouterOptions = {}) {
       owner: true,
       children: [{ label: 'child', hidden: 'never' }],
       ref: targetRows[0]._id,
-      unsafeUseListAuthorizationFastPath: true,
-      unsafeUseReadAuthorizationFastPath: true,
+      ...Object.fromEntries(serverAuthorizationControls.map((key) => [key, true])),
     })),
   );
   const args = {
@@ -151,7 +142,7 @@ async function fixture(options: ModelRouterOptions = {}) {
 
 function captureObserver() {
   const spy = vi.spyOn(authorization, 'resolveServiceAuthorization');
-  const derived = vi.spyOn(authorization, 'deriveTrustedQueryAuthorization');
+  const derived = vi.spyOn(authorization, 'deriveQueryAuthorization');
   return () => {
     const seen = new Set();
     return [spy, derived]
@@ -165,7 +156,7 @@ function captureObserver() {
               order: observer.mock.invocationCallOrder[index],
               call: result.value,
               input,
-              captured: authorization.readAuthorizationFastPath(result.value, input.binding),
+              captured: authorization.readServiceAuthorizationMode(result.value, input.binding),
             },
           ];
         }),
@@ -186,9 +177,11 @@ afterEach(() => {
 
 describe('real direct/public/root captured query selection', () => {
   it.each([0, 1, 2, 3])(
-    'selects independent new pair=%s through reads/lists/retry and real authenticated targets/embedded scopes',
+    'selects independent mode pair=%s through reads/lists/retry and target-local/embedded scopes',
     async (pair) => {
-      const options = Object.fromEntries(fastFlags.map((key, index) => [key, !!(pair & (1 << index))]));
+      const options = Object.fromEntries(
+        authorizationModeKeys.map((key, index) => [key, pair & (1 << index) ? 'trusted' : 'isolated']),
+      ) as ModelRouterOptions;
       const f = await fixture(options),
         captures = captureObserver();
       await f.execute(async (req) => {
@@ -222,14 +215,22 @@ describe('real direct/public/root captured query selection', () => {
           const output = (list ? (result.data as unknown[])[0] : result.data) as Record<string, unknown>;
           expect(output).toEqual(f.expected(list || entry === 'retry' ? 'list' : 'read'));
           const origin = list ? 'list' : 'read';
-          const key = origin === 'list' ? fastFlags[0] : fastFlags[1];
+          const key = origin === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
           const selected = captures().slice(before);
           expect(selected.length).toBeGreaterThan(3);
-          for (const { captured } of selected)
-            expect(captured).toEqual({ origin, mode: options[key] ? 'active' : 'off', prerequisites: 15 });
+          for (const { captured, input } of selected) {
+            const effective = input.access.outputAccess === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
+            expect(captured).toBe(
+              input.binding.modelName === f.Target.modelName
+                ? f.api.getModelOption(f.Target.modelName, effective)
+                : options[key],
+            );
+          }
           expect(selected.some(({ input }) => input.binding.modelName === f.Target.modelName)).toBe(true);
           expect(selected.some(({ input }) => input.binding.scopePath?.includes('children'))).toBe(true);
-          expect(f.api.getModelOption(f.Target.modelName, key)).toBe(!options[key]);
+          expect(f.api.getModelOption(f.Target.modelName, key)).toBe(
+            options[key] === 'trusted' ? 'isolated' : 'trusted',
+          );
           if (entry === 'retry') {
             expect(
               selected.some(({ input }) => input.access.operation === 'read' && input.access.outputAccess === 'list'),
@@ -258,12 +259,14 @@ describe('real direct/public/root captured query selection', () => {
         const before = captures().length;
         const response = await request(f.app).post(url).send(body).expect(200);
         expect(JSON.stringify(response.body)).not.toContain('never');
-        for (const { captured } of captures().slice(before)) {
-          expect(captured).toBeDefined();
-          if (captured)
-            expect(captured.mode).toBe(
-              options[captured.origin === 'list' ? fastFlags[0] : fastFlags[1]] ? 'active' : 'off',
-            );
+        for (const { captured, input } of captures().slice(before)) {
+          const key = input.access.operation === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
+          const effective = input.access.outputAccess === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
+          expect(captured).toBe(
+            input.binding.modelName === f.Target.modelName
+              ? f.api.getModelOption(f.Target.modelName, effective)
+              : options[key],
+          );
         }
       }
       expect(f.rootHook).toHaveBeenCalled();
@@ -274,13 +277,11 @@ describe('real direct/public/root captured query selection', () => {
   );
 
   it.each(['list', 'read'] as const)(
-    'captures %s before a real awaited hook and retains mode in later children/retries/handles, not independent hook calls',
+    'captures %s before a real awaited hook and retains source/target modes, not independent hook calls or DTO authority',
     async (origin) => {
-      for (const initial of ['off', 'dormant', 'active'] as const) {
-        const key = origin === 'list' ? fastFlags[0] : fastFlags[1];
-        const docKey =
-          origin === 'list' ? 'unsafeSkipListDocumentSnapshotChecks' : 'unsafeSkipReadDocumentSnapshotChecks';
-        const f = await fixture({ [key]: initial !== 'off', [docKey]: initial !== 'dormant' });
+      for (const initial of ['isolated', 'trusted'] as const) {
+        const key = origin === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
+        const f = await fixture({ [key]: initial });
         const captures = captureObserver();
         await f.execute(async (req) => {
           const service = req.macl.getService(f.Root.modelName),
@@ -311,9 +312,9 @@ describe('real direct/public/root captured query selection', () => {
             origin === 'list' ? service.find({}, f.args, quiet) : pub._read(String(f.rows[1]._id), f.args, quiet);
           await started;
           const root = captures()[before];
-          expect(root.captured?.mode).toBe(initial);
+          expect(root.captured).toBe(initial);
           try {
-            f.router.setOptions({ [key]: initial !== 'active', [docKey]: true });
+            f.router.setOptions({ [key]: initial === 'trusted' ? 'isolated' : 'trusted' });
           } finally {
             release();
           }
@@ -325,25 +326,32 @@ describe('real direct/public/root captured query selection', () => {
             .slice(before)
             .filter(({ call }) => authorization.getAuthorizationProvenance(call) === root.call);
           expect(originating.length).toBeGreaterThan(3);
-          for (const { captured } of originating) expect(captured).toBe(root.captured);
+          for (const { captured, input } of originating) {
+            const effective = input.access.outputAccess === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
+            expect(captured).toBe(
+              input.binding.modelName === f.Target.modelName
+                ? f.api.getModelOption(f.Target.modelName, effective)
+                : initial,
+            );
+          }
           const independentRoots = captures()
             .slice(before + 1)
             .filter(({ input }) => !input.parent);
           expect(independentRoots).toHaveLength(1);
-          expect(independentRoots[0].captured?.mode).toBe(initial === 'active' ? 'off' : 'active');
+          expect(independentRoots[0].captured).toBe(initial === 'trusted' ? 'isolated' : 'trusted');
           const output = origin === 'list' ? (result.data as unknown[])[0] : result.data;
           const context = 'contexts' in result ? result.contexts[0] : result.context;
-          const binding = getServiceExecutors(service).binding();
-          const handleCall = readDocumentAuthorization(context.documentAuthorization, binding).authorization;
-          expect(authorization.readAuthorizationFastPath(handleCall, binding)).toBe(root.captured);
-          await service.pickAllowedFields(output, 'list', { documentAuthorization: context.documentAuthorization });
-          expect(authorization.readAuthorizationFastPath(handleCall, binding)).toBe(root.captured);
+          expect(context).not.toHaveProperty('documentAuthorization');
+          expect(context).not.toHaveProperty('getDocumentAuthorization');
+          const hookCount = f.rootHook.mock.calls.length;
+          await service.pickAllowedFields(output, 'list');
+          expect(f.rootHook).toHaveBeenCalledTimes(hookCount);
           const helperStart = captures().length;
           await service.pickAllowedFields({ value: 'raw' }, 'read');
           expect(
             captures()
               .slice(helperStart)
-              .every(({ captured }) => captured === undefined),
+              .every(({ captured }) => captured === 'isolated'),
           ).toBe(true);
         });
       }
@@ -351,7 +359,7 @@ describe('real direct/public/root captured query selection', () => {
   );
 
   it('does not activate for actual writes, write-derived reads, new output or dedicated subdocuments', async () => {
-    const f = await fixture(Object.fromEntries(fastFlags.map((key) => [key, true]))),
+    const f = await fixture({ readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' }),
       captures = captureObserver();
     f.router.setOption('baseFilter', {});
     await f.execute(async (req) => {
@@ -371,15 +379,15 @@ describe('real direct/public/root captured query selection', () => {
       expect(await service.delete(String(f.rows[1]._id))).toMatchObject({ success: true });
     });
     expect(captures().length).toBeGreaterThan(8);
-    expect(captures().every(({ captured }) => captured === undefined)).toBe(true);
+    expect(captures().every(({ captured }) => captured === 'isolated')).toBe(true);
   });
 
   it.each(['find', 'findOne', 'findById', '_list', '_read', '_readFilter'] as const)(
     '%s reentry on the same receiver inside a document hook has its own post-rollback capture',
     async (entry) => {
       const origin = entry === 'find' || entry === '_list' ? 'list' : 'read';
-      const key = origin === 'list' ? fastFlags[0] : fastFlags[1];
-      const f = await fixture({ [key]: true }),
+      const key = origin === 'list' ? 'listAuthorizationMode' : 'readAuthorizationMode';
+      const f = await fixture({ [key]: 'trusted' }),
         captures = captureObserver();
       await f.execute(async (req) => {
         // One receiver exposes all six inherited/public query entries.
@@ -400,7 +408,7 @@ describe('real direct/public/root captured query selection', () => {
           expect(permissions.has('reader')).toBe(true);
           if (!reentered) {
             reentered = true;
-            f.router.setOption(key, false);
+            f.router.setOption(key, 'isolated');
             await Promise.resolve();
             independent = await invoke();
           }
@@ -412,18 +420,18 @@ describe('real direct/public/root captured query selection', () => {
         expect(hook).toHaveBeenCalledTimes(2);
         const roots = captures().filter(({ input }) => !input.parent);
         expect(roots).toHaveLength(2);
-        expect(roots[0].captured).toEqual({ origin, mode: 'active', prerequisites: 15 });
-        expect(roots[1].captured).toEqual({ origin, mode: 'off', prerequisites: 15 });
+        expect(roots[0].captured).toBe('trusted');
+        expect(roots[1].captured).toBe('isolated');
         expect(authorization.getAuthorizationProvenance(roots[0].call)).toBe(roots[0].call);
         expect(authorization.getAuthorizationProvenance(roots[1].call)).toBe(roots[1].call);
         expect(roots[0].call).not.toBe(roots[1].call);
-        for (const flag of unsafeSnapshotOptions) expect(f.api.getModelOption(f.Root.modelName, flag)).toBe(true);
+        expect(f.api.getModelOption(f.Root.modelName, key)).toBe('isolated');
       });
     },
   );
 
   it('an independent READ inside a write hook captures query settings, never write provenance', async () => {
-    const f = await fixture(Object.fromEntries(fastFlags.map((key) => [key, true]))),
+    const f = await fixture({ readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' }),
       captures = captureObserver();
     f.router.setOption('baseFilter', {});
     await f.execute(async (req) => {
@@ -440,17 +448,50 @@ describe('real direct/public/root captured query selection', () => {
       const write = roots.find(({ input }) => input.access.operation === 'create');
       const read = roots.find(({ input }) => input.access.operation === 'read');
       expect(write).toBeDefined();
-      expect(write?.captured).toBeUndefined();
-      expect(read?.captured).toEqual({ origin: 'read', mode: 'active', prerequisites: 15 });
+      expect(write?.captured).toBe('isolated');
+      expect(read?.captured).toBe('trusted');
       expect(authorization.getAuthorizationProvenance(read!.call)).toBe(read!.call);
       expect(authorization.getAuthorizationProvenance(read!.call)).not.toBe(write!.call);
       for (const record of captures())
         if (authorization.getAuthorizationProvenance(record.call) === write!.call)
-          expect(record.captured).toBeUndefined();
+          expect(record.captured).toBe('isolated');
     });
   });
 
-  it.each(fastFlags)(
+  it.each(['isolated', 'trusted'] as const)(
+    '%s READ never retries BadRequest facts or Forbidden row admission as LIST',
+    async (mode) => {
+      const f = await fixture({
+        readAuthorizationMode: mode,
+        listAuthorizationMode: mode === 'trusted' ? 'isolated' : 'trusted',
+      });
+      await f.execute(async (req) => {
+        const pub = req.macl.getPublicService(f.Root.modelName);
+        const invalid = vi.fn(() => ({ owner: new Date() }));
+        const list = vi.fn(() => ({ owner: true }));
+        f.router.setOption('docPermissions', { read: invalid, list } as never);
+        expect(await pub._read(String(f.rows[0]._id), { select: ['value', '-_id'] }, quiet)).toMatchObject({
+          success: false,
+          code: 'bad_request',
+        });
+        expect(invalid).toHaveBeenCalledTimes(1);
+        expect(list).not.toHaveBeenCalled();
+        const forbidden = vi.fn(() => false);
+        const listRows = vi.fn(() => ({}));
+        f.router.setOption('baseFilter', { read: forbidden, list: listRows });
+        expect(await pub._read(String(f.rows[0]._id), { select: ['value', '-_id'] }, quiet)).toMatchObject({
+          success: false,
+          code: 'forbidden',
+        });
+        expect(forbidden).toHaveBeenCalledTimes(1);
+        expect(listRows).not.toHaveBeenCalled();
+        expect(invalid).toHaveBeenCalledTimes(1);
+        expect(list).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  it.each(serverAuthorizationControls)(
     'rejects wire/root %s controls before sibling dispatch, but not stored business fields',
     async (key) => {
       const f = await fixture();
@@ -514,7 +555,7 @@ describe('real direct/public/root captured query selection', () => {
         .send({ filter: { [key]: true }, select: [key, '-_id'], options: quiet })
         .expect(200);
       expect(response.body.data).toEqual([{ [key]: true }]);
-      expect(captures().every(({ captured }) => captured?.mode === 'off')).toBe(true);
+      expect(captures().every(({ captured }) => captured === 'isolated')).toBe(true);
     },
   );
 });

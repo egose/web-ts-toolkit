@@ -6,18 +6,18 @@ import { AccessRuntime } from '../src/runtime';
 import { runWithRuntime } from '../src/runtime-context';
 import { PERMISSIONS } from '../src/symbols';
 import Permission from '../src/permission';
-import type { ModelRequest, Projection } from '../src/interfaces';
+import type { ModelRequest, ModelRouterOptions, Projection } from '../src/interfaces';
 import type { OutputAuthorization, ServiceOutputContext } from '../src/interfaces/service-authorization';
 import { captureModelAuthorizationConfiguration } from '../src/acl/model-output-planning';
 import { planAuthorizedModelProjection } from '../src/acl/output-projection';
 import { resolveServiceAuthorization, ServiceAuthorizationError } from '../src/acl/service-authorization';
 import {
-  assertDocumentAuthorization,
-  createDocumentAuthorizationStage,
-  readDocumentAuthorization,
-  resolveDocumentAuthorization,
-  transferDocumentAuthorizationGraph,
-} from '../src/acl/document-authorization';
+  assertDocumentStage,
+  createDocumentStage,
+  readDocumentStage,
+  resolveDocumentStage,
+} from '../src/acl/document-stage';
+import { EMPTY_DOCUMENT_GRANTS } from '../src/acl/document-grants';
 import {
   finalizeModelOutput,
   finalizeModelOutputs,
@@ -29,7 +29,7 @@ const grant = (...paths: string[]): OutputAuthorization => ({ outputFields: { mo
 const unrestricted: OutputAuthorization = { outputFields: { mode: 'unrestricted' } };
 const accesses = { operation: 'read', virtualAccess: 'read', outputAccess: 'read', docPermissionsAccess: 'read' };
 
-function fixture(options: Record<string, unknown> = {}) {
+function fixture(options: ModelRouterOptions = {}) {
   const model = mongoose.model(
     `Sva03${mongoose.modelNames().length}`,
     new mongoose.Schema(
@@ -76,14 +76,18 @@ function fixture(options: Record<string, unknown> = {}) {
     alwaysSelectFields: { read: ['ownerId'] },
     docPermissions: { read: hook },
     ...options,
-  } as never);
+  });
   const permissions = new Permission({ admin: false });
   const request = { actor: 'original', [PERMISSIONS]: permissions } as unknown as ModelRequest;
   const core = runWithRuntime(runtime, () => new Core(request));
   request.macl = core;
   const service = runWithRuntime(runtime, () => new Base(request, 'Order'));
   const binding = { request, runtime, model, modelName: 'Order' };
-  const make = (select?: Projection, policy: OutputAuthorization = grant('internalNote'), access = accesses) => {
+  const make = (
+    select?: Projection,
+    policy: OutputAuthorization = grant('internalNote'),
+    access = accesses,
+  ): Omit<FinalizeModelOutputArgs, 'input'> => {
     const configuration = captureModelAuthorizationConfiguration(runtime, 'Order');
     const authorization = resolveServiceAuthorization({
       binding,
@@ -99,7 +103,7 @@ function fixture(options: Record<string, unknown> = {}) {
       plan,
       snapshot: configuration,
       ...access,
-    } as FinalizeModelOutputArgs;
+    };
   };
   const finalize = async (
     input: unknown,
@@ -125,7 +129,7 @@ afterEach(() => {
   mongoose.deleteModel(/^Sva03/);
 });
 
-describe('SVA-03 finalizer and same-execution output helpers', () => {
+describe('SVA-03 private finalizer and fresh output helpers', () => {
   it.each([false, undefined, 'admin'])(
     'selected grants survive a %s request rule and absent serialized grants',
     async (rule) => {
@@ -139,9 +143,8 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
       };
       const { output, context } = await f.finalize(raw);
       expect(output).toEqual({ _id: '1', status: 'open', internalNote: 'server' });
-      expect(
-        await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-      ).toEqual(output);
+      expect(context).not.toHaveProperty('documentAuthorization');
+      expect(context).not.toHaveProperty('getDocumentAuthorization');
       expect(await f.service.pickAllowedFields(output, 'read', { authorization: grant('internalNote') })).toEqual(
         output,
       );
@@ -152,7 +155,7 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
     },
   );
 
-  it('reuses private owner grants and stateful decisions after ownerId and metadata disappear', async () => {
+  it('keeps immutable diagnostic facts after trim but fresh helpers cannot reuse closed stage decisions', async () => {
     const f = fixture();
     const { output, context, args } = await f.finalize({
       _id: 'same',
@@ -163,44 +166,45 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
     });
     expect(args.plan.persistedFetchSelection).toEqual(expect.arrayContaining(['ownerId', 'status', 'internalNote']));
     expect(output).toEqual({ _id: 'same', status: 'open', internalNote: 'server' });
+    expect(f.decision).toHaveBeenCalledTimes(1);
     f.decision.mockImplementation(() => false);
-    context.docPermissions!.owner = false;
-    const options = { documentAuthorization: context.documentAuthorization };
+    expect(Reflect.set(context.docPermissions, 'owner', false)).toBe(false);
+    expect(context.docPermissions.owner).toBe(true);
+    const options = { authorization: grant('internalNote') };
     const picked = await f.service.pickAllowedFields(output, 'read', options);
-    expect(picked).toEqual(output);
+    expect(picked).toEqual({ _id: 'same', internalNote: 'server' });
     expect(picked).not.toBe(output);
-    expect(await f.service.trimOutputFields(picked, 'read', options)).toEqual(output);
-    expect(await f.core.trimOutputFields('Order', picked, 'read', options)).toEqual(output);
+    expect(await f.service.trimOutputFields(picked, 'read', options)).toEqual(picked);
+    expect(await f.core.trimOutputFields('Order', picked, 'read', options)).toEqual(picked);
     expect(await f.service.genAllowedFields(picked, 'read', { ...options, purpose: 'output' })).toEqual(
-      expect.arrayContaining(['status', 'internalNote']),
+      expect.arrayContaining(['internalNote']),
     );
     expect(f.hook).toHaveBeenCalledTimes(1);
-    expect(f.decision).toHaveBeenCalledTimes(1);
     expect(await f.service.pickAllowedFields(output, 'read', { authorization: grant('internalNote') })).toEqual({
       _id: 'same',
       internalNote: 'server',
     });
     expect(await f.service.pickAllowedFields(output, 'read', {})).toEqual({ _id: 'same' });
     expect(f.hook).toHaveBeenCalledTimes(1);
-    expect(f.decision).toHaveBeenCalledTimes(1);
+    expect(f.decision.mock.calls.length).toBeGreaterThan(1);
     expect(Object.getOwnPropertySymbols(output)).toEqual([]);
     expect(Object.keys(context)).not.toContain('documentAuthorization');
     expect(JSON.stringify(context)).not.toContain('documentAuthorization');
   });
 
-  it('fresh raw-policy calls resolve untrimmed inputs independently and ignore forged _permissions', async () => {
+  it('fresh raw-policy calls use empty facts on untrimmed inputs and ignore forged _permissions', async () => {
     const f = fixture();
     const raw = { _id: '1', status: 'open', internalNote: 'server', ownerId: 'actor' };
     expect(await f.service.pickAllowedFields(raw, 'read', { authorization: grant('internalNote') })).toEqual({
       _id: '1',
-      status: 'open',
       internalNote: 'server',
     });
     expect(
       await f.service.pickAllowedFields({ ...raw, ownerId: 'other', _permissions: { owner: true } }, 'read', {}),
     ).toEqual({ _id: '1' });
-    expect(f.hook).toHaveBeenCalledTimes(2);
+    expect(f.hook).not.toHaveBeenCalled();
     expect(f.decision).toHaveBeenCalledTimes(2);
+    for (const call of f.decision.mock.calls) expect(call[1]).toBe(EMPTY_DOCUMENT_GRANTS);
   });
 
   it.each([
@@ -218,9 +222,10 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
       _permissions: metadata,
     });
     expect(output).toMatchObject({ status: 'open', internalNote: 'note' });
-    expect(
-      await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).toEqual(output);
+    expect(context.docPermissions).toEqual({ owner: true, admin: false });
+    const picked = await f.service.pickAllowedFields(output, 'read', { authorization: grant('internalNote') });
+    expect(picked).toHaveProperty('internalNote', 'note');
+    expect(picked).not.toHaveProperty('status');
     if (posture.stripPermissionsField) expect(output).not.toHaveProperty('_permissions');
     else if (posture.disableFieldPermissions) expect(output._permissions).toEqual({ owner: false });
     else if (posture.exposedDocPermissionKeys)
@@ -229,16 +234,19 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
     expect(f.hook).toHaveBeenCalledTimes(1);
   });
 
-  it('no metadata, no virtual candidates and an empty supplied legacy map still resolve canonical internal grants', async () => {
+  it('no metadata or virtuals still resolve private facts; no unbound supplied-grant utility survives', async () => {
     const f = fixture();
     const args = f.make();
     const output = await finalizeModelOutput({
       ...args,
       input: { status: 'open', internalNote: 'note', ownerId: 'actor' },
-      docPermissions: {},
     });
     expect(output).toEqual({ status: 'open', internalNote: 'note' });
     expect(f.hook).toHaveBeenCalledTimes(1);
+    expect(f.core).not.toHaveProperty('resolveFinalizerDocPermissions');
+    expect(f.service).not.toHaveProperty('getSubParentGrants');
+    expect(f.service).not.toHaveProperty('finalizeSubRowsWithVirtuals');
+    expect(f.service).not.toHaveProperty('finalizeSingleSubRowWithVirtuals');
   });
 
   it('does not add unselected grants or fabricate missing values, even when privately fetched', async () => {
@@ -252,56 +260,55 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
     });
   });
 
-  it('retains stage results across metadata copies, but rejects arbitrary copies, stale output, other accesses/calls/rows', async () => {
+  it('DTO copies, equal IDs, changed values and other accesses carry no retained stage authority', async () => {
     const f = fixture();
     const first = await f.finalize({ _id: 'same', status: 'open', ownerId: 'actor', internalNote: 'note' });
     const second = await f.finalize({ _id: 'same', status: 'open', ownerId: 'actor', internalNote: 'note' });
-    const options = { documentAuthorization: first.context.documentAuthorization };
-    for (const doc of [{ ...first.output }, second.output])
-      await expect(f.service.pickAllowedFields(doc, 'read', options)).rejects.toBeInstanceOf(ServiceAuthorizationError);
-    await expect(f.service.pickAllowedFields(first.output, 'update', options)).rejects.toBeInstanceOf(
-      ServiceAuthorizationError,
-    );
-    const copy = { ...first.output };
-    transferDocumentAuthorizationGraph(first.output, copy);
-    expect(await f.service.pickAllowedFields(copy, 'read', options)).toEqual(first.output);
-    expect(() =>
-      assertDocumentAuthorization(options.documentAuthorization, {
-        binding: f.binding,
-        output: first.output,
-        outputAccess: 'read',
-        authorization: second.args.plan.authorization,
-      }),
-    ).toThrow(ServiceAuthorizationError);
+    const options = { documentAuthorization: first.context };
+    for (const doc of [first.output, { ...first.output }, JSON.parse(JSON.stringify(first.output)), second.output]) {
+      await expect(
+        Reflect.apply(f.service.pickAllowedFields, f.service, [doc, 'read', options]),
+      ).rejects.toBeInstanceOf(ServiceAuthorizationError);
+      expect(await f.service.pickAllowedFields(doc, 'read')).toEqual({ _id: 'same' });
+    }
+    await expect(
+      Reflect.apply(f.service.pickAllowedFields, f.service, [first.output, 'update', options]),
+    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
     first.output.status = 'changed';
-    await expect(f.service.pickAllowedFields(first.output, 'read', options)).rejects.toBeInstanceOf(
-      ServiceAuthorizationError,
-    );
-    expect(first.context.getDocumentAuthorization(first.output)).toBeUndefined();
+    await expect(
+      Reflect.apply(f.service.pickAllowedFields, f.service, [first.output, 'read', options]),
+    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
+    expect(first.context).not.toHaveProperty('getDocumentAuthorization');
+    expect(await f.service.pickAllowedFields(first.output, 'read', { authorization: grant('status') })).toEqual({
+      _id: 'same',
+      status: 'changed',
+    });
     expect(f.hook).toHaveBeenCalledTimes(2);
   });
 
-  it.each(['request', 'runtime', 'model'])('rejects a handle at another %s receiver', async (dimension) => {
-    const f = fixture();
-    const { output, context } = await f.finalize({ status: 'open', ownerId: 'actor', internalNote: 'note' });
-    const other = fixture();
-    let core = other.core;
-    if (dimension === 'request') core = runWithRuntime(f.runtime, () => new Core(other.request));
-    if (dimension === 'runtime') {
-      const runtime = new AccessRuntime();
-      runtime.registerModelInstance('Order', f.model);
-      core = runWithRuntime(runtime, () => new Core(f.request));
-    }
-    if (dimension === 'model') f.runtime.registerModelInstance('Different', f.model);
-    await expect(
-      (dimension === 'model' ? f.core : core).pickAllowedFields(
-        dimension === 'model' ? 'Different' : 'Order',
-        output,
-        'read',
-        { documentAuthorization: context.documentAuthorization },
-      ),
-    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
-  });
+  it.each(['request', 'runtime', 'model'])(
+    'rejects a retired context/handle attempt at another %s receiver',
+    async (dimension) => {
+      const f = fixture();
+      const { output, context } = await f.finalize({ status: 'open', ownerId: 'actor', internalNote: 'note' });
+      const other = fixture();
+      let core = other.core;
+      if (dimension === 'request') core = runWithRuntime(f.runtime, () => new Core(other.request));
+      if (dimension === 'runtime') {
+        const runtime = new AccessRuntime();
+        runtime.registerModelInstance('Order', f.model);
+        core = runWithRuntime(runtime, () => new Core(f.request));
+      }
+      if (dimension === 'model') f.runtime.registerModelInstance('Different', f.model);
+      await expect(
+        Reflect.apply(
+          (dimension === 'model' ? f.core : core).pickAllowedFields,
+          dimension === 'model' ? f.core : core,
+          [dimension === 'model' ? 'Different' : 'Order', output, 'read', { documentAuthorization: context }],
+        ),
+      ).rejects.toBeInstanceOf(ServiceAuthorizationError);
+    },
+  );
 
   it('separates list rows and calls with stable contexts, including equal IDs and limit 1', async () => {
     const f = fixture();
@@ -312,7 +319,6 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
         { _id: 'same', ownerId: 'actor', status: 'yes', internalNote: 'a' },
         { _id: 'same', ownerId: 'other', status: 'no', internalNote: 'b' },
       ],
-      concurrencyLimit: 1,
       onFinalized: (_doc, context, index) => {
         contexts[index!] = context;
       },
@@ -321,62 +327,66 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
       { _id: 'same', status: 'yes', internalNote: 'a' },
       { _id: 'same', internalNote: 'b' },
     ]);
-    expect(contexts[0].documentAuthorization).not.toBe(contexts[1].documentAuthorization);
-    expect(
-      await f.service.pickAllowedFields(output[0], 'read', {
-        documentAuthorization: contexts[0].documentAuthorization,
-      }),
-    ).toEqual(output[0]);
-    await expect(
-      f.service.pickAllowedFields(output[1], 'read', { documentAuthorization: contexts[0].documentAuthorization }),
-    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
+    expect(contexts[0].docPermissions).toEqual({ owner: true, admin: false });
+    expect(contexts[1].docPermissions).toEqual({ owner: false, admin: false });
+    expect(contexts[0].docPermissions).not.toBe(contexts[1].docPermissions);
+    for (const doc of output) expect(await f.service.pickAllowedFields(doc, 'read')).toEqual({ _id: 'same' });
     expect(f.hook).toHaveBeenCalledTimes(2);
-    expect(f.decision).toHaveBeenCalledTimes(2);
+    // Only the first DTO still has status; absent fields do not run a policy.
+    expect(f.decision).toHaveBeenCalledTimes(3);
   });
 
-  it('reuses an authenticated pre-resolved stage and rejects changed snapshots/stages', async () => {
+  it('consumes a private pre-resolved stage once and rejects wrong source/call and closed-stage reuse', async () => {
     const f = fixture();
     const args = f.make();
     const raw = { status: 'open', ownerId: 'actor', internalNote: 'note' };
-    const stage = createDocumentAuthorizationStage(args.plan.authorization!, f.binding, raw);
+    const stage = createDocumentStage(args.plan.authorization!, f.binding, raw);
     const resolver = vi.fn(() => ({ owner: true }));
-    const handle = await resolveDocumentAuthorization(stage, resolver);
+    const facts = await resolveDocumentStage(stage, resolver);
+    expect(() => assertDocumentStage(stage, args.plan.authorization!, f.binding, { ...raw })).toThrow(
+      ServiceAuthorizationError,
+    );
+    expect(() => assertDocumentStage(stage, f.make().plan.authorization!, f.binding)).toThrow(
+      ServiceAuthorizationError,
+    );
     let context!: ServiceOutputContext;
     await finalizeModelOutput({
       ...args,
       input: raw,
-      documentAuthorizationStage: stage,
+      documentStage: stage,
       onFinalized: (_out, ctx) => {
         context = ctx;
       },
     });
-    expect(context.documentAuthorization).toBe(handle);
+    expect(context.docPermissions).toBe(facts);
+    expect(context).not.toHaveProperty('documentAuthorization');
     expect(resolver).toHaveBeenCalledTimes(1);
     expect(f.hook).not.toHaveBeenCalled();
+    await expect(finalizeModelOutput({ ...args, input: { ...raw }, documentStage: stage })).rejects.toBeInstanceOf(
+      ServiceAuthorizationError,
+    );
     await expect(
-      finalizeModelOutput({ ...args, input: { ...raw }, documentAuthorizationStage: stage }),
+      finalizeModelOutput({ ...args, input: { ...raw, status: 'changed' }, documentStage: stage }),
     ).rejects.toBeInstanceOf(ServiceAuthorizationError);
-    await expect(
-      finalizeModelOutput({ ...args, input: { ...raw, status: 'changed' }, documentAuthorizationStage: stage }),
-    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
-    await expect(
-      finalizeModelOutput({ ...f.make(), input: raw, documentAuthorizationStage: stage }),
-    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
+    await expect(finalizeModelOutput({ ...f.make(), input: raw, documentStage: stage })).rejects.toBeInstanceOf(
+      ServiceAuthorizationError,
+    );
+    expect(() => readDocumentStage(stage, f.binding)).toThrow(ServiceAuthorizationError);
   });
 
   it('accepts distinct pre-resolved list stages and rejects reuse of one stage across equal rows', async () => {
     const f = fixture();
     const args = f.make();
     const raw = { _id: 'same', status: 'open', internalNote: 'note' };
-    const stages = [true, false].map(() => createDocumentAuthorizationStage(args.plan.authorization!, f.binding, raw));
-    await resolveDocumentAuthorization(stages[0], () => ({ owner: true }));
-    await resolveDocumentAuthorization(stages[1], () => ({ owner: false }));
-    expect(await finalizeModelOutputs({ ...args, inputs: [raw, raw], documentAuthorizationStages: stages })).toEqual([
+    const stages = [true, false].map(() => createDocumentStage(args.plan.authorization!, f.binding, raw));
+    await resolveDocumentStage(stages[0], () => ({ owner: true }));
+    await resolveDocumentStage(stages[1], () => ({ owner: false }));
+    expect(await finalizeModelOutputs({ ...args, inputs: [raw, raw], documentStages: stages })).toEqual([
       raw,
       { _id: 'same', internalNote: 'note' },
     ]);
     await expect(
-      finalizeModelOutputs({ ...args, inputs: [raw, raw], documentAuthorizationStages: [stages[0], stages[0]] }),
+      finalizeModelOutputs({ ...args, inputs: [raw, raw], documentStages: [stages[0], stages[0]] }),
     ).rejects.toBeInstanceOf(ServiceAuthorizationError);
     expect(f.hook).not.toHaveBeenCalled();
   });
@@ -402,7 +412,7 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
     f.runtime.setModelOptions('Order', {
       permissionSchema: { status: false, internalNote: false },
       docPermissions: { update: () => ({ owner: false }) },
-    } as never);
+    });
     (f.request as unknown as Record<symbol, unknown>)[PERMISSIONS] = new Permission({ admin: true });
     let context!: ServiceOutputContext;
     const output = await finalizeModelOutput({
@@ -413,9 +423,13 @@ describe('SVA-03 finalizer and same-execution output helpers', () => {
       },
     });
     expect(output).toEqual({ status: 'open', internalNote: 'note', v: 'v' });
-    expect(
-      await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).toEqual(output);
+    expect(context.docPermissions.owner).toBe(true);
+    expect(context.operation).toBe('upsert');
+    // The new read-shaped helper is not the prior upsert/update stage: v has no
+    // read-applicable descriptor. It never runs the update getter to recover it.
+    expect(await f.service.pickAllowedFields(output, 'read', { authorization: grant('internalNote', 'v') })).toEqual({
+      internalNote: 'note',
+    });
     expect(hook).toHaveBeenCalledTimes(1);
     expect(getter).toHaveBeenCalledTimes(1);
     expect(f.decision).toHaveBeenCalledTimes(1);
@@ -454,13 +468,17 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     const { output, context } = await f.finalize({ contacts }, select as string[], policy as OutputAuthorization);
     expect(output).toEqual({ contacts: expected });
     const picked = await f.service.pickAllowedFields(output, 'read', {
-      documentAuthorization: context.documentAuthorization,
+      authorization: policy as OutputAuthorization,
     });
     expect(picked).toEqual(output);
     const child = (output.contacts as object[])[0];
-    const childHandle = context.getDocumentAuthorization(child)!;
-    expect(childHandle).toBeDefined();
-    expect(await f.service.pickAllowedFields(child, 'read', { documentAuthorization: childHandle })).toEqual(child);
+    expect(context).not.toHaveProperty('getDocumentAuthorization');
+    expect(
+      await f.service.pickAllowedFields(child, 'read', {
+        scopePath: ['contacts'],
+        authorization: policy as OutputAuthorization,
+      }),
+    ).toEqual(child);
     expect(f.hook).toHaveBeenCalledTimes(1);
     expect(contacts[0].ssn).toBe('secret');
   });
@@ -511,7 +529,7 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     });
   });
 
-  it('preserves handles when dotted metadata is retained, and copies hydrated/native Map branches safely', async () => {
+  it('retains dotted metadata as data without handles, and copies hydrated/native Map branches safely', async () => {
     const f = fixture({
       documentPermissionField: 'meta.permissions',
       stripPermissionsField: false,
@@ -524,10 +542,8 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       unrestricted,
     );
     expect(output).toEqual({ meta: { label: 'x', permissions: { _view: { status: false } } } });
-    expect(context.getDocumentAuthorization(output.meta as object)).toBeDefined();
-    expect(
-      await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).toEqual(output);
+    expect(context).not.toHaveProperty('getDocumentAuthorization');
+    expect(await f.service.pickAllowedFields(output, 'read', { authorization: unrestricted })).toEqual(output);
     for (const raw of [
       new f.model({ records: { work: { email: 'a@x', ssn: 's' } } }),
       { records: new Map([['work', { email: 'a@x', ssn: 's' }]]) },
@@ -536,7 +552,7 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       expect(result.output).toEqual({ records: { work: { email: 'a@x' } } });
       expect(
         await f.service.pickAllowedFields(result.output, 'read', {
-          documentAuthorization: result.context.documentAuthorization,
+          authorization: grant('records.work.email'),
         }),
       ).toEqual(result.output);
     }
@@ -551,14 +567,16 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       permissionSchema: { contacts: { read: parentRule, sub: { name: leafRule, email: true } }, v: virtualRule },
       virtuals: { v: { get: getter, dependsOn: [] } },
     });
-    const { output, context } = await f.finalize({ contacts, ownerId: 'actor' }, ['contacts', 'v'], {});
-    expect(
-      await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).toEqual(output);
+    const { output } = await f.finalize({ contacts, ownerId: 'actor' }, ['contacts', 'v'], {});
     expect(parentRule).toHaveBeenCalledTimes(1);
     expect(leafRule).toHaveBeenCalledTimes(2);
     expect(virtualRule).toHaveBeenCalledTimes(1);
     expect(getter).toHaveBeenCalledTimes(1);
+    expect(await f.service.pickAllowedFields(output, 'read')).toEqual({ contacts: [{}, {}] });
+    expect(parentRule).toHaveBeenCalledTimes(2);
+    expect(leafRule).toHaveBeenCalledTimes(2);
+    expect(virtualRule).toHaveBeenCalledTimes(2);
+    expect(f.hook).toHaveBeenCalledTimes(1);
   });
 
   it('bounds canonical document hooks and nested getters under one shared gate', async () => {
@@ -580,15 +598,13 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     const output = await finalizeModelOutputs({
       ...args,
       inputs: Array.from({ length: 5 }, () => ({ contacts })),
-      // Authenticated output uses its captured owner, not a per-call override.
-      concurrencyLimit: 99,
     });
     expect(output).toEqual(Array.from({ length: 5 }, () => ({ contacts: [{ badge: 'v' }, { badge: 'v' }] })));
     expect(peak).toBe(2);
     expect(active).toBe(0);
   });
 
-  it('granted virtuals remain selected/applicable/dependency guarded, staged-only, and memoized for picks', async () => {
+  it('granted virtuals remain selected/applicable/dependency guarded; fresh picks never rerun getters', async () => {
     vi.spyOn(loggerHelpers, 'warn').mockImplementation(() => {});
     const good = vi.fn(() => 'computed');
     const absent = vi.fn(() => 'unexpected');
@@ -608,15 +624,13 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
         empty: { get: empty, dependsOn: [] },
       },
     });
-    const { output, context } = await f.finalize(
+    const { output } = await f.finalize(
       { ownerId: 'actor', good: 'stored', inactive: 'stored', absent: 'stored', failed: 'stored', empty: 'stored' },
       ['good', 'absent', 'inactive', 'failed', 'empty'],
       grant('good', 'absent', 'inactive', 'unselected', 'failed', 'empty'),
     );
     expect(output).toEqual({ good: 'computed' });
-    expect(
-      await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).toEqual(output);
+    expect(await f.service.pickAllowedFields(output, 'read', { authorization: grant('good') })).toEqual(output);
     expect(good).toHaveBeenCalledTimes(1);
     expect(empty).toHaveBeenCalledTimes(1);
     expect(failed).toHaveBeenCalledTimes(1);
@@ -640,21 +654,23 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
         summary: { get: parent, dependsOn: ['contacts'] },
       },
     });
-    const { output, context } = await f.finalize(
+    const { output } = await f.finalize(
       { contacts },
       ['contacts.email', 'contacts.badge', 'summary'],
       grant('contacts.email', 'contacts.badge', 'summary'),
     );
     expect(output.summary).toBe(2);
     expect(
-      await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
+      await f.service.pickAllowedFields(output, 'read', {
+        authorization: grant('contacts.email', 'contacts.badge', 'summary'),
+      }),
     ).toEqual(output);
     expect(parent).toHaveBeenCalledTimes(1);
     expect(child).toHaveBeenCalledTimes(2);
     expect(f.hook).toHaveBeenCalledTimes(1);
   });
 
-  it('populated targets use their own policy/grants and authenticated child context; raw DTOs grant no target data', async () => {
+  it('private completed targets use their own policy/facts; raw DTOs and parent grants confer no target data', async () => {
     const f = fixture();
     const childModel = mongoose.model(
       'Sva03Child',
@@ -666,7 +682,7 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       permissionSchema: { name: 'reader', secret: false },
       docPermissions: { read: childHook },
       stripPermissionsField: true,
-    } as never);
+    });
     const args = f.make(['customer'], unrestricted);
     const binding = { ...f.binding, model: childModel, modelName: 'Customer' };
     const configuration = captureModelAuthorizationConfiguration(f.runtime, 'Customer');
@@ -678,21 +694,28 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       parent: args.plan.authorization,
     });
     const plan = planAuthorizedModelProjection({ authorization: call, binding, requestedSelect: ['name', 'secret'] });
-    let context!: ServiceOutputContext;
+    let childContext!: ServiceOutputContext;
+    const child = await finalizeModelOutput({
+      receivingModelName: 'Customer',
+      request: f.request,
+      plan,
+      snapshot: configuration,
+      ...accesses,
+      input: { _id: 'child', name: 'C', secret: 'no' },
+      onFinalized: (_doc, ctx) => {
+        childContext = ctx;
+      },
+    });
     const output = await finalizeModelOutput({
       ...args,
       input: { customer: { _id: 'child', name: 'C', secret: 'no' } },
-      concurrencyLimit: 1,
-      related: [{ path: 'customer', plan, snapshot: configuration, ...accesses }],
-      onFinalized: (_doc, ctx) => {
-        context = ctx;
-      },
+      completedReferences: new Map([['customer', child]]),
     });
     expect(output.customer).toEqual({ _id: 'child', name: 'C' });
+    expect(childContext.docPermissions).toEqual({ reader: true });
+    expect(await f.core.pickAllowedFields('Customer', output.customer, 'read')).toEqual({ _id: 'child' });
     expect(
-      await f.core.pickAllowedFields('Customer', output.customer, 'read', {
-        documentAuthorization: context.getDocumentAuthorization(output.customer as object)!,
-      }),
+      await f.core.pickAllowedFields('Customer', output.customer, 'read', { authorization: grant('name') }),
     ).toEqual(output.customer);
     expect(childHook).toHaveBeenCalledTimes(1);
     expect(
@@ -704,7 +727,7 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     ).toEqual({ customer: 'child' });
   });
 
-  it('isolates hydrated persistence documents and rejects mutation of associated Date/Buffer/BSON leaves', async () => {
+  it('isolates hydrated persistence documents and fresh current Date/Buffer/BSON values without certifying them', async () => {
     const f = fixture();
     const doc = new f.model({
       status: 'open',
@@ -715,9 +738,9 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       oid: new mongoose.Types.ObjectId(),
     });
     const original = doc.toObject();
-    const { output, context } = await f.finalize(doc, ['status', 'internalNote', 'when', 'bytes', 'oid'], unrestricted);
+    const { output } = await f.finalize(doc, ['status', 'internalNote', 'when', 'bytes', 'oid'], unrestricted);
     const picked = await f.service.pickAllowedFields(output, 'read', {
-      documentAuthorization: context.documentAuthorization,
+      authorization: unrestricted,
     });
     expect(picked).toEqual(output);
     expect(doc.toObject()).toEqual(original);
@@ -725,13 +748,15 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     expect(picked.bytes).not.toBe(output.bytes);
     expect(picked.oid).not.toBe(output.oid);
     (picked.when as Date).setTime(1);
-    await expect(
-      f.service.pickAllowedFields(picked, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
+    expect((await f.service.pickAllowedFields(picked, 'read', { authorization: unrestricted })).when).toEqual(
+      new Date(1),
+    );
+    expect(output.when).toEqual(new Date(0));
     (output.bytes as mongoose.mongo.Binary).buffer[0] = 0;
-    await expect(
-      f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).rejects.toBeInstanceOf(ServiceAuthorizationError);
+    expect((await f.service.pickAllowedFields(output, 'read', { authorization: unrestricted })).bytes).toEqual(
+      output.bytes,
+    );
+    expect(f.hook).toHaveBeenCalledTimes(1);
     expect(doc.toObject()).toEqual(original);
   });
 
@@ -749,35 +774,31 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
         observe: { get: observe, dependsOn: ['mixed'] },
       },
     });
-    const { output, context } = await f.finalize({ mixed: expression }, ['mixed', 'mutate', 'observe'], unrestricted);
+    const { output } = await f.finalize({ mixed: expression }, ['mixed', 'mutate', 'observe'], unrestricted);
     expect(output).toMatchObject({ mixed: /^original/gi, mutate: '^changed', observe: '^original:gi:3' });
     expect((output.mixed as RegExp).lastIndex).toBe(3);
     expect(output.mixed).not.toBe(expression);
     expect(expression.source).toBe('^original');
-    expect(
-      await f.service.pickAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization }),
-    ).toEqual(output);
+    expect(await f.service.pickAllowedFields(output, 'read', { authorization: unrestricted })).toEqual(output);
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(observe).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects stale ObjectId identities and equal nested replacements without rerunning hooks', async () => {
+  it('fresh helpers isolate changed ObjectIds and equal nested replacements without reusable authority or hooks', async () => {
     const f = fixture();
-    const { output, context } = await f.finalize(
+    const { output } = await f.finalize(
       { oid: new mongoose.Types.ObjectId(), profile: { name: 'A' } },
       ['oid', 'profile'],
       unrestricted,
     );
-    const options = { documentAuthorization: context.documentAuthorization };
+    const options = { authorization: unrestricted };
     const picked = await f.service.pickAllowedFields(output, 'read', options);
     (picked.oid as mongoose.Types.ObjectId).id = Buffer.alloc(12);
-    await expect(f.service.pickAllowedFields(picked, 'read', options)).rejects.toBeInstanceOf(
-      ServiceAuthorizationError,
-    );
+    const current = await f.service.pickAllowedFields(picked, 'read', options);
+    expect(String(current.oid)).toBe('000000000000000000000000');
+    expect(String(output.oid)).not.toBe(String(current.oid));
     output.profile = { ...(output.profile as object) };
-    await expect(f.service.pickAllowedFields(output, 'read', options)).rejects.toBeInstanceOf(
-      ServiceAuthorizationError,
-    );
+    expect(await f.service.pickAllowedFields(output, 'read', options)).toEqual(output);
     expect(await f.service.pickAllowedFields(output, 'read', {})).toEqual({ profile: { name: 'A' } });
     expect(f.hook).toHaveBeenCalledTimes(1);
   });
@@ -809,13 +830,14 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
     );
     expect(await f.service.genAllowedFields(doc, 'update')).not.toContain('internalNote');
     const { context, output } = await f.finalize({ ownerId: 'actor', status: 'open' });
-    expect(readDocumentAuthorization(context.documentAuthorization, f.binding).outputAccess).toBe('read');
+    expect(context.outputAccess).toBe('read');
+    expect(context).not.toHaveProperty('documentAuthorization');
     await expect(
-      f.service.genAllowedFields(output, 'read', { documentAuthorization: context.documentAuthorization } as never),
+      f.service.genAllowedFields(output, 'read', { documentAuthorization: context } as never),
     ).rejects.toBeInstanceOf(ServiceAuthorizationError);
     await expect(
       f.service.pickAllowedFields(output, 'read', {
-        documentAuthorization: context.documentAuthorization,
+        documentAuthorization: context,
         authorization: grant('internalNote'),
       } as never),
     ).rejects.toBeInstanceOf(ServiceAuthorizationError);

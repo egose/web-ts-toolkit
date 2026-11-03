@@ -30,7 +30,7 @@ const base = new ProcessBase({ macl: {} } as ModelRequest, sourceModelName);
 
 beforeAll(() => {
   // Include output validation now consults the owning model's metadata config.
-  acl.createRouter(mongoose.model(sourceModelName, new mongoose.Schema({ name: String })));
+  acl.createRouter(mongoose.model(sourceModelName, new mongoose.Schema({ name: String })), {});
 });
 
 afterAll(() => mongoose.deleteModel(sourceModelName));

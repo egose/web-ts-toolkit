@@ -20,7 +20,15 @@ import {
 } from './service-authorization';
 import { authorizationError } from './authorization-snapshot';
 import type { AccessRouterPermissions } from '../permission';
-import type { DocumentAuthorizationStage } from './document-authorization';
+import {
+  bindOutputPublication,
+  createOutputPublication,
+  outputPublicationFor,
+  type OutputPublication,
+} from './output-publication';
+import type { TrustedOutputBudget } from './trusted-output-materialization';
+import type { DocumentCondition } from './document-guard';
+import { assertDocumentConditionReceiver } from './document-guard';
 import type { Service } from '../services/service';
 import type { GroupedCountInput } from '../services/grouped-count';
 import type { ModelServiceIntent } from '../services/model-service-intent';
@@ -69,7 +77,8 @@ export interface ServiceExecutionState {
   readonly access: AuthorizationAccess;
   readonly preparedQuery?: PreparedModelQuery;
   readonly identifier?: ResolvedIdentifier;
-  readonly documentStage?: DocumentAuthorizationStage;
+  readonly publication: OutputPublication;
+  readonly ownsPublication: boolean;
 }
 
 type Decorator = ServiceOutputDecorator;
@@ -91,6 +100,12 @@ export interface ServiceExecutors<T, V extends object> {
     args: FindOneArgs<T>,
     options: FindOneOptions<T, V>,
   ): Promise<AuthorizedSingleResult<T> | ErrorResult>;
+  findOneCondition(
+    execution: ServiceExecutionContext,
+    filter: Filter<T>,
+    args: FindOneArgs<T>,
+    options: FindOneOptions<T, V>,
+  ): Promise<boolean | ErrorResult>;
   find(
     execution: ServiceExecutionContext,
     query: PreparedModelQuery,
@@ -130,6 +145,8 @@ interface ExecutionRecord extends ServiceExecutionState {
   readonly receiver: object;
   readonly binding: AuthorizationBinding;
   readonly family: object;
+  readonly purpose: { readonly kind: 'dto' } | { readonly kind: 'condition'; readonly condition: DocumentCondition };
+  readonly outputBudget?: (row: unknown, index: number) => TrustedOutputBudget | null;
 }
 const executions = new WeakMap<ServiceExecutionContext, ExecutionRecord>();
 
@@ -162,6 +179,7 @@ export function createServiceExecution<T, V extends object>(
   const registered = getServiceExecutors(receiver);
   const receiving = registered.binding();
   const binding = Object.freeze({ ...receiving, scopePath: Object.freeze([...(receiving.scopePath ?? [])]) });
+  const permissions = requestPermissions ?? registered.permissions();
   const call = resolveServiceAuthorization({
     binding,
     access,
@@ -170,22 +188,46 @@ export function createServiceExecution<T, V extends object>(
     relatedTargets,
     parent,
     configuration: configuration ?? registered.configuration(),
-    requestPermissions: requestPermissions ?? registered.permissions(),
+    requestPermissions: permissions,
     listResponse: access.operation === 'list' && parent === undefined,
     readResponse: access.operation === 'read' && parent === undefined,
     snapshotDerivation,
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  const publication =
+    parent && snapshotDerivation?.kind === 'related' ? outputPublicationFor(parent) : createOutputPublication();
+  bindOutputPublication(call, publication);
   executions.set(
     execution,
     Object.freeze({
       receiver,
       binding,
       authorization: call,
+      publication,
+      ownsPublication: !parent || snapshotDerivation?.kind !== 'related',
       access: readServiceAuthorizationAccess(call, binding),
       family: execution,
+      purpose: Object.freeze({ kind: 'dto' as const }),
       hydration: resolveHydration(readServiceAuthorizationHydration(call, binding), hydration),
     }),
+  );
+  return execution;
+}
+
+/** Issued only by the lexical PublicService condition reader, never from service options. */
+export function withExecutionDocumentCondition<T, V extends object>(
+  receiver: Service<T, V>,
+  parent: ServiceExecutionContext,
+  condition: DocumentCondition,
+): ServiceExecutionContext {
+  assertDocumentConditionReceiver(receiver);
+  const record = readServiceExecution(receiver, parent);
+  if (record.purpose.kind !== 'dto' || record.access.operation !== 'read' || record.access.rowAccess !== 'read')
+    authorizationError('invalid condition execution origin');
+  const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  executions.set(
+    execution,
+    Object.freeze({ ...record, purpose: Object.freeze({ kind: 'condition' as const, condition }) }),
   );
   return execution;
 }
@@ -224,6 +266,18 @@ export function readServiceExecution<T, V extends object>(
   return record;
 }
 
+/** Private row-budget receiver, fixed before a related query constructs any output. */
+export function withExecutionOutputBudget<T, V extends object>(
+  receiver: Service<T, V>,
+  parent: ServiceExecutionContext,
+  outputBudget: (row: unknown, index: number) => TrustedOutputBudget | null,
+): ServiceExecutionContext {
+  const record = readServiceExecution(receiver, parent);
+  const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  executions.set(execution, Object.freeze({ ...record, outputBudget }));
+  return execution;
+}
+
 /** Own effective output arguments alongside the authenticated configuration/actor.
  * Derivations retain intent; only package-selected branch/fallback options differ.
  */
@@ -247,6 +301,18 @@ export function deriveServiceExecution<T, V extends object>(
 ): ServiceExecutionContext {
   const record = readServiceExecution(receiver, parent);
   const captured = readServiceAuthorization(record.authorization, record.binding);
+  if (
+    record.purpose.kind === 'condition' &&
+    (applicability !== 'service' ||
+      record.access.operation !== 'read' ||
+      record.access.rowAccess !== 'read' ||
+      access.operation !== 'read' ||
+      access.rowAccess !== 'list' ||
+      access.virtualAccess !== 'list' ||
+      access.outputAccess !== 'list' ||
+      access.docPermissionsAccess !== 'list')
+  )
+    authorizationError('condition purpose may only follow a read-to-list retry');
   const policy = serviceAuthorizationInput(captured.authorization, captured.relatedTargets);
   const { outputFields, related } = policy;
   const { inputFields } = captured.authorization;
@@ -273,9 +339,17 @@ export function deriveServiceExecution<T, V extends object>(
     snapshotDerivation: { kind: 'retry', parentBinding: record.binding },
   });
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  const publication =
+    record.access.operation === 'read' && access.operation === 'read' ? createOutputPublication() : record.publication;
+  bindOutputPublication(call, publication);
   executions.set(
     execution,
-    Object.freeze({ ...record, authorization: call, access: readServiceAuthorizationAccess(call, record.binding) }),
+    Object.freeze({
+      ...record,
+      publication,
+      authorization: call,
+      access: readServiceAuthorizationAccess(call, record.binding),
+    }),
   );
   return execution;
 }

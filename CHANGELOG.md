@@ -2,6 +2,18 @@
 
 ### Features
 
+- **access-router:** add optional `pickAllowedFieldsMany` on model services/Core and
+  type-only root/advanced `FilteredOutput<T>`. One explicit collection capture is
+  intentionally not N fresh picks; independent row stages use empty facts, with no
+  hidden DB/document hooks or row authority. Dense 1,000-position admission, per-row
+  limits and cumulative 200,000 work / 16 MiB router-controlled ledgers apply. Opaque
+  Mongoose/native normalization internals/dependency allocations, trusted effects and
+  engine enumeration are excluded: not a total-memory/RSS/whole-normalization cap.
+  Normalized returns are admitted before the next explicit router copy. Whole-call
+  poison closes/drains without partial output, not side-effect rollback. Shipped M3
+  recipes distinguish one capture, zero-helper presentation and fresh normal LISTs;
+  this is no default migration, H3 replacement or measured performance acceptance.
+
 - **access-router:** add experimental default-false server model/default-model
   `unsafeUseListAuthorizationFastPath` and `unsafeUseReadAuthorizationFastPath`.
   Each requires all four matching document/output/nested comparison skips and
@@ -17,6 +29,26 @@
 * **access-router:** add default-off server model/default-model `unsafeSkipListInitialOutputSnapshotCopy` and `unsafeSkipReadInitialOutputSnapshotCopy`. Each requires the matching output-comparison skip; otherwise dormant. Eligible initial output snapshots are omitted while bounded shape/graph ownership and detached source/callback/response copies remain. This explicitly unsafe mode drops native/BSON normalization observations and can change authorization outcomes; existing flags and defaults are unchanged. See the access-router README for prerequisites, fallback and rollback.
 
 ### ⚠ BREAKING CHANGES
+
+- **access-router:** model-condition guards now terminate at fresh visible-row
+  document facts without constructing a DTO. Field callbacks, virtuals, output-only
+  includes, metadata, decorate/tasks and `_read` overrides no longer run or veto a
+  guard. Query/hook-source preparation, source/fact errors, row/target admission and
+  captured LIST retry remain; generated HTTP operation gates are unchanged. Move
+  security/business checks out of output side effects. Callers requiring a DTO must
+  explicitly perform and check a normal authorized read at its additional cost.
+  See shipped `MIGRATION.md` M2/M3/M5; this is not performance acceptance.
+
+- **access-router / access-router-deco:** replace the previous unreleased unsafe
+  authorization switches and public document handles with one owned-stage engine,
+  independent `readAuthorizationMode` / `listAuthorizationMode` (default `isolated`),
+  immutable boolean `DocumentGrants` and diagnostic-only output contexts. Retired
+  controls reject by presence; raw helpers use empty facts with no hidden reads/hooks.
+  Current document-dependent checks require a new normal query. Lifecycle/write
+  authority remains separate. The shipped `access-router/MIGRATION.md` covers the
+  breaking types, all ten flags, callback isolation, helper costs and matching-revision
+  rollout/rollback. This supersedes the unreleased flag notes above; no version/date
+  or measured performance acceptance is implied.
 
 * **access-router-runtime:** runtime config loading now rejects unsupported export forms, ambiguous model definitions, duplicate model/data names, existing-model `collection`, and invalid `dev.delay` values before runtime assembly.
 * **moo:** Keycloak user sync no longer removes assigned realm roles by default. Role synchronization is additive-only unless `managedRoles` explicitly declares the role names this plugin owns.

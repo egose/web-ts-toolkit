@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../dist/index.mjs';
-import type { ModelRequest } from '../src/interfaces';
+import type { AuthorizationMode, ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -12,7 +12,9 @@ const flag = 'unsafeSkipReadDocumentSnapshotChecks';
 const select = ['ordinal', 'value', 'secret', 'hidden', '-_id'];
 const quiet = { includePermissions: false, includeFieldPermissions: false };
 
-async function fixture(read: boolean, list = false) {
+const modes = ['isolated', 'trusted'] as const;
+
+async function fixture(read: AuthorizationMode, list: AuthorizationMode = 'isolated') {
   const api = createAccessRuntime();
   api.setGlobalOptions({ globalPermissions: () => ['reader'], logger: { warn: vi.fn() } });
   const Model = mongoose.model(
@@ -42,8 +44,8 @@ async function fixture(read: boolean, list = false) {
     modelPermissionPrefix: 'doc:',
     docPermissions: hooks,
     stripPermissionsField: true,
-    unsafeSkipReadDocumentSnapshotChecks: read,
-    unsafeSkipListDocumentSnapshotChecks: list,
+    readAuthorizationMode: read,
+    listAuthorizationMode: list,
   });
   const root = api.createRouter({ basePath: '/root', operationAccess: true });
   const rows = await Model.insertMany([
@@ -85,8 +87,8 @@ afterEach(() => {
   mongoose.deleteModel(/^ReadSnapshotHttp/);
 });
 
-describe('read snapshot opt-out retains ACL and public boundaries', () => {
-  it.each([false, true].flatMap((read) => [false, true].map((list) => ({ read, list }))))(
+describe('owned READ source modes retain ACL and public boundaries', () => {
+  it.each(modes.flatMap((read) => modes.map((list) => ({ read, list }))))(
     'retains single-read field/row rules with read=$read and list=$list',
     async ({ read, list }) => {
       const f = await fixture(read, list);
@@ -96,9 +98,13 @@ describe('read snapshot opt-out retains ACL and public boundaries', () => {
         const one = await svc.findOne({ ordinal: 0 }, { select }, quiet);
         expect(one).toMatchObject({ success: true, data: f.owned });
         if (!one.success) throw new Error(one.code);
-        expect(
-          await svc.pickAllowedFields(one.data, 'read', { documentAuthorization: one.context.documentAuthorization }),
-        ).toEqual(f.owned);
+        const hookCalls = f.hooks.read.mock.calls.length;
+        expect(await svc.pickAllowedFields(one.data, 'read')).toEqual({ ordinal: 0, value: 'owned' });
+        expect(f.hooks.read).toHaveBeenCalledTimes(hookCalls);
+        expect(one.context).not.toHaveProperty('documentAuthorization');
+        // Current document facts require an explicit new normal operation.
+        expect(await svc.findOne({ ordinal: 0 }, { select }, quiet)).toMatchObject({ success: true, data: f.owned });
+        expect(f.hooks.read).toHaveBeenCalledTimes(hookCalls + 1);
         expect(await svc.findById(String(f.rows[0]._id), { select }, quiet)).toMatchObject({
           success: true,
           data: f.owned,
@@ -153,7 +159,7 @@ describe('read snapshot opt-out retains ACL and public boundaries', () => {
     },
   );
 
-  it.each([false, true].flatMap((read) => [false, true].map((list) => ({ read, list }))))(
+  it.each(modes.flatMap((read) => modes.map((list) => ({ read, list }))))(
     'keeps list-access retry gates/rules with independent read=$read and list=$list',
     async ({ read, list }) => {
       const f = await fixture(read, list),
@@ -194,32 +200,36 @@ describe('read snapshot opt-out retains ACL and public boundaries', () => {
     },
   );
 
-  it.each(['query', 'body', 'options', 'root'])('rejects client opt-out in %s before document hooks', async (slot) => {
-    const f = await fixture(false);
-    if (slot === 'query')
-      await request(f.app)
-        .get(`/reads/${f.rows[0]._id}`)
-        .query({ [flag]: 'true' })
-        .expect(400);
-    else if (slot === 'root')
-      await request(f.app)
-        .post('/root')
-        .send([
-          {
-            target: 'model',
-            name: f.Model.modelName,
-            op: 'read',
-            id: String(f.rows[0]._id),
-            options: { [flag]: true },
-          },
-        ])
-        .expect(400);
-    else
-      await request(f.app)
-        .post('/reads/__query/__filter')
-        .send({ filter: { ordinal: 0 }, ...(slot === 'body' ? { [flag]: true } : { options: { [flag]: true } }) })
-        .expect(400);
-    expect(f.hooks.read).not.toHaveBeenCalled();
-    expect(f.api.getModelOption(f.Model.modelName, flag)).toBe(false);
-  });
+  it.each(['query', 'body', 'options', 'root'])(
+    'rejects retired client controls in %s before document hooks',
+    async (slot) => {
+      const f = await fixture('isolated');
+      if (slot === 'query')
+        await request(f.app)
+          .get(`/reads/${f.rows[0]._id}`)
+          .query({ [flag]: 'true' })
+          .expect(400);
+      else if (slot === 'root')
+        await request(f.app)
+          .post('/root')
+          .send([
+            {
+              target: 'model',
+              name: f.Model.modelName,
+              op: 'read',
+              id: String(f.rows[0]._id),
+              options: { [flag]: true },
+            },
+          ])
+          .expect(400);
+      else
+        await request(f.app)
+          .post('/reads/__query/__filter')
+          .send({ filter: { ordinal: 0 }, ...(slot === 'body' ? { [flag]: true } : { options: { [flag]: true } }) })
+          .expect(400);
+      expect(f.hooks.read).not.toHaveBeenCalled();
+      expect(f.api.getModelOptions(f.Model.modelName)).not.toHaveProperty(flag);
+      expect(f.api.getModelOption(f.Model.modelName, 'readAuthorizationMode')).toBe('isolated');
+    },
+  );
 });

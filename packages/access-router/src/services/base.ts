@@ -16,18 +16,26 @@ import {
 import { getGlobalOption, getModelNames, getModelOption } from '../options';
 import { iterateQuery } from '../helpers';
 import { deepIsolateValue, toObject } from '../helpers/document';
-import { attachIncludeOutput, getIncludeSource, prepareIncludeOutput } from '../output/include-output';
+import {
+  attachIncludeOutput,
+  getIncludeBudget,
+  getIncludeSource,
+  prepareIncludeOutput,
+} from '../output/include-output';
 import { isValidFieldPath } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import { PopulateAccessError } from '../acl/populate-access';
-import { isTrustedAuthorizationOutput, transferDocumentAuthorizationGraph } from '../acl/document-authorization';
+import { createReceivingOutputBudget } from '../acl/trusted-output-materialization';
+import { withExecutionOutputBudget } from '../acl/service-execution';
 import type {
   AllowedOutputFieldOptions,
   OutputFieldOptions,
   OutputPlanningOptions,
 } from '../interfaces/service-authorization';
 import type { PopulatePlanningOptions } from '../interfaces/service';
+import type { FilteredOutput } from '../interfaces/filtered-output';
 import { assertFieldHelperCall } from '../acl/field-helper-options';
+import { authorizationError } from '../acl/authorization-snapshot';
 import {
   assertPublicAdmission,
   forwardPublicArgs,
@@ -54,13 +62,6 @@ import {
  */
 export const VIRT_ASSOCIATION_FIELD: unique symbol = Symbol('accessRouter.virtAssociationField');
 export const VIRT_ASSOCIATION_VALUES: unique symbol = Symbol('accessRouter.virtAssociationValues');
-
-const copyAuthorizedOutput = <T>(value: T, call?: ResolvedServiceAuthorization): T => {
-  if (value && typeof value === 'object' && call && isTrustedAuthorizationOutput(value, call)) return value;
-  const copy = deepIsolateValue(value);
-  transferDocumentAuthorizationGraph(value, copy);
-  return copy;
-};
 
 /**
  * VIRT-04 output-only guards at the model-aware service boundary
@@ -409,11 +410,13 @@ import {
   LegacyInclude,
   ListResult,
   ModelHookContext,
+  ModelOutputContext,
   ModelRequest,
   Populate,
   Projection,
   SelectAccess,
   DocPermissionsAccess,
+  DocumentGrants,
   DecorateAccess,
   DecorateAllAccess,
   ValidateAccess,
@@ -442,6 +445,8 @@ import { withCapturedPopulateModel } from '../model';
 import type { Service } from './service';
 import {
   bindModelOwnerMethods,
+  assertOutputHelperServiceOwner,
+  registerOutputHelperServiceOwner,
   captureModelServiceOwner,
   hasModelCoreOwner,
   withCapturedModelOperationGuard,
@@ -549,22 +554,23 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     const owner = captureModelServiceOwner(req);
     this.requestRuntime = owner.runtime;
     this.requestCore = owner.core;
+    registerOutputHelperServiceOwner(this, owner, modelName);
     bindModelOwnerMethods(this, owner.runtime);
   }
 
-  public decorate<T>(doc: T, access: DecorateAccess, context: ModelHookContext): Promise<T> {
+  public decorate<T>(doc: T, access: DecorateAccess, context: ModelOutputContext): Promise<T> {
     return this.requestCore.decorate(this.modelName, doc, access, context);
   }
 
-  public decorateAll<T>(docs: T[], access: DecorateAllAccess, context: ModelHookContext): Promise<T[]> {
+  public decorateAll<T>(docs: T[], access: DecorateAllAccess, context: ModelOutputContext): Promise<T[]> {
     return this.requestCore.decorateAll(this.modelName, docs, access, context);
   }
 
   /**
    * Output-only existing paths; supplied options require purpose: 'output', never write admission.
    * Omission/undefined defaults to { purpose: 'output' }, not a request-schema allowlist.
-   * Use the issued document result to reuse same-execution decisions after trimming.
-   * Raw policy starts a fresh evaluation (see OutputFieldOptions).
+   * Always evaluates fresh global permissions and empty document facts. A returned
+   * DTO supplies no authority; current document facts require a normal fresh query.
    */
   public async genAllowedFields(
     doc: unknown,
@@ -575,11 +581,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.requestCore.genAllowedFields<TModel, TVirtuals>(this.modelName, doc, access, options);
   }
 
+  /** Explicit fresh hook utility: normalized boolean metadata DATA, never output/row authority. */
   public genDocPermissions(
     doc: unknown,
     access: DocPermissionsAccess,
-    context: ModelHookContext,
-  ): Promise<Record<string, unknown>> {
+    context: ModelOutputContext,
+  ): Promise<DocumentGrants> {
     return this.requestCore.genDocPermissions(this.modelName, doc, access, context);
   }
 
@@ -631,14 +638,17 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.genSelect(access, targetFields, options);
   }
 
+  /** Presentation placeholders only; never authorize document fields or rows. */
   public addEmptyPermissions<T>(doc: T): T {
     return this.requestCore.addEmptyPermissions(this.modelName, doc);
   }
 
-  public addDocPermissions<T>(doc: T, access: DocPermissionsAccess, context: ModelHookContext): Promise<T> {
+  /** Explicit hook-to-metadata utility. The serialized map cannot authorize a later helper or write. */
+  public addDocPermissions<T>(doc: T, access: DocPermissionsAccess, context: ModelOutputContext): Promise<T> {
     return this.requestCore.addDocPermissions(this.modelName, doc, access, context);
   }
 
+  /** Request-user presentation from normalized metadata DATA; may query row visibility, never grants authority. */
   public addFieldPermissions<T extends { _id?: unknown }>(
     doc: T,
     access: DocPermissionsAccess,
@@ -649,9 +659,8 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
 
   /**
    * Filter existing values without selection/getters, restoration, row checks or writes.
-   * A raw policy starts fresh; an issued document handle reuses its stage after private
-   * hook inputs/metadata are trimmed. These inputs are mutually exclusive. Handles
-   * require unchanged original/package-associated output; caller copies do not qualify.
+   * Fresh captured globals, empty document facts and explicit server output policy;
+   * no hooks/hidden reads or authority recovered from metadata/previous results.
    * Omitted/undefined options equal {} (fresh request-mode output); hydrated inputs are isolated.
    * This generic return type does not guarantee every input field remains present.
    */
@@ -662,6 +671,46 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
   ): Promise<T> {
     assertFieldHelperCall('pickAllowedFields', arguments.length, 3, options);
     return this.requestCore.pickAllowedFields<T, TModel, TVirtuals>(this.modelName, doc, access, options);
+  }
+
+  /**
+   * One fresh output-only collection operation; not N independent fresh picks.
+   * Initialized actor/model/catalog/scope/policy are captured once. Actor-view,
+   * schema and options changes after entry affect the NEXT call, not later rows;
+   * live req.user alone does not refresh initialized permissions. Closures and
+   * native normalization effects are not frozen or transactionally rolled back.
+   * Owns all sources before predicates; duplicates retain separate EMPTY-fact
+   * stages/decisions. No DB, document hooks, virtuals, row checks or restoration.
+   * Dense ordinary readonly/frozen arrays of 0–1,000 positions; stable order and
+   * one close/drain publication group. Callback body errors omit fields; structural,
+   * native or budget poison rejects the whole operation (400), even if caught.
+   * Per-row 20,000/depth-100 limits remain. One 200,000 work / 16 MiB cumulative
+   * payload ledger covers router-controlled admission/staging/traversal/copies ONLY.
+   * Opaque Mongoose/native normalization and dependency allocations/traversal,
+   * engine enumeration and arbitrary callback effects are excluded. Not a total
+   * memory/RSS/whole-normalization or sandbox bound. Returned normalized values
+   * are admitted before further router copies. No reusable output authority.
+   * Options are server-owned; scope grants stay model-relative, never request controls.
+   * Presentation subsets normally need zero helpers; current facts need a normal READ/LIST.
+   * @example
+   * ```ts
+   * import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+   * async function labels(req: ModelRequest, rows: readonly { label: string }[]) {
+   *   const output = await req.macl.getService<{ label: string }>('Employee')
+   *     .pickAllowedFieldsMany(rows, 'list');
+   *   return output.map(row => row.label?.toUpperCase());
+   * }
+   * void labels;
+   * ```
+   */
+  public async pickAllowedFieldsMany<T>(
+    rows: readonly T[],
+    access: SelectAccess,
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
+  ): Promise<readonly FilteredOutput<T>[]> {
+    if (arguments.length > 3) authorizationError('pickAllowedFieldsMany accepts no extra helper arguments');
+    assertOutputHelperServiceOwner(this);
+    return this.requestCore.pickAllowedFieldsMany<T, TModel, TVirtuals>(this.modelName, rows, access, options);
   }
 
   /** Alias of pickAllowedFields's output filter; never authorizes writes. */
@@ -1149,7 +1198,9 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     for (let y = 0; y < docs.length; y++) {
       const doc = docs[y];
       const localValue = get(doc, localField);
-      const execution = this.relatedExecution(svc, include, parentAuthorization);
+      const execution = withExecutionOutputBudget(svc, this.relatedExecution(svc, include, parentAuthorization), () =>
+        createReceivingOutputBudget([{ budget: getIncludeBudget(doc), depth: path.split('.').length }]),
+      );
       const prepared = await prepareModelQuery(
         svc,
         execution,
@@ -1196,7 +1247,30 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       includeLocalValues.push(...this.getForeignKeyValues(get(doc, localField)));
     });
 
-    const execution = this.relatedExecution(svc, include, parentAuthorization);
+    const execution = withExecutionOutputBudget(
+      svc,
+      this.relatedExecution(svc, include, parentAuthorization),
+      (row) => {
+        const foreignValues = this.getForeignKeyValues(get(row, foreignField))
+          .filter((value) => value !== undefined)
+          .map((value) => this.getForeignKey(value));
+        const receivers = docs.filter((doc) =>
+          this.getForeignKeyValues(get(doc, localField)).some((value) =>
+            foreignValues.includes(this.getForeignKey(value)),
+          ),
+        );
+        // Match exactly the association index below: missing slots never attach,
+        // duplicate/multikey matches attach once per parent. Register all receivers
+        // before the target stage or selected native/value policy can run.
+        if (!receivers.length) return null;
+        return createReceivingOutputBudget(
+          receivers.map((doc) => ({
+            budget: getIncludeBudget(doc),
+            depth: path.split('.').length + 1,
+          })),
+        );
+      },
+    );
     const prepared = await prepareModelQuery(
       svc,
       execution,
@@ -1234,9 +1308,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
 
     // Materialize each returned row once. Per-parent isolation must copy stable
     // values rather than re-evaluate target presentation accessors for every match.
-    const finalizedRows = (trustedResult.data as unknown[]).map((row) =>
-      copyAuthorizedOutput(row, parentAuthorization),
-    );
+    const finalizedRows = trustedResult.data as unknown[];
     let index: ForeignKeyIndex<unknown>;
     const paired = (trustedResult as unknown as Record<symbol, unknown>)[VIRT_ASSOCIATION_VALUES] as
       | unknown[]
@@ -1267,8 +1339,7 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       // Isolated copies per parent: multiple parents sharing one logical
       // target must not alias mutable output. Cloning finalized rows (never
       // raw hidden keys) preserves trim/virtuals without rerunning getters.
-      const isolated = matches.map((m) => copyAuthorizedOutput(m, parentAuthorization));
-      attachIncludeOutput(doc, path, op === 'list' ? isolated : isolated[0]);
+      attachIncludeOutput(doc, path, op === 'list' ? matches : matches[0]);
     }
 
     return docs;
@@ -1396,8 +1467,8 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     parentAuthorization?: ResolvedServiceAuthorization,
   ): Promise<void> {
     const svc = await this.getAuthorizedTargetService(include.model, 'read', include.path, parentAuthorization);
-    const execution = this.relatedExecution(svc, include, parentAuthorization);
-    if (isExecutionRowDenied(svc, execution))
+    const parentExecution = this.relatedExecution(svc, include, parentAuthorization);
+    if (isExecutionRowDenied(svc, parentExecution))
       throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
     const { select, sort, nestedInclude } = this.sanitizeCorrelatedArgs(include);
     const hasId = (include as { id?: unknown }).id !== undefined;
@@ -1406,6 +1477,11 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
       const idTemplate = (include as { id: unknown }).id;
       const tasks = docs.map((_, index) => ({ index, snapshot: snapshots[index] }));
       await state.scheduler.map(tasks, async ({ index, snapshot }) => {
+        const execution = withExecutionOutputBudget(svc, parentExecution, () =>
+          createReceivingOutputBudget([
+            { budget: getIncludeBudget(docs[index]), depth: include.path.split('.').length },
+          ]),
+        );
         let resolution: { status: string; id?: string };
         try {
           resolution = resolveCorrelatedIdTemplate(idTemplate, snapshot);
@@ -1492,6 +1568,9 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     }
     const tasks = docs.map((_, index) => ({ index, snapshot: snapshots[index] }));
     await state.scheduler.map(tasks, async ({ index, snapshot }) => {
+      const execution = withExecutionOutputBudget(svc, parentExecution, () =>
+        createReceivingOutputBudget([{ budget: getIncludeBudget(docs[index]), depth: include.path.split('.').length }]),
+      );
       let resolution;
       try {
         resolution = resolveCorrelatedFilterTemplate(parsedTemplate, snapshot);
@@ -1558,8 +1637,8 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     parentAuthorization?: ResolvedServiceAuthorization,
   ): Promise<void> {
     const svc = await this.getAuthorizedTargetService(include.model, 'list', include.path, parentAuthorization);
-    const execution = this.relatedExecution(svc, include, parentAuthorization);
-    if (isExecutionRowDenied(svc, execution))
+    const parentExecution = this.relatedExecution(svc, include, parentAuthorization);
+    if (isExecutionRowDenied(svc, parentExecution))
       throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
     const { select, sort, skip, limit, page, pageSize, nestedInclude } = this.sanitizeCorrelatedArgs(include);
     const filterTemplate = (include as { filter: Record<string, unknown> }).filter;
@@ -1580,6 +1659,11 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     }
     const tasks = docs.map((_, index) => ({ index, snapshot: snapshots[index] }));
     await state.scheduler.map(tasks, async ({ index, snapshot }) => {
+      const execution = withExecutionOutputBudget(svc, parentExecution, () =>
+        createReceivingOutputBudget([
+          { budget: getIncludeBudget(docs[index]), depth: include.path.split('.').length + 1 },
+        ]),
+      );
       let resolution;
       try {
         resolution = resolveCorrelatedFilterTemplate(parsedTemplate, snapshot);

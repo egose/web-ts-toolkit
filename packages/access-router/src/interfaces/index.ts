@@ -13,7 +13,6 @@ export type {
   AuthorizedListResult,
   AuthorizedSingleResult,
   CreateAuthorization,
-  DocumentAuthorization,
   FieldAuthorization,
   InputFieldAuthorization,
   InputFieldPath,
@@ -30,3 +29,4 @@ export type {
   ServiceOutputDecorator,
 } from './service-authorization';
 export * from './data';
+export type { FilteredOutput } from './filtered-output';

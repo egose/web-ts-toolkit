@@ -1,0 +1,3983 @@
+{
+  "structure": {
+    "current-default": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 24,
+        "counts": {
+          "copyAuthorizationValue": 1164,
+          "transferDocumentAuthorizationGraph": 114,
+          "createDocumentAuthorizationStage": 12,
+          "resolveDocumentAuthorization": 18,
+          "matchesAuthorizationSnapshot": 906,
+          "memoizeDocumentFieldDecision": 78,
+          "associateDocumentAuthorization": 24,
+          "transferDocumentAuthorization": 12
+        },
+        "sourceCopies": {
+          "copyAuthorizationValue": 741,
+          "matchesAuthorizationSnapshot": 723,
+          "transferDocumentAuthorizationGraph": 3
+        },
+        "grantCopies": {
+          "copyAuthorizationValue": 114
+        },
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 144,
+        "counts": {
+          "copyAuthorizationValue": 3084,
+          "transferDocumentAuthorizationGraph": 354,
+          "createDocumentAuthorizationStage": 12,
+          "resolveDocumentAuthorization": 18,
+          "matchesAuthorizationSnapshot": 2586,
+          "memoizeDocumentFieldDecision": 318,
+          "associateDocumentAuthorization": 24,
+          "transferDocumentAuthorization": 12
+        },
+        "sourceCopies": {
+          "copyAuthorizationValue": 2421,
+          "matchesAuthorizationSnapshot": 2403,
+          "transferDocumentAuthorizationGraph": 3
+        },
+        "grantCopies": {
+          "copyAuthorizationValue": 354
+        },
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 288,
+        "counts": {
+          "copyAuthorizationValue": 5388,
+          "transferDocumentAuthorizationGraph": 642,
+          "createDocumentAuthorizationStage": 12,
+          "resolveDocumentAuthorization": 18,
+          "matchesAuthorizationSnapshot": 4602,
+          "memoizeDocumentFieldDecision": 606,
+          "associateDocumentAuthorization": 24,
+          "transferDocumentAuthorization": 12
+        },
+        "sourceCopies": {
+          "copyAuthorizationValue": 4437,
+          "matchesAuthorizationSnapshot": 4419,
+          "transferDocumentAuthorizationGraph": 3
+        },
+        "grantCopies": {
+          "copyAuthorizationValue": 642
+        },
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ],
+    "current-active": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 6,
+        "counts": {
+          "copyAuthorizationValue": 7,
+          "resolveDocumentAuthorization": 12,
+          "memoizeDocumentFieldDecision": 78,
+          "memoizeTrustedFieldDecision": 78,
+          "associateDocumentAuthorization": 12
+        },
+        "sourceCopies": {},
+        "grantCopies": {},
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 6,
+        "counts": {
+          "copyAuthorizationValue": 7,
+          "resolveDocumentAuthorization": 12,
+          "memoizeDocumentFieldDecision": 318,
+          "memoizeTrustedFieldDecision": 318,
+          "associateDocumentAuthorization": 12
+        },
+        "sourceCopies": {},
+        "grantCopies": {},
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 6,
+        "counts": {
+          "copyAuthorizationValue": 7,
+          "resolveDocumentAuthorization": 12,
+          "memoizeDocumentFieldDecision": 606,
+          "memoizeTrustedFieldDecision": 606,
+          "associateDocumentAuthorization": 12
+        },
+        "sourceCopies": {},
+        "grantCopies": {},
+        "resolvedStages": 0,
+        "closedStages": 0,
+        "clearedRecords": 0,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ],
+    "isolated": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 36,
+          "memoizeStageFieldDecision": 66,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6
+        },
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 156,
+          "memoizeStageFieldDecision": 306,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6
+        },
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 300,
+          "memoizeStageFieldDecision": 594,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {
+          "copyDocumentView": 12,
+          "captureReferenceOrigins": 6
+        },
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ],
+    "trusted": [
+      {
+        "fields": 4,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 24,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 36,
+          "memoizeStageFieldDecision": 66,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {},
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "44789f7fe75bbac28f11ea4c8e0864196dcede4257e145b4ab2d3de1bc59abd9"
+      },
+      {
+        "fields": 24,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 144,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 156,
+          "memoizeStageFieldDecision": 306,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {},
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "a046bb4b616c4bf5ad23685b98ca164202880f225371a66f2db1b95aad460074"
+      },
+      {
+        "fields": 48,
+        "rows": 6,
+        "embeddedChildrenPerRow": 1,
+        "adapterReads": 1,
+        "mongoReads": 0,
+        "hooks": 6,
+        "callbacks": 288,
+        "factIdentities": 6,
+        "counts": {
+          "captureAuthorizationFieldCatalog": 1,
+          "copyAuthorizationValue": 7,
+          "planAuthorizedModelProjection": 1,
+          "planCatalogProjection": 1,
+          "selectCatalogOutputShape": 2,
+          "compactPersistedProjection": 5,
+          "createDocumentStage": 6,
+          "resolveDocumentStage": 12,
+          "resolverPromise": 12,
+          "normalizeDocumentGrants": 24,
+          "rawFactNormalizations": 6,
+          "beginDocumentStageOutput": 12,
+          "evaluateAuthorizedOutputField": 300,
+          "memoizeStageFieldDecision": 594,
+          "closeDocumentStage": 36
+        },
+        "sourceCopies": {},
+        "grantCopies": {
+          "normalizeDocumentGrants": 24
+        },
+        "resolvedStages": 12,
+        "closedStages": 12,
+        "clearedRecords": 12,
+        "outputFingerprint": "8cc6b5936d264fc6189b79f46cc531914810d39f0edbceb6de965b05e79b0b54"
+      }
+    ]
+  },
+  "retention": [
+    {
+      "profile": "current-default",
+      "round": 1,
+      "job": 169,
+      "before": 39539264,
+      "held": [
+        39796128,
+        39662072,
+        39685504,
+        39708224
+      ],
+      "released": [
+        39155136,
+        39166632,
+        39184792,
+        39195080
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        256864,
+        122808,
+        146240,
+        168960
+      ],
+      "releasedGrowth": [
+        -384128,
+        -372632,
+        -354472,
+        -344184
+      ]
+    },
+    {
+      "profile": "isolated",
+      "round": 1,
+      "job": 170,
+      "before": 39139720,
+      "held": [
+        38957296,
+        38895512,
+        38957240,
+        38930032
+      ],
+      "released": [
+        38810656,
+        38821360,
+        38845184,
+        38858904
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -182424,
+        -244208,
+        -182480,
+        -209688
+      ],
+      "releasedGrowth": [
+        -329064,
+        -318360,
+        -294536,
+        -280816
+      ]
+    },
+    {
+      "profile": "current-active",
+      "round": 1,
+      "job": 171,
+      "before": 39668840,
+      "held": [
+        39948992,
+        39772328,
+        39776992,
+        39792936
+      ],
+      "released": [
+        39276656,
+        39285240,
+        39305088,
+        39320936
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        280152,
+        103488,
+        108152,
+        124096
+      ],
+      "releasedGrowth": [
+        -392184,
+        -383600,
+        -363752,
+        -347904
+      ]
+    },
+    {
+      "profile": "trusted",
+      "round": 1,
+      "job": 172,
+      "before": 38725464,
+      "held": [
+        38596984,
+        38552608,
+        38577568,
+        38608992
+      ],
+      "released": [
+        38451904,
+        38465760,
+        38490424,
+        38502952
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -128480,
+        -172856,
+        -147896,
+        -116472
+      ],
+      "releasedGrowth": [
+        -273560,
+        -259704,
+        -235040,
+        -222512
+      ]
+    },
+    {
+      "profile": "current-default",
+      "round": 1,
+      "job": 173,
+      "before": 37014304,
+      "held": [
+        37980040,
+        37871080,
+        37873856,
+        37875536
+      ],
+      "released": [
+        36606088,
+        36627864,
+        36641688,
+        36643408
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        965736,
+        856776,
+        859552,
+        861232
+      ],
+      "releasedGrowth": [
+        -408216,
+        -386440,
+        -372616,
+        -370896
+      ]
+    },
+    {
+      "profile": "isolated",
+      "round": 1,
+      "job": 174,
+      "before": 39477328,
+      "held": [
+        39337392,
+        39374432,
+        39424208,
+        39429920
+      ],
+      "released": [
+        39137904,
+        39145656,
+        39165824,
+        39174248
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -139936,
+        -102896,
+        -53120,
+        -47408
+      ],
+      "releasedGrowth": [
+        -339424,
+        -331672,
+        -311504,
+        -303080
+      ]
+    },
+    {
+      "profile": "current-active",
+      "round": 1,
+      "job": 175,
+      "before": 40069496,
+      "held": [
+        41021912,
+        40894608,
+        40844464,
+        40912544
+      ],
+      "released": [
+        39669712,
+        39674200,
+        39687168,
+        39688144
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        952416,
+        825112,
+        774968,
+        843048
+      ],
+      "releasedGrowth": [
+        -399784,
+        -395296,
+        -382328,
+        -381352
+      ]
+    },
+    {
+      "profile": "trusted",
+      "round": 1,
+      "job": 176,
+      "before": 39042256,
+      "held": [
+        38974224,
+        39018264,
+        39022456,
+        39071960
+      ],
+      "released": [
+        38797688,
+        38806200,
+        38824552,
+        38831824
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -68032,
+        -23992,
+        -19800,
+        29704
+      ],
+      "releasedGrowth": [
+        -244568,
+        -236056,
+        -217704,
+        -210432
+      ]
+    },
+    {
+      "profile": "current-default",
+      "round": 1,
+      "job": 177,
+      "before": 36674688,
+      "held": [
+        38509704,
+        38386232,
+        38417224,
+        38417624
+      ],
+      "released": [
+        36255648,
+        36260808,
+        36274368,
+        36291624
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        1835016,
+        1711544,
+        1742536,
+        1742936
+      ],
+      "releasedGrowth": [
+        -419040,
+        -413880,
+        -400320,
+        -383064
+      ]
+    },
+    {
+      "profile": "isolated",
+      "round": 1,
+      "job": 178,
+      "before": 40052928,
+      "held": [
+        40059272,
+        40042768,
+        40123560,
+        40109808
+      ],
+      "released": [
+        39696632,
+        39719936,
+        39739400,
+        39754248
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        6344,
+        -10160,
+        70632,
+        56880
+      ],
+      "releasedGrowth": [
+        -356296,
+        -332992,
+        -313528,
+        -298680
+      ]
+    },
+    {
+      "profile": "current-active",
+      "round": 1,
+      "job": 179,
+      "before": 40598776,
+      "held": [
+        42390504,
+        42249432,
+        42281568,
+        42289104
+      ],
+      "released": [
+        40188528,
+        40190152,
+        40202472,
+        40226008
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        1791728,
+        1650656,
+        1682792,
+        1690328
+      ],
+      "releasedGrowth": [
+        -410248,
+        -408624,
+        -396304,
+        -372768
+      ]
+    },
+    {
+      "profile": "trusted",
+      "round": 1,
+      "job": 180,
+      "before": 39583384,
+      "held": [
+        39619560,
+        39670224,
+        39710848,
+        39681456
+      ],
+      "released": [
+        39305544,
+        39328856,
+        39344520,
+        39356528
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        36176,
+        86840,
+        127464,
+        98072
+      ],
+      "releasedGrowth": [
+        -277840,
+        -254528,
+        -238864,
+        -226856
+      ]
+    },
+    {
+      "profile": "trusted",
+      "round": 2,
+      "job": 181,
+      "before": 39739544,
+      "held": [
+        39779232,
+        39829800,
+        39870408,
+        39849392
+      ],
+      "released": [
+        39465216,
+        39488432,
+        39504080,
+        39517072
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        39688,
+        90256,
+        130864,
+        109848
+      ],
+      "releasedGrowth": [
+        -274328,
+        -251112,
+        -235464,
+        -222472
+      ]
+    },
+    {
+      "profile": "current-active",
+      "round": 2,
+      "job": 182,
+      "before": 40574528,
+      "held": [
+        42270800,
+        42226056,
+        42270024,
+        42260368
+      ],
+      "released": [
+        40165656,
+        40166808,
+        40180720,
+        40203112
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        1696272,
+        1651528,
+        1695496,
+        1685840
+      ],
+      "releasedGrowth": [
+        -408872,
+        -407720,
+        -393808,
+        -371416
+      ]
+    },
+    {
+      "profile": "isolated",
+      "round": 2,
+      "job": 183,
+      "before": 39697568,
+      "held": [
+        39697720,
+        39713776,
+        39769688,
+        39750624
+      ],
+      "released": [
+        39342920,
+        39364712,
+        39387296,
+        39404488
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        152,
+        16208,
+        72120,
+        53056
+      ],
+      "releasedGrowth": [
+        -354648,
+        -332856,
+        -310272,
+        -293080
+      ]
+    },
+    {
+      "profile": "current-default",
+      "round": 2,
+      "job": 184,
+      "before": 36802032,
+      "held": [
+        38650000,
+        38540112,
+        38547184,
+        38559928
+      ],
+      "released": [
+        36396616,
+        36414720,
+        36405560,
+        36434656
+      ],
+      "heldRows": 100,
+      "fields": 48,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 96000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        1847968,
+        1738080,
+        1745152,
+        1757896
+      ],
+      "releasedGrowth": [
+        -405416,
+        -387312,
+        -396472,
+        -367376
+      ]
+    },
+    {
+      "profile": "trusted",
+      "round": 2,
+      "job": 185,
+      "before": 39018696,
+      "held": [
+        38962728,
+        38991352,
+        38998128,
+        39047672
+      ],
+      "released": [
+        38774568,
+        38781392,
+        38801032,
+        38808400
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -55968,
+        -27344,
+        -20568,
+        28976
+      ],
+      "releasedGrowth": [
+        -244128,
+        -237304,
+        -217664,
+        -210296
+      ]
+    },
+    {
+      "profile": "current-active",
+      "round": 2,
+      "job": 186,
+      "before": 40046736,
+      "held": [
+        40983704,
+        40862648,
+        40813448,
+        40880488
+      ],
+      "released": [
+        39638400,
+        39640544,
+        39656048,
+        39655752
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        936968,
+        815912,
+        766712,
+        833752
+      ],
+      "releasedGrowth": [
+        -408336,
+        -406192,
+        -390688,
+        -390984
+      ]
+    },
+    {
+      "profile": "isolated",
+      "round": 2,
+      "job": 187,
+      "before": 39500584,
+      "held": [
+        39369760,
+        39399200,
+        39437792,
+        39455320
+      ],
+      "released": [
+        39162472,
+        39170512,
+        39188248,
+        39200296
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -130824,
+        -101384,
+        -62792,
+        -45264
+      ],
+      "releasedGrowth": [
+        -338112,
+        -330072,
+        -312336,
+        -300288
+      ]
+    },
+    {
+      "profile": "current-default",
+      "round": 2,
+      "job": 188,
+      "before": 36993192,
+      "held": [
+        37963960,
+        37835168,
+        37845784,
+        37847240
+      ],
+      "released": [
+        36580616,
+        36596256,
+        36613600,
+        36615248
+      ],
+      "heldRows": 100,
+      "fields": 24,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 48000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        970768,
+        841976,
+        852592,
+        854048
+      ],
+      "releasedGrowth": [
+        -412576,
+        -396936,
+        -379592,
+        -377944
+      ]
+    },
+    {
+      "profile": "trusted",
+      "round": 2,
+      "job": 189,
+      "before": 38658008,
+      "held": [
+        38573672,
+        38507360,
+        38512176,
+        38544296
+      ],
+      "released": [
+        38385952,
+        38400872,
+        38426264,
+        38438792
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -84336,
+        -150648,
+        -145832,
+        -113712
+      ],
+      "releasedGrowth": [
+        -272056,
+        -257136,
+        -231744,
+        -219216
+      ]
+    },
+    {
+      "profile": "current-active",
+      "round": 2,
+      "job": 190,
+      "before": 39686208,
+      "held": [
+        39965560,
+        39787168,
+        39792440,
+        39808384
+      ],
+      "released": [
+        39298496,
+        39301776,
+        39320664,
+        39336512
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        279352,
+        100960,
+        106232,
+        122176
+      ],
+      "releasedGrowth": [
+        -387712,
+        -384432,
+        -365544,
+        -349696
+      ]
+    },
+    {
+      "profile": "isolated",
+      "round": 2,
+      "job": 191,
+      "before": 39126448,
+      "held": [
+        38941824,
+        38895504,
+        38957376,
+        38930488
+      ],
+      "released": [
+        38792688,
+        38806112,
+        38831016,
+        38845024
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        -184624,
+        -230944,
+        -169072,
+        -195960
+      ],
+      "releasedGrowth": [
+        -333760,
+        -320336,
+        -295432,
+        -281424
+      ]
+    },
+    {
+      "profile": "current-default",
+      "round": 2,
+      "job": 192,
+      "before": 39523840,
+      "held": [
+        39776064,
+        39644856,
+        39665840,
+        39689424
+      ],
+      "released": [
+        39135072,
+        39149416,
+        39165128,
+        39176280
+      ],
+      "heldRows": 100,
+      "fields": 4,
+      "gcPerObservation": 3,
+      "cycles": 4,
+      "operationsPerCycle": 5,
+      "warmup": 5,
+      "heldAtLastObservation": false,
+      "extraWork": {
+        "reads": 20,
+        "hooks": 2000,
+        "getters": 0,
+        "expensive": 0,
+        "adapterReads": 0,
+        "callbacks": 8000
+      },
+      "allocationCount": null,
+      "allocationCountReason": "unavailable; retained heap bytes are NOT allocation counts",
+      "heldGrowth": [
+        252224,
+        121016,
+        142000,
+        165584
+      ],
+      "releasedGrowth": [
+        -388768,
+        -374424,
+        -358712,
+        -347560
+      ]
+    }
+  ],
+  "comparisons": [
+    {
+      "id": "retention/held-released/100/4",
+      "profile": "isolated",
+      "initial": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 169,
+            "candidateJob": 170,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 37.32437200000004,
+              "p95Ms": 43.92431799999986,
+              "cpuMsPerRequest": 40.81476
+            },
+            "candidate": {
+              "medianMs": 9.326103499999817,
+              "p95Ms": 12.114336000000094,
+              "cpuMsPerRequest": 11.58264
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -27.998268500000222,
+                "percent": -75.01336794092663
+              },
+              "p95Ms": {
+                "ms": -31.809981999999764,
+                "percent": -72.41997929256378
+              },
+              "cpuMsPerRequest": {
+                "ms": -29.232120000000002,
+                "percent": -71.62144283097585
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 192,
+            "candidateJob": 191,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 36.92062699999997,
+              "p95Ms": 42.602711000000454,
+              "cpuMsPerRequest": 40.631930000000004
+            },
+            "candidate": {
+              "medianMs": 9.352869999999939,
+              "p95Ms": 12.234314999999697,
+              "cpuMsPerRequest": 11.925709999999999
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -27.56775700000003,
+                "percent": -74.66762956111242
+              },
+              "p95Ms": {
+                "ms": -30.368396000000757,
+                "percent": -71.28277822507688
+              },
+              "cpuMsPerRequest": {
+                "ms": -28.706220000000005,
+                "percent": -70.6494129124558
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -27.783012750000125,
+            "percent": -74.84049875101952
+          },
+          "p95Ms": {
+            "ms": -31.08918900000026,
+            "percent": -71.85137875882033
+          },
+          "cpuMsPerRequest": {
+            "ms": -28.969170000000005,
+            "percent": -71.13542787171582
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -256864,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -122808,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -146240,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -168960,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -252224,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -121016,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -142000,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -165584,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      },
+      "final": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 169,
+            "candidateJob": 170,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 37.32437200000004,
+              "p95Ms": 43.92431799999986,
+              "cpuMsPerRequest": 40.81476
+            },
+            "candidate": {
+              "medianMs": 9.326103499999817,
+              "p95Ms": 12.114336000000094,
+              "cpuMsPerRequest": 11.58264
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -27.998268500000222,
+                "percent": -75.01336794092663
+              },
+              "p95Ms": {
+                "ms": -31.809981999999764,
+                "percent": -72.41997929256378
+              },
+              "cpuMsPerRequest": {
+                "ms": -29.232120000000002,
+                "percent": -71.62144283097585
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 192,
+            "candidateJob": 191,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 36.92062699999997,
+              "p95Ms": 42.602711000000454,
+              "cpuMsPerRequest": 40.631930000000004
+            },
+            "candidate": {
+              "medianMs": 9.352869999999939,
+              "p95Ms": 12.234314999999697,
+              "cpuMsPerRequest": 11.925709999999999
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -27.56775700000003,
+                "percent": -74.66762956111242
+              },
+              "p95Ms": {
+                "ms": -30.368396000000757,
+                "percent": -71.28277822507688
+              },
+              "cpuMsPerRequest": {
+                "ms": -28.706220000000005,
+                "percent": -70.6494129124558
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -27.783012750000125,
+            "percent": -74.84049875101952
+          },
+          "p95Ms": {
+            "ms": -31.08918900000026,
+            "percent": -71.85137875882033
+          },
+          "cpuMsPerRequest": {
+            "ms": -28.969170000000005,
+            "percent": -71.13542787171582
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -256864,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -122808,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -146240,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -168960,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -252224,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -121016,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -142000,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -165584,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "retention/held-released/100/4",
+      "profile": "trusted",
+      "initial": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 171,
+            "candidateJob": 172,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 8.479833999999755,
+              "p95Ms": 10.722547999999733,
+              "cpuMsPerRequest": 10.14482
+            },
+            "candidate": {
+              "medianMs": 6.893597,
+              "p95Ms": 8.217294999999922,
+              "cpuMsPerRequest": 8.39543
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -1.5862369999997554,
+                "percent": -18.70599117859856
+              },
+              "p95Ms": {
+                "ms": -2.5052529999998114,
+                "percent": -23.364343997339752
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.74939,
+                "percent": -17.244169931058416
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 190,
+            "candidateJob": 189,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 8.407375999999886,
+              "p95Ms": 10.921194999999898,
+              "cpuMsPerRequest": 10.16346
+            },
+            "candidate": {
+              "medianMs": 8.237930499999948,
+              "p95Ms": 10.712398000000121,
+              "cpuMsPerRequest": 10.148390000000001
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -0.16944549999993797,
+                "percent": -2.0154385863073125
+              },
+              "p95Ms": {
+                "ms": -0.20879699999977674,
+                "percent": -1.9118512214073524
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.015069999999999695,
+                "percent": -0.14827627599262153
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -0.8778412499998467,
+            "percent": -10.360714882452935
+          },
+          "p95Ms": {
+            "ms": -1.357024999999794,
+            "percent": -12.638097609373553
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.8822299999999998,
+            "percent": -8.696223103525519
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -280152,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -103488,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -108152,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -124096,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -279352,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -100960,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -106232,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -122176,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      },
+      "final": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 171,
+            "candidateJob": 172,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 8.479833999999755,
+              "p95Ms": 10.722547999999733,
+              "cpuMsPerRequest": 10.14482
+            },
+            "candidate": {
+              "medianMs": 6.893597,
+              "p95Ms": 8.217294999999922,
+              "cpuMsPerRequest": 8.39543
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -1.5862369999997554,
+                "percent": -18.70599117859856
+              },
+              "p95Ms": {
+                "ms": -2.5052529999998114,
+                "percent": -23.364343997339752
+              },
+              "cpuMsPerRequest": {
+                "ms": -1.74939,
+                "percent": -17.244169931058416
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 190,
+            "candidateJob": 189,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 8.407375999999886,
+              "p95Ms": 10.921194999999898,
+              "cpuMsPerRequest": 10.16346
+            },
+            "candidate": {
+              "medianMs": 8.237930499999948,
+              "p95Ms": 10.712398000000121,
+              "cpuMsPerRequest": 10.148390000000001
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -0.16944549999993797,
+                "percent": -2.0154385863073125
+              },
+              "p95Ms": {
+                "ms": -0.20879699999977674,
+                "percent": -1.9118512214073524
+              },
+              "cpuMsPerRequest": {
+                "ms": -0.015069999999999695,
+                "percent": -0.14827627599262153
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -0.8778412499998467,
+            "percent": -10.360714882452935
+          },
+          "p95Ms": {
+            "ms": -1.357024999999794,
+            "percent": -12.638097609373553
+          },
+          "cpuMsPerRequest": {
+            "ms": -0.8822299999999998,
+            "percent": -8.696223103525519
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -280152,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -103488,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -108152,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -124096,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -279352,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -100960,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -106232,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -122176,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "retention/held-released/100/24",
+      "profile": "isolated",
+      "initial": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 173,
+            "candidateJob": 174,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 206.56699050000043,
+              "p95Ms": 220.57981799999925,
+              "cpuMsPerRequest": 217.22232
+            },
+            "candidate": {
+              "medianMs": 16.99188550000008,
+              "p95Ms": 19.555749000000105,
+              "cpuMsPerRequest": 20.224980000000002
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -189.57510500000035,
+                "percent": -91.77415255996576
+              },
+              "p95Ms": {
+                "ms": -201.02406899999914,
+                "percent": -91.13438882246237
+              },
+              "cpuMsPerRequest": {
+                "ms": -196.99734,
+                "percent": -90.68927171019995
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 188,
+            "candidateJob": 187,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 208.6223784999993,
+              "p95Ms": 229.44164100000035,
+              "cpuMsPerRequest": 221.01046
+            },
+            "candidate": {
+              "medianMs": 19.091136000000006,
+              "p95Ms": 24.653048000000126,
+              "cpuMsPerRequest": 22.55611
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -189.53124249999928,
+                "percent": -90.84895103906598
+              },
+              "p95Ms": {
+                "ms": -204.78859300000022,
+                "percent": -89.25519888519273
+              },
+              "cpuMsPerRequest": {
+                "ms": -198.45435,
+                "percent": -89.79409843316918
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -189.55317374999981,
+            "percent": -91.31155179951587
+          },
+          "p95Ms": {
+            "ms": -202.90633099999968,
+            "percent": -90.19479385382755
+          },
+          "cpuMsPerRequest": {
+            "ms": -197.725845,
+            "percent": -90.24168507168457
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -965736,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -856776,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -859552,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -861232,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -970768,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -841976,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -852592,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -854048,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      },
+      "final": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 173,
+            "candidateJob": 174,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 206.56699050000043,
+              "p95Ms": 220.57981799999925,
+              "cpuMsPerRequest": 217.22232
+            },
+            "candidate": {
+              "medianMs": 16.99188550000008,
+              "p95Ms": 19.555749000000105,
+              "cpuMsPerRequest": 20.224980000000002
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -189.57510500000035,
+                "percent": -91.77415255996576
+              },
+              "p95Ms": {
+                "ms": -201.02406899999914,
+                "percent": -91.13438882246237
+              },
+              "cpuMsPerRequest": {
+                "ms": -196.99734,
+                "percent": -90.68927171019995
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 188,
+            "candidateJob": 187,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 208.6223784999993,
+              "p95Ms": 229.44164100000035,
+              "cpuMsPerRequest": 221.01046
+            },
+            "candidate": {
+              "medianMs": 19.091136000000006,
+              "p95Ms": 24.653048000000126,
+              "cpuMsPerRequest": 22.55611
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -189.53124249999928,
+                "percent": -90.84895103906598
+              },
+              "p95Ms": {
+                "ms": -204.78859300000022,
+                "percent": -89.25519888519273
+              },
+              "cpuMsPerRequest": {
+                "ms": -198.45435,
+                "percent": -89.79409843316918
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -189.55317374999981,
+            "percent": -91.31155179951587
+          },
+          "p95Ms": {
+            "ms": -202.90633099999968,
+            "percent": -90.19479385382755
+          },
+          "cpuMsPerRequest": {
+            "ms": -197.725845,
+            "percent": -90.24168507168457
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -965736,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -856776,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -859552,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -861232,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -970768,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -841976,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -852592,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -854048,
+                  "percent": -100.0,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "retention/held-released/100/24",
+      "profile": "trusted",
+      "initial": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 175,
+            "candidateJob": 176,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 17.410568000000012,
+              "p95Ms": 19.40593799999988,
+              "cpuMsPerRequest": 20.58946
+            },
+            "candidate": {
+              "medianMs": 13.749274500000183,
+              "p95Ms": 16.703326999999717,
+              "cpuMsPerRequest": 15.75666
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -3.661293499999829,
+                "percent": -21.02914448282116
+              },
+              "p95Ms": {
+                "ms": -2.702611000000161,
+                "percent": -13.92672181061373
+              },
+              "cpuMsPerRequest": {
+                "ms": -4.832799999999999,
+                "percent": -23.47220373919471
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 186,
+            "candidateJob": 185,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 17.051559999999654,
+              "p95Ms": 19.331123999999818,
+              "cpuMsPerRequest": 20.37873
+            },
+            "candidate": {
+              "medianMs": 14.158760499999971,
+              "p95Ms": 16.602530000000115,
+              "cpuMsPerRequest": 16.04846
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -2.8927994999996827,
+                "percent": -16.96501375827045
+              },
+              "p95Ms": {
+                "ms": -2.7285939999997026,
+                "percent": -14.115030248627697
+              },
+              "cpuMsPerRequest": {
+                "ms": -4.330270000000002,
+                "percent": -21.24896890041726
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -3.2770464999997557,
+            "percent": -18.997079120545806
+          },
+          "p95Ms": {
+            "ms": -2.7156024999999318,
+            "percent": -14.020876029620712
+          },
+          "cpuMsPerRequest": {
+            "ms": -4.581535000000001,
+            "percent": -22.360586319805986
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -952416,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -825112,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -774968,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -813344,
+                  "percent": -96.47659445251041,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -936968,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -815912,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -766712,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -804776,
+                  "percent": -96.52462602788358,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      },
+      "final": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 175,
+            "candidateJob": 176,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 17.410568000000012,
+              "p95Ms": 19.40593799999988,
+              "cpuMsPerRequest": 20.58946
+            },
+            "candidate": {
+              "medianMs": 13.749274500000183,
+              "p95Ms": 16.703326999999717,
+              "cpuMsPerRequest": 15.75666
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -3.661293499999829,
+                "percent": -21.02914448282116
+              },
+              "p95Ms": {
+                "ms": -2.702611000000161,
+                "percent": -13.92672181061373
+              },
+              "cpuMsPerRequest": {
+                "ms": -4.832799999999999,
+                "percent": -23.47220373919471
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 186,
+            "candidateJob": 185,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 17.051559999999654,
+              "p95Ms": 19.331123999999818,
+              "cpuMsPerRequest": 20.37873
+            },
+            "candidate": {
+              "medianMs": 14.158760499999971,
+              "p95Ms": 16.602530000000115,
+              "cpuMsPerRequest": 16.04846
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -2.8927994999996827,
+                "percent": -16.96501375827045
+              },
+              "p95Ms": {
+                "ms": -2.7285939999997026,
+                "percent": -14.115030248627697
+              },
+              "cpuMsPerRequest": {
+                "ms": -4.330270000000002,
+                "percent": -21.24896890041726
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -3.2770464999997557,
+            "percent": -18.997079120545806
+          },
+          "p95Ms": {
+            "ms": -2.7156024999999318,
+            "percent": -14.020876029620712
+          },
+          "cpuMsPerRequest": {
+            "ms": -4.581535000000001,
+            "percent": -22.360586319805986
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -952416,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -825112,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -774968,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -813344,
+                  "percent": -96.47659445251041,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -936968,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -815912,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -766712,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -804776,
+                  "percent": -96.52462602788358,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "retention/held-released/100/48",
+      "profile": "isolated",
+      "initial": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 177,
+            "candidateJob": 178,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 671.5619104999987,
+              "p95Ms": 739.2961680000008,
+              "cpuMsPerRequest": 713.38186
+            },
+            "candidate": {
+              "medianMs": 29.738092499999766,
+              "p95Ms": 37.1957910000001,
+              "cpuMsPerRequest": 34.5065
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -641.8238179999989,
+                "percent": -95.57180178997066
+              },
+              "p95Ms": {
+                "ms": -702.1003770000007,
+                "percent": -94.96875641860488
+              },
+              "cpuMsPerRequest": {
+                "ms": -678.87536,
+                "percent": -95.16296924062522
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 184,
+            "candidateJob": 183,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 645.6149240000013,
+              "p95Ms": 687.2633780000033,
+              "cpuMsPerRequest": 684.2473
+            },
+            "candidate": {
+              "medianMs": 29.22776049999993,
+              "p95Ms": 32.498277000000144,
+              "cpuMsPerRequest": 33.62032
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -616.3871635000014,
+                "percent": -95.47288028614409
+              },
+              "p95Ms": {
+                "ms": -654.7651010000031,
+                "percent": -95.27135039632506
+              },
+              "cpuMsPerRequest": {
+                "ms": -650.62698,
+                "percent": -95.08652500346001
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -629.1054907500002,
+            "percent": -95.52234103805738
+          },
+          "p95Ms": {
+            "ms": -678.4327390000019,
+            "percent": -95.12005340746498
+          },
+          "cpuMsPerRequest": {
+            "ms": -664.75117,
+            "percent": -95.1247471220426
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -1828672,
+                  "percent": -99.6542809435994,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1711544,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1671904,
+                  "percent": -95.94659737302415,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1686056,
+                  "percent": -96.7365411007633,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -1847816,
+                  "percent": -99.9917747493463,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1721872,
+                  "percent": -99.0674767559606,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1673032,
+                  "percent": -95.86740868417192,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1704840,
+                  "percent": -96.98184648011032,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      },
+      "final": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 177,
+            "candidateJob": 178,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 671.5619104999987,
+              "p95Ms": 739.2961680000008,
+              "cpuMsPerRequest": 713.38186
+            },
+            "candidate": {
+              "medianMs": 29.738092499999766,
+              "p95Ms": 37.1957910000001,
+              "cpuMsPerRequest": 34.5065
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -641.8238179999989,
+                "percent": -95.57180178997066
+              },
+              "p95Ms": {
+                "ms": -702.1003770000007,
+                "percent": -94.96875641860488
+              },
+              "cpuMsPerRequest": {
+                "ms": -678.87536,
+                "percent": -95.16296924062522
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 184,
+            "candidateJob": 183,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 645.6149240000013,
+              "p95Ms": 687.2633780000033,
+              "cpuMsPerRequest": 684.2473
+            },
+            "candidate": {
+              "medianMs": 29.22776049999993,
+              "p95Ms": 32.498277000000144,
+              "cpuMsPerRequest": 33.62032
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -616.3871635000014,
+                "percent": -95.47288028614409
+              },
+              "p95Ms": {
+                "ms": -654.7651010000031,
+                "percent": -95.27135039632506
+              },
+              "cpuMsPerRequest": {
+                "ms": -650.62698,
+                "percent": -95.08652500346001
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -629.1054907500002,
+            "percent": -95.52234103805738
+          },
+          "p95Ms": {
+            "ms": -678.4327390000019,
+            "percent": -95.12005340746498
+          },
+          "cpuMsPerRequest": {
+            "ms": -664.75117,
+            "percent": -95.1247471220426
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -1828672,
+                  "percent": -99.6542809435994,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1711544,
+                  "percent": -100.0,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1671904,
+                  "percent": -95.94659737302415,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1686056,
+                  "percent": -96.7365411007633,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -1847816,
+                  "percent": -99.9917747493463,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1721872,
+                  "percent": -99.0674767559606,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1673032,
+                  "percent": -95.86740868417192,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1704840,
+                  "percent": -96.98184648011032,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "retention/held-released/100/48",
+      "profile": "trusted",
+      "initial": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 179,
+            "candidateJob": 180,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 28.588028500000064,
+              "p95Ms": 33.53073100000029,
+              "cpuMsPerRequest": 32.45268
+            },
+            "candidate": {
+              "medianMs": 26.249453499999845,
+              "p95Ms": 30.514234000000215,
+              "cpuMsPerRequest": 29.635479999999998
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -2.338575000000219,
+                "percent": -8.18025978951369
+              },
+              "p95Ms": {
+                "ms": -3.016497000000072,
+                "percent": -8.996216038356117
+              },
+              "cpuMsPerRequest": {
+                "ms": -2.8172000000000033,
+                "percent": -8.680947151360083
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 182,
+            "candidateJob": 181,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 28.413058000000092,
+              "p95Ms": 33.23146799999995,
+              "cpuMsPerRequest": 32.46615
+            },
+            "candidate": {
+              "medianMs": 25.96702950000008,
+              "p95Ms": 31.50121199999967,
+              "cpuMsPerRequest": 29.643939999999997
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -2.4460285000000113,
+                "percent": -8.608818170856525
+              },
+              "p95Ms": {
+                "ms": -1.7302560000002813,
+                "percent": -5.2066794039922755
+              },
+              "cpuMsPerRequest": {
+                "ms": -2.822210000000002,
+                "percent": -8.692776938442046
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -2.392301750000115,
+            "percent": -8.394538980185107
+          },
+          "p95Ms": {
+            "ms": -2.3733765000001767,
+            "percent": -7.101447721174196
+          },
+          "cpuMsPerRequest": {
+            "ms": -2.8197050000000026,
+            "percent": -8.686862044901066
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -1755552,
+                  "percent": -97.98094353607244,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1563816,
+                  "percent": -94.7390613186515,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1555328,
+                  "percent": -92.42544533133031,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1592256,
+                  "percent": -94.19804913602567,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -1656584,
+                  "percent": -97.66028089834649,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1561272,
+                  "percent": -94.53500031485994,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1564632,
+                  "percent": -92.2816686090678,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1575992,
+                  "percent": -93.48407915341906,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      },
+      "final": {
+        "n": 2,
+        "primary": false,
+        "component": false,
+        "pairs": [
+          {
+            "round": 1,
+            "baselineJob": 179,
+            "candidateJob": 180,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 28.588028500000064,
+              "p95Ms": 33.53073100000029,
+              "cpuMsPerRequest": 32.45268
+            },
+            "candidate": {
+              "medianMs": 26.249453499999845,
+              "p95Ms": 30.514234000000215,
+              "cpuMsPerRequest": 29.635479999999998
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -2.338575000000219,
+                "percent": -8.18025978951369
+              },
+              "p95Ms": {
+                "ms": -3.016497000000072,
+                "percent": -8.996216038356117
+              },
+              "cpuMsPerRequest": {
+                "ms": -2.8172000000000033,
+                "percent": -8.680947151360083
+              }
+            }
+          },
+          {
+            "round": 2,
+            "baselineJob": 182,
+            "candidateJob": 181,
+            "matchingQueryJob": null,
+            "baseline": {
+              "medianMs": 28.413058000000092,
+              "p95Ms": 33.23146799999995,
+              "cpuMsPerRequest": 32.46615
+            },
+            "candidate": {
+              "medianMs": 25.96702950000008,
+              "p95Ms": 31.50121199999967,
+              "cpuMsPerRequest": 29.643939999999997
+            },
+            "matchingOldQuery": null,
+            "deltas": {
+              "medianMs": {
+                "ms": -2.4460285000000113,
+                "percent": -8.608818170856525
+              },
+              "p95Ms": {
+                "ms": -1.7302560000002813,
+                "percent": -5.2066794039922755
+              },
+              "cpuMsPerRequest": {
+                "ms": -2.822210000000002,
+                "percent": -8.692776938442046
+              }
+            }
+          }
+        ],
+        "metrics": {
+          "medianMs": {
+            "ms": -2.392301750000115,
+            "percent": -8.394538980185107
+          },
+          "p95Ms": {
+            "ms": -2.3733765000001767,
+            "percent": -7.101447721174196
+          },
+          "cpuMsPerRequest": {
+            "ms": -2.8197050000000026,
+            "percent": -8.686862044901066
+          }
+        },
+        "alignedPairs": {
+          "medianMs": 2,
+          "p95Ms": 2,
+          "cpuMsPerRequest": 2
+        },
+        "improvingMedianAndCpuPairs": 2,
+        "benefitThresholdsMet": null,
+        "adversePairs": {
+          "medianMs": 0,
+          "p95Ms": 0,
+          "cpuMsPerRequest": 0
+        },
+        "confirmedAdverse": [],
+        "unstableMetrics": [],
+        "repeatRequired": false,
+        "triggerCauses": [],
+        "retained": {
+          "cycles": [
+            {
+              "held": [
+                {
+                  "bytes": -1755552,
+                  "percent": -97.98094353607244,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1563816,
+                  "percent": -94.7390613186515,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1555328,
+                  "percent": -92.42544533133031,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1592256,
+                  "percent": -94.19804913602567,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            },
+            {
+              "held": [
+                {
+                  "bytes": -1656584,
+                  "percent": -97.66028089834649,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1561272,
+                  "percent": -94.53500031485994,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1564632,
+                  "percent": -92.2816686090678,
+                  "adverse": false
+                },
+                {
+                  "bytes": -1575992,
+                  "percent": -93.48407915341906,
+                  "adverse": false
+                }
+              ],
+              "released": [
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                },
+                {
+                  "bytes": 0,
+                  "percent": 0,
+                  "adverse": false
+                }
+              ]
+            }
+          ],
+          "blocking": false,
+          "adversePairs": {
+            "held": 0,
+            "released": 0
+          }
+        },
+        "pass_": true,
+        "reasons": []
+      }
+    }
+  ],
+  "caveat": "Retained bytes, never allocations. Actual bounded source/fact/memo/stage probes; no universal allocation or growth proof."
+}

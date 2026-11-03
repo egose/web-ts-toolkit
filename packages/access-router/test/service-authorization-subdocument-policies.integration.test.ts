@@ -981,12 +981,11 @@ describe('F02 dedicated parent/child capabilities', () => {
       expect(result.data.secret).toBe('new');
       expect((await f.reload())!.items[0].secret).toBe('new');
       expect(req.macl.getPermissions().keys).toEqual([]);
-      service.defaults = { updateOneOptions: { authorization: { child: gate } } };
-      // pragma: allowlist nextline secret
-      expect(await service.updateSub(f.id, 'items', f.ids[0], { secret: 'default-attack' })).toMatchObject({
-        success: false,
-        code: 'bad_request',
-      });
+      const saved = service.defaults;
+      expect(() => {
+        service.defaults = { updateOneOptions: { authorization: { child: gate } } };
+      }).toThrow();
+      expect(service.defaults).toEqual(saved);
       expect((await f.reload())!.items[0].secret).toBe('new');
     });
   });

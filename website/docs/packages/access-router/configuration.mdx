@@ -146,143 +146,50 @@ connection and related registry across a same-request runtime handoff. Base-filt
 entries are reused only for the same model/access and policy function.
 Request base-filter caches remain owned by their request/runtime/access.
 
-### Temporary unsafe read/list-performance switches
+### Owned READ/LIST authorization modes
 
-The original six comparison/two initial-copy contracts below retain their copy/graph
-guarantees only with the matching new authorization fast-path flag **OFF (or dormant)**.
-The separately opted-in active mode described below deliberately weakens them.
-
-Model-only `unsafeSkipListDocumentSnapshotChecks: true` skips repeated source snapshot
-comparisons on top-level `find`, generated lists and root-list entries. Independent
-`unsafeSkipReadDocumentSnapshotChecks: true` does the same for `findOne`, `findById`,
-public identifier/filter reads and root reads.
-
-Four further independent flags are available:
-
-| LIST                                         | READ                                         | Skips                                                                     |
-| -------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------- |
-| `unsafeSkipListOutputSnapshotChecks`         | `unsafeSkipReadOutputSnapshotChecks`         | Output-value comparisons for root and embedded/populated/included outputs |
-| `unsafeSkipListNestedDocumentSnapshotChecks` | `unsafeSkipReadNestedDocumentSnapshotChecks` | Source comparisons on embedded/populated/included document stages         |
-
-Read-to-list retries follow all three **READ** settings, not LIST settings. All six
-default to `false`, are captured before awaits, and warn independently on enablement.
-Configure them with `api.setModelOption` or
-`api.setDefaultModelOptions`; unspecified model flags inherit later default updates,
-including after router creation. Explicit per-model `false` wins over default `true`;
-model `undefined` restores inheritance. This precedence applies to all model-default
-options; object/array overrides replace shallowly. Restore `false` for new calls as soon as possible. Never
-derive these flags from request input.
-
-Inherited enablement warns once per effective model/flag transition, just like an
-explicit model setter. Defaults configured before model setup warn when applied to
-that model. Existing call/handle snapshots and mounted route paths do not change.
-
-Output/nested settings propagate recursively from the **initiating model**, not the
-target model's flags. Root-source, nested-source and output-value checks are independent;
-nested flags do not prune child values from still-strict parent comparisons.
-
-Permission rules, exact associations/bindings, output graph identities and initial
-snapshots/detached copies remain with the new copy flags below off. Writes, dedicated subdocument operations and fresh
-helpers stay strict. Originating handles, captured retries and later descendants
-retain their original mode after rollback. **Source mutation can leave stale grants/
-decisions; output flags additionally allow changed values with unchanged identities
-to reuse authorization and expose incorrectly authorized data.** Use only as a
-temporary, measured workaround, not as a security-equivalent fast path. Per-call,
-wire and method-default controls cannot enable it. See the shipped README for the contract.
-
-#### Separate initial output-copy opt-outs
-
-`unsafeSkipListInitialOutputSnapshotCopy` and `unsafeSkipReadInitialOutputSnapshotCopy`
-are two additional server model/default booleans, **false by default**. Each requires
-its matching `unsafeSkipListOutputSnapshotChecks` / `unsafeSkipReadOutputSnapshotChecks`
-to be true. Copy true with comparisons strict is **dormant**: copying/comparisons stay
-on and a prerequisite warning is logged. Neither option silently changes another flag.
-
-When active, eligible initial output-association snapshots (including authenticated
-embedded/populated/included outputs and package-created transfers) are omitted. READ
-retries keep READ settings; targets cannot override the initiating model. Inheritance,
-literal-true enablement, server-only controls and captured-handle rollback match the
-comparison flags. Active/dormant warnings follow effective model/operation transitions,
-not rows/requests. Writes, dedicated subdocument operations and fresh helpers stay strict.
-
-**Additional risk:** this pass no longer clones/normalizes native leaves or runs BSON
-wire-validation hooks. Changed observations can alter exceptions, side effects and
-permission outcomes—even turn denial into allowance. Ordinary graph admission retains
-safe keys/descriptors, cycles, 20,000 visited-node/array-length and depth-100 limits,
-plus exact graph/binding ownership. Standard native leaves are admitted without this
-normalization; invalid/forged BSON content is not wire-validated by the omitted pass.
-Proxies, Map/Set, unproven subclasses/unsupported graphs use the original copy fallback.
-Accessor/proxy ownership bindings also fall back, rather than retaining graph admission
-across binding callbacks.
-
-Source snapshots, detached callback inputs/grants, configuration, getters, metadata
-and actual response-copy boundaries remain. This is not an all-cloning opt-out and
-does not promise historical performance. Prefer temporary per-model opt-in only after
-reviewing trusted data/hooks and measured rollout evidence. Restore the copy flag to
-false and then restore strict comparisons for new calls; retained authority keeps its
-captured mode. The [shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#temporary-unsafe-initial-output-snapshot-copy-switches)
-contains the four-combination table and server-only example.
-
-### Experimental unsafe READ/LIST authorization fast paths
-
-`unsafeUseListAuthorizationFastPath?: boolean` and
-`unsafeUseReadAuthorizationFastPath?: boolean` form a third independent default-false
-server model/default group. Literal true requests the mode; each needs **all four**
-matching `unsafeSkip{List,Read}DocumentSnapshotChecks`, `OutputSnapshotChecks`,
-`NestedDocumentSnapshotChecks` and `InitialOutputSnapshotCopy`. False/omitted is off;
-true with any missing prerequisite is dormant with original flag behavior. Never
-auto-enables prerequisites. Explicit model false overrides defaults; undefined
-restores inheritance. Control-slot presence in requests/defaults/policy/helpers/
-include/populate/`$$sq` rejects; same-named business data remains inert.
-
-Capture precedes hooks/awaits on a genuine query origin. READ-to-list retries retain
-READ, genuine embedded/related descendants inherit origin capture rather than live
-target flags, and independent calls capture their own settings. Writes/write-derived
-output, new/create/update/delete/upsert, dedicated subdocuments and fresh raw helpers
-stay strict. Effective active/dormant/missing-prerequisite changes warn, not each call.
-
-Active ordinary lean source/hook input and grants are borrowed; shallow contexts and
-captured config/scope views are reused. Actual operation/row/field rules, actor,
-mandatory once-per-root/target document hooks, getters and target admission remain.
-Independent rows/targets do not share grants/decisions by ID. Trusted outputs have
-exact root bindings and **issued-document membership, not current graph walks**:
-removed original children may remain discoverable, replacements get no handle, and
-root helpers filter current values with stale memo/shared grants after replacement.
-Metadata/includes finish before one association; source/attachment lanes stay separate.
-
-New selected work is bounded to 20,000 visited slots/issued roots and depth 100, with
-safe descriptor writes/cycle errors—not full unvisited source/grant/context validation.
-Shallow-unproven rows may use copied compatibility before hooks, exotic grants/value
-fallbacks copy once, and mixed copied/trusted rows can coexist. Selected unsupported
-values reject (invalid virtual returns omit). Hydration, selected natives, getter
-stable-base/per-getter views/return staging, private argument-four isolation and JSON
-serialization still copy/normalize. Active configuration is **not every-row zero-copy**.
-
-Mutation/stale decisions/changed descendants/fewer native observations can turn denial
-into allowance. Experimental performance-first, not a full ACL bypass, security-equivalent
-optimization, publication fusion, universal gain or v0.51.0 parity. Benchmark your workload.
-Rollback protects new calls only; retained trusted handles keep weaker semantics,
-and original prerequisite skip flags must be restored separately. The
-[installed README](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#experimental-unsafe-readlist-authorization-fast-paths)
-is authoritative and includes executable LIST/READ and retained-handle warnings.
+There is one document-stage engine and exactly two independent server options:
+`readAuthorizationMode` / `listAuthorizationMode`, each `'isolated' | 'trusted'`,
+default **isolated**. See the shipped [breaking migration guide](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md) for
+before/after examples, all ten removed flags, errors and rollout guidance. No old
+flag combination, dormant mode, output handle or compatibility alias remains.
 
 <!-- doc-example: partial -->
 
 ```ts
-import { createAccessRuntime, type DefaultModelRouterOptions } from '@web-ts-toolkit/access-router';
-
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 const api = createAccessRuntime();
-const readDefaults = {
-  unsafeSkipReadDocumentSnapshotChecks: true,
-  unsafeSkipReadOutputSnapshotChecks: true,
-  unsafeSkipReadNestedDocumentSnapshotChecks: true,
-  unsafeSkipReadInitialOutputSnapshotCopy: true,
-  unsafeUseReadAuthorizationFastPath: true,
-} satisfies DefaultModelRouterOptions;
-api.setDefaultModelOptions(readDefaults); // LIST stays independently off
-api.setDefaultModelOption('unsafeUseReadAuthorizationFastPath', false);
-// Existing READ retries/handles keep captured semantics. Restore other skips separately.
+api.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
+api.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });
+api.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
+api.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default
+api.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only
 ```
+
+Isolated owns bounded detached projected source and gives document hooks disposable
+views. Trusted may borrow admitted ordinary projected source/doc-hook input: mutations
+can affect values/calculated facts; hidden unvisited graphs are not whole-document
+bounded. **Both own actor, private policy and normalized frozen boolean facts**, enforce
+original actor, rows/fields/targets and selected/native 20,000-slot/depth-100 bounds.
+Both retain separate getter views, return staging and private argument-four isolation.
+No sandbox, transaction, rollback, external freshness or blanket security equivalence.
+
+Capture precedes hooks/awaits. Genuine embedded scopes inherit their owner; related
+targets use their own captured model/access mode and policy, not their parent's mode.
+READ-to-LIST retry keeps initiating READ mode with a fresh stage. Independent service
+calls capture anew. Writes/new/dedicated subdocuments always stay isolated.
+
+Only literal enum strings or undefined restoration are valid. Bulk setters reject
+atomically. Retired controls reject by presence, even false/undefined/inherited/
+non-enumerable. New/old selectors are prohibited in HTTP/root/per-call/helper/defaults/
+include/populate/subquery authority slots; same-named business fields remain data.
+Trusted transitions warn once per effective owner/access; logger failures cannot abort.
+Switching to isolated affects new calls, not in-flight captures. Rollback means a tested
+matching application/library revision, never re-adding removed flags or assuming mixed
+rolling compatibility. No timing or universal-speedup claim follows from mode names.
+
+The [complete executable migration workflow](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md#complete-public-workflow-facts-helper-costs-and-checked-refresh)
+uses literal facts, both modes, zero-read raw helpers and a checked fresh read.
 
 ### Populate operation policies
 

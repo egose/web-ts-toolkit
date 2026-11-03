@@ -1,9 +1,17 @@
 /** Selected-value work only. No source/grant eligibility or descendant-identity walk. */
 import { types } from 'node:util';
-import { Document, mongo } from 'mongoose';
+import { mongo } from 'mongoose';
 import { authorizationError, ServiceAuthorizationError } from './authorization-snapshot';
-import { deepIsolateValue, isolateDocForOutput } from '../helpers/document';
-import { isGeneratedPermissionsAliasSlot } from '../output/permissions-alias';
+import { copyPermissionsAlias, isGeneratedPermissionsAliasSlot } from '../output/permissions-alias';
+import {
+  currentOutputWorkLedger,
+  debitOutputPayload,
+  debitOutputWork,
+  outsideOutputWorkLedger,
+  withOutputWorkLedger,
+  prepareOutputWorkString,
+  type OutputWorkLedger,
+} from './output-work-ledger';
 
 const unsafeKeys = new Set(['__proto__', 'constructor', 'prototype', '_doc', '$__']);
 const protectedValueKeys = new Set([...unsafeKeys, '__v']);
@@ -23,53 +31,142 @@ export function isBorrowableAuthorizationRecord(value: unknown): value is Record
   return true;
 }
 
-export type QueryAuthorizationSource =
-  | { readonly kind: 'trusted'; readonly source: Record<string, unknown> }
-  | { readonly kind: 'copied'; readonly source: Record<string, unknown> };
-
-/** One hydrated conversion. A failed/unproven conversion is copied BEFORE any document hook. */
-export function prepareTrustedAuthorizationSource(input: unknown): QueryAuthorizationSource {
-  if (input && typeof input === 'object' && !types.isProxy(input) && input instanceof Document) {
-    let raw: unknown;
-    try {
-      raw = input.toObject({ virtuals: false, flattenMaps: true });
-    } catch {
-      raw = (input as Document & { _doc: Record<string, unknown> })._doc;
-      return { kind: 'copied', source: deepIsolateValue(raw, new WeakMap(), true) as Record<string, unknown> };
-    }
-    return isBorrowableAuthorizationRecord(raw)
-      ? { kind: 'trusted', source: raw }
-      : { kind: 'copied', source: deepIsolateValue(raw, new WeakMap(), true) as Record<string, unknown> };
-  }
-  return isBorrowableAuthorizationRecord(input)
-    ? { kind: 'trusted', source: input }
-    : { kind: 'copied', source: isolateDocForOutput(input) };
-}
-
 declare const budgetBrand: unique symbol;
 export interface TrustedOutputBudget {
   readonly [budgetBrand]: true;
 }
 interface BudgetRecord {
   slots: number;
-  failed: boolean;
+  failure?: ServiceAuthorizationError;
+  onFailure?: (error: ServiceAuthorizationError) => void;
+  ownerCheck?: () => void;
+  ledger?: OutputWorkLedger;
+  recipients?: readonly { budget: TrustedOutputBudget; depth: number; multiplicity: number }[];
 }
 const budgets = new WeakMap<TrustedOutputBudget, BudgetRecord>();
 
-export function createTrustedOutputBudget(): TrustedOutputBudget {
+export function createTrustedOutputBudget(
+  onFailure?: (error: ServiceAuthorizationError) => void,
+  ownerCheck?: () => void,
+  ledger?: OutputWorkLedger,
+): TrustedOutputBudget {
   const budget = Object.freeze(Object.create(null)) as TrustedOutputBudget;
-  budgets.set(budget, { slots: 0, failed: false });
+  // Explicit publication ownership (including an independent non-collection
+  // owner) wins over an ambient synchronous configuration-preparation scope.
+  const ownerLedger = arguments.length < 3 ? currentOutputWorkLedger() : ledger;
+  budgets.set(budget, {
+    slots: 0,
+    failure: undefined,
+    recipients: undefined,
+    onFailure,
+    ownerCheck,
+    ledger: ownerLedger,
+  });
   return budget;
 }
 
-/** Shared by shells, selected values, embedded builders, attachment spines and issued-root registries. */
-export function visitTrustedOutput(budget: TrustedOutputBudget, depth: number, slots = 1): void {
+/** Related construction debits every receiving root BEFORE traversal, never a fresh child allowance. */
+export function createReceivingOutputBudget(
+  recipients: readonly { budget: TrustedOutputBudget; depth: number; multiplicity?: number }[],
+): TrustedOutputBudget {
+  if (!recipients.length) authorizationError('related output requires a receiving row budget');
+  const budget = createTrustedOutputBudget(undefined, undefined, undefined);
+  budgets.get(budget)!.recipients = Object.freeze(
+    recipients.map((entry) => {
+      assertTrustedOutputBudget(entry.budget);
+      if (
+        !Number.isSafeInteger(entry.depth) ||
+        entry.depth < 0 ||
+        !Number.isSafeInteger(entry.multiplicity ?? 1) ||
+        (entry.multiplicity ?? 1) < 1
+      )
+        authorizationError('invalid receiving output budget edge');
+      return Object.freeze({ ...entry, multiplicity: entry.multiplicity ?? 1 });
+    }),
+  );
+  const firstLedger = budgets.get(recipients[0].budget)!.ledger;
+  if (firstLedger && recipients.every((edge) => budgets.get(edge.budget)!.ledger === firstLedger))
+    budgets.get(budget)!.ledger = firstLedger;
+  return budget;
+}
+
+export function failTrustedOutputBudget(budget: TrustedOutputBudget, error: unknown): never {
   const record = budgets.get(budget);
   if (!record) authorizationError('invalid selected output budget');
-  if (record.failed || depth > 100 || (record.slots += slots) > 20000) {
-    record.failed = true;
-    authorizationError('selected output exceeds structural limits');
+  record.failure ??=
+    error instanceof ServiceAuthorizationError ? error : new ServiceAuthorizationError('unsupported selected value');
+  record.onFailure?.(record.failure);
+  for (const edge of record.recipients ?? []) {
+    try {
+      failTrustedOutputBudget(edge.budget, record.failure);
+    } catch {
+      /* all owners poison */
+    }
   }
+  throw record.failure;
+}
+
+export function assertTrustedOutputBudget(budget: TrustedOutputBudget): void {
+  const record = budgets.get(budget);
+  if (!record) authorizationError('invalid selected output budget');
+  record.ownerCheck?.();
+  record.ledger?.check();
+  if (record.failure) throw record.failure;
+  for (const edge of record.recipients ?? []) assertTrustedOutputBudget(edge.budget);
+}
+
+/** Shared by selected values, embedded builders, attachment spines and related occurrences. */
+export function visitTrustedOutput(
+  budget: TrustedOutputBudget,
+  depth: number,
+  slots = 1,
+  charged?: Set<OutputWorkLedger>,
+): void {
+  const record = budgets.get(budget);
+  if (!record) authorizationError('invalid selected output budget');
+  assertTrustedOutputBudget(budget);
+  if (record.recipients?.length) charged ??= new Set();
+  if (record.ledger && !charged?.has(record.ledger)) {
+    debitOutputWork(record.ledger, slots);
+    charged?.add(record.ledger);
+  }
+  if (depth > 100 || (record.slots += slots) > 20000)
+    failTrustedOutputBudget(budget, new ServiceAuthorizationError('selected output exceeds structural limits'));
+  try {
+    for (const edge of record.recipients ?? [])
+      visitTrustedOutput(edge.budget, depth + edge.depth, slots * edge.multiplicity, charged);
+  } catch (error) {
+    // Failure of any shared receiver poisons every registered receiver, including
+    // ones charged earlier in this same synchronous admission.
+    failTrustedOutputBudget(budget, error);
+  }
+}
+
+/** A branded catalog's actual construction already debited the operation ledger.
+ * Preserve the separate capture owner's allowance without billing that SAME
+ * omitted visit again. Never used for source/selected/native admission. */
+export function preloadTrustedOutputBudget(budget: TrustedOutputBudget, depth: number, slots: number): void {
+  const record = budgets.get(budget);
+  if (!record) authorizationError('invalid selected output budget');
+  visitTrustedOutput(budget, depth, slots, record.ledger ? new Set([record.ledger]) : undefined);
+}
+
+/** Payload is debited BEFORE an explicit router-owned preparation/copy. */
+export function prepareTrustedOutputPayload(
+  budget: TrustedOutputBudget,
+  value: string | number,
+  charged?: Set<OutputWorkLedger>,
+): void {
+  const record = budgets.get(budget);
+  if (!record) authorizationError('invalid selected output budget');
+  if (!record.ledger && !record.recipients?.length) return;
+  assertTrustedOutputBudget(budget);
+  if (record.recipients?.length) charged ??= new Set();
+  if (record.ledger && !charged?.has(record.ledger)) {
+    debitOutputPayload(record.ledger, value);
+    charged?.add(record.ledger);
+  }
+  for (const edge of record.recipients ?? []) prepareTrustedOutputPayload(edge.budget, value, charged);
 }
 
 export function defineTrustedOutputValue(output: object, key: string, value: unknown): void {
@@ -81,15 +178,21 @@ export function shallowTrustedOutputArray(
   input: readonly unknown[],
   budget: TrustedOutputBudget,
   depth: number,
+  prepaid = false,
 ): unknown[] {
-  if (types.isProxy(input)) authorizationError('unsupported selected proxy');
+  if (types.isProxy(input))
+    failTrustedOutputBudget(budget, new ServiceAuthorizationError('unsupported selected proxy'));
   const length = Object.getOwnPropertyDescriptor(input, 'length')!.value as number;
-  visitTrustedOutput(budget, depth, length + 1);
+  visitTrustedOutput(budget, depth, prepaid ? 0 : 1);
+  if (length) visitTrustedOutput(budget, depth + 1, length);
   for (const key of Reflect.ownKeys(input)) {
     if (key === 'length') continue;
-    if (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key)) authorizationError('invalid selected array property');
+    visitTrustedOutput(budget, depth + 1);
+    if (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key))
+      failTrustedOutputBudget(budget, new ServiceAuthorizationError('invalid selected array property'));
     const slot = Object.getOwnPropertyDescriptor(input, key)!;
-    if (!('value' in slot) || !slot.enumerable) authorizationError('accessor/non-enumerable selected value');
+    if (!('value' in slot) || !slot.enumerable)
+      failTrustedOutputBudget(budget, new ServiceAuthorizationError('accessor/non-enumerable selected value'));
   }
   const output: unknown[] = [];
   for (let index = 0; index < length; index++) {
@@ -123,47 +226,64 @@ export function shallowTrustedOutput(
   budget: TrustedOutputBudget,
   depth = 0,
 ): Record<string, unknown> {
-  visitTrustedOutput(budget, depth);
-  const output: Record<string, unknown> = {};
-  for (const key of Reflect.ownKeys(source)) {
-    visitTrustedOutput(budget, depth + 1);
-    if (typeof key !== 'string' || unsafeKeys.has(key)) authorizationError('unsafe selected output root');
-    const slot = Object.getOwnPropertyDescriptor(source, key)!;
-    if (isGeneratedPermissionsAliasSlot(source, key, slot)) continue;
-    if (!('value' in slot) || !slot.enumerable) authorizationError('changed borrowed output root');
-    defineTrustedOutputValue(output, key, slot.value);
+  try {
+    visitTrustedOutput(budget, depth);
+    const output: Record<string, unknown> = {};
+    for (const key of Reflect.ownKeys(source)) {
+      visitTrustedOutput(budget, depth + 1);
+      if (typeof key !== 'string' || unsafeKeys.has(key)) authorizationError('unsafe selected output root');
+      const slot = Object.getOwnPropertyDescriptor(source, key)!;
+      if (isGeneratedPermissionsAliasSlot(source, key, slot)) continue;
+      if (!('value' in slot) || !slot.enumerable) authorizationError('changed borrowed output root');
+      defineTrustedOutputValue(output, key, slot.value);
+    }
+    return output;
+  } catch (error) {
+    failTrustedOutputBudget(budget, error);
   }
-  return output;
 }
 
-/** Copy-on-write dotted spines. Raw/source and finalized target lanes never become each other's hook input. */
+/** Retain the existing dot/bare/quoted-bracket output-path grammar, bounded before construction. */
+function selectedOutputPathParts(path: string, budget: TrustedOutputBudget, depth: number): string[] {
+  const parts: string[] = [];
+  for (const match of path.matchAll(/[^.[\]]+|\[(?:([^"'[\]]+)|["']([^"']+)["'])\]/g)) {
+    const part = match[1] ?? match[2] ?? match[0];
+    if (!part || unsafeKeys.has(part))
+      failTrustedOutputBudget(budget, new ServiceAuthorizationError('unsafe selected output path'));
+    visitTrustedOutput(budget, depth + parts.length + 1, 0);
+    parts.push(part);
+  }
+  if (!parts.length) failTrustedOutputBudget(budget, new ServiceAuthorizationError('unsafe selected output path'));
+  return parts;
+}
+
+/** Copy-on-write spines. Raw/source and finalized target lanes never become each other's hook input. */
 export function setTrustedOutputPath(
   output: Record<string, unknown>,
   path: string,
   value: unknown,
   budget: TrustedOutputBudget,
   depth = 0,
-  onSpine?: (source: object, copy: object) => void,
 ): void {
-  const parts = path.split('.');
-  if (parts.some((key) => !key || unsafeKeys.has(key))) authorizationError('unsafe selected output path');
-  let current = output;
-  const spines: Array<{ source: object; copy: object }> = [];
-  for (const [index, key] of parts.slice(0, -1).entries()) {
-    visitTrustedOutput(budget, depth + index + 1);
-    const slot = Object.getOwnPropertyDescriptor(current, key);
-    const source = slot && 'value' in slot ? slot.value : undefined;
-    const shell = isBorrowableAuthorizationRecord(source)
-      ? shallowTrustedOutput(source, budget, depth + index + 1)
-      : {};
-    if (source && typeof source === 'object') spines.push({ source, copy: shell });
-    defineTrustedOutputValue(current, key, shell);
-    current = shell;
+  try {
+    const parts = selectedOutputPathParts(path, budget, depth);
+    let current = output;
+    for (const [index, key] of parts.slice(0, -1).entries()) {
+      visitTrustedOutput(budget, depth + index + 1);
+      const slot = Object.getOwnPropertyDescriptor(current, key);
+      const source = slot && 'value' in slot ? slot.value : undefined;
+      const shell = isBorrowableAuthorizationRecord(source)
+        ? shallowTrustedOutput(source, budget, depth + index + 1)
+        : {};
+      defineTrustedOutputValue(current, key, shell);
+      current = shell;
+    }
+    visitTrustedOutput(budget, depth + parts.length);
+    defineTrustedOutputValue(current, parts[parts.length - 1], value);
+    assertTrustedOutputBudget(budget);
+  } catch (error) {
+    failTrustedOutputBudget(budget, error);
   }
-  visitTrustedOutput(budget, depth + parts.length);
-  defineTrustedOutputValue(current, parts[parts.length - 1], value);
-  // Child-first publication of package-created spines, AFTER the complete metadata/attachment write.
-  for (const spine of spines.reverse()) onSpine?.(spine.source, spine.copy);
 }
 
 /** Remove a private fetch-only path without changing a borrowed descendant. */
@@ -171,28 +291,29 @@ export function unsetTrustedOutputPath(
   output: Record<string, unknown>,
   path: string,
   budget: TrustedOutputBudget,
-  onSpine?: (source: object, copy: object) => void,
 ): void {
-  const parts = path.split('.');
-  if (parts.some((key) => !key || unsafeKeys.has(key))) authorizationError('unsafe selected output path');
-  let current = output;
-  const spines: Array<{ source: object; copy: object }> = [];
-  for (const [index, key] of parts.slice(0, -1).entries()) {
-    const slot = Object.getOwnPropertyDescriptor(current, key);
-    if (!slot || !('value' in slot) || !isBorrowableAuthorizationRecord(slot.value)) return;
-    const shell = shallowTrustedOutput(slot.value, budget, index + 1);
-    spines.push({ source: slot.value, copy: shell });
-    defineTrustedOutputValue(current, key, shell);
-    current = shell;
+  try {
+    const parts = selectedOutputPathParts(path, budget, 0);
+    let current = output;
+    for (const [index, key] of parts.slice(0, -1).entries()) {
+      const slot = Object.getOwnPropertyDescriptor(current, key);
+      if (!slot || !('value' in slot) || !isBorrowableAuthorizationRecord(slot.value)) return;
+      const shell = shallowTrustedOutput(slot.value, budget, index + 1);
+      defineTrustedOutputValue(current, key, shell);
+      current = shell;
+    }
+    delete current[parts[parts.length - 1]];
+    assertTrustedOutputBudget(budget);
+  } catch (error) {
+    failTrustedOutputBudget(budget, error);
   }
-  delete current[parts[parts.length - 1]];
-  for (const spine of spines.reverse()) onSpine?.(spine.source, spine.copy);
 }
 
 /** Brand-family lookup is bounded and does not trust _bsontype/constructor-name tags. */
 function isBsonValue(input: object): boolean {
   let prototype = Object.getPrototypeOf(input);
   for (let depth = 0; prototype && depth <= 100; depth++) {
+    debitOutputWork();
     if (types.isProxy(prototype)) return false;
     if (prototype === mongo.BSON.BSONValue.prototype) return true;
     prototype = Object.getPrototypeOf(prototype);
@@ -222,6 +343,7 @@ const bsonFamilies = new Map<object, string>(
 function selectedDataProperty(input: object, key: string, own = false): unknown {
   let object: object | null = input;
   for (let depth = 0; object && depth <= 100; depth++) {
+    debitOutputWork();
     if (types.isProxy(object)) authorizationError('unsupported selected proxy');
     const slot = Object.getOwnPropertyDescriptor(object, key);
     if (slot) {
@@ -235,20 +357,46 @@ function selectedDataProperty(input: object, key: string, own = false): unknown 
 }
 
 /** Native byte storage is a scalar, not an enumerable object/array of output slots. */
-function selectedBsonBytes(input: unknown): Buffer {
+function selectedBsonBytes(input: unknown, budget: TrustedOutputBudget): Buffer {
   if (!input || typeof input !== 'object' || types.isProxy(input) || !types.isUint8Array(input))
     authorizationError('unsupported selected BSON bytes');
   const prototype = Object.getPrototypeOf(Uint8Array.prototype);
   const buffer = Object.getOwnPropertyDescriptor(prototype, 'buffer')!.get!.call(input) as ArrayBuffer;
   const offset = Object.getOwnPropertyDescriptor(prototype, 'byteOffset')!.get!.call(input) as number;
   const length = Object.getOwnPropertyDescriptor(prototype, 'byteLength')!.get!.call(input) as number;
+  prepareTrustedOutputPayload(budget, length);
   // Never invoke a subclass's iterator, length accessor, valueOf or species constructor.
   return Buffer.from(new Uint8Array(buffer, offset, length));
+}
+
+const regexpFlagNames = [
+  'hasIndices',
+  'global',
+  'ignoreCase',
+  'multiline',
+  'dotAll',
+  'unicode',
+  'unicodeSets',
+  'sticky',
+];
+function prepareRegExpFlags(input: object, budget: TrustedOutputBudget): string {
+  const ledger = budgets.get(budget)!.ledger;
+  if (ledger) debitOutputWork(ledger, regexpFlagNames.length);
+  const flags: string[] = [];
+  for (let index = 0; index < regexpFlagNames.length; index++)
+    if (Object.getOwnPropertyDescriptor(RegExp.prototype, regexpFlagNames[index])?.get?.call(input)) {
+      prepareTrustedOutputPayload(budget, 1);
+      defineTrustedOutputValue(flags, String(flags.length), 'dgimsuvy'[index]);
+    }
+  prepareTrustedOutputPayload(budget, flags.length);
+  return flags.join('');
 }
 
 export interface TrustedValuePolicy {
   /** Called after key-budget admission, before a data descriptor read; excluded values remain unobserved. */
   keep(key: string, path: string): boolean;
+  /** Input/policy snapshots reject protected native keys rather than dropping a row constraint. */
+  readonly rejectProtectedKeys?: boolean;
 }
 
 /** Value-local native compatibility, never a whole-source eligibility pass. */
@@ -286,6 +434,8 @@ function copyTrustedBsonValue(
     'i3',
   ]);
   const defineWireValue = (output: object, key: string, value: unknown) => {
+    debitOutputWork();
+    prepareTrustedOutputPayload(budget, key);
     wireKeys.add(key);
     defineTrustedOutputValue(output, key, value);
   };
@@ -305,7 +455,10 @@ function copyTrustedBsonValue(
   ): unknown => {
     if (!entered) visitTrustedOutput(budget, level, slots);
     if (typeof input === 'function' || typeof input === 'symbol') authorizationError('unsupported selected BSON value');
-    if (input === null || typeof input !== 'object') return input;
+    if (input === null || typeof input !== 'object') {
+      if (typeof input === 'string') prepareTrustedOutputPayload(budget, input);
+      return input;
+    }
     if (types.isProxy(input)) authorizationError('unsupported selected proxy');
     if (!entered && active.has(input)) authorizationError('cyclic selected output');
     if (!entered) active.add(input);
@@ -313,7 +466,7 @@ function copyTrustedBsonValue(
       const hook = selectedDataProperty(input, 'toBSON');
       if (typeof hook === 'function') {
         if (!observeHook) authorizationError('chained selected BSON hooks');
-        const normalized: unknown = Reflect.apply(hook, input, []);
+        const normalized: unknown = outsideOutputWorkLedger(() => Reflect.apply(hook, input, []));
         // Self-returning native hooks are legitimate, but never observed twice.
         if (normalized !== input) return prepareWire(normalized, current, level, false, false, documentRoot);
       }
@@ -335,11 +488,12 @@ function copyTrustedBsonValue(
         const field = (key: string, type: 'string' | 'number' | 'boolean') => {
           const value = selectedDataProperty(input, key, true);
           if (typeof value !== type) authorizationError('unsupported selected BSON state');
+          if (typeof value === 'string') prepareTrustedOutputPayload(budget, value);
           defineWireValue(output, key, value);
           return value;
         };
         const bytes = (key: string, length?: number) => {
-          const value = selectedBsonBytes(selectedDataProperty(input, key, true));
+          const value = selectedBsonBytes(selectedDataProperty(input, key, true), budget);
           if (length !== undefined && value.length !== length) authorizationError('invalid selected BSON bytes');
           defineWireValue(output, key, value);
         };
@@ -349,7 +503,7 @@ function copyTrustedBsonValue(
         };
         const document = (key: string) => {
           const raw = selectedDataProperty(input, key, true);
-          const value = prepareWire(raw, `${current}.${key}`, level + 1, true, false, true);
+          const value = prepareWire(raw, prepareOutputWorkString([current, key]), level + 1, true, false, true);
           // Code scopes / DBRef fields are documents, not another native as a
           // document root. Nested BSON values inside these documents remain supported.
           if (!value || typeof value !== 'object' || (!Array.isArray(value) && Object.getPrototypeOf(value) !== null))
@@ -371,7 +525,11 @@ function copyTrustedBsonValue(
             defineWireValue(
               output,
               'oid',
-              prepareWire(selectedDataProperty(input, 'oid', true), `${current}.oid`, level + 1),
+              prepareWire(
+                selectedDataProperty(input, 'oid', true),
+                prepareOutputWorkString([current, 'oid']),
+                level + 1,
+              ),
             );
             document('fields');
             // BSON's DBRef serializer does Object.assign into an ordinary object.
@@ -444,18 +602,17 @@ function copyTrustedBsonValue(
       if (types.isDate(input)) {
         const getTime = selectedDataProperty(input, 'getTime');
         if (typeof getTime !== 'function') authorizationError('unsupported selected BSON date');
-        const time: unknown = Reflect.apply(getTime, input, []);
+        const time: unknown = outsideOutputWorkLedger(() => Reflect.apply(getTime, input, []));
         if (typeof time !== 'number') authorizationError('unsupported selected BSON date');
+        prepareTrustedOutputPayload(budget, 8);
         return noHook(new Date(time));
       }
-      if (types.isUint8Array(input)) return noHook(selectedBsonBytes(input));
+      if (types.isUint8Array(input)) return noHook(selectedBsonBytes(input, budget));
       if (types.isRegExp(input)) {
         const source = Object.getOwnPropertyDescriptor(RegExp.prototype, 'source')!.get!.call(input) as string;
-        const flags = ['hasIndices', 'global', 'ignoreCase', 'multiline', 'dotAll', 'unicode', 'unicodeSets', 'sticky']
-          .map((name, index) =>
-            Object.getOwnPropertyDescriptor(RegExp.prototype, name)?.get?.call(input) ? 'dgimsuvy'[index] : '',
-          )
-          .join('');
+        prepareTrustedOutputPayload(budget, source);
+        const flags = prepareRegExpFlags(input, budget);
+        prepareTrustedOutputPayload(budget, flags);
         return noHook(new RegExp(source, flags));
       }
       const output = Object.create(null) as Record<string, unknown>;
@@ -463,8 +620,14 @@ function copyTrustedBsonValue(
         for (const [key, entry] of Map.prototype.entries.call(input)) {
           visitTrustedOutput(budget, level + 1);
           if (typeof key !== 'string') authorizationError('selected Map requires string keys');
-          if (protectedValueKeys.has(key) || !policy.keep(key, `${current}.${key}`)) continue;
-          defineWireValue(output, key, prepareWire(entry, `${current}.${key}`, level + 1));
+          if (protectedValueKeys.has(key)) {
+            if (policy.rejectProtectedKeys) authorizationError('protected native snapshot key');
+            continue;
+          }
+          const child = prepareOutputWorkString([current, key]);
+          if (!policy.keep(key, child)) continue;
+          prepareTrustedOutputPayload(budget, key);
+          defineWireValue(output, key, prepareWire(entry, child, level + 1));
         }
         return output;
       }
@@ -475,7 +638,7 @@ function copyTrustedBsonValue(
       const container: Record<string, unknown> | unknown[] = array ? noHook([]) : output;
       if (array) {
         const length = Object.getOwnPropertyDescriptor(input, 'length')!.value as number;
-        visitTrustedOutput(budget, level + 1, length);
+        if (length) visitTrustedOutput(budget, level + 1, length);
         (container as unknown[]).length = length;
         // Own undefined slots prevent serializer reads of inherited numeric accessors.
         for (let index = 0; index < length; index++) defineWireValue(container, String(index), undefined);
@@ -486,10 +649,15 @@ function copyTrustedBsonValue(
         // slot also admits an accepted child's root; do not charge it twice.
         visitTrustedOutput(budget, level + 1);
         if (typeof key !== 'string') authorizationError('symbol selected output key');
-        if (protectedValueKeys.has(key) || (key === 'toBSON' && (array || typeof hook === 'function'))) continue;
+        if (protectedValueKeys.has(key)) {
+          if (policy.rejectProtectedKeys) authorizationError('protected native snapshot key');
+          continue;
+        }
+        if (key === 'toBSON' && (array || typeof hook === 'function')) continue;
         if (array && !/^(0|[1-9]\d*)$/.test(key)) authorizationError('invalid selected array property');
-        const child = array ? current : `${current}.${key}`;
+        const child = array ? current : prepareOutputWorkString([current, key]);
         if (!array && !policy.keep(key, child)) continue;
+        prepareTrustedOutputPayload(budget, key);
         const slot = Object.getOwnPropertyDescriptor(input, key)!;
         if (!('value' in slot) || !slot.enumerable) authorizationError('accessor/non-enumerable selected value');
         defineWireValue(container, key, prepareWire(slot.value, child, level + 1, true, false, false, 0));
@@ -501,13 +669,20 @@ function copyTrustedBsonValue(
   };
 
   const prepared = prepareWire(value, path, depth, true, true);
+  assertTrustedOutputBudget(budget);
   for (const key of wireKeys) {
     const slot = Object.getOwnPropertyDescriptor(Object.prototype, key);
     if (slot && !('value' in slot)) authorizationError('inherited accessor selected BSON output');
   }
   const wrapper = Object.create(null) as Record<string, unknown>;
   defineTrustedOutputValue(wrapper, 'value', prepared);
-  return mongo.BSON.deserialize(mongo.BSON.serialize(wrapper), { promoteValues: false, bsonRegExp: true }).value;
+  // The prepared input above is router work. Opaque BSON wire temporaries and
+  // returned storage are dependency-owned; no claim of an exact memory cap.
+  const result = outsideOutputWorkLedger(
+    () => mongo.BSON.deserialize(mongo.BSON.serialize(wrapper), { promoteValues: false, bsonRegExp: true }).value,
+  );
+  assertTrustedOutputBudget(budget);
+  return result;
 }
 
 /** Safe selected materialization, exactly once. Supported native/subclass fallback is value-local. */
@@ -517,22 +692,57 @@ export function materializeTrustedOutputValue(
   budget: TrustedOutputBudget,
   policy: TrustedValuePolicy,
   depth = 0,
+  prepaid = false,
 ): unknown {
+  const ledger = budgets.get(budget)?.ledger;
+  if (ledger && currentOutputWorkLedger() !== ledger)
+    return withOutputWorkLedger(ledger, () =>
+      materializeTrustedOutputValue(value, path, budget, policy, depth, prepaid),
+    );
+  // Primitive leaves need the same receiving-budget/depth/poison checks, but
+  // cannot contain a graph, native method or cycle. Do not allocate a traversal
+  // closure and ancestor WeakSet for every scalar selected field.
+  if (value === null || (typeof value !== 'object' && typeof value !== 'function' && typeof value !== 'symbol')) {
+    try {
+      visitTrustedOutput(budget, depth, prepaid ? 0 : 1);
+      if (typeof value === 'string') prepareTrustedOutputPayload(budget, value);
+      assertTrustedOutputBudget(budget);
+      return value;
+    } catch (error) {
+      failTrustedOutputBudget(budget, error);
+    }
+  }
   const active = new WeakSet<object>();
   const visit = (input: unknown, current: string, level: number, slots = 1): unknown => {
     visitTrustedOutput(budget, level, slots);
     if (typeof input === 'function' || typeof input === 'symbol') authorizationError('unsupported selected value');
-    if (input === null || typeof input !== 'object') return input;
+    if (input === null || typeof input !== 'object') {
+      if (typeof input === 'string') prepareTrustedOutputPayload(budget, input);
+      return input;
+    }
     if (types.isProxy(input)) authorizationError('unsupported selected proxy');
     if (active.has(input)) authorizationError('cyclic selected output');
     active.add(input);
     try {
       // Selected natives still normalize. Fetch-only natives are never visited here.
-      if (types.isDate(input)) return new Date(input.getTime());
-      if (Buffer.isBuffer(input)) return Buffer.from(input);
+      if (types.isDate(input)) {
+        const method = selectedDataProperty(input, 'getTime');
+        if (typeof method !== 'function') authorizationError('unsupported selected date');
+        const time: unknown = outsideOutputWorkLedger(() => Reflect.apply(method, input, []));
+        if (typeof time !== 'number') authorizationError('unsupported selected date');
+        prepareTrustedOutputPayload(budget, 8);
+        return new Date(time);
+      }
+      if (Buffer.isBuffer(input)) return selectedBsonBytes(input, budget);
       if (types.isRegExp(input)) {
-        const output = new RegExp(input.source, input.flags);
-        output.lastIndex = input.lastIndex;
+        const source = Object.getOwnPropertyDescriptor(RegExp.prototype, 'source')!.get!.call(input) as string;
+        prepareTrustedOutputPayload(budget, source);
+        const flags = prepareRegExpFlags(input, budget);
+        prepareTrustedOutputPayload(budget, flags);
+        const output = new RegExp(source, flags);
+        const lastIndex = selectedDataProperty(input, 'lastIndex', true);
+        if (typeof lastIndex !== 'number') authorizationError('unsupported selected regexp');
+        output.lastIndex = lastIndex;
         return output;
       }
       if (isBsonValue(input)) {
@@ -549,8 +759,14 @@ export function materializeTrustedOutputValue(
         for (const [key, entry] of Map.prototype.entries.call(input)) {
           visitTrustedOutput(budget, level + 1);
           if (typeof key !== 'string') authorizationError('selected Map requires string keys');
-          if (protectedValueKeys.has(key) || !policy.keep(key, `${current}.${key}`)) continue;
-          defineTrustedOutputValue(output, key, visit(entry, `${current}.${key}`, level + 1));
+          if (protectedValueKeys.has(key)) {
+            if (policy.rejectProtectedKeys) authorizationError('protected native snapshot key');
+            continue;
+          }
+          const child = prepareOutputWorkString([current, key]);
+          if (!policy.keep(key, child)) continue;
+          prepareTrustedOutputPayload(budget, key);
+          defineTrustedOutputValue(output, key, visit(entry, child, level + 1));
         }
         return output;
       }
@@ -561,7 +777,7 @@ export function materializeTrustedOutputValue(
       const output: Record<string, unknown> | unknown[] = array ? [] : {};
       if (array) {
         const length = Object.getOwnPropertyDescriptor(input, 'length')!.value as number;
-        visitTrustedOutput(budget, level + 1, length);
+        if (length) visitTrustedOutput(budget, level + 1, length);
         (output as unknown[]).length = length;
       }
       for (const key of Reflect.ownKeys(input)) {
@@ -570,23 +786,32 @@ export function materializeTrustedOutputValue(
         // for denied/protected keys. An accepted child uses the prepaid slot.
         visitTrustedOutput(budget, level + 1);
         if (typeof key !== 'string') authorizationError('symbol selected output key');
-        if (protectedValueKeys.has(key)) continue;
+        if (protectedValueKeys.has(key)) {
+          if (policy.rejectProtectedKeys) authorizationError('protected native snapshot key');
+          continue;
+        }
         if (array && !/^(0|[1-9]\d*)$/.test(key)) authorizationError('invalid selected array property');
-        const child = array ? current : `${current}.${key}`;
+        const child = array ? current : prepareOutputWorkString([current, key]);
         if (!array && !policy.keep(key, child)) continue;
+        prepareTrustedOutputPayload(budget, key);
         const slot = Object.getOwnPropertyDescriptor(input, key)!;
         if (isGeneratedPermissionsAliasSlot(input, key, slot)) continue;
         if (!('value' in slot) || !slot.enumerable) authorizationError('accessor/non-enumerable selected value');
         defineTrustedOutputValue(output, key, visit(slot.value, child, level + 1, 0));
       }
-      return output;
+      return copyPermissionsAlias(input, output);
     } catch (error) {
       // Never expose an arbitrary native exception or partially materialized value.
-      if (error instanceof ServiceAuthorizationError) throw error;
-      authorizationError('unsupported selected value');
+      failTrustedOutputBudget(budget, error);
     } finally {
       active.delete(input);
     }
   };
-  return visit(value, path, depth);
+  try {
+    const result = visit(value, path, depth, prepaid ? 0 : 1);
+    assertTrustedOutputBudget(budget);
+    return result;
+  } catch (error) {
+    failTrustedOutputBudget(budget, error);
+  }
 }

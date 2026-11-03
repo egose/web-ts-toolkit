@@ -26,6 +26,7 @@ import {
   Projection,
   Filter,
   ModelHookContext,
+  ModelOutputContext,
   Validation,
   AccessRouterBaseRequest,
   ModelRequest,
@@ -41,6 +42,8 @@ import {
   TransformAccess,
   AfterPersistAccess,
   Task,
+  DocumentGrants,
+  FilteredOutput,
 } from './interfaces';
 import Permission, { Permissions } from './permission';
 import { Service, PublicService, Base } from './services';
@@ -50,7 +53,12 @@ import { isDocument } from './lib';
 import { MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
 import { logger } from './logger';
-import { warn as warnLog } from './logger-helpers';
+import {
+  EMPTY_DOCUMENT_GRANTS,
+  documentGrantsFromMetadata,
+  invokeDocumentPermissions,
+  normalizeDocumentGrants,
+} from './acl/document-grants';
 import {
   getGlobalPermissions,
   getResolvedRequestPermissions,
@@ -70,7 +78,8 @@ import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
 import { callHookChain, evaluateRouteGuard, intersectFilters } from './core-shared';
 import { resolveRouteOperationAccess } from './operation-access';
-import { planVirtualProjection, resolveAlwaysSelectForAccess } from './acl/virtual-projection';
+import { resolveAlwaysSelectForAccess } from './acl/virtual-projection';
+import { planAuthorizedModelProjection } from './acl/output-projection';
 import { setPopulateTargetMeta, type PopulateTargetAccess } from './acl/populate-target';
 import { assertPopulateAccess } from './acl/populate-access';
 import type {
@@ -81,19 +90,22 @@ import type {
 import {
   captureModelAuthorizationConfiguration,
   getCapturedAuthorizationOption,
+  readCapturedAuthorizationOption,
   planModelOutputForHelper,
 } from './acl/model-output-planning';
 import { captureRelatedTargets } from './acl/related-execution';
 import { copyAuthorizationValue } from './acl/authorization-snapshot';
 import { deepIsolateValue } from './helpers/document';
-import type { AuthorizationConfiguration } from './acl/service-authorization';
-import { filterModelOutputForHelper } from './acl/output-field-filter';
+import { resolveServiceAuthorization, type AuthorizationConfiguration } from './acl/service-authorization';
+import { filterModelOutputForHelper, filterModelOutputManyForHelper } from './acl/output-field-filter';
 import { getRequestWorkState } from './helpers/request-work';
+import { createModelOutputContext } from './output/model-output-context';
 import {
   constructOwnedModelService,
   consumeCapturedModelOperationGuard,
   modelServicePopulatePolicyDefaults,
   registerModelCoreOwner,
+  assertOutputHelperCoreOwner,
   withCapturedModelOperationGuard,
 } from './acl/model-service-owner';
 
@@ -180,10 +192,10 @@ export class Core {
   }
 
   /**
-   * Existing output paths authorized by a fresh output-only policy or an authenticated
-   * same-stage result. Supplied options require purpose: 'output'; omission/undefined
+   * Existing output paths authorized by fresh global/empty-fact output evaluation.
+   * Supplied options require purpose: 'output'; omission/undefined
    * defaults to { purpose: 'output' }. Never a request-schema allowlist or write admission.
-   * Only a document handle reuses decisions after projected hook inputs are trimmed.
+   * No document hooks, hidden reads, virtuals or reusable output authority.
    */
   async genAllowedFields<TModel = unknown, TVirtuals extends object = Record<never, never>>(
     modelName: string,
@@ -208,11 +220,10 @@ export class Core {
 
   /**
    * Filter existing values only: no selection, getters, restoration, row checks or writes.
-   * Raw policy is fresh evaluation; a document handle reuses original decisions after
-   * private hook inputs/metadata are trimmed. These inputs are mutually exclusive.
+   * Uses captured global permissions, frozen empty facts and explicit output policy.
    * Omitted/undefined options equal {} (fresh request-mode output). Helpers isolate
-   * output; only original/package-associated unchanged copies
-   * accept the handle. The return generic does not guarantee every field is present.
+   * output; DTO metadata never supplies authority. The return generic does not guarantee every field is present.
+   * Negative predicates may allow empty facts; this is not current-document authorization.
    */
   async pickAllowedFields<T, TModel = unknown, TVirtuals extends object = Record<never, never>>(
     modelName: string,
@@ -232,6 +243,42 @@ export class Core {
         permissions: this.getGlobalPermissions(),
       })
     ).output as T;
+  }
+
+  /**
+   * One output-only operation over a dense ordinary Array (0–1,000 positions).
+   * One capture, not N independent fresh picks; options remain server-owned.
+   * Captures initialized globals/model/catalog/policy once and isolates ALL row
+   * sources before the first field predicate. Each occurrence has independent
+   * EMPTY facts and decisions. Later actor/schema/options changes affect the next
+   * call, not later rows; callback closures/native effects are not frozen.
+   * Mutating req.user alone does not rerun the initialized permissions resolver.
+   * No DB, document hooks, virtual execution, row authority or omitted-field recovery.
+   * Shares bounded request hook scheduling and publishes ordered DATA all-or-nothing;
+   * structural/native/budget errors close/drain the group (400), body errors omit fields.
+   * Existing per-row 20,000/depth-100 owners plus ONE 200,000 router-work / 16 MiB
+   * cumulative router-payload ledger apply. Opaque Mongoose/native normalization,
+   * dependency allocations/traversal, engine enumeration and arbitrary callback
+   * effects are excluded: NOT a total-memory/RSS/whole-normalization/sandbox cap.
+   * Normalized results are admitted before subsequent router-owned copies.
+   */
+  async pickAllowedFieldsMany<T, TModel = unknown, TVirtuals extends object = Record<never, never>>(
+    modelName: string,
+    rows: readonly T[],
+    access: SelectAccess,
+    options: OutputFieldOptions<TModel, TVirtuals> = {},
+  ): Promise<readonly FilteredOutput<T>[]> {
+    const owner = assertOutputHelperCoreOwner(this);
+    return (await filterModelOutputManyForHelper({
+      request: owner.request,
+      runtime: owner.runtime,
+      modelName,
+      rows,
+      access,
+      options,
+      argumentCount: arguments.length,
+      permissions: () => this.getGlobalPermissions(),
+    })) as readonly FilteredOutput<T>[];
   }
 
   /** Alias of pickAllowedFields; performs no selection, getter invocation, row checks or write admission. */
@@ -288,7 +335,7 @@ export class Core {
     scopePath: readonly string[] = [],
   ) {
     const subPaths = scopePath.flatMap((part) => [part, 'sub']);
-    const permissionSchema = get(configuration, ['permissionSchema', ...subPaths]) as
+    const permissionSchema = readCapturedAuthorizationOption(configuration, ['permissionSchema', ...subPaths]) as
       | Record<string, unknown>
       | null
       | undefined;
@@ -307,7 +354,7 @@ export class Core {
       access,
       targetFields,
       hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
-      functionArgs: [permissions],
+      functionArgs: [permissions, EMPTY_DOCUMENT_GRANTS],
       mode: 'model',
       virtualNames,
     });
@@ -443,22 +490,24 @@ export class Core {
           // for admission/selection, including non-reserved custom accesses.
           const planAccess: PopulateTargetAccess = populateAccess;
           const targetSnapshot = targetConfiguration as import('./output/finalize-model-output').FinalizeSnapshot;
-          const targetPlan = planVirtualProjection({
-            receivingModelName: refModelName,
-            snapshot: {
-              permissionSchema: targetSnapshot.permissionSchema,
-              virtuals: targetSnapshot.virtuals,
-              alwaysSelectFields: targetSnapshot.alwaysSelectFields,
-              modelPermissionPrefix: targetSnapshot.modelPermissionPrefix,
-              requireExplicitSelect: targetSnapshot.requireExplicitSelect,
-              documentPermissionField: targetSnapshot.documentPermissionField,
+          const targetBinding = { request: this.req, runtime, model: target.model!, modelName: refModelName };
+          const targetAuthorization = resolveServiceAuthorization({
+            binding: targetBinding,
+            configuration: targetConfiguration,
+            requestPermissions: permissions,
+            access: {
+              operation: planAccess,
+              rowAccess: planAccess,
+              virtualAccess: planAccess,
+              outputAccess: planAccess,
+              docPermissionsAccess: planAccess,
             },
-            virtualAccess: planAccess,
-            outputAccess: planAccess,
-            docPermissionsAccess: planAccess,
+          });
+          const targetPlan = planAuthorizedModelProjection({
+            authorization: targetAuthorization,
+            binding: targetBinding,
             requestedSelect: originalSelect as never,
             internalFetch: { baseFields: ['_id'] },
-            globalPermissions: permissions,
           });
           // Merge virtual dependency fetch requirements into the Mongoose
           // query projection (fetch-only, never an output grant). Only
@@ -560,59 +609,33 @@ export class Core {
     await callHookChain(this.req, afterDelete, doc, permissions, context);
   }
 
-  async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: ModelHookContext) {
-    const docPermissionsFn = getModelOption(modelName, `docPermissions.${access}`, null);
-    let docPermissions = {};
-
-    if (isFunction(docPermissionsFn)) {
-      const permissions = this.getGlobalPermissions();
-      try {
-        docPermissions = await getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>
-          docPermissionsFn.call(this.req, doc, permissions, context),
-        );
-      } catch (error) {
-        // docPermissions failures are fail-closed: keep request handling alive,
-        // attach an empty permissions object, and emit a structured warning.
-        warnLog('docPermissions hook failed; applying empty document permissions', {
-          modelName,
-          access,
-          operation: context.operation,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return docPermissions;
-  }
-
-  /**
-   * VIRT-03 internal grant resolution (VIRT-00A D1/D2).
-   *
-   * Returns full internal document grants for virtual authorization without
-   * consulting response-metadata switches (`includePermissions`,
-   * `includeFieldPermissions`, `skim`, `stripPermissionsField`,
-   * `exposedDocPermissionKeys`, `disableFieldPermissions`): those switches
-   * affect serialization at the caller boundary only, never authorization
-   * inputs. When `supplied` is a plain object it is reused as-is (no second
-   * hook invocation for the same output-stage access); otherwise the correct
-   * `docPermissionsAccess` hook runs once. The result populates scope-aware
-   * `context.docPermissions` (full grants, distinct from serialized metadata).
-   */
-  async resolveFinalizerDocPermissions(
+  /** Explicit fresh hook-to-boolean-facts utility, not document/output/row authority. */
+  async genDocPermissions(
     modelName: string,
     doc: unknown,
     access: DocPermissionsAccess,
-    context: ModelHookContext,
-    supplied?: unknown,
-  ): Promise<Record<string, unknown>> {
-    if (supplied != null && typeof supplied === 'object' && !Array.isArray(supplied)) {
-      const grants = supplied as Record<string, unknown>;
-      (context as ModelHookContext).docPermissions = grants;
-      return grants;
-    }
-    const grants = (await this.genDocPermissions(modelName, doc, access, context)) as Record<string, unknown>;
-    (context as ModelHookContext).docPermissions = grants;
-    return grants;
+    context: ModelOutputContext,
+  ): Promise<DocumentGrants> {
+    const configuration = captureModelAuthorizationConfiguration(this.requestRuntime, modelName);
+    const hook = getCapturedAuthorizationOption(configuration, `docPermissions.${access}`);
+    const permissions = this.getGlobalPermissions();
+    const diagnostic = createModelOutputContext({
+      modelName,
+      operation: context.operation,
+      scopePath: context.scopePath,
+      virtualAccess: context.virtualAccess,
+      outputAccess: context.outputAccess,
+      docPermissionsAccess: access,
+      resolvedQuery: context.resolvedQuery,
+    });
+    return invokeDocumentPermissions({
+      invoke: typeof hook === 'function' ? () => hook.call(this.req, doc, permissions, diagnostic) : undefined,
+      gate: getRequestWorkState(this.req, this.requestRuntime).hookGate,
+      metadataField: configuration.documentPermissionField,
+      modelName,
+      access,
+      operation: context.operation,
+    });
   }
 
   addEmptyPermissions<T>(modelName: string, doc: T): T {
@@ -631,11 +654,11 @@ export class Core {
     modelName: string,
     doc: T,
     access: DocPermissionsAccess,
-    context: ModelHookContext,
+    context: ModelOutputContext,
   ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docPermissions = await this.genDocPermissions(modelName, doc, access, context);
-    setDocValue(doc, docPermissionField, docPermissions);
+    setDocValue(doc, docPermissionField, { ...docPermissions });
     return doc;
   }
 
@@ -646,6 +669,9 @@ export class Core {
     context: InternalModelHookContext,
   ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
+    // This explicit presentation utility accepts metadata DATA, not a stage or
+    // authorization proof. Admit its boolean map before callbacks or row queries.
+    const grants = documentGrantsFromMetadata(getDocPermissions(modelName, doc), docPermissionField);
     const docId = String(doc._id);
 
     // TODO: do we need falsy fields as well?
@@ -680,7 +706,7 @@ export class Core {
         permissionSchema: getModelOption(modelName, 'permissionSchema'),
         access: fieldAccess,
         permissions: this.getGlobalPermissions(),
-        grants: getDocPermissions(modelName, doc),
+        grants,
         modelPermissionPrefix: getModelOption(modelName, 'modelPermissionPrefix', ''),
       });
     const [views, edits] = await Promise.all([
@@ -716,20 +742,40 @@ export class Core {
     return doc;
   }
 
-  async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: ModelHookContext): Promise<T> {
+  async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: ModelOutputContext): Promise<T> {
     const decorate = getModelOption(modelName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();
-    context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
-
-    return runDecorateHook({ req: this.req, runtime: this.requestRuntime, hook: decorate, doc, permissions, context });
+    // Presentation metadata can be stripped/forged and must not replace the
+    // resolved stage's facts. Standalone decoration has no document authority.
+    const diagnostic = createModelOutputContext({
+      modelName,
+      operation: context.operation,
+      scopePath: context.scopePath,
+      virtualAccess: context.virtualAccess,
+      outputAccess: context.outputAccess,
+      docPermissionsAccess: context.docPermissionsAccess,
+      resolvedQuery: context.resolvedQuery,
+      docPermissions: normalizeDocumentGrants(
+        context.docPermissions ?? EMPTY_DOCUMENT_GRANTS,
+        getModelOption(modelName, 'documentPermissionField'),
+      ),
+    });
+    return runDecorateHook({
+      req: this.req,
+      runtime: this.requestRuntime,
+      hook: decorate,
+      doc,
+      permissions,
+      context: diagnostic,
+    });
   }
 
   async decorateAll<T>(
     modelName: string,
     docs: T[],
     access: DecorateAllAccess,
-    context: ModelHookContext,
+    context: ModelOutputContext,
   ): Promise<T[]> {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
@@ -740,7 +786,15 @@ export class Core {
       hook: decorateAll,
       docs,
       permissions,
-      context,
+      context: createModelOutputContext({
+        modelName,
+        operation: context.operation,
+        scopePath: context.scopePath,
+        virtualAccess: context.virtualAccess,
+        outputAccess: context.outputAccess,
+        docPermissionsAccess: context.docPermissionsAccess,
+        resolvedQuery: context.resolvedQuery,
+      }),
     });
   }
 
@@ -802,7 +856,7 @@ export class Core {
 
   getPermissions() {
     if (this.cachedPermissions) return this.cachedPermissions;
-    return getResolvedRequestPermissions(this.req);
+    return getGlobalPermissions(this.req) ?? getResolvedRequestPermissions(this.req);
   }
 
   async setPermissions() {

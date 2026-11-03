@@ -1,0 +1,974 @@
+[
+  {
+    "source": "_tmp-authorization-fast-fp01-20261030-142730/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/authorization-fast-fp01-20261030-142730/coordinator-notes.md",
+    "sourceSha256": "71f0f2e297e727ad6d902ba4a876d34583264ca39ee8fe41363ee894168d13f5",
+    "archiveSha256": "7b060ef639e9d637acf176ee5a2791f0e9a745a8ce18e4a63ac9872bbb03e83d"
+  },
+  {
+    "source": "_tmp-authorization-fast-fp01-20261030-142730/verification-summary.md",
+    "archive": "docs/task-artifacts/access-router/authorization-fast-fp01-20261030-142730/verification-summary.md",
+    "sourceSha256": "0d79f9e166300f3496a08a6d6f0b6ae950977a57bcb0e7e21d0e7f969a7f4d2e",
+    "archiveSha256": "fac450b784a0b655c02bd5f73e30bad46b56f62ced2d4a4f91eaf5feed87e2bb"
+  },
+  {
+    "source": "_tmp-fp02-recovery-20261030-153025/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp02-recovery-20261030-153025/coordinator-notes.md",
+    "sourceSha256": "78f9405f0a22e6c06b41dcc9bcc2cb1bebd67a2440956b4c487919cbf2e33732",
+    "archiveSha256": "63fe6e856596e15dec2d07103a22f4a7f5f53d4410ba80898cc0f5dd6677e9f4"
+  },
+  {
+    "source": "_tmp-fp03-20261030-155647/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp03-20261030-155647/coordinator-notes.md",
+    "sourceSha256": "ea01a335e6f69c20f5a64c3ed0d9ebd889c4b47cd5f0aafc7cf15370198dc566",
+    "archiveSha256": "c2d254d9074f8d306405dc5218dedf943aa04ffd0d1d2bd8dbcc8d0d547cbb28"
+  },
+  {
+    "source": "_tmp-fp04-consumer-benchmark-20261030-175617/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp04-consumer-benchmark-20261030-175617/coordinator-notes.md",
+    "sourceSha256": "e228e2564117b52af89e34fcd4f4d8442c4d4e1f65c12a997d573805d13c46cb",
+    "archiveSha256": "46d26286fed44da8ad7d10d06b0eb29628ab73c3d81be9c6a07ed62927d57584"
+  },
+  {
+    "source": "_tmp-fp05-final-20261031-152953/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp05-final-20261031-152953/coordinator-notes.md",
+    "sourceSha256": "7d57b31ce23da47e08beca10c044f950d345ddcb43f567b2ec42b4be56c99926",
+    "archiveSha256": "d6f9bf182eb24a9a807a893a11ab11e129bde236099110b44ea65ea4ec8e3a0d"
+  },
+  {
+    "source": "_tmp-fp05-final-20261031-152953/measurements.md",
+    "archive": "docs/task-artifacts/access-router/fp05-final-20261031-152953/measurements.md",
+    "sourceSha256": "ffa9ee861e53d39a5b4e205d55bf22768cf9531d6ed6dab55e64647ba01110db",
+    "archiveSha256": "f31543cfc2adf942cd053b79e4b954f4f856ef8b2bb091bc5e3744f9089da5d6"
+  },
+  {
+    "source": "_tmp-fp05-fixed-20261031-000229/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp05-fixed-20261031-000229/coordinator-notes.md",
+    "sourceSha256": "30fd6f7e26d81ee34fd605153d8428048ca72a0844318a75dfcfdbe111af0ef7",
+    "archiveSha256": "1b783091201821f64b213e1789d4663648e62d0acc168a0582672abd49a2cf40"
+  },
+  {
+    "source": "_tmp-fp05-fixed-20261031-000229/measurements.md",
+    "archive": "docs/task-artifacts/access-router/fp05-fixed-20261031-000229/measurements.md",
+    "sourceSha256": "23f1b72c30701cb6404a353621dec929ecf5cad6394aea88052979c2724f1520",
+    "archiveSha256": "4d98607bf181c546cac02fd5fffbc7996cd8b3af539a661d320b55d45af2f28f"
+  },
+  {
+    "source": "_tmp-fp05-integration-20261030-190227/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp05-integration-20261030-190227/coordinator-notes.md",
+    "sourceSha256": "37cef83da92a3ac2dd0b2310bae036396bd89c0206566eac0ba3787ba7622952",
+    "archiveSha256": "dcb996c4c7cd3d552b3712887f04099ca66b2d7ab2582b341b5f5860f61ae704"
+  },
+  {
+    "source": "_tmp-fp05-integration-20261030-190227/measurements.md",
+    "archive": "docs/task-artifacts/access-router/fp05-integration-20261030-190227/measurements.md",
+    "sourceSha256": "ccb6eacd3963b16d3e9125125c4d99745898ff15bec146690a97fac9caaca607",
+    "archiveSha256": "e9b1e2fde9080fef3fc81f1e51f9b6c88783ace21424f57d71abef69b480c2d0"
+  },
+  {
+    "source": "_tmp-fp06-final-20261031-143300/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp06-final-20261031-143300/coordinator-notes.md",
+    "sourceSha256": "7083d8e20ba24e0f05839c61b16a8750919b6a106eed6f53403521b91180f907",
+    "archiveSha256": "d44c7ba57f2410ee69c8ae645d59ab37e5dcd29e90526d87532d371a2995d4e1"
+  },
+  {
+    "source": "_tmp-fp07-20261030-203224/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp07-20261030-203224/coordinator-notes.md",
+    "sourceSha256": "4a1e6f2f5fd8d555366afa5612cf33868ed4d58d3258b98f2eaae491f371498f",
+    "archiveSha256": "9c63bb46e615974d021f2a25cce7e61d8e69cea45a102241be2b955133d68988"
+  },
+  {
+    "source": "_tmp-fp08-20261030-204719/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp08-20261030-204719/coordinator-notes.md",
+    "sourceSha256": "cf391296870181214b92ec6dfb04936ca0e3badaa67372c48dbe8e3a7744ad8a",
+    "archiveSha256": "00ff529594124d1cee20774c4a98d169224ae76896662095779ec152641e92bf"
+  },
+  {
+    "source": "_tmp-fp08-residual-20261031-011826/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/fp08-residual-20261031-011826/coordinator-notes.md",
+    "sourceSha256": "ee44ceb0cac0ddc4570c918352a00e0f27f732333fda340884de5c53cb48f783",
+    "archiveSha256": "2ed844610ebf927f3477747582a2bf83514bae5ab554516033ff412bd6f6638c"
+  },
+  {
+    "source": "_tmp-fuse06-node16-followup-20261030-131813-f60d/coordinator-followup.md",
+    "archive": "docs/task-artifacts/access-router/fuse06-node16-followup-20261030-131813-f60d/coordinator-followup.md",
+    "sourceSha256": "80b5a4e15be44d548618b1f3e148718d925090cf494c540c4cc15aac4df039ee",
+    "archiveSha256": "e385043db2cae086e8e3ecd0bc68372b1970c6d139547eac103a9f9301908111"
+  },
+  {
+    "source": "_tmp-oar01-20261031-153820/ARCHITECTURE.md",
+    "archive": "docs/task-artifacts/access-router/oar01-20261031-153820/ARCHITECTURE.md",
+    "sourceSha256": "c7b45704b86bcd0b7691670a2a21a209dae9e1b0cc5c357aff8604e014026c53",
+    "archiveSha256": "d5d63a79ea591bb5bfdfa1eb3423e4f339040d899a5a3da75d6297a2d40b2db7"
+  },
+  {
+    "source": "_tmp-oar01-20261031-153820/BASELINE.md",
+    "archive": "docs/task-artifacts/access-router/oar01-20261031-153820/BASELINE.md",
+    "sourceSha256": "1e4b87ad40d96c57a9c9c18833db22c2663e06dcdeb1991261cb478c327c5c88",
+    "archiveSha256": "2b4bf6ebd00f3dd4ad77fafcb0d8434d28f3dfb617b1c33a8c03105e59872ed1"
+  },
+  {
+    "source": "_tmp-oar01-20261031-153820/CONTRACT-AMENDMENTS.md",
+    "archive": "docs/task-artifacts/access-router/oar01-20261031-153820/CONTRACT-AMENDMENTS.md",
+    "sourceSha256": "0aaa7f7cafb918dcf782d5b77501581479f90f1d1c6da24c98c10104b08759fb",
+    "archiveSha256": "ab989467e2b923becd37d4f556868f7cc890a69beb3e38b13c7cead0e0a4884d"
+  },
+  {
+    "source": "_tmp-oar01-20261031-153820/HANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar01-20261031-153820/HANDOFF.md",
+    "sourceSha256": "049812e5cf1b8bcb925eb05662467865102991a28ba81c8c8e385e6c4bf11970",
+    "archiveSha256": "7e131c2425f334148660619532a4621c84778b7e7c0e2776fd6a18cbaf863664"
+  },
+  {
+    "source": "_tmp-oar01-20261031-153820/IMPLEMENTATION-HANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar01-20261031-153820/IMPLEMENTATION-HANDOFF.md",
+    "sourceSha256": "2ac1af23cc3f9ba14eed91d976503dba8ad902d371d423f326b74a8b8ce93022",
+    "archiveSha256": "1d1827be7cb7c079ee4bb7af5e94ea19fede4253b927cf1251f846ecbaace458"
+  },
+  {
+    "source": "_tmp-oar01-20261031-153820/MEASUREMENT-PLAN.md",
+    "archive": "docs/task-artifacts/access-router/oar01-20261031-153820/MEASUREMENT-PLAN.md",
+    "sourceSha256": "ad9d1d7bd39cf2fc6f2c69944cc7507a89dceb20406dd16de94edcc37b33556b",
+    "archiveSha256": "7c98b2d5a990afba30ae42c19db12aabab4accec737299e811ec8d964de8d871"
+  },
+  {
+    "source": "_tmp-oar01-20261031-153820/PERFORMANCE-GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar01-20261031-153820/PERFORMANCE-GATES.md",
+    "sourceSha256": "958d14930ee2f470875d8d09b78673f28d9b4d227ce5b91548ad9d7cff91299d",
+    "archiveSha256": "75c66fd4478b446913b2e6719ba97e2f481ce65003040d22fdaf26bf52974eaa"
+  },
+  {
+    "source": "_tmp-oar02-recovery-20261031-171950/BROKEN-BEHAVIOR-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar02-recovery-20261031-171950/BROKEN-BEHAVIOR-LEDGER.md",
+    "sourceSha256": "c8c2c1721f7ce7789026e3401a7427ea2cab531178785d702c6264c971626973",
+    "archiveSha256": "aa12d9148fe91310d1f635384ef8d159c6c34f51cd68809f897d444271f59ada"
+  },
+  {
+    "source": "_tmp-oar02-recovery-20261031-171950/HANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar02-recovery-20261031-171950/HANDOFF.md",
+    "sourceSha256": "3d7bb624027dd3960d1275044fa2d3f442520850fd0b928ca4f9952c53d238d7",
+    "archiveSha256": "444a202fc1d138e58796b99ff2c4d21354325543c2b380a50a8c649ee7199364"
+  },
+  {
+    "source": "_tmp-oar03-20261031-181311/HANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar03-20261031-181311/HANDOFF.md",
+    "sourceSha256": "caa317bd17a296fb164fa11f83f27f1aa8b8bb946fa1f35aa08d90bdf9612072",
+    "archiveSha256": "3ee329b215798178674f80b4620ca37a50f21333a364b032ad7899d977625100"
+  },
+  {
+    "source": "_tmp-oar03-20261031-181311/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar03-20261031-181311/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "sourceSha256": "af5fcd07ee1f6ae7246482d3f5ee66efcf2f20acebd5f8d25e7ccf1075eb92a6",
+    "archiveSha256": "e2f873d03fdbbc0e1112f9056ff458586208f819b7a799d4d0a7d61b10518079"
+  },
+  {
+    "source": "_tmp-oar03-20261031-181311/NOTES.md",
+    "archive": "docs/task-artifacts/access-router/oar03-20261031-181311/NOTES.md",
+    "sourceSha256": "9a9b79c9eb17f348460582b6b9fff33db0d5ba7d323a405b113e6e0d03e93a45",
+    "archiveSha256": "97fa9db233161f21dbfa6f579ab4dac2b3788116fc08ef3bf44fc5824fd907f2"
+  },
+  {
+    "source": "_tmp-oar04-20261031-200901/HANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar04-20261031-200901/HANDOFF.md",
+    "sourceSha256": "5effac2a4c0913af5d064c83a5b4bb68894c2b3238ca4a72cfc2c4599eba4258",
+    "archiveSha256": "9a12d3ffeaa141e0f308e1a4f91b05116cbf177887ca065a6b6513ac75b241a9"
+  },
+  {
+    "source": "_tmp-oar04-20261031-200901/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar04-20261031-200901/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "sourceSha256": "d95256cc4c9c510f55b3d4977aa9a4edee1c4c29dd75adaaf0c0e86d80f91c4c",
+    "archiveSha256": "53f152c816a65fa6eb53cf9711c2daf54424baa2572563f20ec3642e5bdf69d1"
+  },
+  {
+    "source": "_tmp-oar05-recovery-20261031-211235-c96711/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar05-recovery-20261031-211235-c96711/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "sourceSha256": "e915e9a4fe86f2206dd8a1eee910f38d3593d2dd776e6c78047291a78c48755a",
+    "archiveSha256": "b1db33524a578e9a9a0b226bc7ca93d09e94a4a9f34f5b440aefa4d553d5e7f3"
+  },
+  {
+    "source": "_tmp-oar05-recovery-20261031-211235-c96711/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar05-recovery-20261031-211235-c96711/NEWHANDOFF.md",
+    "sourceSha256": "9a304097305312e4c010d9b49d92165781c772ce9d320ea56f69268958c07c4c",
+    "archiveSha256": "7272fdb7cf387fe74399e09e6450eb8550d7cce1cd86c7c897e41014f7d9d2bc"
+  },
+  {
+    "source": "_tmp-oar06-20261031-xqjTWI/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar06-20261031-xqjTWI/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "sourceSha256": "80f0d24776f021a4b590ddac5f432c4ae1e97f6e64cf0935962113abd7f07b98",
+    "archiveSha256": "f8e853ef1fc9c990ae100fee8afbb37f97b33669ed3f9113a4f5b50357774da1"
+  },
+  {
+    "source": "_tmp-oar06-20261031-xqjTWI/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar06-20261031-xqjTWI/NEWHANDOFF.md",
+    "sourceSha256": "b3663b4654558aef017358efdeb75ea3d36f2ef28ebc127d497594d9c0523868",
+    "archiveSha256": "6dbba836fb16bd5d5d720820b1dab7dfe02e9edae75dcc5532ceca38437df990"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/CASE-DISPOSITIONS.json",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/CASE-DISPOSITIONS.json",
+    "sourceSha256": "621291abfffecceb14ebbb91af0d706203c23685dbd3c5c1d203268d39a6294d",
+    "archiveSha256": "621291abfffecceb14ebbb91af0d706203c23685dbd3c5c1d203268d39a6294d"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/COMPLETE-CASE-CATALOG.json",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/COMPLETE-CASE-CATALOG.json",
+    "sourceSha256": "bd0923baaf4172721ed519a7632409e0619db11cc431383593d034e3984197af",
+    "archiveSha256": "bd0923baaf4172721ed519a7632409e0619db11cc431383593d034e3984197af"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/COMPLETE-CASE-CATALOG.md",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/COMPLETE-CASE-CATALOG.md",
+    "sourceSha256": "aaf8ae50bd693e6e628a369227d62bd5e09b8e5dcac0a9a3c14e7590229470bc",
+    "archiveSha256": "0431eaae2372293421d4284861a889a321ed52a3f9768d2abede5d1db3b3ab1f"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/EXTRA-CASE-CATALOG.json",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/EXTRA-CASE-CATALOG.json",
+    "sourceSha256": "a54f4ebcdf62d11e68f81c245a9aebaf71e5e7dfe13a3e9f78a87709a889c2bd",
+    "archiveSha256": "a54f4ebcdf62d11e68f81c245a9aebaf71e5e7dfe13a3e9f78a87709a889c2bd"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/EXTRA-CASE-CATALOG.md",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/EXTRA-CASE-CATALOG.md",
+    "sourceSha256": "77d154bd7c3a535236f8437ba43ea262b1b08a3736d358e64a45707b8192b84a",
+    "archiveSha256": "c606c8ccc8cf5df8b3762c43f2b10a9847983526f5b2aa325137b40dfdee9136"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "sourceSha256": "2b5c7f59f47118ecd186c87c7edfba845536bb9e39deb24fbb4e5ef4c750baf0",
+    "archiveSha256": "a7f5d6bd874762add984701b93d1768b239eca5cc899887ed27482badd9b99b4"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/NEWHANDOFF.md",
+    "sourceSha256": "f4e759f9376cda6a7d344ee03d8a296fd8c628ad893b7fd1d4ef0ffb2123b496",
+    "archiveSha256": "3a327d483a3a33e603059d3c818461375b33941b0e8a633ba4c824d62cd4d76f"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/ORIGINAL-CASE-CATALOG.json",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/ORIGINAL-CASE-CATALOG.json",
+    "sourceSha256": "0c8552cdc965263347702254187e495a9132d1162115e8e7042fd1afd0082cbd",
+    "archiveSha256": "0c8552cdc965263347702254187e495a9132d1162115e8e7042fd1afd0082cbd"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/ORIGINAL-CASE-CATALOG.md",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/ORIGINAL-CASE-CATALOG.md",
+    "sourceSha256": "290599c3723d8a0dd930d6a9c635e5948a20037f32bc60608d03e652efa51fb1",
+    "archiveSha256": "5f3edf1e9921af3eae75f4d635e465777d855d5c33ed3cc08b07e18f438c1d75"
+  },
+  {
+    "source": "_tmp-oar07a-20261031-Sn6zV3/available-proofs.md",
+    "archive": "docs/task-artifacts/access-router/oar07a-20261031-Sn6zV3/available-proofs.md",
+    "sourceSha256": "626b2642ded496f98715178fab93532d1b1845a0206ea1b12e7ec1b6c9a679ec",
+    "archiveSha256": "3c4f118f191cf07625e4e2ff9d8cd1d23037cf05758c68564219e59fb4bf2355"
+  },
+  {
+    "source": "_tmp-oar07b-recovery-20261101-drdazhbz/CASE-CATALOG.json",
+    "archive": "docs/task-artifacts/access-router/oar07b-recovery-20261101-drdazhbz/CASE-CATALOG.json",
+    "sourceSha256": "8ebf1ac92e258e08e2963922d9e6b2089ee06c24f99cccc2c8ca50c1ac87041a",
+    "archiveSha256": "8ebf1ac92e258e08e2963922d9e6b2089ee06c24f99cccc2c8ca50c1ac87041a"
+  },
+  {
+    "source": "_tmp-oar07b-recovery-20261101-drdazhbz/CASE-DISPOSITIONS.json",
+    "archive": "docs/task-artifacts/access-router/oar07b-recovery-20261101-drdazhbz/CASE-DISPOSITIONS.json",
+    "sourceSha256": "760777a86dd82eb50916aedb9050a6a6901abaaab95798ce0f397a03b89b3f8d",
+    "archiveSha256": "760777a86dd82eb50916aedb9050a6a6901abaaab95798ce0f397a03b89b3f8d"
+  },
+  {
+    "source": "_tmp-oar07b-recovery-20261101-drdazhbz/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar07b-recovery-20261101-drdazhbz/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "sourceSha256": "b03b3ee76bdd6cce9000cc5edf8c505a90960a1261522c586583678d5a32aed3",
+    "archiveSha256": "28844d2acac53a4cf684c30c869074db2c34f8604dce2fd2e86d47ec50daf14a"
+  },
+  {
+    "source": "_tmp-oar07b-recovery-20261101-drdazhbz/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar07b-recovery-20261101-drdazhbz/NEWHANDOFF.md",
+    "sourceSha256": "45ca1f51e45bfe35cca5e5b220dfaf4d972265b1b215e7251788efc5c9dbd77f",
+    "archiveSha256": "1f921f802d74dd2beabfdd2cda602cd8bb536b5dd3cbd287205cedae89f5463c"
+  },
+  {
+    "source": "_tmp-oar07b-recovery-20261101-drdazhbz/OAR08-REMAINING-FAILURES.md",
+    "archive": "docs/task-artifacts/access-router/oar07b-recovery-20261101-drdazhbz/OAR08-REMAINING-FAILURES.md",
+    "sourceSha256": "5d0e8593c52cae3122433a32658725dc8b6c0d57cc91030daf998ca04e394cb1",
+    "archiveSha256": "8e6f720b28c37b6403656cbd5f9c7b0e3e00734d6f5b4095d68ee018fc8d7bd1"
+  },
+  {
+    "source": "_tmp-oar08-recovery-20261101-16yIdWZ5/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar08-recovery-20261101-16yIdWZ5/LEGACY-TEST-MIGRATION-LEDGER.md",
+    "sourceSha256": "04773e6a908766f682a876abdac3a85c05675d080ddc16951924cc35ba293249",
+    "archiveSha256": "714d940cac53d79ddc4c8e5adf0e239703e7fcabddf058432118ebc36ed53808"
+  },
+  {
+    "source": "_tmp-oar08-recovery-20261101-16yIdWZ5/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar08-recovery-20261101-16yIdWZ5/NEWHANDOFF.md",
+    "sourceSha256": "f6df01d4e5a9bc38f30232709ec25ed2be456a99dfc1e53f5546015880187e9f",
+    "archiveSha256": "c4443e4943aada83db279d24eb7a78d7afdc7ac5ff9fab3dc30cc070ae126639"
+  },
+  {
+    "source": "_tmp-oar09a-recovery-ot_jqpby/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09a-recovery-ot_jqpby/NEWHANDOFF.md",
+    "sourceSha256": "2d6a8a6187da7ba66e4bd47d796e48faa8fb5837b6ab5730b2cdf1af13b2eb5b",
+    "archiveSha256": "0f637d7ae1446f79465f0b857cf25f7beeb2269d0ecedfa193f27d12950d73f9"
+  },
+  {
+    "source": "_tmp-oar09a-recovery-ot_jqpby/final-02/FINAL-PROTOCOL.json",
+    "archive": "docs/task-artifacts/access-router/oar09a-recovery-ot_jqpby/final-02/FINAL-PROTOCOL.json",
+    "sourceSha256": "156e8632978fd24fdea63c38605b9a6569b9dab045bd02f884ebaa8b377d2876",
+    "archiveSha256": "156e8632978fd24fdea63c38605b9a6569b9dab045bd02f884ebaa8b377d2876"
+  },
+  {
+    "source": "_tmp-oar09a-recovery-ot_jqpby/final-02/FINAL-PROTOCOL.md",
+    "archive": "docs/task-artifacts/access-router/oar09a-recovery-ot_jqpby/final-02/FINAL-PROTOCOL.md",
+    "sourceSha256": "cfcd10e35ff3f004ea2ad7b3fd379f5e2ae415e37575eca6be95455c439686a8",
+    "archiveSha256": "eebf26bd477121025433cfe3906ab8562faf83c7117e6b8bd30778126bf1e4cb"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/ADVERSE-OBSERVATIONS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/ADVERSE-OBSERVATIONS.md",
+    "sourceSha256": "ce61d1990731066043e0338bab1b14f22ecfe4dc8cfc30ff9effd716cbc4bc84",
+    "archiveSha256": "dd34ad1b1276f392ef0c55f37e963bab517aa625eca917ac07538c1ccd6aed1d"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/ALL-GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/ALL-GATES.md",
+    "sourceSha256": "0c6da38c769e74193a771aa06b235ee738ac5a05d86689904f84cb35f5eea1a7",
+    "archiveSha256": "15d0cb1a324e0a0147858750c85b78dc0650e8d5b7b3697fcc77dde6f467e81e"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/INITIAL-REPEAT-FINAL.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/INITIAL-REPEAT-FINAL.md",
+    "sourceSha256": "6896b7c3712cdb4735f1bff027f20371ce11295be8b50ac2fe659b9554197c8a",
+    "archiveSha256": "1a2aa410ae7d3418b3b3080799c34e39abfce2247e3b9b431919b8dd6e56e503"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/NEW-VS-OLD.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/NEW-VS-OLD.md",
+    "sourceSha256": "890a24ff57582a2ea79f5fda411e125af813478b8212b705a92c3d13d46dfe88",
+    "archiveSha256": "ef6c1a84336af72e57feb64a5808ce5b8d2dd385a5b871415f7a5f08cf501032"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/NEWHANDOFF.md",
+    "sourceSha256": "8572ef8608f408bb4f80e2be84ccfd05ccb3ed12196b24610d43f47238826d13",
+    "archiveSha256": "a56f2e10186b0a675fac8c9508a9732fb9df09f75325a6a3792067b2d20fbaec"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/PAIR-DETAILS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/PAIR-DETAILS.md",
+    "sourceSha256": "2b721ada173b78d46cb55ef2d815a6716d32e66e7512443b80a3e255fcf64973",
+    "archiveSha256": "d662b86a7eea7979188dc62787aaad69465095801967c8bbb34e404bfdba15a7"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/REPEAT-ONLY-SUMMARY.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/REPEAT-ONLY-SUMMARY.md",
+    "sourceSha256": "4288b2dd5d5e95dfc94cc58b609f6a98d916e4ef7e6ac233bb63634b7845f04b",
+    "archiveSha256": "682410ac815c36a88a98ec7921d882dde1348c12786a39ce3a69eb0c596a150d"
+  },
+  {
+    "source": "_tmp-oar09b-final-remediation-RJZ1phN3/REPORT.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-final-remediation-RJZ1phN3/REPORT.md",
+    "sourceSha256": "65ced9674980bcfccbb2cd72f5b126721ab4f358f105d1ab32a3d518280be21d",
+    "archiveSha256": "599edf9cd71af33cf0d1117d33b3f2a450c138980de5bf6c0514e8879ae6a918"
+  },
+  {
+    "source": "_tmp-oar09b-g28ar1zl/ADVERSE-OBSERVATIONS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-g28ar1zl/ADVERSE-OBSERVATIONS.md",
+    "sourceSha256": "979955f645547d40309d388b6b48efdd94837c878bd22b944ada7443540dae9d",
+    "archiveSha256": "81cf6c8cbbc80e68989e58695a317eca6d1ccec001a54ee1c13512ea3e8f1642"
+  },
+  {
+    "source": "_tmp-oar09b-g28ar1zl/ALL-GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-g28ar1zl/ALL-GATES.md",
+    "sourceSha256": "017a75bebc17ffd8e8465188457b6202f438ffe3b891e8cd245f35577a69719f",
+    "archiveSha256": "5776621ffd52461570cd665802bbfdb78d6c84d5ab7e0b218e1c30313499d394"
+  },
+  {
+    "source": "_tmp-oar09b-g28ar1zl/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-g28ar1zl/NEWHANDOFF.md",
+    "sourceSha256": "2110964b3a2bc96b2c707a0707c53dc508d7ed86970d172acc592fd0d9f8e9ff",
+    "archiveSha256": "30d747494b90262222e90979cb47134006845baad2f5f0029b1d69ff5a283d7d"
+  },
+  {
+    "source": "_tmp-oar09b-g28ar1zl/PAIR-DETAILS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-g28ar1zl/PAIR-DETAILS.md",
+    "sourceSha256": "0b243ff56591f805fa5dde3d804a21a527bc644a097b41189a26765b86253780",
+    "archiveSha256": "bd0f750c3d49e3db6d02f02e8ba52471d8bd349015b768d770c6cdf47008552f"
+  },
+  {
+    "source": "_tmp-oar09b-g28ar1zl/REPEAT-ONLY-SUMMARY.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-g28ar1zl/REPEAT-ONLY-SUMMARY.md",
+    "sourceSha256": "c1c3a73c59bc43a9426dbf34da537caf59d6e4f41323f87a443a11700ec18711",
+    "archiveSha256": "41b0da469ac1259f7b1dc529ff0eab04a75ddfaedf7d4d25e9581723d9bcff54"
+  },
+  {
+    "source": "_tmp-oar09b-g28ar1zl/REPORT.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-g28ar1zl/REPORT.md",
+    "sourceSha256": "eecb197d059e10bf3741ae4d425f35590abe79f8b3cb6e0c640f16bd05f1f3d6",
+    "archiveSha256": "801a52ca6547bfa4693a6d98206ff703081d1fee6973536efd4bb683f1037136"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/ADVERSE-OBSERVATIONS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/ADVERSE-OBSERVATIONS.md",
+    "sourceSha256": "ae458f91cbf29e407633c5c10c6b162a2e9c0a2eb8ce5f95e7f9e896ae5911d1",
+    "archiveSha256": "02ff316fc077f420ab31352b6d924ca8c9f474855e15537169b9b5c3d79e4b02"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/ALL-GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/ALL-GATES.md",
+    "sourceSha256": "cdbb0e4c754ca465def33e5c25ba986edec4de941f6aa23f5b7582ca0540a5d3",
+    "archiveSha256": "33a959571911264e758770b9fb20dc5c67a07804fe94f0d2e62389fd8e2a8ab9"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/INITIAL-REPEAT-FINAL.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/INITIAL-REPEAT-FINAL.md",
+    "sourceSha256": "8133bfc65532ea589f7a7975f52c9998b61aa3296e07f0adfdc3e5ba78502ec3",
+    "archiveSha256": "d8adf16e2e175cfe4d2f38307b5b365d015c50eee3da9b3f9b376346910004aa"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/NEW-VS-OLD.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/NEW-VS-OLD.md",
+    "sourceSha256": "b2acc15da2a3fbe02674deefa426861a2153f32dcbf32ce197fd7d0ce5edf49b",
+    "archiveSha256": "60adc5b086dc16b803fe945ee43b3299af6eeaada994c39feb3ddb3bcae465f6"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/NEWHANDOFF.md",
+    "sourceSha256": "284d023060c6e4a726c2234b7a058ead98de3aaf5fa446cc79edebf7708c72ba",
+    "archiveSha256": "3072341b8718449562e95f1ebc467472c8b8d9f5b30f232b393a9ed667ef2691"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/PAIR-DETAILS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/PAIR-DETAILS.md",
+    "sourceSha256": "12d189d34fbcd2bcf9545d20141180813298f4825c7cfa7eed335c932ceaf55e",
+    "archiveSha256": "7e1c8ceb24fae8785baf37a5c08321ae4bdedbb81e1967147211df5a43f7f9ee"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/REPEAT-ONLY-SUMMARY.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/REPEAT-ONLY-SUMMARY.md",
+    "sourceSha256": "68a8325335e224071f56c4321834050a7a55679c36273a56c2d1343522e9ec0d",
+    "archiveSha256": "eef81c401f6c444dd9424a14923f94d0d6844bd16950e0decdb8cfaff522a707"
+  },
+  {
+    "source": "_tmp-oar09b-redesigned-d9T17kFx/REPORT.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-redesigned-d9T17kFx/REPORT.md",
+    "sourceSha256": "ed7f495fa1134c15362a6d002c4df99d8830eb29db72193f3090129e2db517c8",
+    "archiveSha256": "1c9b9d975f903bfc83219dddb14543ea4c2a8f6b852c4d26c27c9804dd3a9d84"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/ADVERSE-OBSERVATIONS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/ADVERSE-OBSERVATIONS.md",
+    "sourceSha256": "f9d68bb3cbd6985af52b628328e9d6a4c9bd8a95575c33cc2c8451bded9030e1",
+    "archiveSha256": "cb218700246560b3f4d8d53b11c095ff1bad9a836bf864fa5ee659972f714682"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/ALL-GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/ALL-GATES.md",
+    "sourceSha256": "376c938e3d7ff453a4233a517571cfca653598ce5295cf2df02d597bc27e1b8f",
+    "archiveSha256": "4c06c86ec844d86cfda163086c683fdb0b30984a3ba27dadcc5eb34912eb85c1"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/INITIAL-REPEAT-FINAL.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/INITIAL-REPEAT-FINAL.md",
+    "sourceSha256": "ac4ab1e92b66b7fe7a973fb20a5b73029aa94a018cdbb30e6ad813bb50514c79",
+    "archiveSha256": "d5b081b907a94bcf7cffc29d1fd75b3e4167db7c51249f2520e0859c79dd8f89"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/NEW-VS-OLD.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/NEW-VS-OLD.md",
+    "sourceSha256": "217982782f441f35cabf4960e96898a32823e526ef5d6e87c73658c2b9639baf",
+    "archiveSha256": "8d1133b0403d96fb69246d69401efdf00de8847bd8b72aca128af11f411cc2c3"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/NEWHANDOFF.md",
+    "sourceSha256": "18caf3900ae77764e92140b6a858e312fbc16eee70ee54d52ce3d3da8b0ccf58",
+    "archiveSha256": "066656064527672dad7a02a37e515fcd84939d1094bbd86bf97577aec6ab5f3d"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/PAIR-DETAILS.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/PAIR-DETAILS.md",
+    "sourceSha256": "b91eb697559802b9630c7cd4a3e5917ee0bf4e166823a8202ec4afaa71496366",
+    "archiveSha256": "5368cbabed019cc65e31f1ceb061b796fe275e3c72ed6fe0e1a768b12b4ac6ca"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/REPEAT-ONLY-SUMMARY.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/REPEAT-ONLY-SUMMARY.md",
+    "sourceSha256": "da9b30b692a7b878c1b7762574266844c600494d6441610180e8f2ccf620ac63",
+    "archiveSha256": "8aeefb90fcb6950efb8ab365224a304d689326c8737f5ed013910fcb4ce93adb"
+  },
+  {
+    "source": "_tmp-oar09b-remediated-recovery-k7n4e2/REPORT.md",
+    "archive": "docs/task-artifacts/access-router/oar09b-remediated-recovery-k7n4e2/REPORT.md",
+    "sourceSha256": "8a2491a75299debcb154621571a92df55f68b5f076ebb0101aa21952ef6665aa",
+    "archiveSha256": "70c95402a11b00fa01127fceabd7b24511543433dd6cbeefab3fba21b550c28a"
+  },
+  {
+    "source": "_tmp-oar09c-ckrmwpy3/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09c-ckrmwpy3/NEWHANDOFF.md",
+    "sourceSha256": "609b7008c87255afecc459a1e5ce5d1745c624d50409f876add0cba3b5ed9271",
+    "archiveSha256": "a5dc581b373f242ee11871d5839b966363d4eabb7fd109577f8c4906cf16f5cb"
+  },
+  {
+    "source": "_tmp-oar09c-ckrmwpy3/WORK-REPORT.md",
+    "archive": "docs/task-artifacts/access-router/oar09c-ckrmwpy3/WORK-REPORT.md",
+    "sourceSha256": "ed329e97c40fcaa16ec1921d117e0f70eae97a25aacf982dfa780834a3b6762f",
+    "archiveSha256": "1a7bf2b4b99bfcb6b19a88c67b163f27d44fd11f21ca272b7b6da18f53fc3caf"
+  },
+  {
+    "source": "_tmp-oar09c-ckrmwpy3/final-01/FINAL-PROTOCOL.json",
+    "archive": "docs/task-artifacts/access-router/oar09c-ckrmwpy3/final-01/FINAL-PROTOCOL.json",
+    "sourceSha256": "63482befc9e13b80685993ee7781ab53998f7553ffe4311b01bf0aebf44f29f7",
+    "archiveSha256": "63482befc9e13b80685993ee7781ab53998f7553ffe4311b01bf0aebf44f29f7"
+  },
+  {
+    "source": "_tmp-oar09c-ckrmwpy3/final-01/FINAL-PROTOCOL.md",
+    "archive": "docs/task-artifacts/access-router/oar09c-ckrmwpy3/final-01/FINAL-PROTOCOL.md",
+    "sourceSha256": "3246d479ed065179e90db29b4d3e6c9fadd8cadd8926db90aa1f6a829ca410d5",
+    "archiveSha256": "b6f31a7c1174dc46c8bba965a0082c0938153071d6e57d1be37dc80660f43210"
+  },
+  {
+    "source": "_tmp-oar09d-hVF7iALN/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09d-hVF7iALN/NEWHANDOFF.md",
+    "sourceSha256": "ecf93afb47d67750d5f4d4b048280c420f6e825e00dd64f276a81ddcee99f763",
+    "archiveSha256": "541986537d0f9d00670468760ee5ae94455617fc6a03d10dbfccda3a05c44137"
+  },
+  {
+    "source": "_tmp-oar09d-hVF7iALN/WORK-REPORT.md",
+    "archive": "docs/task-artifacts/access-router/oar09d-hVF7iALN/WORK-REPORT.md",
+    "sourceSha256": "f7cbaa5dd6d11966b650a7b37651895f69d8985d1df1853704c7a7e1a955b67e",
+    "archiveSha256": "68db4fe9e7335a41b9b51f82d08f3eebac8a806cab9b378f4792c6362ea7b846"
+  },
+  {
+    "source": "_tmp-oar09d-hVF7iALN/final-01/FINAL-PROTOCOL.json",
+    "archive": "docs/task-artifacts/access-router/oar09d-hVF7iALN/final-01/FINAL-PROTOCOL.json",
+    "sourceSha256": "c7a523f9cb79d8574a56d688794d8d1508c7ecf05e05e0e29cb45c9f97efd28f",
+    "archiveSha256": "c7a523f9cb79d8574a56d688794d8d1508c7ecf05e05e0e29cb45c9f97efd28f"
+  },
+  {
+    "source": "_tmp-oar09d-hVF7iALN/final-01/FINAL-PROTOCOL.md",
+    "archive": "docs/task-artifacts/access-router/oar09d-hVF7iALN/final-01/FINAL-PROTOCOL.md",
+    "sourceSha256": "dfdde701ccf419b07edce6be27e56b8a39a14867de5eb114a1f3b170cd1c737f",
+    "archiveSha256": "cb152db0fa6f77d6bcff5389f7ed3d6ff68ecc121dac300fc4a32cd4c6d8b8c9"
+  },
+  {
+    "source": "_tmp-oar09e-design-kTiLZtLh/DESIGN.md",
+    "archive": "docs/task-artifacts/access-router/oar09e-design-kTiLZtLh/DESIGN.md",
+    "sourceSha256": "011b7e8937d03fe976c5ac372164f7d9155cceb36968dc1d9c3576ac7e8d50cd",
+    "archiveSha256": "c70c15e2add010d43fb639b888d19237cf263c0d0da5f5d9fb9bde5f26d73b47"
+  },
+  {
+    "source": "_tmp-oar09e-design-kTiLZtLh/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09e-design-kTiLZtLh/NEWHANDOFF.md",
+    "sourceSha256": "d682537f693883964c115eed447b2c2f78bd000a37c400bdd5bd54e21d925514",
+    "archiveSha256": "367879ab33ccc88611ead0beadb600bfbf36ea606d5ddf0dcf5919e444e7e9ab"
+  },
+  {
+    "source": "_tmp-oar09e-design-kTiLZtLh/VERIFICATION.md",
+    "archive": "docs/task-artifacts/access-router/oar09e-design-kTiLZtLh/VERIFICATION.md",
+    "sourceSha256": "aed986432c0a694b3bb998269e63d5d96956973de42bae598851a591856657ff",
+    "archiveSha256": "ee705bd1c7e9f14981027e7e9017fd58d6022887cc66b7c5074749d797bc9440"
+  },
+  {
+    "source": "_tmp-oar09e-guard-final-ncHxXYjL/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09e-guard-final-ncHxXYjL/NEWHANDOFF.md",
+    "sourceSha256": "bd82aa3d7e9a1a3eef8914fae41894eb8bb98b3eaad71a7d5de8da23ced75faf",
+    "archiveSha256": "3dad5d84cab13272c197cd126aee40a97cfd92f9ad36e1a92c61623e0765eb9e"
+  },
+  {
+    "source": "_tmp-oar09e-guard-final-ncHxXYjL/REGRESSION-PURPOSE-LEDGER.md",
+    "archive": "docs/task-artifacts/access-router/oar09e-guard-final-ncHxXYjL/REGRESSION-PURPOSE-LEDGER.md",
+    "sourceSha256": "c562cda69c171b524599f7f7c2c4d724a2ce31f2a3fbf912987fad0a45a0b6f0",
+    "archiveSha256": "26ed64a4c9242212449268c541e6a9b80c4bf5d969f754ca9c4fb8b7f5cc3c83"
+  },
+  {
+    "source": "_tmp-oar09e-guard-final-ncHxXYjL/final-01/FINAL-PROTOCOL.json",
+    "archive": "docs/task-artifacts/access-router/oar09e-guard-final-ncHxXYjL/final-01/FINAL-PROTOCOL.json",
+    "sourceSha256": "052386cd6a0f1e8ab5461e64dc7302daefc7b86dc4f24cf1088d6af4f21a4ad8",
+    "archiveSha256": "052386cd6a0f1e8ab5461e64dc7302daefc7b86dc4f24cf1088d6af4f21a4ad8"
+  },
+  {
+    "source": "_tmp-oar09e-guard-final-ncHxXYjL/final-01/FINAL-PROTOCOL.md",
+    "archive": "docs/task-artifacts/access-router/oar09e-guard-final-ncHxXYjL/final-01/FINAL-PROTOCOL.md",
+    "sourceSha256": "2d4faa192e447f7db6ae40b50e04a9d0647f56d791ecd094afb017059de418e0",
+    "archiveSha256": "03445c3e253a2f8898266077de1d4bb9fe6bbcfa8330c79ab9f4aefaf5b9fea6"
+  },
+  {
+    "source": "_tmp-oar09e-helper-zZn7qh3h/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09e-helper-zZn7qh3h/NEWHANDOFF.md",
+    "sourceSha256": "493cc22545501df16f44cde3a38dafd1fde994881624f7c533d8b4c915d9a5ae",
+    "archiveSha256": "268b288aa3a7972850392a2c4ecdc45822c0dcce7dbeebc92ccae3856c0e2bd4"
+  },
+  {
+    "source": "_tmp-oar09f-final-hh7rwm51/DOCS-COVERAGE.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-final-hh7rwm51/DOCS-COVERAGE.md",
+    "sourceSha256": "6c0db39b5293dbf410b7ea4f61a92aa56cc39456a0e4ad603fba4056b7c3c940",
+    "archiveSha256": "558afe5ae023ff6642275235b636613d1b00ec8932383da10d270aa77a28f15c"
+  },
+  {
+    "source": "_tmp-oar09f-final-hh7rwm51/GATES.json",
+    "archive": "docs/task-artifacts/access-router/oar09f-final-hh7rwm51/GATES.json",
+    "sourceSha256": "4e29317d97101342444469567181f6259dafee9547f52298a4ff96ad9a536185",
+    "archiveSha256": "6f491bdf5e3828016259aeed93db2fce608c90e57cae3e80bddf286eb83ec8a5"
+  },
+  {
+    "source": "_tmp-oar09f-final-hh7rwm51/GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-final-hh7rwm51/GATES.md",
+    "sourceSha256": "84a8db0e91c12183798fcb2b30cb7bc8baed38b6943040096750c9b4dca8ab11",
+    "archiveSha256": "a75c6cfcffd34cb07aaf8daf0fc6000ea1d0a2eb1832e909219f4b75904e9194"
+  },
+  {
+    "source": "_tmp-oar09f-final-hh7rwm51/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-final-hh7rwm51/NEWHANDOFF.md",
+    "sourceSha256": "79cfeb54530d53812e073d9e80682de5be4c253b949a9f71b453e9883391e836",
+    "archiveSha256": "7d8d3ef92c13aa1f31ce3b713e2a8fd84a09b443045b2a3e9aea43bd20efd9cd"
+  },
+  {
+    "source": "_tmp-oar09f-final-hh7rwm51/PACKED-CONSUMER-MATRIX.json",
+    "archive": "docs/task-artifacts/access-router/oar09f-final-hh7rwm51/PACKED-CONSUMER-MATRIX.json",
+    "sourceSha256": "ca64621b58d3bd8562987f539026cad902dae1971c737be10ed1834d362df8c8",
+    "archiveSha256": "ca64621b58d3bd8562987f539026cad902dae1971c737be10ed1834d362df8c8"
+  },
+  {
+    "source": "_tmp-oar09f-implementation-ppphro5o/BLOCKER.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-implementation-ppphro5o/BLOCKER.md",
+    "sourceSha256": "728099046619c8ce54004bd5b7e9ff143c6a80bb51d240a8437fad003ef68589",
+    "archiveSha256": "08b3c2834f4d23f4e50f87433f4e8447ba1c3538f28f33d7d21243bd3413d2f5"
+  },
+  {
+    "source": "_tmp-oar09f-implementation-ppphro5o/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-implementation-ppphro5o/NEWHANDOFF.md",
+    "sourceSha256": "43bebbaac9801874346975942ec749434533cb0ea3cd683e866099568abe6427",
+    "archiveSha256": "84391110c0c910c9787614c0dee2d2bc9ea9e2efecf3d08fbbcc1f91fadb29eb"
+  },
+  {
+    "source": "_tmp-oar09f-implementation-scoped-dk9f56lo/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-implementation-scoped-dk9f56lo/NEWHANDOFF.md",
+    "sourceSha256": "d60facc214be308b7e7f094d85516457fdf509901b51030d606aa43a65926a17",
+    "archiveSha256": "39185fcf1640bd84fc071534cedca23bec39e1cb15b7d897150450a22a1e2550"
+  },
+  {
+    "source": "_tmp-oar09f-proposal-jjv0s8q7/MEASUREMENT-APPROVAL-CHECKLIST.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-proposal-jjv0s8q7/MEASUREMENT-APPROVAL-CHECKLIST.md",
+    "sourceSha256": "1eef1781982d3daff75bf5e52b6718a8614076d743e29e65871c688a0bb83a1d",
+    "archiveSha256": "538747fcc3da4d7f32970879a11d6093847805a1552640e83adf1c5a463956b2"
+  },
+  {
+    "source": "_tmp-oar09f-proposal-jjv0s8q7/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-proposal-jjv0s8q7/NEWHANDOFF.md",
+    "sourceSha256": "bf5cbac340bcdf125d4aa8b97518e60f8928be14b091b5755fc64634fab2383b",
+    "archiveSha256": "b97ad9432a5f0e3995f0eef973e319815c46e72939eca2ecf10b8ef43241a233"
+  },
+  {
+    "source": "_tmp-oar09f-proposal-jjv0s8q7/PROPOSAL.md",
+    "archive": "docs/task-artifacts/access-router/oar09f-proposal-jjv0s8q7/PROPOSAL.md",
+    "sourceSha256": "dc844189e81fe624f5fc3bca1461be62b58a07648d4580860bd830343dc2e7c3",
+    "archiveSha256": "d8374809d3e3c5f6c92eec7fb3c4e6c8cd9a578554b086f8a8bfccaed49c8d87"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/ALL-GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/ALL-GATES.md",
+    "sourceSha256": "b0424edd14c5a4528a134e154659bc8f28fc9579e5c628b22b6cf96c4db351b0",
+    "archiveSha256": "a36db4dceb3b03c1434eab4dd66dff67226669f334b14165e86933c989dfd9fd"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/B1-DESCRIPTIVE-TABLES.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/B1-DESCRIPTIVE-TABLES.md",
+    "sourceSha256": "5304a684bd20025e06e67fff8ca0319b3d4eec5eb87d679717556c70eecf17d9",
+    "archiveSha256": "9c8baa24d9242d9f35b500ff7ab6fd0b2ecf7865371747190845f71c64edd556"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/B1-PAIR-DETAILS.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/B1-PAIR-DETAILS.md",
+    "sourceSha256": "aa213730c6f6f80663743ff4cf79e8d2ed4e938536094faa437c6ed929da71be",
+    "archiveSha256": "cf6b29ec4b56e92fc9b7531def595e302155cf13a0a8f7ebc708d94c3e6d4afb"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/FIELD-RETENTION-AUDIT.json",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/FIELD-RETENTION-AUDIT.json",
+    "sourceSha256": "068a7578a2ab560d8fe983615805010d4e7a8df2ae5c4f92f913f1c39f943557",
+    "archiveSha256": "068a7578a2ab560d8fe983615805010d4e7a8df2ae5c4f92f913f1c39f943557"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/FORMER-15-DISPOSITION.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/FORMER-15-DISPOSITION.md",
+    "sourceSha256": "53f1659074c76bfea7675d0400c494b44f11e1c05647be88854580a021283a50",
+    "archiveSha256": "01d25282f298acbccc0af9b0e278d097994cb34597bf50a450b6283057fe1b1c"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/HISTORICAL-COLUMNS.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/HISTORICAL-COLUMNS.md",
+    "sourceSha256": "f38a7cd8f30d6c691f37627640a375b0405aa9f87d0b98399406a31539c4617b",
+    "archiveSha256": "0ffca5f4c63a8c9d13b40fbfb9d430cf69cf9fb3157ca32da8d3e6ca0a2c5236"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/NEWHANDOFF.md",
+    "sourceSha256": "1145144bb5888bd0bf02724750e8cd90f6db90a84b1908ed0b4a2a059e9f8b23",
+    "archiveSha256": "54a44e567b5fa314ee3a9ed24fa8abe1319c39c4fb2c6101b2104d07efae1385"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/PAIR-DETAILS.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/PAIR-DETAILS.md",
+    "sourceSha256": "a83462176e98aec9b88d7578c8785dabe464aaac42a98999d780b96ef2e963de",
+    "archiveSha256": "d3e529bbc8c6bb3e5eacf44cc563bc7f5823245b5652dfdc92892df1ba06acff"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/RAW-B1-PAIRED-AUDIT.json",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/RAW-B1-PAIRED-AUDIT.json",
+    "sourceSha256": "d10faaf848daaeed23ea1ca4bef8f498e8b665a9365d5df03d1275f4448d9b09",
+    "archiveSha256": "d10faaf848daaeed23ea1ca4bef8f498e8b665a9365d5df03d1275f4448d9b09"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/RAW-PAIRED-AUDIT.json",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/RAW-PAIRED-AUDIT.json",
+    "sourceSha256": "93e5417be55895f45b420bbe81fcc5c79eeaa8d664e1a378e895324f1b1e36bd",
+    "archiveSha256": "93e5417be55895f45b420bbe81fcc5c79eeaa8d664e1a378e895324f1b1e36bd"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/REPORT.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/REPORT.md",
+    "sourceSha256": "81a1c0836a583297c2008acb625e30716a523c843586fc243c08c9498bb5adc4",
+    "archiveSha256": "894a39786ac02e858c9aa7b3543eda5b79738e6108a68c416a242cbdbe346f9c"
+  },
+  {
+    "source": "_tmp-oar09g-measure-x_sev0qz/RETAINED-HEAP-SCALING.json",
+    "archive": "docs/task-artifacts/access-router/oar09g-measure-x_sev0qz/RETAINED-HEAP-SCALING.json",
+    "sourceSha256": "f3ddd66626f1a5535ecc33142d3e4a40bc5e02eb62959ca40a32ff7b4341e69a",
+    "archiveSha256": "f3ddd66626f1a5535ecc33142d3e4a40bc5e02eb62959ca40a32ff7b4341e69a"
+  },
+  {
+    "source": "_tmp-oar09g-prepare-sb2406vf/B1-PROTOCOL.json",
+    "archive": "docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/B1-PROTOCOL.json",
+    "sourceSha256": "b7f12a2af8e409a9be5e65e1784fffd2bd9021859b7f54426cdd6f330adbef83",
+    "archiveSha256": "b7f12a2af8e409a9be5e65e1784fffd2bd9021859b7f54426cdd6f330adbef83"
+  },
+  {
+    "source": "_tmp-oar09g-prepare-sb2406vf/DESIGN/PERFORMANCE-SCOPE.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/DESIGN/PERFORMANCE-SCOPE.md",
+    "sourceSha256": "d7127dfb67e191f4d112ad6ec61659ebbe49784bbd900057a845b65cb0b3a834",
+    "archiveSha256": "6548565f829f7bc2c328f7e246d253e476c1b983e633d60503bad0a45e1a012c"
+  },
+  {
+    "source": "_tmp-oar09g-prepare-sb2406vf/EXACTREADYPROTOCOLS.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/EXACTREADYPROTOCOLS.md",
+    "sourceSha256": "6aec2644ad6da1d7c79f606a3d8da470933e742b14f194ada03dc65be8ef3d4b",
+    "archiveSha256": "922862437cc1d2ba1ab7e7770e117074260a9e47b6ab5c5e9b8059af24019354"
+  },
+  {
+    "source": "_tmp-oar09g-prepare-sb2406vf/GATES.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/GATES.md",
+    "sourceSha256": "de6f54e39e7f05beaf9864592321a450c27c437172ae4d69963e84f3fc103d5b",
+    "archiveSha256": "6b53377db54122c1b6bce1dab8e1d480095eafe18c0c7313ba71a5643b813070"
+  },
+  {
+    "source": "_tmp-oar09g-prepare-sb2406vf/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/NEWHANDOFF.md",
+    "sourceSha256": "a8f343a8b7ae617bcd10c76f317dfa7bfaa166370999fcf05441e80d1c692b51",
+    "archiveSha256": "24cae33d3817b41261bd7324eec3162cbbc7e0a7fee0f2653d1ce72bf340e1e8"
+  },
+  {
+    "source": "_tmp-oar09g-prepare-sb2406vf/OLD-WORKLOAD-AUDIT.md",
+    "archive": "docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/OLD-WORKLOAD-AUDIT.md",
+    "sourceSha256": "546e9b76b4ed8076cb9eb8537d5c5d943dfadbb8188862f7a0a21f2745056427",
+    "archiveSha256": "1db55d43f1e1032422fe3c44892548674f5a5f5a369b3f12651dc05a4b07de98"
+  },
+  {
+    "source": "_tmp-oar09g-prepare-sb2406vf/ORIGINAL-PROTOCOL.json",
+    "archive": "docs/task-artifacts/access-router/oar09g-prepare-sb2406vf/ORIGINAL-PROTOCOL.json",
+    "sourceSha256": "b7f12a2af8e409a9be5e65e1784fffd2bd9021859b7f54426cdd6f330adbef83",
+    "archiveSha256": "b7f12a2af8e409a9be5e65e1784fffd2bd9021859b7f54426cdd6f330adbef83"
+  },
+  {
+    "source": "_tmp-oar10-docfix-oig00aqf/LIVE-HANDLE-INVENTORY.md",
+    "archive": "docs/task-artifacts/access-router/oar10-docfix-oig00aqf/LIVE-HANDLE-INVENTORY.md",
+    "sourceSha256": "dc2b39658ff9bd1aa997e545ca9f1f36ac31d163487c9c300fd9a929780722fc",
+    "archiveSha256": "01f92361c09eb6ea2bfa99ae196e57b616a56b65b379646e48dfd91e94317776"
+  },
+  {
+    "source": "_tmp-oar10-docfix-oig00aqf/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar10-docfix-oig00aqf/NEWHANDOFF.md",
+    "sourceSha256": "d8894b54929dd09437ba97deb995b6aca823b5084806990923468b65c6777dc9",
+    "archiveSha256": "d5719fa2f4c5429c41d018b3623e75f8f814bc78d453176fda4d5a54f9d7601c"
+  },
+  {
+    "source": "_tmp-oar10-final-x4mMa3Th/B1-INDEPENDENT-AUDIT.json",
+    "archive": "docs/task-artifacts/access-router/oar10-final-x4mMa3Th/B1-INDEPENDENT-AUDIT.json",
+    "sourceSha256": "7c980e87c22a339c4ccf2fbf20cb060cb39125e4c0a96b3fac60b5b288df3315",
+    "archiveSha256": "7c980e87c22a339c4ccf2fbf20cb060cb39125e4c0a96b3fac60b5b288df3315"
+  },
+  {
+    "source": "_tmp-oar10-final-x4mMa3Th/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar10-final-x4mMa3Th/NEWHANDOFF.md",
+    "sourceSha256": "fca856967612a02b416443157579ac43f4943e9329250f89030f9a0431506287",
+    "archiveSha256": "b998fc9d50aa0901d8f49fe6fdfd38637078a524b31265a76909b49c913776f6"
+  },
+  {
+    "source": "_tmp-oar10-final-x4mMa3Th/ORIGINAL-INDEPENDENT-AUDIT.json",
+    "archive": "docs/task-artifacts/access-router/oar10-final-x4mMa3Th/ORIGINAL-INDEPENDENT-AUDIT.json",
+    "sourceSha256": "78a0e6aca0a9166c34cb1b7d14f188c1262d1211b4dc6324ded067caaba3ca31",
+    "archiveSha256": "78a0e6aca0a9166c34cb1b7d14f188c1262d1211b4dc6324ded067caaba3ca31"
+  },
+  {
+    "source": "_tmp-oar10-final-x4mMa3Th/REVIEW.md",
+    "archive": "docs/task-artifacts/access-router/oar10-final-x4mMa3Th/REVIEW.md",
+    "sourceSha256": "db78d54f8e0ec733016639608a6368ddad2b56a65e8fa97df0863de77a15f010",
+    "archiveSha256": "83b200b3b01fb3c2df3e907471f237da0b0224f7995916887580ecfde2c8b49a"
+  },
+  {
+    "source": "_tmp-oar10-final-x4mMa3Th/STRICT-INSTALLED-TYPES.json",
+    "archive": "docs/task-artifacts/access-router/oar10-final-x4mMa3Th/STRICT-INSTALLED-TYPES.json",
+    "sourceSha256": "099bac9f78b5919f86615e4572df9d679b4311119b104f89122cfbac9ecb4d9a",
+    "archiveSha256": "099bac9f78b5919f86615e4572df9d679b4311119b104f89122cfbac9ecb4d9a"
+  },
+  {
+    "source": "_tmp-oar10-rereview-TqXpu08b/NEWHANDOFF.md",
+    "archive": "docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/NEWHANDOFF.md",
+    "sourceSha256": "f4ce6633489b4af55fbc2b4a7bbe8302f4b2e99602711eb8165d00d09fc2b87d",
+    "archiveSha256": "61a2abc12517a183bfbb1cc26e1d2d3283d7d5b0922e8bd70f033c022773d171"
+  },
+  {
+    "source": "_tmp-oar10-rereview-TqXpu08b/README-INDEPENDENT-INVENTORY.json",
+    "archive": "docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/README-INDEPENDENT-INVENTORY.json",
+    "sourceSha256": "c3e326a0181a8b5216d3ace3efcb6a5fdc5186c8879a576a9042b11f2a5e2e35",
+    "archiveSha256": "c3e326a0181a8b5216d3ace3efcb6a5fdc5186c8879a576a9042b11f2a5e2e35"
+  },
+  {
+    "source": "_tmp-oar10-rereview-TqXpu08b/README-INDEPENDENT-INVENTORY.md",
+    "archive": "docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/README-INDEPENDENT-INVENTORY.md",
+    "sourceSha256": "a0017636e3952841956733cdddec58f31bb59b0a12c289507ea31397e4641394",
+    "archiveSha256": "4e82706d302e5a54b0738bd788889e140df22f8b5048bf811565f21dd0733b5c"
+  },
+  {
+    "source": "_tmp-oar10-rereview-TqXpu08b/README-REFERENCE-CONTEXTS.md",
+    "archive": "docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/README-REFERENCE-CONTEXTS.md",
+    "sourceSha256": "cca541fd04f68e6f042960f07dff7c66ba2e07577e8eee4e6c4c99cdc9a51e3f",
+    "archiveSha256": "e0a95cd628ce0984dfb55abc376a76f101fe6b0446114201129150c65c21572a"
+  },
+  {
+    "source": "_tmp-oar10-rereview-TqXpu08b/REREVIEW.md",
+    "archive": "docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/REREVIEW.md",
+    "sourceSha256": "9103b13c71f616d46f2304c919b113ebdfe9a1f1289c92810c0dba6d9ee370c2",
+    "archiveSha256": "c188e6aa6ba13e8ab32b17a5b6e4a9f819eed71bab2e198bacf49ab1ef198807"
+  },
+  {
+    "source": "_tmp-oar10-rereview-TqXpu08b/RESULTS-AUDIT.json",
+    "archive": "docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/RESULTS-AUDIT.json",
+    "sourceSha256": "b6ad7bbfbd90c69055c75c455d181fe0212f9dbf7dc77be6c6c65d3f897762b3",
+    "archiveSha256": "b6ad7bbfbd90c69055c75c455d181fe0212f9dbf7dc77be6c6c65d3f897762b3"
+  },
+  {
+    "source": "_tmp-oar10-rereview-TqXpu08b/STRICT-INSTALLED-TYPES-rereview.json",
+    "archive": "docs/task-artifacts/access-router/oar10-rereview-TqXpu08b/STRICT-INSTALLED-TYPES-rereview.json",
+    "sourceSha256": "ea86ffadd557b973e4849fea9db04a06d744a3323cdba1c011da56dea7857df5",
+    "archiveSha256": "ea86ffadd557b973e4849fea9db04a06d744a3323cdba1c011da56dea7857df5"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse01-seam-baseline-20261030-a1f4/README.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse01-seam-baseline-20261030-a1f4/README.md",
+    "sourceSha256": "9798cc008d68408e0220720a8e7fd6128cae26c67ea27894494e56cada1adb67",
+    "archiveSha256": "9d97aca0ab492fc888087b4aa0585c58926d34f412587194759e94a128f86210"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse01-seam-baseline-20261030-a1f4/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse01-seam-baseline-20261030-a1f4/coordinator-notes.md",
+    "sourceSha256": "a073368992a84358a59303ef2ece904a12d7050e55378f65303a8df9dc7ee486",
+    "archiveSha256": "7b47f422c6657479cefbf10e6493d203e7c4b31eba013de872e54ed4ced34688"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse01-seam-baseline-20261030-a1f4/seam-findings.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse01-seam-baseline-20261030-a1f4/seam-findings.md",
+    "sourceSha256": "8b1ad6be8928e1d5da76d2469240bb68cbad78c14bea9cfef6e488556d70c3ea",
+    "archiveSha256": "e4d7333d99b6ed3135b54ee072094cd06299eff80341ce2dba6e932076cbee0b"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse02-config-20261030-b73c/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse02-config-20261030-b73c/coordinator-notes.md",
+    "sourceSha256": "1d7f6f78a5da982720e0b47cba59dd265a8d065420586d4ff743980a4b4a1fd3",
+    "archiveSha256": "62f1fd5d7395150cd078a2172d90b69e7ee600fcc57a58a1deb21478b42db350"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse03-runtime-20261030-c92e/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse03-runtime-20261030-c92e/coordinator-notes.md",
+    "sourceSha256": "4b014c4c711112e1f9ae335c7afddf1d678b86df8e65eea73da9114c63b097ff",
+    "archiveSha256": "5afd03fae346cc92a326fd9534f645326e0dad651eadf6b0dd90a8b134fa8ad4"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse04-consumer-runner-20261030-d84f/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse04-consumer-runner-20261030-d84f/coordinator-notes.md",
+    "sourceSha256": "c9259f6174ba8abcd40c9b494e114a06c1112b98dbc3f4112a437e9507c67de0",
+    "archiveSha256": "9bfccfe07703092926ae869554b98af0b254b70ce036bf937e3da48322295e24"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse05-integration-20261030-112318-e5b7/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse05-integration-20261030-112318-e5b7/coordinator-notes.md",
+    "sourceSha256": "a5f3bb66375f258fed875adb339b7cd719e4ea009573d0d4f8fd60599ce918af",
+    "archiveSha256": "6f91895db9b7bebfb6f6812a46ac65ec5a3483a14bafca63440ab692b8618d3d"
+  },
+  {
+    "source": "_tmp-publication-fusion-fuse05-integration-20261030-112318-e5b7/timings-overview.md",
+    "archive": "docs/task-artifacts/access-router/publication-fusion-fuse05-integration-20261030-112318-e5b7/timings-overview.md",
+    "sourceSha256": "2057a3308a2cc13755d6b6ef218be6a40341c88930cc8cc3d622cb3154a2f948",
+    "archiveSha256": "d4aa902c851de6f54f62d037b1618dd7d59b42a5ba15745779420dc684d0ac7e"
+  },
+  {
+    "source": "_tmp-query-pipeline/guards10.md",
+    "archive": "docs/task-artifacts/access-router/query-pipeline/guards10.md",
+    "sourceSha256": "271b50bc83b833d94335fcb59f9dc267247d5adc3f8846d853db17ce76139834",
+    "archiveSha256": "90159f9a686058b15fecdc2c8c5549aacce7842789f04aaa2c82517dea1873f0"
+  },
+  {
+    "source": "_tmp-query-pipeline/guards100.md",
+    "archive": "docs/task-artifacts/access-router/query-pipeline/guards100.md",
+    "sourceSha256": "8836b86f53ac4284516c6d36113522d2fa0f7742d41da2a112816257d5386c11",
+    "archiveSha256": "d064e31b62bfa8eeeae6ecbf8c041b2a8c855703a921973077f2d15944caef19"
+  },
+  {
+    "source": "_tmp-query-pipeline/noisy.md",
+    "archive": "docs/task-artifacts/access-router/query-pipeline/noisy.md",
+    "sourceSha256": "77d25c6714769e3a717ac4ba5a04dacdfc60f6734425fc94d33a5b8fd13d5c9c",
+    "archiveSha256": "28b2d050d572529803bdc4e2d07bf639d88f74ed2a814cd92e6bc17bb171413a"
+  },
+  {
+    "source": "_tmp-query-pipeline/priority.md",
+    "archive": "docs/task-artifacts/access-router/query-pipeline/priority.md",
+    "sourceSha256": "21b6e4cd217bef2b4190f21348393aa7d89022ab3551a7167ed85b5fc9cafad4",
+    "archiveSha256": "9f09266780ebb649f5e8ebfeaa42fdc310f69e60fc324ba420f031cfb36df38c"
+  },
+  {
+    "source": "_tmp-query-pipeline/remaining-summary.md",
+    "archive": "docs/task-artifacts/access-router/query-pipeline/remaining-summary.md",
+    "sourceSha256": "cf5eaa56ba61590118944988f6bddbf4b75ac8ddb601949de48f3f7a07095b30",
+    "archiveSha256": "18b9b9205b528c71c1ce5399bf79f7de89cd9ea1f2cc375b8745ee7ffd2cbdd1"
+  },
+  {
+    "source": "_tmp-rereview-fp06-20261031-004812/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/rereview-fp06-20261031-004812/coordinator-notes.md",
+    "sourceSha256": "f0c3578a6bda05269a950c9706cec2339deea14083f5a50e80ebeee47dec507f",
+    "archiveSha256": "8fa8904f4026a49d52bbe4ccc11d794bd783428d91f9f9e60612d7d9f78738b1"
+  },
+  {
+    "source": "_tmp-rereview-fp06-residual-20261031-081635/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/rereview-fp06-residual-20261031-081635/coordinator-notes.md",
+    "sourceSha256": "54aa0fff6fdd519d1497241fe0eb5f16f871d4371cc5a0b3c3fae48fd7f96d06",
+    "archiveSha256": "fe7ba91abe2c2e8fc965dafbfc188c1b9972e0c64d9b9ef026a901fca2efef90"
+  },
+  {
+    "source": "_tmp-review-fp06-20261030-200717/coordinator-notes.md",
+    "archive": "docs/task-artifacts/access-router/review-fp06-20261030-200717/coordinator-notes.md",
+    "sourceSha256": "84ac296a956da3ccb38003fba26cfbf0cb89d88adad2b7c9e363e041a6da4133",
+    "archiveSha256": "c97b175e0ece7b2b5ed4599746798cfe55b38c1af3813428f9114b11c3831605"
+  },
+  {
+    "source": "_tmp-review-fuse06-node16-rereview-20261030-132617-b82e/coordinator-rereview.md",
+    "archive": "docs/task-artifacts/access-router/review-fuse06-node16-rereview-20261030-132617-b82e/coordinator-rereview.md",
+    "sourceSha256": "abced2f70d19b4a7d9e412073dee53cfe38df3bbcc1b260f6b85d8ecacab3056",
+    "archiveSha256": "cce3965953866976ffd55ebf8bbf25573630496bee876203e32d437b2b138bad"
+  },
+  {
+    "source": "_tmp-review-fuse06-withdrawal-20261030-125920-c19a/coordinator-review.md",
+    "archive": "docs/task-artifacts/access-router/review-fuse06-withdrawal-20261030-125920-c19a/coordinator-review.md",
+    "sourceSha256": "e88c86dffe11657d678c922166feaa8291d606bd795b935ce42e261835992e91",
+    "archiveSha256": "b29e67b713f8501f7100fd5bb3e134364201ad200a52905f353f65960c598dc6"
+  }
+]

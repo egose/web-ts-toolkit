@@ -37,6 +37,7 @@ import { assertFieldHelperCall } from '../acl/field-helper-options';
 import { getActiveRuntime, runWithRuntime } from '../runtime-context';
 import { defaultRuntime } from '../runtime';
 import { getRequestWorkState } from '../helpers/request-work';
+import { assertPublicAdmission, PublicAdmissionError } from '../validation/public-admission';
 
 /**
  * Request-only data queries over one captured configuration version. find/findOne/
@@ -63,11 +64,23 @@ export class DataService<T> {
     getRequestWorkState(this.req, this.requestRuntime);
   }
 
+  /** Request-only controls must reject before filter, identifier or field callbacks. */
+  private admitDataCall(args: unknown, options: unknown, filter?: unknown): ErrorResult | undefined {
+    try {
+      assertPublicAdmission({ args, options, filter });
+    } catch (error) {
+      if (error instanceof PublicAdmissionError) return error.result;
+      throw error;
+    }
+  }
+
   public async findOne<TSelect extends Projection | undefined = undefined>(
     filter: DataFilter<T>,
     args?: DataFindOneArgs<T, TSelect>,
     options?: DataFindOneOptions,
   ): Promise<SingleResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
+    const admission = this.admitDataCall(args, options, filter);
+    if (admission) return admission;
     const filterErrors = validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
@@ -102,6 +115,8 @@ export class DataService<T> {
     args?: DataFindOneArgs<T, TSelect>,
     options?: DataFindOneOptions,
   ): Promise<SingleResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
+    const admission = this.admitDataCall(args, options);
+    if (admission) return admission;
     const { select } = args ?? {};
     const { access = 'read' } = options ?? {};
     const filter = await this.genIDFilter(id);
@@ -120,6 +135,8 @@ export class DataService<T> {
     args?: DataFindArgs<T, TSelect>,
     options?: DataFindOptions,
   ): Promise<ListResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
+    const admission = this.admitDataCall(args, options, filter);
+    if (admission) return admission;
     const filterErrors = validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 

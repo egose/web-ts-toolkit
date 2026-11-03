@@ -1,13 +1,13 @@
 import type { AccessRuntime } from '../runtime';
 import type { ModelRequest, ModelRouterOptions, Projection } from '../interfaces';
 import type { AccessRouterPermissions } from '../permission';
-import { get } from '@web-ts-toolkit/utils';
 import { resolveNestedOption } from '../options/manager';
 import { captureAuthorizationFieldCatalog } from './field-catalog';
 import { authorizationError } from './authorization-snapshot';
+import { assertAuthorizationModeOptions } from './authorization-modes';
 import { captureAuthorizationConfiguration } from './captured-authorization-configuration';
 import { captureVirtualPopulateSnapshot } from './virtual-populate-dependencies';
-import { normalizeOutputAuthorizationOptions } from './document-authorization';
+import { normalizeOutputAuthorizationOptions } from './output-helper-options';
 import { planAuthorizedModelProjection } from './output-projection';
 import type { AuthorizationConfiguration } from './service-authorization';
 import {
@@ -16,12 +16,32 @@ import {
   type PopulatePolicyDefaultsToken,
 } from './populate-policy';
 
+/** Exact own-data lookup. Captured functions are callable leaves, never option containers. */
+export function readCapturedAuthorizationOption(
+  root: unknown,
+  path: string | readonly string[],
+  fallback?: unknown,
+): unknown {
+  let value = root;
+  for (const part of typeof path === 'string' ? path.split('.') : path) {
+    if (value === null || typeof value !== 'object') return fallback;
+    const slot = Object.getOwnPropertyDescriptor(value, part);
+    if (!slot || !('value' in slot)) return fallback;
+    value = slot.value;
+  }
+  return value === undefined ? fallback : value;
+}
+
 /** Exact → default → bare, with the exact runtime fallback for operation guards only. */
 export function getCapturedAuthorizationOption(configuration: AuthorizationConfiguration, key: string): unknown {
   const defaultValue = key.startsWith('operationAccess.')
-    ? get(configuration.operationAccessDefaults, key.slice('operationAccess.'.length))
+    ? readCapturedAuthorizationOption(configuration.operationAccessDefaults, key.slice('operationAccess.'.length))
     : undefined;
-  return resolveNestedOption((path, fallback) => get(configuration, path, fallback), key, defaultValue);
+  return resolveNestedOption(
+    (path, fallback) => readCapturedAuthorizationOption(configuration, path, fallback),
+    key,
+    defaultValue,
+  );
 }
 
 /**
@@ -36,6 +56,10 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
   populatePolicyDefaults: PopulatePolicyDefaultsToken = capturePopulatePolicyDefaults(runtime),
 ): AuthorizationConfiguration {
   options ??= runtime.getModelOptions<T, V>(modelName);
+  assertAuthorizationModeOptions(options, true);
+  // Primitive mode capture precedes catalog/native configuration callbacks.
+  const readAuthorizationMode = options.readAuthorizationMode ?? 'isolated';
+  const listAuthorizationMode = options.listAuthorizationMode ?? 'isolated';
   const model = runtime.getModelInstance(modelName);
   if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
   const virtuals = options.virtuals as Record<string, unknown> | undefined;
@@ -62,16 +86,8 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
     exposedDocPermissionKeys: options.exposedDocPermissionKeys,
     stripPermissionsField: options.stripPermissionsField,
     disableFieldPermissions: options.disableFieldPermissions,
-    unsafeSkipListDocumentSnapshotChecks: options.unsafeSkipListDocumentSnapshotChecks === true,
-    unsafeSkipReadDocumentSnapshotChecks: options.unsafeSkipReadDocumentSnapshotChecks === true,
-    unsafeSkipListOutputSnapshotChecks: options.unsafeSkipListOutputSnapshotChecks === true,
-    unsafeSkipReadOutputSnapshotChecks: options.unsafeSkipReadOutputSnapshotChecks === true,
-    unsafeSkipListNestedDocumentSnapshotChecks: options.unsafeSkipListNestedDocumentSnapshotChecks === true,
-    unsafeSkipReadNestedDocumentSnapshotChecks: options.unsafeSkipReadNestedDocumentSnapshotChecks === true,
-    unsafeSkipListInitialOutputSnapshotCopy: options.unsafeSkipListInitialOutputSnapshotCopy === true,
-    unsafeSkipReadInitialOutputSnapshotCopy: options.unsafeSkipReadInitialOutputSnapshotCopy === true,
-    unsafeUseListAuthorizationFastPath: options.unsafeUseListAuthorizationFastPath === true,
-    unsafeUseReadAuthorizationFastPath: options.unsafeUseReadAuthorizationFastPath === true,
+    readAuthorizationMode,
+    listAuthorizationMode,
     overrideFilter: options.overrideFilter,
     baseFilter: options.baseFilter,
     idField: options.idField,
@@ -83,6 +99,36 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
       options.operationAccess === undefined ? runtime.getDefaultModelOption('operationAccess') : undefined,
     hydration: options.hydration,
     defaults: options.defaults,
+  });
+}
+
+/** A raw output helper cannot query, run hooks/virtuals or admit related rows.
+ * Capture its complete output policy afresh, without reading unrelated native
+ * query/default/private-populate configuration. This is not a cross-call cache. */
+export function captureOutputHelperConfiguration(
+  runtime: AccessRuntime,
+  modelName: string,
+): AuthorizationConfiguration {
+  const model = runtime.getModelInstance(modelName);
+  if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
+  const documentPermissionField = runtime.getExactModelOption(modelName, 'documentPermissionField') as
+    | string
+    | undefined;
+  const modelPermissionPrefix = runtime.getExactModelOption(modelName, 'modelPermissionPrefix');
+  const exposedDocPermissionKeys = runtime.getExactModelOption(modelName, 'exposedDocPermissionKeys');
+  const stripPermissionsField = runtime.getExactModelOption(modelName, 'stripPermissionsField');
+  const disableFieldPermissions = runtime.getExactModelOption(modelName, 'disableFieldPermissions');
+  const permissionSchema = runtime.getExactModelOption(modelName, 'permissionSchema');
+  const virtuals = runtime.getExactModelOption(modelName, 'virtuals') as Record<string, unknown> | undefined;
+  return captureAuthorizationConfiguration({
+    catalog: captureAuthorizationFieldCatalog(model.schema, virtuals, documentPermissionField),
+    permissionSchema,
+    virtuals,
+    modelPermissionPrefix,
+    documentPermissionField,
+    exposedDocPermissionKeys,
+    stripPermissionsField,
+    disableFieldPermissions,
   });
 }
 
@@ -110,7 +156,6 @@ export function planModelOutputForHelper(args: {
     },
     args.options,
   );
-  if (normalized.kind !== 'policy') return authorizationError('planning does not accept documentAuthorization');
   return planAuthorizedModelProjection({
     authorization: normalized.authorization,
     binding: { ...binding, scopePath: (args.options as { scopePath?: readonly string[] }).scopePath },

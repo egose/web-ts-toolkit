@@ -16,6 +16,7 @@ import {
   DecorateAllAccess,
 } from './interfaces';
 import Permission from './permission';
+import { EMPTY_DOCUMENT_GRANTS } from './acl/document-grants';
 import { DataService } from './services';
 import { DATA_MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
@@ -95,7 +96,7 @@ export class DataCore {
         permissionSchema,
         access,
         hasPermission: (key) => permissions.has(key),
-        functionArgs: [permissions],
+        functionArgs: [permissions, EMPTY_DOCUMENT_GRANTS],
       }),
     );
   }
@@ -118,7 +119,7 @@ export class DataCore {
         permissionSchema,
         access,
         hasPermission: (key) => permissions.has(key),
-        functionArgs: [permissions],
+        functionArgs: [permissions, EMPTY_DOCUMENT_GRANTS],
       }),
     );
   }
@@ -146,7 +147,7 @@ export class DataCore {
         access,
         targetFields,
         hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
-        functionArgs: [permissions],
+        functionArgs: [permissions, EMPTY_DOCUMENT_GRANTS],
         mode: 'data',
       }),
     );
@@ -203,7 +204,7 @@ export class DataCore {
 
   getPermissions() {
     if (this.cachedPermissions) return this.cachedPermissions;
-    return getResolvedRequestPermissions(this.req);
+    return getGlobalPermissions(this.req) ?? getResolvedRequestPermissions(this.req);
   }
 
   async setPermissions() {

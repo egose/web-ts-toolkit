@@ -1,4 +1,5 @@
 import { get } from '@web-ts-toolkit/utils';
+import { types } from 'node:util';
 
 // Only package-generated aliases are transferable. Never inspect raw document virtuals.
 const aliases = new WeakMap<object, string>();
@@ -33,7 +34,24 @@ export function removeGeneratedPermissionsAlias(output: Record<string, unknown>)
 export function copyPermissionsAlias<T>(source: unknown, target: T): T {
   if (source && typeof source === 'object' && target && typeof target === 'object') {
     const field = aliases.get(source);
-    if (field && Object.getOwnPropertyDescriptor(source, 'permissions')?.value === get(source, field))
+    // A selected copy may omit metadata. Never evaluate a denied source getter
+    // merely to transfer this presentation alias; only admitted own DATA counts.
+    const readData = (value: unknown): unknown => {
+      const parts = field?.split('.') ?? [];
+      if (parts.length > 100) return undefined;
+      for (const key of parts) {
+        if (!value || typeof value !== 'object' || types.isProxy(value)) return undefined;
+        const slot = Object.getOwnPropertyDescriptor(value, key);
+        if (!slot || !('value' in slot)) return undefined;
+        value = slot.value;
+      }
+      return value;
+    };
+    if (
+      field &&
+      readData(target) !== undefined &&
+      Object.getOwnPropertyDescriptor(source, 'permissions')?.value === readData(source)
+    )
       attachPermissionsAlias(target as Record<string, unknown>, field);
   }
   return target;

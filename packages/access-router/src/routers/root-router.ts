@@ -45,7 +45,13 @@ import {
   SubdocumentRecord,
 } from '../interfaces';
 import { Codes } from '../enums';
-import { assertPublicAdmission, pickPublicKeys, PublicAdmissionError } from '../validation/public-admission';
+import {
+  assertNoServerModelControls,
+  assertPublicAdmission,
+  pickPublicKeys,
+  PublicAdmissionError,
+} from '../validation/public-admission';
+import { assertAuthorizationModeOptions } from '../acl/authorization-modes';
 import { parseBody, rootQuerySchema } from './validation';
 import type { OpenApiRouteDescriptor } from '../openapi';
 import { registerOpenApiRoute } from '../openapi/route-registration';
@@ -166,6 +172,10 @@ export class RootRouter {
     options: RootRouterOptions = { basePath: '', operationAccess: true },
     runtime: AccessRuntime = defaultRuntime,
   ) {
+    assertAuthorizationModeOptions(options, false);
+    assertNoServerModelControls(options, (detail) => {
+      throw new TypeError(detail);
+    });
     const { basePath, operationAccess, maxBatchEntries, maxOrderGroups, maxConcurrentOperations } = options;
 
     this.runtime = runtime;
@@ -392,6 +402,8 @@ export class RootRouter {
 
   private setRoutes() {
     this.router.post('', async (req: RootRequest) => {
+      assertPublicAdmission(req.body);
+      assertPublicAdmission(req.query);
       await this.assertAllowed(req);
 
       const items = parseBody(rootQuerySchema, req.body) as RootQueryEntry[];

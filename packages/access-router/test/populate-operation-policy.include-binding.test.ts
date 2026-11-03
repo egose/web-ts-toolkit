@@ -127,7 +127,8 @@ async function fixture(hydration: 'lean' | 'hydrated') {
     stripPermissionsField: true,
     docPermissions: (doc: any, permissions: any, context: any) => {
       expect(permissions.has('reader')).toBe(true);
-      contexts.push(context.mongooseModel);
+      expect(context).not.toHaveProperty('mongooseModel');
+      contexts.push(context.modelName);
       return { owner: doc.owner === true };
     },
     baseFilter: {
@@ -315,17 +316,15 @@ describe.each(['legacy', 'correlated'] as const)('MPO-05 held %s include output'
           expect(f.stamp).toHaveBeenCalledTimes(op === 'count' ? 0 : op === 'read' ? 1 : 2);
           if (op !== 'count') {
             expect(f.contexts.length).toBeGreaterThan(0);
-            expect(f.contexts.every((model) => model === f.TargetA)).toBe(true);
+            expect(f.contexts.every((name) => name === f.TargetA.modelName)).toBe(true);
             const row = op === 'list' ? (first.data as any).joined[0] : (first.data as any).joined;
-            const handle = first.context.getDocumentAuthorization(row);
-            expect(handle).toBeDefined();
-            expect(Reflect.ownKeys(handle!)).toEqual([]);
+            expect(first.context).not.toHaveProperty('getDocumentAuthorization');
             await expect(
-              req.macl.getService(f.targetName).pickAllowedFields(row, op, { documentAuthorization: handle! }),
+              req.macl.getService(f.targetName).pickAllowedFields(row, op, { documentAuthorization: {} } as never),
             ).rejects.toMatchObject({
               result: {
                 code: 'bad_request',
-                errors: [{ detail: expect.stringContaining('binding mismatch') }],
+                errors: [{ detail: expect.stringContaining('documentAuthorization') }],
               },
             });
             expect(f.privateReadsA.mock.calls[0][0]).toMatchObject({ _id: { $in: [f.userId] }, tenant: 'allowed' });
@@ -396,7 +395,8 @@ describe.each(['legacy', 'correlated'] as const)('MPO-05 held %s include output'
         user: f.userId,
       });
       const nestedValue = vi.fn((_doc, _permissions, context, inputs) => {
-        expect(context.mongooseModel).toBe(NestedA);
+        expect(context.modelName).toBe(NestedA.modelName);
+        expect(context).not.toHaveProperty('mongooseModel');
         expect(inputs).toEqual({ user: { secret: 'private-A' } });
         return inputs.user.secret;
       });
@@ -470,10 +470,11 @@ describe.each(['legacy', 'correlated'] as const)('MPO-05 held %s include output'
         expect(f.targetReadsB.list).not.toHaveBeenCalled();
         expect(readsA).toHaveBeenCalledTimes(mode === 'legacy' ? 1 : 2);
         expect(readsB).not.toHaveBeenCalled();
-        expect(f.contexts.every((model) => model === f.TargetA)).toBe(true);
+        expect(f.contexts.every((name) => name === f.TargetA.modelName)).toBe(true);
         expect(f.privateReadsB).not.toHaveBeenCalled();
         expect(nestedValue).toHaveBeenCalledTimes(mode === 'legacy' ? 1 : 2);
-        expect(result.context.getDocumentAuthorization((result.data as any).joined[0].nested[0])).toBeDefined();
+        expect(result.context).not.toHaveProperty('getDocumentAuthorization');
+        expect((result.data as any).joined[0].nested[0]).toHaveProperty('value', 'private-A');
         expect(f.api.runtime.getModelInstance(f.SourceA.modelName)).toBe(f.SourceB);
         expect(f.api.runtime.getModelInstance(f.targetName)).toBe(f.TargetB);
         f.assertNative();

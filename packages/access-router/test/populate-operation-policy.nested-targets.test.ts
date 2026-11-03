@@ -359,7 +359,8 @@ describe.each(['lean', 'hydrated'] as const)('MPO-02 mixed actual nested targets
           for (const [doc, , context] of f.documentGrants.mock.calls) {
             expect(doc).not.toHaveProperty('credit');
             expect(doc).not.toHaveProperty('secret');
-            expect(context).toMatchObject({ modelName: f.Document.modelName, mongooseModel: f.Document });
+            expect(context).toMatchObject({ modelName: f.Document.modelName });
+            expect(context).not.toHaveProperty('mongooseModel');
           }
         }
         if (queries) expect(result.user).toEqual({ name: 'user' });

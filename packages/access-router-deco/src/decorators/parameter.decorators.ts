@@ -72,7 +72,9 @@ export function Permissions(): ParameterDecorator {
 }
 
 /**
- * Injects the hook context (`ModelHookContext`) supplied by `access-router`.
+ * Injects frozen diagnostic-only `ModelOutputContext` for document-permission/decoration hooks,
+ * or mutable `ModelHookContext` for genuine mutation lifecycle hooks. Output contexts have
+ * no raw model/source/snapshot/query-filter aliases or reusable authority.
  * Valid on model hooks that receive context (`@DocPermissions`, `@Validate`, `@Prepare`, etc.). Explicit — undecorated params receive nothing.
  */
 export function Context(): ParameterDecorator {

@@ -3,18 +3,22 @@ import { get, isPlainObject, set } from '@web-ts-toolkit/utils';
 import type { ModelHookContext, ModelRequest } from '../interfaces';
 import { mongo, type Document } from 'mongoose';
 import type { FieldAuthorization } from '../interfaces/service-authorization';
+import type { DocumentGrants } from '../interfaces/access';
 import { deepIsolateValue, isMongooseDocument } from '../helpers/document';
 import { getRequestWorkState } from '../helpers/request-work';
+import { createModelOutputContext } from '../output/model-output-context';
+import { closeDocumentStage, createDocumentStage, resolveDocumentStage } from './document-stage';
+import { readServiceAuthorizationAccess } from './service-authorization';
 import type { AccessRuntime } from '../runtime';
-import { warn as warnLog } from '../logger-helpers';
+import { EMPTY_DOCUMENT_GRANTS, invokeDocumentPermissions, normalizeDocumentGrants } from './document-grants';
 import {
   resolveRequestComplexity,
   validateRequestComplexity,
   type RequestComplexityOptions,
 } from '../request-complexity';
 import { collectModelRequestFields } from './select-resolution';
-import { authorizationError, copyAuthorizationValue } from './authorization-snapshot';
-import { getCapturedAuthorizationOption } from './model-output-planning';
+import { authorizationError } from './authorization-snapshot';
+import { getCapturedAuthorizationOption, readCapturedAuthorizationOption } from './model-output-planning';
 import { isCatalogInputPath, isInputVirtualPath, isSafeInputPath, matchesCatalogPattern } from './field-catalog';
 import { getAuthorizationPermissions, readServiceAuthorization } from './service-authorization';
 import type {
@@ -325,18 +329,21 @@ export async function requestInputFields(args: {
   authorization: ResolvedServiceAuthorization;
   binding: AuthorizationBinding;
   access: 'create' | 'update';
-  grants?: Readonly<Record<string, unknown>>;
+  grants?: DocumentGrants;
   /** Dedicated child request rules, not inherited parent-container write permission. */
   scopePath?: string;
 }): Promise<string[]> {
   const { configuration } = readServiceAuthorization(args.authorization, args.binding);
   const permissions = getAuthorizationPermissions(args.authorization, args.binding);
-  const grants = args.grants ?? {};
+  const grants =
+    args.grants === undefined
+      ? EMPTY_DOCUMENT_GRANTS
+      : normalizeDocumentGrants(args.grants, configuration.documentPermissionField);
   const prefix = (configuration.modelPermissionPrefix as string) ?? '';
   return collectModelRequestFields({
     req: args.binding.request as ModelRequest,
     permissionSchema: (args.scopePath
-      ? get(configuration.permissionSchema, [args.scopePath, 'sub'])
+      ? readCapturedAuthorizationOption(configuration.permissionSchema, [args.scopePath, 'sub'])
       : configuration.permissionSchema) as Record<string, unknown>,
     access: args.access,
     permissions,
@@ -351,29 +358,39 @@ export async function resolveInputDocumentGrants(args: {
   binding: AuthorizationBinding;
   doc: unknown;
   context: ModelHookContext;
-}): Promise<Readonly<Record<string, unknown>>> {
+}): Promise<DocumentGrants> {
   const { configuration } = readServiceAuthorization(args.authorization, args.binding);
   const hook = getCapturedAuthorizationOption(configuration, 'docPermissions.update');
-  if (typeof hook !== 'function') return {};
+  const access = readServiceAuthorizationAccess(args.authorization, args.binding);
+  const context = createModelOutputContext({
+    modelName: args.binding.modelName,
+    ...access,
+    docPermissionsAccess: 'update',
+    resolvedQuery: args.context.resolvedQuery,
+  });
+  const stage = createDocumentStage(args.authorization, args.binding, args.doc);
   try {
-    const grants = await getRequestWorkState(args.binding.request, args.binding.runtime as AccessRuntime).hookGate.run(
-      () =>
-        hook.call(
-          args.binding.request,
-          args.doc,
-          getAuthorizationPermissions(args.authorization, args.binding),
-          args.context,
-        ),
+    return await resolveDocumentStage(stage, () =>
+      invokeDocumentPermissions({
+        invoke:
+          typeof hook === 'function'
+            ? () =>
+                hook.call(
+                  args.binding.request,
+                  args.doc,
+                  getAuthorizationPermissions(args.authorization, args.binding),
+                  context,
+                )
+            : undefined,
+        gate: getRequestWorkState(args.binding.request, args.binding.runtime as AccessRuntime).hookGate,
+        metadataField: configuration.documentPermissionField,
+        modelName: args.binding.modelName,
+        access: 'update',
+        operation: args.context.operation,
+      }),
     );
-    return record(grants) ? copyAuthorizationValue(grants) : {};
-  } catch (error) {
-    warnLog('docPermissions hook failed; applying empty document permissions', {
-      modelName: args.binding.modelName,
-      access: 'update',
-      operation: args.context.operation,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {};
+  } finally {
+    closeDocumentStage(stage, undefined, true);
   }
 }
 

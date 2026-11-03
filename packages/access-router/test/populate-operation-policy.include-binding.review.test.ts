@@ -90,7 +90,8 @@ describe.each(['legacy', 'correlated'] as const)('MPO-05 captured %s include rec
           permissionSchema: { name: true, value: true },
           stripPermissionsField: true,
           docPermissions: (_doc, _permissions, context) => {
-            contexts.push(context.mongooseModel);
+            expect(context).not.toHaveProperty('mongooseModel');
+            contexts.push(context.modelName);
             return {};
           },
           virtuals: { value: { get: getter, dependsOnPopulate: [{ path: 'user', select: 'secret -_id' }] } },
@@ -159,7 +160,7 @@ describe.each(['legacy', 'correlated'] as const)('MPO-05 captured %s include rec
               output: JSON.parse(JSON.stringify((result as { data: unknown }).data)),
               targetReads: { A: targetReadsA.mock.calls.length, B: targetReadsB.mock.calls.length },
               privateReads: { A: privateReadsA.mock.calls.length, B: privateReadsB.mock.calls.length },
-              targetContextPinned: contexts.length > 0 && contexts.every((model) => model === TargetA),
+              targetContextPinned: contexts.length > 0 && contexts.every((name) => name === TargetA.modelName),
             }).toEqual({
               output: { key: 'join', joined: [{ name: 'row-A', value: 'private-A' }] },
               targetReads: { A: 1, B: 0 },

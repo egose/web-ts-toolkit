@@ -3,11 +3,21 @@
 Created: 2026-10-30 14:24:06 PDT
 Status: completed
 
+Evidence preservation: [curated archive](../task-artifacts/access-router/README.md).
+Selected documents now use tracked paths. References to raw logs, builds, seals
+and other omitted files still describe the original ignored packets; they are not
+included beside the archived handoffs. Historical findings/statuses are unchanged.
+
 Final outcome: both flags are delivered and independently accepted under the
 explicitly weaker opt-in contract. Latest `33662fae…` affected-package gates and
 final-build timings pass; all eight tasks are complete and no known blocker or
 required verification remains. Nothing was committed or published. Historical
 failures/results below are preserved, not claims about the final artifact.
+
+Recommended future breaking redesign:
+[owned authorization and consumer migration](20261031-153020-access-router-owned-authorization-redesign.md).
+That separate pending phase may replace flags, grant values and retained handles;
+it does not reopen this completed delivery or claim those changes are implemented.
 
 ## Objective and authorization
 
@@ -254,6 +264,10 @@ Verification: V1/relevant V2/initial V7 plus historical source evidence review.
 
 Completion evidence:
 
+- Preserved baseline investigation handoff:
+  `docs/task-artifacts/access-router/authorization-fast-fp01-20261030-142730/coordinator-notes.md`.
+  Its sibling `verification-summary.md` summarizes checks; executable baselines
+  and raw evidence remain in the original ignored packet below.
 - Confirmed actual v0.51.0 at `89180d219783fbfad412d8dfe19beae614f45c68` and the
   resolved matrix above. Historical source still cloned output/getter views and
   ran rules; modern mandatory hooks will not reproduce historical skim skipping.
@@ -348,8 +362,8 @@ Completion evidence:
   tracked tests, package/public entrypoints, benchmark worker/core and lock preserved.
   No owned jobs remain. Full package/consumer/downstream/runner/performance gates await
   subsequent tasks; configuration alone is not performance delivery.
-- Ignored recovery handoff:
-  `_tmp-fp02-recovery-20261030-153025/coordinator-notes.md`.
+- Preserved recovery handoff:
+  `docs/task-artifacts/access-router/fp02-recovery-20261030-153025/coordinator-notes.md`.
   Initial interrupted evidence remains in `_tmp-fp02-20261030-145752/`.
   FP-03 must replace configuration-only/future warning/JSDoc statements when the
   actual trusted runtime is implemented.
@@ -445,7 +459,7 @@ Completion evidence (runtime/pilot delivered; final retention still provisional)
   old workload/response checks remain unchanged. FP-04 must finish CLI/report/tests/
   consumer docs and update the old internal-export assertion while preserving exact
   six/two group assertions. That old assertion was inspected, not claimed passing.
-- Ignored detailed handoff: `_tmp-fp03-20261030-155647/coordinator-notes.md`.
+- Preserved detailed handoff: `docs/task-artifacts/access-router/fp03-20261030-155647/coordinator-notes.md`.
   Measured `final-candidate/` and `v7-final-pilot/` retained; ESM SHA-256
   `c26c217b9228be53cac54ed2a1bbde2920d04c61676569b7df32e3283e5dc401`.
   Official before/dependency/lock/earlier evidence preserved; runtime/type export
@@ -512,8 +526,8 @@ Completion evidence:
   Original 188 nonconsumer tests preserved; four consumer test files intentionally
   expanded. Consumer harness sync-child deadlock/declaration-filename issues were
   fixed without dropping checks; failures/recovery evidence retained.
-- Ignored detailed handoff:
-  `_tmp-fp04-consumer-benchmark-20261030-175617/coordinator-notes.md`, real packed
+- Preserved detailed handoff:
+  `docs/task-artifacts/access-router/fp04-consumer-benchmark-20261030-175617/coordinator-notes.md`, real packed
   artifacts/configs in `packed-evidence/`, extra jobs/reports in `runner-smoke/`.
   ESM remains `c26c217b9228be53cac54ed2a1bbde2920d04c61676569b7df32e3283e5dc401`;
   declarations updated only for docs. Prior evidence, lock, runtime behavior and
@@ -625,7 +639,7 @@ FP-06 evidence closure has passed.
   Public runtime/type export sets, all 134 pinned dependencies, lock, original tests,
   metadata and earlier evidence preserved; no private API shipping or owned jobs.
 - Detailed commands/raw jobs/median/p95/CPU/limits in
-  `_tmp-fp05-integration-20261030-190227/coordinator-notes.md`, `measurements.md`,
+  `docs/task-artifacts/access-router/fp05-integration-20261030-190227/coordinator-notes.md`, `measurements.md`,
   five `v7-*` batches and `final-verification.json`. Recommend retaining the
   experimental opt-in with authorized mutation/native/stale-graph risks; FP-06
   must independently check selection/default/write/consumer/measurement evidence.
@@ -673,7 +687,7 @@ Post-FP-07/08 revalidation (earlier a0fff877… candidate, before residual corre
   CPU checked as recorded worker stats; latency recomputed from raw samples.
   READ runtime is covered, not READ latency; real app/BSON-heavy latency unavailable.
 - Detailed final evidence:
-  `_tmp-fp05-fixed-20261031-000229/coordinator-notes.md`, `measurements.md`,
+  `docs/task-artifacts/access-router/fp05-fixed-20261031-000229/coordinator-notes.md`, `measurements.md`,
   four `v7-*` batches, `packed-evidence/` and `final-verification.json`.
   All owned jobs finished. Recommend retaining the fixed experimental opt-in,
   pending independent FP-06 re-review; no workspace-wide checks ran.
@@ -727,7 +741,7 @@ Final residual-reviewed artifact revalidation (`33662fae…`):
   preserved; no private/test artifacts ship; no owned jobs remain. ESM/CJS remain
   `33662fae…` / `4ad8ab48…` as recorded in FP-08.
 - Exact commands, raw samples, all initial/repeat adverse tables, four installed
-  workflows and final hashes: `_tmp-fp05-final-20261031-152953/coordinator-notes.md`,
+  workflows and final hashes: `docs/task-artifacts/access-router/fp05-final-20261031-152953/coordinator-notes.md`,
   `measurements.md`, `final-verification.json` and `measurement-verification.json`.
   Recommend retaining the experimental opt-in under the agreed weaker contract;
   independent FP-06 final evidence closure has passed as recorded below.
@@ -783,7 +797,7 @@ Review findings/evidence:
   confirmed reported active gains plus strict/dormant adverse caveats. Prior full
   gates audited, not claimed rerun. No security/frozen historical/READ-latency/real-app
   equivalence claim. Performance supports provisional retention only after fixes.
-- Handoff: `_tmp-review-fp06-20261030-200717/coordinator-notes.md`;
+- Handoff: `docs/task-artifacts/access-router/review-fp06-20261030-200717/coordinator-notes.md`;
   `review-adversarial.test.ts` and `packed-public-bson.mjs` reproduce findings.
   Reviewer will recheck fixes/final-artifact evidence sequentially; no jobs remain.
 
@@ -801,7 +815,7 @@ Post-fix independent re-review:
 - Independent **1,162 product tests**, V6 **29 tests**, source TypeScript/scoped
   lint/format/diff, actual packed strict compiles/five README executions pass.
   No product changes, workspace-wide commands or owned jobs. Detailed residual:
-  `_tmp-rereview-fp06-20261031-004812/coordinator-notes.md`,
+  `docs/task-artifacts/access-router/rereview-fp06-20261031-004812/coordinator-notes.md`,
   `native-residual.test.ts` and `packed-residual.runtime.mjs`.
 
 Fresh independent residual-fix precheck:
@@ -818,7 +832,7 @@ Fresh independent residual-fix precheck:
 - All 14 live/packed outputs match the last-fix artifact; eight declarations and
   exact runtime/type export sets remain unchanged. Scoped lint/format/diff pass;
   product/task files and prior evidence preserved; no owned jobs remain.
-- Handoff: `_tmp-rereview-fp06-residual-20261031-081635/coordinator-notes.md`.
+- Handoff: `docs/task-artifacts/access-router/rereview-fp06-residual-20261031-081635/coordinator-notes.md`.
   Proceed to FP-05; this precheck does not substitute for new full affected-package,
   strict/minimum-peer workflows or final-build timing/evidence closure.
 
@@ -844,7 +858,7 @@ Final independent acceptance:
   No workspace-wide verification, new product changes or owned processes. No READ
   latency, arbitrary BSON-heavy/real-application performance, exhaustive security or
   historical-equivalence claim; accepted mutable/stale-authority risks remain.
-- Handoff: `_tmp-fp06-final-20261031-143300/coordinator-notes.md`, `gate-audit.json`,
+- Handoff: `docs/task-artifacts/access-router/fp06-final-20261031-143300/coordinator-notes.md`, `gate-audit.json`,
   `artifact-audit.json`, `measurement-audit.json`, `structure-audit.json` and
   `preservation.json`. Earlier review failures/interrupted baseline remain preserved.
   Recommendation accepted: **complete FP-06 and the feature; no further gate required**.
@@ -895,7 +909,7 @@ Completion evidence:
   logs/fixtures unchanged. New ESM
   `55af08e37a072258fa20f9233b2aad6888b942231cf793bdf01112079584c3e3`;
   old measured candidate remains preserved and is not relabeled as fixed.
-  Handoff: `_tmp-fp07-20261030-203224/coordinator-notes.md`. No owned jobs remain.
+  Handoff: `docs/task-artifacts/access-router/fp07-20261030-203224/coordinator-notes.md`. No owned jobs remain.
 
 ### Task FP-08: Bound selected BSON-contained and wire-expanded materialization
 
@@ -958,7 +972,7 @@ Completion evidence:
   runtime fixture, packed-consumer regression wiring and precise README caveat.
   Ordinary non-BSON materializer body/FP-07 guard/other earlier code and evidence
   preserved. No workspace-wide commands. Detailed handoff:
-  `_tmp-fp08-20261030-204719/coordinator-notes.md` and `handoff-*` artifacts/logs.
+  `docs/task-artifacts/access-router/fp08-20261030-204719/coordinator-notes.md` and `handoff-*` artifacts/logs.
 - New ESM `a0fff8777b4185157578f8875ab043f7100537f0be035c616ad3facb5e2aef4f`;
   eight declarations/exact public exports/lock unchanged. Old measured c26c217…
   bytes remain historical, not timings for this new candidate. No owned jobs remain.
@@ -995,7 +1009,7 @@ Residual completion evidence:
   typecheck, scoped lint/format/diff, newly packed strict consumer compiles/executions
   and artifact/preservation checks pass. Fresh independent confirmation above adds
   196 product/25 review cases. No workspace-wide commands, owned jobs or other edits.
-- Detailed implementation: `_tmp-fp08-residual-20261031-011826/coordinator-notes.md`,
+- Detailed implementation: `docs/task-artifacts/access-router/fp08-residual-20261031-011826/coordinator-notes.md`,
   `followup-only.diff`, `current-artifact.json` and new packed evidence.
   ESM `33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822`;
   CJS `4ad8ab48b44d91d4051c56e056bf3c2302e0f75c9fbd96b509a15b36f1003bea`;

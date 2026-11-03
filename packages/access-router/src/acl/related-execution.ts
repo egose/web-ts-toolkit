@@ -5,7 +5,7 @@ import type { Defaults, Include, Populate } from '../interfaces';
 import type { Service } from '../services/service';
 import { assertPublicAdmission, forwardPublicOptions } from '../validation/public-admission';
 import { assertPopulateAccess } from './populate-access';
-import { captureModelAuthorizationConfiguration } from './model-output-planning';
+import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption } from './model-output-planning';
 import { capturePopulateTargetBinding } from './populate-target-configuration';
 import { authorizationError } from './authorization-snapshot';
 import { createServiceExecution, getServiceExecutors, withExecutionQueryIntent } from './service-execution';
@@ -116,7 +116,7 @@ export function captureRelatedTargets(
       kind: entry.op === 'count' ? 'count' : 'output',
       configuration,
       queryIntent,
-      operationGuard: runtime.getModelOption(entry.model, `operationAccess.${entry.op}`),
+      operationGuard: getCapturedAuthorizationOption(configuration, `operationAccess.${entry.op}`),
       relatedTargets: captureRelatedTargets(
         runtime,
         entry.model,
@@ -153,7 +153,7 @@ export function createRelatedExecution<T, V extends object>(
   const policy = captured.authorization.related[path];
   const receiving = getServiceExecutors(receiver).binding();
   if (
-    (policy && !target) ||
+    !target ||
     (target &&
       (target.modelName !== receiving.modelName || (target.model !== undefined && target.model !== receiving.model)))
   )

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAccessRuntime } from '../dist/index.mjs';
 import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
+import { expectOutputContext } from './owned-output-context-fixture';
 
 useMongoTestDatabase();
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
@@ -229,9 +230,11 @@ describe.each(['lean', 'hydrated'] as const)('POP-03 independent private/public 
           // Scalar and array plans own separate public stages; duplicate array slots share theirs.
           expect(f.targetHook).toHaveBeenCalledTimes(populate && !mode.queries ? 3 : 0);
           expect(JSON.stringify(active.data)).not.toContain('balance');
-          expect(active.context.originalDocumentSnapshot.account).toEqual(
-            populate && !mode.queries ? expectedPublic.account : f.a._id,
-          );
+          if (populate && !mode.queries) {
+            expect(f.sourceHook.mock.calls.at(-1)![0].account).toMatchObject(expectedPublic.account);
+            expect(f.sourceHook.mock.calls.at(-1)![0].account).not.toHaveProperty('balance');
+          } else expect(f.sourceHook.mock.calls.at(-1)![0].account).toEqual(f.a._id);
+          expectOutputContext(active.context, { modelName: f.Source.modelName, docPermissions: {} });
           expect(active.context).not.toHaveProperty('populated');
         });
         expect((await f.Source.findById(f.source._id).lean())!.accounts).toEqual(f.ids);
@@ -417,7 +420,8 @@ describe.each(['lean', 'hydrated'] as const)('POP-03 independent private/public 
       expect(writes).toHaveBeenCalledTimes(1);
       expect((await f.Source.findById(f.source._id).lean())!.account).toEqual(f.a._id);
       expect(JSON.stringify(warnings.mock.calls)).not.toContain('PRIVATE-sentinel');
-      expect(result.context.finalDocumentSnapshot.account).toEqual(f.a._id);
+      expectOutputContext(result.context, { operation: 'update', docPermissions: {} });
+      expect(f.sourceHook.mock.calls.at(-1)![0].account).toEqual(f.a._id);
       expect(result.context).not.toHaveProperty('populated');
       for (const [doc] of f.sourceHook.mock.calls) expect(doc).not.toHaveProperty('account.balance');
     });

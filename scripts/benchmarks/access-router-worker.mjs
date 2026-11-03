@@ -18,6 +18,7 @@ import {
   verifySnapshotDeclarationManifest,
   snapshotFlagOptions,
   summarize,
+  authorizationModeOptions,
 } from './access-router-core.mjs';
 
 async function dependencyVersion(require, name) {
@@ -112,6 +113,15 @@ export async function benchmark(job) {
   )
     throw new Error('Prepared dist changed. Do not run other builds during the benchmark.');
 
+  const owned = job.target.readAuthorizationMode !== undefined || job.target.listAuthorizationMode !== undefined;
+  const ownedOptions = owned ? authorizationModeOptions(job.target) : undefined;
+  if (!owned && job.target.supportedAuthorizationModes?.length)
+    throw new Error('Select an explicit owned authorization profile; no legacy fallback.');
+  if (
+    job.validationSeries !== undefined &&
+    !['checked-each-response-v1', 'checked-each-response-v2'].includes(job.validationSeries)
+  )
+    throw new Error('Unknown validation series.');
   const snapshotSkips = job.target.snapshotSkips ?? 'off';
   const initialOutputCopySkips = job.target.initialOutputCopySkips ?? 'off';
   const authorizationFastPaths = job.target.authorizationFastPaths ?? 'off';
@@ -154,10 +164,11 @@ export async function benchmark(job) {
     authorizationFastPathFlags,
     job.target.supportedAuthorizationFastPathFlags ?? [],
   );
-  const modelFlags = { ...snapshotFlags, ...initialOutputCopyFlags, ...authorizationFastPathFlags };
+  const modelFlags = ownedOptions ?? { ...snapshotFlags, ...initialOutputCopyFlags, ...authorizationFastPathFlags };
   // Reject invented support even when a permissive old getter echoes unknown keys.
   // This child finishes before peers, MongoDB and the measured runtime are loaded.
-  const declarationManifest = hasSnapshotConfig ? await verifySnapshotDeclarationManifest(job.target) : undefined;
+  const declarationManifest =
+    hasSnapshotConfig || owned ? await verifySnapshotDeclarationManifest(job.target) : undefined;
 
   // Resolve peers beside the selected build, NOT beside this runner. Otherwise a
   // tagged build could accidentally use the current checkout's Mongoose instance.
@@ -384,11 +395,16 @@ export async function benchmark(job) {
     documentHooks = 0;
     const cpuStart = process.cpuUsage();
     const start = performance.now();
+    const responseFingerprints = [];
     const samples = await mapBounded(job.samples, job.concurrency, async () => {
       const before = performance.now();
       const response = await invoke();
       const duration = performance.now() - before;
       assert.equal(response.data?.length, job.rows, 'Measured response row count changed.');
+      if (job.validationSeries) {
+        assert.deepEqual(response.data, expected, 'Measured response changed.');
+        responseFingerprints.push(fingerprint(response.data));
+      }
       return duration;
     });
     const elapsed = performance.now() - start;
@@ -399,29 +415,46 @@ export async function benchmark(job) {
     assert.deepEqual(validation.data, expected, 'Output changed after measurement.');
     return {
       status: 'ok',
+      validationSeries: job.validationSeries ?? 'historical-row-count-v1',
+      cpuMicroseconds: cpu,
+      ...(owned
+        ? {
+            authorizationModeVerification: {
+              kind: 'server-option-getters',
+              models: { source: sourceFlagVerification, target: targetFlagVerification },
+            },
+            readAuthorizationMode: ownedOptions.readAuthorizationMode,
+            listAuthorizationMode: ownedOptions.listAuthorizationMode,
+          }
+        : {}),
       targetId: job.target.id,
       scenario: job.scenario,
       rows: job.rows,
       concurrency: job.concurrency,
-      snapshotSkips,
-      snapshotFlags,
-      initialOutputCopySkips,
-      initialOutputCopyFlags,
-      effectiveInitialOutputCopySkips: effectiveCopySkips,
-      authorizationFastPaths,
-      authorizationFastPathFlags,
-      configuredAuthorizationFastPathModes: expectedFastModes,
-      effectiveAuthorizationFastPathModes: actualFastModes,
-      authorizationFastPathVerification: {
-        kind: 'server-option-getters',
-        models: { source: sourceFlagVerification, target: targetFlagVerification },
-      },
+      ...(!owned
+        ? {
+            snapshotSkips,
+            snapshotFlags,
+            initialOutputCopySkips,
+            initialOutputCopyFlags,
+            effectiveInitialOutputCopySkips: effectiveCopySkips,
+            authorizationFastPaths,
+            authorizationFastPathFlags,
+            configuredAuthorizationFastPathModes: expectedFastModes,
+            effectiveAuthorizationFastPathModes: actualFastModes,
+            authorizationFastPathVerification: {
+              kind: 'server-option-getters',
+              models: { source: sourceFlagVerification, target: targetFlagVerification },
+            },
+          }
+        : {}),
       runtimeOmissionCounts: null, // Configuration is verified; actual omissions are tested separately, never inferred.
       ...(declarationManifest ?? {}),
       distSha256: job.target.distSha256,
       measuredAuthorizationOrigin: 'list',
       stats: summarize(samples, elapsed, cpu.user + cpu.system),
       samplesMs: samples,
+      ...(job.validationSeries ? { responseFingerprints } : {}),
       ...measured,
       dependencies,
       mongoVersion,

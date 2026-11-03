@@ -8,7 +8,6 @@ import { runWithRuntime } from '../src/runtime-context';
 import Permission from '../src/permission';
 import { PERMISSIONS } from '../src/symbols';
 import { ServiceAuthorizationError } from '../src/acl/authorization-snapshot';
-import { unsafeSnapshotOptions } from '../src/acl/unsafe-snapshot-options';
 import {
   createTrustedOutputBudget,
   materializeTrustedOutputValue,
@@ -18,11 +17,7 @@ import {
 
 const B = mongoose.mongo.BSON;
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
-const active = {
-  ...Object.fromEntries(unsafeSnapshotOptions.map((name) => [name, true])),
-  unsafeUseListAuthorizationFastPath: true,
-  unsafeUseReadAuthorizationFastPath: true,
-};
+const sourceMode = { readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' };
 const code = (scope: Record<string, unknown>) => new B.Code('return 1', scope);
 const ref = (fields: Record<string, unknown>) => new B.DBRef('collection', new B.ObjectId(), 'db', fields);
 const wire = (value: unknown) => Object.assign(new B.ObjectId(), { toBSON: () => value });
@@ -53,7 +48,7 @@ function fixture(options: Record<string, unknown> = {}, schema: mongoose.SchemaD
   const hook = vi.fn(() => ({}));
   const rule = vi.fn(() => true);
   runtime.setModelOptions(model.modelName, {
-    ...active,
+    ...sourceMode,
     hydration: { find: 'lean', findOne: 'lean', publicList: 'lean', publicRead: 'lean' },
     permissionSchema: { name: rule, value: rule, hidden: false },
     docPermissions: { list: hook, read: hook },
@@ -201,7 +196,7 @@ describe('encountered selected key work, including denied values (FP06-R2 residu
     },
   );
 
-  it('bounds current denied wire keys in an issued helper without rerunning the document hook', async () => {
+  it('bounds current wire keys in a fresh raw helper without rerunning the document hook', async () => {
     const f = fixture({ permissionSchema: { token: true } }, { token: mongoose.Schema.Types.ObjectId });
     f.adapter.find.mockResolvedValue([{ token: new B.ObjectId() }]);
     const result = await f.service.find({}, { select: ['token', '-_id'] }, quiet);
@@ -212,9 +207,7 @@ describe('encountered selected key work, including denied values (FP06-R2 residu
     row.token = Object.assign(new B.ObjectId(), { toBSON: hook });
     let failure: unknown;
     try {
-      await f.service.pickAllowedFields(row, 'list', {
-        documentAuthorization: result.contexts[0].documentAuthorization,
-      });
+      await f.service.pickAllowedFields(row, 'list', {});
     } catch (error) {
       failure = error;
     }
@@ -240,7 +233,7 @@ describe('encountered selected key work, including denied values (FP06-R2 residu
   });
 
   it('budgets denied emitted-metadata keys against selected data work before reading their values', async () => {
-    const grants = fields(10000);
+    const grants = Object.fromEntries(Object.keys(fields(10000)).map((key) => [key, true]));
     const getter = vi.fn(() => 'never');
     const documentHook = vi.fn(() => grants);
     const f = fixture({
@@ -256,8 +249,8 @@ describe('encountered selected key work, including denied values (FP06-R2 residu
         value: true,
       },
     });
-    // Native tests normally use immutable data descriptors. This mutation occurs
-    // after grant admission, exercising the explicitly borrowed active grant state.
+    // Mutating the application's map after admission cannot change owned facts.
+    // Even unexposed fact names still consume selected metadata work.
     f.adapter.find.mockResolvedValue([{ name: 'selected', value: Array(6000).fill('selected') }]);
     const result = await f.service.find(
       {},
@@ -270,7 +263,7 @@ describe('encountered selected key work, including denied values (FP06-R2 residu
     expect(documentHook).toHaveBeenCalledTimes(1);
   });
 
-  it('budgets denied retained-helper metadata keys without observing their accessors', async () => {
+  it('bounds current raw-helper metadata keys without observing their accessors', async () => {
     const f = fixture({ stripPermissionsField: false, exposedDocPermissionKeys: ['allowed'] });
     f.adapter.find.mockResolvedValue([{ name: 'selected', value: Array(6000).fill('selected') }]);
     const result = await f.service.find(
@@ -283,9 +276,7 @@ describe('encountered selected key work, including denied values (FP06-R2 residu
     (result.data[0] as Record<string, unknown>)._permissions = fields(10000, getter);
     let failure: unknown;
     try {
-      await f.service.pickAllowedFields(result.data[0], 'list', {
-        documentAuthorization: result.contexts[0].documentAuthorization,
-      });
+      await f.service.pickAllowedFields(result.data[0], 'list', {});
     } catch (error) {
       failure = error;
     }
@@ -663,14 +654,12 @@ describe('bounded wire preparation and native compatibility', () => {
   });
 });
 
-describe('native values on public services, issued helpers and virtual return channels', () => {
-  it('keeps ordinary BSON output on mixed borrowed/copied root fallback rows with one hook per row', async () => {
+describe('native values on public services, fresh helpers and virtual return channels', () => {
+  it('keeps ordinary BSON output on ordinary/hydrated rows with one hook per row and no fallback rehook', async () => {
     const f = fixture();
     const borrowed = { name: 'borrowed', value: code({ selected: true }) };
-    const copied = Object.defineProperty({ value: ref({ selected: true }) }, 'name', {
-      enumerable: true,
-      get: () => 'copied',
-    });
+    const Model = f.adapter.mongooseModel;
+    const copied = new Model({ name: 'copied', value: ref({ selected: true }) });
     f.adapter.find.mockResolvedValue([borrowed, copied]);
     const result = await f.service.find({}, { select: ['name', 'value', '-_id'] }, quiet);
     expect(result.success).toBe(true);
@@ -701,49 +690,43 @@ describe('native values on public services, issued helpers and virtual return ch
     },
   );
 
-  it('rechecks current selected native structure on an issued trusted helper without rerunning hooks', async () => {
+  it('checks current selected native structure on fresh helpers without document hooks or cached decisions', async () => {
     const f = fixture();
     f.adapter.find.mockResolvedValue([{ name: 'selected', value: code({ selected: true }) }]);
     const result = await f.service.find({}, { select: ['name', 'value', '-_id'] }, quiet);
     if (!result.success) throw new Error(result.code);
     const row = result.data[0] as Record<string, unknown>;
-    const documentAuthorization = result.contexts[0].documentAuthorization;
     expect((row.value as InstanceType<typeof B.Code>).scope).toEqual({ selected: true });
     row.value = ref({ expanded: Array(20001).fill('selected') });
-    await expect(f.service.pickAllowedFields(row, 'list', { documentAuthorization })).rejects.toBeInstanceOf(
-      ServiceAuthorizationError,
-    );
+    await expect(f.service.pickAllowedFields(row, 'list', {})).rejects.toBeInstanceOf(ServiceAuthorizationError);
     row.value = code({ selected: true });
-    expect(await f.service.pickAllowedFields(row, 'list', { documentAuthorization })).toEqual({
+    expect(await f.service.pickAllowedFields(row, 'list', {})).toEqual({
       name: 'selected',
       value: code({ selected: true }),
     });
     expect(f.hook).toHaveBeenCalledTimes(1);
-    expect(f.rule).toHaveBeenCalledTimes(2);
+    expect(f.rule).toHaveBeenCalledTimes(4);
   });
 
-  it('omits invalid native virtual returns without reading accessors or rejecting unselected source graphs', async () => {
+  it('poisons invalid selected native returns without reading accessors', async () => {
     const getter = vi.fn(() => 'never');
     const invalid = vi.fn(() => code(Object.defineProperty({}, 'selected', { enumerable: true, get: getter })));
     const supported = ref({ selected: true });
     const valid = vi.fn(() => supported);
     const f = fixture({
-      alwaysSelectFields: ['hidden'],
       permissionSchema: { name: true, invalid: true, valid: true },
       virtuals: {
         invalid: { dependsOn: ['name'], get: invalid },
         valid: { dependsOn: ['name'], get: valid },
       },
     });
-    f.adapter.find.mockResolvedValue([
-      { name: 'selected', hidden: code({ huge: Array(21000), cycle: new Proxy({}, {}) }) },
-    ]);
+    f.adapter.find.mockResolvedValue([{ name: 'selected' }]);
     const result = await f.service.find({}, { select: ['name', 'invalid', 'valid', '-_id'] }, quiet);
-    expect(result).toMatchObject({ success: true, data: [{ name: 'selected', valid: supported }] });
-    if (result.success) expect(result.data[0]).not.toHaveProperty('invalid');
+    expect(result).toMatchObject({ success: false, code: 'bad_request' });
+    expect(result).not.toHaveProperty('data');
     expect(getter).not.toHaveBeenCalled();
     expect(invalid).toHaveBeenCalledTimes(1);
-    expect(valid).toHaveBeenCalledTimes(1);
+    expect(valid.mock.calls.length).toBeLessThanOrEqual(1);
     expect(f.hook).toHaveBeenCalledTimes(1);
   });
 

@@ -17,6 +17,7 @@ import { getGlobalOption } from './options';
 import { getActiveRuntime } from './runtime-context';
 import Permission, { Permissions } from './permission';
 import { extractScopedOutputRule } from './acl/field-authorization';
+import { EMPTY_DOCUMENT_GRANTS } from './acl/document-grants';
 
 type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
 
@@ -336,7 +337,7 @@ export async function collectSchemaFields({
     } else if (isArray(value)) {
       if (arrayHandler(value as string[] | string[][])) fields.push(key);
     } else if (isFunction(value)) {
-      if (await value.call(req, ...functionArgs)) fields.push(key);
+      if (await value.call(req, functionArgs[0], functionArgs[1] ?? EMPTY_DOCUMENT_GRANTS)) fields.push(key);
     }
   }
 

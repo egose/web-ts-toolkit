@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get } from '@web-ts-toolkit/utils';
 
 import { createAccessRuntime, permissionsPlugin } from '../dist/index.mjs';
-import type { ModelRequest, ServiceOutputContext } from '../src/interfaces';
+import type { ModelRequest } from '../src/interfaces';
+import { expectOutputContext } from './owned-output-context-fixture';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -107,9 +108,15 @@ async function fixture(lean: boolean, metadata = false) {
   const sourceHook = vi.fn((doc: Row) => ({ canRead: doc.restricted !== true, owns: doc.owner === 'owner' }));
   const targetHook = vi.fn((doc: Row) => ({ canRead: doc.restricted !== true, owns: doc.owner === 'owner' }));
   const leafHook = vi.fn((doc: Row) => ({ canRead: doc.restricted !== true, owns: doc.owner === 'owner' }));
-  const sourceGetter = vi.fn((doc: Row) => (doc.restricted ? 'restricted' : 'open'));
-  const targetGetter = vi.fn((doc: Row) => (doc.restricted ? 'restricted' : 'open'));
-  const leafGetter = vi.fn((doc: Row) => (doc.restricted ? 'restricted' : 'open'));
+  const sourceGetter = vi.fn((_doc: Row, _permissions, context) =>
+    context.docPermissions.canRead === true ? 'open' : 'restricted',
+  );
+  const targetGetter = vi.fn((_doc: Row, _permissions, context) =>
+    context.docPermissions.canRead === true ? 'open' : 'restricted',
+  );
+  const leafGetter = vi.fn((_doc: Row, _permissions, context) =>
+    context.docPermissions.canRead === true ? 'open' : 'restricted',
+  );
   let targetDenied = false;
   let targetOperationAllowed = true;
   api.setGlobalOptions({
@@ -340,7 +347,8 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
         expect(JSON.stringify(row)).not.toContain('-private');
       }
       expect(f.sourceHook.mock.calls.map(([doc]) => doc.restricted)).toEqual([true, false]);
-      expect(f.sourceGetter.mock.calls.map(([doc]) => doc.restricted)).toEqual([true, false]);
+      expect(f.sourceGetter.mock.calls.map(([, , context]) => context.docPermissions.canRead)).toEqual([false, true]);
+      for (const [doc] of f.sourceGetter.mock.calls) expect(doc.restricted).toMatchObject({ name: 'target' });
       expect(f.sourceHook.mock.calls.map(([doc]) => doc.secret)).toEqual([
         'restricted-hit-private',
         'allowed-hit-private',
@@ -400,7 +408,7 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
   }
 
   it.each([false, true])(
-    'mixed list rows retain their own source grants and target handles (correlated=%s)',
+    'mixed list rows retain source facts and target-local output without handles (correlated=%s)',
     async (correlated) => {
       const f = await fixture(lean);
       await f.execute(async (req) => {
@@ -436,19 +444,21 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
         const targetCalls = f.targetHook.mock.calls.length;
         for (const index of [0, 2]) {
           const child = rows[index].restricted;
-          const handle = result.contexts[index].getDocumentAuthorization(child);
-          expect(handle).toBeDefined();
-          expect(result.contexts[index].getDocumentAuthorization(rows[index === 0 ? 2 : 0].restricted)).toBeUndefined();
-          expect(await target.pickAllowedFields(child, 'read', { documentAuthorization: handle! })).toEqual(child);
-          expect(child).toMatchObject({ status: 'target-status', note: 'target-note' });
-          await expect(svc.pickAllowedFields(child, 'read', { documentAuthorization: handle! })).rejects.toThrow();
-          await expect(
-            target.pickAllowedFields(rows[index === 0 ? 2 : 0].restricted, 'read', { documentAuthorization: handle! }),
-          ).rejects.toThrow();
-          const sourcePick = await svc.pickAllowedFields(rows[index], 'list', {
-            documentAuthorization: result.contexts[index].documentAuthorization,
+          expectOutputContext(result.contexts[index], { docPermissions: { canRead: index === 0, owns: true } });
+          const raw = await target.pickAllowedFields(child, 'read', {
+            authorization: { outputFields: { mode: 'grant', paths: ['note'] } },
           });
-          if (index === 2) expect(sourcePick).not.toHaveProperty('conditional');
+          expect(raw).toHaveProperty('note', 'target-note');
+          expect(raw).not.toHaveProperty('status');
+          expect(child).toMatchObject({ status: 'target-status', note: 'target-note' });
+          await expect(svc.pickAllowedFields(child, 'read', { documentAuthorization: {} } as never)).rejects.toThrow();
+          await expect(
+            target.pickAllowedFields(rows[index === 0 ? 2 : 0].restricted, 'read', {
+              documentAuthorization: {},
+            } as never),
+          ).rejects.toThrow();
+          const sourcePick = await svc.pickAllowedFields(rows[index], 'list');
+          expect(sourcePick).not.toHaveProperty('conditional');
         }
         expect(f.sourceHook).toHaveBeenCalledTimes(sourceCalls);
         expect(f.targetHook).toHaveBeenCalledTimes(targetCalls);
@@ -507,14 +517,19 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
         expect(result).toMatchObject({ success: true });
         if (!result.success) throw new Error(result.code);
         const child = get(result.data, path) as Row;
-        const handle = result.context.getDocumentAuthorization(child);
-        expect(handle).toBeDefined();
+        expectOutputContext(result.context);
         expect(child).toMatchObject({ name: 'target', status: 'target-status' });
         if (elevated) expect(child.note).toBe('target-note');
         else expect(child).not.toHaveProperty('note');
         expect(
-          await req.macl.getService(f.targetName).pickAllowedFields(child, 'read', { documentAuthorization: handle! }),
-        ).toEqual(child);
+          await req.macl
+            .getService(f.targetName)
+            .pickAllowedFields(
+              child,
+              'read',
+              elevated ? { authorization: { outputFields: { mode: 'grant', paths: ['note'] } } } : {},
+            ),
+        ).toMatchObject({ name: 'target', ...(elevated ? { note: 'target-note' } : {}) });
         expect(f.sourceHook.mock.calls[0][0].profile).toMatchObject({
           safe: 'restricted-hit-safe',
           private: 'restricted-hit-profile-private',
@@ -526,7 +541,7 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
     },
   );
 
-  it('nested list attachments, populate targets and backend grants preserve their own handles', async () => {
+  it('nested attachments and populate targets retain separate output grants without handles', async () => {
     const f = await fixture(lean);
     await f.execute(async (req) => {
       const result = await req.macl.getService(f.sourceName).findOne(
@@ -565,17 +580,13 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
       expect(result).toMatchObject({ success: true });
       if (!result.success) throw new Error(result.code);
       const child = (result.data as Row).restricted[0];
-      const context = result.context as ServiceOutputContext;
+      expectOutputContext(result.context);
       for (const [model, output, access] of [
         [f.targetName, child, 'list'],
         [f.leafName, child.secret, 'read'],
         [f.leafName, child.ref, 'read'],
       ] as const) {
-        const handle = context.getDocumentAuthorization(output);
-        expect(handle).toBeDefined();
-        expect(
-          await req.macl.getService(model).pickAllowedFields(output, access, { documentAuthorization: handle! }),
-        ).toMatchObject({ name: output.name });
+        expect(await req.macl.getService(model).pickAllowedFields(output, access)).toMatchObject({ name: output.name });
       }
       expect(child.note).toBe('target-note');
       expect(child.secret.note).toBe('leaf-note');
@@ -640,11 +651,9 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
         [f.targetName, profile],
         [f.leafName, profile.child],
       ] as const) {
-        const handle = result.context.getDocumentAuthorization(child);
-        expect(handle).toBeDefined();
-        expect(
-          await req.macl.getService(name).pickAllowedFields(child, 'read', { documentAuthorization: handle! }),
-        ).toMatchObject({ name: child.name, status: child.status });
+        expectOutputContext(result.context);
+        expect(await req.macl.getService(name).pickAllowedFields(child, 'read')).toMatchObject({ name: child.name });
+        expect(child).toHaveProperty('status');
       }
       expect(f.targetHook.mock.calls[0][0].name).toBe('target');
       expect(f.sourceHook.mock.calls[0][0].profile.safe).toBe('restricted-hit-safe');
@@ -673,8 +682,7 @@ describe.each([true, false])('ARL-03 include source provenance (lean=%s)', (lean
       expect(rows[0].ref).toMatchObject({ name: 'leaf', restrictionState: 'restricted' });
       expect(rows[0].ref).toEqual(rows[1].ref);
       expect(rows[0].ref).not.toBe(rows[1].ref);
-      expect(result.contexts[0].getDocumentAuthorization(rows[0].ref)).toBeDefined();
-      expect(result.contexts[1].getDocumentAuthorization(rows[1].ref)).toBeDefined();
+      for (const context of result.contexts) expectOutputContext(context);
       expect(f.leafGetter).toHaveBeenCalledTimes(1);
       f.sourceTrace.assertUnchanged();
       f.leafTrace.assertUnchanged();

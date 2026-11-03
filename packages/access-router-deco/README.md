@@ -2,6 +2,14 @@
 
 Decorator-based configuration for `@web-ts-toolkit/access-router`.
 
+Model-condition `guard({ modelName, id, condition })` reads fresh visible-row facts
+without publishing a DTO. Field/virtual/output-include/decorate/task effects and
+`_read` overrides no longer run or veto that guard; normal DTO reads are unchanged.
+Keep security in operation/row/document-fact hooks, not presentation side effects.
+Source/fact/necessary-input errors, generated HTTP operation gates and target
+admission remain enforced. See the installed access-router `MIGRATION.md` M2/M3/M5;
+a separately checked ordinary DTO read adds its explicit read/hook/output cost.
+
 ## Installation
 
 ```sh
@@ -17,6 +25,8 @@ Peer dependencies:
 
 Declaration types:
 
+- ESM imports select `index.d.mts`; CJS requires select `index.d.ts`. This matches
+  access-router's declaration conditions, including typed field predicates and requests.
 - `@types/express` is a runtime dependency of this package (not a peer). A clean consumer installing only this package and the peers above resolves all emitted `.d.ts` imports with `skipLibCheck: false` — no separate `pnpm add -D @types/express` is required. Removing unrelated workspace packages or their transitive `@types/express` does not break compilation because the types are provided directly by `@web-ts-toolkit/access-router-deco`.
 
 TypeScript:
@@ -174,7 +184,7 @@ Migration note (PDEC-02 — accessor hooks): method-hook decorators also reject 
 | Decorator              | Scope / Valid Class Role                                                                     | Operations                                                                                    | Result Shape (`MaybePromise<…>`)                                                                                                                   | Valid Parameter Decorators                                          |
 | ---------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `@GlobalPermissions()` | `@Module` only (scalar)                                                                      | —                                                                                             | `GlobalPermissionValue` (`string \| string[] \| Record<string,boolean> \| null \| undefined`)                                                      | `@Request()`                                                        |
-| `@DocPermissions(op)`  | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `create`, `update`, `list`, `read`                                                 | `Record<string, unknown>` — per-document map, OR-combined with global grants; empty map grants nothing and never revokes a global grant            | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
+| `@DocPermissions(op)`  | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `create`, `update`, `list`, `read`                                                 | `DocumentGrants` — immutable literal-boolean facts; empty facts never revoke a global grant                                                        | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
 | `@BaseFilter(op)`      | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter \| true \| null \| undefined` — filter restricts; only `false` denies; `null`/`undefined`/`true`/`{}` add no base restriction              | `@Permissions()`, `@Request()`                                      |
 | `@OverrideFilter(op)`  | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter`                                                                                                                                           | `@Filter()`, `@Permissions()`, `@Request()`                         |
 | `@Validate(op)`        | `@Router(Model)` / `@RouterOptions(Model)` (scalar-like; duplicate `validate.<op>` rejected) | `default`, `create`, `update`                                                                 | `boolean \| unknown[]` — `true` passes, `false` / non-empty array → controlled `400`; do not return document or `throw` for expected invalid input | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
@@ -272,14 +282,14 @@ describe `/api/ext/users`. Live Express URLs are unchanged by this migration.
 
 ### Parameter Decorators
 
-| Decorator        | Injects                                              | Valid Hooks                                                                                                | Notes                                                            |
-| ---------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `@Request()`     | active `AccessRouterRequest` (`express.Request`)     | any hook                                                                                                   | `this` is class instance; use this for request data              |
-| `@Document()`    | document / allowed data (`ModelDocument` or payload) | model hooks (`docPermissions`, `validate`, `prepare`, `transform`, `decorate`, `before/afterDelete`, etc.) | array form for `decorateAll`                                     |
-| `@Permissions()` | `AccessRouterPermissions` (`{ has(perm): boolean }`) | filters, guards, doc permissions, validate, etc.                                                           | not valid alone on `@GlobalPermissions` (it returns permissions) |
-| `@Context()`     | `ModelHookContext`                                   | model hooks                                                                                                | hook context object                                              |
-| `@Filter()`      | incoming `Filter`                                    | `@OverrideFilter` only                                                                                     |                                                                  |
-| `@Id()`          | route identifier `string`                            | `@Identifier` only                                                                                         | hook returns `Filter`                                            |
+| Decorator        | Injects                                              | Valid Hooks                                                                                                | Notes                                                                               |
+| ---------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `@Request()`     | active `AccessRouterRequest` (`express.Request`)     | any hook                                                                                                   | `this` is class instance; use this for request data                                 |
+| `@Document()`    | document / allowed data (`ModelDocument` or payload) | model hooks (`docPermissions`, `validate`, `prepare`, `transform`, `decorate`, `before/afterDelete`, etc.) | array form for `decorateAll`                                                        |
+| `@Permissions()` | `AccessRouterPermissions` (`{ has(perm): boolean }`) | filters, guards, doc permissions, validate, etc.                                                           | not valid alone on `@GlobalPermissions` (it returns permissions)                    |
+| `@Context()`     | `ModelOutputContext` or `ModelHookContext`           | model hooks                                                                                                | frozen output diagnostics; mutable context only in genuine mutation lifecycle hooks |
+| `@Filter()`      | incoming `Filter`                                    | `@OverrideFilter` only                                                                                     |                                                                                     |
+| `@Id()`          | route identifier `string`                            | `@Identifier` only                                                                                         | hook returns `Filter`                                                               |
 
 ## Option Precedence
 
@@ -476,8 +486,176 @@ separate feature.
 `DecorateAll`); `@Validate`/`@Prepare` receive allowed input payloads. Lifecycle
 `@Transform`, `@AfterPersist`, `@BeforeDelete` and `@AfterDelete` retain live
 Mongoose documents needed for setters/save/deletion, irrespective of read hydration.
-`@Context()` can still contain the lifecycle `currentDocument`; request, permissions,
-context, explicit parameter positions and class-instance `this` binding are unchanged.
+`@Context()` contains mutable `ModelHookContext` (including `currentDocument`) only in
+genuine mutation lifecycle hooks. Document-permission, virtual and decoration hooks
+receive frozen `ModelOutputContext`, with no raw model/source/snapshot/lifecycle aliases,
+query filter or reusable document handle. Explicit parameter positions, original
+`@Request()` injection and class-instance `this` binding are unchanged.
+
+### Owned authorization: breaking migration
+
+The installed access-router [MIGRATION.md](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md)
+is the complete M1–M5 guide. Configure independent `readAuthorizationMode` /
+`listAuthorizationMode` only on model/default options (`@Router`, `@RouterOptions`,
+`ModelOption`, `DefaultModelOption`, or factory `defaultModelOptions`). Both default
+to `isolated`; only literal `isolated` / `trusted` or undefined restoration are valid.
+All ten retired unsafe switches reject by presence, even false/undefined/inherited/
+non-enumerable. Global/module, root, method-default and request/per-call placements
+reject; there is no legacy translation. Failed bootstrap restores package-controlled
+configuration, not arbitrary application side effects.
+
+Return `DocumentGrants = Readonly<Record<string, boolean>>`, not rich grants. Facts
+are additive to string-rule global grants: an empty fact map never revokes a global grant. Facts
+are normalized once into library-owned frozen records. Missing hooks yield empty
+facts; thrown/rejected hooks add a fixed-category warning. Invalid fulfilled maps
+(including native/nested/accessor/proxy/protected/over-budget values) fail the whole
+operation with 400. Two-argument field predicates keep original-request `this`;
+decorated methods instead keep class-instance `this` and must inject `@Request()`.
+Never keep per-request authority in shared class fields.
+
+This exact module is compiled and run through installed public imports. The fixed
+`alice` identity is example **server-owned policy**, not a header authentication
+scheme; replace it with your verified principal/membership lookup. Targets retain
+their own policy/facts/mode even when a source opts into trusted borrowing.
+
+<!-- doc-example: owned-authorization -->
+
+```ts
+import 'reflect-metadata';
+import assert from 'node:assert/strict';
+import express from 'express';
+import { Schema, type Connection, type Types } from 'mongoose';
+import type { DocumentGrants, FieldPermissionHook, ModelOutputContext } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+import {
+  Context,
+  Decorate,
+  DocPermissions,
+  Document,
+  Module,
+  Request,
+  Router,
+  RouterOptions,
+  EgoseFactoryStatic,
+} from '@web-ts-toolkit/access-router-deco';
+
+export function createOwnedAuthorizationApp(connection: Connection) {
+  let reads = 0,
+    hooks = 0,
+    decorations = 0;
+  const Team = connection.model('OwnedTeam', new Schema({ label: String, privateNote: String }));
+  type Employee = { name: string; salary: number; ownerId: string; teamId: Types.ObjectId };
+  const schema = new Schema<Employee>({
+    name: String,
+    salary: Number,
+    ownerId: String,
+    teamId: { type: Schema.Types.ObjectId, ref: Team.modelName },
+  });
+  schema.pre(/^find/, function () {
+    reads++;
+  });
+  const EmployeeModel = connection.model('OwnedEmployee', schema);
+  const salary: FieldPermissionHook = function (_permissions, facts) {
+    return facts.owner === true;
+  };
+
+  @RouterOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' })
+  class Defaults {}
+
+  @RouterOptions(Team, {
+    readAuthorizationMode: 'isolated',
+    listAuthorizationMode: 'isolated',
+    operationAccess: { read: true },
+    permissionSchema: { label: 'reader', privateNote: false },
+    stripPermissionsField: true,
+  })
+  class TeamOptions {}
+
+  @Router(EmployeeModel, {
+    basePath: '/employees',
+    operationAccess: { read: true },
+    readAuthorizationMode: 'isolated',
+    listAuthorizationMode: 'trusted',
+    alwaysSelectFields: ['ownerId'],
+    permissionSchema: { name: 'reader', salary: { read: salary }, teamId: 'reader' },
+    stripPermissionsField: true,
+  })
+  class Employees {
+    readonly role = 'employee-router'; // static application configuration, not request state
+
+    @DocPermissions('read')
+    facts(
+      @Document() doc: Partial<Employee>,
+      @Request() req: ModelRequest,
+      @Context() context: ModelOutputContext,
+    ): DocumentGrants {
+      assert.equal(this.role, 'employee-router');
+      assert.ok(req.macl); // original request, initialized by this module's runtime
+      assert.ok(Object.isFrozen(context));
+      assert.equal('currentDocument' in context, false);
+      hooks++;
+      return { owner: doc.ownerId === 'alice' };
+    }
+
+    @Decorate('read')
+    present(@Document() doc: Partial<Employee>, @Context() context: ModelOutputContext) {
+      assert.ok(Object.isFrozen(context.docPermissions));
+      decorations++;
+      return doc; // already-filtered DATA; no automatic second authorization pass
+    }
+  }
+
+  @Module({
+    routers: [Employees],
+    routerOptions: [Defaults, TeamOptions],
+    options: { globalPermissions: () => ['reader'], handleErrors: true, logger: { warn() {} } },
+  })
+  class OwnedModule {}
+  const app = express();
+  app.use(express.json());
+  const { runtime } = EgoseFactoryStatic.create().bootstrap(OwnedModule, app);
+  return { app, runtime, EmployeeModel, Team, counts: () => ({ reads, hooks, decorations }) };
+}
+```
+
+Call the exported function with a host-owned connected `Connection` before listening,
+then seed/read the models through that connection. A populated Team exposes only
+`label`; Employee's private `ownerId` fetch grants no output. Embedded scopes inherit
+their owner, READ retries retain READ mode, and writes/new/dedicated origins remain
+isolated. Isolated doc-hook input is disposable; trusted may borrow an admitted
+ordinary projected source **only**. Actor/policy/facts remain owned. Getter argument
+mutation is not an implicit write; return values are staged. Closures/external caches
+are not sandboxed or kept fresh. Real prepare/transform/save/change contexts remain
+mutable, and post-filter presentation remains trusted application work.
+
+DTOs, permission metadata and `getDocPermissions` are DATA, not authority.
+`DocumentAuthorization`, `documentAuthorization`, `getDocumentAuthorization` and
+child lookup are gone. Raw output helpers use global permissions plus empty facts,
+explicit scoped server `outputFields`, zero reads/hooks and no row checks/virtuals.
+A presentation subset needs no query; current document-dependent authorization needs
+a new checked normal query (+1 read/hook for a single row). Negative predicates on
+empty facts are not current-document proof. Preserve separate rows/input/output/
+related policies, selection, hydration and raw-parent business APIs. A controlled
+post-save 400 may follow persistence: no rollback or automatic retry. Deploy/roll
+back a tested matching library/application revision; changing modes affects new
+calls only. No mixed-version compatibility or speed/security-equivalence claim.
+
+For backend-held raw collections, the injected original request's model services
+(both getters) optionally expose `pickAllowedFieldsMany(rows, access, options?)`.
+It deliberately captures actor/model/catalog/config/scope/output policy **once**,
+not N independent fresh picks; all row sources precede the first predicate and
+row decisions remain separate. It uses empty facts, no reads/document hooks or
+row/target admission, even for decorated models. Never copy `OutputFieldOptions`
+from request input; scope grants remain model-relative. It is not a default migration:
+presentation normally needs zero helpers; current facts need a new checked READ/LIST.
+See the core guide's executable M3 recipes, conservative `FilteredOutput<T>` type,
+dense 1,000-position admission and row/aggregate budgets. The 200,000 work / 16 MiB
+cumulative limits cover router-controlled admission/staging/traversal/copies, **not**
+opaque Mongoose/native internals/dependency allocations, trusted effects or engine
+enumeration; normalized returns must pass admission before the next router copy.
+No total-memory/RSS/whole-normalization/sandbox cap, transaction, side-effect rollback
+or performance acceptance is implied. Structural/native/budget poison closes/drains
+the whole call with 400, without partial publication. No new decorator/HTTP/client API.
 
 ## TypeScript Decorator Configuration
 

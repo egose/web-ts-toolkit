@@ -1,4 +1,4 @@
-import type { ListResult, ModelHookContext, SingleResult } from './base';
+import type { ListResult, ModelOutputContext, SingleResult } from './base';
 import type { DeepFieldPath, Filter, WithVirtuals } from './query-types';
 
 /**
@@ -229,69 +229,13 @@ export type OutputAuthorization<TModel = unknown, TVirtuals extends object = Rec
   'outputFields'
 > & { readonly rows?: never; readonly related?: never; readonly inputFields?: never };
 
-declare const documentAuthorizationBrand: unique symbol;
-
 /**
- * Package-issued same-execution output handle, authenticated by private runtime state.
- * Bound to request/runtime/model, scope and access stage. Default/copied records also
- * bind a projected document snapshot and exact output graph; active trusted records
- * instead have exact root association and issued-document membership, no stage snapshot.
- * Obtain it from an internal result context, never from DTO metadata or JSON. It is
- * an opaque consumer handle, not a constructor, reusable call policy or wire token.
- * It reuses full document grants and memoized decisions after ownerId/private inputs
- * and permission metadata are trimmed. Use the original associated root or a
- * package-created helper subset; caller spreads, matching IDs, another row/call/access
- * or pre-/post-write stages cannot establish validity and reject. Default/copied records
- * additionally reject graph changes; the active trusted contract below deliberately does not.
- * A list/read handle with its server unsafeSkipListDocumentSnapshotChecks or
- * unsafeSkipReadDocumentSnapshotChecks flag enabled retains that weakened source-
- * mutation policy; independent output-value/ownership checks still apply. Turning a setting
- * off affects new calls, not an existing handle or captured read-to-list retry.
- * Independent unsafeSkipListOutputSnapshotChecks / unsafeSkipReadOutputSnapshotChecks
- * can also retain weakened output-value checks (graph identities still checked).
- * unsafeSkipListNestedDocumentSnapshotChecks / unsafeSkipReadNestedDocumentSnapshotChecks
- * retain weakened source checks on query descendants, using the initiating model's
- * mode. In-place value mutations can therefore reuse stale grants/decisions.
- * unsafeSkipListInitialOutputSnapshotCopy / unsafeSkipReadInitialOutputSnapshotCopy
- * additionally omit eligible initial output snapshots only when the corresponding
- * output-value comparison skip is enabled. They retain bounded structural admission
- * and exact graph ownership, but omit this pass's native/BSON normalization and
- * validation observations. Source/callback/grant copies remain detached; unproven
- * graphs or open ownership bindings fall back to copying. Retained handles keep this mode.
- * These are the original flags' contracts alone. A genuinely active
- * unsafeUseListAuthorizationFastPath/unsafeUseReadAuthorizationFastPath trusted row
- * instead borrows source/grants/context leaves and keeps only exact root authority,
- * not descendant graph integrity. Its handle filters current values with potentially
- * stale decisions/shared grants after descendant replacement. Removed issued children
- * can remain discoverable; replacements/spreads/other rows receive no child authority.
- * Copied fallback records keep graph checks; fresh raw-policy helpers remain strict.
- * Rollback changes new calls only: an issued trusted handle does not regain stronger
- * protections. Its mutable grant/context leaves may be borrowed between callbacks;
- * changed native observations or stale decisions can turn denial into allowance.
+ * Immutable output diagnostics. Public serializers omit the context; the returned DTO
+ * has no reusable authority. No authority is attached to data; public serializers omit
+ * these diagnostics. Document-dependent reauthorization requires a fresh normal read/list
+ * with row scope and suitable selection/private hook inputs, not a raw helper or metadata.
  */
-export interface DocumentAuthorization {
-  readonly [documentAuthorizationBrand]: true;
-}
-
-/**
- * Internal output context; public serializers omit it and no authority is attached to data.
- * Active trusted queries use shallow diagnostic shells with borrowed source/grant leaves;
- * snapshot-named properties are not detached immutable snapshots in that mode.
- */
-export interface ServiceOutputContext extends ModelHookContext {
-  /** Non-enumerable, non-writable handle for this output row/scope/access stage. */
-  readonly documentAuthorization: DocumentAuthorization;
-  /**
-   * Default/copied result: look up an exact unchanged value in its output graph,
-   * including registered embedded/related copies. Unknown/stale values return undefined;
-   * scalar IDs/null/counts have no child handle. Pass a related handle to that
-   * target model's helper at its output access. This method cannot issue new authority.
-   * For an active trusted query root, lookup is fixed issued-document membership,
-   * not current reachability: a removed original child can still be found and a
-   * replacement cannot. Root/request/runtime/model/scope/access checks still apply.
-   */
-  getDocumentAuthorization(output: object): DocumentAuthorization | undefined;
-}
+export interface ServiceOutputContext extends ModelOutputContext {}
 
 /** Successful integrated single output plus its internal context; no stronger field-existence inference. */
 export type AuthorizedSingleResult<T = unknown> = Omit<SingleResult<T>, 'context'> & {
@@ -303,7 +247,7 @@ export type AuthorizedListResult<T = unknown> = Omit<ListResult<T>, 'contexts'> 
 };
 /**
  * Trusted post-finalization presentation. May remove/construct output; no automatic
- * second authorization pass or handle association for arbitrary mutations/replacements.
+ * second authorization pass for arbitrary mutations/replacements. Stages are already closed.
  */
 export type ServiceOutputDecorator = (doc: unknown, context: ServiceOutputContext) => unknown;
 
@@ -323,30 +267,18 @@ export interface OutputPlanningOptions<TModel = unknown, TVirtuals extends objec
 }
 
 /**
- * Mutually exclusive named output filtering inputs: raw policy OR an issued handle.
- * Raw-policy evaluation (including `{}` for request mode) is a fresh call; only an
- * issued handle reuses full document decisions from the captured original call.
- * A fresh unassociated document needs suitable untrimmed projected hook inputs.
- * On recognized trimmed output, fresh evaluation retains unconditional request fields
- * and explicit grants but denies unresolved document-dependent rules without rerunning
- * their hook on the DTO. Metadata is never proof of cached authority.
- *
- * pickAllowedFields/trimOutputFields filter existing values only: no selection,
- * virtual getters, absent-value restoration, row checks or write grants. Omitted or
- * undefined options equal {} (fresh request-mode output), including on hydrated docs,
- * which are isolated rather than mutated. Positional baseFields have been removed.
- * A trusted fast-path handle filters current values with stale memo/shared grants and
- * remains usable on its exact associated root after descendant replacement/rollback;
- * it is not a current-graph or detached-callback-context guarantee. Fresh raw helpers
- * never acquire that weaker issued mode from server flags or DTO metadata.
+ * Fresh output-only evaluation of current values, captured global permissions and
+ * frozen empty document facts, plus explicit server outputFields policy. No document
+ * hooks, DB reads, row admission, virtual execution or omitted-value recovery. Metadata
+ * and previously returned DTOs never supply document authority. Both raw and hydrated
+ * inputs are isolated rather than mutated; model source modes do not apply here.
+ * Functions run normally against empty facts: e.g. !grants.suspended may be true,
+ * which is NOT evidence about a current document. Use a normal read/list for that.
  */
-export type OutputFieldOptions<TModel = unknown, TVirtuals extends object = Record<never, never>> =
-  | (OutputPlanningOptions<TModel, TVirtuals> & { readonly documentAuthorization?: never })
-  | {
-      readonly documentAuthorization: DocumentAuthorization;
-      readonly authorization?: never;
-      readonly scopePath?: never;
-    };
+export type OutputFieldOptions<
+  TModel = unknown,
+  TVirtuals extends object = Record<never, never>,
+> = OutputPlanningOptions<TModel, TVirtuals>;
 
 /**
  * genAllowedFields reports existing authorized output paths, never a write/schema

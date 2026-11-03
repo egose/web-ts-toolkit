@@ -4,7 +4,7 @@ import type {
   AuthorizedListResult,
   AuthorizedSingleResult,
   CreateAuthorization,
-  DocumentAuthorization,
+  ModelOutputContext,
   FieldAuthorization,
   InputFieldAuthorization,
   InputFieldPath,
@@ -50,7 +50,7 @@ import type {
   ServiceAuthorization as AdvancedServiceAuthorization,
   InputFieldPath as AdvancedInputFieldPath,
   MutationAuthorization as AdvancedMutationAuthorization,
-  DocumentAuthorization as AdvancedDocumentAuthorization,
+  ModelOutputContext as AdvancedModelOutputContext,
   PublicCreateOptions,
   PublicListOptions,
   PublicReadOptions,
@@ -80,109 +80,31 @@ interface Virtuals {
   contacts: readonly (VirtualSubModel<Order, 'contacts'> & { badge: string })[];
 }
 
-const temporaryListWorkaround = { unsafeSkipListDocumentSnapshotChecks: true } satisfies ModelRouterOptions<Order>;
-const invalidListWorkaround: ModelRouterOptions<Order> = {
-  // @ts-expect-error only a server boolean is supported
-  unsafeSkipListDocumentSnapshotChecks: 'true',
-};
-const perCallListWorkaround: FindOptions<Order> = {
-  // @ts-expect-error the unsafe switch is not a per-call service option
-  unsafeSkipListDocumentSnapshotChecks: true,
-};
-const wireListWorkaround: PublicListOptions = {
-  // @ts-expect-error clients cannot configure the unsafe switch
-  unsafeSkipListDocumentSnapshotChecks: true,
-};
-const defaultListWorkaround: Defaults<Order> = {
-  findOptions: {
-    // @ts-expect-error method defaults are query/presentation only
-    unsafeSkipListDocumentSnapshotChecks: true,
-  },
-};
-void [temporaryListWorkaround, invalidListWorkaround, perCallListWorkaround, wireListWorkaround, defaultListWorkaround];
-const temporaryReadWorkaround = {
-  unsafeSkipReadDocumentSnapshotChecks: true,
-  unsafeSkipListDocumentSnapshotChecks: false,
-} satisfies ModelRouterOptions<Order>;
-const readStartingDefaults = { unsafeSkipReadDocumentSnapshotChecks: true } satisfies DefaultModelRouterOptions<Order>;
-const invalidReadWorkaround: ModelRouterOptions<Order> = {
-  // @ts-expect-error only an explicit server boolean is supported
-  unsafeSkipReadDocumentSnapshotChecks: 'true',
-};
-const perCallReadWorkaround: FindOneOptions<Order> = {
-  // @ts-expect-error not a per-call single-read option
-  unsafeSkipReadDocumentSnapshotChecks: true,
-};
-const perCallByIdWorkaround: FindByIdOptions<Order> = {
-  // @ts-expect-error not a per-call identifier-read option
-  unsafeSkipReadDocumentSnapshotChecks: true,
-};
-const wireReadWorkaround: PublicReadOptions = {
-  // @ts-expect-error clients cannot configure the read switch
-  unsafeSkipReadDocumentSnapshotChecks: true,
-};
-const defaultReadWorkaround: Defaults<Order> = {
-  publicReadOptions: {
-    // @ts-expect-error method defaults cannot carry this unsafe setting
-    unsafeSkipReadDocumentSnapshotChecks: true,
-  },
-};
-void [
-  temporaryReadWorkaround,
-  readStartingDefaults,
-  invalidReadWorkaround,
-  perCallReadWorkaround,
-  perCallByIdWorkaround,
-  wireReadWorkaround,
-  defaultReadWorkaround,
-];
+// Source isolation is model/default configuration, never per-call authority.
+const modes = {
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'trusted',
+} as const satisfies ModelRouterOptions<Order>;
+const modeDefaults = modes satisfies DefaultModelRouterOptions<Order>;
 type Assert<T extends true> = T;
 type Equal<A, B> = [A, B] extends [B, A] ? true : false;
-type QuerySnapshotFlags =
-  | 'unsafeSkipListOutputSnapshotChecks'
-  | 'unsafeSkipReadOutputSnapshotChecks'
-  | 'unsafeSkipListNestedDocumentSnapshotChecks'
-  | 'unsafeSkipReadNestedDocumentSnapshotChecks'
-  | 'unsafeSkipListInitialOutputSnapshotCopy'
-  | 'unsafeSkipReadInitialOutputSnapshotCopy';
-const querySnapshotWorkaround = {
-  unsafeSkipListOutputSnapshotChecks: false,
-  unsafeSkipReadOutputSnapshotChecks: true,
-  unsafeSkipListNestedDocumentSnapshotChecks: false,
-  unsafeSkipReadNestedDocumentSnapshotChecks: true,
-  unsafeSkipListInitialOutputSnapshotCopy: false,
-  unsafeSkipReadInitialOutputSnapshotCopy: true,
-} satisfies ModelRouterOptions<Order>;
-const querySnapshotDefaults = querySnapshotWorkaround satisfies DefaultModelRouterOptions<Order>;
-export type QuerySnapshotBooleanOptions = Assert<
-  Equal<Pick<ModelRouterOptions<Order>, QuerySnapshotFlags>, { [K in QuerySnapshotFlags]?: boolean }>
+type SourceModes = 'readAuthorizationMode' | 'listAuthorizationMode';
+export type NoPerCallModes = Assert<
+  Equal<Extract<SourceModes, keyof (FindOptions & FindOneOptions & FindByIdOptions)>, never>
 >;
-export type NoPerCallSnapshotOptions = Assert<
-  Equal<Extract<QuerySnapshotFlags, keyof (FindOptions<Order> & FindOneOptions<Order> & FindByIdOptions<Order>)>, never>
+export type NoPublicModes = Assert<Equal<Extract<SourceModes, keyof (PublicListOptions & PublicReadOptions)>, never>>;
+export type NoDefaultModes = Assert<
+  Equal<Extract<SourceModes, keyof (Defaults & NonNullable<Defaults['findOptions']>)>, never>
 >;
-export type NoPublicSnapshotOptions = Assert<
-  Equal<Extract<QuerySnapshotFlags, keyof (PublicListOptions & PublicReadOptions)>, never>
+export type NoPolicyModes = Assert<
+  Equal<Extract<SourceModes, keyof (ServiceAuthorization & OutputAuthorization)>, never>
 >;
-export type NoDefaultSnapshotOptions = Assert<
-  Equal<
-    Extract<
-      QuerySnapshotFlags,
-      keyof (Defaults<Order> &
-        NonNullable<Defaults<Order>['findOptions']> &
-        NonNullable<Defaults<Order>['publicReadOptions']>)
-    >,
-    never
-  >
->;
-export type NoPolicySnapshotOptions = Assert<
-  Equal<Extract<QuerySnapshotFlags, keyof (ServiceAuthorization<Order> & OutputAuthorization<Order>)>, never>
->;
-void [querySnapshotWorkaround, querySnapshotDefaults];
+void [modes, modeDefaults];
 export type EntryParity = Assert<
   Equal<ServiceAuthorization<Order, Virtuals>, AdvancedServiceAuthorization<Order, Virtuals>>
 >;
 export type PathParity = Assert<Equal<OutputFieldPath<Order, Virtuals>, AdvancedOutputFieldPath<Order, Virtuals>>>;
-export type HandleParity = Assert<Equal<DocumentAuthorization, AdvancedDocumentAuthorization>>;
+export type DiagnosticParity = Assert<Equal<ModelOutputContext, AdvancedModelOutputContext>>;
 export type InputPathParity = Assert<Equal<InputFieldPath<Order>, AdvancedInputFieldPath<Order>>>;
 export type MutationParity = Assert<
   Equal<MutationAuthorization<Order, Virtuals>, AdvancedMutationAuthorization<Order, Virtuals>>
@@ -272,7 +194,7 @@ const unknownPolicy: ServiceAuthorization = { outputFields: { mode: 'grant', pat
 const anyPolicy: ServiceAuthorization<any> = unknownPolicy;
 const indexedPolicy: ServiceAuthorization<Record<string, unknown>> = unknownPolicy;
 const empty: FieldAuthorization = { mode: 'grant', paths: [] as const };
-const modes: readonly RowAuthorization<Order>[] = [
+const rowModes: readonly RowAuthorization<Order>[] = [
   { mode: 'request' },
   { mode: 'unrestricted' },
   { mode: 'scope', filter: {} },
@@ -448,8 +370,8 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
   const createOptions: CreateOptions<Order, Virtuals> = { authorization: create };
   const newOptions: NewOptions<Order, Virtuals> = { authorization: output, skim: true };
   const decorator: ServiceOutputDecorator = (doc, context) => {
-    const handle: DocumentAuthorization = context.documentAuthorization;
-    void handle;
+    const diagnostic: ModelOutputContext = context;
+    void diagnostic.docPermissions;
     return doc;
   };
   const list = await service.find({}, { select: ['summary'] }, options[0], decorator);
@@ -481,24 +403,22 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
   if (single.success) {
     const result: AuthorizedSingleResult<Order> = single;
     const context: ServiceOutputContext = result.context;
-    const handle = context.documentAuthorization;
-    const reuse: OutputFieldOptions<Order, Virtuals> = { documentAuthorization: handle };
+    const diagnostic: ModelOutputContext = context;
+    const reuse: OutputFieldOptions<Order, Virtuals> = { authorization: output };
     const allowed: AllowedOutputFieldOptions<Order, Virtuals> = { ...reuse, purpose: 'output' };
     const picked = await service.pickAllowedFields(result.data, 'read', reuse);
     await service.trimOutputFields(picked, 'read', reuse);
     await service.genAllowedFields(picked, 'read', allowed);
     await req.macl.pickAllowedFields<Order, Order, Virtuals>('Order', picked, 'read', reuse);
-    const lookup: DocumentAuthorization | undefined = context.getDocumentAuthorization(result.data);
+    const scope: readonly string[] = diagnostic.scopePath;
     const note: string | undefined = result.data.internalNote;
     // @ts-expect-error a grant does not make an optional persisted value exist
     const requiredNote: string = result.data.internalNote;
-    // @ts-expect-error raw policy and handle are mutually exclusive, including reusable values
-    const mixed: OutputFieldOptions = { documentAuthorization: handle, authorization: output };
-    // @ts-expect-error handle scope cannot be overridden
-    await service.trimOutputFields(picked, 'read', { documentAuthorization: handle, scopePath: [] });
-    // @ts-expect-error only one source of authority per helper call
-    await service.pickAllowedFields(picked, 'read', { documentAuthorization: handle, authorization: output });
-    void [lookup, note, requiredNote, mixed];
+    // @ts-expect-error diagnostics are immutable, not mutable lifecycle state
+    diagnostic.scopePath.push('contacts');
+    // @ts-expect-error helper policy is output-only, even on reusable values
+    const broadHelper: OutputFieldOptions = { authorization: policy };
+    void [scope, note, requiredNote, broadHelper];
   }
   if (list.success) {
     const result: AuthorizedListResult<Order> = list;
@@ -506,8 +426,6 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
     // @ts-expect-error aligned output contexts are readonly
     result.contexts.push(context!);
   }
-  // @ts-expect-error no structural handle constructor
-  const forged: DocumentAuthorization = {};
   // @ts-expect-error no backend row authority for create
   await service.create({}, {}, { authorization: policy });
   // @ts-expect-error new has output authority only
@@ -534,7 +452,6 @@ export async function installedServiceCalls(req: ModelRequest, router: ModelRout
   await service.genSelect('create', undefined, false, ['contacts', 'sub']);
   // @ts-expect-error arbitrary baseFields are removed; use named output options
   await service.pickAllowedFields({}, 'read', ['status']);
-  void forged;
 }
 
 type Wire =
@@ -583,7 +500,7 @@ const optionalVirtual: SelectedPublicOutput<Order, ['summary'], Virtuals> = {};
 // @ts-expect-error selected/granted virtuals can be omitted by the runtime
 const requiredVirtual: { summary: string } = optionalVirtual;
 
-// Neither the opaque consumer handle nor the documented service acquisition adds issuers.
+// Diagnostic contexts and service acquisition add no issuers. Removed handle/control failures compile separately.
 // @ts-expect-error no standalone Service export
 export type PrivateService = import('@web-ts-toolkit/access-router').Service;
 // @ts-expect-error resolved call owners are private
@@ -624,7 +541,7 @@ void [
   relatedInput,
   anyPolicy,
   indexedPolicy,
-  modes,
+  rowModes,
   operation,
   bounded,
   tooDeep,

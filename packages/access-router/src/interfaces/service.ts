@@ -18,7 +18,6 @@ import type {
 export interface PopulatePlanningOptions {
   readonly scopePath?: readonly string[];
   readonly authorization?: never;
-  readonly documentAuthorization?: never;
 }
 
 /** Template selection is historically ignored, including empty/exclusion selections. */

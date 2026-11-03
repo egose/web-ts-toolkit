@@ -671,16 +671,17 @@ export async function loadVirtualPopulateOutputRows(
   // Writes/templates/dedicated children populate only these detached rows,
   // after exact storage-slot capture. Reads already did adapter-only population.
   if (populateAdapter) await populateAdapter(output);
+  // Every public target needs its own full hook-input projection, even without
+  // private virtuals. Adapter population of detached mutation rows can leave a
+  // hydrated target here; a public-only mask is not its document-hook source.
   const targets = captured.flatMap((row, index) =>
-    readVirtualPopulatePublicTargets(row)
-      .filter((target) => virtualPopulateSourcePaths(target.plan).length > 0)
-      .map((target) => ({ ...target, index })),
+    readVirtualPopulatePublicTargets(row).map((target) => ({ ...target, index })),
   );
   // Non-static ordinary refs remain on Mongoose's adapter population path.
   // Collect their target inputs before any public snapshot/clone loses auto refs.
   for (const entry of adapterPopulate) {
     const meta = getPopulateTargetMeta(entry);
-    if (!meta || !virtualPopulateSourcePaths(meta.plan).length) continue;
+    if (!meta) continue;
     const parts = entry.path.split('.');
     const visit = (value: unknown, part: number, address: VirtualPopulateAddress, index: number) => {
       if (Array.isArray(value)) {

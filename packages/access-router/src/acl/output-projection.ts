@@ -2,24 +2,19 @@
 import { types } from 'node:util';
 import type { Projection } from '../interfaces';
 import type { FieldAuthorization } from '../interfaces/service-authorization';
-import { normalizeSelect } from '../helpers/query';
 import { authorizationError } from './authorization-snapshot';
 import { isCatalogOutputPath, isSafeOutputPath, matchesCatalogPattern } from './field-catalog';
-import { classifyEffectiveFieldAuthorization, extractOutputFieldRules } from './field-authorization';
+import { selectCatalogOutputShape, type CatalogOutputSelection } from './output-selection';
 import { resolveVirtualPopulateDependencies } from './virtual-populate-dependencies';
-import type { FieldAuthorizationState } from './field-authorization';
 import {
   getAuthorizationPermissions,
   readServiceAuthorization,
-  readAuthorizationFastPath,
   type AuthorizationBinding,
   type AuthorizationConfiguration,
   type ResolvedServiceAuthorization,
 } from './service-authorization';
 import {
-  getScopeVirtualsObject,
   resolveAlwaysSelectForAccess,
-  resolveSnapshotDescriptor,
   planVirtualProjection,
   type PlanVirtualProjectionArgs,
   type VirtualProjectionPlan,
@@ -78,7 +73,16 @@ export function readStaticOutputPlanFields(
 /** Positive Mongo projection with deterministic ordering and no ancestor/descendant collisions. */
 export function compactPersistedProjection(paths: readonly string[]): string[] {
   const unique = [...new Set(paths.filter((p) => p && !p.startsWith('-')))];
-  return unique.filter((path) => !unique.some((parent) => parent !== path && path.startsWith(`${parent}.`)));
+  const candidates = new Set(unique);
+  return unique.filter((path) => {
+    // Only a dotted ancestor can cover this path. Checking its actual ancestors
+    // avoids an all-pairs scan for ordinary wide selections, without sorting or
+    // changing the caller's deterministic projection order.
+    for (let end = path.indexOf('.'); end !== -1; end = path.indexOf('.', end + 1)) {
+      if (candidates.has(path.slice(0, end))) return false;
+    }
+    return true;
+  });
 }
 
 /** Private executor seam: authenticate the call; use its captured catalog/rules/accesses/permissions. */
@@ -111,7 +115,7 @@ export function planAuthorizedModelProjection(args: {
       globalPermissions: getAuthorizationPermissions(args.authorization, args.binding),
     },
     authorization.outputFields,
-    readAuthorizationFastPath(args.authorization, args.binding)?.mode === 'active',
+    true,
   );
   // Keep the authenticated owner separate from serialized output. Never recreate
   // this plan with live options/permissions after an asynchronous hook.
@@ -133,93 +137,28 @@ export function planCatalogProjection(
   outputFields: FieldAuthorization = { mode: 'request' },
   safeDefinitions = false,
 ): VirtualProjectionPlan {
+  return expandCatalogProjection(args, selectCatalogOutputShape(args, outputFields, safeDefinitions), safeDefinitions);
+}
+
+/** Fetch-only expansion of the canonical selection. Raw value consumers never enter here. */
+function expandCatalogProjection(
+  args: PlanVirtualProjectionArgs,
+  selection: CatalogOutputSelection,
+  safeDefinitions: boolean,
+): VirtualProjectionPlan {
   const { snapshot, outputAccess, virtualAccess, docPermissionsAccess, receivingModelName } = args;
   const catalog = snapshot.catalog!;
   const scope = (args.scopePath ?? []).filter((part) => part !== 'sub');
   const prefix = scope.length ? `${scope.join('.')}.` : '';
   const globalPermissions = args.globalPermissions ?? { has: () => false, hasKey: () => false };
-  const raw = Object.prototype.hasOwnProperty.call(args, 'effectiveSelect')
-    ? args.effectiveSelect
-    : snapshot.requireExplicitSelect && args.requestedSelect === undefined
-      ? ['_id']
-      : args.requestedSelect;
-  const normalized = normalizeSelect(raw ?? null);
-  const mode = !normalized.length ? 'all' : normalized.every((p) => p.startsWith('-')) ? 'exclude' : 'include';
-  const includes = normalized.filter((p) => !p.startsWith('-'));
-  const excludes = normalized.filter((p) => p.startsWith('-')).map((p) => p.slice(1));
-  const selected = (relative: string) =>
-    !excludes.some((p) => relative === p || relative.startsWith(`${p}.`)) &&
-    (mode !== 'include' || includes.some((p) => relative === p || relative.startsWith(`${p}.`)));
   const full = (path: string) => `${prefix}${path}`;
   const virtual = (path: string) => catalog.virtualPaths?.some((p) => matchesCatalogPattern(p, path, true)) ?? false;
-  const container = (path: string) => catalog.containerPaths?.some((p) => matchesCatalogPattern(p, path)) ?? false;
-  const valid = (path: string) => isCatalogOutputPath(catalog, path);
-  const universe = new Set(catalog.paths.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length)));
-  for (const token of includes) if (valid(full(token))) universe.add(token);
-  // Grants enlarge omitted/exclusion eligibility, never the caller's explicit selection.
-  if (outputFields.mode === 'grant')
-    for (const path of outputFields.paths) {
-      if (path.startsWith(prefix)) universe.add(path.slice(prefix.length));
-    }
-  // A named Map key can denote an embedded subtree. Instantiate only keys
-  // explicitly supplied by selection/grants, never arbitrary stored keys.
-  const explicitPaths = [...includes.map(full), ...(outputFields.mode === 'grant' ? outputFields.paths : [])];
-  for (const explicit of explicitPaths.filter(valid)) {
-    const parts = explicit.split('.');
-    for (const pattern of catalog.dynamicPaths ?? []) {
-      const template = pattern.split('.');
-      if (!template.every((part, index) => (part === '$*' ? !!parts[index] : !parts[index] || part === parts[index])))
-        continue;
-      const path = template.map((part, index) => (part === '$*' ? parts[index] : part)).join('.');
-      if (path.startsWith(prefix)) universe.add(path.slice(prefix.length));
-    }
-  }
-  // Opaque descendants named by request rules are explicit, known candidates too.
-  const addRulePaths = (record: Record<string, unknown> | null | undefined, parent = '') => {
-    for (const [name, value] of Object.entries(record ?? {})) {
-      const path = parent ? `${parent}.${name}` : name;
-      if (path.startsWith(prefix) && valid(path)) universe.add(path.slice(prefix.length));
-      if (value && typeof value === 'object' && 'sub' in value)
-        addRulePaths((value as { sub: Record<string, unknown> }).sub, path);
-    }
-  };
-  addRulePaths(snapshot.permissionSchema);
-
-  const states: Record<string, FieldAuthorizationState> = {};
-  const persisted: string[] = [];
-  const virtualLeaves: string[] = [];
-  for (const relative of universe) {
-    const path = full(relative);
-    if (!relative || !valid(path) || container(path) || !selected(relative)) continue;
-    // An explicitly selected dynamic branch does not load the whole opaque root.
-    const state = classifyEffectiveFieldAuthorization({
-      path,
-      rules: extractOutputFieldRules(snapshot.permissionSchema, path, outputAccess),
-      outputFields,
-      globalPermissions,
-      modelPermissionPrefix: snapshot.modelPermissionPrefix,
-    });
-    if (safeDefinitions)
-      Object.defineProperty(states, relative, { value: state, enumerable: true, configurable: true, writable: true });
-    else states[relative] = state;
-    if (state === 'denied' || relative === '_id') continue;
-    if (virtual(path)) virtualLeaves.push(relative);
-    else persisted.push(relative);
-  }
-
+  const { shape, persisted, activeVirtuals } = selection;
   const candidates: VirtualProjectionPlan['candidates'] = [];
   const depProvenance: Record<string, string[]> = {};
-  const allVirtuals: string[] = [];
-  for (const relative of virtualLeaves) {
-    const segments = full(relative).split('.');
-    const name = segments.pop()!;
-    const registry = getScopeVirtualsObject(
-      snapshot.virtuals,
-      segments.flatMap((part) => [part, 'sub']),
-    );
-    const descriptor = resolveSnapshotDescriptor(registry, name, virtualAccess);
-    if (!descriptor) continue;
-    allVirtuals.push(relative);
+  const allVirtuals = activeVirtuals.map((entry) => entry.relative);
+  for (const { relative, descriptor } of activeVirtuals) {
+    const name = relative.split('.').pop()!;
     for (const dependency of descriptor.dependsOn) {
       const localPrefix = relative.includes('.') ? relative.slice(0, relative.lastIndexOf('.') + 1) : '';
       const dep = `${localPrefix}${dependency}`;
@@ -237,34 +176,21 @@ export function planCatalogProjection(
           name,
           virtualAccess,
         ),
-        authState: states[relative] as 'granted' | 'deferred',
+        authState: shape.fieldStates![relative] as 'granted' | 'deferred',
         virtualAccess,
         outputAccess,
       });
   }
-  const ancestors = new Set<string>();
-  for (const path of [...persisted, ...allVirtuals]) {
-    const parts = path.split('.');
-    for (let i = 1; i < parts.length; i++) ancestors.add(parts.slice(0, i).join('.'));
-  }
   const children: Record<string, VirtualProjectionPlan> = {};
-  for (const name of [...ancestors].filter((p) => !p.includes('.'))) {
-    // A direct opaque root is already an atomic output; explicit descendant
-    // paths still get a child plan for minimal branch projection downstream.
-    const childIncludes = includes.filter((p) => p.startsWith(`${name}.`)).map((p) => p.slice(name.length + 1));
-    const childExcludes = excludes.filter((p) => p.startsWith(`${name}.`)).map((p) => `-${p.slice(name.length + 1)}`);
-    const childSelect =
-      mode === 'include' && !includes.includes(name) ? [...childIncludes, ...childExcludes] : childExcludes;
-    const child = planCatalogProjection(
+  for (const [name, selectedChild] of Object.entries(selection.children)) {
+    const child = expandCatalogProjection(
       {
         ...args,
-        scopePath: [...(args.scopePath ?? []), name, 'sub'],
-        requestedSelect: childSelect,
-        effectiveSelect: childSelect,
+        scopePath: selectedChild.shape.scopePath,
         related: [],
         internalFetch: { baseFields: [] },
       },
-      outputFields,
+      selectedChild,
       safeDefinitions,
     );
     if (safeDefinitions)
@@ -272,10 +198,7 @@ export function planCatalogProjection(
     else children[name] = child;
   }
   const internal = args.internalFetch ?? {};
-  const fetchIdRetained =
-    scope.length === 0 ||
-    catalog.paths.includes(full('_id')) ||
-    !!catalog.dynamicPaths?.some((p) => p.endsWith('._id') && matchesCatalogPattern(p, full('_id')));
+  const { fetchIdRetained, outputIdExcluded } = shape;
   const identity = fetchIdRetained ? ['_id'] : [];
   const always = scope.length
     ? []
@@ -322,9 +245,7 @@ export function planCatalogProjection(
   const populateRefs = candidates.flatMap((candidate) => candidate.populateDependencies.map((dep) => dep.path));
   const privateFields = [...dependencies, ...populateRefs, ...forced.filter(fetchSafe), ...identity, ...childFetch];
   const fetch = compactPersistedProjection([...persisted, ...privateFields]);
-  const outputIdExcluded = excludes.includes('_id');
   const coveredOutput = (path: string) => persisted.some((p) => p === path || path.startsWith(`${p}.`));
-  const outputPersisted = [...new Set([...persisted.filter((p) => !p.includes('.')), ...Object.keys(children)])];
   return {
     receivingModelName,
     scopePath: [...(args.scopePath ?? [])],
@@ -332,13 +253,13 @@ export function planCatalogProjection(
     virtualAccess,
     outputAccess,
     docPermissionsAccess,
-    selectionMode: mode,
-    effectiveSelectNorm: normalized,
-    outputPersistedFields: outputPersisted,
-    outputVirtualNames: candidates.map((c) => c.name),
-    outputSelection: [...outputPersisted, ...candidates.map((c) => c.name), ...(outputIdExcluded ? ['-_id'] : [])],
-    fieldStates: Object.freeze(states),
-    minimalAncestorPaths: Object.freeze([...ancestors]),
+    selectionMode: shape.selectionMode,
+    effectiveSelectNorm: shape.effectiveSelectNorm,
+    outputPersistedFields: shape.outputPersistedFields,
+    outputVirtualNames: shape.outputVirtualNames,
+    outputSelection: shape.outputSelection,
+    fieldStates: shape.fieldStates,
+    minimalAncestorPaths: shape.minimalAncestorPaths,
     persistedFetchSelection: fetch,
     publicPersistedFetchSelection,
     publicStructurePaths,

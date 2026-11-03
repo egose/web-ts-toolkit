@@ -3,6 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  assertCollectionDiagnostics,
+  assertMigrationDiagnostics,
+  extractMigrationBlocks,
+} from './migration-guide-fixture';
 
 const packageRoot = path.resolve(__dirname, '..');
 const workspaceRoot = path.resolve(packageRoot, '..', '..');
@@ -26,6 +31,7 @@ function stageConsumerDir(): string {
   cpSync(path.resolve(packageRoot, 'dist'), path.resolve(consumerPkgRoot, 'dist'), { recursive: true });
   cpSync(path.resolve(packageRoot, 'package.json'), path.resolve(consumerPkgRoot, 'package.json'));
   cpSync(path.resolve(packageRoot, 'README.md'), path.resolve(consumerPkgRoot, 'README.md'));
+  cpSync(path.resolve(packageRoot, 'MIGRATION.md'), path.resolve(consumerPkgRoot, 'MIGRATION.md'));
 
   const hoistedDirs = [path.join(packageRoot, 'node_modules'), path.join(workspaceRoot, 'node_modules')];
   const ensure = (link: Link): boolean => {
@@ -104,7 +110,58 @@ describe('ARF-14 strict packed-consumer types', () => {
     ['Node16', 'mts', 'Node16'],
     ['Node16', 'cts', 'Node16'],
   ])(
-    'FP-04 checks installed optional flags, opaque handles and the exact runnable example (%s / %s)',
+    'OAR-09F checks conservative collection types and real negative diagnostics (%s / %s)',
+    (resolution, extension, module) => {
+      const sources = ['owned-authorization-many.types.fixture', 'owned-authorization-many-consumer.types.fixture'];
+      for (const source of [...sources, 'owned-authorization-many.invalid.types.fixture'])
+        writeFileSync(
+          path.resolve(consumerDir, `${source}.${extension}`),
+          readFileSync(path.resolve(packageRoot, `test/${source}.ts`), 'utf8'),
+        );
+      const compile = (files: string[]) => {
+        const config = `tsconfig-many-${resolution}-${extension}.json`;
+        writeFileSync(
+          path.resolve(consumerDir, config),
+          JSON.stringify({
+            compilerOptions: {
+              target: 'ES2022',
+              module,
+              moduleResolution: resolution,
+              strict: true,
+              noUnusedLocals: true,
+              noUnusedParameters: true,
+              noEmit: true,
+              skipLibCheck: false,
+              esModuleInterop: true,
+              types: ['node'],
+            },
+            files,
+          }),
+        );
+        return run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+      };
+      const positive = compile(sources.map((source) => `${source}.${extension}`));
+      expect(positive.stdout + positive.stderr).toBe('');
+      expect(positive.status).toBe(0);
+      const file = `owned-authorization-many.invalid.types.fixture.${extension}`;
+      const negative = compile([file]);
+      expect(negative.status).not.toBe(0);
+      assertCollectionDiagnostics(
+        readFileSync(path.resolve(consumerDir, file), 'utf8'),
+        file,
+        negative.stdout + negative.stderr,
+      );
+    },
+  );
+
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ])(
+    'OAR-08 checks installed modes, immutable diagnostics and exact guide workflow (%s / %s)',
     (resolution, extension, module) => {
       const source = `fast-path-${resolution}.${extension}`;
       const example = `fast-path-readme-${resolution}.${extension}`;
@@ -113,13 +170,13 @@ describe('ARF-14 strict packed-consumer types', () => {
         readFileSync(path.resolve(packageRoot, 'test/authorization-fast-path-consumer.types.fixture.ts'), 'utf8'),
       );
       const readme = readFileSync(
-        path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/README.md'),
+        path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/MIGRATION.md'),
         'utf8',
       );
       const snippet = [...readme.matchAll(/<!--\s*doc-example:\s*complete-runtime\s*-->\s*```ts\n([\s\S]*?)```/g)]
         .map((match) => match[1])
-        .find((text) => text.includes('async function runAuthorizationFastPathExample()'));
-      expect(snippet, 'installed runnable LIST/READ fast-path example').toBeDefined();
+        .find((text) => text.includes('async function runOwnedAuthorizationExample()'));
+      expect(snippet, 'installed runnable owned-authorization guide').toBeDefined();
       writeFileSync(path.resolve(consumerDir, example), snippet!);
       const config = `tsconfig-fast-path-${resolution}-${extension}.json`;
       writeFileSync(
@@ -141,6 +198,8 @@ describe('ARF-14 strict packed-consumer types', () => {
         }),
       );
       const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+      if (result.status !== 0)
+        throw new Error(`Owned guide workflow compile failed:\n${result.stdout}${result.stderr}`);
       expect(result.stdout + result.stderr).toBe('');
       expect(result.status).toBe(0);
     },
@@ -153,7 +212,7 @@ describe('ARF-14 strict packed-consumer types', () => {
     ['Node16', 'mts', 'Node16'],
     ['Node16', 'cts', 'Node16'],
   ])(
-    'FUSE-05 keeps the original eight options without unshipped fusion controls (%s / %s)',
+    'OAR-08 retires ten flags and keeps unshipped fusion controls absent (%s / %s)',
     (resolution, extension, module) => {
       const source = `publication-withdrawal-${resolution}.${extension}`;
       writeFileSync(
@@ -182,6 +241,73 @@ describe('ARF-14 strict packed-consumer types', () => {
       const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
       expect(result.stdout + result.stderr).toBe('');
       expect(result.status).toBe(0);
+    },
+  );
+
+  it.each([
+    ['Bundler', 'ts', 'ESNext'],
+    ['NodeNext', 'mts', 'NodeNext'],
+    ['NodeNext', 'cts', 'NodeNext'],
+    ['Node16', 'mts', 'Node16'],
+    ['Node16', 'cts', 'Node16'],
+  ])(
+    'OAR-08 compiles every guide target and separately rejects every old statement (%s / %s)',
+    (resolution, extension, module) => {
+      const guide = readFileSync(
+        path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router/MIGRATION.md'),
+        'utf8',
+      );
+      const blocks = extractMigrationBlocks(guide);
+      const positive: string[] = [];
+      const invalid = [
+        {
+          source: readFileSync(
+            path.resolve(packageRoot, 'test/owned-authorization-migration.invalid.types.fixture.ts'),
+            'utf8',
+          ),
+        },
+        ...blocks.filter((block) => block.kind === 'expected-error'),
+      ];
+      blocks
+        .filter((block) => block.kind !== 'expected-error')
+        .forEach((block, index) => {
+          const file = `guide-${resolution}-${index}.${extension}`;
+          writeFileSync(path.resolve(consumerDir, file), block.source);
+          positive.push(file);
+        });
+      const compile = (files: string[]) => {
+        const config = `tsconfig-guide-${resolution}-${extension}.json`;
+        writeFileSync(
+          path.resolve(consumerDir, config),
+          JSON.stringify({
+            compilerOptions: {
+              target: 'ES2022',
+              module,
+              moduleResolution: resolution,
+              strict: true,
+              noUnusedLocals: true,
+              noUnusedParameters: true,
+              noEmit: true,
+              skipLibCheck: false,
+              esModuleInterop: true,
+              types: ['node'],
+            },
+            files,
+          }),
+        );
+        return run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', config], consumerDir);
+      };
+      const result = compile(positive);
+      if (result.status !== 0) throw new Error(`Owned guide targets compile failed:\n${result.stdout}${result.stderr}`);
+      expect(result.stdout + result.stderr).toBe('');
+      expect(result.status).toBe(0);
+      invalid.forEach((block, index) => {
+        const file = `guide-invalid-${resolution}-${index}.${extension}`;
+        writeFileSync(path.resolve(consumerDir, file), block.source);
+        const rejected = compile([file]);
+        expect(rejected.status).not.toBe(0);
+        assertMigrationDiagnostics(block.source, file, rejected.stdout + rejected.stderr);
+      });
     },
   );
 

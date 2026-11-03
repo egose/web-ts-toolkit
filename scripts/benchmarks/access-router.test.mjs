@@ -97,8 +97,10 @@ test('snapshot support comes from boolean model-option declarations, including s
   const inspected = await inspectSnapshotDeclarations(fakeRoot);
   assert.deepEqual(inspected.supportedSnapshotFlags, [first, second, third]);
   assert.match(inspected.snapshotDeclarationsSha256, /^[a-f0-9]{64}$/);
+  // Historical source fixture only, never imported by installed/timing workflows.
+  // Current product deliberately deleted this module; do not restore an adapter.
   const implemented = await readFile(
-    resolve(root, 'packages/access-router/src/acl/unsafe-snapshot-options.ts'),
+    resolve(process.env.WTT_BENCH_LEGACY_ROOT ?? root, 'packages/access-router/src/acl/unsafe-snapshot-options.ts'),
     'utf8',
   );
   // Inspect the actual groups, not incidental quoted references elsewhere in the

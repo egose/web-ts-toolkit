@@ -32,17 +32,38 @@ paths (e.g. `/home/<user>/...`, `/tmp/...` outside the repo, `$HOME/...`).
 
 ## Temporary work
 
-- Use ignored repository-local `_tmp*` directories for temporary
-  fixtures/consumer installations.
+- Use ignored repository-local `_tmp*` directories for temporary testing/probes,
+  fixtures, consumer installations, logs and other scratch work. Choose a fresh
+  directory per task/run; maintained tests/fixtures stay in their normal locations.
 - Set `TMPDIR` to a repo-local absolute directory at runtime when a tool
-  requires it, but record it as `TMPDIR=<repo-root>/_tmp-<topic>` in the task
-  file. Example: `TMPDIR=<repo-root>/_tmp-air07 pnpm --filter
+  requires it, but record it as `TMPDIR='<repo-root>/_tmp-<topic>'` in the task
+  file. Example: `TMPDIR='<repo-root>/_tmp-air07' pnpm --filter
 @web-ts-toolkit/asset-inliner test`.
-- Confirm the temp dir is ignored (`git check-ignore`) and clean fixtures
-  when done. Do not create consumer work under machine-local temp outside
-  the repo.
+- Confirm the temp dir is ignored (`git check-ignore`). Git ignore status does
+  not guarantee that lint/build tools exclude it. Do not create consumer work under
+  machine-local temp outside the repo.
 - Do not paste `$HOME`, `/home/<user>/...`, `/tmp/...`, tool-output dump
   paths, or `cwd=` prefixes. Scrub them to the placeholders above.
+
+## Preserve referenced evidence before handoff
+
+- Before finalizing work or handing it off, review referenced scratch contents and
+  move useful designs, handoffs, test-migration ledgers, review/acceptance reports
+  and necessary supporting evidence to
+  `docs/task-artifacts/<package-name>/<task-or-run-id>/`. Use the repository package
+  directory name (for example, `access-router`), not its scoped npm name.
+- Update task/document references to the preserved files and verify they resolve.
+  Follow [the preservation checklist](../task-artifacts/README.md) for selection,
+  privacy scrubbing, provenance and omitted-data/reproducibility limits. Do not
+  commit entire scratch trees, dependencies, caches or generated consumers.
+- Copy rather than move when original paths/bytes are needed by active work or
+  historical seals. Leave those originals unchanged, and clean only your own
+  disposable files after checking that nothing depends on them.
+- Disposable `TMPDIR` paths and explicitly historical scratch references may remain;
+  required continuation instructions or durable evidence must not exist only there.
+- Historical access-router evidence is indexed in
+  [the curated archive](../task-artifacts/access-router/README.md). Its manifest
+  distinguishes preserved documents from omitted raw data and execution artifacts.
 
 ## Historical note
 

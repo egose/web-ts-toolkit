@@ -43,6 +43,7 @@ exclude: |
   (?x)^(
     CHANGELOG\.md |
     .pre-commit-config\.yaml |
+    docs/task-artifacts/.* |
     (.*/)?package-lock\.json |
     (.*/)?yarn\.lock |
     (.*/)?pnpm-lock\.yaml

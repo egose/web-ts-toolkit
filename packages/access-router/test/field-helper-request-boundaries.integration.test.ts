@@ -39,7 +39,7 @@ async function fixture() {
   api.setGlobalOptions({ globalPermissions: () => ({ reader: true, admin: false }) });
   const hook = vi.fn((doc: { ownerId?: string }) => ({ owner: doc.ownerId === 'actor' }));
   const fieldRule = vi.fn(
-    (permissions, grants: Record<string, unknown> = {}) => permissions.has('reader') && !grants.owner,
+    (permissions, grants: Readonly<Record<string, boolean>>) => permissions.has('reader') && !grants.owner,
   );
   const targetHook = vi.fn(() => ({ owner: true }));
   const targetTransform = vi.fn((filter: unknown) => filter);

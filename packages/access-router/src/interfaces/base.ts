@@ -3,7 +3,7 @@ import { Core } from '../core';
 import { DataCore } from '../core-data';
 import { Codes } from '../enums';
 import type { AccessRouterRequest } from './request';
-import type { BaseFilterAccess } from './access';
+import type { BaseFilterAccess, DocumentGrants } from './access';
 import type { PublicCreateArgs, PublicCreateOptions } from './service-create';
 import type { PublicListArgs, PublicListOptions } from './service-list';
 import type { PublicReadArgs, PublicReadOptions } from './service-read';
@@ -14,28 +14,18 @@ export * from './request';
 export * from './access';
 export * from './query-types';
 
-interface KeyValue {
-  [key: string]: unknown;
-}
-
 export interface Change {
   op: 'add' | 'replace' | 'remove';
   path: Array<string | number>;
   value?: unknown;
 }
 
-/**
- * Callback diagnostics, not a server-option or authority token. In an active unsafe
- * READ/LIST authorization fast path, shells are shallow and source/grant/native leaves
- * may be borrowed across callbacks/scopes. Snapshot-named properties do not promise
- * detached immutable values in that mode. Mutations can affect later values/decisions;
- * do not use this context to change captured operation/row authority or work limits.
- */
+/** Mutable business lifecycle context for validation, preparation, persistence and change/delete hooks. */
 export interface ModelHookContext {
   modelName: string;
   mongooseModel: mongoose.Model<unknown>;
   operation?: string;
-  /** Diagnostic source view; active trusted queries borrow it rather than deep-snapshotting it. */
+  /** Original persisted state for change/lifecycle bookkeeping, never output authority. */
   originalDocumentSnapshot?: Record<string, unknown>;
   finalDocumentSnapshot?: Record<string, unknown>;
   currentDocument?: ModelDocument;
@@ -45,8 +35,8 @@ export interface ModelHookContext {
   allowedFields?: string[];
   modifiedPaths?: string[];
   changes?: Change[];
-  /** Full hook grants; ordinary active trusted grants are shared, not isolated per callback/read. */
-  docPermissions?: KeyValue;
+  /** Owned frozen boolean facts; pre-write and output stages resolve independently. */
+  docPermissions?: DocumentGrants;
   resolvedQuery?: {
     filter?: Filter;
     select?: string[];
@@ -55,6 +45,34 @@ export interface ModelHookContext {
     skip?: number;
     limit?: number;
   };
+}
+
+/**
+ * Immutable output diagnostics, not current-document authority or a reusable token.
+ * Document hooks receive empty facts before resolution; row callbacks receive that
+ * stage's owned boolean facts; decorateAll has empty facts. Exact allowlist below:
+ * frozen primitives, arrays and facts, including canonical select/populate/sort string
+ * arrays and numeric skip/limit; resolvedQuery has NO filter. No source/native,
+ * lifecycle/model/raw-filter aliases or helper/child-lookup authority. Use explicit
+ * normal writes for business changes; ModelHookContext lifecycle hooks stay mutable.
+ */
+export interface ModelOutputContext {
+  readonly modelName: string;
+  readonly operation: string;
+  readonly receivingModelName: string;
+  /** Definition scope, including `sub` markers (for example ['contacts', 'sub']). */
+  readonly scopePath: readonly string[];
+  readonly virtualAccess: string;
+  readonly outputAccess: string;
+  readonly docPermissionsAccess: string;
+  readonly docPermissions: DocumentGrants;
+  readonly resolvedQuery?: Readonly<{
+    select?: readonly string[];
+    populate?: readonly string[];
+    sort?: readonly string[];
+    skip?: number;
+    limit?: number;
+  }>;
 }
 
 export interface DataHookContext {
@@ -309,7 +327,7 @@ export interface SingleResult<T = unknown, TInput = unknown, TQuery = unknown> {
   data: T;
   input?: TInput;
   query?: TQuery;
-  context?: ModelHookContext;
+  context?: ModelOutputContext;
 }
 
 export interface ListResult<T = unknown, TInput = unknown, TQuery = unknown> {
@@ -321,7 +339,7 @@ export interface ListResult<T = unknown, TInput = unknown, TQuery = unknown> {
   totalCount?: number | null;
   input?: TInput;
   query?: TQuery;
-  contexts?: readonly ModelHookContext[];
+  contexts?: readonly ModelOutputContext[];
 }
 
 export type ServiceResult<T = unknown, TError = unknown, TInput = unknown, TQuery = unknown> =

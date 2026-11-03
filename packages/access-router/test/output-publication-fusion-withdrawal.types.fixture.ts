@@ -10,16 +10,17 @@ import type {
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
 type Withdrawn = 'unsafeFuseListOutputPublication' | 'unsafeFuseReadOutputPublication';
-type OriginalOptions = {
-  unsafeSkipListDocumentSnapshotChecks?: boolean;
-  unsafeSkipReadDocumentSnapshotChecks?: boolean;
-  unsafeSkipListOutputSnapshotChecks?: boolean;
-  unsafeSkipReadOutputSnapshotChecks?: boolean;
-  unsafeSkipListNestedDocumentSnapshotChecks?: boolean;
-  unsafeSkipReadNestedDocumentSnapshotChecks?: boolean;
-  unsafeSkipListInitialOutputSnapshotCopy?: boolean;
-  unsafeSkipReadInitialOutputSnapshotCopy?: boolean;
-};
+type Retired =
+  | 'unsafeSkipListDocumentSnapshotChecks'
+  | 'unsafeSkipReadDocumentSnapshotChecks'
+  | 'unsafeSkipListOutputSnapshotChecks'
+  | 'unsafeSkipReadOutputSnapshotChecks'
+  | 'unsafeSkipListNestedDocumentSnapshotChecks'
+  | 'unsafeSkipReadNestedDocumentSnapshotChecks'
+  | 'unsafeSkipListInitialOutputSnapshotCopy'
+  | 'unsafeSkipReadInitialOutputSnapshotCopy'
+  | 'unsafeUseListAuthorizationFastPath'
+  | 'unsafeUseReadAuthorizationFastPath';
 
 export type WithdrawalContract = [
   Assert<Equal<Extract<Withdrawn, keyof DefaultModelRouterOptions>, never>>,
@@ -28,8 +29,12 @@ export type WithdrawalContract = [
   Assert<Equal<Extract<Withdrawn, keyof AdvancedModel>, never>>,
   Assert<Equal<Extract<Withdrawn, keyof ExtendedDefaultModelRouterOptions>, never>>,
   Assert<Equal<Extract<Withdrawn, keyof ExtendedModelRouterOptions>, never>>,
-  Assert<Equal<Pick<DefaultModelRouterOptions, keyof OriginalOptions>, OriginalOptions>>,
-  Assert<Equal<Pick<ModelRouterOptions, keyof OriginalOptions>, OriginalOptions>>,
+  Assert<Equal<Extract<Retired, keyof DefaultModelRouterOptions>, never>>,
+  Assert<Equal<Extract<Retired, keyof ModelRouterOptions>, never>>,
+  Assert<Equal<Extract<Retired, keyof AdvancedDefaults>, never>>,
+  Assert<Equal<Extract<Retired, keyof AdvancedModel>, never>>,
+  Assert<Equal<Extract<Retired, keyof ExtendedDefaultModelRouterOptions>, never>>,
+  Assert<Equal<Extract<Retired, keyof ExtendedModelRouterOptions>, never>>,
 ];
 
 // @ts-expect-error unshipped LIST publication fusion is not a model option
