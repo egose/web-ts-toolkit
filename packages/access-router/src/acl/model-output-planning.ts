@@ -76,6 +76,8 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
   // Primitive mode capture precedes catalog/native configuration callbacks.
   const readAuthorizationMode = options.readAuthorizationMode ?? 'isolated';
   const listAuthorizationMode = options.listAuthorizationMode ?? 'isolated';
+  const createAuthorizationMode = options.createAuthorizationMode ?? 'isolated';
+  const updateAuthorizationMode = options.updateAuthorizationMode ?? 'isolated';
   const model = runtime.getModelInstance(modelName);
   if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
   const virtuals = options.virtuals as Record<string, unknown> | undefined;
@@ -114,6 +116,8 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
     disableFieldPermissions: options.disableFieldPermissions ?? true,
     readAuthorizationMode,
     listAuthorizationMode,
+    createAuthorizationMode,
+    updateAuthorizationMode,
     overrideFilter: options.overrideFilter,
     baseFilter: options.baseFilter,
     idField: options.idField,

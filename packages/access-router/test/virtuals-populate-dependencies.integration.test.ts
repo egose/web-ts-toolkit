@@ -253,6 +253,130 @@ async function executeFixture<T>(f: Awaited<ReturnType<typeof fixture>>, run: (r
   return result;
 }
 
+describe('write-output modes retain selected/private populated input lanes', () => {
+  it.each(['isolated', 'trusted'] as const)(
+    '%s CREATE/UPDATE/UPSERT retain captured hooks, target rules and private argument-four copies',
+    async (mode) => {
+      const contexts: unknown[] = [];
+      const eligible = vi.fn((doc, _permissions, context, populated) => {
+        expect(doc.account).not.toHaveProperty('balance');
+        expect(context.docPermissions).toEqual({ owner: true });
+        contexts.push(context);
+        const account = populated.account;
+        expect(account.balance).toBe(10);
+        expect(account.stamp.getTime()).toBe(new Date('2025-01-01').getTime());
+        expect(account.bytes.toString()).toBe('private');
+        account.balance = 900;
+        account.stamp.setTime(0);
+        (Buffer.isBuffer(account.bytes) ? account.bytes : account.bytes.buffer).fill(0);
+        return true;
+      });
+      const credit = vi.fn((_doc, _permissions, _context, populated) => {
+        expect(populated.account.balance).toBe(10);
+        expect(populated.account.bytes.toString()).toBe('private');
+        return populated.account.balance;
+      });
+      const hook = vi.fn(() => ({ owner: true }));
+      const f = await fixture(
+        { readAuthorizationMode: mode === 'trusted' ? 'isolated' : 'trusted' },
+        {
+          createAuthorizationMode: mode,
+          updateAuthorizationMode: mode,
+          operationAccess: true,
+          modelPermissionPrefix: 'doc:',
+          permissionSchema: {
+            label: { create: true, update: true, read: 'doc:owner' },
+            account: true,
+            eligible: true,
+            credit: true,
+          },
+          docPermissions: { create: hook, update: hook },
+          virtuals: {
+            eligible: {
+              get: eligible,
+              dependsOnPopulate: [{ path: 'account', select: 'balance stamp bytes -_id' }],
+            },
+            credit: { get: credit, dependsOnPopulate: [{ path: 'account', select: 'balance bytes -_id' }] },
+          },
+          stripPermissionsField: true,
+        },
+      );
+      const args = {
+        select: ['label', 'account', 'eligible', 'credit', '-_id'],
+        populate: [{ path: 'account', select: ['name', 'balance', '-_id'] }],
+      };
+      await executeFixture(f, async (req) => {
+        const direct = req.macl.getService(f.Source.modelName);
+        const pub = req.macl.getPublicService(f.Source.modelName);
+        for (const entry of [
+          'create',
+          'update',
+          'upsert-create',
+          'upsert-update',
+          'public-create',
+          'public-update',
+          'public-upsert-create',
+          'public-upsert-update',
+        ] as const) {
+          const creating = entry.endsWith('create') || entry === 'create';
+          const data = { label: entry, account: f.a._id };
+          const result =
+            entry === 'create'
+              ? await direct.create(data, args, quiet)
+              : entry === 'update'
+                ? await direct.updateById(String(f.sources[0]._id), data, args, quiet)
+                : entry === 'public-create'
+                  ? await pub._create(data, args, quiet)
+                  : entry === 'public-update'
+                    ? await pub._update(String(f.sources[0]._id), data, args, quiet)
+                    : entry.startsWith('public')
+                      ? await pub._upsert(
+                          { ...(creating ? {} : { _id: String(f.sources[0]._id) }), ...data },
+                          args,
+                          quiet,
+                        )
+                      : await direct.upsert({ _id: creating ? f.missing : f.sources[0]._id }, data, args, quiet);
+          expect(result.success, JSON.stringify(result)).toBe(true);
+          if (!result.success) throw new Error(result.code);
+          const row = Array.isArray(result.data) ? result.data[0] : result.data;
+          expect(row).toEqual({ label: entry, account: { name: 'a' }, eligible: true, credit: 10 });
+          expect(contexts.at(-1)).toMatchObject({
+            operation: entry.includes('upsert') ? 'upsert' : creating ? 'create' : 'update',
+            outputAccess: 'read',
+            docPermissionsAccess: creating ? 'create' : 'update',
+          });
+        }
+        const bulk = await direct.create(
+          [
+            { label: 'bulk-one', account: f.a._id },
+            { label: 'bulk-two', account: f.a._id },
+          ],
+          args,
+          quiet,
+        );
+        expect(bulk).toMatchObject({
+          success: true,
+          data: [
+            { label: 'bulk-one', account: { name: 'a' }, eligible: true, credit: 10 },
+            { label: 'bulk-two', account: { name: 'a' }, eligible: true, credit: 10 },
+          ],
+        });
+        if (!bulk.success) throw new Error(bulk.code);
+        expect(bulk.data[0].account).not.toBe(bulk.data[1].account);
+        expect(bulk.contexts[0].docPermissions).not.toBe(bulk.contexts[1].docPermissions);
+      });
+      expect(eligible).toHaveBeenCalledTimes(10);
+      expect(credit).toHaveBeenCalledTimes(10);
+      expect(f.targetPermissions).toHaveBeenCalledTimes(9);
+      expect(await f.Target.findById(f.a._id).select('+balance').lean()).toMatchObject({
+        balance: 10,
+        stamp: new Date('2025-01-01'),
+      });
+      expect(await f.Source.findOne({ label: 'create' }).lean()).not.toHaveProperty('eligible');
+    },
+  );
+});
+
 describe.each(['lean', 'hydrated'] as const)('DPV-03 direct private getter inputs (%s)', (hydration) => {
   it('computes from denied ref/target fields without adding them to the first argument or output', async () => {
     const getter = vi.fn((doc, _permissions, _context, populated) => {

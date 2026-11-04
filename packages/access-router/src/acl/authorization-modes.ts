@@ -14,7 +14,18 @@ export const retiredAuthorizationOptions = [
   'unsafeUseListAuthorizationFastPath',
   'unsafeUseReadAuthorizationFastPath',
 ] as const;
-export const authorizationModeKeys = ['readAuthorizationMode', 'listAuthorizationMode'] as const;
+export const authorizationModeKeys = [
+  'readAuthorizationMode',
+  'listAuthorizationMode',
+  'createAuthorizationMode',
+  'updateAuthorizationMode',
+] as const;
+export const authorizationModeOperations = {
+  readAuthorizationMode: 'read',
+  listAuthorizationMode: 'list',
+  createAuthorizationMode: 'create',
+  updateAuthorizationMode: 'update',
+} as const satisfies Record<(typeof authorizationModeKeys)[number], string>;
 export const serverAuthorizationControls = [...retiredAuthorizationOptions, ...authorizationModeKeys] as const;
 
 export function authorizationControlError(key: string): string {

@@ -42,6 +42,7 @@ import {
 import { Codes } from '../enums';
 import {
   createServiceExecution,
+  createWriteServiceExecution,
   deriveServiceExecution,
   readServiceExecution,
   type ServiceExecutionContext,
@@ -639,15 +640,9 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
         : captureModelServiceIntent(this, 'create', createArgs, createOptions);
       const execution = withExecutionQueryIntent(
         this,
-        createServiceExecution(
+        createWriteServiceExecution(
           this,
-          {
-            operation: 'upsert',
-            rowAccess: 'update',
-            virtualAccess: 'update',
-            outputAccess: 'read',
-            docPermissionsAccess: 'update',
-          },
+          'upsert',
           requestOnlyServiceOptions({}).authorization,
           'service',
           this.captureRelated(intent.args),

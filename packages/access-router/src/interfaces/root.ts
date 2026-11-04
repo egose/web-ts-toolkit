@@ -65,9 +65,13 @@ type RequestSchema = RequestSchemaLike;
 /**
  * One engine, two source-isolation modes. `isolated` (default) owns bounded detached
  * projected source and disposable doc-hook views; `trusted` may borrow admitted ordinary
- * source/doc-hook input. Actor, policy, normalized boolean facts and selected/native
+ * source/doc-hook input. CREATE/UPDATE output, including write-origin related targets,
+ * always acquires a bounded detached source first; trusted omits only the subsequent
+ * disposable doc-hook view copy. Actor, policy, normalized boolean facts and selected/native
  * output bounds remain owned/enforced in BOTH. No callback sandbox, transaction,
  * external-cache/database freshness or blanket security-equivalence promise.
+ * Captured independently for READ/LIST output and CREATE/UPDATE post-write output;
+ * these settings never relax write-input admission or pre-write hooks.
  * See the installed MIGRATION.md before choosing trusted.
  */
 export type AuthorizationMode = 'isolated' | 'trusted';
@@ -528,11 +532,14 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    */
   disableFieldPermissions?: boolean;
   /**
-   * Server model/default-model READ source isolation; default `isolated`.
+   * Server model/default-model READ output source isolation; default `isolated`.
    * Only literal `isolated` / `trusted`; undefined restores inheritance. Captured
    * before hooks/awaits; READ-to-LIST retries keep the initiating READ mode but use a
    * fresh stage. Embedded scopes inherit their genuine owner; related targets capture
-   * their own model/access mode and policy. Independent service calls capture anew.
+   * their own model/access mode and policy, including genuine write-origin populate.
+   * This setting never selects the root CREATE/UPDATE mode. Write-origin targets
+   * still require full bounded source detachment before trusted hook-view borrowing.
+   * Independent service calls capture anew.
    * No per-call, helper, method-default, HTTP/root/include/populate/subquery selector.
    * Retired unsafe controls reject by presence, even false/undefined or inherited.
    * Warns once per effective owner/access transition into trusted; logger failures
@@ -552,11 +559,14 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * Independent server model/default-model LIST source isolation; default `isolated`.
    * Literal `isolated` / `trusted` only; undefined restores inheritance. Both modes
    * capture actor/policy before hooks/awaits and normalize facts once per stage. Only source
-   * borrowing changes: trusted doc-hook mutations can affect values/calculated facts;
-   * no whole-document bounds on hidden unvisited graphs. Selected 20,000-slot/depth 100
+   * borrowing changes: trusted doc-hook mutations can affect values/calculated facts.
+   * Query-origin trusted output has no whole-document bounds on hidden unvisited
+   * graphs; write-origin targets always acquire a fully bounded detached source first.
+   * Selected 20,000-slot/depth 100
    * bounds, original actor, rows/fields/targets, getter views and private argument-four
    * isolation remain. Related targets use their own captured mode; embedded scopes
-   * inherit their owner. Writes/new/dedicated subdocuments ALWAYS stay isolated.
+   * inherit their owner. Target-local READ/LIST modes also select genuine write-origin
+   * populate, never the root write mode. NEW/helpers/dedicated origins remain excluded.
    * Atomic setters and new-call-only rollback follow readAuthorizationMode. There is
    * no one-to-one mapping from old mixed flags and no reusable output handle.
    *
@@ -572,6 +582,52 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
    * ```
    */
   listAuthorizationMode?: AuthorizationMode;
+  /**
+   * Independent server model/default-model CREATE post-write output isolation;
+   * default `isolated`. Literal `isolated` / `trusted` only; undefined restores
+   * inheritance. Captured before hooks/awaits, including both UPSERT branch modes.
+   * Selects CREATE output (including bulk rows and the executed UPSERT-create branch),
+   * never input admission, validation, preparation, persistence or lifecycle hooks.
+   * Both modes first acquire a full bounded detached source, including mutable native
+   * leaves, never live write documents, payloads or lifecycle snapshots. Trusted may
+   * omit the subsequent disposable document-hook view copy. Hook mutations may affect response
+   * values/facts, not input authority. Output failure does not roll back a stored write.
+   * Embedded output inherits its owner; related targets retain their own READ/LIST
+   * mode/policy. Atomic setters, warnings and server-only placement follow readAuthorizationMode.
+   *
+   * @example
+   * ```ts
+   * import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+   * const api = createAccessRuntime();
+   * api.setDefaultModelOptions({ createAuthorizationMode: 'isolated', updateAuthorizationMode: 'isolated' });
+   * api.setModelOption('Employee', 'createAuthorizationMode', 'trusted'); // post-write output only
+   * api.setModelOption('Employee', 'createAuthorizationMode', undefined); // inherit
+   * ```
+   */
+  createAuthorizationMode?: AuthorizationMode;
+  /**
+   * Independent server model/default-model UPDATE post-write output isolation;
+   * default `isolated`. Literal `isolated` / `trusted` only; undefined restores
+   * inheritance. Captured before hooks/awaits; the executed UPSERT-update branch uses
+   * this capture, not live settings after saving. No separate UPSERT mode exists.
+   * Applies only after persistence/lifecycle processing. Pre-write grants, hydrated
+   * input-hook arguments, input fields, validation, transform/save and lifecycle
+   * behavior are unchanged. Trusted output still requires detachment from live write
+   * storage, payloads and snapshots; output failure may follow a successful write.
+   * Embedded/related ownership, atomic setters, warnings and server-only placement
+   * follow createAuthorizationMode. Changing modes affects new calls only.
+   * No implicit saves, re-fetches or rollback; arbitrary callback closures are not sandboxed.
+   *
+   * @example
+   * ```ts
+   * import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+   * const api = createAccessRuntime();
+   * api.setModelOptions('Employee', { createAuthorizationMode: 'isolated', updateAuthorizationMode: 'trusted' });
+   * // UPSERT selects the captured CREATE or UPDATE setting for its executed branch.
+   * api.setModelOption('Employee', 'updateAuthorizationMode', 'isolated'); // new calls only
+   * ```
+   */
+  updateAuthorizationMode?: AuthorizationMode;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown>

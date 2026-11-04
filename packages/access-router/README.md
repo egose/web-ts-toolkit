@@ -261,42 +261,83 @@ Express routes. `parentPath` supplies the external prefix for route metadata/log
 mount that prefix in Express yourself. Live `idField`/`resolveIdFilter` change lookup
 behavior rather than route shape.
 
-### Owned READ/LIST authorization modes
+### Owned authorization modes
 
-There is one document-stage engine and exactly two independent server options:
-`readAuthorizationMode` / `listAuthorizationMode`, each `'isolated' | 'trusted'`,
-default **isolated**. See the shipped [breaking migration guide](MIGRATION.md) for
-before/after examples, all ten removed flags, errors and rollout guidance. No old
-flag combination, dormant mode, output handle or compatibility alias remains.
+One document-stage engine has four independent server model/default-model settings,
+all `AuthorizationMode = 'isolated' | 'trusted'`, default **isolated**:
+
+| Setting                   | Current scope                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `readAuthorizationMode`   | Root READ output; READ-to-LIST retry retains this capture.                                         |
+| `listAuthorizationMode`   | Root LIST output.                                                                                  |
+| `createAuthorizationMode` | Post-persistence/lifecycle CREATE output, including bulk rows and UPSERT's executed create branch. |
+| `updateAuthorizationMode` | Post-persistence/lifecycle UPDATE output and UPSERT's executed update branch.                      |
+
+The READ/LIST names stay unchanged. There is no fifth UPSERT setting, alternate
+spelling or compatibility alias. The broader names do not authorize input or other
+phase relaxation. See the shipped [migration guide](MIGRATION.md) for the current
+contract, removed unsafe flags and checked workflows.
 
 <!-- doc-example: partial -->
 
 ```ts
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 const api = createAccessRuntime();
-api.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
-api.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });
+api.setDefaultModelOptions({
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'isolated',
+  createAuthorizationMode: 'isolated',
+  updateAuthorizationMode: 'isolated',
+});
+api.setModelOptions('Employee', {
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'trusted',
+  createAuthorizationMode: 'trusted',
+  updateAuthorizationMode: 'isolated',
+});
 api.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
 api.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default
 api.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only
 ```
 
-Isolated owns bounded detached projected source and gives document hooks disposable
-views. Trusted may borrow admitted ordinary projected source/doc-hook input: mutations
-can affect values/calculated facts; hidden unvisited graphs are not whole-document
-bounded. **Both own actor, private policy and normalized frozen boolean facts**, enforce
+Isolated owns bounded detached source and gives document-permission output hooks
+disposable views. Trusted may borrow admitted ordinary source/doc-hook input:
+mutations can affect response values and facts calculated from that source. Only
+**query-origin** trusted output can leave hidden unvisited graphs unbounded.
+
+**Both write modes always acquire a full bounded detached post-write source**, including
+mutable native leaves, before output callbacks. Trusted omits only the subsequent
+disposable document-hook view copy; it never lends live write documents, `_doc`, payloads
+or lifecycle snapshots. Conversion failure at this boundary fails output rather than
+borrowing `_doc`. This also applies to write-origin populated targets, even when their
+mode is selected by READ/LIST. A hidden graph can therefore fail write-output admission
+even if a trusted query would not visit it. No source-copy saving is promised; without
+an exposed document hook there may be no copy saving.
+
+**Both own actor, private policy and normalized frozen boolean facts**, enforce
 original actor, rows/fields/targets and selected/native 20,000-slot/depth-100 bounds.
 Both retain separate getter views, return staging and private argument-four isolation.
 No sandbox, transaction, rollback, external freshness or blanket security equivalence.
 
-Capture precedes hooks/awaits. Genuine embedded scopes inherit their owner; related
-targets use their own captured model/access mode and policy, not their parent's mode.
-READ-to-LIST retry keeps initiating READ mode with a fresh stage. Independent service
-calls capture anew. Writes/new/dedicated subdocuments always stay isolated.
+Capture precedes hooks/awaits, including both possible UPSERT modes. Selecting the
+executed branch retains initiating `operation: 'upsert'` and branch-specific access;
+it does not re-read settings after saving or turn a write response into a READ call.
+Genuine embedded scopes inherit their owner's mode/facts. Related targets use their
+**own model's captured READ/LIST mode** at effective target access, including genuine
+write-origin populate, with independent policy/facts. Parent mode cannot lower an
+isolated target; a trusted target cannot mutate an isolated parent's source or live
+write graph. Independent nested READ/LIST service calls capture anew.
+
+Write-input admission, pre-write grants and the **hydrated pre-write UPDATE hook**,
+validation, preparation, transform/save and lifecycle hooks are unchanged, not newly
+detached or sandboxed. NEW, helpers, dedicated subdocument origins, COUNT, DELETE,
+DISTINCT and unsupported custom origins gain no trusted stage. No implicit save,
+query or rollback is added. **Output authorization can fail after the write commits**;
+reconcile stored business state rather than automatically retrying the write.
 
 Only literal enum strings or undefined restoration are valid. Bulk setters reject
 atomically. Retired controls reject by presence, even false/undefined/inherited/
-non-enumerable. New/old selectors are prohibited in HTTP/root/per-call/helper/defaults/
+non-enumerable. Mode/retired selectors are prohibited in HTTP/root/per-call/helper/defaults/
 include/populate/subquery authority slots; same-named business fields remain data.
 Trusted transitions warn once per effective owner/access; logger failures cannot abort.
 Switching to isolated affects new calls, not in-flight captures. Rollback means a tested

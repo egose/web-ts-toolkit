@@ -15,14 +15,18 @@ describe('access-router-deco strict consumer types', () => {
     consumerDir = stageConsumerDir();
   });
 
-  it.each(['NodeNext', 'Bundler'] as const)(
-    'compiles configuration and retired-option assertions in strict %s consumers',
-    (resolution) => {
+  it.each([
+    ['NodeNext', 'mts'],
+    ['NodeNext', 'cts'],
+    ['Bundler', 'ts'],
+  ] as const)(
+    'compiles configuration and retired-option assertions in strict %s / %s consumers',
+    (resolution, extension) => {
       cpSync(
         path.join(packageRoot, 'test/hydration-consumer.types.fixture.ts'),
-        path.join(consumerDir, 'hydration.ts'),
+        path.join(consumerDir, `hydration.${extension}`),
       );
-      const tsconfigPath = path.join(consumerDir, `tsconfig.hydration-${resolution}.json`);
+      const tsconfigPath = path.join(consumerDir, `tsconfig.hydration-${resolution}-${extension}.json`);
       writeFileSync(
         tsconfigPath,
         JSON.stringify(
@@ -38,7 +42,7 @@ describe('access-router-deco strict consumer types', () => {
               types: ['node', 'reflect-metadata'],
               lib: ['ES2022', 'DOM'],
             },
-            include: ['hydration.ts'],
+            files: [`hydration.${extension}`],
           },
           null,
           2,

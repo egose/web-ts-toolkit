@@ -7,6 +7,8 @@ import { runWithRuntime } from '../src/runtime-context';
 import { Service } from '../src/services/service';
 import { DataService } from '../src/services/data-service';
 import { createAccessRuntime } from '../src/index';
+import { setDefaultModelOption } from '../src/options/default-model-options';
+import { setModelOption } from '../src/options/model-options';
 import Permission from '../src/permission';
 import { PERMISSIONS } from '../src/symbols';
 import type {
@@ -30,6 +32,7 @@ import {
   PublicAdmissionError,
 } from '../src/validation/public-admission';
 import { ServiceAuthorizationError } from '../src/acl/service-authorization';
+import { captureModelAuthorizationConfiguration } from '../src/acl/model-output-planning';
 import { deferred } from './hook-admission-fixture';
 
 const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
@@ -121,7 +124,6 @@ describe('exact server mode admission and atomic configuration', () => {
   it.each(authorizationModeKeys)('%s restores runtime inheritance and then built-in isolation independently', (key) => {
     const f = fixture();
     const name = f.model.modelName;
-    const other = authorizationModeKeys.find((candidate) => candidate !== key)!;
     expect(f.runtime.getDefaultModelOption(key)).toBe('isolated');
     expect(f.runtime.getModelOption(name, key)).toBe('isolated');
     f.runtime.setDefaultModelOptions({ [key]: 'trusted' });
@@ -133,7 +135,72 @@ describe('exact server mode admission and atomic configuration', () => {
     expect(f.runtime.getModelOption(name, key)).toBe('trusted');
     f.runtime.setDefaultModelOption(key, undefined);
     expect(f.runtime.getModelOptions(name)[key]).toBe('isolated');
-    expect(f.runtime.getModelOptions(name)[other]).toBe('isolated');
+    for (const other of authorizationModeKeys)
+      if (other !== key) expect(f.runtime.getModelOptions(name)[other]).toBe('isolated');
+  });
+
+  it.each(authorizationModeKeys)('%s is available through model/fluent/facade and runtime-bound named APIs', (key) => {
+    const api = createAccessRuntime();
+    api.setGlobalOptions({ logger: { warn: vi.fn() } });
+    const model = mongoose.model(`OwnedModes${++serial}`, new mongoose.Schema({ value: String }));
+    const router = api.createRouter(model, { [key]: 'trusted' });
+    const snapshot = router.options;
+    expect(snapshot[key]).toBe('trusted');
+    expect(
+      router
+        .setOption(key, 'isolated')
+        .set(key, undefined)
+        .setOptions({ [key]: 'trusted' }),
+    ).toBe(router);
+    expect(api.getModelOptions(model.modelName)[key]).toBe('trusted');
+    expect(router.set({ [key]: undefined })).toBe(router);
+    api.setDefaultModelOption(key, 'trusted');
+    expect(api.getDefaultModelOptions()[key]).toBe('trusted');
+    expect(api.getDefaultModelOption(key)).toBe('trusted');
+    expect(api.getModelOption(model.modelName, key)).toBe('trusted');
+    expect(api.runtime.getExactModelOption(model.modelName, key)).toBe('trusted');
+    runWithRuntime(api.runtime, () => {
+      setModelOption(model.modelName, key, 'isolated');
+      setDefaultModelOption(key, undefined);
+    });
+    expect(api.getModelOption(model.modelName, key)).toBe('isolated');
+    expect(api.getDefaultModelOption(key)).toBe('isolated');
+    expect(router.options).toBe(snapshot);
+    expect(snapshot[key]).toBe('trusted');
+  });
+
+  it.each(authorizationModeKeys)('%s rejects malformed scalar/fluent updates without partial configuration', (key) => {
+    const api = createAccessRuntime();
+    const warn = vi.fn();
+    api.setGlobalOptions({ logger: { warn } });
+    const model = mongoose.model(`OwnedModes${++serial}`, new mongoose.Schema({ value: String }));
+    const router = api.createRouter(model, {});
+    const before = api.runtime.createBootstrapSnapshot();
+    const coercion = vi.fn(() => 'trusted');
+    for (const value of [null, false, true, 1, '', 'TRUSTED', [], {}, { valueOf: coercion, toString: coercion }]) {
+      for (const update of [
+        () => api.setModelOption(model.modelName, key, value as never),
+        () => api.setDefaultModelOption(key, value as never),
+        () => router.set(key, value as never),
+        () => router.setOption(key, value as never),
+        () => router.set({ [key]: value } as never),
+        () => router.setOptions({ [key]: value } as never),
+      ]) {
+        expect(update).toThrow(TypeError);
+        expect(api.runtime.createBootstrapSnapshot()).toEqual(before);
+      }
+    }
+    for (const update of [
+      () => api.setModelOption(model.modelName, `${key}.value` as never, 'trusted'),
+      () => api.setDefaultModelOption(`${key}.value` as never, 'trusted'),
+      () => router.set(`${key}.value` as never, 'trusted'),
+      () => router.setOption(`${key}.value` as never, 'trusted'),
+    ]) {
+      expect(update).toThrow(/scalar mode/);
+      expect(api.runtime.createBootstrapSnapshot()).toEqual(before);
+    }
+    expect(coercion).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it.each(serverAuthorizationControls)('rejects dotted bulk %s before publishing either a model or defaults', (key) => {
@@ -157,11 +224,12 @@ describe('exact server mode admission and atomic configuration', () => {
     const f = fixture();
     const before = f.runtime.createBootstrapSnapshot();
     const getter = vi.fn(() => 'trusted');
+    const other = authorizationModeKeys.find((candidate) => candidate !== key)!;
     const trap = vi.fn(() => {
       throw new Error('proxy trap');
     });
     for (const options of [
-      { readAuthorizationMode: 'trusted', [key]: false },
+      { [other]: 'trusted', [key]: false },
       Object.create({ [key]: 'trusted' }),
       Object.defineProperty({}, key, { value: 'trusted' }),
       Object.defineProperty({}, key, { get: getter, enumerable: true }),
@@ -454,17 +522,72 @@ describe('control bags are not business schemas or trusted callback closures', (
     expect(getter).not.toHaveBeenCalled();
   });
 
-  it.each(serverAuthorizationControls)('%s remains inert in data, predicates and business field rules', (key) => {
+  it.each(serverAuthorizationControls)('%s remains inert in data, predicates and business field rules', async (key) => {
     const business = { [key]: 'trusted', options: { [key]: false } };
     expect(() =>
       assertPublicAdmission({ data: business, filter: business, match: business, select: [key] }),
     ).not.toThrow();
     const f = fixture({ permissionSchema: { [key]: true } });
     expect(f.runtime.getModelOptions(f.model.modelName).permissionSchema).toEqual({ [key]: true });
+    f.runtime.setModelOption(f.model.modelName, 'permissionSchema', { value: key });
+    f.request[PERMISSIONS] = new Permission({ [key]: true });
+    f.adapter.findOne.mockResolvedValue({ value: 'permission-string' });
+    expect(await f.service.findOne({}, { select: ['value', '-_id'] }, quiet)).toMatchObject({
+      success: true,
+      data: { value: 'permission-string' },
+    });
+    for (const modeKey of authorizationModeKeys)
+      expect(f.runtime.getModelOption(f.model.modelName, modeKey)).toBe('isolated');
+    expect(f.warn).not.toHaveBeenCalled();
   });
 });
 
 describe('actual source-mode capture through both model getter APIs', () => {
+  it.each(['catalog', 'native'] as const)('captures all four primitives before %s configuration callbacks', (phase) => {
+    const f = fixture();
+    const options: ModelRouterOptions = {
+      ...f.runtime.getModelOptions(f.model.modelName),
+      readAuthorizationMode: 'isolated',
+      listAuthorizationMode: 'isolated',
+      createAuthorizationMode: 'isolated',
+      updateAuthorizationMode: 'isolated',
+    };
+    const mutate = vi.fn(() => {
+      for (const key of authorizationModeKeys) options[key] = 'trusted';
+    });
+    if (phase === 'catalog') {
+      Object.defineProperty(options, 'virtuals', {
+        enumerable: true,
+        get() {
+          mutate();
+          return {};
+        },
+      });
+    } else {
+      options.baseFilter = {
+        unused: {
+          at: Object.assign(new Date(1), {
+            getTime() {
+              mutate();
+              return 1;
+            },
+          }),
+        },
+      } as never;
+    }
+    const captured = captureModelAuthorizationConfiguration(f.runtime, f.model.modelName, options);
+    expect(mutate).toHaveBeenCalled();
+    for (const key of authorizationModeKeys) {
+      expect(options[key]).toBe('trusted');
+      expect(captured[key]).toBe('isolated');
+    }
+    const next = captureModelAuthorizationConfiguration(f.runtime, f.model.modelName, options);
+    for (const key of authorizationModeKeys) {
+      expect(next[key]).toBe('trusted');
+      expect(captured[key]).toBe('isolated');
+    }
+  });
+
   it.each(
     (['bulk', 'key'] as const).flatMap((getter) =>
       modes.flatMap((mode) => (['read', 'list'] as const).map((origin) => ({ getter, mode, origin }))),

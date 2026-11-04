@@ -505,9 +505,10 @@ query filter or reusable document handle. Explicit parameter positions, original
 ### Owned authorization: breaking migration
 
 The installed access-router [MIGRATION.md](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md)
-is the complete M1–M5 guide. Configure independent `readAuthorizationMode` /
-`listAuthorizationMode` only on model/default options (`@Router`, `@RouterOptions`,
-`ModelOption`, `DefaultModelOption`, or factory `defaultModelOptions`). Both default
+is the complete M1–M5 guide. Configure independent `readAuthorizationMode`,
+`listAuthorizationMode`, `createAuthorizationMode` and `updateAuthorizationMode`
+only on model/default options (`@Router`, `@RouterOptions`, `ModelOption`,
+`DefaultModelOption`, or factory `defaultModelOptions`). All use `AuthorizationMode` and default
 to `isolated`; only literal `isolated` / `trusted` or undefined restoration are valid.
 All ten retired unsafe switches reject by presence, even false/undefined/inherited/
 non-enumerable. Global/module, root, method-default and request/per-call placements
@@ -569,7 +570,12 @@ export function createOwnedAuthorizationApp(connection: Connection) {
     return facts.owner === true;
   };
 
-  @RouterOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' })
+  @RouterOptions({
+    readAuthorizationMode: 'isolated',
+    listAuthorizationMode: 'isolated',
+    createAuthorizationMode: 'isolated',
+    updateAuthorizationMode: 'isolated',
+  })
   class Defaults {}
 
   @RouterOptions(Team, {
@@ -586,6 +592,8 @@ export function createOwnedAuthorizationApp(connection: Connection) {
     operationAccess: { read: true },
     readAuthorizationMode: 'isolated',
     listAuthorizationMode: 'trusted',
+    createAuthorizationMode: 'trusted',
+    updateAuthorizationMode: 'isolated',
     permissionSchema: { name: 'reader', salary: { read: salary }, teamId: 'reader' },
     stripPermissionsField: true,
   })
@@ -634,13 +642,32 @@ export function createOwnedAuthorizationApp(connection: Connection) {
 
 Call the exported function with a host-owned connected `Connection` before listening,
 then seed/read the models through that connection. A populated Team exposes only
-`label`; Employee's private `ownerId` fetch grants no output. Embedded scopes inherit
-their owner, READ retries retain READ mode, and writes/new/dedicated origins remain
-isolated. Isolated doc-hook input is disposable; trusted may borrow an admitted
-ordinary projected source **only**. Actor/policy/facts remain owned. Getter argument
-mutation is not an implicit write; return values are staged. Closures/external caches
-are not sandboxed or kept fresh. Real prepare/transform/save/change contexts remain
-mutable, and post-filter presentation remains trusted application work.
+`label`; Employee's private `ownerId` fetch grants no output. Root READ/LIST use their
+matching settings. CREATE (including bulk) and UPDATE settings apply **only to output
+after persistence/lifecycle processing**; UPSERT selects the executed branch's captured
+setting and retains initiating `upsert`/branch accesses. No fifth mode or renamed keys.
+All modes are captured before hooks/awaits; changes affect new calls only.
+
+Both write modes always acquire a **full bounded detached source**, including native
+leaves; trusted omits only the later disposable document-hook view copy. No live write
+document, `_doc`, payload or lifecycle snapshot is lent; conversion failure at this
+boundary fails output, not a fallback to `_doc`. Trusted mutations may affect response
+values/calculated facts. Input admission and the hydrated pre-write UPDATE hook,
+validation/preparation/transform/save/lifecycle behavior are unchanged, not newly
+detached or sandboxed. Output failure may follow commit; no implicit save/query/rollback
+or automatic retry is added.
+
+Embedded scopes inherit owner mode/facts; actual related targets select their **own
+model's READ/LIST mode**, including genuine write-origin populate, with independent
+policy/facts. Write-origin targets still require full bounded detachment, unlike
+trusted query-origin hidden unvisited graphs. Parent mode cannot lower an isolated
+target; target borrowing cannot mutate an isolated parent's source/live write graph.
+READ retries retain READ, independent nested calls recapture, and NEW/helpers/dedicated/
+COUNT/DELETE/DISTINCT/custom origins gain no trusted stage. Actor/policy/facts, getter
+views/return staging and private getter inputs remain protected. Closures/external
+caches are not sandboxed or kept fresh. Real prepare/transform/save/change contexts
+remain mutable; post-filter presentation is trusted application work. No timing or
+universal copy-saving claim follows from these settings.
 
 `@DocPermissions` registers a callable calculation. For extra private inputs, wrap
 that registered callback in `{ dependsOn, get }` after bootstrap and before serving,

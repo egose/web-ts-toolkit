@@ -6,6 +6,7 @@ import { createAccessRuntime } from '../src/index';
 import type { ModelRequest, ModelRouterOptions } from '../src/interfaces';
 import * as authorization from '../src/acl/service-authorization';
 import { authorizationModeKeys, serverAuthorizationControls } from '../src/acl/authorization-modes';
+import { deferred } from './hook-admission-fixture';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -147,9 +148,10 @@ async function fixture(options: ModelRouterOptions = {}) {
 function captureObserver() {
   const spy = vi.spyOn(authorization, 'resolveServiceAuthorization');
   const derived = vi.spyOn(authorization, 'deriveQueryAuthorization');
+  const write = vi.spyOn(authorization, 'resolveWriteServiceAuthorization');
   return () => {
     const seen = new Set();
-    return [spy, derived]
+    return [spy, derived, write]
       .flatMap((observer) =>
         observer.mock.results.flatMap((result, index) => {
           if (result.type !== 'return') return [];
@@ -362,7 +364,64 @@ describe('real direct/public/root captured query selection', () => {
     },
   );
 
-  it('does not activate for actual writes, write-derived reads, new output or dedicated subdocuments', async () => {
+  it.each(['isolated', 'trusted'] as const)(
+    '%s write output borrowing is observable through basic/advanced HTTP and root without changing stored writes',
+    async (mode) => {
+      const f = await fixture({ createAuthorizationMode: mode, updateAuthorizationMode: mode });
+      f.router.setOption('baseFilter', {});
+      f.rootHook.mockImplementation((doc: Record<string, unknown>) => {
+        if (!(doc instanceof mongoose.Document)) doc.value = 'output-hook';
+        return { owner: true };
+      });
+      f.router.setOption('docPermissions', { create: f.rootHook, update: f.rootHook });
+      for (const entry of [
+        'basic-create',
+        'advanced-create',
+        'basic-update',
+        'advanced-update',
+        'root-create',
+        'root-update',
+      ] as const) {
+        const value = `stored:${entry}`;
+        const args = { select: ['value', '-_id'] };
+        const creating = entry.endsWith('create');
+        const response = entry.startsWith('root')
+          ? await request(f.app)
+              .post('/root')
+              .send([
+                {
+                  target: 'model',
+                  name: f.Root.modelName,
+                  op: creating ? 'create' : 'update',
+                  ...(creating ? {} : { id: String(f.rows[0]._id) }),
+                  data: { value },
+                  args,
+                  options: quiet,
+                },
+              ])
+              .expect(200)
+          : entry.startsWith('advanced')
+            ? creating
+              ? await request(f.app)
+                  .post('/fast-options/__mutation')
+                  .send({ data: { value }, ...args, options: quiet })
+                  .expect(201)
+              : await request(f.app)
+                  .patch(`/fast-options/__mutation/${f.rows[0]._id}`)
+                  .send({ data: { value }, ...args, options: quiet })
+                  .expect(200)
+            : creating
+              ? await request(f.app).post('/fast-options').send({ value }).expect(201)
+              : await request(f.app).patch(`/fast-options/${f.rows[0]._id}`).send({ value }).expect(200);
+        const data = entry.startsWith('root') ? response.body[0].result.data : response.body;
+        const row = Array.isArray(data) ? data[0] : data;
+        expect(row.value).toBe(mode === 'trusted' ? 'output-hook' : value);
+        expect(await f.Root.findOne(creating ? { value } : { _id: f.rows[0]._id }).lean()).toMatchObject({ value });
+      }
+    },
+  );
+
+  it('READ/LIST settings alone do not activate root writes, new output or dedicated subdocuments', async () => {
     const f = await fixture({ readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' }),
       captures = captureObserver();
     f.router.setOption('baseFilter', {});
@@ -385,6 +444,85 @@ describe('real direct/public/root captured query selection', () => {
     expect(captures().length).toBeGreaterThan(8);
     expect(captures().every(({ captured }) => captured === 'isolated')).toBe(true);
   });
+
+  it.each([
+    'create',
+    'updateOne',
+    'updateById',
+    'upsert-create',
+    'upsert-update',
+    'public-upsert-create',
+    'public-upsert-update',
+  ] as const)(
+    '%s captures both write settings before an awaited hook; fresh calls recapture without trusting input',
+    async (entry) => {
+      const f = await fixture({
+        readAuthorizationMode: 'trusted',
+        listAuthorizationMode: 'trusted',
+        createAuthorizationMode: 'trusted',
+        updateAuthorizationMode: 'isolated',
+      });
+      f.router.setOption('baseFilter', {});
+      const captures = captureObserver();
+      const entered = deferred();
+      const release = deferred();
+      let first = true;
+      const prepare = async (data: Record<string, unknown>) => {
+        if (first) {
+          first = false;
+          entered.resolve();
+          await release.promise;
+        }
+        return data;
+      };
+      f.router.setOption('prepare', { create: prepare, update: prepare });
+      await f.execute(async (req) => {
+        const service = req.macl.getService(f.Root.modelName);
+        const pub = req.macl.getPublicService(f.Root.modelName);
+        const id = String(f.rows[0]._id);
+        const args = { select: ['value', '-_id'] };
+        const invoke = (value: string) =>
+          entry === 'create'
+            ? service.create({ value }, args, quiet)
+            : entry === 'updateOne'
+              ? service.updateOne({ _id: id }, { value }, args, quiet)
+              : entry === 'updateById'
+                ? service.updateById(id, { value }, args, quiet)
+                : entry.startsWith('public')
+                  ? pub._upsert({ ...(entry.endsWith('update') ? { _id: id } : {}), value }, args, quiet)
+                  : service.upsert(
+                      entry.endsWith('update') ? { _id: id } : { value: 'missing' },
+                      { value },
+                      args,
+                      quiet,
+                    );
+        const pending = invoke('first');
+        await entered.promise;
+        const root = captures().find(({ input }) => !input.parent)!;
+        expect(root).toBeDefined();
+        expect(root.captured).toBe('isolated');
+        const captured = authorization.readServiceAuthorization(root.call, root.input.binding).configuration;
+        expect(captured).toMatchObject({ createAuthorizationMode: 'trusted', updateAuthorizationMode: 'isolated' });
+        try {
+          f.router.setOptions({ createAuthorizationMode: 'isolated', updateAuthorizationMode: 'trusted' });
+        } finally {
+          release.resolve();
+        }
+        expect(await pending).toMatchObject({ success: true });
+        expect(captured).toMatchObject({ createAuthorizationMode: 'trusted', updateAuthorizationMode: 'isolated' });
+        expect(await invoke('second')).toMatchObject({ success: true });
+        const roots = captures().filter(({ input }) => !input.parent);
+        expect(roots).toHaveLength(2);
+        expect(roots[1].captured).toBe('isolated');
+        expect(
+          authorization.readServiceAuthorization(roots[1].call, roots[1].input.binding).configuration,
+        ).toMatchObject({
+          createAuthorizationMode: 'isolated',
+          updateAuthorizationMode: 'trusted',
+        });
+      });
+    },
+  );
 
   it.each(['find', 'findOne', 'findById', '_list', '_read', '_readFilter'] as const)(
     '%s reentry on the same receiver inside a document hook has its own post-rollback capture',

@@ -625,7 +625,8 @@ const assert = require('node:assert/strict');
     await import('@web-ts-toolkit/access-router'), await import('@web-ts-toolkit/access-router/advanced')];
   for (const entry of modules) {
     for (const name of ['Service', 'DocumentAuthorization', 'ServiceAuthorization', 'resolveServiceAuthorization',
-       'createServiceExecution', 'createDocumentAuthorizationStage', 'createServiceOutputContext',
+        'createServiceExecution', 'createWriteServiceExecution', 'deriveWriteOutputExecution',
+        'createDocumentAuthorizationStage', 'createServiceOutputContext',
        'prepareModelQuery', 'executePreparedFind', 'executeCreate', 'registerServiceExecutors',
        'withExecutionHydration', 'normalizeHydration', 'normalizeHydrationUpdate', 'attachPermissionsAlias',
         'requiresDocumentSnapshotChecks', 'requiresOutputSnapshotChecks', 'unsafeSnapshotOptions',

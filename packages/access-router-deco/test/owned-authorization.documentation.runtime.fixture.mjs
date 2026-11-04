@@ -13,6 +13,15 @@ const connection = await mongoose
 let server;
 try {
   const { app, runtime, EmployeeModel, Team, counts } = createOwnedAuthorizationApp(connection);
+  assert.equal(runtime.getModelOption(EmployeeModel.modelName, 'createAuthorizationMode'), 'trusted');
+  assert.equal(runtime.getModelOptions(EmployeeModel.modelName).updateAuthorizationMode, 'isolated');
+  for (const key of [
+    'readAuthorizationMode',
+    'listAuthorizationMode',
+    'createAuthorizationMode',
+    'updateAuthorizationMode',
+  ])
+    assert.equal(runtime.getDefaultModelOption(key), 'isolated');
   const team = await Team.create({ label: 'Engineering', privateNote: 'not output' });
   const row = await EmployeeModel.create({ name: 'Ada', salary: 100, ownerId: 'alice', teamId: team._id });
   server = app.listen(0, '127.0.0.1');

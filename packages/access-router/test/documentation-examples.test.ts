@@ -204,7 +204,12 @@ const assembleAllBlocks = (): CompiledBlock[] => {
     if (!snippet)
       throw new Error(`${entry} is missing the installed DefaultModelRouterOptions populate-operation example`);
     blocks.push({ name: `DefaultModelRouterOptions-${entry}`, sourcePath: `dist/${entry}`, kind: 'partial', snippet });
-    for (const option of ['listAuthorizationMode', 'readAuthorizationMode']) {
+    for (const option of [
+      'listAuthorizationMode',
+      'readAuthorizationMode',
+      'createAuthorizationMode',
+      'updateAuthorizationMode',
+    ]) {
       const mode = checker.getDeclaredTypeOfSymbol(symbol).getProperty(option)!;
       const example = mode.getJsDocTags(checker).find((tag) => tag.name === 'example');
       const snippet = ts.displayPartsToString(example?.text).match(/```ts\n([\s\S]*?)```/)?.[1];

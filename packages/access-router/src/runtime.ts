@@ -54,6 +54,7 @@ import {
   assertAuthorizationModeOptions,
   admitControlPrototypes,
   authorizationModeKeys,
+  authorizationModeOperations,
 } from './acl/authorization-modes';
 
 type ModelReferenceMap = {
@@ -529,6 +530,8 @@ export class AccessRuntime {
     modelPermissionPrefix: '',
     readAuthorizationMode: 'isolated',
     listAuthorizationMode: 'isolated',
+    createAuthorizationMode: 'isolated',
+    updateAuthorizationMode: 'isolated',
   }).build();
 
   private readonly modelOptions: Record<string, OptionsManager<any, any>> = {};
@@ -967,10 +970,10 @@ export class AccessRuntime {
         if (options[key] !== 'trusted' || before.get(modelName)?.[key] === 'trusted') continue;
         try {
           this.getGlobalOption('logger')?.warn?.(
-            'Trusted authorization source mode enabled; projected source/document-hook input may be borrowed. Actor, policy, facts, getter views and selected output bounds remain owned.',
+            'Trusted authorization output source mode enabled; admitted source/document-hook input may be borrowed. Write input is unchanged. Actor, policy, facts, getter views and selected output bounds remain owned.',
             {
               modelName,
-              access: key === 'readAuthorizationMode' ? 'read' : 'list',
+              access: authorizationModeOperations[key],
               category: 'trustedAuthorizationSource',
             },
           );

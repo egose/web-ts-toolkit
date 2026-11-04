@@ -427,10 +427,13 @@ Removed from **output** contexts, with no renamed backing aliases:
 data, query and diff fields. Use `ModelOutputHook` / `ModelOutputListHook` for
 presentation annotations instead of lifecycle `ModelHook` / `ModelListHook`.
 
-In `isolated`, doc hooks get disposable detached projected views, including
-supported mutable native leaves. In `trusted`, an admitted ordinary projected
-source/doc-hook input may be borrowed: mutations can affect values and facts the
-hook computes, and hidden unvisited source graphs are not whole-document bounded.
+For output, `isolated` doc hooks get disposable detached views, including supported
+mutable native leaves. In `trusted`, an admitted ordinary source/doc-hook input may
+be borrowed: mutations can affect values and facts the hook computes. Only query-origin
+trusted output leaves hidden unvisited source graphs unbounded. Write output and its
+related targets always acquire a full bounded detached source first; trusted omits
+only the subsequent disposable hook-view copy (see M4). The existing hydrated pre-write
+UPDATE hook is unchanged; these output guarantees are not an input-hook sandbox.
 **Only source borrowing relaxes**; captured actor, private policy and normalized
 facts remain immutable. Neither Object.freeze nor a readonly native type makes
 arbitrary Date/Buffer/BSON/Map methods immutable.
@@ -840,7 +843,12 @@ void readEmployeeForBusinessWork;
 Related targets use **their own** captured policy/facts/mode; the unchanged
 README runnable service/related example demonstrates separate scoped policies.
 
-## M4. Replace ten switches with two independent server modes
+## M4. Four independent server authorization modes
+
+Keep `readAuthorizationMode` / `listAuthorizationMode`; configure
+`createAuthorizationMode` / `updateAuthorizationMode` for CREATE/UPDATE **post-write
+output only**. All four use `AuthorizationMode = 'isolated' | 'trusted'` and default
+to isolated. There is no renamed-key migration, alias or separate UPSERT option.
 
 Before: combinations of comparison/copy/fast-path booleans. There is **no one-to-one
 mapping** for old mixed configurations and no dormant prerequisite combination.
@@ -850,8 +858,18 @@ mapping** for old mixed configurations and no dormant prerequisite combination.
 ```ts
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 const api = createAccessRuntime();
-api.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
-api.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });
+api.setDefaultModelOptions({
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'isolated',
+  createAuthorizationMode: 'isolated',
+  updateAuthorizationMode: 'isolated',
+});
+api.setModelOptions('Employee', {
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'trusted',
+  createAuthorizationMode: 'trusted',
+  updateAuthorizationMode: 'isolated',
+});
 api.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
 api.setModelOption('Employee', 'listAuthorizationMode', undefined); // restore live default inheritance
 api.setDefaultModelOption('listAuthorizationMode', 'isolated');
@@ -933,13 +951,29 @@ The new keys are also prohibited in HTTP/query/body/root-batch, per-call/helper,
 method-default, include/populate and subquery **authority namespaces**. Persisted
 business data/filter fields with the same names remain inert ordinary data.
 
-Capture happens before hooks/awaits. Embedded scopes inherit a genuine owning
-model; related targets select their own model/access mode plus private policy and
-facts. A trusted parent cannot lower an isolated target. READ-to-LIST retry keeps
-the initiating READ mode and creates a fresh stage. Independent callback service
-calls are fresh calls. Writes/write-derived output, new templates and dedicated
-subdocument origins are **always isolated**, not trusted because a response looks
-like a read.
+Capture happens before hooks/awaits. Root READ/LIST select their matching setting;
+READ-to-LIST retry retains READ with a fresh stage. CREATE (including bulk) and
+UPDATE select their settings only after persistence/lifecycle processing. Both
+UPSERT branches select the executed branch's captured mode, retaining initiating
+`operation: 'upsert'` and its branch accesses, not re-reading live configuration.
+
+**Both write modes always acquire a full bounded detached source**, including mutable
+native leaves. Trusted omits only the subsequent disposable document-hook view copy;
+it cannot borrow live write documents, `_doc`, payloads or lifecycle snapshots.
+Conversion failure at this boundary fails output rather than falling back to `_doc`.
+Write-input authority, pre-write grants, the hydrated pre-write UPDATE hook,
+validation/preparation/transform/save and lifecycle contracts are unchanged, not
+newly detached or sandboxed. No implicit save/query/rollback is added; an output
+error may occur **after persistence**, so do not automatically retry the write.
+
+Embedded output inherits its genuine owner's mode/facts. Related targets select
+their **own model's READ/LIST mode** at effective target access, including genuine
+write-origin populate, with independent policy/facts. Parent mode cannot lower an
+isolated target; a trusted target cannot mutate an isolated parent's source or live
+write graph. Write-origin targets still require mandatory full bounded detachment:
+the trusted-query exception for hidden unvisited graphs does not apply. Independent
+callback service calls capture anew. NEW, helpers, dedicated subdocument origins,
+COUNT/DELETE/DISTINCT and unsupported custom origins gain no trusted stage.
 
 For decorators, configure modes on `@Router`/`@RouterOptions`, or factory
 `defaultModelOptions`, never request input. Decorated hook `this` is the **class
@@ -947,7 +981,7 @@ instance**; obtain the original request with `@Request()`. See the matching
 access-router-deco README's executable owned-authorization module.
 
 Roll out a tested matching application/library revision, default isolated, inspect
-workload behavior and then opt individual READ/LIST owners into trusted deliberately.
+workload behavior and then opt individual operation owners into trusted deliberately.
 Switching back to isolated affects **new calls only**; in-flight captures do not
 change. Deployment rollback requires a tested matching application **and library**
 revision, not adding removed flags to this version or assuming mixed rolling safety.
