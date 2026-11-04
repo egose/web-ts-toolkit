@@ -371,7 +371,7 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
     let transformed: unknown;
     const authorization = { inputFields: { mode: 'grant' as const, paths: ['internalNote'] } };
     const f = await fixture({
-      operationAccess: { create: false, update: true, basicUpdate: false },
+      operationAccess: { create: false, update: { default: true, basic: false } },
       requestSchemas: { advancedUpdate: () => ({ success: true, data: transformed }) },
     });
     await f.execute(async (req) => {
@@ -1127,7 +1127,9 @@ describe('SVA-08 real backend grants versus public authority injection', () => {
   );
 
   it('basic/advanced route guards and reserved target access still deny despite available internal grants', async () => {
-    const f = await fixture({ operationAccess: { list: true, basicList: false, advancedList: false, read: true } });
+    const f = await fixture({
+      operationAccess: { list: { default: true, basic: false, advanced: false }, read: true },
+    });
     await grantControl(f);
     await request(f.app).get('/sources').expect(401);
     await request(f.app).post('/sources/__query').send({}).expect(401);

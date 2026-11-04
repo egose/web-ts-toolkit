@@ -1,0 +1,36 @@
+{
+  "head": "c25b0e7a2341d17f764cf183160d61b8470fb9fb",
+  "worktree": "HEAD plus shared uncommitted implementation; HEAD alone is not the reviewed identity",
+  "node": "v26.12.1",
+  "pnpm": "11.18.0",
+  "watchedFileCount": 1744,
+  "sourceScope": {
+    "enumeration": "git ls-files -z plus git ls-files --others --exclude-standard -z; sorted unique paths; regular files only",
+    "prefixes": ["packages/", "website/", "scripts/"],
+    "rootFiles": ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "eslint.config.mjs"],
+    "omitted": ["apps/", "docs/ including task artifacts", "ignored generated files"],
+    "fileHash": "SHA-256 of file bytes",
+    "aggregateHash": "SHA-256 of Python json.dumps(pathToFileHash, sort_keys=True).encode() with default separators"
+  },
+  "beforeDigest": "f9d338fd5fbeca58651922972a88cf905df1ed8e37bbd87e190054ee7601e978",
+  "afterDigest": "f9d338fd5fbeca58651922972a88cf905df1ed8e37bbd87e190054ee7601e978",
+  "changed": [],
+  "postRunReenumeration": {
+    "digest": "f9d338fd5fbeca58651922972a88cf905df1ed8e37bbd87e190054ee7601e978",
+    "added": [],
+    "changedOrRemoved": []
+  },
+  "selectedFileHashes": {
+    "package.json": "553dad149cfb4cdb857f1e33da65de6085ba61c4fed964546638f76e99a0f056",
+    "packages/access-router/src/routers/model-router.ts": "d091f00a7bc5d6206b033ea97947196e3b8544d827b97f574a76290cffa841b9",
+    "packages/access-router/src/runtime.ts": "a5b24017e2e977a4269be4cb5d61056e28c2cc9ca931ca7bfa84ec2c4f8d9561",
+    "packages/access-router/src/operation-access.ts": "9814b8d1aed28d36b532192ae9c1d21d9d74d3abb9dcaa4b386868737371079b",
+    "packages/access-router/src/acl/authorization-modes.ts": "087a584c3d07ec89f6efd1d45be02e237f0de4111586d69563c0ffa39ce8fd58",
+    "packages/access-router/src/index.ts": "ec000d030d38a9595dd58b2a08c98107acf81220cbf3e744d042f0be13c3f15d",
+    "packages/access-router/test/nested-operation-access-admission.contract.test.ts": "ed41f3a20677d110803c7da438de0b73660683b07ec5d857357333e4fcf148a6",
+    "packages/access-router/test/owned-authorization-modes.unit.test.ts": "bdb9451a4adcf95c0333827c470c50ca5234dd9bbe74f811f3f3f547d30ccdf9",
+    "packages/access-router-client/test/access-router-client.packed-consumer.test.ts": "71944bdfba09c5e5319b8308d351d78e8adbe10374ec08fa7b5bcf9611ac4b52",
+    "packages/access-router-client/test/packed-consumer-harness.ts": "998b004b8e38585f51493f9ee2d211d861aed309f07e958df0b35e2d081fd674"
+  },
+  "limitation": "Full path-to-hash source manifest and source snapshot are omitted. The aggregate is an observed identity, not independently reconstructable from this summary alone. Selected hashes can be checked against a matching checkout. No clean-HEAD build/test baseline was run."
+}

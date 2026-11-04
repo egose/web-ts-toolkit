@@ -373,11 +373,12 @@ checks; service methods do not universally enforce initiating operationAccess or
 infer a transport variant from `req.method`.
 
 Field selection, row/filter policy, validate/prepare/decorate hooks, related-model
-checks, and root entry guards remain base-scoped. A permitted variant does not
+checks remain base-scoped. A permitted entry member does not
 grant fields or authorize a related target's advanced endpoint policy.
-`advancedUpsert` does not additionally require `advancedCreate`/`advancedUpdate`;
+`upsert.advanced` does not additionally require `create.advanced`/`update.advanced`;
 its existing create/update branch policy still applies. Root entries keep base
-operation names/checks, returning entry 401 inside their HTTP 200 envelope.
+operation names but select the target root member, independently of the outer
+root scalar guard, returning entry 401 inside their HTTP 200 envelope.
 
 ### Important behavior
 
@@ -386,8 +387,8 @@ operation names/checks, returning entry 401 inside their HTTP 200 envelope.
   for hydration and the explicit metadata flags for serialization choices.
 - `_read(id, args, { tryList: true })` and `_readFilter(filter, args, options)` can
   fall back from an authorized read miss to list access, subject to **base `list`**
-  operation access. `list: false, advancedList: true` cannot permit retry;
-  `list: true, basicList: false` cannot block it. `tryList` defaults to true.
+  scalar/default operation access. `list: { default: false, advanced: true }` cannot permit retry;
+  `list: { default: true, basic: false }` cannot block it. `tryList` defaults to true.
   Forbidden and BadRequest never retry. Denied route entry is distinct from an
   allowed read miss (ordinary 404 when retry is disabled).
 - `_update(..., { returningAll: false })` trims the response to the updated fields
@@ -574,7 +575,7 @@ service `addFirst` still governs insertion order, without adding an HTTP option.
 These visibility checks default to **base** parent/subdocument read/list policy.
 Trusted dedicated calls can explicitly configure `authorization.visibility`; no
 mutation authority flows into it. Public routes always use request authority. Disabling
-`basicRead`/`basicList` endpoints does not hide otherwise readable mutation output;
+`read.basic`/`list.basic` endpoints does not hide otherwise readable mutation output;
 allowing an advanced read route does not override a denied base response guard.
 
 A denied response guard, terminal false policy or no readable match hides output

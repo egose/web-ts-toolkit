@@ -5,7 +5,7 @@ import type { Defaults, Include, Populate } from '../interfaces';
 import type { Service } from '../services/service';
 import { assertPublicAdmission, forwardPublicOptions } from '../validation/public-admission';
 import { assertPopulateAccess } from './populate-access';
-import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption } from './model-output-planning';
+import { captureModelAuthorizationConfiguration, selectCapturedOperationAccessGuard } from './model-output-planning';
 import { capturePopulateTargetBinding } from './populate-target-configuration';
 import { authorizationError } from './authorization-snapshot';
 import { createServiceExecution, getServiceExecutors, withExecutionQueryIntent } from './service-execution';
@@ -116,7 +116,7 @@ export function captureRelatedTargets(
       kind: entry.op === 'count' ? 'count' : 'output',
       configuration,
       queryIntent,
-      operationGuard: getCapturedAuthorizationOption(configuration, `operationAccess.${entry.op}`),
+      operationGuard: selectCapturedOperationAccessGuard(configuration, entry.op),
       relatedTargets: captureRelatedTargets(
         runtime,
         entry.model,

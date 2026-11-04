@@ -1,0 +1,120 @@
+[
+  {
+    "name": "v1-build",
+    "command": ["pnpm", "--filter", "@web-ts-toolkit/access-router...", "build"],
+    "started": "2026-11-03T22:25:14.434067+00:00",
+    "finished": "2026-11-03T22:25:30.596388+00:00",
+    "durationSeconds": 16.162,
+    "exitCode": 0,
+    "log": "_tmp-noa05-LOP2jJXY/v1-build.log"
+  },
+  {
+    "name": "v1-matrices",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/operation-access-baseline.contract.test.ts",
+      "test/operation-access-variants.contract.test.ts",
+      "test/operation-access-model-routes.integration.test.ts",
+      "test/operation-access-data-subdocument-routes.integration.test.ts",
+      "test/operation-access-boundaries.integration.test.ts",
+      "test/nested-operation-access-resolution.contract.test.ts",
+      "test/nested-operation-access-admission.contract.test.ts",
+      "test/nested-operation-access-consumer-types.test.ts",
+      "test/nested-operation-access-entries.integration.test.ts",
+      "test/nested-operation-access-capture.contract.test.ts",
+      "--reporter=default",
+      "--reporter=json",
+      "--outputFile.json=<repo-root>/_tmp-noa05-LOP2jJXY/v1-matrices.json"
+    ],
+    "started": "2026-11-03T22:25:30.596734+00:00",
+    "finished": "2026-11-03T22:26:54.694149+00:00",
+    "durationSeconds": 84.116,
+    "exitCode": 0,
+    "log": "_tmp-noa05-LOP2jJXY/v1-matrices.log"
+  },
+  {
+    "name": "v1-target-capture",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/populate-operation-policy",
+      "test/private-populate-read-policy",
+      "test/virtuals-populate-dependencies",
+      "test/owned-authorization",
+      "test/model-authorization-capture.unit.test.ts",
+      "test/captured-catalog-preparation.unit.test.ts",
+      "test/service-execution-capture.unit.test.ts",
+      "test/related-execution.binding.unit.test.ts",
+      "test/subdocument-populate-authorization.integration.test.ts",
+      "test/service-authorization-related.integration.test.ts",
+      "test/correlated-includes.execution.test.ts",
+      "test/virtuals-populate-include.integration.test.ts",
+      "--reporter=default",
+      "--reporter=json",
+      "--outputFile.json=<repo-root>/_tmp-noa05-LOP2jJXY/v1-target-capture.json"
+    ],
+    "started": "2026-11-03T22:26:54.694486+00:00",
+    "finished": "2026-11-03T22:30:38.200050+00:00",
+    "durationSeconds": 223.544,
+    "exitCode": 0,
+    "log": "_tmp-noa05-LOP2jJXY/v1-target-capture.log"
+  },
+  {
+    "name": "v2-typecheck",
+    "command": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "typecheck"],
+    "started": "2026-11-03T22:30:38.200444+00:00",
+    "finished": "2026-11-03T22:31:00.191621+00:00",
+    "durationSeconds": 21.997,
+    "exitCode": 0,
+    "log": "_tmp-noa05-LOP2jJXY/v2-typecheck.log"
+  },
+  {
+    "name": "v3-build",
+    "command": ["pnpm", "build"],
+    "started": "2026-11-03T22:31:00.191938+00:00",
+    "finished": "2026-11-03T22:32:32.668576+00:00",
+    "durationSeconds": 92.492,
+    "exitCode": 0,
+    "log": "_tmp-noa05-LOP2jJXY/v3-build.log"
+  },
+  {
+    "name": "v3-test",
+    "command": ["pnpm", "test"],
+    "started": "2026-11-03T22:32:32.668893+00:00",
+    "finished": "2026-11-03T23:08:02.236254+00:00",
+    "durationSeconds": 2129.921,
+    "exitCode": 1,
+    "log": "_tmp-noa05-LOP2jJXY/v3-test.log"
+  },
+  {
+    "name": "v3-lint",
+    "command": ["pnpm", "lint"],
+    "started": "2026-11-03T23:08:02.241027+00:00",
+    "finished": "2026-11-03T23:08:20.107617+00:00",
+    "durationSeconds": 17.869,
+    "exitCode": 0,
+    "log": "_tmp-noa05-LOP2jJXY/v3-lint.log"
+  },
+  {
+    "name": "diff-check",
+    "command": ["git", "diff", "--check"],
+    "started": "2026-11-03T23:08:20.108196+00:00",
+    "finished": "2026-11-03T23:08:20.128294+00:00",
+    "durationSeconds": 0.02,
+    "exitCode": 0,
+    "log": "_tmp-noa05-LOP2jJXY/diff-check.log"
+  }
+]

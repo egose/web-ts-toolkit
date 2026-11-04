@@ -251,6 +251,8 @@ export type {
   ExtendedModelRouterOptions,
   FieldOperationAccess,
   OperationAccess,
+  OperationAccessPaths,
+  OperationAccessSetter,
   PermissionSchema,
   SubOperationAccess,
   SubRouteGuardOptions,
@@ -294,7 +296,9 @@ export type {
   RouteBaseAccess,
   RouteGuardAccess,
   RouteVariant,
-  RouteVariantAccess,
+  OperationAccessContext,
+  OperationAccessRule,
+  OperationAccessVariants,
 } from './interfaces/access';
 export * from './permission';
 export * from './plugins';

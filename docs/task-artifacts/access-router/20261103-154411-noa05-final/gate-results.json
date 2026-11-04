@@ -1,0 +1,197 @@
+{
+  "workingDirectory": "<repo-root>",
+  "environment": { "NO_COLOR": "1", "TMPDIR": "absolute checkout-local directory from each attempt" },
+  "commandTemplateNote": "Substitute each attempt TMPDIR for <TMPDIR> inside command arguments; replace <repo-root> with the checkout path. These expanded arrays equal the recorded commands. Observer scratch source/logs and reporter outputs are omitted historical inputs, not archive prerequisites.",
+  "commandTemplates": {
+    "v1-build": ["pnpm", "--filter", "@web-ts-toolkit/access-router...", "build"],
+    "independent-safe-admission": ["node", "<repo-root>/_tmp-noa05-final-2_3agshl/safe-admission-observer.mjs"],
+    "historical-asserts-bug-observer": [
+      "node",
+      "docs/task-artifacts/access-router/20261103-142416-noa05-independent-review/admission-order-probe.mjs",
+      "packages/access-router/package.json"
+    ],
+    "v1-matrices": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/operation-access-baseline.contract.test.ts",
+      "test/operation-access-variants.contract.test.ts",
+      "test/operation-access-model-routes.integration.test.ts",
+      "test/operation-access-data-subdocument-routes.integration.test.ts",
+      "test/operation-access-boundaries.integration.test.ts",
+      "test/nested-operation-access-resolution.contract.test.ts",
+      "test/nested-operation-access-admission.contract.test.ts",
+      "test/nested-operation-access-consumer-types.test.ts",
+      "test/nested-operation-access-entries.integration.test.ts",
+      "test/nested-operation-access-capture.contract.test.ts",
+      "--reporter=default",
+      "--reporter=json",
+      "--outputFile.json=<TMPDIR>/v1-matrices.json"
+    ],
+    "v1-target-capture": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/populate-operation-policy",
+      "test/private-populate-read-policy",
+      "test/virtuals-populate-dependencies",
+      "test/owned-authorization",
+      "test/model-authorization-capture.unit.test.ts",
+      "test/captured-catalog-preparation.unit.test.ts",
+      "test/service-execution-capture.unit.test.ts",
+      "test/related-execution.binding.unit.test.ts",
+      "test/subdocument-populate-authorization.integration.test.ts",
+      "test/service-authorization-related.integration.test.ts",
+      "test/correlated-includes.execution.test.ts",
+      "test/virtuals-populate-include.integration.test.ts",
+      "--reporter=default",
+      "--reporter=json",
+      "--outputFile.json=<TMPDIR>/v1-target-capture.json"
+    ],
+    "v1-extra-atomicity": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/owned-authorization-modes.unit.test.ts",
+      "test/hydration-configuration.test.ts",
+      "test/service-authorization-boundary-admission.contract.test.ts",
+      "test/populate-operation-policy.target-options.test.ts",
+      "--reporter=default",
+      "--reporter=json",
+      "--outputFile.json=<TMPDIR>/v1-extra-atomicity.json"
+    ],
+    "v2-typecheck": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "typecheck"],
+    "v3-build": ["pnpm", "build"],
+    "v3-test": ["pnpm", "test"],
+    "v3-lint": ["pnpm", "lint"],
+    "diff-check": ["git", "diff", "--check"]
+  },
+  "stepColumns": [
+    "name",
+    "startedUTC",
+    "finishedUTC",
+    "durationSeconds",
+    "exitCode",
+    "expectedExitCode",
+    "acceptanceGate"
+  ],
+  "attempts": [
+    {
+      "id": "initial",
+      "TMPDIR": "<repo-root>/_tmp-noa05-final-2_3agshl",
+      "steps": [
+        ["v1-build", "2026-11-03T23:47:23.413681+00:00", "2026-11-03T23:47:39.286128+00:00", 15.872, 0, 0, true],
+        [
+          "independent-safe-admission",
+          "2026-11-03T23:47:39.286394+00:00",
+          "2026-11-03T23:47:39.751333+00:00",
+          0.465,
+          0,
+          0,
+          false
+        ],
+        [
+          "historical-asserts-bug-observer",
+          "2026-11-03T23:47:39.751994+00:00",
+          "2026-11-03T23:47:39.973732+00:00",
+          0.222,
+          1,
+          1,
+          false
+        ],
+        ["v1-matrices", "2026-11-03T23:47:39.974106+00:00", "2026-11-03T23:49:03.959068+00:00", 83.991, 0, 0, true],
+        [
+          "v1-target-capture",
+          "2026-11-03T23:49:03.959354+00:00",
+          "2026-11-03T23:52:55.072962+00:00",
+          231.13,
+          0,
+          0,
+          true
+        ],
+        [
+          "v1-extra-atomicity",
+          "2026-11-03T23:52:55.073339+00:00",
+          "2026-11-03T23:53:01.838242+00:00",
+          6.765,
+          0,
+          0,
+          true
+        ],
+        ["v2-typecheck", "2026-11-03T23:53:01.838530+00:00", "2026-11-03T23:53:22.750445+00:00", 20.915, 0, 0, true],
+        ["v3-build", "2026-11-03T23:53:22.750782+00:00", "2026-11-03T23:54:51.984050+00:00", 89.238, 0, 0, true],
+        ["v3-test", "2026-11-03T23:54:51.984449+00:00", "2026-11-03T23:58:59.248850+00:00", 247.282, 1, 0, true],
+        ["v3-lint", "2026-11-03T23:58:59.249209+00:00", "2026-11-03T23:59:17.925279+00:00", 18.677, 0, 0, true],
+        ["diff-check", "2026-11-03T23:59:17.925594+00:00", "2026-11-03T23:59:17.964898+00:00", 0.039, 0, 0, true]
+      ],
+      "requiredGatesPassed": false
+    },
+    {
+      "id": "final",
+      "TMPDIR": "<repo-root>/_tmp-n5-2tqz63tz",
+      "steps": [
+        ["v1-build", "2026-11-04T00:01:23.191948+00:00", "2026-11-04T00:01:39.432618+00:00", 16.241, 0, 0, true],
+        [
+          "independent-safe-admission",
+          "2026-11-04T00:01:39.432932+00:00",
+          "2026-11-04T00:01:39.668160+00:00",
+          0.235,
+          0,
+          0,
+          false
+        ],
+        [
+          "historical-asserts-bug-observer",
+          "2026-11-04T00:01:39.668443+00:00",
+          "2026-11-04T00:01:39.883570+00:00",
+          0.215,
+          1,
+          1,
+          false
+        ],
+        ["v1-matrices", "2026-11-04T00:01:39.883847+00:00", "2026-11-04T00:03:05.107109+00:00", 85.234, 0, 0, true],
+        [
+          "v1-target-capture",
+          "2026-11-04T00:03:05.107432+00:00",
+          "2026-11-04T00:06:51.099559+00:00",
+          226.017,
+          0,
+          0,
+          true
+        ],
+        [
+          "v1-extra-atomicity",
+          "2026-11-04T00:06:51.099950+00:00",
+          "2026-11-04T00:06:58.064242+00:00",
+          6.964,
+          0,
+          0,
+          true
+        ],
+        ["v2-typecheck", "2026-11-04T00:06:58.064534+00:00", "2026-11-04T00:07:19.262028+00:00", 21.2, 0, 0, true],
+        ["v3-build", "2026-11-04T00:07:19.262348+00:00", "2026-11-04T00:08:48.979427+00:00", 89.723, 0, 0, true],
+        ["v3-test", "2026-11-04T00:08:48.979781+00:00", "2026-11-04T00:47:23.644261+00:00", 2314.959, 0, 0, true],
+        ["v3-lint", "2026-11-04T00:47:23.644695+00:00", "2026-11-04T00:47:40.942428+00:00", 17.298, 0, 0, true],
+        ["diff-check", "2026-11-04T00:47:40.943018+00:00", "2026-11-04T00:47:40.964587+00:00", 0.022, 0, 0, true]
+      ],
+      "requiredGatesPassed": true
+    }
+  ],
+  "initialFailureResolution": "socket-resolution.json records the initial required root failure, independent long/short Unix-socket reproduction, unchanged source and complete successful V1-V3 rerun. No exclusions or source fixes.",
+  "observerNote": "The historical asserts-bug observer has expected exit 1 and acceptanceGate false; independent safe-admission has expected exit 0. Neither replaces maintained tests."
+}

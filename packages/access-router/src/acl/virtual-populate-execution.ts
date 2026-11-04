@@ -3,14 +3,14 @@ import { Document, mongo, type Model } from 'mongoose';
 import { isDeepStrictEqual } from 'node:util';
 import { isPlainObject } from '@web-ts-toolkit/utils';
 import type { AccessRuntime } from '../runtime';
-import type { Filter, HydrationMode, ModelRequest, Populate, Validation } from '../interfaces';
+import type { Filter, HydrationMode, ModelRequest, Populate } from '../interfaces';
 import type { AccessRouterPermissions } from '../permission';
 import { Cache } from '../cache';
 import { evaluateRouteGuard, intersectFilters, resolveAccessFilterParts } from '../core-shared';
 import { deepIsolateValue, isolateDocForOutput } from '../helpers/document';
 import { getRequestWorkState } from '../helpers/request-work';
 import { warn } from '../logger-helpers';
-import { getCapturedAuthorizationOption } from './model-output-planning';
+import { getCapturedAuthorizationOption, selectCapturedOperationAccessGuard } from './model-output-planning';
 import { compactPersistedProjection } from './output-projection';
 import { getPopulateTargetMeta } from './populate-target';
 import { getRequestRowCache } from './filter-resolution';
@@ -190,9 +190,10 @@ export function equivalentVirtualPopulatePredicate(left: unknown, right: unknown
 
 const readPolicy = (configuration: AuthorizationConfiguration, access: string) =>
   ['operationAccess', 'baseFilter', 'overrideFilter'].map((key) => {
+    if (key === 'operationAccess') return selectCapturedOperationAccessGuard(configuration, access);
     const option = getCapturedAuthorizationOption(configuration, `${key}.${access}`);
     // The existing row resolver ignores non-functions (including absent terminal slots).
-    return key === 'operationAccess' || typeof option === 'function' ? option : undefined;
+    return typeof option === 'function' ? option : undefined;
   });
 const compatible = (a: FetchRequest, b: FetchRequest) =>
   a.binding.runtime === b.binding.runtime &&
@@ -373,7 +374,7 @@ function targetReadAllowed(state: BatchRecord, target: VirtualPopulateTarget): P
         evaluateRouteGuard(
           owner.request,
           owner.permissions,
-          getCapturedAuthorizationOption(target.configuration, 'operationAccess.read') as Validation,
+          selectCapturedOperationAccessGuard(target.configuration, 'read') ?? false,
         ),
       )
       .then(

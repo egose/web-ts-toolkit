@@ -1,7 +1,7 @@
-# Owned authorization: breaking migration
+# Access router: breaking migration
 
-This guide describes the **next breaking contract**, not an already-published
-version. Deploy a tested matching application/library revision. There are no legacy
+This guide describes the **breaking contract implemented by this package**.
+Deploy a tested matching application/library revision. There are no legacy
 aliases or mixed-version rolling-compatibility flags. Start with `isolated`.
 
 One engine captures actor/policy at operation entry, normalizes facts once per
@@ -9,6 +9,239 @@ document stage, and publishes an ordinary filtered DTO. A DTO, its metadata and
 its diagnostic context have **no reusable authorization authority**. Neither mode
 is a callback sandbox, database transaction, rollback mechanism, external-cache
 freshness guarantee, blanket security-equivalence claim or performance promise.
+
+## Breaking change: nested operation access
+
+**Hard removal, no compatibility period.** Flat operation-access variants and their
+public flat-name type are removed. There are no aliases, automatic translation, or
+warning-only deprecations. Model, model-default and data bulk/dotted/fluent updates
+reject removed keys before publishing partial policy, including keys set to undefined.
+
+### Replace flat variants with per-operation rules
+
+Each operation accepts either a scalar `Validation` or an object with four optional
+`Validation` members: `default`, `basic`, `advanced`, and `root`. `Validation` still
+means boolean, permission string, permission-string array, or a synchronous/async
+request-bound guard; the new structure is not limited to booleans.
+
+Before (historical):
+
+```text
+operationAccess: {
+  read: 'canRead',
+  basicRead: true,
+  advancedRead: 'admin',
+  subs: {
+    comments: { read: 'canReadComments', advancedRead: 'moderator' },
+  },
+}
+```
+
+After (public target types, compiled through root and `./advanced` declarations):
+
+<!-- doc-example: partial -->
+
+```ts
+import type { OperationAccess, OperationAccessContext, OperationAccessRule } from '@web-ts-toolkit/access-router';
+import type { OperationAccessVariants } from '@web-ts-toolkit/access-router/advanced';
+
+const context: OperationAccessContext = 'root';
+const read: OperationAccessVariants = {
+  default: 'canRead',
+  basic: true,
+  advanced: 'admin',
+  [context]: 'canRead', // optional: omitted root already falls back to default
+};
+const rule: OperationAccessRule = read;
+const operationAccess: OperationAccess = {
+  read: rule,
+  subs: {
+    comments: {
+      read: { default: 'canReadComments', advanced: 'moderator' },
+    },
+  },
+};
+void operationAccess;
+```
+
+Move the old base operation guard to its nested `default` when adding variant
+members. An omitted `root` inherits that default, preserving the old root entry
+guard; the explicit `root: 'canRead'` above is optional. Set `root: false` to deny
+that target's read entries through the root/batch router independently of direct
+read endpoints. Scalar operation rules, e.g. `read: 'canRead'`, remain supported.
+
+| Removed operation-access keys       | Replacement members                   |
+| ----------------------------------- | ------------------------------------- |
+| `basicList`, `advancedList`         | `list.basic`, `list.advanced`         |
+| `basicRead`, `advancedRead`         | `read.basic`, `read.advanced`         |
+| `basicCreate`, `advancedCreate`     | `create.basic`, `create.advanced`     |
+| `basicUpdate`, `advancedUpdate`     | `update.basic`, `update.advanced`     |
+| `basicUpsert`, `advancedUpsert`     | `upsert.basic`, `upsert.advanced`     |
+| `basicCount`, `advancedCount`       | `count.basic`, `count.advanced`       |
+| `basicDistinct`, `advancedDistinct` | `distinct.basic`, `distinct.advanced` |
+
+Inside `subs.<field>`, replace the former four flat list/read variants in the same
+way: `subs.comments.basicRead` becomes `subs.comments.read.basic`. Subdocument
+create/update/delete also accept scalar-or-object rules. Defined field scalars such
+as `subs.attachments: true` continue to supply that field's operation fallback.
+Remove imports of the flat-name `RouteVariantAccess` type. Use
+`OperationAccessContext`, `OperationAccessVariants` and `OperationAccessRule` from
+the package root or `./advanced`, rather than concatenated key names.
+Removed flat configuration keys reject with migration diagnostics rather than
+being interpreted as custom accesses or automatically translated.
+
+### Entry points and fallback
+
+All seven pairs select independent members (paths relative to the target base):
+
+| Operation  | Basic direct endpoint  | Advanced direct endpoint                      | Root entry member |
+| ---------- | ---------------------- | --------------------------------------------- | ----------------- |
+| `list`     | `GET /`                | `POST /__query`                               | `list.root`       |
+| `read`     | `GET /:id`             | `POST /__query/:id`, `POST /__query/__filter` | `read.root`       |
+| `create`   | `POST /`               | `POST /__mutation`                            | `create.root`     |
+| `update`   | `PATCH /:id`           | `PATCH /__mutation/:id`                       | `update.root`     |
+| `upsert`   | `PUT /`                | `PUT /__mutation`                             | `upsert.root`     |
+| `count`    | `GET /count`           | `POST /count`                                 | `count.root`      |
+| `distinct` | `GET /distinct/:field` | `POST /distinct/:field`                       | `distinct.root`   |
+
+Paths are relative to the target's base path and use default route segments.
+Data-router list/read and subdocument list/read follow the same context mapping.
+HEAD follows its GET's basic member. Unpaired direct new/delete and subdocument mutation
+routes choose `basic`; their root counterparts choose `root`. Both root
+`subUpdate` and `subBulkUpdate` use the field's `update.root`. No new advanced
+endpoint or root wire `op` name is introduced. Setting `advanced` on an unpaired
+operation does not create an endpoint. Context is explicit server-owned dispatch
+metadata, not inferred from POST or a caller-selected access string.
+
+Top-level fallback is:
+
+```text
+operation.<basic | advanced | root>
+  -> operation.default (or the operation's scalar rule)
+  -> operationAccess.default (or scalar operationAccess shorthand)
+  -> deny
+```
+
+Only `undefined` inherits. A selected false/empty-array/false-returning guard
+denies immediately; it is not combined with another guard. An empty top-level
+operation object can inherit `operationAccess.default`. Model runtime exact-path
+defaults still participate before general fallback: a runtime-default
+`read.advanced` can outrank a model's scalar `read` or `read.default`. Set the model's
+own context member to override it. Configuration still replaces objects shallowly;
+this is not recursive merging of model and runtime-default objects. The selected
+operation object supplies its own `default`; a defined model `read: {}` does not
+independently inherit a runtime `read.default`. A whole operation inherited by the
+existing base lookup can supply its own default. These defaults always belong to
+the same runtime as the model; they are not process-global catch-alls.
+
+For a defined subdocument field, use its operation's context member, then its scalar
+or nested `default`, then deny. Missing operations in a defined field object do
+**not** inherit top-level operations or `operationAccess.default`. An absent field
+rule uses the corresponding top-level operation/context. A field-level
+`subs.comments.default` is not a new wildcard fallback, and scalar `subs` is not
+made an umbrella guard. Existing runtime exact-path specificity still applies.
+
+Omitting model `operationAccess` inherits configured model defaults; without any
+applicable grant, model operations deny. `operationAccess: true` explicitly supplies
+the scalar allow fallback. Explicit model `operationAccess: undefined` retains its
+existing exact-key-only runtime fallback, not inheritance of runtime bare/outer
+`.default` catch-alls. Data routers do not inherit model defaults. Invalid defined
+JavaScript values deny instead of falling through to an allowed default.
+
+The root router's **own** scalar `operationAccess` still guards the outer batch
+endpoint. A target's `read.root` is an additional per-entry decision, not a
+replacement for that outer guard. Root being POST does not select `advanced`.
+Direct denials remain 401; root target denials keep per-entry unauthorized results.
+Denied routes remain registered and visible in endpoint listings/OpenAPI.
+
+<!-- doc-example: partial -->
+
+```ts
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const api = createAccessRuntime();
+const data = api.createDataRouter('Catalog', {
+  basePath: '/catalog',
+  idParam: 'id',
+  idField: 'id',
+  data: [{ id: 'one', name: 'One' }],
+  operationAccess: { list: true, read: { default: false, basic: false, advanced: false, root: true } },
+  permissionSchema: { id: true, name: true },
+});
+const batch = api.createRouter({ basePath: '/batch', operationAccess: 'canBatch' });
+// Mount data.routes and batch.routes in an Express app with express.json().
+// A root read still requires the independent outer canBatch guard; both direct reads deny.
+void [data, batch];
+```
+
+### Keep transport entry separate from base policy
+
+Existing context-free operation checks select the operation's scalar or nested
+`default`, followed by the applicable outer fallback. They never choose `basic`,
+`advanced`, or `root` merely because the initiating request used that entry point.
+This includes existing populate/include target checks, private populated dependency
+checks when required by target policy, READ-to-LIST retry, and subdocument mutation
+response visibility. Existing populate-policy flags and trusted service admission
+remain unchanged. Transport grants do not grant fields or related targets;
+`permissionSchema`, row policy, and hook access names continue to use base operations.
+
+For example, `read: { default: false, root: true }` permits root read entry, but does
+not grant context-free target read admission. Use `default` deliberately when
+migrating old base guards; putting them only under `basic` would change secondary
+and root behavior.
+
+### Update setters, not unrelated schema names
+
+Replace `router.operationAccess('basicRead', false)` with
+`router.operationAccess('read.basic', false)`. Replace
+`router.setOption('operationAccess.advancedRead', rule)` with
+`router.setOption('operationAccess.read.advanced', rule)`, and use the same nested
+paths for runtime model/default/data setters. Nested `undefined` restores the
+documented fallback; whole-object assignment remains shallow replacement.
+
+<!-- doc-example: partial -->
+
+```ts
+import mongoose from 'mongoose';
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const api = createAccessRuntime();
+const Post = mongoose.model('MigrationPost', new mongoose.Schema({ title: String, comments: [{ text: String }] }));
+const router = api.createRouter(Post, {
+  operationAccess: {
+    default: false,
+    read: { default: 'canRead', basic: true, advanced: 'admin' },
+    subs: {
+      comments: { read: { default: 'canReadComments', root: false }, create: { basic: 'canComment', root: false } },
+      closed: {}, // missing operations deny; outer default never opens this field
+      attachments: true, // scalar field fallback; absent fields instead use top-level rules
+    },
+  },
+});
+router.operationAccess('read.basic', false);
+router.operationAccess('subs.comments.read.advanced', 'moderator');
+router.setOption('operationAccess.read.root', false);
+router.operationAccess('read.basic', undefined); // clear a member, not a whole permission string assignment
+api.setModelOption(Post.modelName, 'operationAccess.read', { default: 'canRead', root: false });
+api.setDefaultModelOption('operationAccess.read.advanced', 'admin');
+const data = api.createDataRouter('MigrationData', { data: [], operationAccess: true }); // scalar shorthand
+data.setOption('operationAccess.read', { default: true, root: false }); // keep scalar meaning explicitly
+data.runtime.setDataOption('MigrationData', 'operationAccess.read.basic', true);
+```
+
+Updating beneath a scalar replaces it with an object; explicitly keep its old guard
+under `default` if needed. Generic `getModelOption`/`getDataOption` remain raw generic
+fallback lookups, not the final entry resolver (they can return an operation object).
+Exact getters inspect a path; they do not evaluate a route. Setters remain live for
+fresh work, construction snapshots remain frozen, and in-flight captured policy
+retains its owning actor/runtime/defaults across updates.
+
+Search operation-access configurations and their dotted/fluent paths for removed
+flat names. Do **not** rename `requestSchemas.advancedRead`, request-schema exports,
+client read/list method names, business fields, or permission names. Nested context
+paths are configuration, not new request-selectable operations or populate access
+values. Wire populate access remains `read`/`list`; retired and nested route-only
+selectors must not become alternate target-authorization capabilities.
 
 ## Field permission maps are disabled by default
 

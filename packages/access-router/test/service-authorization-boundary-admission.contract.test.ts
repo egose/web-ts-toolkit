@@ -686,7 +686,8 @@ describe('SVA-01A schemas, transformed envelopes, root dispatch and defaults', (
     const { root, modelName } = httpFixture();
     const method = op === 'list' ? '_list' : op === 'read' ? '_read' : '_readFilter';
     const target = { [method]: vi.fn().mockResolvedValue(op === 'list' ? list : single) };
-    const req = { macl: { isAllowed: async () => true, getPublicService: () => target } };
+    const entryGuard = vi.fn(async () => true);
+    const req = { macl: { isAllowedRoute: entryGuard, getPublicService: () => target } };
     const direct = root as unknown as { processOp(req: unknown, item: unknown, index: number): Promise<any> };
     const data = { lean: 'business', hydration: 'business' };
     const args = { select: ['lean', 'hydration'], tasks: { type: 'MASK', args: data } };
@@ -723,6 +724,7 @@ describe('SVA-01A schemas, transformed envelopes, root dispatch and defaults', (
         0,
       );
       expect(result.statusCode).toBe(200);
+      expect(entryGuard).toHaveBeenLastCalledWith(modelName, op === 'list' ? 'list' : 'read', 'root');
       expect(target[method]).toHaveBeenLastCalledWith(op === 'read' ? 'id' : data, args, { skim: true });
     }
   });

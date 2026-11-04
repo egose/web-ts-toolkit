@@ -144,6 +144,16 @@ After provisioning `welcome`, `GET /api/articles/welcome` returns its public fie
 
 `operationAccess` authorizes operations; `permissionSchema` authorizes fields. A document-permission map alone does not configure either policy. Migration note (PDEC-05): the former quickstart trusted `x-role` as an administrator grant; replace that pattern with this public policy or a host-verified principal boundary. For private/tenant workflows, authenticate in host middleware before bootstrap's mounted router, deny missing principals with a route guard, and derive tenant filters from that verified principal via `@Request()`. Use `@Context()` for model-hook context where supported by the hook table below. Filters restrict data; they are not authentication. Request/principal state belongs in the injected request/context, never shared class fields. Each tenant-owned connection/model should use its own factory runtime; isolation alone does not authenticate tenant selection.
 
+Operation guards accept scalar values or nested `{ default, basic, advanced, root }`
+rules through typed `@Router`/`@RouterOptions`, `@ModelOption`/`@DefaultModelOption`
+and factory runtime setters. Move former base guards into the operation's `default`
+when adding members; root target entry selects `root`, separately from the root
+router's scalar outer guard. Flat operation variants are removed with no aliases.
+`@RouteGuard('read')` still registers an operation scalar; nested member paths are
+not new method-hook names. Configure independent entry members in typed options.
+See the installed access-router `MIGRATION.md` for mappings, same-owner defaults,
+closed subdocument fields and context-free secondary checks.
+
 ## Main Exports
 
 - `Module(...)`

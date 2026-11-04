@@ -2,7 +2,7 @@
 import { get } from '@web-ts-toolkit/utils';
 import type { Model } from 'mongoose';
 import type { Service } from '../services/service';
-import type { Filter, FieldAuthorization, ModelRequest, Projection, SubPopulate, Validation } from '../interfaces';
+import type { Filter, FieldAuthorization, ModelRequest, Projection, SubPopulate } from '../interfaces';
 import { genSubPopulate, filterCollection } from '../helpers';
 import { deepIsolateValue } from '../helpers/document';
 import { evaluateRouteGuard, intersectFilters, resolveIdentifierFilter } from '../core-shared';
@@ -24,7 +24,7 @@ import { createServiceExecution, getServiceExecutors, readServiceExecution } fro
 import type { ServiceExecutionContext } from './service-execution';
 import { isExecutionRowDenied } from './prepared-query';
 import { isCatalogOutputPath, matchesCatalogPattern } from './field-catalog';
-import { getCapturedAuthorizationOption, readCapturedAuthorizationOption } from './model-output-planning';
+import { selectCapturedOperationAccessGuard } from './model-output-planning';
 import { prepareSubdocumentOutput } from './subdocument-output';
 
 type Method = 'list' | 'read' | 'create' | 'update' | 'bulkUpdate' | 'delete';
@@ -249,17 +249,12 @@ export async function subdocumentGateAllowed<T, V extends object>(
   const state = readServiceExecution(service, gate.execution);
   const { configuration } = readServiceAuthorization(state.authorization, state.binding);
   const access = state.access.rowAccess!;
-  let guard: unknown;
-  if (access.startsWith('subs.')) {
-    const [, sub, op] = access.split('.');
-    guard = readCapturedAuthorizationOption(configuration, `operationAccess.${access}`);
-    if (guard === undefined) guard = readCapturedAuthorizationOption(configuration, `operationAccess.subs.${sub}`);
-    if (guard === undefined) guard = getCapturedAuthorizationOption(configuration, `operationAccess.${op}`);
-  } else guard = getCapturedAuthorizationOption(configuration, `operationAccess.${access}`);
+  const guard = selectCapturedOperationAccessGuard(configuration, access);
+  if (guard === undefined) return false;
   return evaluateRouteGuard(
     state.binding.request as ModelRequest,
     getAuthorizationPermissions(state.authorization, state.binding),
-    guard as Validation,
+    guard,
   );
 }
 

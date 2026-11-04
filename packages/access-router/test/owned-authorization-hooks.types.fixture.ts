@@ -48,7 +48,10 @@ export const guard: GuardHook = function (permissions) {
 export const advancedGuard: AdvancedGuard = guard;
 export const guardArity: Parameters<GuardHook>['length'] = 1;
 export const validation: Validation = guard;
-export const operations: OperationAccess = { read: guard, basicRead: guard, subs: { children: { read: guard } } };
+export const operations: OperationAccess = {
+  read: { default: guard, basic: guard },
+  subs: { children: { read: guard } },
+};
 
 export const docPermissions: ModelDocPermissionsHook = async function (doc, permissions, context) {
   const request: ModelRequest = this;

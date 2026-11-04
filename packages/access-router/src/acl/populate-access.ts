@@ -1,7 +1,7 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { Codes } from '../enums';
 import type { ErrorResult } from '../interfaces';
-import { isRouteVariantAccess } from '../operation-access';
+import { isOperationAccessMemberPath, isRemovedOperationAccess } from '../operation-access';
 
 /** Controlled Core error, also carried as an ErrorResult by service entrypoints. */
 export class PopulateAccessError extends JsonRouter.clientErrors.BadRequestError {
@@ -16,5 +16,12 @@ export class PopulateAccessError extends JsonRouter.clientErrors.BadRequestError
 
 /** Trusted custom data-policy accesses retain their behavior except reserved route identifiers. */
 export function assertPopulateAccess(access: unknown): void {
-  if (isRouteVariantAccess(access)) throw new PopulateAccessError(access);
+  if (typeof access !== 'string') return;
+  const keys = access.split('.');
+  if (
+    isRemovedOperationAccess(access) ||
+    isOperationAccessMemberPath(access) ||
+    (keys[0] === 'subs' && isRemovedOperationAccess(keys[2]))
+  )
+    throw new PopulateAccessError(access);
 }

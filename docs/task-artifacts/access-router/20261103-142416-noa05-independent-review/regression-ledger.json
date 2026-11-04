@@ -1,0 +1,61 @@
+[
+  {
+    "file": "packages/access-router/test/operation-access-baseline.contract.test.ts",
+    "oldStaticDeclarations": 13,
+    "currentStaticDeclarations": 13,
+    "oldExpectationSites": 34,
+    "currentExpectationSites": 34,
+    "currentDisabledDeclarations": [],
+    "titlesRemovedOrReworded": []
+  },
+  {
+    "file": "packages/access-router/test/operation-access-variants.contract.test.ts",
+    "oldStaticDeclarations": 17,
+    "currentStaticDeclarations": 17,
+    "oldExpectationSites": 56,
+    "currentExpectationSites": 56,
+    "currentDisabledDeclarations": [],
+    "titlesRemovedOrReworded": [
+      "'keeps one exact reserved-variant mapping available for later data-policy boundaries'",
+      "'maps only supported base/subdocument paths and leaves ordinary/custom/alias checks compatible'"
+    ]
+  },
+  {
+    "file": "packages/access-router/test/operation-access-model-routes.integration.test.ts",
+    "oldStaticDeclarations": 16,
+    "currentStaticDeclarations": 16,
+    "oldExpectationSites": 72,
+    "currentExpectationSites": 72,
+    "currentDisabledDeclarations": [],
+    "titlesRemovedOrReworded": [
+      "'basicRead false leaves both advanced reads and every unrelated basic/advanced operation usable'",
+      "'keeps new and delete on their live unpaired base guards'"
+    ]
+  },
+  {
+    "file": "packages/access-router/test/operation-access-data-subdocument-routes.integration.test.ts",
+    "oldStaticDeclarations": 34,
+    "currentStaticDeclarations": 34,
+    "oldExpectationSites": 85,
+    "currentExpectationSites": 85,
+    "currentDisabledDeclarations": [],
+    "titlesRemovedOrReworded": ["'basicRead denial leaves unpaired subdocument %s and base response visibility intact'"]
+  },
+  {
+    "file": "packages/access-router/test/operation-access-boundaries.integration.test.ts",
+    "oldStaticDeclarations": 31,
+    "currentStaticDeclarations": 32,
+    "oldExpectationSites": 158,
+    "currentExpectationSites": 165,
+    "currentDisabledDeclarations": [],
+    "titlesRemovedOrReworded": [
+      "'reproduces the denied-base comparative probe without allowing an arbitrary stored advancedRead'",
+      "'rejects a trusted %s reserved default after omitted wire options, with root per-entry mapping'",
+      "`${path} rejects reserved nested %s access before the queried target dispatch`",
+      "'root model %s uses its base guard despite the opposite initiating variant'",
+      "'root %s data/sub entry retains base guard and base row/field policy'",
+      "`${entry} subdocument writes keep base %s visibility after one successful save`",
+      "'advanced upsert persists both branches using base mutation hooks without advancedCreate/Update entry requirements'"
+    ]
+  }
+]

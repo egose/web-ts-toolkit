@@ -43,7 +43,10 @@ import {
   resolveDocumentPermissionsDefinition,
 } from '../acl/document-permissions-definition';
 import { compactPersistedProjection, planAuthorizedModelProjection } from '../acl/output-projection';
-import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption } from '../acl/model-output-planning';
+import {
+  captureModelAuthorizationConfiguration,
+  selectCapturedOperationAccessGuard,
+} from '../acl/model-output-planning';
 import {
   getVirtualPopulatePublicIdentity,
   getVirtualPopulateRow,
@@ -923,7 +926,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           evaluateRouteGuard(
             this.req,
             getAuthorizationPermissions(childState.authorization, childState.binding),
-            getCapturedAuthorizationOption(targetConfiguration, `operationAccess.${targetAccess}`) as never,
+            selectCapturedOperationAccessGuard(targetConfiguration, targetAccess) ?? false,
           ),
         ))
       )

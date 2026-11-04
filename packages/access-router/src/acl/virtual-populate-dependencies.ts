@@ -5,6 +5,7 @@ import type { AccessRuntime } from '../runtime';
 import type { DefaultModelRouterOptions, ModelRouterOptions, Projection } from '../interfaces';
 import { normalizeSelect } from '../helpers/query';
 import { resolveNestedOption } from '../options/manager';
+import { createOperationAccessReaders, selectOperationAccessGuard } from '../operation-access';
 import { copyAuthorizationValue } from './authorization-snapshot';
 import { captureAuthorizationFieldCatalog, isSafeInputPath } from './field-catalog';
 import type { AuthorizationConfiguration } from './service-authorization';
@@ -274,7 +275,12 @@ export function captureVirtualPopulateDependencies(
                 populatePolicyDefaults,
                 ...resolvePopulatePolicy(targetOptions, populatePolicyDefaults),
                 permissionSchema: targetOptions.permissionSchema,
-                operationAccess: { read: readOption('operationAccess.read') },
+                operationAccess: {
+                  read: selectOperationAccessGuard({
+                    ...createOperationAccessReaders(targetOptions, defaults),
+                    baseAccess: 'read',
+                  }),
+                },
                 baseFilter: { read: readOption('baseFilter.read') },
                 overrideFilter: { read: readOption('overrideFilter.read') },
                 hydration: targetOptions.hydration,

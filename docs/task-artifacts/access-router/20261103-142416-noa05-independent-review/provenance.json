@@ -1,0 +1,58 @@
+{
+  "purpose": "Curated historical NOA-05 independent review evidence; blocked acceptance, not release certification",
+  "task": "docs/tasks/20261103-082614-access-router-nested-operation-access.md",
+  "scratch": "_tmp-noa05-LOP2jJXY",
+  "originalsLeftUnchanged": true,
+  "copyingRerunsGates": false,
+  "rawInputs": {
+    "gate-results.json": "5f75191cb82d50a090fd68835e22e1f008ac5181a0a7156f7912a478b28df072",
+    "v1-summary.json": "d8f9f28c964b68bca07570fba02e4cf254270329b12533f7fc370d169e985e73",
+    "root-test-summary.json": "7a47d08c81dafce94f71db6f3cce5d98ee24ff8170b1e40efd9f792db3eb7e28",
+    "admission-order-result.json": "8e2d75a58c51293fc2b1641e8e137be14d5ec6a53a913bfa50bff6f581286bd5",
+    "durable-admission-order-result.json": "8e2d75a58c51293fc2b1641e8e137be14d5ec6a53a913bfa50bff6f581286bd5",
+    "final-admission-order-result.json": "8e2d75a58c51293fc2b1641e8e137be14d5ec6a53a913bfa50bff6f581286bd5",
+    "regression-ledger.json": "1ba0f9f6a2b6c1ddadf428a7bc9c5a7a9e553dc0c6c31fd1ec57243c801bfdc2",
+    "migration-preservation.json": "d061e58b9d80e32277de091762c9f9cd5bb16ed8e3d58abb90d35fd897c7e6f7",
+    "source-before.json": "ae740e781f0b8d952e24e00d40a177ed84956b78bfcd7c5f78e791362f1d8804",
+    "source-after.json": "1ad4084324d777797479f0443eacf02d83e81b4f8512819c3e0749eccc104217",
+    "admission-order-probe.cjs": "0424e50f095db50824d80ea957efea6b1552581d1003e42e3fc807a499ba45b3",
+    "v3-test.log": "0340198dd138bb4e896b3d3b6180331cb4f0d8de5b4a9bb56f4900edc2c3a5eb"
+  },
+  "rawInputHashNote": "Keys above are relative to scratch; values are SHA-256 of original file bytes. These hashes identify omitted inputs and are not archive-file checksums.",
+  "archiveFileSha256": {
+    "README.md": "7f42b4ce5e6eea4b1314490a7091c45b85f762a4a50689ff7b30c7209bddf980",
+    "admission-order-probe.mjs": "4d23acb66d7479ed2d863beabe1d51f89bc5779e4dc911128382a0389f6fdafd",
+    "admission-order-result.json": "d06271dd531681bdc3cf08f7c59cc9f168cfd40134def61249d7753ad7691308",
+    "gate-results.json": "8051a88a6517d77c937482db48040bef67ed7b8d0412bc4fbe624cde38775c12",
+    "migration-preservation.json": "92987d020d606e7568379d56b7828fe41c3791a8b62cc0fb9588e1d2f0a58f43",
+    "regression-ledger.json": "e6c85ac2cd114e556b6740bf6fc9bd42170c31cec506111b37c40dae087cb8d0",
+    "review.md": "53a698984703032530953fe2cbb1b68df379386f69203b5e3f716124011776c0",
+    "root-test-failure.txt": "38962eabc55ac47a8bad5f97a9a825cc4f6b77ef4b6b70a44bb907c7cbfa6064",
+    "root-test-summary.json": "b493f3f7de6bbc22989fefda0cca404210b356191443b44547cad8f21d6fec0f",
+    "source-identity.json": "c923074ed55c2d51dfa36968348fc06332b5643b4ba6efde616b7f5dc465e0cb",
+    "v1-summary.json": "c58248844836450bc8d14424245d7c3445906cffd10ca88fd03d5a4e5c484045"
+  },
+  "archiveHashNote": "Keys are relative to this bundle. Values hash curated archive bytes after formatting and final report edits. This provenance file is excluded to avoid self-reference. Checksums record content identity, not external attestation.",
+  "archiveTransformations": {
+    "README.md": "New bundle index and final historical status",
+    "review.md": "New independent criterion reconciliation, findings and coordinator handoff; finalized from its own in-progress checkpoint",
+    "gate-results.json": "Semantic copy of scratch gate-results.json; formatting only. Paths already sanitized by the runner. Referenced log/output paths are historical omitted files, not required archive inputs.",
+    "v1-summary.json": "Curated scratch v1-summary.json: shared test-file prefix, per-file passed counts, zero-failure/pending/todo aggregate fields; redundant per-file totals/statuses compressed",
+    "root-test-summary.json": "Curated scratch root-test-summary.json: ordered invocation rows with explicit columns and zero defaults; aggregates retained. Duration, failure and incomplete-coverage facts added from v3-test.log and inspected source.",
+    "root-test-failure.txt": "Selected v3-test.log facts and source assertions, rewritten as a sanitized excerpt with repo-relative paths; not a raw-log copy",
+    "admission-order-probe.mjs": "Public-import historical bug observer adapted from scratch admission-order-probe.cjs; dependency-resolution argument replaces a checkout-local package path. No maintained acceptance test edited.",
+    "admission-order-result.json": "Semantic copy of scratch admission-order-result.json; durable observer executed afterward with exit 0 and produced byte-identical output in durable-admission-order-result.json and, after formatting, final-admission-order-result.json. Zero exit asserts the observed bug, not acceptance.",
+    "regression-ledger.json": "Semantic copy of scratch regression-ledger.json; static declarations and expectation sites are not expanded test counts or coverage percentages",
+    "migration-preservation.json": "Semantic copy of scratch migration-preservation.json; comparison against HEAD of classifications and TypeScript block source",
+    "source-identity.json": "Curated source-before.json/source-after.json: aggregate digests, selected file hashes and tool versions; adds source-scope/hash-method explanation and unchanged post-run re-enumeration observation. Full source map omitted."
+  },
+  "omitted": [
+    "raw command logs except the sanitized root failure excerpt",
+    "full Vitest reporter JSON, test case names and stacks",
+    "complete source manifest and reviewed source snapshot/diff",
+    "scratch runner, AST tooling, full spelling-hit text inventory and original CJS observer",
+    "dependency trees, generated installed consumers, dist, tarballs and publish staging",
+    "databases, caches, browser assets and machine-local runtime data"
+  ],
+  "reproducibility": "Summary-only, not self-contained. Curated per-file/per-invocation counts can be reconciled. Raw outcomes, complete source identity and full contextual audit cannot be reconstructed from this bundle alone. Commands require a matching checkout, dependencies/builds and applicable MongoDB/registry/cache/browser prerequisites. No baseline command was run. Any source correction invalidates reuse of old passing gates for final acceptance."
+}

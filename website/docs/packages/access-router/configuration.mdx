@@ -485,28 +485,32 @@ for the executable four-mode response shapes and breaking migration guidance.
 
 ## Operation Access
 
-Use `OperationAccess` in `ModelRouterOptions.operationAccess` for all fourteen
-model keys: `basicList`/`advancedList`, `basicRead`/`advancedRead`,
-`basicCreate`/`advancedCreate`, `basicUpdate`/`advancedUpdate`,
-`basicUpsert`/`advancedUpsert`, `basicCount`/`advancedCount`, and
-`basicDistinct`/`advancedDistinct`. The [complete routing matrix](./routing#model-router-routes)
-maps endpoints to these keys. Data routers use four list/read keys; subdocument
-fields use four nested list/read keys.
+Use `OperationAccess` in `ModelRouterOptions.operationAccess`. Model operations
+new/list/read/create/update/upsert/delete/count/distinct accept a scalar guard or
+`{ default?, basic?, advanced?, root? }`. Root and `./advanced` export
+`OperationAccessContext`, `OperationAccessVariants` and `OperationAccessRule`.
+The [routing matrix](./routing#model-router-routes) maps endpoints to members.
+Data list/read and subdocument list/read/create/update/delete use the same shape.
+The old flat keys and flat-name type are removed, not compatibility aliases; see
+the installed package's `MIGRATION.md` for all seven mapping pairs.
 
-An exact variant **replaces** the base guard. Only undefined inherits the existing
-base exact → `operationAccess.default` → scalar `operationAccess` shorthand
-resolution. False, an empty array, and a false-returning hook are final. With no
-other fallback/default variant configured:
+An exact context member **replaces** the operation's fallback. Only undefined
+inherits: exact context → operation scalar/`default` → outer
+`operationAccess.default`/scalar shorthand → deny. False, an empty array, and a
+false-returning hook are final. Malformed defined values deny without fallback.
+An empty top-level operation object can use the outer fallback. With no other grants:
 
-| Rules                              | Basic list | Advanced list | Root list entry |
-| ---------------------------------- | ---------- | ------------- | --------------- |
-| `list: true`                       | allowed    | allowed       | allowed         |
-| `list: false`                      | denied     | denied        | denied          |
-| `list: true, basicList: false`     | denied     | allowed       | allowed         |
-| `list: true, advancedList: false`  | allowed    | denied        | allowed         |
-| `list: false, basicList: true`     | allowed    | denied        | denied          |
-| only `basicList: true`             | allowed    | denied        | denied          |
-| `list: true, basicList: undefined` | allowed    | allowed       | allowed         |
+| Rules                                       | Basic list | Advanced list | Root list entry |
+| ------------------------------------------- | ---------- | ------------- | --------------- |
+| `list: true`                                | allowed    | allowed       | allowed         |
+| `list: false`                               | denied     | denied        | denied          |
+| `list: { default: true, basic: false }`     | denied     | allowed       | allowed         |
+| `list: { default: true, advanced: false }`  | allowed    | denied        | allowed         |
+| `list: { default: false, basic: true }`     | allowed    | denied        | denied          |
+| `list: { basic: true }`                     | allowed    | denied        | denied          |
+| `list: { default: true, basic: undefined }` | allowed    | allowed       | allowed         |
+| `list: { default: false, root: true }`      | denied     | denied        | allowed         |
+| `list: { default: true, root: false }`      | allowed    | allowed       | denied          |
 
 <!-- doc-example: partial -->
 
@@ -519,28 +523,31 @@ const baseOnly = {
 } satisfies ModelRouterOptions;
 const advancedReadsOnly = {
   basePath: '/users',
-  operationAccess: { list: true, read: true, basicRead: false },
+  operationAccess: { list: true, read: { default: true, basic: false } },
   permissionSchema: { name: true },
 } satisfies ModelRouterOptions;
 const basicListsOnly = {
-  operationAccess: { list: true, advancedList: false },
+  operationAccess: { list: { default: true, advanced: false } },
 } satisfies ModelRouterOptions;
 const permissionBased = {
-  operationAccess: { list: true, read: true, advancedList: 'isAdmin', advancedRead: ['canRead', 'isAdmin'] },
+  operationAccess: {
+    list: { default: true, advanced: 'isAdmin' },
+    read: { default: true, advanced: ['canRead', 'isAdmin'] },
+  },
   permissionSchema: { name: { list: true, read: true } },
 } satisfies ModelRouterOptions;
 const shorthand = { operationAccess: 'canUseApi' } satisfies ModelRouterOptions;
 const withDefault = {
-  operationAccess: { default: 'canUseApi', list: true, basicRead: false },
+  operationAccess: { default: 'canUseApi', list: true, read: { basic: false } },
 } satisfies ModelRouterOptions;
 
 acl.setDefaultModelOptions({ operationAccess: { list: true, read: true } });
-acl.setDefaultModelOption('operationAccess.advancedRead', 'isAdmin');
-const defaultRead = acl.getDefaultModelOption('operationAccess.advancedRead');
+acl.setDefaultModelOption('operationAccess.read', { default: true, advanced: 'isAdmin' });
+const defaultRead = acl.getDefaultModelOption('operationAccess.read.advanced');
 ```
 
-Among top-level model routes, `basicRead: false` denies only GET-by-id (and its HEAD fallback), leaving both
-advanced read POSTs authorized by `read: true`. List/new/count/distinct/mutation
+Among top-level model routes, `read.basic: false` denies only GET-by-id (and its HEAD fallback), leaving both
+advanced read POSTs authorized by `read.default: true`. List/new/count/distinct/mutation
 guards remain independent. Denial is **HTTP 401**, with endpoints still present
 in `getEndpoints()` and OpenAPI.
 
@@ -553,25 +560,28 @@ Configure permission names with `globalPermissions`. Field grants stay in
 
 ### Model default specificity
 
-Model exact variant lookup consults the runtime's same exact default path if the
-model value is undefined, **before** base fallback. A default `advancedRead` can
-therefore outrank a model's `read`, `default`, or shorthand; an exact model variant
-outranks that default variant. A model object still replaces its stored
+Model exact context lookup consults its owning runtime's same exact default path if
+the model member is undefined, **before** operation fallback. A default `read.advanced`
+can outrank a model's scalar `read` or `read.default`; its own exact member wins.
+A model object still replaces its stored
 `operationAccess` object shallowly, rather than recursively inheriting all siblings.
 
-Copied default values remain stored until updated. Later default setter calls do
-not broadcast replacement over existing model values; clearing a stored variant
-may expose the current exact runtime default. `getDefaultModelOption` reads a
-path exactly, without variant/base or `.default` resolution.
+This is not recursive merging: model `read: {}` does not independently inherit a
+runtime `read.default`; an operation object inherited through existing base lookup
+can supply its own default. Omitted model operationAccess inherits model defaults;
+without grants the built-in policy denies. Explicit whole-model operationAccess
+undefined permits runtime exact-operation fallback, not a bare/outer catch-all.
+Clearing a context member can expose the current exact runtime default.
+`getDefaultModelOption` reads a path exactly, without final entry resolution.
 `getDefaultModelOptions()` returns a frozen snapshot. Data routers have no model
 default inheritance.
 
 ### Subdocument field rules
 
-For `subs.comments.basicList`, precedence is exact field variant → field `list`
-→ defined field scalar/closed object → top-level `basicList` **only for an absent
-field** → existing top-level `list` fallback. Read/advanced variants follow the
-same ordering.
+For `subs.comments.list.basic`, precedence is exact field context (including
+same-owner runtime exact default) → field operation scalar/`list.default` → field
+scalar or deny for a closed object. Only an **absent field** uses top-level list
+with the same context. Read/advanced/root follow the same ordering.
 
 <!-- doc-example: partial -->
 
@@ -583,7 +593,7 @@ const options = {
     list: true,
     read: true,
     subs: {
-      comments: { list: true, read: true, basicList: false, advancedRead: 'isAdmin' },
+      comments: { list: { default: true, basic: false }, read: { default: true, advanced: 'isAdmin', root: false } },
       items: { read: true }, // Closed: omitted list rules deny both items list routes.
       attachments: 'isAdmin',
     },
@@ -593,11 +603,15 @@ const options = {
 
 A defined object without the applicable operation cannot be reopened by top-level
 allows. Exact field lookups retain model-default specificity; an inherited defined
-field also stays closed. There is no nested `.default` fallback. Legacy scalar `subs` rules remain
+field also stays closed, including empty operation objects. An operation's own
+default is supported; `subs.comments.default` is not a field wildcard. Legacy scalar `subs` rules remain
 accepted, but do not act as an umbrella for absent fields; use explicit field rules.
 
-Route grants retain base field/row/hook, root-entry, related-target, read-miss
-fallback, upsert branch, and mutation-response policies. See [Services](./services#route-entry-and-service-policy).
+Entry grants do not authorize context-free related-target/retry/visibility checks;
+those select operation scalar/default, never transport members. Field/row/hook,
+populate flags, trusted services and upsert branch behavior stay unchanged.
+The root router's own scalar guard is independent of target root members.
+See [Services](./services#route-entry-and-service-policy).
 
 ## Request Complexity And Correlated Limits
 
@@ -694,7 +708,7 @@ Common data options:
 
 - `data`
 - `basePath`
-- `operationAccess` supports `list`/`read`, `default`, scalar shorthand, and `basicList`/`advancedList`/`basicRead`/`advancedRead`
+- `operationAccess` supports scalar shorthand, outer `default`, and scalar or nested `default`/`basic`/`advanced`/`root` list/read rules (broader existing option assignments stay accepted)
 - `permissionSchema` maps fields to booleans, permission names, or per-operation rule objects
 - `baseFilter`
 - `overrideFilter`
@@ -744,27 +758,27 @@ const runtime = createAccessRuntime();
 const User = mongoose.model('ConfigurationVariantUser', new mongoose.Schema({ name: String }));
 const router = runtime.createRouter(User, {
   basePath: '/users',
-  operationAccess: { list: true, read: true },
+  operationAccess: { list: { default: true }, read: { default: true } },
   permissionSchema: { name: true },
 });
-router.operationAccess('basicRead', false); // Preserve the other keys.
-router.operationAccess('subs.comments.basicRead', false);
-router.set('operationAccess.advancedList', 'isAdmin');
-router.setOption('operationAccess.basicRead', undefined); // Restore inheritance.
-runtime.setModelOption(router.modelName, 'operationAccess.basicRead', false);
+router.operationAccess('read.basic', false); // Preserve the other members.
+router.operationAccess('subs.comments.read.basic', false);
+router.set('operationAccess.list.advanced', 'isAdmin');
+router.setOption('operationAccess.read.basic', undefined); // Restore fallback.
+runtime.setModelOption(router.modelName, 'operationAccess.read.root', false);
 
-router.operationAccess({ list: true, read: true, basicRead: false }); // Whole rule replacement.
-router.setOptions({ operationAccess: { list: true, advancedList: false } }); // Same shallow assignment.
+router.operationAccess({ list: true, read: { default: true, basic: false } }); // Whole rule replacement.
+router.setOptions({ operationAccess: { list: { default: true, advanced: false } } }); // Same shallow assignment.
 const current = runtime.getModelOptions(router.modelName);
-const exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.basicRead');
+const exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.read.basic');
 
 const dataRouter = runtime.createDataRouter('VariantData', {
   idParam: 'id',
   data: [],
   operationAccess: { list: true, read: true },
 });
-dataRouter.setOption('operationAccess.basicRead', false);
-dataRouter.runtime.setDataOption('VariantData', 'operationAccess.advancedRead', true);
+dataRouter.setOption('operationAccess.read', { default: true, basic: false });
+dataRouter.runtime.setDataOption('VariantData', 'operationAccess.read.advanced', true);
 const currentData = dataRouter.runtime.getDataOptions('VariantData');
 ```
 
@@ -772,13 +786,12 @@ const currentData = dataRouter.runtime.getDataOptions('VariantData');
 helper object forms replace that entire object shallowly. Dotted paths are setter
 arguments, not flat dotted properties in constructor options. A path update under
 scalar shorthand starts an object; use `default` to retain the broad base fallback.
-Use typed `set`/`setOption` with undefined to clear; property-helper key updates
-are for defined values.
+Two-argument typed/member property setters accept undefined to clear a member.
 
 `router.options` is a frozen construction-time snapshot. Getter results are frozen
 snapshots too (with data's native-copy behavior above); fetch again for current stored values. Generic
 `getModelOption`/`getDataOption` use nested-option fallback, not route-specific
-variant-to-base resolution. Exact getters expose the variant path (with exact model
+final nested entry resolution and can return operation objects. Exact getters expose a member path (with exact model
 default fallback); request guards resolve live runtime options.
 
 ## Related Pages

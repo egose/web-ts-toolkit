@@ -9,6 +9,28 @@ export type GuardHook<TRequest extends AccessRouterRequest = AccessRouterRequest
 
 export type Validation = boolean | string | string[] | GuardHook;
 
+/** Server-owned entry context, never a wire operation or populate selector. Secondary checks omit context. */
+export type OperationAccessContext = 'basic' | 'advanced' | 'root';
+
+/**
+ * One operation's independent request guards. Only undefined inherits; a selected
+ * member replaces (never ANDs/ORs with) its default. Exact same-runtime context
+ * defaults precede scalar/default fallback; operation objects are not deep-merged.
+ */
+export interface OperationAccessVariants {
+  /** Context-free base checks and entry fallback; then the applicable outer default, or deny for closed fields. */
+  default?: Validation;
+  /** Basic direct route (including HEAD for GET); unpaired new/delete/subdocument mutations also use basic. */
+  basic?: Validation;
+  /** Advanced direct route, including both POST reads; does not create endpoints for unpaired operations. */
+  advanced?: Validation;
+  /** Root/batch target entry only; independent of the root router's own scalar outer guard. */
+  root?: Validation;
+}
+
+/** A scalar guard, or independent entry guards with a context-free default. */
+export type OperationAccessRule = Validation | OperationAccessVariants;
+
 /**
  * Immutable literal-boolean facts normalized once per owning document stage.
  * Return a plain own enumerable string-keyed record (at most 19,999 keys), not rich,
@@ -47,12 +69,8 @@ export type RouteBaseAccess = PairedRouteAccess | 'new' | 'delete' | 'subs';
 /** Server-owned transport variant for a paired generated route. */
 export type RouteVariant = 'basic' | 'advanced';
 
-/** The fourteen route-only keys, or the two keys for a specified paired base operation. */
-export type RouteVariantAccess<TAccess extends PairedRouteAccess = PairedRouteAccess> =
-  `${RouteVariant}${Capitalize<TAccess>}`;
-
 /** Known route guards with the existing trusted custom access-string compatibility. */
-export type RouteGuardAccess = RouteBaseAccess | RouteVariantAccess | (string & {});
+export type RouteGuardAccess = RouteBaseAccess | (string & {});
 
 export type DocPermissionsAccess = 'list' | 'create' | 'read' | 'update' | string;
 export type BaseFilterAccess = 'list' | 'read' | 'update' | 'delete' | string;

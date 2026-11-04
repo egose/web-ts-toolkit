@@ -4,6 +4,7 @@ import { createAccessRuntime } from '../dist/index.mjs';
 import {
   captureModelAuthorizationConfiguration,
   getCapturedAuthorizationOption,
+  selectCapturedOperationAccessGuard,
 } from '../src/acl/model-output-planning';
 import { resolveVirtualPopulateDependencies } from '../src/acl/virtual-populate-dependencies';
 import { getScopeVirtualsObject, resolveSnapshotDescriptor } from '../src/acl/virtual-projection';
@@ -318,24 +319,28 @@ describe('DPV-01 populated dependency configuration', () => {
     expect(f.api.getModelOptions(f.source.modelName)).toEqual(valid);
   });
 
-  it.each([true, { default: true }, { default: true, read: false }, { list: true }])(
-    'captures the existing exact/default/bare read resolver: %j',
-    (operationAccess) => {
-      const f = models();
-      f.api.setModelOptions(f.target.modelName, {
-        operationAccess,
-        baseFilter: { default: () => ({ tenant: 'default' }) },
-        overrideFilter: { read: (filter) => filter },
-      });
-      f.api.createRouter(f.source, { virtuals: { canOrder: descriptor('balance') } as never });
-      const { configuration } = privateInputs(f)[0].target;
-      for (const key of ['operationAccess.read', 'baseFilter.read', 'overrideFilter.read']) {
-        expect(getCapturedAuthorizationOption(configuration, key)).toEqual(
-          f.api.getModelOption(f.target.modelName, key),
-        );
-      }
-    },
-  );
+  it.each([
+    { operationAccess: true, guard: true },
+    { operationAccess: { default: true }, guard: true },
+    { operationAccess: { default: true, read: false }, guard: false },
+    { operationAccess: { list: true }, guard: false },
+    { operationAccess: { read: { default: true, basic: false, advanced: false, root: false } }, guard: true },
+    { operationAccess: { default: true, read: { default: false, advanced: true, root: true } }, guard: false },
+  ])('captures a context-free scalar read guard: $operationAccess', ({ operationAccess, guard }) => {
+    const f = models();
+    f.api.setModelOptions(f.target.modelName, {
+      operationAccess,
+      baseFilter: { default: () => ({ tenant: 'default' }) },
+      overrideFilter: { read: (filter) => filter },
+    });
+    f.api.createRouter(f.source, { virtuals: { canOrder: descriptor('balance') } as never });
+    const { configuration } = privateInputs(f)[0].target;
+    expect(selectCapturedOperationAccessGuard(configuration, 'read')).toBe(guard);
+    expect(getCapturedAuthorizationOption(configuration, 'operationAccess.read')).toBe(guard);
+    for (const key of ['baseFilter.read', 'overrideFilter.read']) {
+      expect(getCapturedAuthorizationOption(configuration, key)).toEqual(f.api.getModelOption(f.target.modelName, key));
+    }
+  });
 
   it('requires the runtime target instance to match the actual source-connection ref binding', () => {
     const f = models();

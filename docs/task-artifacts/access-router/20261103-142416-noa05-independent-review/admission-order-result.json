@@ -1,0 +1,30 @@
+{
+  "observations": [
+    {
+      "label": "api.createRouter(Model, proxy)",
+      "events": [],
+      "thrown": { "name": "TypeError", "message": "Proxy control/configuration prototype is unsupported" }
+    },
+    {
+      "label": "ModelRouter.fromModel(Model, proxy)",
+      "events": ["ownKeys"],
+      "thrown": { "name": "Error", "message": "NOA-05 ownKeys sentinel" }
+    },
+    {
+      "label": "setDefaultModelOption(non-string key)",
+      "events": [],
+      "thrown": { "name": "TypeError", "message": "Configuration option key must be a string" }
+    },
+    {
+      "label": "setModelOption(non-string key)",
+      "events": ["coercion"],
+      "thrown": { "name": "Error", "message": "NOA-05 key coercion sentinel" }
+    },
+    {
+      "label": "setDataOption(non-string key)",
+      "events": ["coercion"],
+      "thrown": { "name": "Error", "message": "NOA-05 key coercion sentinel" }
+    }
+  ],
+  "registryPublication": false
+}

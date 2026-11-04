@@ -7,7 +7,15 @@ import { unwrapServiceData } from '../http/response-pipelines/model-response';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
 import { handleResultError, parseSelectParam } from '../helpers';
-import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter, RouteVariant, Sort } from '../interfaces';
+import {
+  DataRouterOptions,
+  ExtendedDataRouterOptions,
+  DataRequest,
+  Filter,
+  RouteVariant,
+  Sort,
+  OperationAccessSetter,
+} from '../interfaces';
 import { DataService } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { assertAuthorizationModeOptions } from '../acl/authorization-modes';
@@ -264,7 +272,7 @@ export class DataRouter<TData = unknown> {
 
   /**
    * Update live behavior with a typed key/path or an options object. Dotted paths
-   * such as `operationAccess.basicRead` update one key; object assignment replaces
+   * such as `operationAccess.read.basic` update one key; object assignment replaces
    * supplied top-level values shallowly. The construction-time options snapshot stays fixed.
    */
   set<K extends keyof ExtendedDataRouterOptions<TData>>(key: K, value: ExtendedDataRouterOptions<TData>[K]): this;
@@ -288,7 +296,7 @@ export class DataRouter<TData = unknown> {
     return this;
   }
 
-  /** Set one live option/path; `setOption('operationAccess.basicRead', undefined)` restores inheritance. */
+  /** Set one live option/path; `setOption('operationAccess.read.basic', undefined)` restores fallback. */
   setOption<K extends keyof ExtendedDataRouterOptions<TData>>(key: K, option: ExtendedDataRouterOptions<TData>[K]) {
     assertMutableRouterOption('data', key as string);
     this.runtime.setDataOption<K, TData>(this.dataName, key, option);
@@ -311,14 +319,24 @@ export class DataRouter<TData = unknown> {
   public permissionSchema: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['permissionSchema']> =
     setOption.bind(this, 'permissionSchema');
   /**
-   * Live list/read guards plus basicList/advancedList/basicRead/advancedRead.
-   * `operationAccess('basicRead', false)` updates one key and denies GET /:id
-   * (and HEAD) with HTTP 401; registered POST reads still inherit `read`.
+   * Live scalar/default and independent basic/advanced/root list/read entry guards.
+   * `operationAccess('read.basic', false)` updates one member and denies GET /:id
+   * (and HEAD) with HTTP 401; registered POST reads use read.advanced then read.default.
    * `operationAccess({ list: true, read: true })` replaces the whole rule object,
-   * not a deep merge. Use setOption with undefined to restore variant inheritance.
+   * not a deep merge. Two-argument member setters accept undefined to restore fallback.
+   * Data never inherits model defaults; updating beneath a scalar starts an object.
    */
-  public operationAccess: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['operationAccess']> =
-    setOption.bind(this, 'operationAccess');
+  public operationAccess: OperationAccessSetter<DataRouter<TData>> = (
+    ...args: [DataRouterOptions<TData>['operationAccess']] | [string, unknown]
+  ) => {
+    const key = args.length === 2 ? `operationAccess.${args[0]}` : 'operationAccess';
+    this.runtime.setDataOption(
+      this.dataName,
+      key as keyof ExtendedDataRouterOptions<TData>,
+      (args.length === 2 ? args[1] : args[0]) as never,
+    );
+    return this;
+  };
   public baseFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['baseFilter']> = setOption.bind(
     this,
     'baseFilter',

@@ -102,6 +102,7 @@ describe('access-router-deco strict consumer types', () => {
         Router('StrictDecoUser', { basePath: '/by-name' })(UserRouter);
         Router(userModel, { basePath: '/by-instance' })(UserRouter);
         Router(userModel, { permissionSchema: { name: { read: true } } })(UserRouter);
+        Router(userModel, { operationAccess: { read: { default: true, basic: false, advanced: 'reader', root: false } } })(UserRouter);
 
         class UserOptions {
           @DefaultModelOption('idParam')
@@ -109,6 +110,9 @@ describe('access-router-deco strict consumer types', () => {
         }
         RouterOptions('StrictDecoUser', { idParam: 'userId' })(UserOptions);
         RouterOptions(userModel, { queryRouteSegment: 'search' })(UserOptions);
+        RouterOptions({ operationAccess: { list: { default: true, basic: false, root: true } } })(UserOptions);
+        ModelOption('operationAccess.read.root');
+        DefaultModelOption('operationAccess.subs.comments.read.advanced');
 
         class GlobalOptionsFixture {
           @GlobalOption('requestPermissionField')
@@ -156,6 +160,12 @@ describe('access-router-deco strict consumer types', () => {
 
         // @ts-expect-error nested subroute policy stays in typed options, not scalar decorators
         RouteGuard('subs');
+        // @ts-expect-error nested entry members are options, not scalar method-hook names
+        RouteGuard('read.basic');
+        // @ts-expect-error root entry policy is configured in typed router options
+        RouteGuard('read.root');
+        // @ts-expect-error retired flat keys are not method-hook names
+        RouteGuard('basicRead');
 
         // @ts-expect-error model overload requires a Mongoose model, not a model-like object
         Router({ modelName: 'StrictDecoUser' }, {});

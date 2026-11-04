@@ -1,0 +1,57 @@
+{
+  "independentPublicEntry": {
+    "observations": [
+      {
+        "label": "api.createRouter(Model, proxy)",
+        "events": [],
+        "thrown": { "name": "TypeError", "message": "Proxy control/configuration prototype is unsupported" },
+        "bootstrapUnchanged": true
+      },
+      {
+        "label": "ModelRouter.fromModel(Model, proxy)",
+        "events": [],
+        "thrown": { "name": "TypeError", "message": "Proxy control/configuration prototype is unsupported" },
+        "bootstrapUnchanged": true
+      },
+      {
+        "label": "setDefaultModelOption(non-string key)",
+        "events": [],
+        "thrown": { "name": "TypeError", "message": "Configuration option key must be a string" },
+        "bootstrapUnchanged": true
+      },
+      {
+        "label": "setModelOption(non-string key)",
+        "events": [],
+        "thrown": { "name": "TypeError", "message": "Configuration option key must be a string" },
+        "bootstrapUnchanged": true
+      },
+      {
+        "label": "setDataOption(non-string key)",
+        "events": [],
+        "thrown": { "name": "TypeError", "message": "Configuration option key must be a string" },
+        "bootstrapUnchanged": true
+      }
+    ],
+    "unconfiguredSetterPublication": false,
+    "validStaticConstructionAndStringSetters": "passed",
+    "retiredKeyDiagnosticsAndAtomicity": "passed"
+  },
+  "historicalObserver": {
+    "path": "docs/task-artifacts/access-router/20261103-142416-noa05-independent-review/admission-order-probe.mjs",
+    "sha256": "4d23acb66d7479ed2d863beabe1d51f89bc5779e4dc911128382a0389f6fdafd",
+    "exitCode": 1,
+    "expectedExitCode": 1,
+    "acceptanceGate": false,
+    "assertionActual": [],
+    "assertionExpected": ["ownKeys"],
+    "interpretation": "Unchanged asserts-bug observer now fails as expected at line 70; the safe rejection fix removes the forbidden callback. Not a failed maintained acceptance test."
+  },
+  "maintainedRegressions": {
+    "file": "packages/access-router/test/nested-operation-access-admission.contract.test.ts",
+    "originalCases": 54,
+    "addedCases": 5,
+    "freshPassedCases": 59,
+    "preservedOriginalAssertions": true
+  },
+  "observerSourceOmitted": "The disposable independent observer is not archived as a second regression test. The maintained cases are executable coverage; review.md records the observation protocol and valid/retired-key controls."
+}

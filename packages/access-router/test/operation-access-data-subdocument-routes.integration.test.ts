@@ -39,10 +39,7 @@ interface Parent {
   items: Item[];
 }
 
-const pairs = [
-  { access: 'list', basic: 'basicList', advanced: 'advancedList' },
-  { access: 'read', basic: 'basicRead', advanced: 'advancedRead' },
-] as const;
+const pairs = [{ access: 'list' }, { access: 'read' }] as const;
 type Pair = (typeof pairs)[number];
 type Method = 'get' | 'post' | 'patch' | 'delete' | 'head';
 type CallSpy = { mock: { calls: unknown[][] } };
@@ -368,21 +365,23 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
 
   for (const variant of ['basic', 'advanced'] as const) {
     it.each(pairs)(`denies only the ${variant} $access endpoint over an allowed base`, async (pair) => {
-      const fixture = createDataFixture({ operationAccess: { ...dataAccess, [pair[variant]]: false } });
+      const fixture = createDataFixture({
+        operationAccess: { ...dataAccess, [pair.access]: { default: true, [variant]: false } },
+      });
       await exerciseDataPair(fixture, pair.access, 'basic', variant !== 'basic');
       await exerciseDataPair(fixture, pair.access, 'advanced', variant !== 'advanced');
     });
 
     it.each(pairs)(`allows only the ${variant} $access endpoint over a denied base`, async (pair) => {
       const fixture = createDataFixture({
-        operationAccess: { ...dataAccess, [pair.access]: false, [pair[variant]]: true },
+        operationAccess: { ...dataAccess, [pair.access]: { default: false, [variant]: true } },
       });
       await exerciseDataPair(fixture, pair.access, 'basic', variant === 'basic');
       await exerciseDataPair(fixture, pair.access, 'advanced', variant === 'advanced');
     });
 
     it.each(pairs)(`allows a ${variant}-only $access rule with no base grant`, async (pair) => {
-      const fixture = createDataFixture({ operationAccess: { [pair[variant]]: true } });
+      const fixture = createDataFixture({ operationAccess: { [pair.access]: { [variant]: true } } });
       await exerciseDataPair(fixture, pair.access, 'basic', variant === 'basic');
       await exerciseDataPair(fixture, pair.access, 'advanced', variant === 'advanced');
     });
@@ -392,7 +391,10 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
     const validator = vi.fn(() => ({ success: false as const, issues: [{ message: 'Must not reach validation' }] }));
     const decorate = vi.fn((row) => row);
     const fixture = createDataFixture({
-      operationAccess: { ...dataAccess, basicList: false, advancedList: false, basicRead: false, advancedRead: false },
+      operationAccess: {
+        list: { default: true, basic: false, advanced: false },
+        read: { default: true, basic: false, advanced: false },
+      },
       requestSchemas: { advancedList: validator, advancedRead: validator, advancedReadFilter: validator },
       decorate,
     });
@@ -415,12 +417,15 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
 
   it.each(pairs)('HEAD uses only the basic $access guard in both directions', async (pair) => {
     const fixture = createDataFixture({
-      operationAccess: { ...dataAccess, [pair.basic]: false, [pair.advanced]: true },
+      operationAccess: { ...dataAccess, [pair.access]: { default: true, basic: false, advanced: true } },
     });
     const suffix = pair.access === 'list' ? '' : '/apple';
     await expectEntry(fixture, 'head', suffix, undefined, false);
     await exerciseDataPair(fixture, pair.access, 'advanced', true);
-    fixture.router.setOption('operationAccess', { ...dataAccess, [pair.basic]: true, [pair.advanced]: false });
+    fixture.router.setOption('operationAccess', {
+      ...dataAccess,
+      [pair.access]: { default: true, basic: true, advanced: false },
+    });
     const response = await expectEntry(fixture, 'head', suffix, undefined, true);
     expect(response.text ?? '').toBe('');
     await exerciseDataPair(fixture, pair.access, 'advanced', false);
@@ -431,11 +436,11 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
       basePath: '/custom-data',
       idParam: 'recordId',
       queryRouteSegment: 'search',
-      operationAccess: { ...dataAccess, [pair.basic]: false },
+      operationAccess: { ...dataAccess, [pair.access]: { default: true, basic: false } },
     });
     await exerciseDataPair(fixture, pair.access, 'basic', false);
     await exerciseDataPair(fixture, pair.access, 'advanced', true);
-    fixture.router.set('operationAccess', { ...dataAccess, [pair.advanced]: false });
+    fixture.router.set('operationAccess', { ...dataAccess, [pair.access]: { default: true, advanced: false } });
     await exerciseDataPair(fixture, pair.access, 'basic', true);
     await exerciseDataPair(fixture, pair.access, 'advanced', false);
     expect(fixture.router.router.getEndpoints()).toContainEqual({ method: 'GET', path: '/custom-data/:recordId' });
@@ -450,32 +455,34 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
   });
 
   it.each(pairs)('observes live data property/dotted setters and undefined inheritance for $access', async (pair) => {
-    const fixture = createDataFixture({ operationAccess: { ...dataAccess, [pair.basic]: false } });
+    const fixture = createDataFixture({
+      operationAccess: { ...dataAccess, [pair.access]: { default: true, basic: false } },
+    });
     const { router, api, dataName } = fixture;
     const snapshot = router.options.operationAccess;
     const endpoints = router.router.getEndpoints();
     await exerciseDataPair(fixture, pair.access, 'basic', false);
-    router.operationAccess(pair.basic, true);
+    router.operationAccess(`${pair.access}.basic`, true);
     await exerciseDataPair(fixture, pair.access, 'basic', true);
-    router.set(`operationAccess.${pair.advanced}`, false);
+    router.set(`operationAccess.${pair.access}.advanced`, false);
     await exerciseDataPair(fixture, pair.access, 'advanced', false);
-    router.setOption(`operationAccess.${pair.basic}`, false);
+    router.setOption(`operationAccess.${pair.access}.basic`, false);
     await exerciseDataPair(fixture, pair.access, 'basic', false);
-    api.runtime.setDataOption(dataName, `operationAccess.${pair.advanced}`, true);
+    api.runtime.setDataOption(dataName, `operationAccess.${pair.access}.advanced`, true);
     await exerciseDataPair(fixture, pair.access, 'advanced', true);
-    router.setOption(`operationAccess.${pair.basic}`, undefined);
+    router.setOption(`operationAccess.${pair.access}.basic`, undefined);
     await exerciseDataPair(fixture, pair.access, 'basic', true);
 
-    router.set({ operationAccess: { [pair.advanced]: true } });
-    expect(api.runtime.getDataOptions(dataName).operationAccess).toEqual({ [pair.advanced]: true });
+    router.set({ operationAccess: { [pair.access]: { advanced: true } } });
+    expect(api.runtime.getDataOptions(dataName).operationAccess).toEqual({ [pair.access]: { advanced: true } });
     await exerciseDataPair(fixture, pair.access, 'basic', false);
     await exerciseDataPair(fixture, pair.access, 'advanced', true);
-    router.operationAccess({ ...dataAccess, [pair.advanced]: false });
+    router.operationAccess({ ...dataAccess, [pair.access]: { default: true, advanced: false } });
     await exerciseDataPair(fixture, pair.access, 'basic', true);
     await exerciseDataPair(fixture, pair.access, 'advanced', false);
     expect(router.options.operationAccess).toBe(snapshot);
     expect(Object.isFrozen(snapshot)).toBe(true);
-    expect(snapshot).toEqual({ ...dataAccess, [pair.basic]: false });
+    expect(snapshot).toEqual({ ...dataAccess, [pair.access]: { default: true, basic: false } });
     expect(router.router.getEndpoints()).toEqual(endpoints);
   });
 
@@ -483,14 +490,22 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
     const apiA = createAccessRuntime();
     const apiB = createAccessRuntime();
     apiA.setDefaultModelOptions({
-      operationAccess: { list: false, read: false, basicRead: true, advancedList: false },
+      operationAccess: { list: { default: false, advanced: false }, read: { default: false, basic: true } },
     });
     apiB.setDefaultModelOptions({
-      operationAccess: { list: false, read: false, advancedRead: true, basicList: false },
+      operationAccess: { list: { default: false, basic: false }, read: { default: false, advanced: true } },
     });
     const name = `Oav04SharedData${++counter}`;
-    const a = createDataFixture({ operationAccess: { ...dataAccess, basicRead: false } }, apiA, name);
-    const b = createDataFixture({ operationAccess: { ...dataAccess, advancedRead: false } }, apiB, name);
+    const a = createDataFixture(
+      { operationAccess: { ...dataAccess, read: { default: true, basic: false } } },
+      apiA,
+      name,
+    );
+    const b = createDataFixture(
+      { operationAccess: { ...dataAccess, read: { default: true, advanced: false } } },
+      apiB,
+      name,
+    );
     for (let index = 0; index < 2; index++) {
       await exerciseDataPair(a, 'read', 'basic', false);
       await exerciseDataPair(b, 'read', 'basic', true);
@@ -499,7 +514,7 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
     }
     await exerciseDataPair(a, 'list', 'advanced', true);
     await exerciseDataPair(b, 'list', 'basic', true);
-    apiA.runtime.setDataOption(name, 'operationAccess.basicRead', true);
+    apiA.runtime.setDataOption(name, 'operationAccess.read.basic', true);
     await exerciseDataPair(a, 'read', 'basic', true);
     await exerciseDataPair(b, 'read', 'advanced', false);
   });
@@ -509,7 +524,10 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
       basePath: '/registered-data',
       idParam: 'recordId',
       queryRouteSegment: 'search',
-      operationAccess: { ...dataAccess, basicList: false, advancedList: false, basicRead: false, advancedRead: false },
+      operationAccess: {
+        list: { default: true, basic: false, advanced: false },
+        read: { default: true, basic: false, advanced: false },
+      },
     });
     fixture.app.use(fixture.api.createOpenApiRouter({ title: 'OAV-04 data routes', version: '1.0.0' }));
     const endpoints = fixture.router.router.getEndpoints();
@@ -552,7 +570,7 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
         return row;
       });
       const fixture = createDataFixture({
-        operationAccess: { ...dataAccess, [pair.access]: false, [pair.advanced]: true },
+        operationAccess: { ...dataAccess, [pair.access]: { default: false, advanced: true } },
         baseFilter: {
           list: listFilter,
           read: readFilter,
@@ -582,7 +600,7 @@ describe('OAV-04 in-memory data list/read pairs (no Mongo)', () => {
 
   it.each(pairs)('an allowed advanced data $access retains ordinary 400/403 policy failures', async (pair) => {
     const fixture = createDataFixture({
-      operationAccess: { ...dataAccess, [pair.access]: false, [pair.advanced]: true },
+      operationAccess: { ...dataAccess, [pair.access]: { default: false, advanced: true } },
       baseFilter: { [pair.access]: () => false },
     });
     const paths = pair.access === 'list' ? ['/__query'] : ['/__query/apple', '/__query/__filter'];
@@ -612,7 +630,7 @@ describe('OAV-04 subdocument list/read routes', () => {
   for (const variant of ['basic', 'advanced'] as const) {
     it.each(pairs)(`denies only the ${variant} field $access endpoint over an allowed base`, async (pair) => {
       const fixture = await createSubFixture({
-        operationAccess: withSubAccess({ ...subAccess, [pair[variant]]: false }),
+        operationAccess: withSubAccess({ ...subAccess, [pair.access]: { default: true, [variant]: false } }),
       });
       await exerciseSubPair(fixture, pair.access, 'basic', variant !== 'basic');
       await exerciseSubPair(fixture, pair.access, 'advanced', variant !== 'advanced');
@@ -620,14 +638,16 @@ describe('OAV-04 subdocument list/read routes', () => {
 
     it.each(pairs)(`allows only the ${variant} field $access endpoint over a denied base`, async (pair) => {
       const fixture = await createSubFixture({
-        operationAccess: withSubAccess({ ...subAccess, [pair.access]: false, [pair[variant]]: true }),
+        operationAccess: withSubAccess({ ...subAccess, [pair.access]: { default: false, [variant]: true } }),
       });
       await exerciseSubPair(fixture, pair.access, 'basic', variant === 'basic');
       await exerciseSubPair(fixture, pair.access, 'advanced', variant === 'advanced');
     });
 
     it.each(pairs)(`allows a ${variant}-only field $access rule with no base grant`, async (pair) => {
-      const fixture = await createSubFixture({ operationAccess: withSubAccess({ [pair[variant]]: true }) });
+      const fixture = await createSubFixture({
+        operationAccess: withSubAccess({ [pair.access]: { [variant]: true } }),
+      });
       await exerciseSubPair(fixture, pair.access, 'basic', variant === 'basic');
       await exerciseSubPair(fixture, pair.access, 'advanced', variant === 'advanced');
     });
@@ -637,8 +657,7 @@ describe('OAV-04 subdocument list/read routes', () => {
     const fixture = await createSubFixture({
       operationAccess: {
         ...parentAccess,
-        [pair.basic]: false,
-        [pair.advanced]: false,
+        [pair.access]: { default: true, basic: false, advanced: false },
         subs: { items: subAccess },
       },
     });
@@ -646,8 +665,7 @@ describe('OAV-04 subdocument list/read routes', () => {
     await exerciseSubPair(fixture, pair.access, 'advanced', true);
     fixture.router.operationAccess({
       ...parentAccess,
-      [pair.basic]: true,
-      [pair.advanced]: true,
+      [pair.access]: { default: true, basic: true, advanced: true },
       subs: { items: { ...subAccess, [pair.access]: false } },
     });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
@@ -669,9 +687,8 @@ describe('OAV-04 subdocument list/read routes', () => {
     const fixture = await createSubFixture({
       operationAccess: {
         ...parentAccess,
-        [pair.basic]: topVariant,
-        [pair.advanced]: topVariant,
-        subs: { items: { ...subAccess, [pair.access]: fieldBase, [pair.basic]: selected, [pair.advanced]: selected } },
+        [pair.access]: { default: true, basic: topVariant, advanced: topVariant },
+        subs: { items: { ...subAccess, [pair.access]: { default: fieldBase, basic: selected, advanced: selected } } },
       },
     });
     await exerciseSubPair(fixture, pair.access, 'basic', true);
@@ -685,8 +702,7 @@ describe('OAV-04 subdocument list/read routes', () => {
     const fixture = await createSubFixture({
       operationAccess: {
         ...parentAccess,
-        [pair.basic]: false,
-        [pair.advanced]: false,
+        [pair.access]: { default: true, basic: false, advanced: false },
         subs: { items: true },
       },
     });
@@ -694,8 +710,7 @@ describe('OAV-04 subdocument list/read routes', () => {
     await exerciseSubPair(fixture, pair.access, 'advanced', true);
     fixture.router.operationAccess({
       ...parentAccess,
-      [pair.basic]: true,
-      [pair.advanced]: true,
+      [pair.access]: { default: true, basic: true, advanced: true },
       subs: { items: false },
     });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
@@ -706,19 +721,15 @@ describe('OAV-04 subdocument list/read routes', () => {
     const fixture = await createSubFixture({
       operationAccess: {
         ...parentAccess,
-        basicList: true,
-        advancedList: true,
-        basicRead: true,
-        advancedRead: true,
+        list: { default: true, basic: true, advanced: true },
+        read: { default: true, basic: true, advanced: true },
         subs: { items: { [pair.access === 'list' ? 'read' : 'list']: true } },
       },
     });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
     await exerciseSubPair(fixture, pair.access, 'advanced', false);
     fixture.router.operationAccess('subs.items', {
-      [pair.access]: undefined,
-      [pair.basic]: undefined,
-      [pair.advanced]: undefined,
+      [pair.access]: { basic: undefined, advanced: undefined },
       default: true,
     });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
@@ -731,17 +742,19 @@ describe('OAV-04 subdocument list/read routes', () => {
       const fixture = await createSubFixture({
         operationAccess: {
           ...parentAccess,
-          [pair.basic]: false,
-          [pair.advanced]: true,
+          [pair.access]: { default: true, basic: false, advanced: true },
           subs: { other: false },
         },
       });
       await exerciseSubPair(fixture, pair.access, 'basic', false);
       await exerciseSubPair(fixture, pair.access, 'advanced', true);
-      fixture.router.operationAccess({ ...parentAccess, [pair.access]: false, [pair.basic]: true });
+      fixture.router.operationAccess({ ...parentAccess, [pair.access]: { default: false, basic: true } });
       await exerciseSubPair(fixture, pair.access, 'basic', true);
       await exerciseSubPair(fixture, pair.access, 'advanced', false);
-      fixture.router.operationAccess({ ...parentAccess, [pair.basic]: undefined, [pair.advanced]: undefined });
+      fixture.router.operationAccess({
+        ...parentAccess,
+        [pair.access]: { default: true, basic: undefined, advanced: undefined },
+      });
       await exerciseSubPair(fixture, pair.access, 'basic', true);
       await exerciseSubPair(fixture, pair.access, 'advanced', true);
     },
@@ -758,7 +771,7 @@ describe('OAV-04 subdocument list/read routes', () => {
       await exerciseSubPair(fixture, pair.access, 'basic', true);
       await exerciseSubPair(fixture, pair.access, 'advanced', true);
     }
-    fixture.router.set('operationAccess.basicRead', false);
+    fixture.router.set('operationAccess.read', { default: true, basic: false });
     await exerciseSubPair(fixture, 'read', 'basic', false);
     await exerciseSubPair(fixture, 'read', 'advanced', true);
     expect(umbrella).not.toHaveBeenCalled();
@@ -766,12 +779,15 @@ describe('OAV-04 subdocument list/read routes', () => {
 
   it.each(pairs)('HEAD uses only the basic field $access guard in both directions', async (pair) => {
     const fixture = await createSubFixture({
-      operationAccess: withSubAccess({ ...subAccess, [pair.basic]: false, [pair.advanced]: true }),
+      operationAccess: withSubAccess({ ...subAccess, [pair.access]: { default: true, basic: false, advanced: true } }),
     });
     const path = `/${fixture.id}/items${pair.access === 'read' ? `/${fixture.subIds[0]}` : ''}`;
     await expectEntry(fixture, 'head', path, undefined, false);
     await exerciseSubPair(fixture, pair.access, 'advanced', true);
-    fixture.router.operationAccess('subs.items', { ...subAccess, [pair.basic]: true, [pair.advanced]: false });
+    fixture.router.operationAccess('subs.items', {
+      ...subAccess,
+      [pair.access]: { default: true, basic: true, advanced: false },
+    });
     const response = await expectEntry(fixture, 'head', path, undefined, true);
     expect(response.text ?? '').toBe('');
     await exerciseSubPair(fixture, pair.access, 'advanced', false);
@@ -783,11 +799,11 @@ describe('OAV-04 subdocument list/read routes', () => {
       idParam: 'recordId',
       idField: 'key',
       queryRouteSegment: 'search',
-      operationAccess: withSubAccess({ ...subAccess, [pair.basic]: false }),
+      operationAccess: withSubAccess({ ...subAccess, [pair.access]: { default: true, basic: false } }),
     });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
     await exerciseSubPair(fixture, pair.access, 'advanced', true);
-    fixture.router.operationAccess('subs.items', { ...subAccess, [pair.advanced]: false });
+    fixture.router.operationAccess('subs.items', { ...subAccess, [pair.access]: { default: true, advanced: false } });
     await exerciseSubPair(fixture, pair.access, 'basic', true);
     await exerciseSubPair(fixture, pair.access, 'advanced', false);
     expect(fixture.router.router.getEndpoints()).toContainEqual({
@@ -805,53 +821,62 @@ describe('OAV-04 subdocument list/read routes', () => {
   });
 
   it.each(pairs)('observes live nested/typed/runtime setters and immutable field $access snapshots', async (pair) => {
-    const fixture = await createSubFixture({ operationAccess: withSubAccess({ ...subAccess, [pair.basic]: false }) });
+    const fixture = await createSubFixture({
+      operationAccess: withSubAccess({ ...subAccess, [pair.access]: { default: true, basic: false } }),
+    });
     const { router, api, modelName } = fixture;
     const snapshot = router.options.operationAccess;
     const endpoints = router.router.getEndpoints();
     await exerciseSubPair(fixture, pair.access, 'basic', false);
-    router.operationAccess(`subs.items.${pair.basic}`, true);
+    router.operationAccess(`subs.items.${pair.access}.basic`, true);
     await exerciseSubPair(fixture, pair.access, 'basic', true);
-    router.operationAccess(`subs.items.${pair.advanced}`, false);
+    router.operationAccess(`subs.items.${pair.access}.advanced`, false);
     await exerciseSubPair(fixture, pair.access, 'advanced', false);
-    router.set('operationAccess.subs', { items: { ...subAccess, [pair.basic]: false, [pair.advanced]: true } });
+    router.set('operationAccess.subs', {
+      items: { ...subAccess, [pair.access]: { default: true, basic: false, advanced: true } },
+    });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
     await exerciseSubPair(fixture, pair.access, 'advanced', true);
     router.setOption('operationAccess.subs', {
-      items: { ...subAccess, [pair.basic]: undefined, [pair.advanced]: false },
+      items: { ...subAccess, [pair.access]: { default: true, basic: undefined, advanced: false } },
     });
     await exerciseSubPair(fixture, pair.access, 'basic', true);
     await exerciseSubPair(fixture, pair.access, 'advanced', false);
     api.setModelOption(modelName, 'operationAccess.subs', {
-      items: { ...subAccess, [pair.basic]: false, [pair.advanced]: true },
+      items: { ...subAccess, [pair.access]: { default: true, basic: false, advanced: true } },
     });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
     await exerciseSubPair(fixture, pair.access, 'advanced', true);
 
-    router.set({ operationAccess: { [pair.advanced]: true } });
-    expect(api.getModelOptions(modelName).operationAccess).toEqual({ [pair.advanced]: true });
+    router.set({ operationAccess: { [pair.access]: { advanced: true } } });
+    expect(api.getModelOptions(modelName).operationAccess).toEqual({ [pair.access]: { advanced: true } });
     await exerciseSubPair(fixture, pair.access, 'basic', false);
     await exerciseSubPair(fixture, pair.access, 'advanced', true);
-    router.set(`operationAccess.${pair.basic}`, true);
-    router.setOption(`operationAccess.${pair.advanced}`, false);
+    router.set(`operationAccess.${pair.access}.basic`, true);
+    router.setOption(`operationAccess.${pair.access}.advanced`, false);
     await exerciseSubPair(fixture, pair.access, 'basic', true);
     await exerciseSubPair(fixture, pair.access, 'advanced', false);
     expect(router.options.operationAccess).toBe(snapshot);
     expect(Object.isFrozen(snapshot)).toBe(true);
-    expect(snapshot).toEqual(withSubAccess({ ...subAccess, [pair.basic]: false }));
+    expect(snapshot).toEqual(withSubAccess({ ...subAccess, [pair.access]: { default: true, basic: false } }));
     expect(router.router.getEndpoints()).toEqual(endpoints);
   });
 
   it.each(['create', 'single', 'bulk', 'delete'] as const)(
-    'basicRead denial leaves unpaired subdocument %s and base response visibility intact',
+    'read.basic denial leaves unpaired subdocument %s and base response visibility intact',
     async (operation) => {
       const fixture = await createSubFixture({
         operationAccess: {
           ...parentAccess,
-          basicRead: false,
-          basicList: false,
-          advancedList: false,
-          subs: { items: { ...subAccess, basicRead: false, basicList: false, advancedList: false } },
+          read: { default: true, basic: false },
+          list: { default: true, basic: false, advanced: false },
+          subs: {
+            items: {
+              ...subAccess,
+              read: { default: true, basic: false },
+              list: { default: true, basic: false, advanced: false },
+            },
+          },
         },
       });
       await exerciseSubPair(fixture, 'read', 'basic', false);
@@ -919,7 +944,7 @@ describe('OAV-04 subdocument list/read routes', () => {
       throw new Error('A route variant reached a subdocument data-policy hook');
     });
     const fixture = await createSubFixture({
-      operationAccess: withSubAccess({ ...subAccess, [pair.access]: false, [pair.advanced]: true }),
+      operationAccess: withSubAccess({ ...subAccess, [pair.access]: { default: false, advanced: true } }),
       baseFilter: {
         read: parentRead,
         subs: {
@@ -951,7 +976,7 @@ describe('OAV-04 subdocument list/read routes', () => {
 
   it.each(pairs)('allowed advanced field $access retains validation/row-policy failure statuses', async (pair) => {
     const fixture = await createSubFixture({
-      operationAccess: withSubAccess({ ...subAccess, [pair.access]: false, [pair.advanced]: true }),
+      operationAccess: withSubAccess({ ...subAccess, [pair.access]: { default: false, advanced: true } }),
       baseFilter: {
         read: () => ({}),
         subs: { items: { [pair.access]: () => false } },
@@ -974,10 +999,8 @@ describe('OAV-04 database-free subdocument entry/discovery boundaries', () => {
       {
         operationAccess: withSubAccess({
           ...subAccess,
-          basicList: false,
-          advancedList: false,
-          basicRead: false,
-          advancedRead: false,
+          list: { default: true, basic: false, advanced: false },
+          read: { default: true, basic: false, advanced: false },
         }),
         requestSchemas: { subList: validator, subRead: validator },
       },
@@ -1005,10 +1028,8 @@ describe('OAV-04 database-free subdocument entry/discovery boundaries', () => {
           create: false,
           update: false,
           delete: false,
-          basicList: true,
-          advancedList: true,
-          basicRead: true,
-          advancedRead: true,
+          list: { default: true, basic: true, advanced: true },
+          read: { default: true, basic: true, advanced: true },
         }),
         requestSchemas: { subCreate: validator, subUpdate: validator, subBulkUpdate: validator },
       },
@@ -1031,10 +1052,8 @@ describe('OAV-04 database-free subdocument entry/discovery boundaries', () => {
         queryRouteSegment: 'search',
         operationAccess: withSubAccess({
           ...subAccess,
-          basicList: false,
-          advancedList: false,
-          basicRead: false,
-          advancedRead: false,
+          list: { default: true, basic: false, advanced: false },
+          read: { default: true, basic: false, advanced: false },
           create: false,
           update: false,
           delete: false,
@@ -1080,10 +1099,8 @@ describe('OAV-04 database-free subdocument entry/discovery boundaries', () => {
         new mongoose.Schema({ [sub]: [new mongoose.Schema({ label: String })] }, { bufferCommands: false }),
       );
       const rules = {
-        list: true,
-        read: true,
-        [index === 0 ? 'basicList' : 'advancedList']: false,
-        [index === 0 ? 'basicRead' : 'advancedRead']: false,
+        list: { default: true, [index === 0 ? 'basic' : 'advanced']: false },
+        read: { default: true, [index === 0 ? 'basic' : 'advanced']: false },
       };
       const router = api.createRouter(Model, {
         basePath: `/discovered-${sub}`,

@@ -74,7 +74,7 @@ async function fixture(hydration: 'lean' | 'hydrated', mode: (typeof modes)[numb
   const targetHook = vi.fn((doc) => ({ owns: doc.owner === 'actor' }));
   api.registerModelInstance(Target.modelName, Target);
   api.setModelOptions(Target.modelName, {
-    operationAccess: { read: guard, list: false },
+    operationAccess: { read: { default: guard, basic: true, advanced: true, root: true }, list: false },
     permissionSchema: { name: true, owned: 'doc:owns', balance: false, date: false, bytes: false, marker: false },
     modelPermissionPrefix: 'doc:',
     docPermissions: { dependsOn: ['owner'], get: targetHook },
@@ -716,6 +716,7 @@ describe.each(['lean', 'hydrated'] as const)('POP-03 independent private/public 
 
     it('keeps direct/root target denial and helper-only operations free of dependency I/O', async () => {
       const f = await fixture(hydration, mode);
+      f.api.setModelOption(f.Target.modelName, 'operationAccess.read.root', false);
       const target = f.api.createRouter(f.Target, { basePath: '/documents' });
       f.app.use(target.routes);
       await request(f.app).post('/documents/__query').send({}).expect(401);

@@ -205,7 +205,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   });
 
   router.get('/new', async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'new');
+    await context.assertAllowed(req, 'new', 'basic');
 
     const svc = context.getPublicService(req);
     const result = await svc._new({}, { includePermissions: false, includeFieldPermissions: false });

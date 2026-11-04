@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { getDataOption, getExactDataOption } from './options';
+import { getDataOption } from './options';
 import {
   Projection,
   Filter,
@@ -10,7 +10,7 @@ import {
   DataRequest,
   SelectAccess,
   RouteGuardAccess,
-  RouteVariant,
+  OperationAccessContext,
   BaseFilterAccess,
   DecorateAccess,
   DecorateAllAccess,
@@ -38,7 +38,7 @@ import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
 import { getRequestWorkState } from './helpers/request-work';
-import { resolveRouteOperationAccess } from './operation-access';
+import { createOperationAccessReaders, resolveRouteOperationAccess } from './operation-access';
 import { assertFieldHelperCall, requestFieldScope } from './acl/field-helper-options';
 
 export class DataCore {
@@ -217,21 +217,28 @@ export class DataCore {
   }
 
   async isAllowed(dataName: string, access: RouteGuardAccess | string): Promise<boolean> {
-    const operationAccess = getDataOption(dataName, `operationAccess.${access}`) as Validation;
-    return this.canActivate(operationAccess);
+    return this.resolveOperationAccess(dataName, access);
   }
 
-  /** Authorize route entry using explicit server-owned basic/advanced metadata. */
+  /** Authorize entry using explicit server-owned basic/advanced/root metadata. */
   async isAllowedRoute(
     dataName: string,
     baseAccess: RouteGuardAccess | string,
-    variant: RouteVariant,
+    context: OperationAccessContext,
+  ): Promise<boolean> {
+    return this.resolveOperationAccess(dataName, baseAccess, context);
+  }
+
+  /** Data policy has no model-default reader; base calls never select entry members. */
+  private async resolveOperationAccess(
+    dataName: string,
+    baseAccess: string,
+    context?: OperationAccessContext,
   ): Promise<boolean> {
     return resolveRouteOperationAccess({
       baseAccess,
-      variant,
-      getExactOption: (key) => getExactDataOption(dataName, key),
-      isAllowedBase: (access) => this.isAllowed(dataName, access),
+      context,
+      ...createOperationAccessReaders(this.requestRuntime.getDataOptions(dataName)),
       canActivate: (guard) => this.canActivate(guard),
     });
   }

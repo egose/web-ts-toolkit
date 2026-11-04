@@ -49,7 +49,7 @@ import {
   withExecutionQueryIntent,
   withExecutionDocumentCondition,
 } from '../acl/service-execution';
-import { getCapturedAuthorizationOption } from '../acl/model-output-planning';
+import { selectCapturedOperationAccessGuard } from '../acl/model-output-planning';
 import { getAuthorizationPermissions, readServiceAuthorization } from '../acl/service-authorization';
 import { runFreshModelServiceCall, withCapturedModelOperationGuard } from '../acl/model-service-owner';
 import { getRequestWorkState } from '../helpers/request-work';
@@ -748,7 +748,7 @@ export class PublicService<TModel = unknown, TVirtuals extends object = Record<n
   private captureListFallbackAdmission(execution: ServiceExecutionContext): () => Promise<boolean> {
     const { authorization, binding } = readServiceExecution(this, execution);
     const { configuration } = readServiceAuthorization(authorization, binding);
-    const guard = getCapturedAuthorizationOption(configuration, 'operationAccess.list');
+    const guard = selectCapturedOperationAccessGuard(configuration, 'list');
     const permissions = getAuthorizationPermissions(authorization, binding);
     return () =>
       getRequestWorkState(this.req, this.requestRuntime).hookGate.run(() =>

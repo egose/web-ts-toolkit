@@ -724,7 +724,7 @@ if (output.items[0] !== 'x') throw new Error('processors subpath failed');
 `,
   );
 
-  // OAV-06: exercise variant behavior through installed ESM/CJS entrypoints and
+  // Exercise nested entry behavior through installed ESM/CJS entrypoints and
   // both real publication layouts, using database-free HTTP data routes.
   writeFileSync(
     path.resolve(consumerDir, 'operation-access-smoke.cjs'),
@@ -735,11 +735,11 @@ const express = require('express');
 module.exports = async function verifyOperationAccess(createAccessRuntime) {
   const api = createAccessRuntime();
   api.setGlobalOptions({ globalPermissions(req) { return req.headers.user === 'admin' ? ['isAdmin'] : []; } });
-  api.setDefaultModelOptions({ operationAccess: { basicRead: true, advancedList: false } });
+  api.setDefaultModelOptions({ operationAccess: { read: { basic: true }, list: { advanced: false } } });
   const router = api.createDataRouter('PackedVariantFruit', {
     basePath: '/fruit', idParam: 'id', idField: 'id',
     data: [{ id: 'apple', name: 'Apple', secret: 'private' }], // pragma: allowlist secret
-    operationAccess: { list: true, read: true, basicRead: false },
+    operationAccess: { list: { default: true }, read: { default: true, basic: false } },
     permissionSchema: { id: true, name: { list: true, read: true }, secret: false },
   });
   const root = api.createRouter({ basePath: '/batch', operationAccess: true });
@@ -774,30 +774,30 @@ module.exports = async function verifyOperationAccess(createAccessRuntime) {
     await checkReadOutput('/fruit/__query/__filter', 'POST', { filter: { id: 'apple' }, select: ['name', 'secret'] });
     const basicList = await call('/fruit', 200);
     assert.equal(basicList.data[0].name, 'Apple');
-    await call('/fruit/__query', 200, 'POST', {}); // Does not inherit denied model-default advancedList.
+    await call('/fruit/__query', 200, 'POST', {}); // Does not inherit denied model-default list.advanced.
     const spec = await call('/openapi.json', 200);
     assert.ok(spec.paths['/fruit/{id}'].get.responses['401']);
     assert.ok(spec.paths['/fruit/__query/{id}'].post);
     assert.ok(spec.paths['/fruit/__query/__filter'].post);
 
-    router.operationAccess('basicRead', true);
-    assert.equal(api.runtime.getExactDataOption('PackedVariantFruit', 'operationAccess.read'), true);
+    router.operationAccess('read.basic', true);
+    assert.equal(api.runtime.getExactDataOption('PackedVariantFruit', 'operationAccess.read.default'), true);
     await checkReadOutput('/fruit/apple');
     await call('/fruit/apple', 200, 'HEAD');
-    router.setOption('operationAccess.basicRead', false);
+    router.setOption('operationAccess.read.basic', false);
     await call('/fruit/apple', 401);
-    router.set('operationAccess.basicRead', undefined);
+    router.set('operationAccess.read.basic', undefined);
     await checkReadOutput('/fruit/apple');
 
-    router.operationAccess('advancedList', false);
+    router.operationAccess('list.advanced', false);
     await call('/fruit/__query', 401, 'POST', {});
     await call('/fruit', 200);
-    router.operationAccess('advancedList', 'isAdmin');
+    router.operationAccess('list.advanced', 'isAdmin');
     await call('/fruit/__query', 401, 'POST', {});
     await call('/fruit/__query', 200, 'POST', {}, 'admin');
 
     // Replacement overrides the denied base for this endpoint only.
-    router.operationAccess({ list: true, read: false, advancedRead: true });
+    router.operationAccess({ list: true, read: { default: false, advanced: true } });
     await call('/fruit/apple', 401);
     await checkReadOutput('/fruit/__query/apple', 'POST', {});
     const rootResult = await call('/batch', 200, 'POST', [{ target: 'data', name: 'PackedVariantFruit', op: 'read', id: 'apple' }]);
@@ -805,11 +805,25 @@ module.exports = async function verifyOperationAccess(createAccessRuntime) {
     assert.equal(rootResult[0].result.code, 'unauthorized');
     await call('/batch', 400, 'POST', [{ target: 'data', name: 'PackedVariantFruit', op: 'advancedRead', id: 'apple' }]);
 
-    router.setOptions({ operationAccess: { read: true, advancedRead: false } });
+    router.operationAccess('read.root', true);
+    const rootAllowed = await call('/batch', 200, 'POST', [{ target: 'data', name: 'PackedVariantFruit', op: 'read', id: 'apple' }]);
+    assert.equal(rootAllowed[0].statusCode, 200);
+    assert.equal(rootAllowed[0].result.data.name, 'Apple');
+    await call('/fruit/apple', 401);
+    router.operationAccess('read', { default: true, root: false });
+    await checkReadOutput('/fruit/apple');
+    const rootDenied = await call('/batch', 200, 'POST', [{ target: 'data', name: 'PackedVariantFruit', op: 'read', id: 'apple' }]);
+    assert.equal(rootDenied[0].statusCode, 401);
+    const beforeInvalid = api.runtime.getDataOptions('PackedVariantFruit');
+    assert.throws(() => router.operationAccess('basicRead', true), /read.basic/);
+    assert.throws(() => router.setOptions({ operationAccess: { read: true, advancedRead: false } }), /read.advanced/);
+    assert.deepEqual(api.runtime.getDataOptions('PackedVariantFruit'), beforeInvalid);
+
+    router.setOptions({ operationAccess: { read: { default: true, advanced: false } } });
     await call('/fruit', 401); // Replaced list, rather than recursively retaining it.
     await checkReadOutput('/fruit/apple');
     await call('/fruit/__query/apple', 401, 'POST', {});
-    assert.deepEqual(original.operationAccess, { list: true, read: true, basicRead: false });
+    assert.deepEqual(original.operationAccess, { list: { default: true }, read: { default: true, basic: false } });
     assert.equal(Object.isFrozen(original), true);
     assert.equal(Object.isFrozen(api.runtime.getDataOptions('PackedVariantFruit')), true);
     assert.deepEqual(router.router.getEndpoints(), endpoints);
@@ -844,8 +858,8 @@ verifyOperationAccess(createAccessRuntime).catch((err) => { console.error(err); 
   // CommonJS, so `acl.createRouter` is not callable).
   writeFileSync(
     path.resolve(consumerDir, 'consumer.nodenext.mts'),
-    `import acl, { createAccessRuntime, fromZod, guard, type GuardModelCondition, type RootRouterOptions, type OperationAccess, type FieldOperationAccess } from '@web-ts-toolkit/access-router';
-import { Codes, parseBody, type AdvancedReadBody } from '@web-ts-toolkit/access-router/advanced';
+    `import acl, { createAccessRuntime, fromZod, guard, type GuardModelCondition, type RootRouterOptions, type OperationAccess, type FieldOperationAccess, type OperationAccessContext, type OperationAccessRule } from '@web-ts-toolkit/access-router';
+import { Codes, parseBody, type AdvancedReadBody, type OperationAccessVariants } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate, type CopyAndDepopulateOptions, type ProcessCopy } from '@web-ts-toolkit/access-router/processors';
 
 type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
@@ -865,19 +879,28 @@ const runtime = createAccessRuntime();
 const isolatedRouter = runtime.createRouter(opts);
 if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
 
-const access: OperationAccess = { list: true, read: true, basicRead: false, advancedList: 'isAdmin' };
+const context: OperationAccessContext = 'root';
+const variants: OperationAccessVariants = { default: true, basic: false, [context]: true };
+const rule: OperationAccessRule = variants;
+const access: OperationAccess = { list: { default: true, advanced: 'isAdmin' }, read: rule };
 const fields: FieldOperationAccess = { list: true, read: true };
 const dataRouter = runtime.createDataRouter('TypedVariantFruit', {
   data: [{ id: 'apple', name: 'Apple' }], operationAccess: access, permissionSchema: { id: fields, name: fields },
 });
-dataRouter.operationAccess('basicRead', false).setOption('operationAccess.basicRead', undefined);
-dataRouter.set('operationAccess.advancedRead', true);
+dataRouter.operationAccess('read.basic', false).setOption('operationAccess.read.basic', undefined);
+dataRouter.set('operationAccess.read.advanced', true);
+// @ts-expect-error removed flat keys are not supported aliases
+const removedAccess: OperationAccess = { basicRead: true };
+// @ts-expect-error removed flat-name type is not exported
+type RemovedRoot = import('@web-ts-toolkit/access-router').RouteVariantAccess;
+// @ts-expect-error removed flat-name type is not exported by advanced
+type RemovedAdvanced = import('@web-ts-toolkit/access-router/advanced').RouteVariantAccess;
 const readBody: AdvancedReadBody = { options: { populateAccess: 'read' } };
 // @ts-expect-error route-only selectors are not PopulateAccess
 const invalidReadBody: AdvancedReadBody = { options: { populateAccess: 'advancedRead' } };
 // @ts-expect-error route variants do not grant fields
 const invalidFields: FieldOperationAccess = { basicRead: true };
-void [readBody, invalidReadBody, invalidFields];
+void [readBody, invalidReadBody, invalidFields, removedAccess];
 
 const handler = guard(condition);
 const stringHandler = guard('isAdmin');
@@ -898,7 +921,8 @@ export { defaultRouter, isolatedRouter, dataRouter, handler, out };
   writeFileSync(
     path.resolve(consumerDir, 'consumer.nodenext.cts'),
     `import accessRouterModule = require('@web-ts-toolkit/access-router');
-import type { GuardModelCondition, RootRouterOptions, OperationAccess, FieldOperationAccess } from '@web-ts-toolkit/access-router';
+import type { GuardModelCondition, RootRouterOptions, OperationAccess, FieldOperationAccess, OperationAccessVariants } from '@web-ts-toolkit/access-router';
+import type { OperationAccessContext, OperationAccessRule } from '@web-ts-toolkit/access-router/advanced';
 import advancedModule = require('@web-ts-toolkit/access-router/advanced');
 import processorsModule = require('@web-ts-toolkit/access-router/processors');
 
@@ -916,16 +940,25 @@ const runtime = accessRouterModule.createAccessRuntime();
 const isolatedRouter = runtime.createRouter(opts);
 if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
 
-const access: OperationAccess = { default: true, basicRead: false, advancedList: 'isAdmin' };
+const context: OperationAccessContext = 'basic';
+const variants: OperationAccessVariants = { default: true, [context]: false };
+const rule: OperationAccessRule = variants;
+const access: OperationAccess = { default: true, read: rule, list: { advanced: 'isAdmin' } };
 const fields: FieldOperationAccess = { list: true, read: true };
 const dataRouter = runtime.createDataRouter('CjsTypedVariantFruit', {
   data: [{ id: 'apple', name: 'Apple' }], operationAccess: access, permissionSchema: { id: fields, name: fields },
 });
-dataRouter.setOption('operationAccess.basicRead', undefined).operationAccess('advancedList', false);
-dataRouter.runtime.setDataOption('CjsTypedVariantFruit', 'operationAccess.advancedRead', true);
+dataRouter.setOption('operationAccess.read.basic', undefined).operationAccess('list.advanced', false);
+dataRouter.runtime.setDataOption('CjsTypedVariantFruit', 'operationAccess.read.advanced', true);
+// @ts-expect-error removed flat keys are not supported aliases
+const removedAccess: OperationAccess = { advancedRead: true };
+// @ts-expect-error removed flat-name type is not exported
+type RemovedRoot = import('@web-ts-toolkit/access-router').RouteVariantAccess;
+// @ts-expect-error removed flat-name type is not exported by advanced
+type RemovedAdvanced = import('@web-ts-toolkit/access-router/advanced').RouteVariantAccess;
 // @ts-expect-error variants are not field grants
 const invalidFields: FieldOperationAccess = { advancedRead: true };
-void invalidFields;
+void [invalidFields, removedAccess];
 
 const handler = accessRouterModule.guard(condition);
 if (typeof handler !== 'function') throw new Error('guard call failed');
@@ -953,9 +986,9 @@ type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
 
 const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
 const runtime = createAccessRuntime();
-const access: OperationAccess = { list: true, read: true, basicRead: false };
+const access: OperationAccess = { list: { default: true }, read: { default: true, basic: false } };
 const dataRouter = runtime.createDataRouter('BundlerVariantFruit', { data: [], operationAccess: access });
-dataRouter.set('operationAccess.advancedList', false).setOption('operationAccess.basicRead', undefined);
+dataRouter.set('operationAccess.list.advanced', false).setOption('operationAccess.read.basic', undefined);
 const out = copyAndDepopulate(
   { items: [{ _id: 'x' }] },
   [{ src: 'items', dest: 'snapshot' }],
@@ -1738,7 +1771,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     const readme = readFileSync(path.resolve(packedRoot, 'README.md'), 'utf8');
     const llms = readFileSync(path.resolve(packedRoot, 'llms.txt'), 'utf8');
     const migration = readFileSync(path.resolve(packedRoot, 'MIGRATION.md'), 'utf8');
-    expect(extractMigrationBlocks(migration)).toHaveLength(10); // original seven purposes plus three executed alternatives
+    expect(extractMigrationBlocks(migration)).toHaveLength(13); // ten preserved purposes plus three nested-operation targets
     expect(migration).toContain('Model conditions are facts-only');
     expect(migration).toContain('readEmployeeForBusinessWork');
     for (const mode of ['readAuthorizationMode', 'listAuthorizationMode']) {
