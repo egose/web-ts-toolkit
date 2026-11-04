@@ -14,7 +14,6 @@ import {
   type OperationAccess,
   type PairedRouteAccess,
   type RouteVariant,
-  type RouteVariantAccess,
 } from '../dist/index.mjs';
 import { useMongoTestDatabase } from './setup';
 
@@ -29,18 +28,14 @@ interface Row {
 }
 
 const pairs = [
-  { access: 'list', basic: 'basicList', advanced: 'advancedList' },
-  { access: 'read', basic: 'basicRead', advanced: 'advancedRead' },
-  { access: 'create', basic: 'basicCreate', advanced: 'advancedCreate' },
-  { access: 'update', basic: 'basicUpdate', advanced: 'advancedUpdate' },
-  { access: 'upsert', basic: 'basicUpsert', advanced: 'advancedUpsert' },
-  { access: 'count', basic: 'basicCount', advanced: 'advancedCount' },
-  { access: 'distinct', basic: 'basicDistinct', advanced: 'advancedDistinct' },
-] as const satisfies ReadonlyArray<{
-  access: PairedRouteAccess;
-  basic: RouteVariantAccess;
-  advanced: RouteVariantAccess;
-}>;
+  { access: 'list' },
+  { access: 'read' },
+  { access: 'create' },
+  { access: 'update' },
+  { access: 'upsert' },
+  { access: 'count' },
+  { access: 'distinct' },
+] as const satisfies ReadonlyArray<{ access: PairedRouteAccess }>;
 
 const baseAccess: OperationAccess = {
   new: true,
@@ -324,14 +319,16 @@ describe('OAV-03 seven paired model operations', () => {
 
   for (const variant of ['basic', 'advanced'] as const) {
     it.each(pairs)(`denies only the ${variant} $access endpoint over an allowed base`, async (pair) => {
-      const fixture = await createMongoApp({ operationAccess: { ...baseAccess, [pair[variant]]: false } });
+      const fixture = await createMongoApp({
+        operationAccess: { ...baseAccess, [pair.access]: { default: true, [variant]: false } },
+      });
       await exercisePair(fixture, pair.access, 'basic', variant !== 'basic');
       await exercisePair(fixture, pair.access, 'advanced', variant !== 'advanced');
     });
 
     it.each(pairs)(`allows only the ${variant} $access endpoint over a denied base`, async (pair) => {
       const fixture = await createMongoApp({
-        operationAccess: { ...baseAccess, [pair.access]: false, [pair[variant]]: true },
+        operationAccess: { ...baseAccess, [pair.access]: { default: false, [variant]: true } },
       });
       await exercisePair(fixture, pair.access, 'basic', variant === 'basic');
       await exercisePair(fixture, pair.access, 'advanced', variant === 'advanced');
@@ -351,12 +348,7 @@ describe('OAV-03 generated route boundaries', () => {
       {
         operationAccess: {
           ...baseAccess,
-          ...Object.fromEntries(
-            pairs.flatMap(({ basic, advanced }) => [
-              [basic, false],
-              [advanced, false],
-            ]),
-          ),
+          ...Object.fromEntries(pairs.map(({ access }) => [access, { default: true, basic: false, advanced: false }])),
         },
         requestSchemas: {
           create: validator,
@@ -407,8 +399,8 @@ describe('OAV-03 generated route boundaries', () => {
     expect(prepare).not.toHaveBeenCalled();
   });
 
-  it('basicRead false leaves both advanced reads and every unrelated basic/advanced operation usable', async () => {
-    const fixture = await createMongoApp({ operationAccess: { ...baseAccess, basicRead: false } });
+  it('read.basic false leaves both advanced reads and every unrelated basic/advanced operation usable', async () => {
+    const fixture = await createMongoApp({ operationAccess: { ...baseAccess, read: { default: true, basic: false } } });
     await exercisePair(fixture, 'read', 'basic', false);
     await exercisePair(fixture, 'read', 'advanced', true);
     for (const { access } of pairs) {
@@ -424,9 +416,8 @@ describe('OAV-03 generated route boundaries', () => {
   });
 
   it.each(['list', 'read', 'count', 'distinct'] as const)('HEAD uses the basic %s guard', async (access) => {
-    const pair = pairs.find((pair) => pair.access === access)!;
     const fixture = await createMongoApp({
-      operationAccess: { ...baseAccess, [pair.basic]: false, [pair.advanced]: true },
+      operationAccess: { ...baseAccess, [access]: { default: true, basic: false, advanced: true } },
     });
     const path =
       access === 'list'
@@ -442,7 +433,10 @@ describe('OAV-03 generated route boundaries', () => {
     expect(fixture.persistenceSpies.map((spy) => spy.mock.calls.length)).toEqual(beforePersistence);
     await exercisePair(fixture, access, 'advanced', true);
 
-    fixture.router.setOption('operationAccess', { ...baseAccess, [pair.basic]: true, [pair.advanced]: false });
+    fixture.router.setOption('operationAccess', {
+      ...baseAccess,
+      [access]: { default: true, basic: true, advanced: false },
+    });
     const beforeDispatch = dispatchCount(fixture);
     const allowed = await send(fixture, 'head', path).expect(200);
     expect(allowed.text ?? '').toBe('');
@@ -456,11 +450,11 @@ describe('OAV-03 generated route boundaries', () => {
       idParam: 'recordId',
       queryRouteSegment: 'search',
       mutationRouteSegment: 'write',
-      operationAccess: { ...baseAccess, [pair.basic]: false },
+      operationAccess: { ...baseAccess, [pair.access]: { default: true, basic: false } },
     });
     await exercisePair(fixture, pair.access, 'basic', false);
     await exercisePair(fixture, pair.access, 'advanced', true);
-    fixture.router.set('operationAccess', { ...baseAccess, [pair.advanced]: false });
+    fixture.router.set('operationAccess', { ...baseAccess, [pair.access]: { default: true, advanced: false } });
     await exercisePair(fixture, pair.access, 'basic', true);
     await exercisePair(fixture, pair.access, 'advanced', false);
     expect(fixture.router.router.getEndpoints()).toContainEqual({ method: 'GET', path: '/custom-model/:recordId' });
@@ -475,42 +469,45 @@ describe('OAV-03 generated route boundaries', () => {
   });
 
   it('observes live property-helper and typed set/setOption/runtime updates, including shallow replacement', async () => {
-    const fixture = await createMongoApp({ operationAccess: { ...baseAccess, basicRead: false } });
+    const fixture = await createMongoApp({ operationAccess: { ...baseAccess, read: { default: true, basic: false } } });
     const { router, runtime, modelName } = fixture;
     const snapshot = router.options.operationAccess;
     const endpoints = router.router.getEndpoints();
     await exercisePair(fixture, 'read', 'basic', false);
     await exercisePair(fixture, 'read', 'advanced', true);
 
-    router.operationAccess('basicRead', true);
+    router.operationAccess('read.basic', true);
     await exercisePair(fixture, 'read', 'basic', true);
-    router.set('operationAccess.advancedRead', false);
+    router.set('operationAccess.read.advanced', false);
     await exercisePair(fixture, 'read', 'basic', true);
     await exercisePair(fixture, 'read', 'advanced', false);
-    router.setOption('operationAccess.basicRead', false);
+    router.setOption('operationAccess.read.basic', false);
     await exercisePair(fixture, 'read', 'basic', false);
-    runtime.setModelOption(modelName, 'operationAccess.advancedRead', true);
+    runtime.setModelOption(modelName, 'operationAccess.read.advanced', true);
     await exercisePair(fixture, 'read', 'advanced', true);
-    router.setOption('operationAccess.basicRead', undefined);
+    router.setOption('operationAccess.read.basic', undefined);
     await exercisePair(fixture, 'read', 'basic', true);
 
-    router.set({ operationAccess: { advancedRead: true } });
-    expect(runtime.getModelOptions(modelName).operationAccess).toEqual({ advancedRead: true });
+    router.set({ operationAccess: { read: { advanced: true } } });
+    expect(runtime.getModelOptions(modelName).operationAccess).toEqual({ read: { advanced: true } });
     await exercisePair(fixture, 'read', 'basic', false);
     await exercisePair(fixture, 'read', 'advanced', true);
     await exercisePair(fixture, 'list', 'basic', false);
     await expectEndpoint(fixture, 'get', '/new', undefined, false);
 
-    router.setOption('operationAccess', { ...baseAccess, basicRead: false });
+    router.setOption('operationAccess', { ...baseAccess, read: { default: true, basic: false } });
     await exercisePair(fixture, 'read', 'basic', false);
     await exercisePair(fixture, 'read', 'advanced', true);
     await exercisePair(fixture, 'list', 'basic', true);
-    router.operationAccess({ ...baseAccess, advancedRead: false });
-    expect(runtime.getModelOptions(modelName).operationAccess).toEqual({ ...baseAccess, advancedRead: false });
+    router.operationAccess({ ...baseAccess, read: { default: true, advanced: false } });
+    expect(runtime.getModelOptions(modelName).operationAccess).toEqual({
+      ...baseAccess,
+      read: { default: true, advanced: false },
+    });
     await exercisePair(fixture, 'read', 'basic', true);
     await exercisePair(fixture, 'read', 'advanced', false);
     expect(router.options.operationAccess).toBe(snapshot);
-    expect(snapshot).toEqual({ ...baseAccess, basicRead: false });
+    expect(snapshot).toEqual({ ...baseAccess, read: { default: true, basic: false } });
     expect(router.router.getEndpoints()).toEqual(endpoints);
   });
 
@@ -525,12 +522,7 @@ describe('OAV-03 generated route boundaries', () => {
           ...baseAccess,
           new: false,
           delete: false,
-          ...Object.fromEntries(
-            pairs.flatMap(({ basic, advanced }) => [
-              [basic, false],
-              [advanced, false],
-            ]),
-          ),
+          ...Object.fromEntries(pairs.map(({ access }) => [access, { default: true, basic: false, advanced: false }])),
         },
       },
       mongoose.createConnection(),
@@ -578,14 +570,9 @@ describe('OAV-03 generated route boundaries', () => {
     const fixture = await createMongoApp({
       operationAccess: {
         ...baseAccess,
-        upsert: false,
-        advancedUpsert: true,
-        create: false,
-        basicCreate: false,
-        advancedCreate: false,
-        update: false,
-        basicUpdate: false,
-        advancedUpdate: false,
+        upsert: { default: false, advanced: true },
+        create: { default: false, basic: false, advanced: false },
+        update: { default: false, basic: false, advanced: false },
       },
     });
     await exercisePair(fixture, 'upsert', 'advanced', true);
@@ -594,9 +581,15 @@ describe('OAV-03 generated route boundaries', () => {
     await exercisePair(fixture, 'update', 'advanced', false);
   });
 
-  it('keeps new and delete on their live unpaired base guards', async () => {
+  it('keeps scalar new and delete fallback live on unpaired basic entries', async () => {
     const fixture = await createMongoApp({
-      operationAccess: { ...baseAccess, new: false, delete: false, basicRead: true, advancedCreate: true },
+      operationAccess: {
+        ...baseAccess,
+        new: false,
+        delete: false,
+        read: { default: true, basic: true },
+        create: { default: true, advanced: true },
+      },
     });
     await expectEndpoint(fixture, 'get', '/new', undefined, false);
     await expectEndpoint(fixture, 'delete', `/${fixture.seed._id}`, undefined, false);
@@ -642,12 +635,9 @@ describe('OAV-03 base data-policy preservation', () => {
       const fixture = await createMongoApp({
         operationAccess: {
           ...baseAccess,
-          create: false,
-          update: false,
-          upsert: false,
-          advancedCreate: access === 'create',
-          advancedUpdate: access === 'update',
-          advancedUpsert: access === 'upsert',
+          create: { default: false, advanced: access === 'create' },
+          update: { default: false, advanced: access === 'update' },
+          upsert: { default: false, advanced: access === 'upsert' },
         },
         validate: { create: createValidate, update: updateValidate, ...variantHooks },
         prepare: { create: createPrepare, update: updatePrepare, ...variantHooks },
@@ -717,11 +707,8 @@ describe('OAV-03 base data-policy preservation', () => {
     const fixture = await createMongoApp({
       operationAccess: {
         ...baseAccess,
-        read: false,
-        advancedRead: true,
-        list: listGuard,
-        basicList: basicListGuard,
-        advancedList: advancedListGuard,
+        read: { default: false, advanced: true },
+        list: { default: listGuard, basic: basicListGuard, advanced: advancedListGuard },
       },
       baseFilter: { read: () => ({ public: false }), list: () => ({ public: true }) },
       permissionSchema: {
@@ -762,21 +749,11 @@ describe('OAV-03 base data-policy preservation', () => {
       const fixture = await createMongoApp({
         operationAccess: {
           ...baseAccess,
-          read: false,
-          basicRead: true,
-          advancedRead: true,
-          update: false,
-          basicUpdate: true,
-          advancedUpdate: true,
-          create: false,
-          basicCreate: true,
-          advancedCreate: true,
-          count: false,
-          basicCount: true,
-          advancedCount: true,
-          distinct: false,
-          basicDistinct: true,
-          advancedDistinct: true,
+          read: { default: false, basic: true, advanced: true },
+          update: { default: false, basic: true, advanced: true },
+          create: { default: false, basic: true, advanced: true },
+          count: { default: false, basic: true, advanced: true },
+          distinct: { default: false, basic: true, advanced: true },
         },
         permissionSchema: {
           name: true,
@@ -826,7 +803,7 @@ describe('OAV-03 base data-policy preservation', () => {
     '%s read override retains NotFound when list retry is disabled',
     async (variant) => {
       const fixture = await createMongoApp({
-        operationAccess: { ...baseAccess, read: false, basicRead: true, advancedRead: true },
+        operationAccess: { ...baseAccess, read: { default: false, basic: true, advanced: true } },
       });
       const id = String(new mongoose.Types.ObjectId());
       const response = await send(

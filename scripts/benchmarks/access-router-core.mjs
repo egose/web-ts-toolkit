@@ -40,6 +40,7 @@ export const UNSAFE_AUTHORIZATION_FAST_PATH_FLAGS = Object.freeze([
   'unsafeUseReadAuthorizationFastPath',
 ]);
 
+/** Query-workload configuration, not an exhaustive inventory of the package's mode API. */
 export const AUTHORIZATION_MODE_OPTIONS = Object.freeze(['readAuthorizationMode', 'listAuthorizationMode']);
 
 /**
@@ -236,7 +237,7 @@ export function authorizationModeCandidates(target, setting) {
       buildLabel: target.label,
       readAuthorizationMode: mode,
       listAuthorizationMode: mode,
-      label: `${target.label} · READ/LIST ${mode} (verified getters required; LIST timed)`,
+      label: `${target.label} · READ/LIST ${mode} (verified getters required)`,
     };
     authorizationModeOptions(candidate);
     return candidate;
@@ -869,7 +870,7 @@ export async function saveReport(directory, report) {
     'Authorization fast paths are a third independent experimental UNSAFE group. ON requires all four matching document/output/nested comparison skips and initial-copy skip; otherwise dormant, without enabling prerequisites. Requested/configured modes are not verified modes: unknown/unverified results are never labeled active.',
     'Verified fast-path modes describe server configuration from both getter paths on both actual models, NOT per-row borrowing or runtime omission counts. Trusted rows borrow source/grants/context and omit descendant graph checks; copied/value/getter fallbacks remain. Mutation, stale decisions and omitted native observations can turn denial into allowance. No security equivalence, universal gain or v0.51.0 parity is claimed.',
     'All current workloads time LIST only. READ configuration is verified but READ is not timed HERE. The separate access-router-owned.mjs driver measures explicitly selected READ/helper/native/fact families, never this historical table. Runtime omission counts are not instrumented in timing workers; measure them separately. Matching fingerprints validate only this fixture, not security equivalence.',
-    'Owned isolated/trusted are new source-isolation modes, NOT aliases for the old ten flags. Both getters on source and target must verify both modes. Checked-each-response-v1 is a separate timing series from historical row-count-only measurements.',
+    'Owned isolated/trusted labels configure READ/LIST only, NOT all four authorization settings or aliases for the old ten flags. Both getters on source and target must verify both query settings. CREATE/UPDATE/UPSERT output is not measured by either catalog. Checked-each-response-v1 is a separate timing series from historical row-count-only measurements.',
     'HTTP timing includes loopback transport, response serialization and parsing. Setup, seeding and warmup are excluded.',
     'CPU is the Node worker (HTTP server + client), not the separate MongoDB process. Read counts use Mongoose debug operations.',
     'Each tag uses its own frozen lockfile: dependency-version changes can affect results. Sequential ordering and JIT/OS noise can bias small runs.',

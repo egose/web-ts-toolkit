@@ -8,6 +8,7 @@ import {
   getAuthorizationPermissions,
   getAuthorizationProvenance,
   isOutputHelperAuthorization,
+  isWriteOutputAuthorization,
   readServiceAuthorizationAccess,
   readServiceAuthorizationMode,
   readServiceOutputMetadata,
@@ -15,7 +16,7 @@ import {
   type AuthorizationBinding,
   type ResolvedServiceAuthorization,
 } from './service-authorization';
-import { authorizationError } from './authorization-snapshot';
+import { authorizationError, ServiceAuthorizationError } from './authorization-snapshot';
 import { EMPTY_DOCUMENT_GRANTS, normalizeDocumentGrants } from './document-grants';
 import {
   assertOutputPublication,
@@ -450,17 +451,52 @@ interface PreparedSource {
   source: Record<string, unknown>;
   borrowed: boolean;
 }
-const sources = new WeakMap<object, WeakMap<ResolvedServiceAuthorization, PreparedSource>>();
-const originals = new WeakMap<object, object>();
-const referenceOriginals = new WeakMap<object, object>();
+interface SourceCapture {
+  prepared: PreparedSource;
+  original: object;
+}
+const sources = new WeakMap<object, WeakMap<ResolvedServiceAuthorization, SourceCapture>>();
+interface ReferenceOrigins {
+  owners: WeakMap<OutputPublication, Map<object, number>>;
+  /** Counts only live associations under this weak normalized key, not owners. */
+  originals: Map<object, number>;
+}
+const referenceOriginals = new WeakMap<object, ReferenceOrigins>();
 
 export function getQueryOutputOriginal(input: unknown, call?: ResolvedServiceAuthorization): unknown {
-  return input && typeof input === 'object' && call && sources.get(input)?.has(call)
-    ? (originals.get(input) ?? input)
-    : input;
+  return input && typeof input === 'object' && call ? (sources.get(input)?.get(call)?.original ?? input) : input;
 }
-export function getQueryReferenceOriginal(input: object): object | undefined {
-  return referenceOriginals.get(input);
+export function getQueryReferenceOriginal(input: object, publication?: OutputPublication): object | undefined {
+  const origins = referenceOriginals.get(input);
+  const originals = publication ? origins?.owners.get(publication) : origins?.originals;
+  // A shared normalized key is not permission to guess a different owner's row.
+  return originals?.size === 1 ? originals.keys().next().value : undefined;
+}
+
+function retainReferenceOrigin(input: object, original: object, publication: OutputPublication): void {
+  let origins = referenceOriginals.get(input);
+  if (!origins) {
+    origins = { owners: new WeakMap(), originals: new Map() };
+    referenceOriginals.set(input, origins);
+  }
+  let owned = origins.owners.get(publication);
+  if (!owned) origins.owners.set(publication, (owned = new Map()));
+  owned.set(original, (owned.get(original) ?? 0) + 1);
+  origins.originals.set(original, (origins.originals.get(original) ?? 0) + 1);
+}
+
+function releaseReferenceOrigin(input: object, original: object, publication: OutputPublication): void {
+  const origins = referenceOriginals.get(input)!;
+  const owned = origins.owners.get(publication)!;
+  const release = (counts: Map<object, number>) => {
+    const count = counts.get(original)!;
+    if (count === 1) counts.delete(original);
+    else counts.set(original, count - 1);
+  };
+  release(owned);
+  if (!owned.size) origins.owners.delete(publication);
+  release(origins.originals);
+  if (!origins.originals.size) referenceOriginals.delete(input);
 }
 
 /** Exact reference provenance only, not a result graph, stage lookup or authorization certificate. */
@@ -469,6 +505,7 @@ function captureReferenceOrigins(
   normalized: object,
   paths: readonly string[],
   budget: TrustedOutputBudget,
+  retain: (input: object, original: object) => void,
 ): void {
   const storage = (value: object) => (value instanceof Document ? (value as Document & { _doc: object })._doc : value);
   const walk = (raw: unknown, copy: unknown, parts: readonly string[], index: number, depth: number): void => {
@@ -492,7 +529,7 @@ function captureReferenceOrigins(
       return;
     }
     if (index === parts.length) {
-      if (raw !== copy && isBorrowableAuthorizationRecord(copy)) referenceOriginals.set(copy, raw);
+      if (raw !== copy && isBorrowableAuthorizationRecord(copy)) retain(copy, raw);
       return;
     }
     const a = Object.getOwnPropertyDescriptor(storage(raw), parts[index]),
@@ -511,8 +548,10 @@ export function prepareQueryOutputSource(
   assertAuthorizationBinding(call, binding);
   assertOutputPublication(outputPublicationFor(call));
   const existing = input && typeof input === 'object' ? sources.get(input)?.get(call) : undefined;
-  if (existing) return existing;
+  if (existing) return existing.prepared;
   if (!input || typeof input !== 'object' || types.isProxy(input)) authorizationError('unsupported output source');
+  const writeOutput = isWriteOutputAuthorization(call, binding);
+  const publication = outputPublicationFor(call);
   let raw: unknown = input;
   if (input instanceof Document) {
     try {
@@ -520,19 +559,28 @@ export function prepareQueryOutputSource(
       // router-ledger work. The returned value is admitted by our copier below.
       raw = outsideOutputWorkLedger(() => input.toObject({ virtuals: false, flattenMaps: true }));
     } catch {
+      if (writeOutput) {
+        const error = new ServiceAuthorizationError('write output conversion failed');
+        failOutputPublication(publication, error);
+        throw error;
+      }
       raw = (input as Document & { _doc: object })._doc;
     }
   }
-  const borrowed = readServiceAuthorizationMode(call, binding) === 'trusted' && isBorrowableAuthorizationRecord(raw);
-  const publication = outputPublicationFor(call);
-  const source = borrowed
-    ? (raw as Record<string, unknown>)
-    : (copyDocumentView(raw, createPublicationRowBudget(publication)) as Record<string, unknown>);
+  const borrowed =
+    readServiceAuthorizationMode(call, binding) === 'trusted' && (writeOutput || isBorrowableAuthorizationRecord(raw));
+  // Even a successful conversion may return live _doc/external native storage.
+  // Both write modes acquire one ordinary owned source; trusted omits ONLY the
+  // later disposable document-hook view. Earlier helpers are not certificates.
+  const source =
+    writeOutput || !borrowed
+      ? (copyDocumentView(raw, createPublicationRowBudget(publication)) as Record<string, unknown>)
+      : (raw as Record<string, unknown>);
   assertOutputPublication(outputPublicationFor(call));
   // The materializer already admitted every detached descriptor. Do not walk
   // that owned root again merely to prove the same shape after normalization.
   if (
-    !borrowed &&
+    (writeOutput || !borrowed) &&
     (!source ||
       typeof source !== 'object' ||
       (Object.getPrototypeOf(source) !== Object.prototype && Object.getPrototypeOf(source) !== null))
@@ -541,21 +589,27 @@ export function prepareQueryOutputSource(
   const prepared = { source, borrowed };
   let captures = sources.get(source);
   if (!captures) sources.set(source, (captures = new WeakMap()));
-  captures.set(call, prepared);
-  if (publicationOutputLedger(publication))
-    retainPublicationResource(publication, () => {
-      captures!.delete(call);
-      originals.delete(source);
-      referenceOriginals.delete(source);
-    });
+  captures.set(call, { prepared, original: input });
+  const references: Array<readonly [object, object]> = [];
+  // Register before path capture: even a partially captured failure must release
+  // every association, for ordinary operations as well as collection owners.
+  // Settlement drains admitted work before these links are removed.
+  retainPublicationResource(publication, () => {
+    captures!.delete(call);
+    for (const [key, original] of references) releaseReferenceOrigin(key, original, publication);
+    references.length = 0;
+  });
   if (source !== input) {
-    originals.set(source, input);
     if (!isOutputHelperAuthorization(call, binding))
       captureReferenceOrigins(
         input,
         source,
         readServiceOutputPolicy(call, binding).catalog.referencePaths ?? [],
         createTrustedOutputBudget(),
+        (key, original) => {
+          retainReferenceOrigin(key, original, publication);
+          references.push([key, original]);
+        },
       );
   }
   return prepared;

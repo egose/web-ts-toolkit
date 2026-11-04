@@ -1,0 +1,67 @@
+{
+  "classification": "Resolved execution prerequisite caused by reviewer scratch path length, not an observed NOA source regression; no silent waiver",
+  "initialRequiredRootGate": {
+    "command": ["pnpm", "test"],
+    "TMPDIR": "<repo-root>/_tmp-noa05-final-2_3agshl",
+    "exitCode": 1,
+    "durationSeconds": 247.282,
+    "failingPackage": "packages/mongoose-rxdb",
+    "filesPassed": 36,
+    "filesFailed": 9,
+    "testsPassed": 611,
+    "testsFailed": 21,
+    "reportedUnhandledErrors": 323,
+    "failedTestsByFile": {
+      "test/_sqlite-smoke.test.ts": 1,
+      "test/adapter-contract.test.ts": 1,
+      "test/bulk-duplicate-boundary.test.ts": 1,
+      "test/date-selector-boundary.test.ts": 1,
+      "test/mutation-atomicity.test.ts": 1,
+      "test/selector-recheck.test.ts": 1,
+      "test/storage-memory-boundary.test.ts": 2,
+      "test/storage-startup-boundary.test.ts": 1,
+      "test/upsert-concurrency.test.ts": 12
+    },
+    "error": "listen EINVAL: invalid argument",
+    "dependencyFrame": "broadcast-channel@7.4.0/dist/esnode/methods/node.js:333:20",
+    "exampleSocket": "_tmp-noa05-final-2_3agshl/pubkey.bc/A411283b7ec433ec1c1d3/rdrs/plyzhwzxyjo.s",
+    "failedAddressByteLengthsBeforeSanitizingPaths": [109, 110]
+  },
+  "independentNodeProbe": {
+    "observations": [
+      {
+        "attempt": "initial-long",
+        "socketPath": "_tmp-noa05-final-2_3agshl/pubkey.bc/A411283b7ec433ec1c1d3/rdrs/probe-length.s",
+        "addressBytes": 111,
+        "outcome": "error",
+        "code": "EINVAL",
+        "syscall": "listen"
+      },
+      {
+        "attempt": "fresh-short",
+        "socketPath": "_tmp-n5-2tqz63tz/pubkey.bc/A411283b7ec433ec1c1d3/rdrs/probe-length.s",
+        "addressBytes": 102,
+        "outcome": "listening"
+      }
+    ],
+    "sameNodeAndCheckout": true,
+    "onlyScratchPrefixChanged": true,
+    "productionChanges": false,
+    "socketLimitContext": "Linux pathname AF_UNIX addresses must fit sun_path; the current long scratch prefix exceeds that budget for broadcast-channel socket names."
+  },
+  "resolution": {
+    "finalTMPDIR": "<repo-root>/_tmp-n5-2tqz63tz",
+    "freshAndGitIgnored": true,
+    "allV1V2V3GatesRerun": true,
+    "rootExitCode": 0,
+    "mongooseRxdbFinalFiles": 45,
+    "mongooseRxdbFinalPassedTests": 632,
+    "finalRootInvocations": 34,
+    "sameSourceDigest": "63fbe06ea616936353dcf88db73f43330902024e432d51a1d98fd665659c0630",
+    "productionOrTestChanges": false,
+    "exclusionsAdded": false,
+    "remainingBlocker": false
+  },
+  "recommendedOperationalOwner": "reviewer/coordinator for sufficiently short checkout-local TMPDIR; future path-portability hardening, if desired, belongs to test infrastructure/mongoose-rxdb and was not implemented here",
+  "measurementLimit": "Lengths are bytes measured against the actual checkout path before sanitization. Repo-relative or <repo-root> renderings do not preserve absolute path length. Only this checkout/runtime was measured."
+}

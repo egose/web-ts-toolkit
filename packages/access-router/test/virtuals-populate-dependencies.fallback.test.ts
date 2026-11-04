@@ -47,7 +47,7 @@ async function fixture(hydration: 'lean' | 'hydrated', method: '_read' | '_readF
   const variant = vi.fn(() => false);
   const router = api.createRouter(Source, {
     basePath: '/fallback',
-    operationAccess: { read: true, list: true, basicList: variant, advancedList: variant },
+    operationAccess: { read: true, list: { default: true, basic: variant, advanced: variant, root: variant } },
     baseFilter: { read: () => ({ name: 'read-hidden' }), list: listRows },
     permissionSchema: { name: true, eligible: { read: false, list: true }, account: false },
     docPermissions: { list: docPermissions },
@@ -140,6 +140,30 @@ const rules = [
   { name: 'runtime bare is not exact', stored: undefined, defaults: true, allowed: false },
   { name: 'empty stored parent blocks runtime', stored: {}, defaults: { list: true }, allowed: false },
   { name: 'stored sibling blocks runtime', stored: { read: true }, defaults: { list: true }, allowed: false },
+  {
+    name: 'nested list default grants independently of entry denials',
+    stored: { list: { default: 'reader', basic: false, advanced: false, root: false } },
+    defaults: { list: false },
+    allowed: true,
+  },
+  {
+    name: 'nested list default denies independently of entry grants',
+    stored: { default: true, list: { default: false, basic: true, advanced: true, root: true } },
+    defaults: { list: true },
+    allowed: false,
+  },
+  {
+    name: 'defined empty list does not inherit runtime nested default',
+    stored: { list: {} },
+    defaults: { list: { default: true } },
+    allowed: false,
+  },
+  {
+    name: 'whole undefined inherits exact runtime nested list default',
+    stored: undefined,
+    defaults: { list: { default: true, basic: false, advanced: false, root: false } },
+    allowed: true,
+  },
 ];
 
 describe.each(['lean', 'hydrated'] as const)('DPV-11 captured fallback (%s)', (hydration) => {

@@ -15,26 +15,25 @@ import {
   type ModelRouterOptions,
   type PairedRouteAccess,
   type RouteVariant,
-  type RouteVariantAccess,
   type Validation,
 } from '../dist/index.mjs';
-import { OPERATION_ACCESS_VARIANTS, isRouteVariantAccess } from '../src/operation-access';
+import { isOperationAccessMemberPath, isRemovedOperationAccess } from '../src/operation-access';
 
 type Target = 'model' | 'data';
 type OperationRules = ModelRouterOptions['operationAccess'];
 type AuthorizationCore = NonNullable<AccessRouterRequest['macl'] | AccessRouterRequest['dacl']>;
 type Check = { key: string; access: string; variant?: RouteVariant };
-type OperationPair = readonly [PairedRouteAccess, RouteVariantAccess, RouteVariantAccess];
+type OperationPair = readonly [PairedRouteAccess, RouteVariant, RouteVariant];
 
-// Explicit expected keys make a misspelled/mismatched production mapping observable.
+// Members are nested under each operation, not independent operations.
 const pairs = [
-  ['list', 'basicList', 'advancedList'],
-  ['read', 'basicRead', 'advancedRead'],
-  ['create', 'basicCreate', 'advancedCreate'],
-  ['update', 'basicUpdate', 'advancedUpdate'],
-  ['upsert', 'basicUpsert', 'advancedUpsert'],
-  ['count', 'basicCount', 'advancedCount'],
-  ['distinct', 'basicDistinct', 'advancedDistinct'],
+  ['list', 'basic', 'advanced'],
+  ['read', 'basic', 'advanced'],
+  ['create', 'basic', 'advanced'],
+  ['update', 'basic', 'advanced'],
+  ['upsert', 'basic', 'advanced'],
+  ['count', 'basic', 'advanced'],
+  ['distinct', 'basic', 'advanced'],
 ] as const satisfies readonly OperationPair[];
 
 const variants = ['basic', 'advanced'] as const satisfies readonly RouteVariant[];
@@ -150,37 +149,43 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
         { label: 'base deny', rules: { [access]: false }, base: false, basic: false, advanced: false },
         {
           label: 'basic denies',
-          rules: { [access]: true, [basicKey]: false },
+          rules: { [access]: { default: true, [basicKey]: false } },
           base: true,
           basic: false,
           advanced: true,
         },
         {
           label: 'advanced denies',
-          rules: { [access]: true, [advancedKey]: false },
+          rules: { [access]: { default: true, [advancedKey]: false } },
           base: true,
           basic: true,
           advanced: false,
         },
         {
           label: 'basic replaces denied base',
-          rules: { [access]: false, [basicKey]: true },
+          rules: { [access]: { default: false, [basicKey]: true } },
           base: false,
           basic: true,
           advanced: false,
         },
         {
           label: 'advanced replaces denied base',
-          rules: { [access]: false, [advancedKey]: true },
+          rules: { [access]: { default: false, [advancedKey]: true } },
           base: false,
           basic: false,
           advanced: true,
         },
-        { label: 'only basic', rules: { [basicKey]: true }, base: false, basic: true, advanced: false },
-        { label: 'only advanced', rules: { [advancedKey]: true }, base: false, basic: false, advanced: true },
+        { label: 'only basic', rules: { [access]: { [basicKey]: true } }, base: false, basic: true, advanced: false },
+        {
+          label: 'only advanced',
+          rules: { [access]: { [advancedKey]: true } },
+          base: false,
+          basic: false,
+          advanced: true,
+        },
         {
           label: 'undefined inherits',
-          rules: { [access]: true, [basicKey]: undefined, [advancedKey]: undefined },
+          rules: { [access]: { default: true, [basicKey]: undefined, [advancedKey]: undefined } },
           base: true,
           basic: true,
           advanced: true,
@@ -205,7 +210,7 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
     const selected = typeof guard === 'function' ? vi.fn<GuardHook>(guard) : guard;
     const fixture = createFixture(target, topChecks('read').slice(1), {
       // null is deliberately stored as an untyped JS value, not a public Validation.
-      rules: { read: base, default: fallback, basicRead: selected, advancedRead: selected } as OperationRules,
+      rules: { read: { default: base, basic: selected, advanced: selected }, default: fallback } as OperationRules,
     });
     const response = await request(fixture.app).get(fixture.path).expect(200);
     expect(response.body).toEqual({ basic: allowed, advanced: allowed });
@@ -246,22 +251,20 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
       },
       {
         label: 'variants before allowed default',
-        rules: { default: true, basicList: false, advancedRead: false },
+        rules: { default: true, list: { basic: false }, read: { advanced: false } },
         allowed: [false, true, true, false],
       },
       {
         label: 'variants before denied default',
-        rules: { default: false, basicList: true, advancedRead: true },
+        rules: { default: false, list: { basic: true }, read: { advanced: true } },
         allowed: [true, false, false, true],
       },
       {
         label: 'selected variant AND/OR grants',
         rules: {
           default: false,
-          basicList: 'canList canRead',
-          advancedList: ['missing', 'canList'],
-          basicRead: 'canRead',
-          advancedRead: ['missing', 'canRead'],
+          list: { basic: 'canList canRead', advanced: ['missing', 'canList'] },
+          read: { basic: 'canRead', advanced: ['missing', 'canRead'] },
         },
         perms: 'canList,canRead',
         allowed: [true, true, true, true],
@@ -270,10 +273,8 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
         label: 'selected variant AND/OR partial grants',
         rules: {
           default: true,
-          basicList: 'canList canRead',
-          advancedList: ['missing', 'canList'],
-          basicRead: 'canRead',
-          advancedRead: ['missing', 'canRead'],
+          list: { basic: 'canList canRead', advanced: ['missing', 'canList'] },
+          read: { basic: 'canRead', advanced: ['missing', 'canRead'] },
         },
         perms: 'canList',
         allowed: [false, true, false, false],
@@ -306,9 +307,11 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
       const fallback = vi.fn<GuardHook>(() => true);
       const fixture = createFixture(target, [{ key: 'chosen', access: 'read', variant: 'advanced' }], {
         rules: {
-          read: selection === 'base' ? selected : base,
-          advancedRead: selection === 'variant' ? selected : undefined,
-          basicRead: otherVariant,
+          read: {
+            default: selection === 'base' ? selected : base,
+            advanced: selection === 'variant' ? selected : undefined,
+            basic: otherVariant,
+          },
           default: fallback,
         },
         beforeCheck(req) {
@@ -342,7 +345,7 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
       const base = vi.fn<GuardHook>(() => true);
       const fallback = vi.fn<GuardHook>(() => true);
       const fixture = createFixture(target, [{ key: 'chosen', access: 'read', variant: 'advanced' }], {
-        rules: { read: base, advancedRead: selected, default: fallback },
+        rules: { read: { default: base, advanced: selected }, default: fallback },
       });
       const response = await request(fixture.app)
         .get(fixture.path)
@@ -358,7 +361,7 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
   );
 
   it('reads live owning-runtime variants across requests and twice within one request', async () => {
-    const initial = { list: false, basicList: true, advancedList: false };
+    const initial = { list: { default: false, basic: true, advanced: false } };
     const fixture = createFixture(target, topChecks('list'), { rules: initial });
     const snapshot = fixture.router.options;
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
@@ -366,14 +369,14 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
       basic: true,
       advanced: false,
     });
-    fixture.router.operationAccess('basicList', false);
-    fixture.router.set('operationAccess.advancedList', true);
+    fixture.router.operationAccess('list.basic', false);
+    fixture.router.set('operationAccess.list.advanced', true);
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
       base: false,
       basic: false,
       advanced: true,
     });
-    fixture.router.setOption('operationAccess.basicList', undefined);
+    fixture.router.setOption('operationAccess.list.basic', undefined);
     fixture.router.setOption('operationAccess.list', true);
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
       base: true,
@@ -383,9 +386,9 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
 
     fixture.router.router.get('/__oav02/live', async (req: AccessRouterRequest) => {
       const core = fixture.getCore(req);
-      fixture.router.operationAccess({ list: false, basicList: true });
+      fixture.router.operationAccess({ list: { default: false, basic: true } });
       const before = await routeAllowed(core, fixture.name, 'list', 'basic');
-      fixture.router.setOption('operationAccess.basicList', false);
+      fixture.router.setOption('operationAccess.list.basic', false);
       const after = await routeAllowed(core, fixture.name, 'list', 'basic');
       return { before, after, base: await core.isAllowed(fixture.name, 'list') };
     });
@@ -411,11 +414,11 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
     };
     const a = createFixture(target, topChecks('list'), {
       name,
-      rules: { list: true, basicList: guardA, advancedList: false },
+      rules: { list: { default: true, basic: guardA, advanced: false } },
     });
     const b = createFixture(target, topChecks('list'), {
       name,
-      rules: { list: true, basicList: false, advancedList: guardB },
+      rules: { list: { default: true, basic: false, advanced: guardB } },
     });
     a.runtime.setGlobalOption('globalPermissions', () => ['runtimeA']);
     b.runtime.setGlobalOption('globalPermissions', () => ['runtimeB']);
@@ -428,7 +431,7 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
     expect(responses.map(({ body }) => body)).toEqual(
       Array.from({ length: 8 }, (_, index) => ({ base: true, basic: index % 2 === 0, advanced: index % 2 !== 0 })),
     );
-    a.router.operationAccess('advancedList', true);
+    a.router.operationAccess('list.advanced', true);
     expect((await request(a.app).get(a.path).expect(200)).body).toEqual({ base: true, basic: true, advanced: true });
     expect((await request(b.app).get(b.path).expect(200)).body).toEqual({ base: true, basic: false, advanced: true });
   });
@@ -442,12 +445,12 @@ describe.each(targets)('OAV-02 %s route-operation resolution', (target) => {
         { key: 'basic', access: 'read', variant: 'basic' },
         { key: 'baseAgain', access: 'read' },
       ],
-      { rules: { read: false, basicRead: false, advancedRead: true } },
+      { rules: { read: { default: false, basic: false, advanced: true } } },
     );
     const expected = { advanced: true, baseAfter: false, basic: false, baseAgain: false };
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual(expected);
     expect(
-      (await request(fixture.app).post(fixture.path).send({ variant: 'basic', access: 'basicRead' }).expect(200)).body,
+      (await request(fixture.app).post(fixture.path).send({ variant: 'basic', access: 'read.basic' }).expect(200)).body,
     ).toEqual(expected);
   });
 });
@@ -456,7 +459,7 @@ describe('OAV-02 model-default specificity and data independence', () => {
   it.each([
     {
       label: 'default variant before model base',
-      defaults: { list: true, basicList: false, advancedList: true },
+      defaults: { list: { default: true, basic: false, advanced: true } },
       rules: { list: false },
       base: false,
       basic: false,
@@ -464,15 +467,15 @@ describe('OAV-02 model-default specificity and data independence', () => {
     },
     {
       label: 'model exact variants before default variants',
-      defaults: { basicList: true, advancedList: false },
-      rules: { list: true, basicList: false, advancedList: true },
+      defaults: { list: { basic: true, advanced: false } },
+      rules: { list: { default: true, basic: false, advanced: true } },
       base: true,
       basic: false,
       advanced: true,
     },
     {
       label: 'default exact variants before model shorthand',
-      defaults: { list: false, basicList: false, advancedList: true },
+      defaults: { list: { default: false, basic: false, advanced: true } },
       rules: true,
       base: true,
       basic: false,
@@ -480,7 +483,7 @@ describe('OAV-02 model-default specificity and data independence', () => {
     },
     {
       label: 'default exact variants before model .default',
-      defaults: { basicList: true, advancedList: false },
+      defaults: { list: { basic: true, advanced: false } },
       rules: { default: false },
       base: false,
       basic: true,
@@ -512,8 +515,8 @@ describe('OAV-02 model-default specificity and data independence', () => {
     },
     {
       label: 'model undefined variant uses exact default variant',
-      defaults: { basicList: true, advancedList: false },
-      rules: { list: false, basicList: undefined },
+      defaults: { list: { basic: true, advanced: false } },
+      rules: { list: { default: false, basic: undefined } },
       base: false,
       basic: true,
       advanced: false,
@@ -532,28 +535,26 @@ describe('OAV-02 model-default specificity and data independence', () => {
 
   it('inherits live variant defaults, preserves explicit model rules, and retains router snapshots', async () => {
     const fixture = createFixture('model', topChecks('list'), {
-      defaults: { list: false, basicList: true, advancedList: false },
+      defaults: { list: { default: false, basic: true, advanced: false } },
     });
     const snapshot = fixture.router.options;
-    fixture.runtime.setDefaultModelOption('operationAccess.list', true);
-    fixture.runtime.setDefaultModelOption('operationAccess.basicList', false);
-    fixture.runtime.setDefaultModelOption('operationAccess.advancedList', true);
+    fixture.runtime.setDefaultModelOption('operationAccess.list.default', true);
+    fixture.runtime.setDefaultModelOption('operationAccess.list.basic', false);
+    fixture.runtime.setDefaultModelOption('operationAccess.list.advanced', true);
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
       base: true,
       basic: false,
       advanced: true,
     });
     fixture.runtime.setModelOption(fixture.name, 'operationAccess', {
-      list: false,
-      basicList: true,
-      advancedList: false,
+      list: { default: false, basic: true, advanced: false },
     });
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
       base: false,
       basic: true,
       advanced: false,
     });
-    fixture.runtime.setModelOption(fixture.name, 'operationAccess.basicList', undefined);
+    fixture.runtime.setModelOption(fixture.name, 'operationAccess.list.basic', undefined);
     expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
       base: false,
       basic: false,
@@ -565,13 +566,13 @@ describe('OAV-02 model-default specificity and data independence', () => {
       basic: false,
       advanced: true,
     });
-    expect(snapshot.operationAccess).toEqual({ list: false, basicList: true, advancedList: false });
+    expect(snapshot.operationAccess).toEqual({ list: { default: false, basic: true, advanced: false } });
   });
 
   it.each([
     {
       label: 'model allows do not grant unconfigured data',
-      defaults: { list: true, basicList: true, advancedList: true },
+      defaults: { list: { default: true, basic: true, advanced: true } },
       rules: undefined,
       base: false,
       basic: false,
@@ -579,7 +580,7 @@ describe('OAV-02 model-default specificity and data independence', () => {
     },
     {
       label: 'model variant denials do not override data shorthand',
-      defaults: { basicList: false, advancedList: false },
+      defaults: { list: { basic: false, advanced: false } },
       rules: true,
       base: true,
       basic: true,
@@ -587,8 +588,8 @@ describe('OAV-02 model-default specificity and data independence', () => {
     },
     {
       label: 'model variants do not replace data base inheritance',
-      defaults: { basicList: true, advancedList: false },
-      rules: { list: true, basicList: false },
+      defaults: { list: { basic: true, advanced: false } },
+      rules: { list: { default: true, basic: false } },
       base: true,
       basic: false,
       advanced: true,
@@ -607,13 +608,16 @@ describe('OAV-02 model-default specificity and data independence', () => {
 });
 
 describe('OAV-02 subdocument precedence and custom-access compatibility', () => {
-  it('keeps one exact reserved-variant mapping available for later data-policy boundaries', () => {
-    expect(
-      Object.entries(OPERATION_ACCESS_VARIANTS).map(([access, { basic, advanced }]) => [access, basic, advanced]),
-    ).toEqual(pairs);
-    expect(
-      pairs.flatMap(([, basic, advanced]) => [isRouteVariantAccess(basic), isRouteVariantAccess(advanced)]),
-    ).toEqual(Array(14).fill(true));
+  it('keeps retired-name diagnostics separate from nested configuration-member diagnostics', () => {
+    const retired = ['List', 'Read', 'Create', 'Update', 'Upsert', 'Count', 'Distinct'].flatMap((access) => [
+      `basic${access}`,
+      `advanced${access}`,
+    ]);
+    expect(retired.map(isRemovedOperationAccess)).toEqual(Array(14).fill(true));
+    const memberPaths = pairs.flatMap(([access]) =>
+      ['default', 'basic', 'advanced', 'root'].map((member) => `${access}.${member}`),
+    );
+    expect(memberPaths.map(isOperationAccessMemberPath)).toEqual(Array(28).fill(true));
     const custom = [
       undefined,
       null,
@@ -629,7 +633,7 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
       'advancedRead.extra',
       'subs.items.advancedRead',
     ];
-    expect(custom.map(isRouteVariantAccess)).toEqual(Array(custom.length).fill(false));
+    expect(custom.map(isRemovedOperationAccess)).toEqual(Array(custom.length).fill(false));
   });
 
   it.each(pairs.slice(0, 2))(
@@ -640,21 +644,21 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
       const cases = [
         {
           label: 'field variant denies before allowed field base',
-          field: { [access]: true, [basicKey]: false, [advancedKey]: true },
+          field: { [access]: { default: true, [basicKey]: false, [advancedKey]: true } },
           top: false,
           basic: false,
           advanced: true,
         },
         {
           label: 'field variant allows before denied field base',
-          field: { [access]: false, [basicKey]: true, [advancedKey]: false },
+          field: { [access]: { default: false, [basicKey]: true, [advancedKey]: false } },
           top: true,
           basic: true,
           advanced: false,
         },
         {
           label: 'undefined field variants inherit allowed field base',
-          field: { [access]: true, [basicKey]: undefined, [advancedKey]: undefined },
+          field: { [access]: { default: true, [basicKey]: undefined, [advancedKey]: undefined } },
           top: false,
           basic: true,
           advanced: true,
@@ -709,7 +713,7 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
         },
         {
           label: 'all undefined keys leave a defined field closed',
-          field: { [access]: undefined, [basicKey]: undefined, [advancedKey]: undefined },
+          field: { [access]: { [basicKey]: undefined, [advancedKey]: undefined } },
           top: true,
           basic: false,
           advanced: false,
@@ -719,9 +723,7 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
       const expected = [];
       for (const { label, field, perms = '', top, basic, advanced } of cases) {
         fixture.router.operationAccess({
-          [access]: top,
-          [basicKey]: top,
-          [advancedKey]: top,
+          [access]: { default: top, [basicKey]: top, [advancedKey]: top },
           subs: { items: field },
         } as OperationRules);
         const response = await request(fixture.app).get(fixture.path).set('x-perms', perms).expect(200);
@@ -730,9 +732,7 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
       }
       for (const subs of [undefined, { items: undefined }, false, true, { default: { [access]: false } }]) {
         fixture.router.operationAccess({
-          [access]: true,
-          [basicKey]: false,
-          [advancedKey]: true,
+          [access]: { default: true, [basicKey]: false, [advancedKey]: true },
           subs,
         } as OperationRules);
         const response = await request(fixture.app).get(fixture.path).expect(200);
@@ -755,10 +755,8 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
       const selected = typeof guard === 'function' ? vi.fn<GuardHook>(guard) : guard;
       const fixture = createFixture('model', topChecks('subs.items.read').slice(1), {
         rules: {
-          read: top,
-          basicRead: top,
-          advancedRead: top,
-          subs: { items: { read: fieldBase, basicRead: selected, advancedRead: selected } },
+          read: { default: top, basic: top, advanced: top },
+          subs: { items: { read: { default: fieldBase, basic: selected, advanced: selected } } },
         } as OperationRules,
       });
       expect((await request(fixture.app).get(fixture.path).expect(200)).body).toEqual({
@@ -774,28 +772,28 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
   it.each([
     {
       label: 'default field exact variant outranks model field base',
-      defaults: { subs: { items: { basicList: false } } },
-      rules: { list: true, basicList: true, advancedList: true, subs: { items: { list: true } } },
+      defaults: { subs: { items: { list: { basic: false } } } },
+      rules: { list: { default: true, basic: true, advanced: true }, subs: { items: { list: true } } },
       basic: false,
       advanced: true,
     },
     {
       label: 'default field exact base outranks model field scalar',
       defaults: { subs: { items: { list: false } } },
-      rules: { list: true, basicList: true, advancedList: true, subs: { items: true } },
+      rules: { list: { default: true, basic: true, advanced: true }, subs: { items: true } },
       basic: false,
       advanced: false,
     },
     {
       label: 'default closed field cannot be reopened by model top rules',
       defaults: { subs: { items: { read: true } } },
-      rules: { list: true, basicList: true, advancedList: true },
+      rules: { list: { default: true, basic: true, advanced: true } },
       basic: false,
       advanced: false,
     },
     {
       label: 'model field base outranks default top variant',
-      defaults: { basicList: false, advancedList: false },
+      defaults: { list: { basic: false, advanced: false } },
       rules: { subs: { items: { list: true } } },
       basic: true,
       advanced: true,
@@ -824,16 +822,18 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
       const unused = vi.fn<GuardHook>(() => true);
       const field =
         selection === 'field variant'
-          ? { read: unused, advancedRead: selected }
+          ? { read: { default: unused, advanced: selected } }
           : selection === 'field base'
-            ? { read: selected, advancedRead: undefined }
+            ? { read: { default: selected, advanced: undefined } }
             : selection === 'field scalar'
               ? selected
               : undefined;
       const fixture = createFixture('model', [{ key: 'chosen', access: 'subs.items.read', variant: 'advanced' }], {
         rules: {
-          read: selection === 'top base' ? selected : unused,
-          advancedRead: selection === 'top variant' ? selected : selection === 'top base' ? undefined : unused,
+          read: {
+            default: selection === 'top base' ? selected : unused,
+            advanced: selection === 'top variant' ? selected : selection === 'top base' ? undefined : unused,
+          },
           subs: field === undefined ? unused : { items: field },
         },
         beforeCheck(req) {
@@ -849,13 +849,17 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
     },
   );
 
-  it('maps only supported base/subdocument paths and leaves ordinary/custom/alias checks compatible', async () => {
+  it('keeps trusted custom accesses but denies retired names and nested member selectors', async () => {
     const accesses = [
       'download',
       'new',
       'delete',
       'basicList',
       'basicRead',
+      'list.basic',
+      'read.advanced',
+      'delete.root',
+      'subs.items.update.root',
       'subs.items.update',
       'subs.items.download',
       'subs.items.list.extra',
@@ -867,12 +871,11 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
     const fixture = createFixture('model', checks, {
       rules: {
         default: false,
-        list: false,
+        list: { default: false, basic: true },
         read: true,
-        basicList: true,
         new: true,
         delete: true,
-        subs: { items: { update: true, basicUpdate: false, advancedUpdate: false, download: 'canDownload' } },
+        subs: { items: { update: true, download: 'canDownload' } },
       },
     });
     fixture.router.operationAccess('download', true);
@@ -884,6 +887,14 @@ describe('OAV-02 subdocument precedence and custom-access compatibility', () => 
     fixture.router.operationAccess('subs.items.list.extra', true);
     fixture.router.operationAccess('subset.items.list', true);
     const response = await request(fixture.app).get(fixture.path).set('x-perms', 'canDownload').expect(200);
-    expect(response.body).toEqual(Object.fromEntries(checks.map(({ key }) => [key, !key.startsWith('basicRead.')])));
+    const denied = new Set([
+      'basicList',
+      'basicRead',
+      'list.basic',
+      'read.advanced',
+      'delete.root',
+      'subs.items.update.root',
+    ]);
+    expect(response.body).toEqual(Object.fromEntries(checks.map(({ key, access }) => [key, !denied.has(access)])));
   });
 });

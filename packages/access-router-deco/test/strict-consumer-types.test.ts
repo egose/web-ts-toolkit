@@ -15,14 +15,18 @@ describe('access-router-deco strict consumer types', () => {
     consumerDir = stageConsumerDir();
   });
 
-  it.each(['NodeNext', 'Bundler'] as const)(
-    'compiles configuration and retired-option assertions in strict %s consumers',
-    (resolution) => {
+  it.each([
+    ['NodeNext', 'mts'],
+    ['NodeNext', 'cts'],
+    ['Bundler', 'ts'],
+  ] as const)(
+    'compiles configuration and retired-option assertions in strict %s / %s consumers',
+    (resolution, extension) => {
       cpSync(
         path.join(packageRoot, 'test/hydration-consumer.types.fixture.ts'),
-        path.join(consumerDir, 'hydration.ts'),
+        path.join(consumerDir, `hydration.${extension}`),
       );
-      const tsconfigPath = path.join(consumerDir, `tsconfig.hydration-${resolution}.json`);
+      const tsconfigPath = path.join(consumerDir, `tsconfig.hydration-${resolution}-${extension}.json`);
       writeFileSync(
         tsconfigPath,
         JSON.stringify(
@@ -38,7 +42,7 @@ describe('access-router-deco strict consumer types', () => {
               types: ['node', 'reflect-metadata'],
               lib: ['ES2022', 'DOM'],
             },
-            include: ['hydration.ts'],
+            files: [`hydration.${extension}`],
           },
           null,
           2,
@@ -102,6 +106,7 @@ describe('access-router-deco strict consumer types', () => {
         Router('StrictDecoUser', { basePath: '/by-name' })(UserRouter);
         Router(userModel, { basePath: '/by-instance' })(UserRouter);
         Router(userModel, { permissionSchema: { name: { read: true } } })(UserRouter);
+        Router(userModel, { operationAccess: { read: { default: true, basic: false, advanced: 'reader', root: false } } })(UserRouter);
 
         class UserOptions {
           @DefaultModelOption('idParam')
@@ -109,6 +114,9 @@ describe('access-router-deco strict consumer types', () => {
         }
         RouterOptions('StrictDecoUser', { idParam: 'userId' })(UserOptions);
         RouterOptions(userModel, { queryRouteSegment: 'search' })(UserOptions);
+        RouterOptions({ operationAccess: { list: { default: true, basic: false, root: true } } })(UserOptions);
+        ModelOption('operationAccess.read.root');
+        DefaultModelOption('operationAccess.subs.comments.read.advanced');
 
         class GlobalOptionsFixture {
           @GlobalOption('requestPermissionField')
@@ -156,6 +164,12 @@ describe('access-router-deco strict consumer types', () => {
 
         // @ts-expect-error nested subroute policy stays in typed options, not scalar decorators
         RouteGuard('subs');
+        // @ts-expect-error nested entry members are options, not scalar method-hook names
+        RouteGuard('read.basic');
+        // @ts-expect-error root entry policy is configured in typed router options
+        RouteGuard('read.root');
+        // @ts-expect-error retired flat keys are not method-hook names
+        RouteGuard('basicRead');
 
         // @ts-expect-error model overload requires a Mongoose model, not a model-like object
         Router({ modelName: 'StrictDecoUser' }, {});

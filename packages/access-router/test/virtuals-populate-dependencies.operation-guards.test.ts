@@ -153,6 +153,54 @@ const guardCases: GuardCase[] = [
   { name: 'stored permission rule', stored: 'canRead', defaults: { read: false }, allowed: true },
   { name: 'exact runtime permission array', stored: undefined, defaults: { read: ['canRead'] }, allowed: true },
   {
+    name: 'nested default grants despite every entry denial',
+    stored: { read: { default: 'canRead', basic: false, advanced: false, root: false } },
+    defaults: { read: { default: false } },
+    allowed: true,
+  },
+  {
+    name: 'nested default denies despite every entry grant',
+    stored: { default: true, read: { default: false, basic: true, advanced: true, root: true } },
+    defaults: { read: { default: true } },
+    allowed: false,
+  },
+  {
+    name: 'entry-only object does not inherit runtime operation default',
+    stored: { read: { basic: true, advanced: true, root: true } },
+    defaults: { read: { default: true } },
+    allowed: false,
+  },
+  {
+    name: 'empty operation does not independently inherit runtime nested default',
+    stored: { read: {} },
+    defaults: { read: { default: true } },
+    allowed: false,
+  },
+  {
+    name: 'empty operation uses applicable stored outer default',
+    stored: { default: 'canRead', read: {} },
+    defaults: { read: { default: false } },
+    allowed: true,
+  },
+  {
+    name: 'whole undefined inherits exact runtime operation object',
+    stored: undefined,
+    defaults: { default: false, read: { default: ['canRead'], basic: false, advanced: false, root: false } },
+    allowed: true,
+  },
+  {
+    name: 'nested empty array is terminal before allowed outer default',
+    stored: { default: true, read: { default: [], advanced: true, root: true } },
+    defaults: { read: true },
+    allowed: false,
+  },
+  {
+    name: 'malformed nested default is terminal',
+    stored: { default: true, read: { default: { root: true }, advanced: true, root: true } },
+    defaults: { read: true },
+    allowed: false,
+  },
+  {
     name: 'custom exact before default',
     stored: { audit: true, read: false, default: false },
     defaults: { audit: false, read: true },
@@ -215,7 +263,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
       expect(result.data).not.toHaveProperty('account.balance');
     });
 
-    it.each(['exact', 'default', 'bare', 'runtime-exact'] as const)(
+    it.each(['exact', 'nested-default', 'default', 'bare', 'runtime-exact'] as const)(
       'retains a %s function guard with the captured actor/permissions and no route variants',
       async (placement) => {
         const f = await fixture(hydration, enabled, strict);
@@ -225,19 +273,24 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
           return permissions.has('canRead');
         });
         f.api.setDefaultModelOption('operationAccess', {
-          read: placement === 'runtime-exact' ? guard : false,
-          basicRead: variant,
-          advancedRead: variant,
+          read: {
+            default: placement === 'runtime-exact' ? guard : false,
+            basic: variant,
+            advanced: variant,
+            root: variant,
+          },
         });
         f.targetRouter.setOption(
           'operationAccess',
           (placement === 'exact'
-            ? { read: guard, default: false, basicRead: variant, advancedRead: variant }
-            : placement === 'default'
-              ? { default: guard, basicRead: variant, advancedRead: variant }
-              : placement === 'bare'
-                ? guard
-                : undefined) as never,
+            ? { read: guard, default: false }
+            : placement === 'nested-default'
+              ? { read: { default: guard, basic: variant, advanced: variant, root: variant } }
+              : placement === 'default'
+                ? { default: guard, read: { basic: variant, advanced: variant, root: variant } }
+                : placement === 'bare'
+                  ? guard
+                  : undefined) as never,
         );
         let actor: ModelRequest;
         const result = await f.execute((req) => {
@@ -265,10 +318,17 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
       ['target-option', false],
     ] as const)('%s replacement from %s only affects later calls on the same service', async (replacement, initial) => {
       const f = await fixture(hydration, enabled, strict);
-      f.api.setDefaultModelOption('operationAccess.read', initial);
+      f.api.setDefaultModelOption('operationAccess.read', {
+        default: initial,
+        basic: !initial,
+        advanced: !initial,
+        root: !initial,
+      });
       f.targetRouter.setOption(
         'operationAccess',
-        (replacement === 'runtime-default' ? undefined : { read: initial }) as never,
+        (replacement === 'runtime-default'
+          ? undefined
+          : { read: { default: initial, basic: !initial, advanced: !initial, root: !initial } }) as never,
       );
       const pause = f.holdSource();
       const results = await f.execute(async (req) => {
@@ -276,8 +336,8 @@ describe.each(['lean', 'hydrated'] as const)('DPV-08 captured operation guards (
         const pending = f.read(req, 'read', undefined, service);
         await pause.entered;
         try {
-          if (replacement === 'runtime-default') f.api.setDefaultModelOption('operationAccess.read', !initial);
-          else f.targetRouter.setOption('operationAccess', { read: !initial });
+          if (replacement === 'runtime-default') f.api.setDefaultModelOption('operationAccess.read.default', !initial);
+          else f.targetRouter.setOption('operationAccess.read.default', !initial);
           expect(await req.macl.isAllowed(f.Target.modelName, 'read')).toBe(!initial);
         } finally {
           pause.release();

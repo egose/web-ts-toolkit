@@ -43,7 +43,10 @@ import {
   resolveDocumentPermissionsDefinition,
 } from '../acl/document-permissions-definition';
 import { compactPersistedProjection, planAuthorizedModelProjection } from '../acl/output-projection';
-import { captureModelAuthorizationConfiguration, getCapturedAuthorizationOption } from '../acl/model-output-planning';
+import {
+  captureModelAuthorizationConfiguration,
+  selectCapturedOperationAccessGuard,
+} from '../acl/model-output-planning';
 import {
   getVirtualPopulatePublicIdentity,
   getVirtualPopulateRow,
@@ -57,6 +60,7 @@ import {
   readServiceAuthorizationAccess,
   readServiceOutputMetadata,
   readServiceAuthorizationMode,
+  isWriteOutputAuthorization,
 } from '../acl/service-authorization';
 import {
   readDocumentStage,
@@ -91,6 +95,8 @@ import { copyAuthorizationValue } from '../acl/authorization-snapshot';
 import { assertNoServerModelControls, assertPublicDefaults } from '../validation/public-admission';
 import {
   createServiceExecution,
+  createWriteServiceExecution,
+  deriveWriteOutputExecution,
   deriveServiceExecution,
   getServiceExecutors,
   readServiceExecution,
@@ -923,7 +929,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           evaluateRouteGuard(
             this.req,
             getAuthorizationPermissions(childState.authorization, childState.binding),
-            getCapturedAuthorizationOption(targetConfiguration, `operationAccess.${targetAccess}`) as never,
+            selectCapturedOperationAccessGuard(targetConfiguration, targetAccess) ?? false,
           ),
         ))
       )
@@ -991,8 +997,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   /** Compose exact private source/public-fetch provenance; never IDs or DTO authority. */
-  private populateTargetIdentity(value: object): object {
-    const original = getQueryReferenceOriginal(value) ?? value;
+  private populateTargetIdentity(value: object, publication: OutputPublication): object {
+    const original = getQueryReferenceOriginal(value, publication) ?? value;
     return getVirtualPopulatePublicIdentity(value) ?? getVirtualPopulatePublicIdentity(original) ?? original;
   }
 
@@ -1029,7 +1035,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     // Include source copies retain the actual fetched target identity for cache
     // reuse. Never infer this identity from IDs/values or finalize the original.
     const originalKey = originalTarget && typeof originalTarget === 'object' ? originalTarget : (rawTarget as object);
-    const cacheKey = this.populateTargetIdentity(rawTarget as object);
+    const owner = publication ?? outputPublicationFor(meta.plan.authorization!);
+    const cacheKey = this.populateTargetIdentity(rawTarget as object, owner);
     const recipients = this.populateBudgetRecipients.get(meta)?.get(cacheKey);
     if (!recipients?.some((edge) => edge.budget === budget && edge.depth === outputDepth))
       authorizationError('populate target requires preregistered receiving occurrences');
@@ -1052,15 +1059,18 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       docPermissionsAccess: meta.docPermissionsAccess,
       resolvedQuery: parentContext.resolvedQuery,
     });
-    const owner = publication ?? outputPublicationFor(meta.plan.authorization!);
     bindOutputPublication(meta.plan.authorization!, owner);
     const selectedBudget = createReceivingOutputBudget(recipients);
+    // Query-origin trusted targets still need the isolated parent's pre-copy.
+    // Write-origin targets instead acquire their own mandatory source below;
+    // pre-copying them here would duplicate that boundary, not add protection.
     const pending = finalizeModelOutput({
       receivingModelName: meta.targetModelName,
       input:
         parentAuthorization &&
         readServiceAuthorizationMode(parentAuthorization, getServiceExecutors(this).binding()) === 'isolated' &&
-        readServiceAuthorizationMode(meta.plan.authorization!, meta.plan.authorizationBinding!) === 'trusted'
+        readServiceAuthorizationMode(meta.plan.authorization!, meta.plan.authorizationBinding!) === 'trusted' &&
+        !isWriteOutputAuthorization(meta.plan.authorization!, meta.plan.authorizationBinding!)
           ? copyDocumentView(rawTarget)
           : rawTarget,
       virtualAccess: meta.virtualAccess,
@@ -1076,7 +1086,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       outputBudget: selectedBudget,
       virtualPopulateRow:
         getVirtualPopulateRow(originalKey) ??
-        getVirtualPopulateRow(getQueryReferenceOriginal(rawTarget as object) ?? (rawTarget as object)),
+        getVirtualPopulateRow(getQueryReferenceOriginal(rawTarget as object, owner) ?? (rawTarget as object)),
     });
     cache.set(cacheKey, pending);
     const finalized = await pending;
@@ -1130,7 +1140,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           if (!value || typeof value !== 'object') return;
           if (index === parts.length) {
             if (this.isScalarPopulateValue(value)) return;
-            const key = this.populateTargetIdentity(value);
+            const key = this.populateTargetIdentity(value, row.publication);
             const receivers = targets!.get(key) ?? [];
             receivers.push({ budget: row.budget, depth });
             targets!.set(key, receivers);
@@ -1200,7 +1210,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     const slots = this.populateInputSlots.get(meta)?.get(current);
     if (!slots?.has(key)) authorizationError('unregistered populate source slot');
     child = slots.get(key);
-    originalChild = child && typeof child === 'object' ? (getQueryReferenceOriginal(child) ?? child) : child;
+    originalChild =
+      child && typeof child === 'object'
+        ? (getQueryReferenceOriginal(child, publication ?? outputPublicationFor(meta.plan.authorization!)) ?? child)
+        : child;
     if (child === undefined || child === null) {
       // Null at leaf is a populate miss (stays null); null intermediate ends traversal.
       return;
@@ -2184,13 +2197,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       const intent = captureModelServiceIntent(this, 'create', args, options);
       const execution = withExecutionQueryIntent(
         this,
-        createServiceExecution(
-          this,
-          { operation: 'create', virtualAccess: 'create', outputAccess: 'read', docPermissionsAccess: 'create' },
-          options?.authorization,
-          'create',
-          this.captureRelated(intent.args),
-        ),
+        createWriteServiceExecution(this, 'create', options?.authorization, 'create', this.captureRelated(intent.args)),
         intent,
       );
       return await executeCreate(this, execution, data, args, options, decorate);
@@ -2215,7 +2222,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     const { populate, select } = intent.args;
     const { includePermissions, includeFieldPermissions, populateAccess } = intent.options;
     const initiatingOperation = state.access.operation;
-    const createPlan = this.executionOutputPlan(execution, select);
+    const outputExecution = deriveWriteOutputExecution(this, execution, 'create');
+    const outputState = readServiceExecution(this, outputExecution);
+    const createPlan = this.executionOutputPlan(outputExecution, select);
 
     const isArr = Array.isArray(data);
     let dataArr = isArr ? data : [data];
@@ -2266,7 +2275,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
     let resolvedPopulate: Populate[];
     try {
-      resolvedPopulate = populate ? await this.genExecutionPopulate(execution, populateAccess, populate) : [];
+      resolvedPopulate = populate ? await this.genExecutionPopulate(outputExecution, populateAccess, populate) : [];
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -2363,8 +2372,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       contexts[index].finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
       return doc;
     });
-    const detached = await this.prepareDetachedOutputRows(execution, persistedDocs, createPlan, resolvedPopulate);
-    const outputRows = this.admitOutputRows(execution, detached);
+    const detached = await this.prepareDetachedOutputRows(outputExecution, persistedDocs, createPlan, resolvedPopulate);
+    const outputRows = this.admitOutputRows(outputExecution, detached);
     this.registerPopulateRecipients(outputRows, resolvedPopulate);
     const docs = await mapWithConcurrencyLimit(
       outputRows,
@@ -2381,7 +2390,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
             initiatingOperation,
             hookLimit,
             createGate,
-            state.authorization,
+            outputState.authorization,
             row.references,
             row.budget,
             row.publication,
@@ -2528,15 +2537,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       const intent = captureModelServiceIntent(this, 'updateOne', args, options);
       const execution = withExecutionQueryIntent(
         this,
-        createServiceExecution(
+        createWriteServiceExecution(
           this,
-          {
-            operation: 'update',
-            rowAccess: 'update',
-            virtualAccess: 'update',
-            outputAccess: 'read',
-            docPermissionsAccess: 'update',
-          },
+          'update',
           options?.authorization,
           'mutation',
           this.captureRelated(intent.args),
@@ -2569,12 +2572,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     const { populate, select } = intent.args;
     const { includePermissions, includeFieldPermissions, populateAccess } = intent.options;
     const initiatingOperation = state.access.operation;
-    const updatePlan = this.executionOutputPlan(execution, select);
+    const outputExecution = deriveWriteOutputExecution(this, execution, 'update');
+    const outputState = readServiceExecution(this, outputExecution);
+    const updatePlan = this.executionOutputPlan(outputExecution, select);
 
     const _filter = filter;
     let _populate: Populate[];
     try {
-      _populate = await this.genExecutionPopulate(execution, populateAccess, populate);
+      _populate = await this.genExecutionPopulate(outputExecution, populateAccess, populate);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -2689,8 +2694,8 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
 
     await this.changes(doc.toObject({ virtuals: false }) as Record<string, unknown>, context);
 
-    const [detached] = await this.prepareDetachedOutputRows(execution, [doc], updatePlan, _populate);
-    const [row] = this.admitOutputRows(execution, [detached]);
+    const [detached] = await this.prepareDetachedOutputRows(outputExecution, [doc], updatePlan, _populate);
+    const [row] = this.admitOutputRows(outputExecution, [detached]);
     this.registerPopulateRecipients([row], _populate as Populate[]);
     // Target-model finalization on detached populated output, before
     // parent getters (own plans/contexts, trimming even without virtuals).
@@ -2704,7 +2709,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         initiatingOperation,
         updateHookLimit,
         updateGate,
-        state.authorization,
+        outputState.authorization,
         row.references,
         row.budget,
         row.publication,
@@ -2748,15 +2753,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       const { skim, includePermissions, includeFieldPermissions, populateAccess } = intent.options;
       const execution = withExecutionQueryIntent(
         this,
-        createServiceExecution(
+        createWriteServiceExecution(
           this,
-          {
-            operation: 'update',
-            rowAccess: 'update',
-            virtualAccess: 'update',
-            outputAccess: 'read',
-            docPermissionsAccess: 'update',
-          },
+          'update',
           options?.authorization,
           'mutation',
           this.captureRelated(intent.args),
@@ -2805,19 +2804,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       );
       const execution = withExecutionQueryIntent(
         this,
-        createServiceExecution(
-          this,
-          {
-            operation: 'upsert',
-            rowAccess: 'update',
-            virtualAccess: 'update',
-            outputAccess: 'read',
-            docPermissionsAccess: 'update',
-          },
-          options?.authorization,
-          'mutation',
-          related,
-        ),
+        createWriteServiceExecution(this, 'upsert', options?.authorization, 'mutation', related),
         updateIntent,
       );
       const { populate, select } = updateIntent.args;

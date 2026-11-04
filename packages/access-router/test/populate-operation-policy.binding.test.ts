@@ -97,7 +97,10 @@ async function fixture(
   const transform = vi.fn(async () => ({}));
   api.registerModelInstance(targetName, Target);
   api.setModelOptions(targetName, {
-    operationAccess: { read: guard, list: guard },
+    operationAccess: {
+      read: { default: guard, basic: false, advanced: false, root: false },
+      list: { default: guard, basic: false, advanced: false, root: false },
+    },
     permissionSchema: { name: true, secret: false },
     baseFilter: { read: () => ({ tenant: 'a' }) },
     overrideFilter: { read: transform },

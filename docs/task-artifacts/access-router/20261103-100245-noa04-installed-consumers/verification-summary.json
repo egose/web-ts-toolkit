@@ -1,0 +1,148 @@
+{
+  "task": "NOA-04",
+  "provenance": "Implementer-curated summary reconciled with Vitest JSON and console summaries; not independent review or raw reproduction evidence",
+  "environment": {
+    "node": "26.12.1",
+    "pnpm": "11.18.0",
+    "scratch": "_tmp-noa04-I2bo1b99",
+    "ignoredScratchConfirmed": true,
+    "serializedBuildsAndTests": true
+  },
+  "buildAndTypecheck": {
+    "accessRouterTransitiveBuild": "passed",
+    "accessRouterRequiredTypecheck": "passed",
+    "decoratorTransitiveBuild": "passed",
+    "decoratorTypecheck": "passed",
+    "runtimeTransitiveBuild": "passed",
+    "finalPackageScriptTransitiveRebuild": "passed"
+  },
+  "initialFullPackageRun": {
+    "files": 196,
+    "passedFiles": 195,
+    "failedFiles": 1,
+    "tests": 6712,
+    "passed": 6709,
+    "failed": 3,
+    "skipped": 0,
+    "todo": 0,
+    "exclusions": [],
+    "failureFile": "packages/access-router/test/service-authorization-boundary-admission.contract.test.ts",
+    "failureCases": [
+      "independent root list dispatch omits hydration controls",
+      "independent root read dispatch omits hydration controls",
+      "independent root readFilter dispatch omits hydration controls"
+    ],
+    "diagnostic": "TypeError: req.macl.isAllowedRoute is not a function",
+    "resolution": "Migrated the stale isAllowed mock to isAllowedRoute and added exact root-context assertions; retained all prior forwarding/status assertions; no production fallback"
+  },
+  "focusedRootFixtureRun": {
+    "files": 1,
+    "passed": 68,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "finalFullPackageRun": {
+    "files": 196,
+    "passedFiles": 196,
+    "failedFiles": 0,
+    "tests": 6712,
+    "passed": 6712,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "exclusions": [],
+    "vitestDurationSeconds": 1278.22,
+    "allSourceAndTestEditsPrecededRun": true,
+    "selectedPassingSuiteCounts": {
+      "nested-operation-access-admission.contract.test.ts": 54,
+      "nested-operation-access-capture.contract.test.ts": 18,
+      "nested-operation-access-consumer-types.test.ts": 3,
+      "nested-operation-access-entries.integration.test.ts": 100,
+      "nested-operation-access-resolution.contract.test.ts": 180,
+      "operation-access-baseline.contract.test.ts": 28,
+      "operation-access-boundaries.integration.test.ts": 269,
+      "operation-access-data-subdocument-routes.integration.test.ts": 75,
+      "operation-access-model-routes.integration.test.ts": 68,
+      "operation-access-variants.contract.test.ts": 68,
+      "strict-consumer-types.test.ts": 49,
+      "owned-authorization-types.test.ts": 2,
+      "packed-consumer-compatibility.test.ts": 13,
+      "documentation-examples.test.ts": 84,
+      "export-contract.test.ts": 49,
+      "service-authorization-boundary-admission.contract.test.ts": 68
+    },
+    "selectedSuiteCountsAreSubsetsNotAdditionalTests": true,
+    "operationCaptureMatrixSubset": 863
+  },
+  "focusedDecoratorRun": {
+    "files": 2,
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "suites": {
+      "route-guard.runtime.test.ts": 8,
+      "strict-consumer-types.test.ts": 5
+    }
+  },
+  "focusedRuntimeRun": {
+    "files": 2,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "suites": {
+      "route-order.test.ts": 5,
+      "strict-consumer-types.test.ts": 1
+    }
+  },
+  "installedConsumerConditions": {
+    "strictNestedRules": ["ESNext/Bundler .ts", "NodeNext ESM .mts", "NodeNext CJS .cts"],
+    "migrationTargetsAndSeparateNegatives": [
+      "ESNext/Bundler .ts",
+      "NodeNext ESM .mts",
+      "NodeNext CJS .cts",
+      "Node16 ESM .mts",
+      "Node16 CJS .cts"
+    ],
+    "packedLayouts": ["production-transformed flattened tarballs", "actual build-artifact package tree"],
+    "peerPairs": [
+      { "express": "5.0.0", "mongoose": "8.0.0", "skipLibCheck": true },
+      { "express": "5.2.1", "mongoose": "9.11.4", "skipLibCheck": false }
+    ],
+    "publicDeclarationEntrypoints": [".", "./advanced", "./processors"],
+    "importDeclarations": ".d.mts",
+    "requireDeclarations": ".d.ts",
+    "runtime": ["ESM .mjs", "CJS .js", "emitted NodeNext ESM/CJS"],
+    "ownedGuideWorkflowRuntime": ["NodeNext ESM/CJS", "Node16 ESM/CJS", "CJS bundle"],
+    "noNewOperationSourceAliasesDeepImportsOrCasts": true,
+    "legacyUnrelatedProcessorCastsUnchanged": true
+  },
+  "documentation": {
+    "guideBlocks": 13,
+    "partial": 11,
+    "completeRuntime": 1,
+    "expectedError": 1,
+    "originalBlocksPreservedByteForByte": 10,
+    "newClassifiedTargets": 3,
+    "shippedGuideMatchesPublishTree": true,
+    "relativeDocumentFileLinksChecked": 87
+  },
+  "sourceFixesOutsidePrimaryScope": [
+    {
+      "file": "packages/access-router-deco/src/decorators/method.decorators.ts",
+      "change": "Derive RouteGuardOperationKey from the existing scalar runtime allowlist, not all nested configuration paths",
+      "runtimeBehaviorAdded": false
+    }
+  ],
+  "earlierAccessRouterRuntimeImplementationBugFound": false,
+  "requiredScopeBlockers": [],
+  "intentionallyUnrun": [
+    "repository V3 build/test/lint",
+    "independent NOA-05 acceptance review",
+    "broader dependent-package suites",
+    "unchanged starter tests"
+  ],
+  "preservationLimits": "Raw logs, full raw JSON, installed consumer/dependency trees, caches, databases, build output and tarballs are omitted; maintained tests/docs and exact handoff commands are reproduction inputs"
+}

@@ -16,6 +16,10 @@ describe('SVA-05 mutation authority and stages', () => {
       prepare: { create: prepare },
       afterPersist: { create: afterPersist },
       docPermissions: { create: hook },
+      readAuthorizationMode: 'trusted',
+      listAuthorizationMode: 'trusted',
+      createAuthorizationMode: 'trusted',
+      updateAuthorizationMode: 'trusted',
       stripPermissionsField: true,
     });
     await f.execute(async (req) => {
@@ -68,6 +72,10 @@ describe('SVA-05 mutation authority and stages', () => {
       const f = await authorizationFixture({
         permissionSchema: { status: { read: 'owner', update: true }, internalNote: false },
         docPermissions: { update: hook },
+        readAuthorizationMode: 'trusted',
+        listAuthorizationMode: 'trusted',
+        createAuthorizationMode: 'trusted',
+        updateAuthorizationMode: 'trusted',
         validate: { update: validate },
         transform: { update: transform },
         afterPersist: { update: afterPersist },

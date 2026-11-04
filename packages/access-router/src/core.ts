@@ -13,13 +13,12 @@ import {
   isNaN,
   isNil,
   isString,
-  isUndefined,
   pick,
   reduce,
   set,
   uniq,
 } from '@web-ts-toolkit/utils';
-import { getModelOption, getExactModelOption } from './options';
+import { getModelOption } from './options';
 import {
   Populate,
   PopulatePlanningOptions,
@@ -32,7 +31,7 @@ import {
   ModelRequest,
   SelectAccess,
   RouteGuardAccess,
-  RouteVariant,
+  OperationAccessContext,
   DocPermissionsAccess,
   BaseFilterAccess,
   DecorateAccess,
@@ -77,7 +76,7 @@ import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
 import { callHookChain, evaluateRouteGuard, intersectFilters } from './core-shared';
-import { resolveRouteOperationAccess } from './operation-access';
+import { createOperationAccessReaders, resolveRouteOperationAccess } from './operation-access';
 import { resolveDocumentPermissionsDefinition } from './acl/document-permissions-definition';
 import { planAuthorizedModelProjection } from './acl/output-projection';
 import { setPopulateTargetMeta, type PopulateTargetAccess } from './acl/populate-target';
@@ -90,6 +89,7 @@ import type {
 import {
   captureModelAuthorizationConfiguration,
   getCapturedAuthorizationOption,
+  selectCapturedOperationAccessGuard,
   readCapturedAuthorizationOption,
   planModelOutputForHelper,
 } from './acl/model-output-planning';
@@ -436,7 +436,7 @@ export class Core {
               this,
               refModelName,
               populateAccess,
-              getCapturedAuthorizationOption(targetConfiguration, `operationAccess.${populateAccess}`),
+              selectCapturedOperationAccessGuard(targetConfiguration, populateAccess),
               permissions,
               () => this.isAllowed(refModelName, populateAccess),
             ))
@@ -869,42 +869,31 @@ export class Core {
   async isAllowed(modelName: string, access: RouteGuardAccess | string): Promise<boolean> {
     const captured = consumeCapturedModelOperationGuard(this, modelName, access);
     if (captured) return evaluateRouteGuard(this.req, captured.permissions, captured.guard as Validation);
-    if (access.startsWith('subs')) {
-      const keys = access.split('.');
-      if (keys.length < 3) {
-        return false;
-      }
-
-      const [, field, op] = keys;
-      const subOption = getExactModelOption(modelName, `operationAccess.${access}`);
-      if (isUndefined(subOption)) {
-        const subFieldOption = getExactModelOption(modelName, `operationAccess.subs.${field}`);
-        if (isUndefined(subFieldOption)) {
-          const opOption = getModelOption(modelName, `operationAccess.${op}`) as Validation;
-          return this.canActivate(opOption);
-        }
-
-        return this.canActivate(subFieldOption as Validation);
-      }
-
-      return this.canActivate(subOption as Validation);
-    }
-
-    const operationAccess = getModelOption(modelName, `operationAccess.${access}`) as Validation;
-    return this.canActivate(operationAccess);
+    return this.resolveOperationAccess(modelName, access);
   }
 
-  /** Authorize route entry using explicit server-owned basic/advanced metadata. */
+  /** Authorize entry using explicit server-owned basic/advanced/root metadata. */
   async isAllowedRoute(
     modelName: string,
     baseAccess: RouteGuardAccess | string,
-    variant: RouteVariant,
+    context: OperationAccessContext,
+  ): Promise<boolean> {
+    return this.resolveOperationAccess(modelName, baseAccess, context);
+  }
+
+  /** Fresh live reads; omitted context is a base check, never an ambient entry context. */
+  private async resolveOperationAccess(
+    modelName: string,
+    baseAccess: string,
+    context?: OperationAccessContext,
   ): Promise<boolean> {
     return resolveRouteOperationAccess({
       baseAccess,
-      variant,
-      getExactOption: (key) => getExactModelOption(modelName, key),
-      isAllowedBase: (access) => this.isAllowed(modelName, access),
+      context,
+      ...createOperationAccessReaders(
+        this.requestRuntime.getModelOptions(modelName),
+        this.requestRuntime.getDefaultModelOptions(),
+      ),
       canActivate: (guard) => this.canActivate(guard),
       subdocuments: true,
     });

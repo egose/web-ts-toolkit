@@ -267,7 +267,7 @@ describe('ARL-06 basic GET data list query parity', () => {
     'keeps the %s list gate independent and ahead of validation',
     async (denied) => {
       const { app, listFilter, decorate } = fixture({
-        operationAccess: { list: true, [denied === 'basic' ? 'basicList' : 'advancedList']: false },
+        operationAccess: { list: { default: true, [denied]: false } },
       });
       const invalid = { select: 'name', sort: '$where', limit: 0 };
       const deniedRequest =

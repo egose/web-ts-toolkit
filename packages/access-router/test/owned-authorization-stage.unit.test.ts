@@ -686,7 +686,7 @@ describe('OAR-03 actual direct/public/root operations and fresh raw helpers', ()
 
 describe('OAR-03 live alternate output consumers without read-shaped trust', () => {
   it.each(modes)('new templates remain isolated with configured %s READ/LIST modes', async (mode) => {
-    const f = fixture(mode);
+    const f = fixture(mode, { createAuthorizationMode: 'trusted', updateAuthorizationMode: 'trusted' });
     f.hooks.source.mockImplementation((doc: unknown) => {
       (doc as { value: string }).value = 'template-hook-change';
       return { owner: true };
@@ -788,7 +788,7 @@ describe('OAR-03 live alternate output consumers without read-shaped trust', () 
   it.each(['list', 'read'] as const)(
     'dedicated %s owns parent read facts and always uses isolated child output',
     async (operation) => {
-      const f = fixture('trusted'),
+      const f = fixture('trusted', { createAuthorizationMode: 'trusted', updateAuthorizationMode: 'trusted' }),
         doc = new f.Source({ ...f.rows[0], children: [{ _id: 'child', value: 'stored-child', hidden: 'never' }] });
       f.adapter.findOne.mockResolvedValue(doc as never);
       f.hooks.source.mockImplementation((value: unknown) => {
@@ -810,7 +810,7 @@ describe('OAR-03 live alternate output consumers without read-shaped trust', () 
   );
 
   it('dedicated post-save invalid facts report 400 without rollback, empty-output disguise or duplicate save', async () => {
-    const f = fixture('trusted'),
+    const f = fixture('trusted', { createAuthorizationMode: 'trusted', updateAuthorizationMode: 'trusted' }),
       doc = new f.Source({ ...f.rows[0], children: [{ _id: 'child', value: 'original' }] });
     const save = vi.spyOn(doc, 'save').mockResolvedValue(doc);
     f.adapter.findOne.mockResolvedValue(doc as never);

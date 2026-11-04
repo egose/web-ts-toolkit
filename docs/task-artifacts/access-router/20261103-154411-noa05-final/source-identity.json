@@ -1,0 +1,53 @@
+{
+  "head": "c25b0e7a2341d17f764cf183160d61b8470fb9fb",
+  "worktree": "HEAD plus shared uncommitted implementation and sequential F1/F2 remediation; HEAD alone is not the reviewed source identity",
+  "node": "v26.12.1",
+  "pnpm": "11.18.0",
+  "vitest": "4.1.11",
+  "scope": "All 2208 pre-existing tracked and non-ignored untracked regular files from git ls-files -z plus git ls-files --others --exclude-standard -z, sorted unique; includes apps, docs, task and earlier artifacts. Ignored generated outputs/scratch and the subsequently added final bundle are outside the initial snapshot.",
+  "fileHash": "SHA-256 of file bytes",
+  "aggregateHash": "SHA-256 of Python json.dumps(pathToFileHash, sort_keys=True).encode() using default separators",
+  "watchedFiles": 2208,
+  "beforeDigest": "63fbe06ea616936353dcf88db73f43330902024e432d51a1d98fd665659c0630",
+  "afterDigest": "63fbe06ea616936353dcf88db73f43330902024e432d51a1d98fd665659c0630",
+  "initialAttemptDigest": "63fbe06ea616936353dcf88db73f43330902024e432d51a1d98fd665659c0630",
+  "changedOrRemoved": [],
+  "addedDuringGates": [],
+  "comparablePriorSourceScope": {
+    "files": 1744,
+    "correctedDigest": "03d82fde3cd57f5c4ff50577ab5b9eff8cde04a594d25d991a80d6d3881c4a1f",
+    "priorReviewDigest": "f9d338fd5fbeca58651922972a88cf905df1ed8e37bbd87e190054ee7601e978",
+    "onlyFourDocumentedFilesDiffer": true
+  },
+  "selectedFileHashes": {
+    "package.json": "553dad149cfb4cdb857f1e33da65de6085ba61c4fed964546638f76e99a0f056",
+    "pnpm-lock.yaml": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "pnpm-workspace.yaml": "1692f75b1a4f4b4d22ce74685ec246976cc581dd3b56d75bade732f3e7316141",
+    "packages/access-router/src/routers/model-router.ts": "fc9b9b48353826f6cd38285febd808e2e5261e792bc2119765113570fd6cd3cc",
+    "packages/access-router/src/runtime.ts": "d08208c25aa1b8c7ffd847e2baa7b9281e278a3690ac31ed29852b729eba3f17",
+    "packages/access-router/test/nested-operation-access-admission.contract.test.ts": "ab7505d78b7c4dc83f6e43d00553b72d0a207ac179f1c8a1db2d8081b3039af8",
+    "packages/access-router-client/test/access-router-client.packed-consumer.test.ts": "435df0527929a1d1baf7182bc1535964274d1b2e65d40ea5fb0778282c1d8de5",
+    "docs/tasks/20261103-082614-access-router-nested-operation-access.md": "26618da40b59ed8d163fc67c95e6f2f4cedb986c8d083f630505825b4883bd73",
+    "docs/task-artifacts/access-router/20261103-152713-noa01-f1/handoff.md": "3cd16861bf9f3c5250d935659ce3518037f4c6c3965a54746ad05eeb07a0f524",
+    "docs/task-artifacts/access-router/20261103-153840-noa05-f2/handoff.md": "9e37f12598fc6dd05b6957d8968e9e4c288c190ab230184b71fc15ae9bffcc47"
+  },
+  "historicalBundle": {
+    "directory": "docs/task-artifacts/access-router/20261103-142416-noa05-independent-review",
+    "unchanged": true,
+    "fileSha256": {
+      "README.md": "7f42b4ce5e6eea4b1314490a7091c45b85f762a4a50689ff7b30c7209bddf980",
+      "admission-order-probe.mjs": "4d23acb66d7479ed2d863beabe1d51f89bc5779e4dc911128382a0389f6fdafd",
+      "admission-order-result.json": "d06271dd531681bdc3cf08f7c59cc9f168cfd40134def61249d7753ad7691308",
+      "gate-results.json": "8051a88a6517d77c937482db48040bef67ed7b8d0412bc4fbe624cde38775c12",
+      "migration-preservation.json": "92987d020d606e7568379d56b7828fe41c3791a8b62cc0fb9588e1d2f0a58f43",
+      "provenance.json": "ad1e921bc99c2ba92396b622d5dd21a91028e331970838bc6db714782a3b8084",
+      "regression-ledger.json": "e6c85ac2cd114e556b6740bf6fc9bd42170c31cec506111b37c40dae087cb8d0",
+      "review.md": "53a698984703032530953fe2cbb1b68df379386f69203b5e3f716124011776c0",
+      "root-test-failure.txt": "38962eabc55ac47a8bad5f97a9a825cc4f6b77ef4b6b70a44bb907c7cbfa6064",
+      "root-test-summary.json": "b493f3f7de6bbc22989fefda0cca404210b356191443b44547cad8f21d6fec0f",
+      "source-identity.json": "c923074ed55c2d51dfa36968348fc06332b5643b4ba6efde616b7f5dc465e0cb",
+      "v1-summary.json": "c58248844836450bc8d14424245d7c3445906cffd10ca88fd03d5a4e5c484045"
+    }
+  },
+  "limitation": "Full manifests/source snapshot are omitted. These are observed content identities, not external attestations or an independently reconstructable snapshot. No clean-HEAD command baseline was run. Final bundle additions are distinct from the unchanged pre-existing files."
+}

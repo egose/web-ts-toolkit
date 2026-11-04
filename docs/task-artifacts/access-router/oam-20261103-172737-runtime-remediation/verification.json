@@ -1,0 +1,142 @@
+{
+  "owner": "IMPLEMENT-03",
+  "task": "OAM-03 F1/F2 remediation",
+  "dateUtc": "2026-11-04",
+  "disposition": {
+    "F1/P1": "resolved in delivered source; independent rerun pending",
+    "F2/P2": "resolved in delivered source; independent rerun pending",
+    "wholeFeatureAcceptance": "blocked pending original OAM-04 revalidation and OAM-05 independent review/V3"
+  },
+  "sourceState": {
+    "head": "c68451e40b99ca545dc52a46c287b32949980d26",
+    "uncommittedOamWorkPreserved": true,
+    "incomingProductionMatchesReview05RecordedInputs": true,
+    "incomingSnapshotFiles": 51,
+    "protectedIncomingFilesUnchanged": 48,
+    "unexpectedIncomingChanges": [],
+    "coordinatorTaskAndHistoricalEvidenceUnchanged": true,
+    "reviewedProductionSha256": {
+      "packages/access-router/src/acl/service-authorization.ts": "93878c13ba8570ee39d075c10ce8f89573d0a96bdf2458d70584dedb128e2a25",
+      "packages/access-router/src/acl/document-stage.ts": "0a07f22b5e770a5938c6efa29de2790b084871201ebc419ec14ae5812ac591b8",
+      "packages/access-router/src/services/service.ts": "866f6602bf6557f79f5a98bcea419671d83e2cd82eab6917ce7afbfc53a92fc9"
+    },
+    "deliveredCodeAndTestsSha256": {
+      "packages/access-router/src/acl/service-authorization.ts": "ed88e15e31e5919c7057c8a90fe6a3712057a0063698ed154c54da1f86e5235f",
+      "packages/access-router/src/acl/document-stage.ts": "a23fb83ab40c9866fc281fc3bf5460d95ffb8952d8e16e82d92eb31fc98e582c",
+      "packages/access-router/src/services/service.ts": "b40fc334c3500bf85a950be3b96d60240da59376f4f1c3f3cecec02c19321a14",
+      "packages/access-router/test/write-output-origin-ownership.unit.test.ts": "2e7f1cc693e0e48fdd14ec982116ed61c8228844a8ed36c49412142e9abfa3bf",
+      "packages/access-router/test/write-output-source-lifetime.unit.test.ts": "902c7aaf0e7a45b78447aca41452efa79c682ac7d78e9cc409700459ec252e2f"
+    }
+  },
+  "environment": {
+    "node": "v26.12.1",
+    "pnpm": "11.18.0",
+    "vitest": "4.1.11",
+    "commandWorkdir": ".",
+    "vitestEffectiveWorkdir": "packages/access-router",
+    "scratch": "_tmp-oam03-remediation-20261104-062659",
+    "scratchConfirmedIgnored": true,
+    "runtimeTmpdir": "absolute checkout path of scratch; README uses quoted <repo-root> placeholder",
+    "buildTestTypecheckCommandsSerialized": true,
+    "dependenciesAlreadyInstalled": true,
+    "mongodbTestPrerequisitesAvailable": true,
+    "installRun": false
+  },
+  "verification": {
+    "reviewedSourceTransitiveBuild": {
+      "command": "pnpm --workspace-concurrency=1 --filter @web-ts-toolkit/access-router... build",
+      "exitCode": 0
+    },
+    "beforeFixMaintainedRegressions": {
+      "inputState": "initial maintained suites before production edits, before subsequent extra guards and formatting",
+      "command": "pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/write-output-origin-ownership.unit.test.ts test/write-output-source-lifetime.unit.test.ts --reporter=default --reporter=json --outputFile.json=../../_tmp-oam03-remediation-20261104-062659/before-initial.json",
+      "exitCode": 1,
+      "files": 2,
+      "tests": 30,
+      "failed": 30,
+      "passed": 0,
+      "pending": 0,
+      "F1CasesFailed": 14,
+      "F2CasesFailed": 16,
+      "fixtureOrSetupFailure": false,
+      "observations": [
+        "Inherited value/accessor marks generic/custom/dedicated parent and target as write output.",
+        "Real target hook changes admitted source value to hook-change and Date time to 9; required original and 1.",
+        "Held ordinary real CREATE/UPDATE root recovers original instead of held source after publication closes.",
+        "Held populated descendant recovers raw target after close, including collection owners.",
+        "Shared normalized source overwrites another call's original; closing one invalidates active sibling root."
+      ]
+    },
+    "firstFixedSourceMaintainedRegressions": {
+      "exitCode": 0,
+      "files": 2,
+      "tests": 30,
+      "passed": 30,
+      "failed": 0,
+      "pending": 0,
+      "supersededByFinalV1": true
+    },
+    "expandedMaintainedRegressions": {
+      "exitCode": 0,
+      "files": 2,
+      "tests": 39,
+      "passed": 39,
+      "failed": 0,
+      "pending": 0,
+      "extraCasesNotClaimedAsInitialBeforeFixRun": 9,
+      "supersededByFinalV1": true
+    },
+    "deliveredTransitiveBuild": {
+      "command": "pnpm --workspace-concurrency=1 --filter @web-ts-toolkit/access-router... build",
+      "exitCode": 0
+    },
+    "deliveredSourceTypecheck": {
+      "command": "pnpm --filter @web-ts-toolkit/access-router exec tsc --noEmit -p tsconfig.typecheck.json",
+      "exitCode": 0
+    },
+    "finalV1": {
+      "exactCommandAndSelection": "README.md: Verification actually run",
+      "report": "_tmp-oam03-remediation-20261104-062659/v1-remediated.json",
+      "exitCode": 0,
+      "files": 47,
+      "tests": 2521,
+      "passed": 2521,
+      "failed": 0,
+      "pending": 0,
+      "previousV1FilesIncluded": 36,
+      "previousV1TestsIncluded": 2216,
+      "newRegressionFiles": 2,
+      "newRegressionTests": 39,
+      "additionalExistingFiles": 9,
+      "additionalExistingTests": 266,
+      "freshAssertionListsInspected": true
+    },
+    "scopedEslint": { "files": 5, "exitCode": 0 },
+    "scopedCodePrettier": { "files": 5, "exitCode": 0 },
+    "runtimeSurface": {
+      "conditions": ["import", "require"],
+      "rootExports": 46,
+      "advancedExports": 48,
+      "processorsExports": 6,
+      "testedPrivateNames": [
+        "getQueryOutputOriginal",
+        "getQueryReferenceOriginal",
+        "prepareQueryOutputSource",
+        "resolveWriteServiceAuthorization",
+        "deriveWriteOutputAuthorization",
+        "createWriteServiceExecution",
+        "deriveWriteOutputExecution",
+        "isWriteOutputAuthorization"
+      ],
+      "privateNamesExposed": [],
+      "packedOrDeclarationConsumerCheck": false
+    }
+  },
+  "limitations": [
+    "Whole V2 and V3 are not run in this remediation; original OAM-04 and independent OAM-05 retain those gates.",
+    "Root tests have a separately recorded unavailable Docker Desktop/Redis prerequisite; no workaround attempted.",
+    "No performance, retained-heap, request-only exploit, rollback or universal callback-isolation claim.",
+    "Raw logs/assertion JSON, initial test/source snapshots, dependencies, caches and generated artifacts are not archived.",
+    "Curated counts and source hashes identify observed inputs; this is not a self-contained before-fix replay bundle."
+  ]
+}

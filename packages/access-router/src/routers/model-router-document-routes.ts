@@ -396,7 +396,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   });
 
   router.delete(`/:${options.idParam}`, async (req: ModelRequest) => {
-    await context.assertAllowed(req, 'delete');
+    await context.assertAllowed(req, 'delete', 'basic');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const svc = context.getPublicService(req);

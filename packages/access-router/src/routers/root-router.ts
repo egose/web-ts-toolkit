@@ -221,23 +221,23 @@ export class RootRouter {
 
   private async isAllowed(req: RootRequest, item: RootQueryEntry) {
     if (item.target === 'data') {
-      return req.dacl.isAllowed(item.name, item.op);
+      return req.dacl.isAllowedRoute(item.name, item.op, 'root');
     }
 
     switch (item.op) {
       case 'subList':
-        return req.macl.isAllowed(item.name, `subs.${item.sub}.list`);
+        return req.macl.isAllowedRoute(item.name, `subs.${item.sub}.list`, 'root');
       case 'subRead':
-        return req.macl.isAllowed(item.name, `subs.${item.sub}.read`);
+        return req.macl.isAllowedRoute(item.name, `subs.${item.sub}.read`, 'root');
       case 'subCreate':
-        return req.macl.isAllowed(item.name, `subs.${item.sub}.create`);
+        return req.macl.isAllowedRoute(item.name, `subs.${item.sub}.create`, 'root');
       case 'subUpdate':
       case 'subBulkUpdate':
-        return req.macl.isAllowed(item.name, `subs.${item.sub}.update`);
+        return req.macl.isAllowedRoute(item.name, `subs.${item.sub}.update`, 'root');
       case 'subDelete':
-        return req.macl.isAllowed(item.name, `subs.${item.sub}.delete`);
+        return req.macl.isAllowedRoute(item.name, `subs.${item.sub}.delete`, 'root');
       default:
-        return req.macl.isAllowed(item.name, item.op);
+        return req.macl.isAllowedRoute(item.name, item.op, 'root');
     }
   }
 

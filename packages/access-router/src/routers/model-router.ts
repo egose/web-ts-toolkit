@@ -14,7 +14,9 @@ import {
   ModelVirtualLeaf,
   ModelVirtualRecordAccess,
   RouteVariant,
+  OperationAccessSetter,
 } from '../interfaces';
+import { assertOperationAccessOptions } from '../operation-access';
 import { logInfoMessage } from '../logger-helpers';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
@@ -94,6 +96,7 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
     runtime: AccessRuntime = defaultRuntime,
   ): ModelRouter<TModel, TVirtuals> {
     assertAuthorizationModeOptions(initialOptions, true);
+    assertOperationAccessOptions(initialOptions);
     assertNoServerModelControls(
       initialOptions,
       (detail) => {
@@ -128,15 +131,12 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
     return req.macl.getPublicService<TModel, TVirtuals>(this.modelName);
   }
 
-  private async assertAllowed(req: ModelRequest, baseAccess: string, variant?: RouteVariant) {
+  private async assertAllowed(req: ModelRequest, baseAccess: string, variant: RouteVariant) {
     assertPublicAdmission(req.query);
     const operation = baseAccess.split('.').at(-1);
     const businessBody = variant !== 'advanced' && ['create', 'update', 'upsert'].includes(operation!);
     assertPublicAdmission(req.body, businessBody ? 'data' : 'envelope');
-    const allowed =
-      variant === undefined
-        ? await req.macl.isAllowed(this.modelName, baseAccess)
-        : await req.macl.isAllowedRoute(this.modelName, baseAccess, variant);
+    const allowed = await req.macl.isAllowedRoute(this.modelName, baseAccess, variant);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
 
@@ -202,7 +202,7 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
 
   /**
    * Update live behavior with a typed key/path or an options object. Dotted paths
-   * such as `operationAccess.basicRead` update one key; object assignment replaces
+   * such as `operationAccess.read.basic` update one key; object assignment replaces
    * supplied top-level values shallowly. The construction-time options snapshot stays fixed.
    */
   set<K extends Extract<keyof TVirtuals, string> & string, A extends ModelVirtualRecordAccess>(
@@ -245,7 +245,7 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
     return this;
   }
 
-  /** Set one live option/path; `setOption('operationAccess.basicRead', undefined)` restores inheritance. */
+  /** Set one live option/path; `setOption('operationAccess.read.basic', undefined)` restores fallback. */
   setOption<K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>>(
     key: K,
     option: ExtendedModelRouterOptions<TModel, TVirtuals>[K],
@@ -375,17 +375,25 @@ export class ModelRouter<TModel = unknown, TVirtuals extends object = Record<nev
   };
 
   /**
-   * Configure live base and basic/advanced route guards. Only undefined inherits;
+   * Configure live scalar/default and independent basic/advanced/root entry guards. Only undefined inherits;
    * selected false denies with HTTP 401 without removing routes or OpenAPI entries.
-   * `operationAccess('basicRead', false)` updates one key, and
-   * `operationAccess('subs.comments.basicRead', false)` updates a field-specific key.
+   * `operationAccess('read.basic', false)` updates one member, and
+   * `operationAccess('subs.comments.read.basic', false)` updates a field-specific member.
    * `operationAccess({ list: true, read: true })` replaces the whole rule object,
-   * not a deep merge. Use setOption with undefined to restore variant inheritance.
+   * not a deep merge. Two-argument member setters accept undefined to restore fallback.
+   * Updating beneath a scalar starts an object; retain the old guard in operation.default.
    */
-  public operationAccess: SetTargetOption<
-    ModelRouter<TModel, TVirtuals>,
-    ModelRouterOptions<TModel, TVirtuals>['operationAccess']
-  > = setOption.bind(this, 'operationAccess');
+  public operationAccess: OperationAccessSetter<ModelRouter<TModel, TVirtuals>> = (
+    ...args: [ModelRouterOptions<TModel, TVirtuals>['operationAccess']] | [string, unknown]
+  ) => {
+    const key = args.length === 2 ? `operationAccess.${args[0]}` : 'operationAccess';
+    this.runtime.setModelOption(
+      this.modelName,
+      key as keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
+      (args.length === 2 ? args[1] : args[0]) as never,
+    );
+    return this;
+  };
 
   /**
    * The base filter definitions applied in every query transaction.

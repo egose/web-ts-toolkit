@@ -254,40 +254,47 @@ describe('document-permission private dependencies', () => {
     expect(f.projections[1]).not.toHaveProperty('ownerId');
   });
 
-  it('keeps independent pre/post-update stages on the captured update descriptor, not output read', async () => {
-    const stages: unknown[] = [];
-    const read = vi.fn(() => ({ owner: false }));
-    const replacement = vi.fn(() => ({ owner: false }));
-    let f!: Awaited<ReturnType<typeof fixture>>;
-    const update = vi.fn(async function (this: ModelRequest, doc: any, _permissions: unknown, context: any) {
-      expect(this.macl).toBeDefined();
-      expect(context).toMatchObject({ operation: 'update', docPermissionsAccess: 'update', outputAccess: 'read' });
-      stages.push([doc.name, doc.ownerId]);
-      if (stages.length === 1)
-        f.api.setModelOption(f.modelName, 'docPermissions.update', { get: replacement, dependsOn: ['readInput'] });
-      return { owner: doc.ownerId === 'alice' };
-    });
-    f = await fixture({
-      docPermissions: {
-        read: { get: read, dependsOn: ['readInput'] },
-        update: { get: update, dependsOn: ['ownerId'] },
-      },
-    });
-    await f.execute(async (req) => {
-      const output = await req.macl
-        .getService(f.modelName)
-        .updateOne({}, { name: 'after' }, { select: ['name'] }, quiet);
-      expect(output).toMatchObject({ success: true, data: { name: 'after' } });
-      if (output.success) expect(output.data).not.toHaveProperty('ownerId');
-    });
-    expect(stages).toEqual([
-      ['before', 'alice'],
-      ['after', 'alice'],
-    ]);
-    expect(update).toHaveBeenCalledTimes(2);
-    expect(read).not.toHaveBeenCalled();
-    expect(replacement).not.toHaveBeenCalled();
-  });
+  it.each(['isolated', 'trusted'] as const)(
+    'keeps independent pre/post-update stages on the captured update descriptor, not output read (%s)',
+    async (mode) => {
+      const stages: unknown[] = [];
+      const read = vi.fn(() => ({ owner: false }));
+      const replacement = vi.fn(() => ({ owner: false }));
+      let f!: Awaited<ReturnType<typeof fixture>>;
+      const update = vi.fn(async function (this: ModelRequest, doc: any, _permissions: unknown, context: any) {
+        expect(this.macl).toBeDefined();
+        expect(context).toMatchObject({ operation: 'update', docPermissionsAccess: 'update', outputAccess: 'read' });
+        stages.push([doc.name, doc.ownerId]);
+        if (stages.length === 1)
+          f.api.setModelOption(f.modelName, 'docPermissions.update', { get: replacement, dependsOn: ['readInput'] });
+        return { owner: doc.ownerId === 'alice' };
+      });
+      f = await fixture({
+        readAuthorizationMode: 'trusted',
+        listAuthorizationMode: 'trusted',
+        createAuthorizationMode: mode,
+        updateAuthorizationMode: mode,
+        docPermissions: {
+          read: { get: read, dependsOn: ['readInput'] },
+          update: { get: update, dependsOn: ['ownerId'] },
+        },
+      });
+      await f.execute(async (req) => {
+        const output = await req.macl
+          .getService(f.modelName)
+          .updateOne({}, { name: 'after' }, { select: ['name'] }, quiet);
+        expect(output).toMatchObject({ success: true, data: { name: 'after' } });
+        if (output.success) expect(output.data).not.toHaveProperty('ownerId');
+      });
+      expect(stages).toEqual([
+        ['before', 'alice'],
+        ['after', 'alice'],
+      ]);
+      expect(update).toHaveBeenCalledTimes(2);
+      expect(read).not.toHaveBeenCalled();
+      expect(replacement).not.toHaveBeenCalled();
+    },
+  );
 
   it('dedicated subdocuments compute read facts once from the raw owning parent', async () => {
     const hook = vi.fn((doc: any, _permissions: unknown, context: any) => {
@@ -309,24 +316,31 @@ describe('document-permission private dependencies', () => {
     expect(hook).toHaveBeenCalledTimes(1);
   });
 
-  it('create output resolves its own descriptor without borrowing the read definition', async () => {
-    const create = vi.fn((doc: any) => ({ owner: doc.ownerId === 'alice' }));
-    const read = vi.fn(() => ({ owner: false }));
-    const f = await fixture({
-      prepare: { create: (data: any) => ({ ...data, ownerId: 'alice' }) },
-      docPermissions: {
-        create: { get: create, dependsOn: ['ownerId'] },
-        read: { get: read, dependsOn: ['readInput'] },
-      },
-    });
-    await f.execute(async (req) => {
-      const output = await req.macl.getService(f.modelName).create({ name: 'created' }, { select: ['name'] }, quiet);
-      expect(output).toMatchObject({ success: true, data: [{ name: 'created' }] });
-      if (output.success) expect(output.data[0]).not.toHaveProperty('ownerId');
-    });
-    expect(create).toHaveBeenCalledTimes(1);
-    expect(read).not.toHaveBeenCalled();
-  });
+  it.each(['isolated', 'trusted'] as const)(
+    'create output resolves its own descriptor without borrowing the read definition (%s)',
+    async (mode) => {
+      const create = vi.fn((doc: any) => ({ owner: doc.ownerId === 'alice' }));
+      const read = vi.fn(() => ({ owner: false }));
+      const f = await fixture({
+        readAuthorizationMode: 'trusted',
+        listAuthorizationMode: 'trusted',
+        createAuthorizationMode: mode,
+        updateAuthorizationMode: mode,
+        prepare: { create: (data: any) => ({ ...data, ownerId: 'alice' }) },
+        docPermissions: {
+          create: { get: create, dependsOn: ['ownerId'] },
+          read: { get: read, dependsOn: ['readInput'] },
+        },
+      });
+      await f.execute(async (req) => {
+        const output = await req.macl.getService(f.modelName).create({ name: 'created' }, { select: ['name'] }, quiet);
+        expect(output).toMatchObject({ success: true, data: [{ name: 'created' }] });
+        if (output.success) expect(output.data[0]).not.toHaveProperty('ownerId');
+      });
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(read).not.toHaveBeenCalled();
+    },
+  );
 
   it('dedicated subdocument writes use independent owning-parent update/read definitions', async () => {
     const stages: string[] = [];

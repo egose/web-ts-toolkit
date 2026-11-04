@@ -23,10 +23,9 @@ const modelRouter = acl.createRouter('User', { basePath: '/users' });
 const dataRouter = acl.createDataRouter('fruit', { basePath: '/fruit', data: [] });
 const rootRouter = acl.createRouter({ basePath: '/batch', operationAccess: true });
 
-const typedRouter = acl.createRouter(
-  mongoose.model('User', new mongoose.Schema({ name: String })),
-  { basePath: '/users' },
-);
+const typedRouter = acl.createRouter(mongoose.model('User', new mongoose.Schema({ name: String })), {
+  basePath: '/users',
+});
 ```
 
 `createAccessRuntime()` returns a fresh `acl` instance with isolated runtime state.
@@ -55,22 +54,26 @@ app.use(acl.combineRoutes(fruitRouter, userRouter, rootRouter));
 
 Default route segments are `__query` and `__mutation`.
 
-| Base guard | Basic endpoint → override | Advanced endpoint → override |
-| --- | --- | --- |
-| `list` | `GET /base` → `basicList` | `POST /base/__query` → `advancedList` |
-| `read` | `GET /base/:id` → `basicRead` | `POST /base/__query/:id`, `POST /base/__query/__filter` → `advancedRead` |
-| `create` | `POST /base` → `basicCreate` | `POST /base/__mutation` → `advancedCreate` |
-| `update` | `PATCH /base/:id` → `basicUpdate` | `PATCH /base/__mutation/:id` → `advancedUpdate` |
-| `upsert` | `PUT /base` → `basicUpsert` | `PUT /base/__mutation` → `advancedUpsert` |
-| `count` | `GET /base/count` → `basicCount` | `POST /base/count` → `advancedCount` |
-| `distinct` | `GET /base/distinct/:field` → `basicDistinct` | `POST /base/distinct/:field` → `advancedDistinct` |
+| Base guard | Basic endpoint → override                      | Advanced endpoint → override                                              |
+| ---------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `list`     | `GET /base` → `list.basic`                     | `POST /base/__query` → `list.advanced`                                    |
+| `read`     | `GET /base/:id` → `read.basic`                 | `POST /base/__query/:id`, `POST /base/__query/__filter` → `read.advanced` |
+| `create`   | `POST /base` → `create.basic`                  | `POST /base/__mutation` → `create.advanced`                               |
+| `update`   | `PATCH /base/:id` → `update.basic`             | `PATCH /base/__mutation/:id` → `update.advanced`                          |
+| `upsert`   | `PUT /base` → `upsert.basic`                   | `PUT /base/__mutation` → `upsert.advanced`                                |
+| `count`    | `GET /base/count` → `count.basic`              | `POST /base/count` → `count.advanced`                                     |
+| `distinct` | `GET /base/distinct/:field` → `distinct.basic` | `POST /base/distinct/:field` → `distinct.advanced`                        |
 
-`GET /base/new` and `DELETE /base/:id` keep unpaired `new` and `delete` guards.
+`GET /base/new` and `DELETE /base/:id` select `new.basic` and `delete.basic`.
+Their root counterparts select `root`; an advanced member does not add an endpoint.
 Filtered count/distinct POSTs are advanced even without an advanced path segment.
 Custom `idParam`, `queryRouteSegment`, and `mutationRouteSegment` change the paths,
 not the guard names.
 
-An exact variant replaces its base guard; only undefined inherits. Denials return
+An exact context member replaces its operation scalar/default; only undefined inherits,
+then outer default/shorthand, then deny. Same-owner runtime exact context defaults
+precede fallback. Context is explicit server-owned metadata, never inferred from POST.
+Denials return
 **HTTP 401 Unauthorized** before validation/service dispatch. All endpoints remain
 registered in `router.router.getEndpoints()` and OpenAPI. HEAD fallback uses its
 corresponding GET's basic guard. See [Configuration](./configuration#operation-access)
@@ -84,16 +87,16 @@ import acl from '@web-ts-toolkit/access-router';
 // User is already registered with the default runtime.
 const router = acl.createRouter('User', {
   basePath: '/users',
-  operationAccess: { list: true, read: true, basicRead: false },
+  operationAccess: { list: true, read: { default: true, basic: false } },
   permissionSchema: { name: true },
 });
-router.operationAccess('basicRead', false); // Live key update.
+router.operationAccess('read.basic', false); // Live member update.
 ```
 
 Among top-level model routes, this denies GET/HEAD `/users/:id` only. Both advanced reads and GET `/users` remain
 allowed, subject to ordinary field/row policy; new/count/distinct/mutation guards
 are unaffected. Subdocument reads use the documented field fallback. With
-`{ list: true, advancedList: false }`, only POST
+`{ list: { default: true, advanced: false } }`, only POST
 `/users/__query` is denied among the list pair.
 
 Basic model list GETs accept `select` and `sort` query params, for example
@@ -108,16 +111,19 @@ Sub-document routes are generated for every referenced subpath discovered on the
 
 For each subdocument path `sub`, these routes are added:
 
-| Base guard | Basic endpoint → override | Advanced endpoint → override |
-| --- | --- | --- |
-| `subs.<sub>.list` | `GET /base/:id/<sub>` → `subs.<sub>.basicList` | `POST /base/:id/<sub>/__query` → `subs.<sub>.advancedList` |
-| `subs.<sub>.read` | `GET /base/:id/<sub>/:subId` → `subs.<sub>.basicRead` | `POST /base/:id/<sub>/:subId/__query` → `subs.<sub>.advancedRead` |
+| Base guard        | Basic endpoint → override                              | Advanced endpoint → override                                       |
+| ----------------- | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| `subs.<sub>.list` | `GET /base/:id/<sub>` → `subs.<sub>.list.basic`        | `POST /base/:id/<sub>/__query` → `subs.<sub>.list.advanced`        |
+| `subs.<sub>.read` | `GET /base/:id/<sub>/:subId` → `subs.<sub>.read.basic` | `POST /base/:id/<sub>/:subId/__query` → `subs.<sub>.read.advanced` |
 
-Unpaired subdocument mutations retain their base guards:
+Unpaired subdocument mutations select basic:
 
-- `PATCH /base/:id/<sub>` and `PATCH /base/:id/<sub>/:subId` → `subs.<sub>.update`
-- `POST /base/:id/<sub>` → `subs.<sub>.create`
-- `DELETE /base/:id/<sub>/:subId` → `subs.<sub>.delete`
+- `PATCH /base/:id/<sub>` and `PATCH /base/:id/<sub>/:subId` → `subs.<sub>.update.basic`
+- `POST /base/:id/<sub>` → `subs.<sub>.create.basic`
+- `DELETE /base/:id/<sub>/:subId` → `subs.<sub>.delete.basic`
+
+Root sub-operations select the corresponding field operation's root member;
+`subUpdate` and `subBulkUpdate` both select `subs.<sub>.update.root`.
 
 That gives you generated list, advanced list, bulk update, read, advanced read, update, create, and delete operations for each discovered subdocument collection.
 
@@ -125,14 +131,15 @@ That gives you generated list, advanced list, bulk update, read, advanced read, 
 
 Default route segment is `__query`.
 
-| Base guard | Basic endpoint → override | Advanced endpoint → override |
-| --- | --- | --- |
-| `list` | `GET /base` → `basicList` | `POST /base/__query` → `advancedList` |
-| `read` | `GET /base/:id` → `basicRead` | `POST /base/__query/:id`, `POST /base/__query/__filter` → `advancedRead` |
+| Base guard | Basic endpoint → override      | Advanced endpoint → override                                              |
+| ---------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `list`     | `GET /base` → `list.basic`     | `POST /base/__query` → `list.advanced`                                    |
+| `read`     | `GET /base/:id` → `read.basic` | `POST /base/__query/:id`, `POST /base/__query/__filter` → `read.advanced` |
 
-These four keys use data-router options only, with no model-default inheritance.
+These nested rules use data-router options only, with no model-default inheritance.
 Set `idParam: 'id'` explicitly for the illustrated data identifier paths.
-Both advanced reads share `advancedRead`; HEAD follows the basic GET guard.
+Both advanced reads share `read.advanced`; HEAD follows the basic GET guard.
+Root list/read select `list.root`/`read.root`, never the advanced member.
 
 ## Root Router
 
@@ -178,9 +185,12 @@ validator-transformed envelopes. They are not client request features. Business 
 with those names remain valid under ordinary permissions. Use [internal services](./services#trusted-per-call-authorization)
 from server code for per-call authority; generated route guards still apply independently.
 
-Root entries retain existing base operation names and target base entry checks;
-`basicList`/`advancedRead` (and the other variants) are not valid `op` values.
-Allowing a direct variant does not override a denied root base entry. A denied
+Root entries retain existing base operation names but select target operation.root,
+then its scalar/default and applicable outer fallback. Nested member paths and
+removed flat names are not valid `op` values. Allowing a direct member does not
+override a denied root member. `{ read: { default: false, root: true } }` grants
+root read entry only; `{ read: { default: true, root: false } }` does the reverse.
+A denied
 entry has status 401 inside the HTTP 200 batch envelope. The enclosing root
 endpoint's own `operationAccess` remains a scalar guard.
 
@@ -244,8 +254,8 @@ Data router build-time options:
 
 Behavior options such as filters, hooks, permissions, and defaults can be changed later with `set(...)`, `setOption(...)`, or `setOptions(...)`.
 
-Operation variants are live behavior options. `router.operationAccess('basicRead',
-false)` updates one key. Passing an object replaces the whole `operationAccess`
+Operation members are live behavior options. `router.operationAccess('read.basic',
+false)` updates one member (undefined restores fallback). Passing an object replaces the whole `operationAccess`
 object shallowly, not a deep merge. `router.options` stays a frozen construction
 snapshot; read current stored values through the owning runtime's getters.
 

@@ -8,7 +8,15 @@ import type {
   OutputFieldOptions,
   ServiceAuthorization,
 } from '@web-ts-toolkit/access-router';
-import type { FindOptions, ModelRequest, Populate } from '@web-ts-toolkit/access-router/advanced';
+import type {
+  AdvancedCreateBody,
+  AdvancedUpdateBody,
+  CreateOptions,
+  FindOptions,
+  ModelRequest,
+  Populate,
+  UpdateOneOptions,
+} from '@web-ts-toolkit/access-router/advanced';
 const retired1: ModelRouterOptions = { unsafeSkipListDocumentSnapshotChecks: undefined };
 const retired2: ModelRouterOptions = { unsafeSkipReadDocumentSnapshotChecks: false };
 const retired3: ModelRouterOptions = { unsafeSkipListOutputSnapshotChecks: true };
@@ -26,6 +34,16 @@ const perCall: FindOptions = { listAuthorizationMode: 'trusted' };
 const helper: OutputFieldOptions = { readAuthorizationMode: 'trusted' };
 const policy: ServiceAuthorization = { readAuthorizationMode: 'trusted' };
 const populate: Populate = { path: 'contacts', listAuthorizationMode: 'trusted' };
+const invalidCreate: ModelRouterOptions = { createAuthorizationMode: false };
+const invalidUpdate: DefaultModelRouterOptions = { updateAuthorizationMode: 'TRUSTED' };
+const createCall: CreateOptions = { createAuthorizationMode: 'trusted' };
+const updateCall: UpdateOneOptions = { updateAuthorizationMode: 'trusted' };
+const createWire: AdvancedCreateBody = { options: { createAuthorizationMode: 'trusted' } };
+const updateWire: AdvancedUpdateBody = { options: { updateAuthorizationMode: 'trusted' } };
+const writeGlobal: GlobalOptions = { updateAuthorizationMode: 'trusted' };
+const writeHelper: OutputFieldOptions = { createAuthorizationMode: 'trusted' };
+const writePolicy: ServiceAuthorization = { updateAuthorizationMode: 'trusted' };
+const writePopulate: Populate = { path: 'contacts', createAuthorizationMode: 'trusted' };
 const rich: ModelRouterOptions = { docPermissions: () => ({ membership: { owner: true } }) };
 declare const context: ModelOutputContext;
 context.currentDocument;
@@ -48,6 +66,11 @@ req.macl.getService('Employee').defaults.publicReadOptions = { readAuthorization
 req.macl.getService('Employee').find({}, {}, { listAuthorizationMode: 'trusted' });
 req.macl.getService('Employee').findOne({}, {}, { readAuthorizationMode: 'trusted' });
 req.macl.getService('Employee').findById('employee', {}, { readAuthorizationMode: 'trusted' });
+req.macl.getService('Employee').create({}, {}, { createAuthorizationMode: 'trusted' });
+req.macl.getService('Employee').updateOne({}, {}, {}, { updateAuthorizationMode: 'trusted' });
+req.macl.getService('Employee').upsert({}, {}, {}, { createAuthorizationMode: 'trusted' });
+req.macl.getService('Employee').defaults.createOptions = { createAuthorizationMode: 'trusted' };
+req.macl.getService('Employee').defaults.updateOneOptions = { updateAuthorizationMode: 'trusted' };
 req.macl.getService('Employee').readSub('parent', 'contacts', 'child', { readAuthorizationMode: 'trusted' });
 req.macl.getService('Employee').pickAllowedFields({}, 'read', { readAuthorizationMode: 'trusted' });
 req.macl.getService('Employee').find({}, {}, { unsafeUseListAuthorizationFastPath: false });
@@ -72,6 +95,16 @@ void [
   helper,
   policy,
   populate,
+  invalidCreate,
+  invalidUpdate,
+  createCall,
+  updateCall,
+  createWire,
+  updateWire,
+  writeGlobal,
+  writeHelper,
+  writePolicy,
+  writePopulate,
   rich,
   oldHelper,
 ];

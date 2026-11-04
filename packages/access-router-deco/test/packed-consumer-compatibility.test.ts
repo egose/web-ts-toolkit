@@ -317,7 +317,11 @@ function unpackTarballToDir(tarballPath: string): string {
 }
 
 function writeConsumerFiles(consumerDir: string): void {
-  cpSync(path.join(packageRoot, 'test/hydration-consumer.types.fixture.ts'), path.join(consumerDir, 'hydration.ts'));
+  for (const extension of ['ts', 'mts', 'cts'])
+    cpSync(
+      path.join(packageRoot, 'test/hydration-consumer.types.fixture.ts'),
+      path.join(consumerDir, `hydration.${extension}`),
+    );
   const migration = readFileSync(path.join(packageRoot, 'README.md'), 'utf8')
     .split('### Server-owned hydration and migration')[1]
     ?.match(/```ts\n([\s\S]*?)\n```/)?.[1];
@@ -595,7 +599,8 @@ void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, reg
         include: [
           'consumer.nodenext.mts',
           'consumer.nodenext.cts',
-          'hydration.ts',
+          'hydration.mts',
+          'hydration.cts',
           'hydration-migration.ts',
           'populate-policy.ts',
           'owned-authorization.ts',

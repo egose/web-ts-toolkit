@@ -38,6 +38,8 @@ describe('effective default source modes in generated HTTP routes', () => {
               disableFieldPermissions: false,
               readAuthorizationMode: 'isolated',
               listAuthorizationMode: 'isolated',
+              createAuthorizationMode: 'isolated',
+              updateAuthorizationMode: 'isolated',
             }
           : {}),
       }),
@@ -53,13 +55,19 @@ describe('effective default source modes in generated HTTP routes', () => {
       disableFieldPermissions: true,
       readAuthorizationMode: 'trusted',
       listAuthorizationMode: 'trusted',
+      createAuthorizationMode: 'trusted',
+      updateAuthorizationMode: 'trusted',
     });
-    expect(warn).toHaveBeenCalledTimes(4);
+    expect(warn).toHaveBeenCalledTimes(8);
     expect(warn.mock.calls.map(([, metadata]) => metadata)).toEqual([
       { modelName: 'default-model', access: 'read', category: 'trustedAuthorizationSource' },
       { modelName: 'default-model', access: 'list', category: 'trustedAuthorizationSource' },
+      { modelName: 'default-model', access: 'create', category: 'trustedAuthorizationSource' },
+      { modelName: 'default-model', access: 'update', category: 'trustedAuthorizationSource' },
       { modelName: models[0].modelName, access: 'read', category: 'trustedAuthorizationSource' },
       { modelName: models[0].modelName, access: 'list', category: 'trustedAuthorizationSource' },
+      { modelName: models[0].modelName, access: 'create', category: 'trustedAuthorizationSource' },
+      { modelName: models[0].modelName, access: 'update', category: 'trustedAuthorizationSource' },
     ]);
     for (const key of authorizationModeKeys) {
       expect(api.getModelOptions(models[0].modelName)[key]).toBe('trusted');
@@ -101,6 +109,6 @@ describe('effective default source modes in generated HTTP routes', () => {
     const full = await request(app).get('/inherited').query(metadataQuery).expect(200);
     expect(full.body.data[0]).toMatchObject({ name: 'visible', rank: 1 });
     expect(full.body.data[0]).not.toHaveProperty('hidden');
-    expect(warn).toHaveBeenCalledTimes(4);
+    expect(warn).toHaveBeenCalledTimes(8);
   });
 });

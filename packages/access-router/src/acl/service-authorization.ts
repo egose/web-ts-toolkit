@@ -81,6 +81,8 @@ export interface AuthorizationConfiguration {
   readonly catalog: AuthorizationFieldCatalog;
   readonly readAuthorizationMode?: AuthorizationMode;
   readonly listAuthorizationMode?: AuthorizationMode;
+  readonly createAuthorizationMode?: AuthorizationMode;
+  readonly updateAuthorizationMode?: AuthorizationMode;
   /** Opaque terminal private-input capture. Never related authority or public document metadata. */
   readonly virtualPopulateSnapshot?: VirtualPopulateSnapshotToken;
   /** Held runtime model defaults, distinct from this model's resolved flags. */
@@ -168,13 +170,36 @@ interface CallRecord {
   permissions: AccessRouterPermissions;
   provenance: ResolvedServiceAuthorization;
   readonly queryOrigin?: 'read' | 'list';
+  readonly writeOrigin?: WriteOperation;
+  /** Survives target mode selection: every write-origin descendant must detach. */
+  readonly writeOutputBranch?: WriteOutputBranch;
   readonly sourceMode: AuthorizationMode;
   readonly factOrigin: 'document' | 'output-helper';
   readonly fieldPolicyOwner?: ResolvedServiceAuthorization;
   view?: ServiceAuthorizationView;
 }
+export type WriteOperation = 'create' | 'update' | 'upsert';
+export type WriteOutputBranch = 'create' | 'update';
 const calls = new WeakMap<ResolvedServiceAuthorization, CallRecord>();
 const capturedActors = new WeakSet<AccessRouterPermissions>();
+
+/** Absent provenance/lazy slots are owned data, never process-prototype input. */
+function storeCallRecord(call: ResolvedServiceAuthorization, record: CallRecord): void {
+  calls.set(
+    call,
+    Object.assign(
+      Object.create(null) as CallRecord,
+      {
+        queryOrigin: undefined,
+        writeOrigin: undefined,
+        writeOutputBranch: undefined,
+        fieldPolicyOwner: undefined,
+        view: undefined,
+      },
+      record,
+    ),
+  );
+}
 
 /** Collection settlement only. No caller-visible capability or surviving preparation. */
 export function clearOutputHelperAuthorization(call: ResolvedServiceAuthorization): void {
@@ -483,14 +508,79 @@ export interface ResolveServiceAuthorizationInput {
   };
 }
 
-function queryOutputAccess(access: AuthorizationAccess): boolean {
+function targetOutputAccess(access: AuthorizationAccess): boolean {
   return (
-    (access.operation === 'read' || access.operation === 'list') &&
     (access.rowAccess === 'read' || access.rowAccess === 'list') &&
     access.outputAccess === access.rowAccess &&
     access.virtualAccess === access.rowAccess &&
     access.docPermissionsAccess === access.rowAccess
   );
+}
+
+function queryOutputAccess(access: AuthorizationAccess): boolean {
+  return (access.operation === 'read' || access.operation === 'list') && targetOutputAccess(access);
+}
+
+/** Canonical workers, not a read-shaped tuple, select the executed write branch. */
+function writeBranchAccess(access: AuthorizationAccess, operation: WriteOperation, branch: WriteOutputBranch): boolean {
+  return (
+    access.operation === operation &&
+    access.rowAccess === (branch === 'update' ? 'update' : undefined) &&
+    access.virtualAccess === branch &&
+    access.outputAccess === 'read' &&
+    access.docPermissionsAccess === branch
+  );
+}
+
+/** Dedicated private write-entry issuer. Generic resolution never creates this origin. */
+export function resolveWriteServiceAuthorization(
+  input: ResolveServiceAuthorizationInput,
+  origin: WriteOperation,
+): ResolvedServiceAuthorization {
+  if (
+    !['create', 'update', 'upsert'].includes(origin) ||
+    input.parent ||
+    scope(input.binding).length ||
+    (origin === 'create'
+      ? input.applicability !== 'create'
+      : origin === 'update'
+        ? input.applicability !== 'mutation'
+        : input.applicability !== 'mutation' && input.applicability !== 'service') ||
+    !writeBranchAccess(input.access, origin, origin === 'create' ? 'create' : 'update')
+  )
+    authorizationError('invalid write entry origin');
+  const call = resolveServiceAuthorization(input);
+  storeCallRecord(call, { ...callRecord(call), writeOrigin: origin });
+  return call;
+}
+
+/** Shares capture, never input stages/facts. Only a genuine write-entry record can issue it. */
+export function deriveWriteOutputAuthorization(
+  parent: ResolvedServiceAuthorization,
+  binding: AuthorizationBinding,
+  branch: WriteOutputBranch,
+): ResolvedServiceAuthorization {
+  assertAuthorizationBinding(parent, binding);
+  const record = callRecord(parent);
+  if (
+    !record.writeOrigin ||
+    record.writeOutputBranch ||
+    scope(binding).length ||
+    (record.writeOrigin !== 'upsert' && record.writeOrigin !== branch) ||
+    !writeBranchAccess(record.access, record.writeOrigin, branch)
+  )
+    authorizationError('invalid write output origin/branch');
+  const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
+  storeCallRecord(call, {
+    ...record,
+    writeOrigin: undefined,
+    writeOutputBranch: branch,
+    sourceMode:
+      record.configuration[branch === 'create' ? 'createAuthorizationMode' : 'updateAuthorizationMode'] ?? 'isolated',
+    fieldPolicyOwner: undefined,
+    view: undefined,
+  });
+  return call;
 }
 
 /** Authenticate an actual embedded/target/retry edge and share only owned preparation. */
@@ -540,12 +630,12 @@ export function deriveQueryAuthorization(
     : parent.policy;
   const queryOrigin =
     edge.kind === 'related'
-      ? parent.queryOrigin && queryOutputAccess(access)
+      ? (parent.queryOrigin && queryOutputAccess(access)) || (parent.writeOutputBranch && targetOutputAccess(access))
         ? (access.rowAccess as 'read' | 'list')
         : undefined
       : parent.queryOrigin;
   const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
-  calls.set(call, {
+  storeCallRecord(call, {
     binding: Object.freeze({ ...input.binding, scopePath: Object.freeze([...scope(input.binding)]) }),
     access,
     configuration,
@@ -559,6 +649,7 @@ export function deriveQueryAuthorization(
     permissions: parent.permissions,
     provenance: parent.provenance,
     queryOrigin,
+    writeOutputBranch: parent.writeOutputBranch,
     sourceMode: edge.kind === 'related' ? modeFor(configuration, queryOrigin) : parent.sourceMode,
     factOrigin: edge.kind === 'embedded' ? parent.factOrigin : 'document',
     fieldPolicyOwner: target ? call : (parent.fieldPolicyOwner ?? input.parent),
@@ -618,8 +709,22 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
       authorizationError('derived call request/runtime mismatch');
     }
   }
+  // Only the canonical UPSERT-create derivation retains an authenticated write
+  // entry. A retry/access tuple alone cannot manufacture one.
+  const parent = input.parent ? callRecord(input.parent) : undefined;
+  const writeOrigin =
+    parent?.writeOrigin === 'upsert' &&
+    !parent.writeOutputBranch &&
+    input.snapshotDerivation?.kind === 'retry' &&
+    input.applicability === 'create' &&
+    !scope(input.binding).length &&
+    writeBranchAccess(parent.access, 'upsert', 'update') &&
+    writeBranchAccess(access, 'upsert', 'create')
+      ? 'upsert'
+      : undefined;
+  if (writeOrigin) assertAuthorizationBinding(input.parent!, input.binding);
   const call = Object.freeze(Object.create(null)) as ResolvedServiceAuthorization;
-  calls.set(call, {
+  storeCallRecord(call, {
     binding: Object.freeze({ ...input.binding, scopePath: Object.freeze(scopePath) }),
     access,
     configuration,
@@ -630,6 +735,7 @@ export function resolveServiceAuthorization(input: ResolveServiceAuthorizationIn
     permissions,
     provenance: input.parent ? callRecord(input.parent).provenance : call,
     queryOrigin,
+    writeOrigin,
     sourceMode,
     factOrigin: !input.parent && input.applicability === 'output' ? 'output-helper' : 'document',
     fieldPolicyOwner: undefined,
@@ -670,6 +776,12 @@ export function readServiceAuthorizationMode(
 ): AuthorizationMode {
   assertAuthorizationBinding(call, binding);
   return callRecord(call).sourceMode;
+}
+
+/** Private source boundary, independent of the related target's READ/LIST selector. */
+export function isWriteOutputAuthorization(call: ResolvedServiceAuthorization, binding: AuthorizationBinding): boolean {
+  assertAuthorizationBinding(call, binding);
+  return callRecord(call).writeOutputBranch !== undefined;
 }
 
 /** Private resolver provenance, never inferred from a DTO, supplied facts or a source mode. */

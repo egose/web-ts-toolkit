@@ -73,7 +73,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     });
 
     context.router.patch(`/:${context.options.idParam}/${sub}`, async (req: ModelRequest) => {
-      await context.assertAllowed(req, `subs.${sub}.update`);
+      await context.assertAllowed(req, `subs.${sub}.update`, 'basic');
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
       const data = await parseBodyWithSchema(
@@ -146,7 +146,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     });
 
     context.router.patch(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
-      await context.assertAllowed(req, `subs.${sub}.update`);
+      await context.assertAllowed(req, `subs.${sub}.update`, 'basic');
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
       const subId = parsePathParam(req.params.subId, 'subId');
@@ -172,7 +172,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     });
 
     context.router.post(`/:${context.options.idParam}/${sub}`, async (req: ModelRequest) => {
-      await context.assertAllowed(req, `subs.${sub}.create`);
+      await context.assertAllowed(req, `subs.${sub}.create`, 'basic');
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
       const data = await parseBodyWithSchema(
@@ -198,7 +198,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
     });
 
     context.router.delete(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
-      await context.assertAllowed(req, `subs.${sub}.delete`);
+      await context.assertAllowed(req, `subs.${sub}.delete`, 'basic');
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
       const subId = parsePathParam(req.params.subId, 'subId');

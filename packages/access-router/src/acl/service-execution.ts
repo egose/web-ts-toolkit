@@ -8,6 +8,8 @@ import type {
   AuthorizationRelatedTarget,
   ResolvedServiceAuthorization,
   ResolveServiceAuthorizationInput,
+  WriteOperation,
+  WriteOutputBranch,
 } from './service-authorization';
 import {
   assertAuthorizationBinding,
@@ -16,12 +18,15 @@ import {
   readServiceAuthorizationAccess,
   readServiceAuthorizationHydration,
   resolveServiceAuthorization,
+  resolveWriteServiceAuthorization,
+  deriveWriteOutputAuthorization,
   serviceAuthorizationInput,
 } from './service-authorization';
 import { authorizationError } from './authorization-snapshot';
 import type { AccessRouterPermissions } from '../permission';
 import {
   bindOutputPublication,
+  assertOutputPublication,
   createOutputPublication,
   outputPublicationFor,
   type OutputPublication,
@@ -147,6 +152,8 @@ interface ExecutionRecord extends ServiceExecutionState {
   readonly family: object;
   readonly purpose: { readonly kind: 'dto' } | { readonly kind: 'condition'; readonly condition: DocumentCondition };
   readonly outputBudget?: (row: unknown, index: number) => TrustedOutputBudget | null;
+  /** Only the dedicated root issuer creates this; ordinary constructors cannot. */
+  readonly writeOrigin?: WriteOperation;
 }
 const executions = new WeakMap<ServiceExecutionContext, ExecutionRecord>();
 
@@ -176,11 +183,68 @@ export function createServiceExecution<T, V extends object>(
   hydration: keyof ModelHydrationOptions | HydrationMode = access.operation === 'list' ? 'find' : 'findOne',
   snapshotDerivation?: ResolveServiceAuthorizationInput['snapshotDerivation'],
 ): ServiceExecutionContext {
+  return prepareServiceExecution(
+    receiver,
+    access,
+    authorization,
+    applicability,
+    relatedTargets,
+    parent,
+    configuration,
+    requestPermissions,
+    hydration,
+    snapshotDerivation,
+  );
+}
+
+/** Only real root write entries use this issuer; NEW/dedicated/helpers stay generic. */
+export function createWriteServiceExecution<T, V extends object>(
+  receiver: Service<T, V>,
+  operation: WriteOperation,
+  authorization?: unknown,
+  applicability: AuthorizationApplicability = operation === 'create' ? 'create' : 'mutation',
+  relatedTargets: readonly AuthorizationRelatedTarget[] = [],
+): ServiceExecutionContext {
+  const branch = operation === 'create' ? 'create' : 'update';
+  return prepareServiceExecution(
+    receiver,
+    {
+      operation,
+      ...(branch === 'update' ? { rowAccess: 'update' } : {}),
+      virtualAccess: branch,
+      outputAccess: 'read',
+      docPermissionsAccess: branch,
+    },
+    authorization,
+    applicability,
+    relatedTargets,
+    undefined,
+    undefined,
+    undefined,
+    'findOne',
+    undefined,
+    operation,
+  );
+}
+
+function prepareServiceExecution<T, V extends object>(
+  receiver: Service<T, V>,
+  access: AuthorizationAccess,
+  authorization: unknown,
+  applicability: AuthorizationApplicability,
+  relatedTargets: readonly AuthorizationRelatedTarget[],
+  parent: ResolvedServiceAuthorization | undefined,
+  configuration: AuthorizationConfiguration | undefined,
+  requestPermissions: AccessRouterPermissions | undefined,
+  hydration: keyof ModelHydrationOptions | HydrationMode,
+  snapshotDerivation: ResolveServiceAuthorizationInput['snapshotDerivation'],
+  writeOrigin?: WriteOperation,
+): ServiceExecutionContext {
   const registered = getServiceExecutors(receiver);
   const receiving = registered.binding();
   const binding = Object.freeze({ ...receiving, scopePath: Object.freeze([...(receiving.scopePath ?? [])]) });
   const permissions = requestPermissions ?? registered.permissions();
-  const call = resolveServiceAuthorization({
+  const input = {
     binding,
     access,
     authorization,
@@ -192,7 +256,8 @@ export function createServiceExecution<T, V extends object>(
     listResponse: access.operation === 'list' && parent === undefined,
     readResponse: access.operation === 'read' && parent === undefined,
     snapshotDerivation,
-  });
+  };
+  const call = writeOrigin ? resolveWriteServiceAuthorization(input, writeOrigin) : resolveServiceAuthorization(input);
   const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
   const publication =
     parent && snapshotDerivation?.kind === 'related' ? outputPublicationFor(parent) : createOutputPublication();
@@ -208,8 +273,34 @@ export function createServiceExecution<T, V extends object>(
       access: readServiceAuthorizationAccess(call, binding),
       family: execution,
       purpose: Object.freeze({ kind: 'dto' as const }),
+      writeOrigin,
       hydration: resolveHydration(readServiceAuthorizationHydration(call, binding), hydration),
     }),
+  );
+  return execution;
+}
+
+/** Canonical post-write workers plan against this child, but dispatch query tokens
+ * with their original input execution. No new capture, family or publication owner. */
+export function deriveWriteOutputExecution<T, V extends object>(
+  receiver: Service<T, V>,
+  parent: ServiceExecutionContext,
+  branch: WriteOutputBranch,
+): ServiceExecutionContext {
+  const record = readServiceExecution(receiver, parent);
+  if (
+    !record.writeOrigin ||
+    record.purpose.kind !== 'dto' ||
+    outputPublicationFor(record.authorization) !== record.publication
+  )
+    authorizationError('invalid write output purpose/publication');
+  assertOutputPublication(record.publication);
+  const call = deriveWriteOutputAuthorization(record.authorization, record.binding, branch);
+  bindOutputPublication(call, record.publication);
+  const execution = Object.freeze(Object.create(null)) as ServiceExecutionContext;
+  executions.set(
+    execution,
+    Object.freeze({ ...record, authorization: call, ownsPublication: false, writeOrigin: undefined }),
   );
   return execution;
 }

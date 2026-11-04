@@ -20,7 +20,7 @@ const runtimes = new Set<Api>();
 let counter = 0;
 let writeCounter = 0;
 
-const variants = [
+const retiredAccesses = [
   'basicList',
   'advancedList',
   'basicRead',
@@ -36,18 +36,37 @@ const variants = [
   'basicDistinct',
   'advancedDistinct',
 ] as const;
+const memberAccesses = ['new', 'list', 'read', 'create', 'update', 'upsert', 'delete', 'count', 'distinct'].flatMap(
+  (op) => ['default', 'basic', 'advanced', 'root'].map((member) => `${op}.${member}`),
+);
+const reservedAccesses = [
+  ...retiredAccesses,
+  ...retiredAccesses.map((access) => `subs.items.${access}`),
+  ...memberAccesses,
+  ...['list', 'read', 'create', 'update', 'delete'].flatMap((op) =>
+    ['default', 'basic', 'advanced', 'root'].map((member) => `subs.items.${op}.${member}`),
+  ),
+];
 const hiddenMetadata = { includePermissions: false, includeFieldPermissions: false };
 const baseOperations = {
-  list: true,
-  read: true,
-  create: true,
-  update: true,
-  upsert: true,
-  count: true,
-  distinct: true,
-  new: true,
-  delete: true,
-  subs: { items: { list: true, read: true, create: true, update: true, delete: true } },
+  list: { default: true },
+  read: { default: true },
+  create: { default: true },
+  update: { default: true },
+  upsert: { default: true },
+  count: { default: true },
+  distinct: { default: true },
+  new: { default: true },
+  delete: { default: true },
+  subs: {
+    items: {
+      list: { default: true },
+      read: { default: true },
+      create: { default: true },
+      update: { default: true },
+      delete: { default: true },
+    },
+  },
 };
 
 interface Item {
@@ -156,14 +175,14 @@ async function fixture(sourceOptions: ModelRouterOptions<SourceRow> = {}) {
   const leafRouter = api.createRouter(Leaf, {
     basePath: '/oav05-leaves',
     stripPermissionsField: true,
-    operationAccess: { list: true, read: true },
+    operationAccess: { list: { default: true }, read: { default: true } },
     permissionSchema: { name: true, tenant: true, privateNote: false },
     baseFilter: { read: () => ({ tenant: 'read' }), list: () => ({ tenant: 'list' }) },
   });
   const targetRouter = api.createRouter(Target, {
     basePath: '/oav05-targets',
     stripPermissionsField: true,
-    operationAccess: { list: true, read: true, count: true },
+    operationAccess: { list: { default: true }, read: { default: true }, count: { default: true } },
     permissionSchema: {
       name: true,
       key: true,
@@ -213,7 +232,7 @@ async function fixture(sourceOptions: ModelRouterOptions<SourceRow> = {}) {
   const dataRouter = api.createDataRouter(dataName, {
     basePath: '/oav05-data',
     idField: 'id',
-    operationAccess: { list: true, read: true },
+    operationAccess: { list: { default: true }, read: { default: true } },
     data: [
       { id: 'visible', name: 'data-visible', tenant: 'allowed', privateNote: 'stored-note' },
       { id: 'hidden', name: 'data-hidden', tenant: 'hidden', privateNote: 'stored-note' },
@@ -358,7 +377,7 @@ type Fixture = Awaited<ReturnType<typeof fixture>>;
 interface ModelCall {
   label: string;
   access: string;
-  variant: string;
+  entryAccess: string;
   method: Method;
   path: string;
   body: Record<string, unknown>;
@@ -375,7 +394,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'list',
       access: 'list',
-      variant: 'advancedList',
+      entryAccess: 'list.advanced',
       method: 'post',
       path: '/__query',
       body: { filter: { name: 'source-read' } },
@@ -386,7 +405,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'read-id',
       access: 'read',
-      variant: 'advancedRead',
+      entryAccess: 'read.advanced',
       method: 'post',
       path: `/__query/${id}`,
       body: {},
@@ -397,7 +416,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'read-filter',
       access: 'read',
-      variant: 'advancedRead',
+      entryAccess: 'read.advanced',
       method: 'post',
       path: '/__query/__filter',
       body: { filter: { name: 'source-read' } },
@@ -408,7 +427,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'create',
       access: 'create',
-      variant: 'advancedCreate',
+      entryAccess: 'create.advanced',
       method: 'post',
       path: '/__mutation',
       body: { data },
@@ -419,7 +438,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'update',
       access: 'update',
-      variant: 'advancedUpdate',
+      entryAccess: 'update.advanced',
       method: 'patch',
       path: `/__mutation/${id}`,
       body: { data: { name } },
@@ -430,7 +449,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'upsert-create',
       access: 'upsert',
-      variant: 'advancedUpsert',
+      entryAccess: 'upsert.advanced',
       method: 'put',
       path: '/__mutation',
       body: { data },
@@ -441,7 +460,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'upsert-update',
       access: 'upsert',
-      variant: 'advancedUpsert',
+      entryAccess: 'upsert.advanced',
       method: 'put',
       path: '/__mutation',
       body: { data: { _id: id, name } },
@@ -452,7 +471,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'count',
       access: 'count',
-      variant: 'advancedCount',
+      entryAccess: 'count.advanced',
       method: 'post',
       path: '/count',
       body: {},
@@ -462,7 +481,7 @@ function modelCalls(f: Fixture): ModelCall[] {
     {
       label: 'distinct',
       access: 'distinct',
-      variant: 'advancedDistinct',
+      entryAccess: 'distinct.advanced',
       method: 'post',
       path: '/distinct/name',
       body: {},
@@ -506,16 +525,15 @@ const policyAccesses = (observation: Record<string, Spy>) => [
 ];
 const expectBasePolicy = (f: Fixture) => {
   for (const observation of f.observations) {
-    for (const access of policyAccesses(observation)) expect(variants).not.toContain(access);
-    for (const [, access] of observation.allowed.mock.calls) expect(variants).not.toContain(access);
+    for (const access of policyAccesses(observation)) expect(reservedAccesses).not.toContain(access);
+    for (const [, access] of observation.allowed.mock.calls) expect(reservedAccesses).not.toContain(access);
   }
 };
 
 describe('OAV-05 populate input boundaries', () => {
-  it('reproduces the denied-base comparative probe without allowing an arbitrary stored advancedRead', async () => {
+  it('reproduces the denied-base comparative probe without allowing an arbitrary nested entry selector', async () => {
     const f = await fixture();
-    f.targetRouter.operationAccess('read', false);
-    f.targetRouter.operationAccess('advancedRead', true);
+    f.targetRouter.operationAccess('read', { default: false, advanced: true, root: true });
     const normal = await request(f.app)
       .post('/oav05-sources/internal/populate-plan')
       .send({ access: 'read', populate: [{ path: 'target', select: ['name'] }] })
@@ -523,7 +541,7 @@ describe('OAV-05 populate input boundaries', () => {
     expect(normal.body).toEqual([]);
     const arbitrary = await request(f.app)
       .post('/oav05-sources/internal/populate-plan')
-      .send({ access: 'advancedRead', populate: [{ path: 'target', select: ['name'] }] })
+      .send({ access: 'read.advanced', populate: [{ path: 'target', select: ['name'] }] })
       .expect(400)
       .expect('Content-Type', /application\/problem\+json/);
     expect(arbitrary.body).toMatchObject({ status: 400, title: 'Bad Request' });
@@ -532,11 +550,14 @@ describe('OAV-05 populate input boundaries', () => {
     expectBasePolicy(f);
   });
 
-  it.each(variants)(
+  it.each(reservedAccesses)(
     'rejects reserved %s in both shared option and descriptor access before any target admission',
     async (access) => {
       const f = await fixture();
-      f.targetRouter.operationAccess(access, true);
+      f.targetRouter.operationAccess({
+        default: true,
+        read: { default: true, basic: true, advanced: true, root: true },
+      });
       for (const body of [
         { access, populate: [{ path: 'target', access: 'read' }] },
         { access: 'read', populate: ['target', { path: 'target', access }] },
@@ -556,10 +577,18 @@ describe('OAV-05 populate input boundaries', () => {
       `${entry} %s rejects unsupported wire populateAccess before source/target persistence`,
       async (label) => {
         const f = await fixture();
-        f.targetRouter.operationAccess('read', false);
-        f.targetRouter.operationAccess('advancedRead', true);
+        f.targetRouter.operationAccess('read', { default: false, advanced: true, root: true });
         const call = modelCalls(f).find((candidate) => candidate.label === label)!;
-        for (const access of ['basicRead', 'advancedRead', 'trustedCustom', null, { access: 'read' }]) {
+        for (const access of [
+          'basicRead',
+          'advancedRead',
+          'read.basic',
+          'read.advanced',
+          'read.root',
+          'trustedCustom',
+          null,
+          { access: 'read' },
+        ]) {
           const options = { ...hiddenMetadata, populateAccess: access };
           const response =
             entry === 'direct'
@@ -576,12 +605,14 @@ describe('OAV-05 populate input boundaries', () => {
 
     it(`${entry} retains descriptor list/read validation for object and array populate shapes`, async () => {
       const f = await fixture();
-      for (const populate of [{ path: 'target', access: 'advancedRead' }, [{ path: 'target', access: 'basicRead' }]]) {
-        const response =
-          entry === 'direct'
-            ? await request(f.app).post('/oav05-sources/__query').send({ populate }).expect(400)
-            : await sendRoot(f, { target: 'model', name: f.sourceName, op: 'list', args: { populate } }).expect(400);
-        expect(response.body.status).toBe(400);
+      for (const access of ['advancedRead', 'basicRead', 'read.basic', 'read.advanced', 'read.root']) {
+        for (const populate of [{ path: 'target', access }, [{ path: 'target', access }]]) {
+          const response =
+            entry === 'direct'
+              ? await request(f.app).post('/oav05-sources/__query').send({ populate }).expect(400)
+              : await sendRoot(f, { target: 'model', name: f.sourceName, op: 'list', args: { populate } }).expect(400);
+          expect(response.body.status).toBe(400);
+        }
       }
       expectNoWork(f.sourceWork);
       expectNoWork(f.targetWork);
@@ -592,8 +623,8 @@ describe('OAV-05 populate input boundaries', () => {
     'keeps valid %s populate access and its existing default on direct/root requests',
     async (access) => {
       const f = await fixture();
-      f.targetRouter.operationAccess('advancedRead', false);
-      f.targetRouter.operationAccess('advancedList', false);
+      f.targetRouter.operationAccess('read', { default: true, basic: false, advanced: false, root: false });
+      f.targetRouter.operationAccess('list', { default: true, basic: false, advanced: false, root: false });
       const list = access === 'list';
       const filter = { name: list ? 'source-list' : 'source-read' };
       const options = access === 'omitted' ? undefined : { populateAccess: access };
@@ -651,9 +682,13 @@ describe('OAV-05 populate input boundaries', () => {
     expectBasePolicy(f);
   });
 
-  it.each(populateCalls)(
-    'rejects a trusted %s reserved default after omitted wire options, with root per-entry mapping',
-    async (label) => {
+  it.each(
+    populateCalls.flatMap((label) =>
+      ['advancedRead', 'read.basic', 'read.advanced', 'read.root'].map((access) => [label, access]),
+    ),
+  )(
+    'rejects a trusted %s reserved default %s after omitted wire options, with root per-entry mapping',
+    async (label, access) => {
       const f = await fixture();
       const call = modelCalls(f).find((candidate) => candidate.label === label)!;
       const defaultKey =
@@ -665,7 +700,7 @@ describe('OAV-05 populate input boundaries', () => {
               ? 'publicCreateOptions'
               : 'publicUpdateOptions';
       // Trusted JavaScript configuration can bypass the public PopulateAccess type.
-      f.sourceRouter.setOptions({ defaults: { [defaultKey]: { populateAccess: 'advancedRead' as never } } });
+      f.sourceRouter.setOptions({ defaults: { [defaultKey]: { populateAccess: access as never } } });
       await sendModel(f, call, { ...call.body, populate: ['target'], options: hiddenMetadata }).expect(400);
       const root = await sendRoot(f, { ...call.root, args: { populate: ['target'] }, options: hiddenMetadata }).expect(
         200,
@@ -747,7 +782,8 @@ describe('OAV-05 populate input boundaries', () => {
       await sendModel(f, call, { ...call.body, populate: [{ path: 'target', access: 'read' }] }).expect(400);
       expectNoWork(f.sourceWork);
       expectNoWork(f.targetWork);
-      expect(f.observations.at(-1)!.allowed.mock.calls).toEqual([[f.sourceName, 'read']]);
+      expect(f.observations.at(-1)!.routeAllowed.mock.calls).toEqual([[f.sourceName, 'read', 'advanced']]);
+      expect(f.observations.at(-1)!.allowed).not.toHaveBeenCalled();
       expectBasePolicy(f);
     },
   );
@@ -774,41 +810,41 @@ describe('OAV-05 populate input boundaries', () => {
   });
 
   for (const path of ['include-list', 'include-read', 'subquery-list', 'subquery-read'] as const) {
-    it.each(['options', 'descriptor'] as const)(
-      `${path} rejects reserved nested %s access before the queried target dispatch`,
-      async (location) => {
-        const f = await fixture();
-        // Root's array/entry wrapper adds depth; reach shared populate validation
-        // rather than the independent request-complexity guard in these probes.
-        f.api.setGlobalOption('requestComplexity', { maxDepth: 16 });
-        f.leafRouter.operationAccess('read', false);
-        f.leafRouter.operationAccess('advancedRead', true);
-        const args = { populate: [{ path: 'leaf', ...(location === 'descriptor' ? { access: 'advancedRead' } : {}) }] };
-        const options = { populateAccess: location === 'options' ? 'advancedRead' : 'read' };
-        const op = path.endsWith('list') ? 'list' : 'read';
-        const body = path.startsWith('include')
-          ? { filter: readSource, include: legacy(f, op, { args, options }) }
-          : { filter: subquery(f, op, { args, options }) };
-        const direct = await request(f.app).post('/oav05-sources/__query').send(body).expect(400);
-        const root = await sendRoot(f, {
-          target: 'model',
-          name: f.sourceName,
-          op: 'list',
-          filter: body.filter,
-          args: 'include' in body ? { include: body.include } : {},
-        }).expect(200);
-        expect(direct.body).toMatchObject({ status: 400, title: 'Bad Request' });
-        expect(root.body[0]).toMatchObject({ statusCode: 400, result: { success: false, code: 'bad_request' } });
-        expect(root.body[0].result).not.toHaveProperty('query');
-        expect(root.body[0].result).not.toHaveProperty('context');
-        expectNoWork(f.targetWork);
-        expectNoWork(f.leafWork);
-        // Retained related plans recursively validate descriptor accesses at
-        // operation entry; invalid descriptors now fail before source lookup.
-        expect(f.sourceWork.find).toHaveBeenCalledTimes(path.startsWith('include') && location === 'options' ? 2 : 0);
-        expectBasePolicy(f);
-      },
-    );
+    it.each(
+      (['options', 'descriptor'] as const).flatMap((location) =>
+        ['advancedRead', 'read.basic', 'read.advanced', 'read.root'].map((access) => [location, access]),
+      ),
+    )(`${path} rejects reserved nested %s %s access before the queried target dispatch`, async (location, access) => {
+      const f = await fixture();
+      // Root's array/entry wrapper adds depth; reach shared populate validation
+      // rather than the independent request-complexity guard in these probes.
+      f.api.setGlobalOption('requestComplexity', { maxDepth: 16 });
+      f.leafRouter.operationAccess('read', { default: false, basic: true, advanced: true, root: true });
+      const args = { populate: [{ path: 'leaf', ...(location === 'descriptor' ? { access } : {}) }] };
+      const options = { populateAccess: location === 'options' ? access : 'read' };
+      const op = path.endsWith('list') ? 'list' : 'read';
+      const body = path.startsWith('include')
+        ? { filter: readSource, include: legacy(f, op, { args, options }) }
+        : { filter: subquery(f, op, { args, options }) };
+      const direct = await request(f.app).post('/oav05-sources/__query').send(body).expect(400);
+      const root = await sendRoot(f, {
+        target: 'model',
+        name: f.sourceName,
+        op: 'list',
+        filter: body.filter,
+        args: 'include' in body ? { include: body.include } : {},
+      }).expect(200);
+      expect(direct.body).toMatchObject({ status: 400, title: 'Bad Request' });
+      expect(root.body[0]).toMatchObject({ statusCode: 400, result: { success: false, code: 'bad_request' } });
+      expect(root.body[0].result).not.toHaveProperty('query');
+      expect(root.body[0].result).not.toHaveProperty('context');
+      expectNoWork(f.targetWork);
+      expectNoWork(f.leafWork);
+      // Retained related plans recursively validate descriptor accesses at
+      // operation entry; invalid descriptors now fail before source lookup.
+      expect(f.sourceWork.find).toHaveBeenCalledTimes(path.startsWith('include') && location === 'options' ? 2 : 0);
+      expectBasePolicy(f);
+    });
   }
 
   it.each(['list', 'read'] as const)(
@@ -878,8 +914,7 @@ describe('OAV-05 populate input boundaries', () => {
       });
       const readGrants = vi.fn(() => ({}));
       const inspectionGuard = vi.fn((_permissions: unknown) => true);
-      router.operationAccess('read', false);
-      router.operationAccess('advancedRead', true);
+      router.operationAccess('read', { default: false, advanced: true, root: true });
       router.operationAccess('inspection', inspectionGuard);
       router.baseFilter('inspection', () => ({ tenant: 'read' }));
       // Trusted custom data-policy keys are intentionally outside the typed base
@@ -972,12 +1007,13 @@ describe('OAV-05 populate input boundaries', () => {
 
 describe('OAV-05 root entry and trusted service boundaries', () => {
   it.each([...populateCalls, 'count', 'distinct'])(
-    'root model %s uses its base guard despite the opposite initiating variant',
+    'root model %s selects its independent root guard and retains base row/field policy',
     async (label) => {
       const f = await fixture();
       const call = modelCalls(f).find((candidate) => candidate.label === label)!;
-      f.sourceRouter.operationAccess(call.variant, false);
-      if (call.access === 'read') f.sourceRouter.operationAccess('basicRead', false);
+      f.sourceRouter.operationAccess(call.entryAccess, false);
+      f.sourceRouter.operationAccess(`${call.access}.root`, true);
+      if (call.access === 'read') f.sourceRouter.operationAccess('read.basic', false);
       await sendModel(f, call).expect(401);
       const rootAllowed = await sendRoot(f, {
         ...call.root,
@@ -997,8 +1033,9 @@ describe('OAV-05 root entry and trusted service boundaries', () => {
         expect(await f.Source.collection.findOne({ name: data.name })).toMatchObject({ name: data.name });
       }
 
-      f.sourceRouter.operationAccess(call.access, false);
-      f.sourceRouter.operationAccess(call.variant, true);
+      f.sourceRouter.operationAccess(`${call.access}.default`, false);
+      f.sourceRouter.operationAccess(call.entryAccess, true);
+      f.sourceRouter.operationAccess(`${call.access}.root`, false);
       const allowedCall = modelCalls(f).find((candidate) => candidate.label === label)!;
       await sendModel(f, allowedCall, {
         ...allowedCall.body,
@@ -1009,19 +1046,18 @@ describe('OAV-05 root entry and trusted service boundaries', () => {
       expect(rootDenied.body[0]).toMatchObject({ statusCode: 401, result: { success: false, code: 'unauthorized' } });
       expect(workCounts(f.sourceWork)).toEqual(before);
       expect(f.observations.at(-1)!.dispatch).not.toHaveBeenCalled();
-      expect(f.observations.at(-1)!.routeAllowed).not.toHaveBeenCalled();
+      expect(f.observations.at(-1)!.routeAllowed.mock.calls).toEqual([[f.sourceName, call.access, 'root']]);
       expectBasePolicy(f);
     },
   );
 
   it.each(['list', 'read-id', 'read-filter', 'subList', 'subRead'] as const)(
-    'root %s data/sub entry retains base guard and base row/field policy',
+    'root %s data/sub entry selects root independently and retains base row/field policy',
     async (label) => {
       const f = await fixture();
       const sub = label.startsWith('sub');
       const read = label !== 'list' && label !== 'subList';
       const base = read ? 'read' : 'list';
-      const variant = read ? 'advancedRead' : 'advancedList';
       const sourceId = String(f.sourceRead._id);
       const subId = String(f.sourceRead.items[0]._id);
       const entry = sub
@@ -1037,11 +1073,17 @@ describe('OAV-05 root entry and trusted service boundaries', () => {
         : `/oav05-data/__query${read ? (label === 'read-id' ? '/visible' : '/__filter') : ''}`;
       const body = label === 'read-filter' ? { filter: { id: 'visible' } } : {};
       if (read) {
-        if (sub) f.sourceRouter.operationAccess('subs.items.basicRead', false);
-        else f.dataRouter.operationAccess('basicRead', false);
+        if (sub) f.sourceRouter.operationAccess('subs.items.read.basic', false);
+        else f.dataRouter.operationAccess('read.basic', false);
       }
-      if (sub) f.sourceRouter.operationAccess(`subs.items.${variant}`, false);
-      else f.dataRouter.operationAccess(variant, false);
+      if (sub)
+        f.sourceRouter.operationAccess(`subs.items.${base}`, {
+          default: true,
+          basic: false,
+          advanced: false,
+          root: true,
+        });
+      else f.dataRouter.operationAccess(base, { default: true, basic: false, advanced: false, root: true });
       await request(f.app).post(path).send(body).expect(401);
       const allowed = await sendRoot(f, entry).expect(200);
       expect(allowed.body[0]).toMatchObject({ statusCode: 200, result: { success: true } });
@@ -1056,11 +1098,9 @@ describe('OAV-05 root entry and trusted service boundaries', () => {
       }
 
       if (sub) {
-        f.sourceRouter.operationAccess(`subs.items.${base}`, false);
-        f.sourceRouter.operationAccess(`subs.items.${variant}`, true);
+        f.sourceRouter.operationAccess(`subs.items.${base}`, { default: false, advanced: true, root: false });
       } else {
-        f.dataRouter.operationAccess(base, false);
-        f.dataRouter.operationAccess(variant, true);
+        f.dataRouter.operationAccess(base, { default: false, advanced: true, root: false });
       }
       await request(f.app).post(path).send(body).expect(200);
       const before = workCounts(f.sourceWork);
@@ -1077,7 +1117,7 @@ describe('OAV-05 root entry and trusted service boundaries', () => {
     'root %s rejects route-only names as operations before batch dispatch',
     async (target) => {
       const f = await fixture();
-      for (const op of variants) {
+      for (const op of reservedAccesses) {
         await sendRoot(f, {
           target,
           name: target === 'model' ? f.sourceName : f.dataName,
@@ -1113,7 +1153,8 @@ describe('OAV-05 root entry and trusted service boundaries', () => {
           distinct: false,
         },
       });
-      for (const variant of variants) f.sourceRouter.operationAccess(variant, false);
+      for (const op of ['list', 'read', 'create', 'update', 'upsert', 'count', 'distinct'])
+        f.sourceRouter.operationAccess(op, { default: false, basic: false, advanced: false, root: false });
       const baseDecorate = vi.fn((doc: object) => ({ ...doc, baseDecorated: operation }));
       const decorateKey = operation === 'read-filter' ? 'read' : operation === 'upsert' ? 'create' : operation;
       if (['list', 'read', 'create', 'update'].includes(decorateKey))
@@ -1177,11 +1218,15 @@ describe('OAV-05 secondary target authorization', () => {
       `${kind} uses target base %s for denial and never dispatches the denied model`,
       async (access) => {
         const f = await fixture();
-        f.sourceRouter.operationAccess('advancedList', true);
+        f.sourceRouter.operationAccess('list.advanced', true);
         const deniedGuard = vi.fn((_permissions: unknown) => false);
         const variantGuard = vi.fn(() => true);
-        f.targetRouter.operationAccess(access, deniedGuard);
-        f.targetRouter.operationAccess(`advanced${access[0].toUpperCase()}${access.slice(1)}`, variantGuard);
+        f.targetRouter.operationAccess(access, {
+          default: deniedGuard,
+          basic: variantGuard,
+          advanced: variantGuard,
+          root: variantGuard,
+        });
         let body: Record<string, unknown>;
         let entry: Record<string, unknown>;
         let path = '/oav05-sources/__query';
@@ -1204,7 +1249,7 @@ describe('OAV-05 secondary target authorization', () => {
         } else if (kind === 'sub-populate') {
           const id = String(f.sourceRead._id);
           const subId = String(f.sourceRead.items[0]._id);
-          f.sourceRouter.operationAccess('subs.items.advancedRead', true);
+          f.sourceRouter.operationAccess('subs.items.read.advanced', true);
           path = `/oav05-sources/${id}/items/${subId}/__query`;
           body = { populate: ['target'] };
           entry = { target: 'model', name: f.sourceName, op: 'subRead', id, sub: 'items', subId, args: body };
@@ -1255,7 +1300,8 @@ describe('OAV-05 secondary target authorization', () => {
     '%s list/read/count preserve target base filters, projections, count semantics with route variants denied',
     async (kind) => {
       const f = await fixture();
-      for (const access of ['List', 'Read', 'Count']) f.targetRouter.operationAccess(`advanced${access}`, false);
+      for (const access of ['list', 'read', 'count'])
+        f.targetRouter.operationAccess(access, { default: true, basic: false, advanced: false, root: false });
       const includes = (['list', 'read', 'count'] as const).map((op) =>
         kind === 'legacy'
           ? legacy(f, op, {
@@ -1311,7 +1357,7 @@ describe('OAV-05 secondary target authorization', () => {
     'subquery %s succeeds with base grants when target route variants deny',
     async (op) => {
       const f = await fixture();
-      f.targetRouter.operationAccess(`advanced${op === 'list' ? 'List' : 'Read'}`, false);
+      f.targetRouter.operationAccess(op, { default: true, basic: false, advanced: false, root: false });
       const body = { filter: subquery(f, op) };
       const direct = await request(f.app).post('/oav05-sources/__query').send(body).expect(200);
       const root = await sendRoot(f, { target: 'model', name: f.sourceName, op: 'list', filter: body.filter }).expect(
@@ -1353,7 +1399,7 @@ describe('OAV-05 secondary target authorization', () => {
     async (op) => {
       const f = await fixture();
       f.targetRouter.baseFilter(op, () => false);
-      f.targetRouter.operationAccess(`advanced${op === 'list' ? 'List' : 'Read'}`, true);
+      f.targetRouter.operationAccess(`${op}.advanced`, true);
       const denied = await request(f.app)
         .post('/oav05-sources/__query')
         .send({ filter: subquery(f, op) })
@@ -1376,7 +1422,7 @@ describe('OAV-05 secondary target authorization', () => {
     'correlated %s retains terminal target base-filter denial despite a permitted variant',
     async (op) => {
       const f = await fixture();
-      f.targetRouter.operationAccess(`advanced${op[0].toUpperCase()}${op.slice(1)}`, true);
+      f.targetRouter.operationAccess(`${op}.advanced`, true);
       f.targetRouter.baseFilter(op, () => false);
       const include = {
         mode: 'correlated',
@@ -1403,7 +1449,7 @@ describe('OAV-05 secondary target authorization', () => {
     'legacy %s retains its hidden target-filter-denial shape with no target query',
     async (op) => {
       const f = await fixture();
-      f.targetRouter.operationAccess(`advanced${op[0].toUpperCase()}${op.slice(1)}`, true);
+      f.targetRouter.operationAccess(`${op}.advanced`, true);
       f.targetRouter.baseFilter(op, () => false);
       const include = legacy(f, op);
       const direct = await request(f.app)
@@ -1433,14 +1479,17 @@ describe('OAV-05 read retries and mutation visibility', () => {
     'both advanced reads retry only with base list=%s and use list row/field/hooks',
     async (listAllowed) => {
       const f = await fixture();
-      f.sourceRouter.operationAccess('read', false);
-      f.sourceRouter.operationAccess('advancedRead', true);
+      f.sourceRouter.operationAccess('read', { default: false, advanced: true, root: true });
       const baseList = vi.fn(() => listAllowed);
       const basicList = vi.fn(() => !listAllowed);
       const advancedList = vi.fn(() => !listAllowed);
-      f.sourceRouter.operationAccess('list', baseList);
-      f.sourceRouter.operationAccess('basicList', basicList);
-      f.sourceRouter.operationAccess('advancedList', advancedList);
+      const rootList = vi.fn(() => !listAllowed);
+      f.sourceRouter.operationAccess('list', {
+        default: baseList,
+        basic: basicList,
+        advanced: advancedList,
+        root: rootList,
+      });
       f.sourceRouter.baseFilter('read', () => ({ tenant: 'read-miss' }));
       f.sourceRouter.baseFilter('list', () => ({ tenant: 'allowed' }));
       const readDecorate = vi.fn((doc) => doc);
@@ -1464,6 +1513,7 @@ describe('OAV-05 read retries and mutation visibility', () => {
       expect(baseList).toHaveBeenCalledTimes(2);
       expect(basicList).not.toHaveBeenCalled();
       expect(advancedList).not.toHaveBeenCalled();
+      expect(rootList).not.toHaveBeenCalled();
       expect(readDecorate).not.toHaveBeenCalled();
       expect(listDecorate).toHaveBeenCalledTimes(listAllowed ? 2 : 0);
       expectBasePolicy(f);
@@ -1474,8 +1524,8 @@ describe('OAV-05 read retries and mutation visibility', () => {
     'ordinary read %s stays distinct from initiating authorization and never gains a variant retry',
     async (outcome) => {
       const f = await fixture();
-      f.sourceRouter.operationAccess('basicRead', false);
-      f.sourceRouter.operationAccess('advancedRead', true);
+      f.sourceRouter.operationAccess('read.basic', false);
+      f.sourceRouter.operationAccess('read.advanced', true);
       const listGuard = vi.fn(() => true);
       f.sourceRouter.operationAccess('list', listGuard);
       if (outcome === 'forbidden') f.sourceRouter.baseFilter('read', () => false);
@@ -1505,20 +1555,80 @@ describe('OAV-05 read retries and mutation visibility', () => {
     },
   );
 
+  it.each(
+    [false, true].flatMap((initial) =>
+      (['lean', 'hydrated'] as const).map((hydration) => [initial, hydration] as const),
+    ),
+  )('a paused write retains runtime field defaults (%s, %s), and a fresh write updates', async (initial, hydration) => {
+    const f = await fixture();
+    f.sourceRouter.setOption('hydration', { findOne: hydration, publicRead: hydration });
+    f.sourceRouter.operationAccess({ ...baseOperations, subs: { items: { create: true, update: true } } });
+    f.api.setDefaultModelOption('operationAccess.subs.items.read', {
+      default: initial,
+      basic: !initial,
+      advanced: !initial,
+      root: !initial,
+    });
+    let entered!: () => void;
+    let release!: () => void;
+    const paused = new Promise<void>((resolve) => (entered = resolve));
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let calls = 0;
+    f.sourceRouter.baseFilter('update', async () => {
+      if (++calls === 1) {
+        entered();
+        await held;
+      }
+      return { tenant: 'allowed' };
+    });
+    const path = `/oav05-sources/${f.sourceRead._id}/items/${f.sourceRead.items[0]._id}`;
+    const pending = request(f.app)
+      .patch(path)
+      .send({ value: 8 })
+      .then((response) => response);
+    await paused;
+    try {
+      f.api.setDefaultModelOption('operationAccess.subs.items.read.default', !initial);
+    } finally {
+      release();
+    }
+    const first = await pending;
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual(initial ? expect.objectContaining({ label: 'visible', value: 8 }) : null);
+    const next = await request(f.app).patch(path).send({ value: 9 }).expect(200);
+    expect(next.body).toEqual(initial ? null : expect.objectContaining({ label: 'visible', value: 9 }));
+    expect(f.sourceWork.save).toHaveBeenCalledTimes(2);
+    expect((await f.Source.collection.findOne({ _id: f.sourceRead._id }))!.items[0].value).toBe(9);
+    expectBasePolicy(f);
+  });
   for (const entry of ['direct', 'root'] as const) {
-    it.each(['visible', 'parent-read', 'sub-read', 'sub-list'] as const)(
-      `${entry} subdocument writes keep base %s visibility after one successful save`,
-      async (policy) => {
+    it.each(
+      ['visible', 'parent-read', 'sub-read', 'sub-list'].flatMap((policy) =>
+        (['lean', 'hydrated'] as const).map((hydration) => [policy, hydration] as const),
+      ),
+    )(
+      `${entry} subdocument writes keep base %s visibility (%s) after one successful save`,
+      async (policy, hydration) => {
         const f = await fixture();
-        f.sourceRouter.operationAccess('basicRead', false);
-        f.sourceRouter.operationAccess('advancedRead', true);
-        f.sourceRouter.operationAccess('subs.items.basicRead', false);
-        f.sourceRouter.operationAccess('subs.items.advancedRead', true);
-        f.sourceRouter.operationAccess('subs.items.basicList', false);
-        f.sourceRouter.operationAccess('subs.items.advancedList', true);
-        if (policy === 'parent-read') f.sourceRouter.operationAccess('read', false);
-        if (policy === 'sub-read') f.sourceRouter.operationAccess('subs.items.read', false);
-        if (policy === 'sub-list') f.sourceRouter.operationAccess('subs.items.list', false);
+        f.sourceRouter.setOption('hydration', { findOne: hydration, publicRead: hydration });
+        f.sourceRouter.operationAccess('read', {
+          default: policy !== 'parent-read',
+          basic: false,
+          advanced: true,
+          root: true,
+        });
+        f.sourceRouter.operationAccess('subs.items.read', {
+          default: policy !== 'sub-read',
+          basic: false,
+          advanced: true,
+          root: true,
+        });
+        f.sourceRouter.operationAccess('subs.items.list', {
+          default: policy !== 'sub-list',
+          basic: false,
+          advanced: true,
+          root: true,
+        });
         const id = String(f.sourceRead._id);
         const subId = String(f.sourceRead.items[0]._id);
         for (const op of ['create', 'single', 'bulk'] as const) {
@@ -1578,12 +1688,11 @@ describe('OAV-05 read retries and mutation visibility', () => {
     );
   }
 
-  it('advanced upsert persists both branches using base mutation hooks without advancedCreate/Update entry requirements', async () => {
+  it('advanced upsert persists both branches using base mutation hooks without create/update entry requirements', async () => {
     const f = await fixture();
-    f.sourceRouter.operationAccess('upsert', false);
-    f.sourceRouter.operationAccess('advancedUpsert', true);
-    for (const access of ['create', 'update', 'basicCreate', 'advancedCreate', 'basicUpdate', 'advancedUpdate']) {
-      f.sourceRouter.operationAccess(access, false);
+    f.sourceRouter.operationAccess('upsert', { default: false, advanced: true });
+    for (const access of ['create', 'update']) {
+      f.sourceRouter.operationAccess(access, { default: false, basic: false, advanced: false, root: false });
     }
     const create = vi.fn((data: object) => ({ ...data, key: 'created-by-base' }));
     const update = vi.fn((data: object) => ({ ...data, key: 'updated-by-base' }));

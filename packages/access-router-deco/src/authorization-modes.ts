@@ -14,7 +14,12 @@ const retired = new Set([
   'unsafeUseListAuthorizationFastPath',
   'unsafeUseReadAuthorizationFastPath',
 ]);
-const modes = new Set(['readAuthorizationMode', 'listAuthorizationMode']);
+const modes = new Set([
+  'readAuthorizationMode',
+  'listAuthorizationMode',
+  'createAuthorizationMode',
+  'updateAuthorizationMode',
+]);
 const defaultBuckets = [
   'findOneArgs',
   'findOneOptions',

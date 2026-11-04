@@ -984,7 +984,7 @@ describe('ARF-14 strict packed-consumer types', () => {
     expect(result.status).toBe(0);
   });
 
-  it.each(['ts', 'mts', 'cts'])('OAV-01 accepts route variants and real typed setter paths (%s)', (extension) => {
+  it.each(['ts', 'mts', 'cts'])('accepts nested operation rules and real typed setter paths (%s)', (extension) => {
     const sourceFile = `operation-access-consumer.${extension}`;
     const tsconfigPath = path.resolve(consumerDir, `tsconfig.operation-access-${extension}.json`);
     writeFileSync(
@@ -1009,24 +1009,28 @@ describe('ARF-14 strict packed-consumer types', () => {
         type ModelRouter,
         type ModelRouterOptions,
         type OperationAccess,
+        type OperationAccessContext,
+        type OperationAccessRule,
+        type OperationAccessVariants,
         type PairedRouteAccess,
         type PermissionSchema,
         type RouteBaseAccess,
         type RouteGuardAccess,
         type RouteVariant,
-        type RouteVariantAccess,
         type SubOperationAccess,
         type SubRouteGuardOptions,
         type Validation,
       } from '@web-ts-toolkit/access-router';
       import type {
         OperationAccess as AdvancedOperationAccess,
+        OperationAccessContext as AdvancedOperationAccessContext,
+        OperationAccessRule as AdvancedOperationAccessRule,
+        OperationAccessVariants as AdvancedOperationAccessVariants,
         FieldOperationAccess as AdvancedFieldOperationAccess,
         PairedRouteAccess as AdvancedPairedRouteAccess,
         RouteBaseAccess as AdvancedRouteBaseAccess,
         RouteGuardAccess as AdvancedRouteGuardAccess,
         RouteVariant as AdvancedRouteVariant,
-        RouteVariantAccess as AdvancedRouteVariantAccess,
         SubOperationAccess as AdvancedSubOperationAccess,
         SubRouteGuardOptions as AdvancedSubRouteGuardOptions,
         ExtendedDataRouterOptions as AdvancedExtendedDataRouterOptions,
@@ -1049,32 +1053,22 @@ describe('ARF-14 strict packed-consumer types', () => {
         return true;
       };
       const variants = {
-        basicList: true,
-        advancedList: 'canList',
-        basicRead: false,
-        advancedRead: ['canRead', 'isAdmin'],
-        basicCreate: guard,
-        advancedCreate: true,
-        basicUpdate: 'canUpdate isOwner',
-        advancedUpdate: guard,
-        basicUpsert: false,
-        advancedUpsert: ['canCreate', 'canUpdate'],
-        basicCount: true,
-        advancedCount: guard,
-        basicDistinct: 'canRead',
-        advancedDistinct: false,
-      } satisfies Record<RouteVariantAccess, Validation>;
-      const variantKeys = [
-        'basicList', 'advancedList', 'basicRead', 'advancedRead',
-        'basicCreate', 'advancedCreate', 'basicUpdate', 'advancedUpdate',
-        'basicUpsert', 'advancedUpsert', 'basicCount', 'advancedCount',
-        'basicDistinct', 'advancedDistinct',
-      ] as const satisfies readonly RouteVariantAccess[];
-      const dataVariantKeys = ['basicList', 'advancedList', 'basicRead', 'advancedRead'] as const;
+        list: { default: true, basic: true, advanced: 'canList', root: false },
+        read: { default: true, basic: false, advanced: ['canRead', 'isAdmin'], root: guard },
+        create: { default: true, basic: guard, advanced: true, root: 'canCreate' },
+        update: { default: true, basic: 'canUpdate isOwner', advanced: guard, root: false },
+        upsert: { default: true, basic: false, advanced: ['canCreate', 'canUpdate'], root: guard },
+        count: { default: true, basic: true, advanced: guard, root: false },
+        distinct: { default: true, basic: 'canRead', advanced: false, root: guard },
+      } satisfies Record<PairedRouteAccess, OperationAccessVariants>;
+      const operationKeys = ['list', 'read', 'create', 'update', 'upsert', 'count', 'distinct'] as const satisfies readonly PairedRouteAccess[];
+      const contexts = ['basic', 'advanced', 'root'] as const satisfies readonly OperationAccessContext[];
+      const dataVariantKeys = ['list.basic', 'list.advanced', 'list.root', 'read.basic', 'read.advanced', 'read.root'] as const;
 
       const subRules: SubOperationAccess = {
-        list: true, read: 'canRead', create: guard, update: false, delete: ['isAdmin'],
-        basicList: false, advancedList: guard, basicRead: true, advancedRead: 'isAdmin',
+        list: { default: true, basic: false, advanced: guard, root: true },
+        read: { default: 'canRead', basic: true, advanced: 'isAdmin', root: false },
+        create: guard, update: false, delete: ['isAdmin'],
         customOperation: 'legacyPermission', omittedCustomOperation: undefined,
       };
       // Keep the existing broad dynamic sub-rule assignment compatible.
@@ -1085,12 +1079,11 @@ describe('ARF-14 strict packed-consumer types', () => {
       const subs: SubRouteGuardOptions = legacySubs;
       const access: OperationAccess = {
         default: 'canAccess',
-        new: true, list: true, read: true, create: true, update: true,
-        upsert: true, delete: false, count: true, distinct: true,
+        new: { default: true, basic: guard, root: false }, delete: false,
         ...variants,
         subs: { ...subs, comments: subRules, scalarField: guard },
       };
-      const optionalAccess: OperationAccess = { basicRead: undefined, advancedList: undefined };
+      const optionalAccess: OperationAccess = { read: { basic: undefined }, list: { advanced: undefined } };
       const emptyAccess: OperationAccess = {};
       const umbrellaAccess: OperationAccess = { subs: 'legacyUmbrella' };
       const modelOptions: ModelRouterOptions<Row> = {
@@ -1105,10 +1098,11 @@ describe('ARF-14 strict packed-consumer types', () => {
       const modelRouter: ModelRouter<Row> = api.createRouter<Row>('Oav01Consumer', modelOptions);
       const virtualRouter: ModelRouter<Row, Virtuals> = api.createRouter<Row, Virtuals>('Oav01VirtualConsumer', virtualOptions);
 
-      for (const key of variantKeys) {
+      for (const operation of operationKeys) for (const context of ['default', ...contexts] as const) {
+        const key = \`\${operation}.\${context}\` as const;
         const optionPath = \`operationAccess.\${key}\` as const;
-        const routeKey: keyof OperationAccess = key;
-        const rule: Validation = variants[key];
+        const routeKey: keyof OperationAccess = operation;
+        const rule: Validation = variants[operation][context];
         modelRouter.set(optionPath, rule).setOption(optionPath, rule);
         virtualRouter.set(optionPath, rule).setOption(optionPath, rule);
         modelRouter.operationAccess(key, rule);
@@ -1127,12 +1121,14 @@ describe('ARF-14 strict packed-consumer types', () => {
         const selectedRule: Validation | undefined = runtime.getExactModelOption('Oav01Consumer', optionPath);
         void [routeKey, modelDotted, defaultDotted, selectedRule];
       }
-      modelRouter.set('operationAccess.default', guard).setOption('operationAccess.basicRead', undefined);
-      modelRouter.set({ operationAccess: { default: true, basicRead: false } });
+      modelRouter.set('operationAccess.default', guard).setOption('operationAccess.read.basic', undefined);
+      modelRouter.set({ operationAccess: { default: true, read: { basic: false } } });
       modelRouter.setOptions({ operationAccess: access });
-      modelRouter.operationAccess(access).operationAccess('basicRead', false);
-      modelRouter.operationAccess('subs.comments.basicRead', false);
-      modelRouter.operationAccess('subs.comments.advancedList', guard);
+      modelRouter.operationAccess(access).operationAccess('read.basic', false);
+      modelRouter.operationAccess('subs.comments.read.basic', false);
+      modelRouter.operationAccess('subs.comments.list.advanced', guard);
+      modelRouter.operationAccess('read', { default: guard, root: false });
+      modelRouter.setOption('operationAccess.delete', { default: false, basic: guard, root: true });
       modelRouter.set('operationAccess.subs', { comments: subRules });
       modelRouter.setOption('operationAccess.subs', 'legacyUmbrella');
       runtime.setModelOptions('Oav01Consumer', modelOptions);
@@ -1152,12 +1148,13 @@ describe('ARF-14 strict packed-consumer types', () => {
         void [modelShorthand, dataShorthand];
       }
 
-      // Data keeps previously accepted model/base/sub rules; only list/read routes have variants.
+      // Data keeps previously accepted model/base/sub rules; only list/read routes are generated.
       const dataOptions: DataRouterOptions<Row> = {
         data: [], operationAccess: {
-          default: true, new: true, list: true, read: true, create: true, update: true,
+          default: true, new: true, create: true, update: true,
           upsert: true, delete: false, count: true, distinct: true, subs: legacySubs,
-          basicList: false, advancedList: 'canList', basicRead: guard, advancedRead: ['isAdmin'],
+          list: { default: true, basic: false, advanced: 'canList', root: guard },
+          read: { default: true, basic: guard, advanced: ['isAdmin'], root: false },
         },
       };
       const dataRouter: DataRouter<Row> = api.createDataRouter('Oav01DataConsumer', dataOptions);
@@ -1175,11 +1172,11 @@ describe('ARF-14 strict packed-consumer types', () => {
       }
       dataRouter.set('operationAccess.default', true).setOption('operationAccess.list', guard);
       dataRouter.setOption('operationAccess.read', 'canRead');
-      dataRouter.setOption('operationAccess.basicRead', undefined);
-      dataRouter.set({ operationAccess: { default: true, basicRead: false } });
+      dataRouter.setOption('operationAccess.read.basic', undefined);
+      dataRouter.set({ operationAccess: { default: true, read: { basic: false } } });
       dataRouter.setOptions(dataOptions);
-      dataRouter.operationAccess({ default: true, advancedList: false }).operationAccess('basicRead', false);
-      dataRouter.operationAccess('subs.comments.basicRead', false);
+      dataRouter.operationAccess({ default: true, list: { advanced: false } }).operationAccess('read.basic', false);
+      dataRouter.operationAccess('subs.comments.read.basic', false);
       runtime.setDataOptions('Oav01DataConsumer', dataOptions);
       runtime.setDataOption('Oav01DataConsumer', 'operationAccess.default', guard);
 
@@ -1198,8 +1195,11 @@ describe('ARF-14 strict packed-consumer types', () => {
       const advancedBase: AdvancedRouteBaseAccess = base;
       const variant: RouteVariant = 'advanced';
       const advancedVariant: AdvancedRouteVariant = variant;
-      const mappedKey: RouteVariantAccess<'read'> = 'advancedRead';
-      const advancedMappedKey: AdvancedRouteVariantAccess<'read'> = mappedKey;
+      const context: OperationAccessContext = 'root';
+      const advancedContext: AdvancedOperationAccessContext = context;
+      const rule: OperationAccessRule = { default: guard, [context]: false };
+      const advancedRule: AdvancedOperationAccessRule = rule;
+      const advancedVariants: AdvancedOperationAccessVariants = variants.read;
       const customGuardAccess: RouteGuardAccess = 'customAudit';
       const advancedCustomGuardAccess: AdvancedRouteGuardAccess = customGuardAccess;
 
@@ -1228,12 +1228,12 @@ describe('ARF-14 strict packed-consumer types', () => {
 
       // @ts-expect-error misspelled top-level route variants are rejected
       const badTop: OperationAccess = { basicReed: true };
-      // @ts-expect-error route variant values must be Validation
-      const badValue: OperationAccess = { basicRead: 401 };
+      // @ts-expect-error context values must be Validation
+      const badValue: OperationAccess = { read: { basic: 401 } };
       // @ts-expect-error guards must return boolean or Promise<boolean>
-      const badGuard: OperationAccess = { advancedRead: () => 'allowed' };
+      const badGuard: OperationAccess = { read: { advanced: () => 'allowed' } };
       // @ts-expect-error guard arrays contain permission strings, not booleans
-      const badArray: OperationAccess = { basicList: [true] };
+      const badArray: OperationAccess = { list: { basic: [true] } };
       // @ts-expect-error data top-level variants are also checked
       const badData: DataRouterOptions<Row> = { operationAccess: { advancedReed: true } };
       // @ts-expect-error transport keys do not grant model field permission
@@ -1242,42 +1242,49 @@ describe('ARF-14 strict packed-consumer types', () => {
       const badDataField: DataRouterOptions<Row> = { permissionSchema: { name: { advancedRead: true } } };
       // @ts-expect-error the public field-rule type remains base-scoped
       const badFieldRule: FieldOperationAccess = { basicRead: true };
-      // @ts-expect-error only paired base operations have variant keys
-      const badMappedKey: RouteVariantAccess = 'basicDelete';
-      // @ts-expect-error a specific base operation maps only to its own variants
-      const wrongMappedKey: RouteVariantAccess<'read'> = 'advancedList';
-      // @ts-expect-error known nested sub-rule values must remain Validation
-      const badSubRule: SubOperationAccess = { basicRead: 401 };
+      // @ts-expect-error contexts are server-owned literal names
+      const badMappedKey: OperationAccessContext = 'basicDelete';
+      // @ts-expect-error operation members cannot themselves contain rule objects
+      const wrongMappedKey: OperationAccessVariants = { advanced: { list: true } };
+      // @ts-expect-error known nested sub-rule leaves must remain Validation
+      const badSubRule: SubOperationAccess = { read: { basic: 401 } };
+      // @ts-expect-error removed keys are not aliases, even with a valid Validation
+      const removedRule: OperationAccess = { basicRead: true };
+      // @ts-expect-error the flat-name type has been removed from the root
+      type RemovedRoot = import('@web-ts-toolkit/access-router').RouteVariantAccess;
+      // @ts-expect-error the flat-name type has been removed from advanced
+      type RemovedAdvanced = import('@web-ts-toolkit/access-router/advanced').RouteVariantAccess;
+      const removedTypes: [RemovedRoot, RemovedAdvanced] = [undefined, undefined];
 
       // @ts-expect-error router.set rejects misspelled dotted variants
       modelRouter.set('operationAccess.basicReed', true);
       // @ts-expect-error router.setOption rejects wrong variant values
-      modelRouter.setOption('operationAccess.basicRead', 401);
+      modelRouter.setOption('operationAccess.read.basic', 401);
       // @ts-expect-error owning-runtime model setters reject misspelled variants
       runtime.setModelOption('Oav01Consumer', 'operationAccess.advancedReed', true);
       // @ts-expect-error named model setters reject wrong variant values
-      setModelOption('Oav01Consumer', 'operationAccess.advancedRead', {});
+      setModelOption('Oav01Consumer', 'operationAccess.read.advanced', {});
       // @ts-expect-error runtime facade setters reject misspelled variants
       api.setModelOption('Oav01Consumer', 'operationAccess.basicReed', true);
       // @ts-expect-error default setters reject misspelled variants
       setDefaultModelOption('operationAccess.basicReed', true);
       // @ts-expect-error default setter values must remain Validation
-      api.setDefaultModelOption('operationAccess.basicRead', 401);
+      api.setDefaultModelOption('operationAccess.read.basic', 401);
       // @ts-expect-error data router.set rejects misspelled dotted variants
       dataRouter.set('operationAccess.advancedReed', false);
       // @ts-expect-error data router.setOption checks variant values
-      dataRouter.setOption('operationAccess.basicRead', {});
+      dataRouter.setOption('operationAccess.read.basic', {});
       // @ts-expect-error owning-runtime data setters reject misspelled variants
       runtime.setDataOption('Oav01DataConsumer', 'operationAccess.basicReed', true);
       // @ts-expect-error owning-runtime data setters check variant values
-      runtime.setDataOption('Oav01DataConsumer', 'operationAccess.advancedRead', 401);
+      runtime.setDataOption('Oav01DataConsumer', 'operationAccess.read.advanced', 401);
 
       void [optionalAccess, emptyAccess, umbrellaAccess, fieldSchema, advancedFieldRule,
         advancedAccess, advancedSubs, advancedSubRule, advancedPaired, advancedBase,
-        advancedVariant, advancedMappedKey, advancedCustomGuardAccess,
+        advancedVariant, advancedContext, advancedRule, advancedVariants, advancedCustomGuardAccess,
         listBody, readBody, readFilterBody, createBody, updateBody, upsertBody, populateAccess, badPopulateAccess,
         badTop, badValue, badGuard, badArray, badData, badField, badDataField, badFieldRule,
-        badMappedKey, wrongMappedKey, badSubRule];
+        badMappedKey, wrongMappedKey, badSubRule, removedRule, removedTypes];
       `,
     );
     writeFileSync(

@@ -144,6 +144,8 @@ describe('RouteGuard real runtime', () => {
   });
 
   it('JS call with unsupported operation throws before class metadata can be used for bootstrap', () => {
+    for (const operation of ['read.default', 'read.basic', 'read.advanced', 'read.root', 'basicRead', 'advancedRead'])
+      expect(() => (RouteGuard as any)(operation)).toThrow(/Invalid @routeGuard operation/);
     expect(() => (RouteGuard as any)('subs')).toThrow(/Invalid @routeGuard operation "subs"/);
     expect(() => (RouteGuard as any)('unknownOp')).toThrow(/Invalid @routeGuard operation "unknownOp"/);
     expect(() => (RouteGuard as any)('')).toThrow(/Invalid @routeGuard operation/);

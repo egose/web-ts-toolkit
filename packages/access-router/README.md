@@ -20,6 +20,7 @@ ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 **Private virtual inputs:** [Populated dependencies and runnable example](#private-populated-dependencies)
 
 **Migration:** [Removed overrides](#breaking-release-service-overrides-migration) ·
+[Nested operation rules](MIGRATION.md#breaking-change-nested-operation-access) ·
 [Server-owned hydration](#breaking-release-server-owned-hydration) ·
 [Target-owned populate flags](#breaking-release-populate-policy-migration) ·
 [Named helpers](#breaking-release-named-helpers-and-default-behavior) ·
@@ -146,10 +147,9 @@ package-managed execution, falling back to `defaultRuntime` outside it.
    captured runtime model default → true. Explicit `undefined` restores inheritance;
    omission retains an override. Data assignment has no model-default layer.
 2. **Dotted setters update one path copy-on-write.** Use
-   `router.setOption('operationAccess.basicRead', false)` to keep sibling rules,
-   or pass `undefined` to restore lookup fallback. Property helpers such as
-   `router.operationAccess('basicRead', false)` are for defined values; use
-   `set`/`setOption` for undefined. Updating a path beneath a scalar starts an
+   `router.setOption('operationAccess.read.basic', false)` to keep sibling members,
+   or pass `undefined` to restore lookup fallback. Two-argument property helpers such as
+   `router.operationAccess('read.basic', undefined)` also clear that member. Updating a path beneath a scalar starts an
    object; use a `default` entry to retain a broad fallback. Dotted keys belong in
    setter arguments, not flat constructor-object properties.
 3. **Lookup is not a deep merge.** Generic nested option/hook lookup uses the
@@ -159,9 +159,9 @@ package-managed execution, falling back to `defaultRuntime` outside it.
    stored parent is also absent. `getExactModelOption` instead checks just the
    exact stored path, then the same runtime-default path; `getExactDataOption`
    checks only the stored path. `getDefaultModelOption` is exact. **Route guards
-   have their own resolver:** exact variant (including exact model-default
-   fallback) → base exact/`.default`/shorthand. A default variant can therefore
-   outrank a model's base rule. See the [full precedence](#variant-and-base-fallback),
+   have their own resolver:** exact context member (including same-owner exact model-default
+   fallback) → operation scalar/`default` → outer `.default`/shorthand → deny. A runtime context member can
+   outrank a model's operation default. See the [full precedence](#variant-and-base-fallback),
    including closed [subdocument rules](#subdocument-field-precedence).
 4. **Method values resolve with `??`.** At each service resolver a non-nullish
    supplied property wins over that method's `defaults` bucket, then its built-in
@@ -261,42 +261,83 @@ Express routes. `parentPath` supplies the external prefix for route metadata/log
 mount that prefix in Express yourself. Live `idField`/`resolveIdFilter` change lookup
 behavior rather than route shape.
 
-### Owned READ/LIST authorization modes
+### Owned authorization modes
 
-There is one document-stage engine and exactly two independent server options:
-`readAuthorizationMode` / `listAuthorizationMode`, each `'isolated' | 'trusted'`,
-default **isolated**. See the shipped [breaking migration guide](MIGRATION.md) for
-before/after examples, all ten removed flags, errors and rollout guidance. No old
-flag combination, dormant mode, output handle or compatibility alias remains.
+One document-stage engine has four independent server model/default-model settings,
+all `AuthorizationMode = 'isolated' | 'trusted'`, default **isolated**:
+
+| Setting                   | Current scope                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `readAuthorizationMode`   | Root READ output; READ-to-LIST retry retains this capture.                                         |
+| `listAuthorizationMode`   | Root LIST output.                                                                                  |
+| `createAuthorizationMode` | Post-persistence/lifecycle CREATE output, including bulk rows and UPSERT's executed create branch. |
+| `updateAuthorizationMode` | Post-persistence/lifecycle UPDATE output and UPSERT's executed update branch.                      |
+
+The READ/LIST names stay unchanged. There is no fifth UPSERT setting, alternate
+spelling or compatibility alias. The broader names do not authorize input or other
+phase relaxation. See the shipped [migration guide](MIGRATION.md) for the current
+contract, removed unsafe flags and checked workflows.
 
 <!-- doc-example: partial -->
 
 ```ts
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 const api = createAccessRuntime();
-api.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
-api.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });
+api.setDefaultModelOptions({
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'isolated',
+  createAuthorizationMode: 'isolated',
+  updateAuthorizationMode: 'isolated',
+});
+api.setModelOptions('Employee', {
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'trusted',
+  createAuthorizationMode: 'trusted',
+  updateAuthorizationMode: 'isolated',
+});
 api.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
 api.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default
 api.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only
 ```
 
-Isolated owns bounded detached projected source and gives document hooks disposable
-views. Trusted may borrow admitted ordinary projected source/doc-hook input: mutations
-can affect values/calculated facts; hidden unvisited graphs are not whole-document
-bounded. **Both own actor, private policy and normalized frozen boolean facts**, enforce
+Isolated owns bounded detached source and gives document-permission output hooks
+disposable views. Trusted may borrow admitted ordinary source/doc-hook input:
+mutations can affect response values and facts calculated from that source. Only
+**query-origin** trusted output can leave hidden unvisited graphs unbounded.
+
+**Both write modes always acquire a full bounded detached post-write source**, including
+mutable native leaves, before output callbacks. Trusted omits only the subsequent
+disposable document-hook view copy; it never lends live write documents, `_doc`, payloads
+or lifecycle snapshots. Conversion failure at this boundary fails output rather than
+borrowing `_doc`. This also applies to write-origin populated targets, even when their
+mode is selected by READ/LIST. A hidden graph can therefore fail write-output admission
+even if a trusted query would not visit it. No source-copy saving is promised; without
+an exposed document hook there may be no copy saving.
+
+**Both own actor, private policy and normalized frozen boolean facts**, enforce
 original actor, rows/fields/targets and selected/native 20,000-slot/depth-100 bounds.
 Both retain separate getter views, return staging and private argument-four isolation.
 No sandbox, transaction, rollback, external freshness or blanket security equivalence.
 
-Capture precedes hooks/awaits. Genuine embedded scopes inherit their owner; related
-targets use their own captured model/access mode and policy, not their parent's mode.
-READ-to-LIST retry keeps initiating READ mode with a fresh stage. Independent service
-calls capture anew. Writes/new/dedicated subdocuments always stay isolated.
+Capture precedes hooks/awaits, including both possible UPSERT modes. Selecting the
+executed branch retains initiating `operation: 'upsert'` and branch-specific access;
+it does not re-read settings after saving or turn a write response into a READ call.
+Genuine embedded scopes inherit their owner's mode/facts. Related targets use their
+**own model's captured READ/LIST mode** at effective target access, including genuine
+write-origin populate, with independent policy/facts. Parent mode cannot lower an
+isolated target; a trusted target cannot mutate an isolated parent's source or live
+write graph. Independent nested READ/LIST service calls capture anew.
+
+Write-input admission, pre-write grants and the **hydrated pre-write UPDATE hook**,
+validation, preparation, transform/save and lifecycle hooks are unchanged, not newly
+detached or sandboxed. NEW, helpers, dedicated subdocument origins, COUNT, DELETE,
+DISTINCT and unsupported custom origins gain no trusted stage. No implicit save,
+query or rollback is added. **Output authorization can fail after the write commits**;
+reconcile stored business state rather than automatically retrying the write.
 
 Only literal enum strings or undefined restoration are valid. Bulk setters reject
 atomically. Retired controls reject by presence, even false/undefined/inherited/
-non-enumerable. New/old selectors are prohibited in HTTP/root/per-call/helper/defaults/
+non-enumerable. Mode/retired selectors are prohibited in HTTP/root/per-call/helper/defaults/
 include/populate/subquery authority slots; same-named business fields remain data.
 Trusted transitions warn once per effective owner/access; logger failures cannot abort.
 Switching to isolated affects new calls, not in-flight captures. Rollback means a tested
@@ -539,8 +580,9 @@ order input returns BadRequest before entry dispatch.
 
 Groups run in ascending order; within a group operations may run concurrently.
 Results retain input indices/order, with each entry's `statusCode` and public
-`result` inside the HTTP 200 batch response. Root entries use base operation guards,
-not basic/advanced variant names. Batches are non-transactional: an unexpected
+`result` inside the HTTP 200 batch response. Root entries keep base operation names
+but select target `operation.root`, falling back to its scalar/default. The root's
+own scalar guard is a separate outer admission check. Batches are non-transactional: an unexpected
 rejection can leave already-committed writes. Hook and persistence work also obey
 their separate [request/runtime limits](#persistence-concurrency-and-resource-limits).
 
@@ -1785,10 +1827,16 @@ query params; only `includePermissions`/`includeFieldPermissions`/`populateAcces
 
 ## Basic and advanced operation access
 
-Configure generated endpoint guards in `operationAccess`. A base rule such as `read`
-covers both variants unless an exact `basicRead` or `advancedRead` rule overrides it.
-Variants authorize **route entry**; field grants remain in `permissionSchema` under
-base names such as `read` and `list`.
+Configure generated endpoint guards in `operationAccess`. Each operation accepts a
+scalar `Validation` or `{ default?, basic?, advanced?, root? }`, with a `Validation`
+at each member. `basic`, `advanced` and `root` independently authorize **entry**;
+`default` supplies context-free base checks and entry fallback. Field grants remain
+in `permissionSchema` under base names such as `read` and `list`.
+
+This is a hard breaking replacement of the former flat API, not an alias or
+translation layer. See the shipped [migration and seven mapping pairs](MIGRATION.md#breaking-change-nested-operation-access).
+Public `OperationAccessContext`, `OperationAccessVariants` and `OperationAccessRule`
+are exported from root and `./advanced`.
 
 <!-- doc-example: partial -->
 
@@ -1804,20 +1852,20 @@ const baseOnly = {
 // Among top-level routes, deny GET /users/:id only; both advanced read POSTs inherit read: true.
 const advancedReadsOnly = {
   basePath: '/users',
-  operationAccess: { list: true, read: true, basicRead: false },
+  operationAccess: { list: true, read: { default: true, basic: false } },
   permissionSchema: { name: true },
 } satisfies ModelRouterOptions;
 
 // Keep GET /users, deny POST /users/__query.
 const basicListsOnly = {
   basePath: '/users',
-  operationAccess: { list: true, read: true, advancedList: false },
+  operationAccess: { list: { default: true, advanced: false }, read: true },
   permissionSchema: { name: true },
 } satisfies ModelRouterOptions;
 // Pass one of these objects to acl.createRouter(UserModel, options).
 ```
 
-`basicRead: false` does not affect list, new, count, distinct, or mutation routes;
+`read.basic: false` does not affect list, new, count, distinct, or mutation routes;
 their own guards still apply. Subdocument reads follow the field precedence below.
 Denied operations return **HTTP 401 Unauthorized**
 before validation/service dispatch. Every route stays registered in
@@ -1831,55 +1879,61 @@ Paths are relative to `basePath`, with model defaults `idParam: 'id'`,
 Changing those route-shape options changes paths, not guard names. For data routers,
 set `idParam: 'id'` explicitly to use the illustrated identifier paths.
 
-| Base guard        | Basic endpoint → override                        | Advanced endpoint → override                                   |
-| ----------------- | ------------------------------------------------ | -------------------------------------------------------------- |
-| `list`            | `GET /` → `basicList`                            | `POST /__query` → `advancedList`                               |
-| `read`            | `GET /:id` → `basicRead`                         | `POST /__query/:id`, `POST /__query/__filter` → `advancedRead` |
-| `create`          | `POST /` → `basicCreate`                         | `POST /__mutation` → `advancedCreate`                          |
-| `update`          | `PATCH /:id` → `basicUpdate`                     | `PATCH /__mutation/:id` → `advancedUpdate`                     |
-| `upsert`          | `PUT /` → `basicUpsert`                          | `PUT /__mutation` → `advancedUpsert`                           |
-| `count`           | `GET /count` → `basicCount`                      | `POST /count` → `advancedCount`                                |
-| `distinct`        | `GET /distinct/:field` → `basicDistinct`         | `POST /distinct/:field` → `advancedDistinct`                   |
-| `subs.<sub>.list` | `GET /:id/<sub>` → `subs.<sub>.basicList`        | `POST /:id/<sub>/__query` → `subs.<sub>.advancedList`          |
-| `subs.<sub>.read` | `GET /:id/<sub>/:subId` → `subs.<sub>.basicRead` | `POST /:id/<sub>/:subId/__query` → `subs.<sub>.advancedRead`   |
+| Operation         | Basic endpoint → member                           | Advanced endpoint → member                                      | Root entry member      |
+| ----------------- | ------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
+| `list`            | `GET /` → `list.basic`                            | `POST /__query` → `list.advanced`                               | `list.root`            |
+| `read`            | `GET /:id` → `read.basic`                         | `POST /__query/:id`, `POST /__query/__filter` → `read.advanced` | `read.root`            |
+| `create`          | `POST /` → `create.basic`                         | `POST /__mutation` → `create.advanced`                          | `create.root`          |
+| `update`          | `PATCH /:id` → `update.basic`                     | `PATCH /__mutation/:id` → `update.advanced`                     | `update.root`          |
+| `upsert`          | `PUT /` → `upsert.basic`                          | `PUT /__mutation` → `upsert.advanced`                           | `upsert.root`          |
+| `count`           | `GET /count` → `count.basic`                      | `POST /count` → `count.advanced`                                | `count.root`           |
+| `distinct`        | `GET /distinct/:field` → `distinct.basic`         | `POST /distinct/:field` → `distinct.advanced`                   | `distinct.root`        |
+| `subs.<sub>.list` | `GET /:id/<sub>` → `subs.<sub>.list.basic`        | `POST /:id/<sub>/__query` → `subs.<sub>.list.advanced`          | `subs.<sub>.list.root` |
+| `subs.<sub>.read` | `GET /:id/<sub>/:subId` → `subs.<sub>.read.basic` | `POST /:id/<sub>/:subId/__query` → `subs.<sub>.read.advanced`   | `subs.<sub>.read.root` |
 
-Model routers support all fourteen top-level keys. Data routers implement only
-list/read: `basicList`, `advancedList`, `basicRead`, and `advancedRead`, including
-both advanced read paths. Each model subdocument field supports four nested
-list/read keys. Filtered count/distinct POSTs are advanced even without `__query`.
+Data routers implement list/read with the same members, including both advanced
+read paths. Filtered count/distinct POSTs are advanced even without `__query`.
+Context is explicit server-owned dispatch metadata, never inferred from method or
+caller-supplied selectors. Root POST does not select advanced.
 
-Unpaired routes retain their base guards:
+Unpaired routes also use operation objects; direct entry selects basic:
 
-| Endpoint                                      | Guard               |
-| --------------------------------------------- | ------------------- |
-| `GET /new`                                    | `new`               |
-| `DELETE /:id`                                 | `delete`            |
-| `POST /:id/<sub>`                             | `subs.<sub>.create` |
-| `PATCH /:id/<sub>`, `PATCH /:id/<sub>/:subId` | `subs.<sub>.update` |
-| `DELETE /:id/<sub>/:subId`                    | `subs.<sub>.delete` |
+| Endpoint                                      | Guard                     |
+| --------------------------------------------- | ------------------------- |
+| `GET /new`                                    | `new.basic`               |
+| `DELETE /:id`                                 | `delete.basic`            |
+| `POST /:id/<sub>`                             | `subs.<sub>.create.basic` |
+| `PATCH /:id/<sub>`, `PATCH /:id/<sub>/:subId` | `subs.<sub>.update.basic` |
+| `DELETE /:id/<sub>/:subId`                    | `subs.<sub>.delete.basic` |
+
+Their root counterparts select `root`; both `subUpdate` and `subBulkUpdate` use
+`subs.<sub>.update.root`. An `advanced` member does not create an unpaired endpoint.
 
 ### Variant and base fallback
 
-1. Read the exact variant from the owning runtime (model lookup includes the
-   runtime's exact model-default path).
-2. Only if that value is `undefined`, use the existing base operation resolution:
-   exact base rule → `operationAccess.default` → scalar `operationAccess` shorthand.
-   If no valid guard resolves, deny.
+1. Select the exact operation context member, e.g. `read.advanced`. Model lookup
+   checks the model, then its owning runtime's same exact model-default path.
+2. Only if undefined, select the operation's scalar rule or its object's `default`.
+3. If still undefined, use outer `operationAccess.default` or scalar shorthand.
+4. With no applicable valid guard, deny. An empty top-level operation object can
+   use the outer fallback; malformed defined JavaScript values deny without fallback.
 
 The selected variant **replaces** the base guard; the two are not combined or both
 evaluated. Explicit false, an empty array, or a guard returning false is terminal.
 Omitted and explicit undefined variants inherit. With no runtime-default variants
 or other fallback configured:
 
-| Rules                              | Basic list | Advanced list | Root list entry |
-| ---------------------------------- | ---------- | ------------- | --------------- |
-| `list: true`                       | allowed    | allowed       | allowed         |
-| `list: false`                      | denied     | denied        | denied          |
-| `list: true, basicList: false`     | denied     | allowed       | allowed         |
-| `list: true, advancedList: false`  | allowed    | denied        | allowed         |
-| `list: false, basicList: true`     | allowed    | denied        | denied          |
-| only `basicList: true`             | allowed    | denied        | denied          |
-| `list: true, basicList: undefined` | allowed    | allowed       | allowed         |
+| Rules                                       | Basic list | Advanced list | Root list entry |
+| ------------------------------------------- | ---------- | ------------- | --------------- |
+| `list: true`                                | allowed    | allowed       | allowed         |
+| `list: false`                               | denied     | denied        | denied          |
+| `list: { default: true, basic: false }`     | denied     | allowed       | allowed         |
+| `list: { default: true, advanced: false }`  | allowed    | denied        | allowed         |
+| `list: { default: false, basic: true }`     | allowed    | denied        | denied          |
+| `list: { basic: true }`                     | allowed    | denied        | denied          |
+| `list: { default: true, basic: undefined }` | allowed    | allowed       | allowed         |
+| `list: { default: false, root: true }`      | denied     | denied        | allowed         |
+| `list: { default: true, root: false }`      | allowed    | allowed       | denied          |
 
 All rule values use `Validation`: `boolean | string | string[] | GuardHook`.
 Space-separated permission strings AND their names; arrays OR their entries.
@@ -1905,12 +1959,12 @@ acl.setGlobalOptions({
 });
 const permissionBased = {
   operationAccess: {
-    list: true,
-    read: true,
-    advancedList: 'isAdmin',
-    advancedRead: ['canReadDetails', 'isAdmin'],
-    advancedUpdate: async function (permissions) {
-      return permissions.has('isAdmin') && this.headers['x-write-mode'] === 'advanced';
+    list: { default: true, advanced: 'isAdmin' },
+    read: { default: true, advanced: ['canReadDetails', 'isAdmin'], root: false },
+    update: {
+      advanced: async function (permissions) {
+        return permissions.has('isAdmin') && this.headers['x-write-mode'] === 'advanced';
+      },
     },
   },
   permissionSchema: { name: { list: true, read: true } },
@@ -1929,26 +1983,28 @@ import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';
 
 const shorthand = { operationAccess: 'canUseApi' } satisfies ModelRouterOptions;
 const withDefault = {
-  operationAccess: { default: 'canUseApi', list: true, basicRead: false },
+  operationAccess: { default: 'canUseApi', list: true, read: { basic: false } },
 } satisfies ModelRouterOptions;
 
 acl.setDefaultModelOptions({ operationAccess: { list: true, read: true } });
-acl.setDefaultModelOption('operationAccess.advancedRead', 'isAdmin');
-const defaultRead = acl.getDefaultModelOption('operationAccess.advancedRead');
+acl.setDefaultModelOption('operationAccess.read', { default: true, advanced: 'isAdmin' });
+const defaultRead = acl.getDefaultModelOption('operationAccess.read.advanced');
 const defaultsSnapshot = acl.getDefaultModelOptions();
 ```
 
 Model options use shallow assignment. Supplying an `operationAccess` object
 replaces that stored object rather than recursively merging default siblings.
-Exact variant lookup separately falls back to the runtime's **same exact path**:
-a runtime-default `advancedRead` can therefore outrank a model's `read`, `default`,
-or scalar shorthand unless the model defines its own `advancedRead`.
+Exact context lookup separately falls back to the runtime's **same exact path**:
+a runtime-default `read.advanced` can outrank a model's scalar `read` or
+`read.default` unless the model defines its own `read.advanced`. This does not
+recursively merge defaults: model `read: {}` never independently inherits a runtime
+`read.default`. A whole operation inherited through existing base lookup can supply
+its own default. Clearing a context member can expose the live exact runtime default.
 
-Defaults copied into a model's stored options stay there until updated. Changing
-runtime defaults does not broadcast replacements to existing model values;
-setting a stored variant to undefined can expose a live runtime-default variant
-before base fallback. `getDefaultModelOption` reads the requested path exactly;
-it does not resolve variant/base aliases or `operationAccess.default`.
+Omitted model `operationAccess` inherits configured model defaults; without grants,
+the built-in model policy denies. Explicit whole-model `operationAccess: undefined`
+permits runtime exact-operation fallback, but not a runtime bare/outer `.default`
+catch-all. `getDefaultModelOption` reads the requested path exactly, not an entry decision.
 `getDefaultModelOptions()` returns a frozen snapshot. Data routers use only their
 own options and never inherit model defaults.
 
@@ -1956,16 +2012,15 @@ own options and never inherit model defaults.
 
 For a basic list of `comments`, resolve:
 
-1. Exact `subs.comments.basicList`.
-2. Exact `subs.comments.list`.
-3. Defined `subs.comments`: evaluate a scalar guard; an object without the
-   applicable key **denies**, even if top-level list/variants allow.
-4. Only for an absent field rule, top-level exact `basicList`.
-5. Existing top-level base `list` fallback.
+1. Exact `subs.comments.list.basic`, including the same-owner exact runtime default.
+2. The field operation's scalar rule or nested `list.default`.
+3. A field scalar supplies its operation fallback. A defined field object with no
+   applicable operation/default **denies**, even if top-level list/outer default allow.
+4. Only for an absent field rule, use the corresponding top-level operation/context.
 
-The same ordering applies to advanced list and both read variants. No nested
-`.default` fallback is introduced. Exact field lookups retain model-default
-specificity; an inherited defined field also stays closed. The legacy scalar `subs` umbrella is still
+The same ordering applies to advanced/root and all field operations. Exact runtime
+specificity precedes scalar fallback. Empty field operation objects stay closed;
+`subs.comments.default` is not a field wildcard. The legacy scalar `subs` umbrella is still
 accepted, but **does not guard absent fields**; their fallback bypasses it and
 uses top-level rules. Use explicit per-field rules to guard a field.
 
@@ -1979,7 +2034,7 @@ const subdocumentRules = {
     list: true,
     read: true,
     subs: {
-      comments: { list: true, read: true, basicList: false, advancedRead: 'isAdmin' },
+      comments: { list: { default: true, basic: false }, read: { default: true, advanced: 'isAdmin', root: false } },
       // Closed object: both items list routes are denied despite top-level list: true.
       items: { read: true },
       attachments: 'isAdmin',
@@ -2000,36 +2055,36 @@ import acl from '@web-ts-toolkit/access-router';
 // User must already be registered with this runtime.
 const router = acl.createRouter('User', {
   basePath: '/users',
-  operationAccess: { list: true, read: true },
+  operationAccess: { list: { default: true }, read: { default: true } },
   permissionSchema: { name: true },
 });
 
-router.operationAccess('basicRead', false); // Update one key, keep list/read rules.
-router.operationAccess('subs.comments.basicRead', false);
-router.set('operationAccess.advancedList', 'isAdmin');
-router.setOption('operationAccess.basicRead', undefined); // Restore inheritance.
-acl.setModelOption('User', 'operationAccess.basicRead', false);
+router.operationAccess('read.basic', false); // Update one member, keep list/read defaults.
+router.operationAccess('subs.comments.read.basic', false);
+router.set('operationAccess.list.advanced', 'isAdmin');
+router.setOption('operationAccess.read.basic', undefined); // Restore fallback.
+acl.setModelOption('User', 'operationAccess.read.root', false);
 
 // All object forms replace the whole operationAccess object, not a deep merge.
-router.operationAccess({ list: true, read: true, basicRead: false });
-router.setOptions({ operationAccess: { list: true, read: true, advancedList: false } });
+router.operationAccess({ list: true, read: { default: true, basic: false } });
+router.setOptions({ operationAccess: { list: { default: true, advanced: false }, read: true } });
 
 const current = router.runtime.getModelOptions('User');
-const exactVariant = router.runtime.getExactModelOption('User', 'operationAccess.basicRead');
+const exactVariant = router.runtime.getExactModelOption('User', 'operationAccess.read.basic');
 ```
 
 `set({ operationAccess: ... })` and `setOption('operationAccess', ...)` have the
 same shallow replacement semantics. Dotted paths are setter arguments, not flat
 properties in constructor options. Updating a nested path under a scalar shorthand
 starts an object; retain a `default` rule if you want the prior broad fallback.
-Use `set`/`setOption` with undefined to clear a variant; the two-argument property
-helper is intended for defined values.
+Use any two-argument member setter with undefined to clear that member. Whole-operation
+setters accept a scalar or a rule object, e.g. `operationAccess('read', { default: true, root: false })`.
 
 `router.options` is the frozen **construction-time** snapshot. Options getter
 results are also frozen snapshots; data native-valued properties return detached copies
 on access as described above. Fetch again for current stored values. Ordinary
 `getModelOption`/`getDataOption` use generic nested-option fallback, not the
-route-specific variant-to-base resolver. Exact getters inspect the variant path
+final nested operation-entry resolver and can return a raw operation object. Exact getters inspect a member path
 (including exact model-default fallback). Request guards read live runtime values.
 Data router setters use the same forms; its owning runtime provides
 `setDataOption`, `getDataOptions`, and `getExactDataOption`.
@@ -2040,22 +2095,26 @@ Data router setters use the same forms; its owning runtime provides
   checks retain base accesses. A variant grant does not grant fields or bypass
   target authorization.
 - Model `_read`/`_readFilter` misses with `tryList: true` still require **base
-  `list`** to retry. `list: false, advancedList: true` cannot grant retry;
-  `list: true, basicList: false` cannot block it. Forbidden/BadRequest never retry.
-- Upsert keeps its create/update branch policy; authorizing `advancedUpsert` does
-  not also require `advancedCreate` or `advancedUpdate`.
+  `list` scalar/default** to retry. `list: { default: false, advanced: true }` cannot grant retry;
+  `list: { default: true, basic: false }` cannot block it. Forbidden/BadRequest never retry.
+- Upsert keeps its create/update branch policy; authorizing `upsert.advanced` does
+  not also require `create.advanced` or `update.advanced`.
 - Subdocument mutation-response visibility uses base parent/subdocument read/list
   checks. Disabling basic reads does not hide otherwise readable output. Base
   response denial can still yield a successful null/empty response after a write
   (see [Subdocument writes with hidden responses](#subdocument-writes-with-hidden-responses)).
-- Root batches use existing operation names and target base entry checks, with
-  entry 401 inside the HTTP 200 batch envelope. Variants are not new root `op`
+- Root batches use existing operation names and target `root` entry checks, with
+  entry 401 inside the HTTP 200 batch envelope. Context members are not new root `op`
   values. Direct service calls remain trusted application calls with their
-  existing checks; they do not infer basic/advanced access from `req.method`.
+  existing checks; they do not infer entry context from `req.method` or gain blanket entry guards.
+- Existing populate/include/private-dependency checks use operation scalar/default
+  when target flags require admission. A target `{ default: false, root: true }`
+  grants root entry only, not context-free related admission. Flags and trusted-service
+  bypasses remain unchanged; secondary checks never implicitly choose transport members.
 
 **Populate selectors:** wire `options.populateAccess` and descriptor `access`
 accept only `'list' | 'read'` (`PopulateAccess` from `/advanced`). The shared Core
-populate boundary also rejects all fourteen reserved variant names in effective
+populate boundary also rejects retired flat names and reserved nested context-member paths in effective
 option/descriptor access, including generic options forwarded by legacy includes
 and subqueries, before target persistence. Other trusted, non-reserved custom
 access strings keep their existing runtime behavior. Invalid selectors return
@@ -2065,7 +2124,7 @@ omitting it, so nested invalid selectors cannot disappear from the result.
 
 ### Runnable data-router split
 
-This database-free example exercises the same four data keys after installation:
+This database-free example exercises nested data read members after installation:
 
 <!-- doc-example: complete-runtime -->
 
@@ -2080,7 +2139,7 @@ const router = runtime.createDataRouter('VariantFruit', {
   idParam: 'id',
   idField: 'id',
   data: [{ id: 'apple', name: 'Apple' }],
-  operationAccess: { list: true, read: true, basicRead: false },
+  operationAccess: { list: true, read: { default: true, basic: false } },
   permissionSchema: { id: true, name: true },
 });
 const app = express();
@@ -2101,7 +2160,7 @@ try {
   if (basic.status !== 401 || advanced.status !== 200) throw new Error('Read split failed');
   const fruit = await advanced.json();
   if (fruit.name !== 'Apple') throw new Error('Expected the authorized fruit');
-  router.operationAccess('basicRead', true);
+  router.operationAccess('read.basic', true);
   if ((await fetch(`${url}/apple`)).status !== 200) throw new Error('Live update failed');
 } finally {
   await new Promise<void>((resolve, reject) => {
@@ -2150,7 +2209,7 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 - `permissionsPlugin` — optional Mongoose metadata alias; [role and usage](#optional-permissions-plugin)
 - logger helpers: `redactFilter`, `redactPayload`, `safeStringify`, `isLevelEnabled` + `OpLogContext` type
 - option helpers: `setGlobalOptions`, `setGlobalOption`, `getGlobalOptions`, `getGlobalOption`, `setModelOptions`, `setModelOption`, `getModelOptions`, `getModelOption`, `getModelNames`, `getModelJsonSchema`, `setDefaultModelOptions`, `setDefaultModelOption`, `getDefaultModelOptions`, `getDefaultModelOption`
-- route-policy types: `OperationAccess`, `SubOperationAccess`, `Validation`, `GuardHook`, `RouteVariantAccess`, `ModelRouterOptions`, `DefaultModelRouterOptions`, `DataRouterOptions`, `ExtendedModelRouterOptions`, `ExtendedDefaultModelRouterOptions`, and `ExtendedDataRouterOptions` for typed setters; `PermissionSchema` / `FieldOperationAccess` are separate base-operation field grants. These types are also available from `/advanced`.
+- route-policy types: `OperationAccess`, `SubOperationAccess`, `OperationAccessContext`, `OperationAccessVariants`, `OperationAccessRule`, `OperationAccessPaths`, `OperationAccessSetter`, `Validation`, `GuardHook`, `ModelRouterOptions`, `DefaultModelRouterOptions`, `DataRouterOptions`, `ExtendedModelRouterOptions`, `ExtendedDefaultModelRouterOptions`, and `ExtendedDataRouterOptions` for typed setters; `PermissionSchema` / `FieldOperationAccess` are separate base-operation field grants. These types are also available from `/advanced`.
 - fetch configuration types (also `/advanced`): `HydrationMode`, `ModelHydrationOptions` — server-owned model/default configuration, never per-call/wire options.
 - virtual types (also `/advanced`): `ModelVirtualGetter`, `ModelVirtualDescriptor`, `ModelVirtualAccessRecord`, `ModelVirtualLeaf`, `ModelVirtuals`, `ModelVirtualDoc`, `ModelVirtualContext`, `ModelVirtualPopulateDependency`, `ModelVirtualPopulateInputs`. Explicit private target maps type only the fourth getter argument; see [Private populated dependencies](#private-populated-dependencies).
 - trusted service policy types (also `/advanced`): `ServiceAuthorization` (reads), `MutationAuthorization` (update/upsert), `CreateAuthorization`, `InputFieldAuthorization`, `InputFieldPath`, `OutputAuthorization`, `FieldAuthorization`, `RowAuthorization`, `OperationAuthorization`, `RelatedAuthorization`, `OutputFieldPath`. Input paths use persisted types only; output paths also include virtuals. Unknown models have an explicit runtime-validated string fallback; grant arrays may be readonly.

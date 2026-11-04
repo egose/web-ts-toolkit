@@ -15,6 +15,8 @@ export const retiredAuthorizationControls = [
 ] as const;
 
 export function extractMigrationBlocks(markdown: string): MigrationBlock[] {
+  if (!markdown.includes('## Breaking change: nested operation access') || /Implementation pending/.test(markdown))
+    throw new Error('Nested operation migration must describe the implemented contract');
   for (const section of ['M1.', 'M2.', 'M3.', 'M4.', 'M5.']) {
     if (!markdown.includes(`## ${section}`)) throw new Error(`Missing migration contract ${section}`);
   }
@@ -40,6 +42,13 @@ export function extractMigrationBlocks(markdown: string): MigrationBlock[] {
     throw new Error('The exact historical source must be a separate expected-error fixture');
   if (blocks.filter((block) => block.kind === 'partial').length < 4)
     throw new Error('Missing typed facts, write, scoped helper or modes target example');
+  for (const marker of [
+    'const operationAccess: OperationAccess',
+    'const batch = api.createRouter(',
+    "'subs.comments.read.advanced'",
+  ])
+    if (!blocks.some((block) => block.kind === 'partial' && block.source.includes(marker)))
+      throw new Error(`Missing compilable nested-operation migration: ${marker}`);
   for (const name of ['rawBefore', 'rawMany', 'presentationSubset', 'currentList'])
     if (
       !blocks.some(

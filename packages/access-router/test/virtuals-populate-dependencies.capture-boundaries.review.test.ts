@@ -106,14 +106,14 @@ describe.each(['lean', 'hydrated'] as const)('DPV-06 include guard ownership (%s
       nestedDecisions.push(allowed);
       return allowed;
     });
-    f.router.setOption('operationAccess.read', guard);
+    f.router.setOption('operationAccess.read', { default: guard, basic: true, advanced: true, root: true });
     const pause = f.holdRead();
     const result = await f.execute(async (req) => {
       const pending = req.macl
         .getService(f.Source.modelName)
         .findOne({ _id: f.source._id }, { select: ['name'], include: [f.include] }, quiet);
       await pause.entered;
-      f.router.setOption('operationAccess.read', false);
+      f.router.setOption('operationAccess.read.default', false);
       expect(await req.macl.isAllowed(f.Source.modelName, 'read')).toBe(false);
       pause.release();
       return pending;
@@ -160,14 +160,14 @@ describe.each(['lean', 'hydrated'] as const)('DPV-06 include guard ownership (%s
         .findOne({ _id: f.source._id }, { select: ['name'], include: [f.include] }, quiet);
       return true;
     });
-    f.router.setOption('operationAccess.read', guard);
+    f.router.setOption('operationAccess.read', { default: guard, basic: false, advanced: false, root: false });
     const pause = f.holdRead();
     const result = await f.execute(async (req) => {
       const pending = req.macl
         .getService(f.Source.modelName)
         .findOne({ _id: f.source._id }, { select: ['name'], include: [f.include] }, quiet);
       await pause.entered;
-      f.router.setOption('operationAccess.read', false);
+      f.router.setOption('operationAccess.read.default', false);
       pause.release();
       return pending;
     });
@@ -182,7 +182,13 @@ describe.each(['lean', 'hydrated'] as const)('DPV-06 fallback operation capture 
   describe.each(['_read', '_readFilter'] as const)('%s', (method) => {
     it.each([false, true])('retains its initial list admission (%s) through read suspension', async (initial) => {
       const f = await fixture(hydration);
-      f.router.setOption('operationAccess.list', initial);
+      f.api.setDefaultModelOption('operationAccess.list', {
+        default: initial,
+        basic: !initial,
+        advanced: !initial,
+        root: !initial,
+      });
+      f.router.setOption('operationAccess', undefined);
       const pause = f.holdRead(true);
       const results = await f.execute(async (req) => {
         const service = req.macl.getPublicService(f.Source.modelName);
@@ -192,7 +198,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-06 fallback operation capture 
             : service._readFilter({ _id: f.source._id }, { select: ['eligible', '-_id'] }, { ...quiet, tryList: true });
         const pending = read();
         await pause.entered;
-        f.router.setOption('operationAccess.list', !initial);
+        f.api.setDefaultModelOption('operationAccess.list.default', !initial);
         expect(await req.macl.isAllowed(f.Source.modelName, 'list')).toBe(!initial);
         pause.release();
         return [await pending, await read()];

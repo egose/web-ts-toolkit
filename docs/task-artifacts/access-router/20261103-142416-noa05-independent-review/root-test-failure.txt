@@ -1,0 +1,32 @@
+Current-source root command: pnpm test
+Root script: pnpm -r --if-present --workspace-concurrency=1 test
+Exit status: 1
+
+Fresh access-router package result within that run:
+Test Files 196 passed (196)
+Tests 6712 passed (6712)
+Duration 1292.78 seconds
+
+Failing client suite:
+FAIL test/access-router-client.packed-consumer.test.ts
+ARC-18 packed-package compatibility using the real release transformation
+applies the real `@repo-toolkit/publish-package` manifest transformation to the access-router-client tarball
+AssertionError: expected { node: '>=24' } to deeply equal { node: '>=20' }
+Location: packages/access-router-client/test/access-router-client.packed-consumer.test.ts:81:37
+Actual assertion: expect(rootPackageJson.engines).toEqual({ node: '>=20' });
+Root package.json engines: { "node": ">=24" }
+The next assertion expects packedManifest.engines to equal { node: '>=24' }.
+
+Client Node run: 44 files passed, 1 file failed; 953 tests passed, 1 failed.
+ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL: @web-ts-toolkit/access-router-client test
+Client browser phase was not reached. Later workspace tests were not completed.
+The log prints the queued decorator test script but no decorator test results.
+
+Completed root Vitest invocations in aggregate (not a full repository pass):
+567 files passed, 1 failed.
+17769 tests passed, 1 failed, 1 todo, 0 skipped.
+The todo is reported by asset-inliner; it is not an exclusion added by this review.
+
+This is a curated excerpt, not the raw log. Source paths are repo-relative.
+Root package.json, the client test and its harness match HEAD, but no clean-HEAD
+command baseline was run. The mandatory failure is not waived as pre-existing.

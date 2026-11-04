@@ -1,0 +1,53 @@
+{
+  "command": "pnpm test",
+  "exitCode": 1,
+  "completeRepositoryPass": false,
+  "note": "One row per completed Vitest invocation in log order. Numeric columns are passed files, failed files, passed tests, failed tests, todo tests. Skipped files/tests are zero throughout. Repeated package rows are distinct invocations, not a unique-test coverage claim. Browser/later workspace phases did not complete.",
+  "columns": ["package", "filesPassed", "filesFailed", "testsPassed", "testsFailed", "testsTodo"],
+  "runs": [
+    ["packages/asset-inliner", 38, 0, 772, 0, 1],
+    ["packages/create-access-router-mongo-starter", 18, 0, 339, 0, 0],
+    ["packages/express-oidc-vault", 41, 0, 2449, 0, 0],
+    ["packages/express-request-attestation", 18, 0, 618, 0, 0],
+    ["packages/express-request-attestation", 1, 0, 62, 0, 0],
+    ["packages/express-request-attestation", 1, 0, 31, 0, 0],
+    ["packages/express-request-attestation", 3, 0, 141, 0, 0],
+    ["packages/express-request-attestation", 1, 0, 12, 0, 0],
+    ["packages/express-runtime", 11, 0, 341, 0, 0],
+    ["packages/json-frame", 9, 0, 531, 0, 0],
+    ["packages/mongoose-rxdb", 45, 0, 632, 0, 0],
+    ["packages/pdf-reader", 4, 0, 205, 0, 0],
+    ["packages/pdf-reader", 2, 0, 32, 0, 0],
+    ["packages/utils", 17, 0, 120, 0, 0],
+    ["packages/express-oidc-vault-memory-store", 4, 0, 179, 0, 0],
+    ["packages/express-oidc-vault-mongodb-store", 8, 0, 246, 0, 0],
+    ["packages/express-oidc-vault-redis-store", 12, 0, 462, 0, 0],
+    ["packages/http-errors", 2, 0, 72, 0, 0],
+    ["packages/moo", 18, 0, 344, 0, 0],
+    ["packages/oidc-vault-dpop-client", 21, 0, 1505, 0, 0],
+    ["apps/oidc-vault-dpop-example", 5, 0, 55, 0, 0],
+    ["apps/oidc-vault-dpop-example", 9, 0, 75, 0, 0],
+    ["packages/express-response-handler", 8, 0, 215, 0, 0],
+    ["packages/express-json-router", 2, 0, 44, 0, 0],
+    ["packages/access-router", 196, 0, 6712, 0, 0],
+    ["packages/message-service", 29, 0, 622, 0, 0],
+    ["packages/access-router-client", 44, 1, 953, 1, 0]
+  ],
+  "aggregateCompletedVitestRuns": {
+    "invocations": 27,
+    "files": { "passed": 567, "failed": 1, "skipped": 0, "todo": 0 },
+    "tests": { "passed": 17769, "failed": 1, "skipped": 0, "todo": 1 }
+  },
+  "accessRouterDurationSeconds": 1292.78,
+  "failure": {
+    "file": "packages/access-router-client/test/access-router-client.packed-consumer.test.ts",
+    "line": 81,
+    "column": 37,
+    "expectedRootEngines": { "node": ">=20" },
+    "actualRootEngines": { "node": ">=24" },
+    "clientBrowserPhaseReached": false,
+    "decoratorScriptPrintedWithoutTestResults": true,
+    "laterWorkspaceCoverageComplete": false,
+    "baselineCommandExecuted": false
+  }
+}

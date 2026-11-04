@@ -105,10 +105,15 @@ afterEach(() => {
 });
 
 describe('captured source modes replace flags, prerequisites and dormant profiles', () => {
-  it('has exactly two independent mode keys and ten rejection-only retired names', () => {
-    expect(authorizationModeKeys).toEqual(['readAuthorizationMode', 'listAuthorizationMode']);
+  it('has exactly four independent mode keys and ten rejection-only retired names', () => {
+    expect(authorizationModeKeys).toEqual([
+      'readAuthorizationMode',
+      'listAuthorizationMode',
+      'createAuthorizationMode',
+      'updateAuthorizationMode',
+    ]);
     expect(retiredAuthorizationOptions).toHaveLength(10);
-    expect(new Set(serverAuthorizationControls).size).toBe(12);
+    expect(new Set(serverAuthorizationControls).size).toBe(14);
   });
 
   it.each(modes.flatMap((read) => modes.map((list) => ({ read, list }))))(
@@ -226,11 +231,29 @@ describe('captured source modes replace flags, prerequisites and dormant profile
     'listSub',
     'count',
     'distinct',
-  ])('%s and write-derived reads do not gain trust through read-shaped output', (operation) => {
-    const root = call({ readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' }, operation, {
-      access: access(operation, 'read'),
-    });
+  ])('%s and write-derived reads do not gain trust through read-shaped output', async (operation) => {
+    const root = call(
+      {
+        readAuthorizationMode: 'trusted',
+        listAuthorizationMode: 'trusted',
+        createAuthorizationMode: 'trusted',
+        updateAuthorizationMode: 'trusted',
+      },
+      operation,
+      { access: access(operation, 'read') },
+    );
     expect(mode(root)).toBe('isolated');
+    const source = { value: 'source', date: new Date(1) };
+    const prepared = prepareQueryDocumentStage(root.authorization, root.binding, source);
+    await resolveDocumentStage(prepared.stage, (doc) => {
+      doc.value = 'hook-write';
+      (doc.date as Date).setTime(99);
+      return { owner: true };
+    });
+    expect(prepared.borrowed).toBe(false);
+    expect(prepared.source).toMatchObject({ value: 'source', date: new Date(1) });
+    expect(source).toEqual({ value: 'source', date: new Date(1) });
+    closeDocumentStage(prepared.stage);
     expect(
       mode(
         call({ readAuthorizationMode: 'trusted' }, 'read', {
@@ -341,7 +364,7 @@ describe('effective owner/access warnings and undefined restoration', () => {
       expect(f.warn).toHaveBeenCalledTimes(1);
       expect(f.warn.mock.calls[0][1]).toEqual({
         modelName: name,
-        access: key.startsWith('read') ? 'read' : 'list',
+        access: key.slice(0, -'AuthorizationMode'.length),
         category: 'trustedAuthorizationSource',
       });
       f.runtime.setModelOptions(name, { [key]: 'trusted' });
@@ -361,37 +384,43 @@ describe('effective owner/access warnings and undefined restoration', () => {
     },
   );
 
-  it('publishes all inheriting owners before any warning, preserving explicit isolation and runtime separation', () => {
-    const f = fixture();
-    const explicit = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
-    const inherited = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
-    for (const model of [explicit, inherited]) f.runtime.registerModelInstance(model.modelName, model);
-    f.runtime.setModelOptions(explicit.modelName, { readAuthorizationMode: 'isolated' });
-    f.runtime.setModelOptions(inherited.modelName, {});
-    const observations: boolean[] = [];
-    f.warn.mockImplementation(() => {
-      observations.push(
-        f.runtime.getDefaultModelOption('readAuthorizationMode') === 'trusted' &&
-          f.runtime.getModelOption(f.model.modelName, 'readAuthorizationMode') === 'trusted' &&
-          f.runtime.getModelOption(inherited.modelName, 'readAuthorizationMode') === 'trusted' &&
-          f.runtime.getModelOption(explicit.modelName, 'readAuthorizationMode') === 'isolated',
-      );
-    });
-    f.runtime.setDefaultModelOptions({ readAuthorizationMode: 'trusted' });
-    expect(observations).toEqual([true, true, true]);
-    expect(f.warn.mock.calls.map((entry) => entry[1].modelName)).toEqual([
-      'default-model',
-      f.model.modelName,
-      inherited.modelName,
-    ]);
-    expect(fixture().runtime.getDefaultModelOption('readAuthorizationMode')).toBe('isolated');
-    const lazy = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
-    f.runtime.registerModelInstance(lazy.modelName, lazy);
-    f.runtime.getModelOptions(lazy.modelName);
-    f.runtime.getModelOptions(lazy.modelName);
-    expect(f.warn.mock.calls.at(-1)![1].modelName).toBe(lazy.modelName);
-    expect(f.warn).toHaveBeenCalledTimes(4);
-  });
+  it.each(authorizationModeKeys)(
+    '%s publishes every inheriting owner before warnings and stays runtime-local',
+    (key) => {
+      const f = fixture();
+      const explicit = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
+      const inherited = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
+      for (const model of [explicit, inherited]) f.runtime.registerModelInstance(model.modelName, model);
+      f.runtime.setModelOptions(explicit.modelName, { [key]: 'isolated' });
+      f.runtime.setModelOptions(inherited.modelName, {});
+      const observations: boolean[] = [];
+      f.warn.mockImplementation(() => {
+        observations.push(
+          f.runtime.getDefaultModelOption(key) === 'trusted' &&
+            f.runtime.getModelOption(f.model.modelName, key) === 'trusted' &&
+            f.runtime.getModelOption(inherited.modelName, key) === 'trusted' &&
+            f.runtime.getModelOption(explicit.modelName, key) === 'isolated',
+        );
+      });
+      f.runtime.setDefaultModelOptions({ [key]: 'trusted' });
+      expect(observations).toEqual([true, true, true]);
+      expect(f.warn.mock.calls.map((entry) => entry[1].modelName)).toEqual([
+        'default-model',
+        f.model.modelName,
+        inherited.modelName,
+      ]);
+      const other = new AccessRuntime();
+      other.registerModelInstance(f.model.modelName, f.model);
+      expect(other.getDefaultModelOption(key)).toBe('isolated');
+      expect(other.getModelOption(f.model.modelName, key)).toBe('isolated');
+      const lazy = mongoose.model(`ModeOptions${++serial}`, new mongoose.Schema({ value: String }));
+      f.runtime.registerModelInstance(lazy.modelName, lazy);
+      f.runtime.getModelOptions(lazy.modelName);
+      f.runtime.getModelOptions(lazy.modelName);
+      expect(f.warn.mock.calls.at(-1)![1].modelName).toBe(lazy.modelName);
+      expect(f.warn).toHaveBeenCalledTimes(4);
+    },
+  );
 
   it('owns the entire warning transition before a logger reenters and tolerates logger failure after commit', () => {
     const f = fixture();
@@ -402,14 +431,25 @@ describe('effective owner/access warnings and undefined restoration', () => {
       f.runtime.setModelOptions(f.model.modelName, {
         readAuthorizationMode: 'isolated',
         listAuthorizationMode: 'isolated',
+        createAuthorizationMode: 'isolated',
+        updateAuthorizationMode: 'isolated',
       });
     });
-    f.runtime.setDefaultModelOptions({ readAuthorizationMode: 'trusted', listAuthorizationMode: 'trusted' });
+    f.runtime.setDefaultModelOptions({
+      readAuthorizationMode: 'trusted',
+      listAuthorizationMode: 'trusted',
+      createAuthorizationMode: 'trusted',
+      updateAuthorizationMode: 'trusted',
+    });
     expect(f.warn.mock.calls.map((entry) => entry[1])).toEqual([
       { modelName: 'default-model', access: 'read', category: 'trustedAuthorizationSource' },
       { modelName: 'default-model', access: 'list', category: 'trustedAuthorizationSource' },
+      { modelName: 'default-model', access: 'create', category: 'trustedAuthorizationSource' },
+      { modelName: 'default-model', access: 'update', category: 'trustedAuthorizationSource' },
       { modelName: f.model.modelName, access: 'read', category: 'trustedAuthorizationSource' },
       { modelName: f.model.modelName, access: 'list', category: 'trustedAuthorizationSource' },
+      { modelName: f.model.modelName, access: 'create', category: 'trustedAuthorizationSource' },
+      { modelName: f.model.modelName, access: 'update', category: 'trustedAuthorizationSource' },
     ]);
     expect(mode(f.capture('read'))).toBe('isolated');
     f.warn.mockImplementation(() => {
@@ -419,13 +459,18 @@ describe('effective owner/access warnings and undefined restoration', () => {
       f.runtime.setModelOptions(f.model.modelName, {
         readAuthorizationMode: undefined,
         listAuthorizationMode: undefined,
+        createAuthorizationMode: undefined,
+        updateAuthorizationMode: undefined,
       }),
     ).not.toThrow();
     expect(mode(f.capture())).toBe('trusted');
+    for (const key of authorizationModeKeys) expect(f.runtime.getModelOption(f.model.modelName, key)).toBe('trusted');
     const count = f.warn.mock.calls.length;
     f.runtime.setModelOptions(f.model.modelName, {
       readAuthorizationMode: undefined,
       listAuthorizationMode: undefined,
+      createAuthorizationMode: undefined,
+      updateAuthorizationMode: undefined,
     });
     expect(f.warn).toHaveBeenCalledTimes(count);
   });
@@ -465,6 +510,20 @@ describe('presence-based public/default/service/policy/helper lanes', () => {
               success: false,
               code: 'bad_request',
             });
+          }
+        }
+        for (const options of [controls, { authorization: controls }]) {
+          for (const invoke of [
+            () => f.service.create({}, {}, options as never),
+            () => f.service.updateOne({}, {}, {}, options as never),
+            () => f.service.updateById('id', {}, {}, options as never),
+            () => f.service.upsert({}, {}, {}, options as never),
+            () => f.service.new({}, options as never),
+            () => f.service._create({}, {}, options as never),
+            () => f.service._update('id', {}, {}, options as never),
+            () => f.service._upsert({}, {}, options as never),
+          ]) {
+            expect(await invoke()).toMatchObject({ success: false, code: 'bad_request' });
           }
         }
         for (const bucket of [

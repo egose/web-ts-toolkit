@@ -56,43 +56,45 @@ describe('default-model flag inheritance through decorator bootstrap', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it.each(['readAuthorizationMode', 'listAuthorizationMode'] as const)(
-    '%s stays inherited while explicit isolation is retained and undefined restores inheritance',
-    (key) => {
-      const api = createAccessRuntime();
-      const warn = vi.fn();
-      api.setGlobalOptions({ logger: { warn } });
-      const db = new mongoose.Mongoose();
-      const inherited = db.model('DefaultModesInherited', new mongoose.Schema({ name: String }));
-      const explicit = db.model('DefaultModesExplicit', inherited.schema);
-      class Defaults {
-        enabled = 'trusted' as const;
-      }
-      RouterOptions({})(Defaults);
-      DefaultModelOption(key)(Defaults.prototype, 'enabled');
-      class Inherited {}
-      Router(inherited)(Inherited);
-      class Explicit {}
-      Router(explicit, { [key]: 'isolated' })(Explicit);
-      class App {}
-      Module({ routerOptions: [Defaults], routers: [Inherited, Explicit] })(App);
-      EgoseFactoryStatic.create(api).bootstrap(App, express());
-      expect(api.getModelOption(inherited.modelName, key)).toBe('trusted');
-      expect(api.getModelOption(explicit.modelName, key)).toBe('isolated');
-      const before = api.getModelOptions(inherited.modelName);
-      expect(warn).toHaveBeenCalledTimes(2);
-      api.setDefaultModelOption(key, undefined);
-      expect(api.getModelOption(inherited.modelName, key)).toBe('isolated');
-      api.setDefaultModelOption(key, 'trusted');
-      expect(api.getModelOption(inherited.modelName, key)).toBe('trusted');
-      expect(api.getModelOption(explicit.modelName, key)).toBe('isolated');
-      expect(before[key]).toBe('trusted');
-      expect(warn).toHaveBeenCalledTimes(4);
-      api.setModelOption(explicit.modelName, key, undefined);
-      expect(api.getModelOptions(explicit.modelName)[key]).toBe('trusted');
-      expect(warn).toHaveBeenCalledTimes(5);
-    },
-  );
+  it.each([
+    'readAuthorizationMode',
+    'listAuthorizationMode',
+    'createAuthorizationMode',
+    'updateAuthorizationMode',
+  ] as const)('%s stays inherited while explicit isolation is retained and undefined restores inheritance', (key) => {
+    const api = createAccessRuntime();
+    const warn = vi.fn();
+    api.setGlobalOptions({ logger: { warn } });
+    const db = new mongoose.Mongoose();
+    const inherited = db.model('DefaultModesInherited', new mongoose.Schema({ name: String }));
+    const explicit = db.model('DefaultModesExplicit', inherited.schema);
+    class Defaults {
+      enabled = 'trusted' as const;
+    }
+    RouterOptions({})(Defaults);
+    DefaultModelOption(key)(Defaults.prototype, 'enabled');
+    class Inherited {}
+    Router(inherited)(Inherited);
+    class Explicit {}
+    Router(explicit, { [key]: 'isolated' })(Explicit);
+    class App {}
+    Module({ routerOptions: [Defaults], routers: [Inherited, Explicit] })(App);
+    EgoseFactoryStatic.create(api).bootstrap(App, express());
+    expect(api.getModelOption(inherited.modelName, key)).toBe('trusted');
+    expect(api.getModelOption(explicit.modelName, key)).toBe('isolated');
+    const before = api.getModelOptions(inherited.modelName);
+    expect(warn).toHaveBeenCalledTimes(2);
+    api.setDefaultModelOption(key, undefined);
+    expect(api.getModelOption(inherited.modelName, key)).toBe('isolated');
+    api.setDefaultModelOption(key, 'trusted');
+    expect(api.getModelOption(inherited.modelName, key)).toBe('trusted');
+    expect(api.getModelOption(explicit.modelName, key)).toBe('isolated');
+    expect(before[key]).toBe('trusted');
+    expect(warn).toHaveBeenCalledTimes(4);
+    api.setModelOption(explicit.modelName, key, undefined);
+    expect(api.getModelOptions(explicit.modelName)[key]).toBe('trusted');
+    expect(warn).toHaveBeenCalledTimes(5);
+  });
 
   it.each(retired)('rejects retired default %s before bootstrap publication, even for undefined', (key) => {
     const api = createAccessRuntime();

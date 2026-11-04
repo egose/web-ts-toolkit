@@ -1,0 +1,27 @@
+{
+  "baseline": "HEAD migration guide before the nested-operation section",
+  "originalClassifiedBlocks": 10,
+  "byteIdenticalPreservedBlocks": 10,
+  "currentClassifiedBlocks": 13,
+  "currentClassifications": {
+    "partial": 11,
+    "complete-runtime": 1,
+    "expected-error": 1
+  },
+  "preservedTypeScriptSha256": "97ef690b09e92acd0846dacb491b1bf6be0d24c7e25f8f5dd52ec86bcdeb003b",
+  "targetMarkers": [
+    {
+      "marker": "const operationAccess: OperationAccess",
+      "classified": true
+    },
+    {
+      "marker": "const batch = api.createRouter(",
+      "classified": true
+    },
+    {
+      "marker": "'subs.comments.read.advanced'",
+      "classified": true
+    }
+  ],
+  "changedMaintainedFiles": 23
+}

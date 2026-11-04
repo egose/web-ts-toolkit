@@ -38,6 +38,7 @@ import type {
 import { defaultLogger } from './logger-default';
 import { OptionsManager, cloneOptionsSnapshot, getNestedOption } from './options/manager';
 import { DataOptionsManager } from './options/data-manager';
+import { assertOperationAccessOptions, assertOperationAccessUpdate } from './operation-access';
 import { emptyDataSnapshot } from './options/data-values';
 import { defaultRequestComplexity } from './request-complexity';
 import {
@@ -53,6 +54,7 @@ import {
   assertAuthorizationModeOptions,
   admitControlPrototypes,
   authorizationModeKeys,
+  authorizationModeOperations,
 } from './acl/authorization-modes';
 
 type ModelReferenceMap = {
@@ -528,6 +530,8 @@ export class AccessRuntime {
     modelPermissionPrefix: '',
     readAuthorizationMode: 'isolated',
     listAuthorizationMode: 'isolated',
+    createAuthorizationMode: 'isolated',
+    updateAuthorizationMode: 'isolated',
   }).build();
 
   private readonly modelOptions: Record<string, OptionsManager<any, any>> = {};
@@ -696,15 +700,18 @@ export class AccessRuntime {
     assertAuthorizationModeOptions(snapshot.globalOptions, false);
     assertNoServerModelControls(snapshot.globalOptions, reject);
     assertAuthorizationModeOptions(snapshot.defaultModelOptions, true);
+    assertOperationAccessOptions(snapshot.defaultModelOptions);
     assertNoServerModelControls(snapshot.defaultModelOptions, reject, 'model-options');
     assertPublicDefaults((snapshot.defaultModelOptions as ModelRouterOptions).defaults);
     for (const options of [...Object.values(snapshot.modelOptions), ...Object.values(snapshot.modelOptionOverrides)]) {
       assertAuthorizationModeOptions(options, true);
+      assertOperationAccessOptions(options);
       assertNoServerModelControls(options, reject, 'model-options');
       assertPublicDefaults(options.defaults);
     }
     for (const options of Object.values(snapshot.dataOptions)) {
       assertAuthorizationModeOptions(options, false);
+      assertOperationAccessOptions(options);
       assertNoServerModelControls(options, reject, 'data-options');
     }
     this.globalOptions.restore(snapshot.globalOptions as any);
@@ -811,6 +818,7 @@ export class AccessRuntime {
   /** Update inherited model defaults shallowly. Explicit model values and captured calls are unchanged. */
   setDefaultModelOptions(options: DefaultModelRouterOptions) {
     assertAuthorizationModeOptions(options, true);
+    assertOperationAccessOptions(options);
     assertNoServerModelControls(
       options,
       (detail) => {
@@ -836,6 +844,7 @@ export class AccessRuntime {
   ) {
     assertAuthorizationModeKey(key, true);
     const keyStr = key as string;
+    assertOperationAccessUpdate(keyStr, value);
     if ((authorizationModeKeys as readonly string[]).includes(keyStr)) {
       this.setDefaultModelOptions({ [keyStr]: value } as DefaultModelRouterOptions);
       return;
@@ -909,6 +918,7 @@ export class AccessRuntime {
     options: ModelRouterOptions,
     proposed?: Parameters<typeof captureVirtualPopulateDependencies>[4],
   ): void {
+    assertOperationAccessOptions(options);
     const model = this.getModelInstance(modelName);
     validateVirtualsTree(model, options.virtuals, options.documentPermissionField ?? '_permissions', modelName);
     captureDocumentPermissionsDefinition(options.docPermissions, {
@@ -924,6 +934,7 @@ export class AccessRuntime {
   }
 
   private publishDefaultModelOptions(options: DefaultModelRouterOptions): void {
+    assertOperationAccessOptions(options);
     const next = { ...options };
     const defaults = cloneOptionsSnapshot(next);
     const models = new Map(
@@ -959,10 +970,10 @@ export class AccessRuntime {
         if (options[key] !== 'trusted' || before.get(modelName)?.[key] === 'trusted') continue;
         try {
           this.getGlobalOption('logger')?.warn?.(
-            'Trusted authorization source mode enabled; projected source/document-hook input may be borrowed. Actor, policy, facts, getter views and selected output bounds remain owned.',
+            'Trusted authorization output source mode enabled; admitted source/document-hook input may be borrowed. Write input is unchanged. Actor, policy, facts, getter views and selected output bounds remain owned.',
             {
               modelName,
-              access: key === 'readAuthorizationMode' ? 'read' : 'list',
+              access: authorizationModeOperations[key],
               category: 'trustedAuthorizationSource',
             },
           );
@@ -1035,6 +1046,7 @@ export class AccessRuntime {
     options: ModelRouterOptions<TModel, TVirtuals>,
   ) {
     assertAuthorizationModeOptions(options, true);
+    assertOperationAccessOptions(options);
     assertNoServerModelControls(
       options,
       (detail) => {
@@ -1070,6 +1082,7 @@ export class AccessRuntime {
   >(modelName: string, key: K, value: ExtendedModelRouterOptions<TModel, TVirtuals>[K]) {
     assertAuthorizationModeKey(key, true);
     const keyStr = key as string;
+    assertOperationAccessUpdate(keyStr, value);
     if (keyStr === 'docPermissions') {
       value = captureDocumentPermissionsDefinition(value) as typeof value;
     } else if (keyStr.startsWith('docPermissions.')) {
@@ -1141,8 +1154,9 @@ export class AccessRuntime {
   /**
    * Generic stored exact → parent.default → parent lookup; only undefined falls through.
    * The exact runtime-model-default path is the final fallback if the stored parent is
-   * absent. This is not the route-specific variant-to-base resolver; use
-   * getExactModelOption to inspect a variant including its exact model-default fallback.
+   * absent. This raw generic lookup is not the final nested operation-entry resolver;
+   * it may return an operation object. getExactModelOption inspects a member including
+   * its same-owner exact model-default fallback, without resolving entry policy.
    */
   getModelOption<
     K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
@@ -1161,7 +1175,7 @@ export class AccessRuntime {
     >[K];
   }
 
-  /** Exact stored path, then the same runtime-model-default path; no parent/default or variant-to-base lookup. */
+  /** Exact stored path, then the same runtime-model-default path; no parent/default or final entry resolution. */
   getExactModelOption<
     K extends keyof ExtendedModelRouterOptions<TModel, TVirtuals>,
     TModel = unknown,
@@ -1269,6 +1283,7 @@ export class AccessRuntime {
 
   setDataOptions<TData = unknown>(dataName: string, options: DataRouterOptions<TData>) {
     assertAuthorizationModeOptions(options, false);
+    assertOperationAccessOptions(options);
     assertNoServerModelControls(
       options,
       (detail) => {
@@ -1288,6 +1303,7 @@ export class AccessRuntime {
     value: ExtendedDataRouterOptions<TData>[K],
   ) {
     assertAuthorizationModeKey(key, false);
+    assertOperationAccessUpdate(key, value);
     const proposed = {};
     set(proposed, key, value);
     assertNoServerModelControls(

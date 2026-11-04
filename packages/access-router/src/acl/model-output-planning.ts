@@ -1,6 +1,7 @@
 import type { AccessRuntime } from '../runtime';
-import type { ModelRequest, ModelRouterOptions, Projection } from '../interfaces';
+import type { ModelRequest, ModelRouterOptions, Projection, Validation } from '../interfaces';
 import type { AccessRouterPermissions } from '../permission';
+import { createOperationAccessReaders, selectOperationAccessGuard } from '../operation-access';
 import { resolveNestedOption } from '../options/manager';
 import { captureAuthorizationFieldCatalog } from './field-catalog';
 import { authorizationError } from './authorization-snapshot';
@@ -36,14 +37,27 @@ export function readCapturedAuthorizationOption(
 
 /** Exact → default → bare, with the exact runtime fallback for operation guards only. */
 export function getCapturedAuthorizationOption(configuration: AuthorizationConfiguration, key: string): unknown {
-  const defaultValue = key.startsWith('operationAccess.')
-    ? readCapturedAuthorizationOption(configuration.operationAccessDefaults, key.slice('operationAccess.'.length))
-    : undefined;
+  const defaultValue =
+    configuration.operationAccess === undefined && key.startsWith('operationAccess.')
+      ? readCapturedAuthorizationOption(configuration.operationAccessDefaults, key.slice('operationAccess.'.length))
+      : undefined;
   return resolveNestedOption(
     (path, fallback) => readCapturedAuthorizationOption(configuration, path, fallback),
     key,
     defaultValue,
   );
+}
+
+/** Context-free operation admission from this call's owned model/default snapshots. */
+export function selectCapturedOperationAccessGuard(
+  configuration: AuthorizationConfiguration,
+  access: string,
+): Validation | undefined {
+  return selectOperationAccessGuard({
+    ...createOperationAccessReaders(configuration, { operationAccess: configuration.operationAccessDefaults }),
+    baseAccess: access,
+    subdocuments: true,
+  });
 }
 
 /**
@@ -62,6 +76,8 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
   // Primitive mode capture precedes catalog/native configuration callbacks.
   const readAuthorizationMode = options.readAuthorizationMode ?? 'isolated';
   const listAuthorizationMode = options.listAuthorizationMode ?? 'isolated';
+  const createAuthorizationMode = options.createAuthorizationMode ?? 'isolated';
+  const updateAuthorizationMode = options.updateAuthorizationMode ?? 'isolated';
   const model = runtime.getModelInstance(modelName);
   if (!model) return authorizationError(`unknown receiving model: ${modelName}`);
   const virtuals = options.virtuals as Record<string, unknown> | undefined;
@@ -100,15 +116,16 @@ export function captureModelAuthorizationConfiguration<T = unknown, V extends ob
     disableFieldPermissions: options.disableFieldPermissions ?? true,
     readAuthorizationMode,
     listAuthorizationMode,
+    createAuthorizationMode,
+    updateAuthorizationMode,
     overrideFilter: options.overrideFilter,
     baseFilter: options.baseFilter,
     idField: options.idField,
     resolveIdFilter: options.resolveIdFilter,
     operationAccess: options.operationAccess,
-    // A defined stored parent (including {}) wins over exact runtime defaults.
-    // Keep only operation fallback data; resolve each access without a live lookup.
-    operationAccessDefaults:
-      options.operationAccess === undefined ? runtime.getDefaultModelOption('operationAccess') : undefined,
+    // Keep same-owner raw defaults separately for exact field specificity. The shared
+    // selector decides which paths apply; a defined operation object is never deep-merged.
+    operationAccessDefaults: runtime.getDefaultModelOption('operationAccess'),
     hydration: options.hydration,
     defaults: options.defaults,
   });

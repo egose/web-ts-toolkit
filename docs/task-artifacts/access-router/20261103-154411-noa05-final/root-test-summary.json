@@ -1,0 +1,98 @@
+{
+  "command": "pnpm test",
+  "rootScript": "pnpm -r --if-present --workspace-concurrency=1 test",
+  "columns": ["package", "filesPassed", "filesFailed", "testsPassed", "testsFailed", "testsTodo", "testsSkipped"],
+  "note": "One row per completed Vitest invocation; repeated package lanes are not unique-test coverage. No skipped files were reported in either attempt. Initial attempt aborted; final attempt completes all declared default test scripts.",
+  "initial": {
+    "runs": [
+      ["packages/asset-inliner", 38, 0, 772, 0, 1, 0],
+      ["packages/create-access-router-mongo-starter", 18, 0, 339, 0, 0, 0],
+      ["packages/express-oidc-vault", 41, 0, 2449, 0, 0, 0],
+      ["packages/express-request-attestation", 18, 0, 618, 0, 0, 0],
+      ["packages/express-request-attestation", 1, 0, 62, 0, 0, 0],
+      ["packages/express-request-attestation", 1, 0, 31, 0, 0, 0],
+      ["packages/express-request-attestation", 3, 0, 141, 0, 0, 0],
+      ["packages/express-request-attestation", 1, 0, 12, 0, 0, 0],
+      ["packages/express-runtime", 11, 0, 341, 0, 0, 0],
+      ["packages/json-frame", 9, 0, 531, 0, 0, 0],
+      ["packages/mongoose-rxdb", 36, 9, 611, 21, 0, 0]
+    ],
+    "aggregate": {
+      "invocations": 11,
+      "filesPassed": 177,
+      "filesFailed": 9,
+      "testsPassed": 5907,
+      "testsFailed": 21,
+      "testsTodo": 1,
+      "testsSkipped": 0
+    },
+    "exitCode": 1,
+    "completeRepositoryPass": false,
+    "reportedUnhandledErrors": 323
+  },
+  "final": {
+    "runs": [
+      ["packages/asset-inliner", 38, 0, 772, 0, 1, 0],
+      ["packages/create-access-router-mongo-starter", 18, 0, 339, 0, 0, 0],
+      ["packages/express-oidc-vault", 41, 0, 2449, 0, 0, 0],
+      ["packages/express-request-attestation", 18, 0, 618, 0, 0, 0],
+      ["packages/express-request-attestation", 1, 0, 62, 0, 0, 0],
+      ["packages/express-request-attestation", 1, 0, 31, 0, 0, 0],
+      ["packages/express-request-attestation", 3, 0, 141, 0, 0, 0],
+      ["packages/express-request-attestation", 1, 0, 12, 0, 0, 0],
+      ["packages/express-runtime", 11, 0, 341, 0, 0, 0],
+      ["packages/json-frame", 9, 0, 531, 0, 0, 0],
+      ["packages/mongoose-rxdb", 45, 0, 632, 0, 0, 0],
+      ["packages/pdf-reader", 4, 0, 205, 0, 0, 0],
+      ["packages/pdf-reader", 2, 0, 32, 0, 0, 0],
+      ["packages/utils", 17, 0, 120, 0, 0, 0],
+      ["packages/express-oidc-vault-memory-store", 4, 0, 179, 0, 0, 0],
+      ["packages/express-oidc-vault-mongodb-store", 8, 0, 246, 0, 0, 0],
+      ["packages/express-oidc-vault-redis-store", 12, 0, 462, 0, 0, 0],
+      ["packages/http-errors", 2, 0, 72, 0, 0, 0],
+      ["packages/moo", 18, 0, 344, 0, 0, 0],
+      ["packages/oidc-vault-dpop-client", 21, 0, 1505, 0, 0, 0],
+      ["apps/oidc-vault-dpop-example", 5, 0, 55, 0, 0, 0],
+      ["apps/oidc-vault-dpop-example", 9, 0, 75, 0, 0, 0],
+      ["packages/express-response-handler", 8, 0, 215, 0, 0, 0],
+      ["packages/express-json-router", 2, 0, 44, 0, 0, 0],
+      ["packages/access-router", 196, 0, 6717, 0, 0, 0],
+      ["packages/message-service", 29, 0, 622, 0, 0, 0],
+      ["packages/access-router-client", 45, 0, 954, 0, 0, 0],
+      ["packages/access-router-client", 1, 0, 10, 0, 0, 0],
+      ["packages/access-router-deco", 23, 0, 742, 0, 0, 0],
+      ["packages/access-router-runtime", 12, 0, 135, 0, 0, 0],
+      ["packages/access-router-react", 20, 0, 268, 0, 0, 0],
+      ["packages/access-router-react", 20, 0, 268, 0, 0, 0],
+      ["packages/access-router-react", 3, 0, 18, 0, 0, 0],
+      ["apps/react-vite", 4, 0, 43, 0, 0, 0]
+    ],
+    "aggregate": {
+      "invocations": 34,
+      "filesPassed": 651,
+      "filesFailed": 0,
+      "testsPassed": 19259,
+      "testsFailed": 0,
+      "testsTodo": 1,
+      "testsSkipped": 0
+    },
+    "exitCode": 0,
+    "completeRepositoryPass": true,
+    "reportedUnhandledErrors": 0
+  },
+  "workspaceDefaultTestInventory": {
+    "expectedPackageCount": 25,
+    "completedPackageCount": 25,
+    "missing": [],
+    "extra": [],
+    "reconciliation": "All packages/* and apps/* package.json files with scripts.test match the distinct completed Vitest package paths; optional non-default scripts are outside this claim."
+  },
+  "accessRouterFreshUnfiltered": {
+    "files": 196,
+    "testsPassed": 6717,
+    "vitestDurationSeconds": 1261.07,
+    "separatePackageInvocation": false
+  },
+  "clientBrowserLimit": "The completed client browser-config phase uses existing jsdom, not a real-browser version matrix.",
+  "todo": { "package": "packages/asset-inliner", "count": 1, "reviewerAdded": false }
+}

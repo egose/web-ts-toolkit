@@ -199,15 +199,33 @@ Missing hooks yield empty facts; thrown/rejected hooks also warn. Invalid fulfil
 maps fail the whole operation with 400. Existing-document input keeps pre-write facts;
 post-write output has a separate stage. Data/raw/new-input evaluation has empty facts.
 
-Configure independent `readAuthorizationMode` / `listAuthorizationMode` on server
+Configure independent `readAuthorizationMode`, `listAuthorizationMode`,
+`createAuthorizationMode` and `updateAuthorizationMode` on server
 model/default options, including `Router`, `RouterOptions`, scoped option properties
-or factory `defaultModelOptions`. Literal `isolated` is the default; `trusted` may
-borrow an admitted ordinary projected source only. Actor/policy/facts stay owned,
-targets select their own mode, embedded scopes inherit their owner, READ retries
-retain READ mode, and writes/new/dedicated origins stay isolated. Undefined restores
+or factory `defaultModelOptions`. All use `AuthorizationMode = 'isolated' | 'trusted'`,
+default isolated. Root READ/LIST use the matching setting; CREATE (including bulk)
+and UPDATE apply **only to post-persistence/lifecycle output**. UPSERT selects its
+executed branch's captured setting while retaining initiating `upsert`/branch accesses;
+no fifth setting or READ/LIST rename exists. Undefined restores
 inheritance. All ten retired unsafe keys reject by presence (even false/undefined/
 inherited/non-enumerable); global/module/root/per-call/wire/default-method placements
 reject. Bulk updates are atomic; logger failures do not change committed settings.
+
+Both write modes always acquire a full bounded detached source/native leaves;
+trusted omits only the subsequent disposable document-hook view copy. Never lend
+live documents, `_doc`, payloads or lifecycle snapshots; conversion failure at this
+boundary fails output. Trusted mutations can affect response values/calculated facts.
+Actor/policy/facts, getter views/return staging and private inputs stay protected.
+Embedded scopes inherit owner mode/facts; related targets select their **own model's
+READ/LIST mode**, including genuine write-origin populate. Those targets still need
+full bounded detachment, unlike trusted query-origin hidden unvisited graphs. Parent
+mode cannot lower an isolated target; target borrowing cannot mutate an isolated
+parent's source/live write graph. READ retries retain READ; independent calls recapture.
+NEW/helpers/dedicated/COUNT/DELETE/DISTINCT/custom origins gain no trusted stage.
+Modes capture before hooks/awaits, affecting new calls only; input admission and the
+hydrated pre-write UPDATE hook, validation/preparation/transform/save/lifecycle
+contracts are unchanged, not newly detached or sandboxed. No implicit save/query/rollback
+is added; output failure can occur after commit. No copy-saving or timing guarantee.
 
 Decorated methods keep class-instance `this`, unlike ordinary field predicates'
 original-request `this`; inject the original request with `@Request()` and never

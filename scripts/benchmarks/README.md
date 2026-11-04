@@ -6,6 +6,15 @@ LIST fixtures. The separate fixed-protocol driver below explicitly selects READ,
 helpers, native adapters, facts and retained heap. No timing acceptance is implied by
 its implementation or small smoke runs.
 
+The package now has four authorization settings, but benchmark discovery/configuration
+deliberately requires and applies **only `readAuthorizationMode` / `listAuthorizationMode`**.
+Both declaration conditions and exact/bulk getters on both actual models must agree.
+`createAuthorizationMode` / `updateAuthorizationMode` do not substitute for missing or
+malformed READ/LIST declarations. Neither catalog times CREATE/UPDATE/UPSERT output;
+seeding is outside timing. Raw helpers remain isolated regardless of these query
+settings. Historical seals/reports are unchanged and provide no write-output timing
+evidence. No new timing or copy-saving claim is made here.
+
 From the repository root, after `pnpm install`:
 
 ```sh

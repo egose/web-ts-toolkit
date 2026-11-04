@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 import type {
   AccessRouterRequest,
-  ExtendedDefaultModelRouterOptions,
   GlobalPermissionValue,
   GuardHook,
   MaybePromise,
@@ -117,12 +116,8 @@ const setMethodMetadata = <THook extends Function>(definition: HookDefinition, o
 
 const hook = <TKey extends HookDefinitionKey>(hookKey: TKey) => HOOK_DEFINITIONS[hookKey];
 
-type OperationAccessOptionKey = Extract<keyof ExtendedDefaultModelRouterOptions, `operationAccess.${string}`>;
-
-export type RouteGuardOperationKey = Exclude<
-  OperationAccessOptionKey extends `operationAccess.${infer TOperation}` ? TOperation : never,
-  'subs'
->;
+/** Existing scalar hook names only; nested entry configuration belongs in typed router options. */
+export type RouteGuardOperationKey = (typeof HOOK_DEFINITIONS.routeGuard.operations)[number];
 
 /**
  * Registers a global permissions hook (`globalPermissions`).
@@ -317,6 +312,8 @@ export function DecorateAll<TModel = unknown>(
  * Parameter injection explicit: use `@Permissions()` for resolved permissions, optional `@Request()`. `this` is the class instance.
  *
  * @param optionKey - scalar guard operation.
+ * For independent default/basic/advanced/root rules use typed @Router/@RouterOptions or model option setters;
+ * nested member paths are configuration, not new @RouteGuard operation names.
  */
 export function RouteGuard(optionKey: RouteGuardOperationKey): HookDecorator<ReturnType<GuardHook>> {
   const definition = hook('routeGuard');

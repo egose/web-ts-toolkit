@@ -550,7 +550,7 @@ describe('AR-14 published export contract', () => {
       }
     });
 
-    it.each(['d.ts', 'd.mts'])('OAV-06 exposes route/field shapes and useful editor hover in %s', (extension) => {
+    it.each(['d.ts', 'd.mts'])('exposes nested route/field shapes and useful editor hover in %s', (extension) => {
       const ts = require('typescript') as typeof import('typescript');
       const entries = ['index', 'advanced'].map((entry) => path.resolve(packageRoot, 'dist', `${entry}.${extension}`));
       const program = ts.createProgram(entries, {
@@ -559,6 +559,7 @@ describe('AR-14 published export contract', () => {
         moduleResolution: ts.ModuleResolutionKind.Bundler,
         noEmit: true,
         skipLibCheck: true,
+        strictNullChecks: true,
         types: [],
       });
       const checker = program.getTypeChecker();
@@ -573,20 +574,20 @@ describe('AR-14 published export contract', () => {
       const hover = (symbol: import('typescript').Symbol) =>
         ts.displayPartsToString(symbol.getDocumentationComment(checker));
       const properties = [
-        ['basicList', 'GET /'],
-        ['advancedList', 'POST /__query'],
-        ['basicRead', 'GET /:id'],
-        ['advancedRead', 'POST /__query/:id'],
-        ['basicCreate', 'POST /'],
-        ['advancedCreate', 'POST /__mutation'],
-        ['basicUpdate', 'PATCH /:id'],
-        ['advancedUpdate', 'PATCH /__mutation/:id'],
-        ['basicUpsert', 'PUT /'],
-        ['advancedUpsert', 'PUT /__mutation'],
-        ['basicCount', 'GET /count'],
-        ['advancedCount', 'POST /count'],
-        ['basicDistinct', 'GET /distinct/:field'],
-        ['advancedDistinct', 'POST /distinct/:field'],
+        ['list', 'GET /'],
+        ['list', 'POST /__query'],
+        ['read', 'GET /:id'],
+        ['read', 'POST read routes (/__query/:id'],
+        ['create', 'POST /'],
+        ['create', 'POST /__mutation'],
+        ['update', 'PATCH /:id'],
+        ['update', 'PATCH /__mutation/:id'],
+        ['upsert', 'PUT /'],
+        ['upsert', 'PUT /__mutation'],
+        ['count', 'GET /count'],
+        ['count', 'POST /count'],
+        ['distinct', 'GET /distinct/:field'],
+        ['distinct', 'POST /distinct/:field'],
       ];
       for (const entry of entries) {
         const route = exportedType(entry, 'OperationAccess');
@@ -598,21 +599,48 @@ describe('AR-14 published export contract', () => {
           const property = route.type.getProperty(key)!;
           expect(property, `${key} is discoverable`).toBeDefined();
           expect(hover(property)).toContain(endpoint);
-          expect(hover(property)).toContain('undefined inherits');
+          expect(hover(property)).toContain('root');
         }
+        const variants = exportedType(entry, 'OperationAccessVariants');
+        expect(
+          variants.type
+            .getProperties()
+            .map((property) => property.name)
+            .sort(),
+        ).toEqual(['advanced', 'basic', 'default', 'root']);
+        expect(hover(variants.symbol)).toContain('Only undefined inherits');
+        expect(hover(variants.type.getProperty('default')!)).toContain('Context-free');
+        expect(hover(variants.type.getProperty('basic')!)).toContain('HEAD');
+        expect(hover(variants.type.getProperty('advanced')!)).toContain('both POST reads');
+        expect(hover(variants.type.getProperty('root')!)).toContain('outer guard');
+        expect(checker.typeToString(exportedType(entry, 'OperationAccessContext').type)).toBe('OperationAccessContext');
+        expect(exportedType(entry, 'OperationAccessRule').type.isUnion()).toBe(true);
+        const module = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
+        expect(checker.getExportsOfModule(module).some((symbol) => symbol.name === 'RouteVariantAccess')).toBe(false);
+        // Optional never constraints diagnose retired keys; they are not usable aliases.
+        for (const operation of ['List', 'Read', 'Create', 'Update', 'Upsert', 'Count', 'Distinct'])
+          for (const context of ['basic', 'advanced']) {
+            const property = route.type.getProperty(`${context}${operation}`)!;
+            expect(
+              checker.typeToString(checker.getTypeOfSymbolAtLocation(property, program.getSourceFile(entry)!)),
+            ).toBe('undefined');
+          }
         const field = exportedType(entry, 'FieldOperationAccess');
         expect(field.type.getProperty('read')).toBeDefined();
-        for (const [key] of properties) expect(field.type.getProperty(key)).toBeUndefined();
+        for (const operation of ['List', 'Read', 'Create', 'Update', 'Upsert', 'Count', 'Distinct'])
+          for (const context of ['basic', 'advanced'])
+            expect(field.type.getProperty(`${context}${operation}`)).toBeUndefined();
         expect(hover(exportedType(entry, 'PermissionSchema').symbol)).toContain('not field-rule objects');
         const sub = exportedType(entry, 'SubOperationAccess');
         expect(hover(sub.symbol)).toContain('closed object');
-        expect(hover(sub.type.getProperty('advancedRead')!)).toContain('/:subId/__query');
+        expect(hover(sub.type.getProperty('read')!)).toContain('/:subId/__query');
+        expect(hover(sub.type.getProperty('update')!)).toContain('subUpdate/subBulkUpdate');
         expect(hover(route.type.getProperty('subs')!)).toContain('not an umbrella guard for absent fields');
       }
       for (const routerName of ['ModelRouter', 'DataRouter']) {
         const router = exportedType(entries[0], routerName);
         expect(hover(router.type.getProperty('options')!)).toContain('construction-time snapshot');
-        expect(hover(router.type.getProperty('operationAccess')!)).toContain("operationAccess('basicRead', false)");
+        expect(hover(router.type.getProperty('operationAccess')!)).toContain("operationAccess('read.basic', false)");
         expect(hover(router.type.getProperty('setOptions')!)).toContain('replaces that entire rule object');
         expect(hover(router.type.getProperty('setOption')!)).toContain('undefined');
       }

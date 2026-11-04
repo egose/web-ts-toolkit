@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { Model } from 'mongoose';
-import type { HydrationMode, ModelHydrationOptions } from '@web-ts-toolkit/access-router';
+import type { AuthorizationMode, HydrationMode, ModelHydrationOptions } from '@web-ts-toolkit/access-router';
 import type { ModelHydrationOptions as AdvancedHydration, ModelRequest } from '@web-ts-toolkit/access-router/advanced';
 import {
   DefaultModelOption,
@@ -16,13 +16,26 @@ declare const ThingModel: Model<Thing>;
 declare const req: ModelRequest;
 const mode: HydrationMode = 'lean';
 const hydration: AdvancedHydration = { publicList: 'hydrated', publicRead: mode, findById: 'lean' };
+const authorizationModes = {
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'trusted',
+  createAuthorizationMode: 'isolated',
+  updateAuthorizationMode: 'trusted',
+} as const;
 
 @RouterOptions({
+  ...authorizationModes,
   hydration,
   requireOperationAccessForPopulateQueries: false,
   requireOperationAccessForPopulateDependencies: undefined,
 })
 class StartingDefaults {
+  @DefaultModelOption('createAuthorizationMode')
+  create: AuthorizationMode = 'trusted';
+
+  @DefaultModelOption('updateAuthorizationMode')
+  update: AuthorizationMode | undefined = undefined;
+
   @DefaultModelOption('requireOperationAccessForPopulateQueries')
   requireQueryOperation = false;
 
@@ -37,12 +50,19 @@ class StartingDefaults {
 }
 
 @RouterOptions(ThingModel, {
+  ...authorizationModes,
   hydration: { publicRead: 'hydrated', findOne: 'lean' },
   requireOperationAccessForPopulateQueries: undefined,
   requireOperationAccessForPopulateDependencies: true,
   defaults: { publicListOptions: { includeCount: true } },
 })
 class ThingOptions {
+  @ModelOption('createAuthorizationMode')
+  create: AuthorizationMode | undefined = undefined;
+
+  @ModelOption('updateAuthorizationMode')
+  update: AuthorizationMode = 'isolated';
+
   @ModelOption('requireOperationAccessForPopulateQueries')
   requireQueryOperation: boolean | undefined = undefined;
 
@@ -53,7 +73,7 @@ class ThingOptions {
   find: HydrationMode = 'lean';
 }
 
-@Router(ThingModel, { hydration, permissionSchema: { name: true, lean: true, hydration: true } })
+@Router(ThingModel, { ...authorizationModes, hydration, permissionSchema: { name: true, lean: true, hydration: true } })
 class ThingRouter {
   @ModelOption('hydration')
   hydration: ModelHydrationOptions = { findOne: 'lean' };
@@ -70,6 +90,26 @@ class AppModule {
   @GlobalOption('requestPermissionField')
   permissions = '_permissions';
 }
+
+for (const key of [
+  'readAuthorizationMode',
+  'listAuthorizationMode',
+  'createAuthorizationMode',
+  'updateAuthorizationMode',
+] as const) {
+  ModelOption(key);
+  DefaultModelOption(key);
+  // @ts-expect-error modes belong only to model/default-model configuration
+  GlobalOption(key);
+}
+// @ts-expect-error raw class options use the same literal mode enum
+Router(ThingModel, { createAuthorizationMode: true });
+// @ts-expect-error default-model modes cannot coerce strings
+RouterOptions({ updateAuthorizationMode: 'TRUSTED' });
+// @ts-expect-error modes are not module/global options
+Module({ routers: [], options: { createAuthorizationMode: 'trusted' } });
+// @ts-expect-error modes are not per-method configuration
+RouterOptions({ defaults: { updateOneOptions: { updateAuthorizationMode: 'trusted' } } });
 
 // @ts-expect-error removed registration capability has no typed decorator alias
 GlobalOption('requireRegisteredPopulateModels');
@@ -130,6 +170,12 @@ class MisplacedDefaults {}
 
 const service = req.macl.getService<Thing>('Thing');
 const publicService = req.macl.getPublicService<Thing>('Thing');
+// @ts-expect-error CREATE modes are not per-call selectors
+service.create({}, {}, { createAuthorizationMode: 'trusted' });
+// @ts-expect-error UPDATE modes are not per-call selectors
+service.updateOne({}, {}, {}, { updateAuthorizationMode: 'trusted' });
+// @ts-expect-error public write options also exclude server configuration
+publicService._create({}, {}, { createAuthorizationMode: 'trusted' });
 // @ts-expect-error retired per-call lean controls cannot return through decorator declarations
 service.find({}, {}, { lean: true });
 // @ts-expect-error replacement configuration is not a per-call option

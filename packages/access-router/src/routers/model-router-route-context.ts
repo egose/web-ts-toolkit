@@ -12,6 +12,6 @@ export type ModelRouterRouteContext<TModel> = {
   runtime: AccessRuntime;
   getRequestSchema(key: string): RequestSchemaLike | undefined;
   getPublicService(req: ModelRequest): PublicService<TModel>;
-  assertAllowed(req: ModelRequest, baseAccess: string, variant?: RouteVariant): Promise<void>;
+  assertAllowed(req: ModelRequest, baseAccess: string, variant: RouteVariant): Promise<void>;
   registerOpenApiRoute(route: OpenApiRouteDescriptor): void;
 };
