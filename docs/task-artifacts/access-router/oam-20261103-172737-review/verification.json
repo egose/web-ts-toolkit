@@ -1,0 +1,382 @@
+{
+  "reviewer": "REVIEW-05",
+  "dateUtc": "2026-11-04",
+  "decision": "reject; OAM-03 remediation and V3 Docker prerequisite required",
+  "revisionState": {
+    "head": "c68451e40b99ca545dc52a46c287b32949980d26",
+    "incomingTrackedModifiedFiles": 37,
+    "incomingUntrackedFiles": 9,
+    "incomingNonignoredFileBytesUnchanged": true,
+    "reviewerProductEdits": false,
+    "recordedInputsSha256": {
+      "AGENTS.md": "cf76f18c4f172719f2d58ab81939183930dc88f33f765e809591bdeedabc71aa",
+      "docs/task-artifacts/access-router/oam-20261103-172737-config/README.md": "24f3756dd32518e54ca91fbdda97be835fa9ca80f97fa18a5bf38c9d7bdb571d",
+      "docs/task-artifacts/access-router/oam-20261103-172737-design/README.md": "9551aa8ee2e823d131a7a44f20f4c91c0102c42b81e51bac078643f37525a85d",
+      "docs/task-artifacts/access-router/oam-20261103-172737-integration/README.md": "36204619a6c0cfb4a9df48b7c67084a7fb6233642e77dce209a4c02c8bc0dff4",
+      "docs/task-artifacts/access-router/oam-20261103-172737-runtime/README.md": "12dc7accdf1f19993724c9fc54d948b6d1f62369d642f2cf3268da10991797fb",
+      "docs/tasks/20261103-172737-access-router-output-authorization-modes.md": "a2ddb9d63689d91891e3ef204dc673ac058a187f0a7daa5fc4cccf51646b3445",
+      "eslint.config.mjs": "bd4a844a9d8c6c9b5522a38179dcfdbaf5dae620dda9956a24d7aa4518c60373",
+      "package.json": "553dad149cfb4cdb857f1e33da65de6085ba61c4fed964546638f76e99a0f056",
+      "packages/access-router-deco/README.md": "15732cabc2b7adc7c7d5f8d7b62d3fd06b753d3689193de828efde8a8b850cb4",
+      "packages/access-router-deco/package.json": "2249c18aa4b813204b8689f4946694cc434ffe412dfd82a0b28f19b5418b4d57",
+      "packages/access-router-deco/src/authorization-modes.ts": "f85ef0c1909f1d4027f27be02ed6f58f699d13aaed0327b28bbd4d5e0ce133f5",
+      "packages/access-router-deco/test/default-model-options.test.ts": "20570b5f4e32ce02cd9b3a3b38c93b200fc6c7be8ea0792c7838dba26fbc3dca",
+      "packages/access-router-deco/test/hydration-consumer.types.fixture.ts": "3dd6c09d310f406a688e5ac5cf1e93be524b78f8c2fa490b86379a9c08ffe55a",
+      "packages/access-router-deco/test/owned-authorization-modes.test.ts": "05f63746930686d5a19baad269752a7343a05254f4f942e7ac55c0b5a19abd3e",
+      "packages/access-router-deco/test/owned-authorization.documentation.runtime.fixture.mjs": "0c627b759dc4c948f1e84c7a59ca69632ee093eb35a84f6afda078bc417672a6",
+      "packages/access-router-deco/test/packed-consumer-compatibility.test.ts": "94beb27daa142b06470ebd1b474e59f89d35f9f5048e9bfde6ed7be666b4549a",
+      "packages/access-router-deco/test/strict-consumer-types.test.ts": "586a5ddbf7ab0c338e42995cb7ea70385e33f400b4fc73f873d99a132d420e94",
+      "packages/access-router-deco/tsup.config.ts": "4887e730b507af84a22c55c3697dbef467b662e828a5e697190cbca412516209",
+      "packages/access-router/MIGRATION.md": "5a73a5380711db901a5b702429790b37269a08c3006e4ac51e5d5e3dc0d98ce3",
+      "packages/access-router/README.md": "26795566bc88e4696663f7e0f26e2e16ec3e40dc83dff0b566feb0115599f88a",
+      "packages/access-router/llms.txt": "c6efc759fad629685d1a705c2eb6ecd14d27483cf77834fd7240518f21210998",
+      "packages/access-router/package.json": "9e84237a18da5ba5caf6cd739b512d8aa9cefc7d5f16424d4f48d9b0270a8f1e",
+      "packages/access-router/src/acl/authorization-modes.ts": "8170cace3912b8ea519c6157d131d35b70e64a9692550c21b07663abdb802ff5",
+      "packages/access-router/src/acl/document-stage.ts": "0a07f22b5e770a5938c6efa29de2790b084871201ebc419ec14ae5812ac591b8",
+      "packages/access-router/src/acl/model-output-planning.ts": "f8ecb626df2e0706482be4b7ec24514a1a97c928511fd2d1d3be02f42e0b1b04",
+      "packages/access-router/src/acl/service-authorization.ts": "93878c13ba8570ee39d075c10ce8f89573d0a96bdf2458d70584dedb128e2a25",
+      "packages/access-router/src/acl/service-execution.ts": "a9ddbe116e97882d752638fa59a0512bd162433dad32ed2cf04f9c1d65193e5b",
+      "packages/access-router/src/interfaces/root.ts": "c9b230e017ffbf5899281bcc725028749d84560251e3129d583e0c28054e7b9a",
+      "packages/access-router/src/runtime.ts": "8f3a1badb398da30ede6626c8b6d2c86c13ecc6cadbad1f600b4ce222a77786e",
+      "packages/access-router/src/services/public-service.ts": "cad17f1e73fba42a0010b25ce27e0f92cb5992b3b4e86096720cfe866734bf77",
+      "packages/access-router/src/services/service.ts": "866f6602bf6557f79f5a98bcea419671d83e2cd82eab6917ce7afbfc53a92fc9",
+      "packages/access-router/test/authorization-fast-path-consumer.types.fixture.ts": "77f4f8c91d7786077ff52efdebf635d34991a24f471c98ac2d401737182a9666",
+      "packages/access-router/test/authorization-fast-path-options.integration.test.ts": "e55e897804bcaa6e893857ea9cdb25f2e7d722467bfca16f127a43172c1f0e63",
+      "packages/access-router/test/authorization-fast-path-options.unit.test.ts": "163fbd52d3f653cc4cb0a945b08a49b2e23f062fcd7cbeda59fafbe91cc13b3c",
+      "packages/access-router/test/default-model-options.integration.test.ts": "204dab45a7e835ea9ac813785b57af625d1bce51d3a4311a2c0568beca474bb0",
+      "packages/access-router/test/document-permissions-dependencies.integration.test.ts": "7d13efee264104b69a024454b7f6527594345f47f5e4b0a5ec7e21e2298a7870",
+      "packages/access-router/test/documentation-examples.test.ts": "38616376cb4093d91bc277df48192d413970d5eebd381490f66a26f7e131039b",
+      "packages/access-router/test/owned-authorization-migration.invalid.types.fixture.ts": "4c45da6a6b792a1ee1ca162da689ee16bf9636f136076517271356c4f6de667a",
+      "packages/access-router/test/owned-authorization-modes.unit.test.ts": "24246da84a046c9721efa1a92480724da737dd8c3f6e992cf4cf2c79933622a9",
+      "packages/access-router/test/owned-authorization-stage.unit.test.ts": "78a0ad9c889e1ddef9e7f1a60132a6594b2114f3f0d432a0db779420d25fa9f9",
+      "packages/access-router/test/packed-consumer-compatibility.test.ts": "fa266f74072f28b3b38c3a2f3838f4c47a2413a1f01ecd211ada2dd6f3eba3a1",
+      "packages/access-router/test/service-authorization-mutations.integration.test.ts": "d5dfbc57f60f7f27683d2a6f673264ea371ef7a51f1c55fc8c085beaa5e2e1fd",
+      "packages/access-router/test/virtuals-populate-dependencies.integration.test.ts": "e66ccd65c108a29160d3e280803d8f204687eebc55172a346c5ca4bb88b99419",
+      "packages/access-router/test/write-output-authorization.unit.test.ts": "7abd9367d15710967d87cf6ed597eeb24861e213f1b94925e708395728004268",
+      "packages/access-router/test/write-output-modes.unit.test.ts": "f97e48813d417eb80841c476583faad6a067616c757f80d841e25118cf0b99f7",
+      "packages/access-router/test/write-output-populate.unit.test.ts": "1bafd47ebde71946265a4e321856814b45c9925cc18711f2db443bb0996c2479",
+      "packages/access-router/test/write-output-test-fixture.ts": "acc3536b54a3a917c78b1e13ce029b69adcd63028463d8a8bc2210f298674788",
+      "packages/access-router/tsup.config.ts": "4df8c11eca67a582f3d4baa63ff6b337e938e3339d577f8f50fc5eb79f3a205a",
+      "pnpm-lock.yaml": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+      "pnpm-workspace.yaml": "1692f75b1a4f4b4d22ce74685ec246976cc581dd3b56d75bade732f3e7316141",
+      "scripts/benchmarks/README.md": "126f6fcfce3f66575020199613133ab6f4e0278bd899efcb2ba447585fa0266c",
+      "scripts/benchmarks/access-router-core.mjs": "ffeaef67b37c4b5c3d46e0ff1047681d17c081a646ebe955152c44c1661026db",
+      "scripts/benchmarks/access-router-owned.test.mjs": "d152f23a5df2ae113a6b800eae87bf393d5314f4192d8631aacc6b769dc83bf9",
+      "website/docs/packages/access-router-deco.md": "bfb4292f5580f32902adc6c11a7c7e79f0578583f558ef9a5110cc4a456493b1",
+      "website/docs/packages/access-router/configuration.mdx": "381d3eba268e89ab8b611341ab5857ecd31cfea7ab394012be087d8398b7ca12"
+    },
+    "recordedInputsAggregateSha256": "529b3aa7aa2006ed7b4d28c5d44d742d5bd55ad08b0aa47318d3e7e377e17107",
+    "aggregateAlgorithm": "SHA-256 of UTF-8 compact JSON sorted path-to-SHA256 object",
+    "candidateRootEsmSha256": "ddfaa0189e88179fb1607d3ea766485befd03639e2273e0e05e3d9e34b812ef6"
+  },
+  "environment": {
+    "node": "v26.12.1",
+    "pnpm": "11.18.0",
+    "vitest": "4.1.11",
+    "TMPDIR": "<repo-root>/_tmp-oam05-review-20261104-133234",
+    "WTT_BENCH_TMP": "<repo-root>/_tmp-oam05-review-20261104-133234",
+    "WTT_BENCH_LEGACY_ROOT": "<repo-root>/_tmp-oar01-20261031-153820/baseline-artifact",
+    "WTT_BENCH_CANDIDATE_ROOT": "<repo-root>",
+    "serialization": "Each process awaited before the next build/test; recursive workspace test concurrency remains 1"
+  },
+  "commands": [
+    {
+      "sequence": 1,
+      "name": "v2-typecheck",
+      "argv": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "typecheck"],
+      "workdir": ".",
+      "exit": 0
+    },
+    {
+      "sequence": 2,
+      "name": "v2-access-router",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=../../_tmp-oam05-review-20261104-133234/access-router-v2.json"
+      ],
+      "workdir": ".",
+      "exit": 0
+    },
+    {
+      "sequence": 3,
+      "name": "v2-deco",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router-deco",
+        "test",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=../../_tmp-oam05-review-20261104-133234/access-router-deco-v2.json"
+      ],
+      "workdir": ".",
+      "exit": 0
+    },
+    {
+      "sequence": 4,
+      "name": "baseline-before",
+      "argv": ["node", "_tmp-oam05-review-20261104-133234/baseline-readonly.mjs", "before"],
+      "workdir": ".",
+      "exit": 0
+    },
+    {
+      "sequence": 5,
+      "name": "v2-owned-batch",
+      "argv": [
+        "node",
+        "--test",
+        "--test-concurrency=1",
+        "scripts/benchmarks/access-router-owned.test.mjs",
+        "scripts/benchmarks/access-router-owned-batch.test.mjs"
+      ],
+      "workdir": ".",
+      "exit": 0
+    },
+    {
+      "sequence": 6,
+      "name": "v2-shared-integration",
+      "argv": [
+        "node",
+        "--test",
+        "--test-concurrency=1",
+        "scripts/benchmarks/access-router.test.mjs",
+        "scripts/benchmarks/access-router.integration.test.mjs"
+      ],
+      "workdir": ".",
+      "exit": 0
+    },
+    { "sequence": 7, "name": "v3-build", "argv": ["pnpm", "build"], "workdir": ".", "exit": 0 },
+    { "sequence": 8, "name": "v3-test", "argv": ["pnpm", "test"], "workdir": ".", "exit": 1 },
+    { "sequence": 9, "name": "v3-lint", "argv": ["pnpm", "lint"], "workdir": ".", "exit": 0 },
+    {
+      "sequence": 10,
+      "name": "baseline-after",
+      "argv": ["node", "_tmp-oam05-review-20261104-133234/baseline-readonly.mjs", "after"],
+      "workdir": ".",
+      "exit": 0
+    },
+    { "sequence": 11, "name": "diff-check", "argv": ["git", "diff", "--check"], "workdir": ".", "exit": 0 },
+    {
+      "sequence": 12,
+      "name": "review-probes",
+      "argv": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "_tmp-oam05-review-20261104-133234/vitest.config.mts",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile.json=_tmp-oam05-review-20261104-133234/review-probes.json"
+      ],
+      "workdir": ".",
+      "exit": 1
+    },
+    {
+      "sequence": 13,
+      "name": "surface",
+      "argv": ["node", "_tmp-oam05-review-20261104-133234/inspect-surface.mjs"],
+      "workdir": ".",
+      "exit": 0
+    },
+    {
+      "sequence": 14,
+      "name": "review-probes-rerun",
+      "argv": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "_tmp-oam05-review-20261104-133234/vitest.config.mts",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile.json=_tmp-oam05-review-20261104-133234/review-probes-rerun.json"
+      ],
+      "workdir": ".",
+      "exit": 1
+    },
+    {
+      "sequence": 15,
+      "name": "review-probes-final",
+      "argv": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "_tmp-oam05-review-20261104-133234/vitest.config.mts",
+        "--reporter=verbose",
+        "--reporter=json",
+        "--outputFile.json=_tmp-oam05-review-20261104-133234/review-probes-final.json"
+      ],
+      "workdir": ".",
+      "exit": 1
+    }
+  ],
+  "testAssertions": [
+    { "report": "access-router-v2.json", "files": 199, "tests": 6925, "passed": 6925, "failed": 0, "pending": 0 },
+    { "report": "access-router-deco-v2.json", "files": 23, "tests": 779, "passed": 779, "failed": 0, "pending": 0 },
+    { "report": "review-probes-final.json", "files": 1, "tests": 4, "passed": 1, "failed": 3, "pending": 0 }
+  ],
+  "benchmarks": {
+    "ownedAndBatch": { "tests": 29, "passed": 29, "failed": 0, "skipped": 0, "cancelled": 0, "todo": 0 },
+    "sharedRunnerAndIntegration": { "tests": 29, "passed": 29, "failed": 0, "skipped": 0, "cancelled": 0, "todo": 0 },
+    "timingAcceptance": false
+  },
+  "v3": {
+    "build": { "exit": 0, "completedWorkspaceBuildEntries": 31 },
+    "test": {
+      "exit": 1,
+      "serializedWorkspaceConcurrency": 1,
+      "completedBeforeFailure": [
+        { "package": "asset-inliner", "files": 38, "passed": 772, "todo": 1 },
+        { "package": "create-access-router-mongo-starter", "files": 18, "passed": 339 },
+        { "package": "express-oidc-vault", "files": 41, "passed": 2449 },
+        { "package": "express-request-attestation (node)", "files": 18, "passed": 618 }
+      ],
+      "blockingLane": "packages/express-request-attestation/test/redis-live.test.ts",
+      "failedFiles": 1,
+      "failedSetupSuites": 2,
+      "automaticallySkippedTests": 62,
+      "failure": "Docker CLI cannot reach its configured Docker Desktop named-pipe daemon; both redis:6.2-alpine and redis:7.2-alpine beforeAll container starts fail",
+      "remainingWorkspaceResults": "not completed; recursive first-failure stop",
+      "baselineAttribution": "Attestation source is outside the OAM diff and unchanged against HEAD. No clean-baseline root test run; no historical pass/fail claim."
+    },
+    "lint": { "exit": 0, "command": "pnpm lint" }
+  },
+  "surfaceInspection": {
+    "status": "passed",
+    "optionPropertiesVerified": 64,
+    "results": [
+      { "subpath": ".", "condition": "require", "runtimeExports": 46 },
+      { "subpath": ".", "condition": "import", "runtimeExports": 46 },
+      { "subpath": ".", "condition": "require", "declarationExports": 200 },
+      { "subpath": ".", "condition": "import", "declarationExports": 200 },
+      { "subpath": "./advanced", "condition": "require", "runtimeExports": 48 },
+      { "subpath": "./advanced", "condition": "import", "runtimeExports": 48 },
+      { "subpath": "./advanced", "condition": "require", "declarationExports": 336 },
+      { "subpath": "./advanced", "condition": "import", "declarationExports": 336 },
+      { "subpath": "./processors", "condition": "require", "runtimeExports": 6 },
+      { "subpath": "./processors", "condition": "import", "runtimeExports": 6 },
+      { "subpath": "./processors", "condition": "require", "declarationExports": 17 },
+      { "subpath": "./processors", "condition": "import", "declarationExports": 17 }
+    ]
+  },
+  "historicalPrerequisite": {
+    "status": "passed",
+    "beforeAfterSnapshotIdentical": true,
+    "snapshot": {
+      "descriptorSha256": "ebf499b00923e35e7fd5404a2d4aa42dec058e22b01f65ce6664f8900ca6dbd9",
+      "sealerSha256": "e6441fb2b4fb87ded9019c5548b0fe26adf6107de41ada9b8ce8f714f0e7ce49",
+      "dependencyDescriptorSha256": "7a1e7554223fc3ee68caede57ec338b3f1093e09e0d69d167cbdaa8999c9eb82",
+      "performanceGatesSha256": "958d14930ee2f470875d8d09b78673f28d9b4d227ce5b91548ad9d7cff91299d",
+      "artifactFiles": 552,
+      "artifactInventorySha256": "7229a35eeb5a712707d32d47fb9bc4177b8d9e033f86d782cf0f0ef5c3f45f9a",
+      "distFiles": 14,
+      "esmSha256": "33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822",
+      "cjsSha256": "4ad8ab48b44d91d4051c56e056bf3c2302e0f75c9fbd96b509a15b36f1003bea",
+      "sourceEntries": 7,
+      "unsafeFixtureSha256": "c3a2e9b2b1bf67dcd5d3a91c9298e50c867df8ed9523f8ddfae89f17b26bd331",
+      "declarationFiles": 8,
+      "declarationsSha256": "5d7ce47c3ea6117c01e5a375f8a58a7637dcb976eaac9b50ea92fa01a0173468",
+      "dependencyPackages": 134,
+      "dependencyFiles": 3510,
+      "installedEdges": 214,
+      "absentEdges": 6,
+      "dependencyInventorySha256": "337489502055dc84457cb6cab27f5564e25fbcbb97b5125e13e177b0fb52b88f",
+      "dependencyEdgesSha256": "bd353710b8f07d946794025316cc94fe7dd9b8e44857836cd96ff12929b9f3b0",
+      "packageLinks": 33,
+      "symlinks": 39,
+      "symlinksSha256": "8a52fe09930ae6c4cf93172f1e1603e2b1688aeb30f477b21d2ef78f5dfe9afd",
+      "runtime": { "mongoose": "9.11.4", "express": "5.2.1", "typescript": "6.0.3" }
+    },
+    "limits": [
+      "Compared complete recorded file inventories and resolved edges, not authenticated signatures.",
+      "Original sealer read, never imported or executed. No artifact/dependency rebuild, install, modification or reseal.",
+      "Original manifest exclusions preserved; observed symlink identities checked separately.",
+      "External dependencies remain environment-dependent; no hermetic/vendored replay or old timing acceptance."
+    ]
+  },
+  "independentProbes": {
+    "initialRun": "one suite failed to resolve root-level mongoose; zero assertions executed",
+    "scratchFixtureResolution": "Resolved existing mongoose through packages/access-router/package.json; no install or product change",
+    "final": { "files": 1, "tests": 4, "passed": 1, "failed": 3, "pending": 0 },
+    "findings": [
+      {
+        "id": "F1",
+        "priority": "P1",
+        "genericOrigin": true,
+        "inheritedProperty": "Object.prototype.writeOutputBranch",
+        "expected": {
+          "rootWrite": false,
+          "childWrite": false,
+          "childMode": "isolated",
+          "targetSourceValue": "original"
+        },
+        "observed": {
+          "rootWrite": true,
+          "childWrite": true,
+          "childMode": "trusted",
+          "targetSourceValue": "hook-change"
+        },
+        "limits": "Requires an inherited process-prototype property; no remote request-only exploit or row/field grant bypass demonstrated."
+      },
+      {
+        "id": "F2-root",
+        "priority": "P2",
+        "realCreateSucceeded": true,
+        "publicationClosed": true,
+        "trustedHookInputDetached": true,
+        "observedOriginalLookupIsExactLiveSavedDocument": true,
+        "expectedRawOriginalLinkCleared": true,
+        "observedRawOriginalLinkCleared": false
+      },
+      {
+        "id": "F2-target",
+        "priority": "P2",
+        "publicationClosed": true,
+        "referenceCopyDetached": true,
+        "observedReferenceLookupIsExactRawTarget": true,
+        "expectedReferenceLookupUndefined": true,
+        "observedReferenceLookupUndefined": false
+      }
+    ],
+    "disprovedConcern": {
+      "name": "related target native configuration callback changes initiating mode too early",
+      "observed": "Runtime CREATE mode changed isolated to trusted; current real CREATE remained isolated; next real CREATE used trusted.",
+      "result": "passed",
+      "source": "packages/access-router/src/acl/model-service-owner.ts:modelServiceOptions/modelServicePermissions"
+    }
+  },
+  "retainedOmittedWorkEvidence": {
+    "source": "Fresh full V2 assertions in write-output-authorization.unit.test.ts and write-output-populate.unit.test.ts",
+    "ordinaryWriteStage": {
+      "isolated": {
+        "mandatorySourceMaterializations": 1,
+        "additionalDisposableHookViewCopies": 1,
+        "hookInputEqualsStageSource": false
+      },
+      "trusted": {
+        "mandatorySourceMaterializations": 1,
+        "additionalDisposableHookViewCopies": 0,
+        "hookInputEqualsStageSource": true
+      }
+    },
+    "writeOriginTargetStageRootMaterializations": {
+      "isolated": 2,
+      "trusted": 1,
+      "excludes": "Owning-parent source admission, per-attachment copies, conversion/normalization and other selected construction work"
+    },
+    "liveStorageUnchangedByHookArgumentMutations": true,
+    "speedupClaim": false,
+    "heapAllocationMeasurement": false
+  },
+  "omitted": "Raw logs/assertion trees, scratch probe implementations, generated consumers/builds/tarballs, caches, databases and original historical artifact/dependency trees are not archived."
+}

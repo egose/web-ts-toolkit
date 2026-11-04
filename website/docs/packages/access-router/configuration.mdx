@@ -161,10 +161,11 @@ connection and related registry across a same-request runtime handoff. Base-filt
 entries are reused only for the same model/access and policy function.
 Request base-filter caches remain owned by their request/runtime/access.
 
-### Owned READ/LIST authorization modes
+### Owned authorization modes
 
-There is one document-stage engine and exactly two independent server options:
-`readAuthorizationMode` / `listAuthorizationMode`, each `'isolated' | 'trusted'`,
+There is one document-stage engine and four independent server model/default options:
+`readAuthorizationMode`, `listAuthorizationMode`, `createAuthorizationMode` and
+`updateAuthorizationMode`, each `AuthorizationMode = 'isolated' | 'trusted'`,
 default **isolated**. See the shipped [breaking migration guide](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/MIGRATION.md) for
 before/after examples, all ten removed flags, errors and rollout guidance. No old
 flag combination, dormant mode, output handle or compatibility alias remains.
@@ -174,25 +175,56 @@ flag combination, dormant mode, output handle or compatibility alias remains.
 ```ts
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 const api = createAccessRuntime();
-api.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
-api.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });
+api.setDefaultModelOptions({
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'isolated',
+  createAuthorizationMode: 'isolated',
+  updateAuthorizationMode: 'isolated',
+});
+api.setModelOptions('Employee', {
+  readAuthorizationMode: 'isolated',
+  listAuthorizationMode: 'trusted',
+  createAuthorizationMode: 'trusted',
+  updateAuthorizationMode: 'isolated',
+});
 api.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });
 api.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default
 api.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only
 ```
 
-Isolated owns bounded detached projected source and gives document hooks disposable
-views. Trusted may borrow admitted ordinary projected source/doc-hook input: mutations
-can affect values/calculated facts; hidden unvisited graphs are not whole-document
-bounded. **Both own actor, private policy and normalized frozen boolean facts**, enforce
+Root READ/LIST use their matching settings. CREATE (including bulk) and UPDATE use
+their settings **only for post-persistence/lifecycle output**. UPSERT selects its
+executed branch's captured CREATE or UPDATE mode, retaining initiating `upsert` and
+branch-specific accesses; no fifth setting or READ/LIST rename exists.
+
+Isolated owns bounded detached source and gives document-permission output hooks
+disposable views. Trusted may borrow admitted ordinary source/doc-hook input:
+mutations can affect response values/calculated facts. Only **query-origin** trusted
+output can leave hidden unvisited graphs unbounded. **Both write modes always acquire
+a full bounded detached source**, including mutable native leaves; trusted omits only
+the subsequent disposable hook-view copy. Live documents, `_doc`, payloads and
+lifecycle snapshots are never lent. Conversion failure at this boundary fails output
+rather than lending `_doc`. No source-copy saving or universal speedup is promised.
+
+**Both own actor, private policy and normalized frozen boolean facts**, enforce
 original actor, rows/fields/targets and selected/native 20,000-slot/depth-100 bounds.
 Both retain separate getter views, return staging and private argument-four isolation.
 No sandbox, transaction, rollback, external freshness or blanket security equivalence.
 
-Capture precedes hooks/awaits. Genuine embedded scopes inherit their owner; related
-targets use their own captured model/access mode and policy, not their parent's mode.
-READ-to-LIST retry keeps initiating READ mode with a fresh stage. Independent service
-calls capture anew. Writes/new/dedicated subdocuments always stay isolated.
+Capture precedes hooks/awaits, including both UPSERT modes, never re-reading settings
+after save. Genuine embedded scopes inherit owner mode/facts. Related targets use
+their **own model's captured READ/LIST mode** at effective access, including genuine
+write-origin populate, with independent policy/facts. Parent mode cannot lower an
+isolated target; target borrowing cannot mutate an isolated parent's source or live
+write graph. Write-origin targets still require mandatory full bounded detachment,
+not the trusted-query hidden-graph exception. READ-to-LIST retry retains READ with a
+fresh stage; independent nested READ/LIST calls capture anew.
+
+Input admission/pre-write grants and the hydrated pre-write UPDATE hook, validation,
+preparation/transform/save/lifecycle contracts are unchanged, not newly detached or
+sandboxed. NEW/helpers/dedicated subdocuments/COUNT/DELETE/DISTINCT/custom origins
+gain no trusted stage. No implicit save/query/rollback is added. Output errors may
+occur **after the write commits**; do not automatically retry the write.
 
 Only literal enum strings or undefined restoration are valid. Bulk setters reject
 atomically. Retired controls reject by presence, even false/undefined/inherited/

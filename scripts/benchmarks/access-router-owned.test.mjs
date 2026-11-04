@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createRequire } from 'node:module';
 import {
   inspectSnapshotDeclarations,
   authorizationModeCandidates,
@@ -31,8 +32,9 @@ import {
 } from './access-router-owned-core.mjs';
 import { parseArgs, inspectBuild, initialJobs, repeatJobs, verifyCandidateContext } from './access-router-owned.mjs';
 import { instrumentBundle } from './access-router-owned-structure.mjs';
-import { checksum, verifyNativeResponse } from './access-router-owned-worker.mjs';
-import { runLogged } from './access-router-core.mjs';
+import { benchmarkOwned, checksum, verifyNativeResponse } from './access-router-owned-worker.mjs';
+import { runLogged, reportRows, saveReport } from './access-router-core.mjs';
+import { verifySnapshotFlagOptions } from './access-router-worker.mjs';
 
 const root = resolve(new URL('../..', import.meta.url).pathname);
 const home = await mkdtemp(resolve(process.env.WTT_BENCH_TMP ?? '/tmp/opencode', 'owned-bench-tests-'));
@@ -87,12 +89,134 @@ test('comments/private names/malformed/required/any/missing or mismatching modul
   assert.deepEqual((await fake('private', valid.replaceAll('export ', ''))).supportedAuthorizationModes, []);
   assert.deepEqual((await fake('mismatch', valid, declaration(''))).supportedAuthorizationModes, []);
 });
+test('four-option declarations discover only actual READ/LIST support in each module condition', async () => {
+  const writes = 'createAuthorizationMode?: Mode; updateAuthorizationMode?: Mode;';
+  const four = declaration(`${AUTHORIZATION_MODE_OPTIONS.map((key) => `${key}?: Mode;`).join('\n')} ${writes}`);
+  const info = await fake('four-options', four);
+  assert.deepEqual(info.supportedAuthorizationModes, ['readAuthorizationMode', 'listAuthorizationMode']);
+  for (const [index, [cjs, esm]] of [
+    [declaration(writes), four],
+    [four, declaration(writes)],
+    [four, four.replace('readAuthorizationMode?: Mode;', 'readAuthorizationMode?: string;')],
+    [four.replace('listAuthorizationMode?: Mode;', 'listAuthorizationMode?: any;'), four],
+  ].entries()) {
+    const unsupported = await fake(`four-no-query-${index}`, cjs, esm);
+    assert.throws(() => authorizationModeCandidates({ id: 'bad', ...unsupported }, 'trusted'), /no legacy fallback/);
+  }
+  for (const profile of authorizationModeCandidates({ id: 'four', label: 'Four', ...info }, 'both')) {
+    const expected = authorizationModeOptions(profile);
+    assert.deepEqual(Object.keys(expected), ['readAuthorizationMode', 'listAuthorizationMode']);
+    assert.match(profile.label, /READ\/LIST/);
+    assert.doesNotMatch(profile.label, /LIST timed|CREATE|UPDATE|all four/);
+  }
+});
+test('query profiles configure the real public runtime and both getter paths, not default isolation labeled trusted', async () => {
+  const { createAccessRuntime } = await import('../../packages/access-router/dist/index.mjs');
+  const mongoose = createRequire(resolve(root, 'packages/access-router/package.json'))('mongoose');
+  const api = createAccessRuntime();
+  api.setGlobalOptions({ logger: { warn() {} } });
+  const host = new mongoose.Mongoose();
+  const models = ['BenchModeSource', 'BenchModeTarget'].map((name) =>
+    host.model(name, new host.Schema({ value: String })),
+  );
+  for (const model of models) api.createRouter(model, { permissionSchema: { value: true } });
+  const info = await inspectSnapshotDeclarations(root);
+  for (const candidate of authorizationModeCandidates({ id: 'built', label: 'Built', ...info }, 'both')) {
+    const expected = authorizationModeOptions(candidate);
+    for (const model of models) {
+      api.setModelOptions(model.modelName, expected); // same options applied by all workers
+      const proof = verifySnapshotFlagOptions(api, model.modelName, expected);
+      assert.deepEqual(proof.getModelOption, expected);
+      assert.deepEqual(proof.getModelOptions, expected);
+      for (const key of ['createAuthorizationMode', 'updateAuthorizationMode'])
+        assert.equal(api.getModelOption(model.modelName, key), 'isolated');
+      const wrong = {
+        ...expected,
+        listAuthorizationMode: expected.listAuthorizationMode === 'trusted' ? 'isolated' : 'trusted',
+      };
+      assert.throws(() => verifySnapshotFlagOptions(api, model.modelName, wrong), /listAuthorizationMode/);
+    }
+  }
+});
+test('query-only report labels require READ/LIST proofs and disclaim write-output timing', async () => {
+  const info = await fake(
+    'report-four',
+    declaration(
+      `${AUTHORIZATION_MODE_OPTIONS.map((key) => `${key}?: Mode;`).join('\n')} createAuthorizationMode?: Mode; updateAuthorizationMode?: Mode;`,
+    ),
+  );
+  const candidate = authorizationModeCandidates({ id: 'query-report', label: 'Query', ...info }, 'trusted')[0];
+  const expected = authorizationModeOptions(candidate);
+  const proof = Object.fromEntries(
+    ['source', 'target'].map((role) => [
+      role,
+      { modelName: role, getModelOption: { ...expected }, getModelOptions: { ...expected } },
+    ]),
+  );
+  const result = {
+    targetId: candidate.id,
+    status: 'ok',
+    scenario: 'plain-wide',
+    rows: 1,
+    concurrency: 1,
+    validationSeries: SERIES,
+    outputFingerprint: 'same',
+    stats: summarize([1], 1, 1000),
+    authorizationModeVerification: { kind: 'server-option-getters', models: proof },
+  };
+  const report = { baseline: candidate.id, targets: [candidate], results: [result], preparationFailures: [] };
+  const [row] = reportRows(report);
+  assert.equal(row['READ source mode (not timed; verified config)'], 'trusted');
+  assert.equal(row['LIST source mode (verified config)'], 'trusted');
+  assert.ok(Object.keys(row).every((key) => !/CREATE|UPDATE/.test(key)));
+  proof.target.getModelOptions.listAuthorizationMode = 'isolated';
+  assert.equal(reportRows(report)[0].status, 'UNVERIFIED CONFIG');
+  assert.equal(reportRows(report)[0]['vs baseline'], '-');
+  const out = resolve(home, 'query-only-report');
+  await mkdir(out);
+  await saveReport(out, report);
+  const text = await readFile(resolve(out, 'report.md'), 'utf8');
+  assert.match(text, /configure READ\/LIST only, NOT all four/);
+  assert.match(text, /CREATE\/UPDATE\/UPSERT output is not measured/);
+});
+test('actual current READ/LIST adapter workers verify query settings on both models without write-mode claims', async () => {
+  const current = await inspectBuild(root);
+  current.countContract = { revision: GUARD_COUNT_REVISION, artifactSha256: current.distSha256 };
+  for (const profile of ['isolated', 'trusted']) {
+    const target = profileTarget(current, profile);
+    for (const preset of workloads().filter((entry) => entry.family === 'native-adapter')) {
+      const job = {
+        ...preset,
+        target,
+        smoke: true,
+        samples: 2,
+        warmup: 1,
+        database: 'access_router_bench_0123456789ab_1',
+      };
+      const result = await benchmarkOwned(job);
+      verifyResult(job, result);
+      assert.equal(result.status, 'ok');
+      assert.equal(result.counts.reads, 0);
+      assert.match(result.source, /ZERO MongoDB reads/);
+      for (const role of ['source', 'target'])
+        for (const getter of ['getModelOption', 'getModelOptions'])
+          assert.deepEqual(result.authorizationVerification.models[role][getter], {
+            readAuthorizationMode: profile,
+            listAuthorizationMode: profile,
+          });
+    }
+  }
+});
 test('catalog IDs and fixed settings retain three primary/six 10/100 guards and real separate families', () => {
   const cases = workloads();
   assert.equal(new Set(cases.map((c) => c.id)).size, cases.length);
   assert.equal(cases.filter((c) => c.family === 'primary').length, 3);
   assert.equal(cases.filter((c) => c.family === 'guard').length, 12);
   assert.equal(cases.filter((c) => c.family === 'read').length, 10);
+  assert.ok(
+    cases.every((c) => !/create|update|upsert/i.test(c.id)),
+    'No write-output workloads or timing evidence',
+  );
   for (const c of cases) {
     assert.equal(c.concurrency, 1);
     assert.equal(c.hookConcurrency, 10);

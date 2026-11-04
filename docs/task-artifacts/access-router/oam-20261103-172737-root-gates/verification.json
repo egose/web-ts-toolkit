@@ -1,0 +1,194 @@
+{
+  "reviewer": "REVIEW-05",
+  "dateUtc": "2026-11-04",
+  "decision": {
+    "scopedCodeReview": "ACCEPT retained on unchanged product inputs",
+    "fullGateReview": "BLOCKED: required root pnpm test failed at B3",
+    "allOam05AcceptanceSatisfied": false,
+    "B1": "resolved: appropriate short TMPDIR; mongoose-rxdb 632 passed in required root run",
+    "B2": "not reproduced; cause undetermined",
+    "B3": "new observed real-Chromium application fallback assertion failure",
+    "coordinatorAloneUpdatesTask": true
+  },
+  "environment": {
+    "workdir": ".",
+    "scratch": "_tmpJQMxCL",
+    "creationCommand": "mktemp -d \"$PWD/_tmpXXXXXX\"",
+    "scratchBasenameCharacters": 10,
+    "scratchFreshAndIgnored": true,
+    "TMPDIR": "<repo-root>/_tmpJQMxCL",
+    "absoluteResolvedTmpdirVerified": true,
+    "node": "v26.12.1",
+    "pnpm": "11.18.0",
+    "vitest": "4.1.11",
+    "dockerServer": "29.9.2",
+    "dockerCheck": "docker version --format '{{json .Server.Version}}'",
+    "supportingCommands": [
+      { "command": "node _tmpJQMxCL/preflight.mjs", "exit": 0 },
+      { "command": "node _tmpJQMxCL/snapshot.mjs before", "exit": 0 },
+      { "command": "node _tmpJQMxCL/snapshot.mjs after", "exit": 0 }
+    ],
+    "socketPreflight": {
+      "dependency": "broadcast-channel@7.4.0",
+      "protocol": "real socketPath/ensureFoldersExist/createSocketEventEmitter, assert listening then close own socket",
+      "generatedSocketBytes": 95,
+      "targetLessThanBytes": 100,
+      "passed": true,
+      "backendOverrideOrMonkeypatch": false,
+      "oldFailedOrOtherScratchReusedOrCleared": false
+    }
+  },
+  "vaultInvestigation": {
+    "path": "packages/express-oidc-vault/test/logout-navigation.test.ts",
+    "case": "rejects text/plain before form parsing",
+    "priorObservation": "supplementary ECONNRESET; package 2448 passed / 1 failed; preserved in prior re-review",
+    "inspectedBoundary": "test fixture/Supertest HTTP server; pre-parser media guard; async error handler; JSON policy response",
+    "fileCommandTemplate": "pnpm --filter @web-ts-toolkit/express-oidc-vault exec vitest run --config ../../vitest.config.ts test/logout-navigation.test.ts --reporter=default --reporter=json --outputFile.json=../../_tmpJQMxCL/vault-file-<n>.json",
+    "templateExpansion": "n=1, then 2, then 3; three separate serial processes, fixed before execution",
+    "runs": [
+      {
+        "n": 1,
+        "startUtc": "2026-11-04T18:54:04.561Z",
+        "endUtc": "2026-11-04T18:54:09.463Z",
+        "exit": 0,
+        "files": 1,
+        "passed": 199,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0
+      },
+      {
+        "n": 2,
+        "startUtc": "2026-11-04T18:54:09.463Z",
+        "endUtc": "2026-11-04T18:54:15.327Z",
+        "exit": 0,
+        "files": 1,
+        "passed": 199,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0
+      },
+      {
+        "n": 3,
+        "startUtc": "2026-11-04T18:54:15.328Z",
+        "endUtc": "2026-11-04T18:54:21.172Z",
+        "exit": 0,
+        "files": 1,
+        "passed": 199,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0
+      }
+    ],
+    "exactResetCasePassedEveryTime": true,
+    "requiredRootVaultPackage": { "files": 41, "passed": 2449, "failed": 0 },
+    "conclusion": "not reproduced; cause undetermined",
+    "testNameFilterOrRetryToPass": false,
+    "fixOrInfrastructureOnlyAttribution": false
+  },
+  "requiredRootCommandsSerial": [
+    {
+      "command": "pnpm build",
+      "startUtc": "2026-11-04T18:54:43.151Z",
+      "endUtc": "2026-11-04T18:56:12.891Z",
+      "exit": 0,
+      "topLevelWorkspaceBuildCompletions": 31
+    },
+    { "command": "pnpm test", "startUtc": "2026-11-04T18:56:12.892Z", "endUtc": "2026-11-04T19:04:54.328Z", "exit": 1 },
+    { "command": "pnpm lint", "startUtc": "2026-11-04T19:04:54.328Z", "endUtc": "2026-11-04T19:05:12.020Z", "exit": 0 }
+  ],
+  "requiredRootTest": {
+    "expandedScript": "pnpm -r --if-present --workspace-concurrency=1 test",
+    "attempts": 1,
+    "retriesFiltersNoBailExclusionsOrSubstitutions": false,
+    "completeWorkspacePass": false,
+    "completedVitestLanes": 22,
+    "passedFiles": 287,
+    "failedFiles": 1,
+    "passedAssertions": 9222,
+    "failedAssertions": 1,
+    "existingTodo": 1,
+    "todoSource": "packages/asset-inliner/test/legacy-contract.test.ts:453-455, ASSET-06 image replacement",
+    "skippedInCompletedSummaries": 0,
+    "reportedUnhandledRejections": 0,
+    "reportedUnhandledExceptions": 0,
+    "passingSelectedLanes": {
+      "express-request-attestation-node-redis-mongo-browser-packed": [618, 62, 31, 141, 12],
+      "mongoose-rxdb": 632,
+      "express-oidc-vault": 2449,
+      "express-oidc-vault-redis-store": 462,
+      "oidc-vault-dpop-example-node": 55
+    },
+    "laterWorkspaceScripts": "No completed mandatory access-router/decorator result after first failure; prior V2 remains separate"
+  },
+  "remainingBlocker": {
+    "id": "B3",
+    "path": "apps/oidc-vault-dpop-example/test/browser/logout-navigation.browser.ts",
+    "line": 207,
+    "case": "OVAPP-07 real chromium logout navigation > navigates only to fixed fallback on unavailable (cookie)",
+    "browser": "Chromium 151.0.7922.34",
+    "assertion": "expect(dto.navigationUrl === bare).toBe(failure !== 'consume-error')",
+    "expected": true,
+    "received": false,
+    "browserLane": { "passedFiles": 8, "failedFiles": 1, "passed": 74, "failed": 1 },
+    "boundedInspection": "case 170-221; real-browser harness; page-bridge response clone 262-270; local IdP unavailable-discovery path",
+    "appAndVaultInputsMatchedHead": 9,
+    "actualUrlLogged": false,
+    "causeOrCleanBaselineAttributionEstablished": false,
+    "provenInfrastructureOnly": false,
+    "nextOwnerAction": "Vault application/browser-test owner investigate held response URL versus bare endpoint for unavailable discovery/cookie transport, discovery-cache expiry and sanitized response/request evidence; establish complete app test script passing, then full serialized root pnpm test in fresh short ignored scratch without weakening or bypassing browser assertions"
+  },
+  "inputIdentity": {
+    "head": "c68451e40b99ca545dc52a46c287b32949980d26",
+    "priorVerification": "../oam-20261103-172737-review-revalidation/verification.json",
+    "priorProtectedInputsMatched": 68,
+    "priorProtectedInputsTotal": 69,
+    "priorAdditionalInputsMatched": 13,
+    "soleExpectedDifference": "coordinator task update before this follow-up",
+    "currentTaskSha256": "e055c82ad692ebd98c5a5a60191e2850bfc90454c0543b9e1014600057d9cc5b",
+    "preExistingNonignoredFilesUnchanged": 2238,
+    "inputAggregateSha256BeforeAndAfter": "f2fa1b5b82786075e66e9353bac0fe0e5a89426f05102d43b7590a080cd79b59",
+    "routerDecoratorBuiltFilesUnchanged": 19,
+    "buildAggregateSha256BeforeAndAfter": "8875ba1257c301d6239ce514f1c42df0517890532c684d9390b96f94b7ead8d6",
+    "candidateRoot": "<repo-root>",
+    "candidateRootEsmSha256": "897ab60e087dc749044d85a96bbd4626e0cac98d12bd21ec50e2d4af2521230c",
+    "carriedForwardAcceptedChecksNotRerun": {
+      "independentProbes": 15,
+      "v2Tests": 7743,
+      "ownedBatchBenchmarks": 29,
+      "sharedIntegrationBenchmarks": 29
+    },
+    "protectedPriorReportsSha256": {
+      "../oam-20261103-172737-review/README.md": "3a8398027ea56703d624c801769d866b1fe56139e0b061f2f5f7369b8a4c18d1",
+      "../oam-20261103-172737-review/verification.json": "69ffb1d61f440dcc5ac9a57725e5c8190fbca57622a86b3101138572eeee447d",
+      "../oam-20261103-172737-review-revalidation/README.md": "9dd336a602850e614ba80e18706d28baf11b33a76af2844390d788bf2ded3260",
+      "../oam-20261103-172737-review-revalidation/verification.json": "d37e0e8d69851da71284f5dd0b8dfe2787d05400c8f1f79a0677ab196225db7b"
+    },
+    "historicalSelectedHashesMatchedBeforeAndAfter": 7,
+    "historicalHashScope": "original descriptor, sealer, dependency descriptor, PERFORMANCE-GATES.md, artifact root ESM/CJS and lock; compared with prior verification",
+    "historicalSealerImportedExecutedOrArtifactChanged": false,
+    "freshFullHistoricalInventoryClaim": false
+  },
+  "hygiene": {
+    "status": "passed",
+    "onlyNewDurableFiles": ["README.md", "verification.json"],
+    "scratchInventoryReviewed": true,
+    "relativeLinksChecked": 4,
+    "inspectedHeadMatchedFiles": 9,
+    "checksPassed": [
+      "Prettier",
+      "JSON/count/hash reconciliation",
+      "links and source references",
+      "targeted privacy",
+      "scratch ignored and destination not ignored",
+      "tracked and all untracked whitespace",
+      "all pre-existing inputs and prior reports unchanged"
+    ]
+  },
+  "limits": [
+    "Summary-only bundle; raw logs/assertion trees, disposable scripts/manifests, generated consumers/builds, dependencies, databases and sockets omitted. Omitted scratch-script commands are not executable from this archive.",
+    "New root failure is preserved; no root/browser retry-to-pass, unrelated fix or infrastructure-only attribution. Historical reset not reproduced; cause undetermined.",
+    "Prior code/V2/benchmark acceptance is carried forward on unchanged inputs, not represented as freshly rerun or a complete root pass.",
+    "No exhaustive security/performance, heap, freshness, transaction or rollback certification; coordinator owns task status."
+  ]
+}
