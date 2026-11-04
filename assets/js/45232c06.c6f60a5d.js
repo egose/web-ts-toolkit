@@ -574,19 +574,31 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Configure independent ", (0,jsx_runtime.jsx)(_components.code, {
         children: "readAuthorizationMode"
-      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "listAuthorizationMode"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAuthorizationMode"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "updateAuthorizationMode"
       }), " on server\nmodel/default options, including ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Router"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "RouterOptions"
       }), ", scoped option properties\nor factory ", (0,jsx_runtime.jsx)(_components.code, {
         children: "defaultModelOptions"
-      }), ". Literal ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "isolated"
-      }), " is the default; ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "trusted"
-      }), " may\nborrow an admitted ordinary projected source only. Actor/policy/facts stay owned,\ntargets select their own mode, embedded scopes inherit their owner, READ retries\nretain READ mode, and writes/new/dedicated origins stay isolated. Undefined restores\ninheritance. All ten retired unsafe keys reject by presence (even false/undefined/\ninherited/non-enumerable); global/module/root/per-call/wire/default-method placements\nreject. Bulk updates are atomic; logger failures do not change committed settings."]
+      }), ". All use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "AuthorizationMode = 'isolated' | 'trusted'"
+      }), ",\ndefault isolated. Root READ/LIST use the matching setting; CREATE (including bulk)\nand UPDATE apply ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "only to post-persistence/lifecycle output"
+      }), ". UPSERT selects its\nexecuted branch's captured setting while retaining initiating ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsert"
+      }), "/branch accesses;\nno fifth setting or READ/LIST rename exists. Undefined restores\ninheritance. All ten retired unsafe keys reject by presence (even false/undefined/\ninherited/non-enumerable); global/module/root/per-call/wire/default-method placements\nreject. Bulk updates are atomic; logger failures do not change committed settings."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Both write modes always acquire a full bounded detached source/native leaves;\ntrusted omits only the subsequent disposable document-hook view copy. Never lend\nlive documents, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_doc"
+      }), ", payloads or lifecycle snapshots; conversion failure at this\nboundary fails output. Trusted mutations can affect response values/calculated facts.\nActor/policy/facts, getter views/return staging and private inputs stay protected.\nEmbedded scopes inherit owner mode/facts; related targets select their ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "own model's\nREAD/LIST mode"
+      }), ", including genuine write-origin populate. Those targets still need\nfull bounded detachment, unlike trusted query-origin hidden unvisited graphs. Parent\nmode cannot lower an isolated target; target borrowing cannot mutate an isolated\nparent's source/live write graph. READ retries retain READ; independent calls recapture.\nNEW/helpers/dedicated/COUNT/DELETE/DISTINCT/custom origins gain no trusted stage.\nModes capture before hooks/awaits, affecting new calls only; input admission and the\nhydrated pre-write UPDATE hook, validation/preparation/transform/save/lifecycle\ncontracts are unchanged, not newly detached or sandboxed. No implicit save/query/rollback\nis added; output failure can occur after commit. No copy-saving or timing guarantee."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Decorated methods keep class-instance ", (0,jsx_runtime.jsx)(_components.code, {
         children: "this"

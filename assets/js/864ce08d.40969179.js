@@ -126,7 +126,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import mongoose from 'mongoose';\nimport acl from '@web-ts-toolkit/access-router';\n\nconst modelRouter = acl.createRouter('User', { basePath: '/users' });\nconst dataRouter = acl.createDataRouter('fruit', { basePath: '/fruit', data: [] });\nconst rootRouter = acl.createRouter({ basePath: '/batch', operationAccess: true });\n\nconst typedRouter = acl.createRouter(\n  mongoose.model('User', new mongoose.Schema({ name: String })),\n  { basePath: '/users' },\n);\n"
+        children: "import mongoose from 'mongoose';\nimport acl from '@web-ts-toolkit/access-router';\n\nconst modelRouter = acl.createRouter('User', { basePath: '/users' });\nconst dataRouter = acl.createDataRouter('fruit', { basePath: '/fruit', data: [] });\nconst rootRouter = acl.createRouter({ basePath: '/batch', operationAccess: true });\n\nconst typedRouter = acl.createRouter(mongoose.model('User', new mongoose.Schema({ name: String })), {\n  basePath: '/users',\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -204,13 +204,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicList"
+              children: "list.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/__query"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedList"
+              children: "list.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -222,7 +222,7 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base/:id"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicRead"
+              children: "read.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -230,7 +230,7 @@ function _createMdxContent(props) {
             }), ", ", (0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/__query/__filter"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedRead"
+              children: "read.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -242,13 +242,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicCreate"
+              children: "create.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/__mutation"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedCreate"
+              children: "create.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -260,13 +260,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "PATCH /base/:id"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicUpdate"
+              children: "update.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "PATCH /base/__mutation/:id"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedUpdate"
+              children: "update.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -278,13 +278,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "PUT /base"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicUpsert"
+              children: "upsert.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "PUT /base/__mutation"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedUpsert"
+              children: "upsert.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -296,13 +296,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base/count"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicCount"
+              children: "count.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/count"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedCount"
+              children: "count.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -314,13 +314,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base/distinct/:field"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicDistinct"
+              children: "distinct.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/distinct/:field"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedDistinct"
+              children: "distinct.advanced"
             })]
           })]
         })]
@@ -330,11 +330,13 @@ function _createMdxContent(props) {
         children: "GET /base/new"
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "DELETE /base/:id"
-      }), " keep unpaired ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "new"
+      }), " select ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new.basic"
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "delete"
-      }), " guards.\nFiltered count/distinct POSTs are advanced even without an advanced path segment.\nCustom ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "delete.basic"
+      }), ".\nTheir root counterparts select ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "root"
+      }), "; an advanced member does not add an endpoint.\nFiltered count/distinct POSTs are advanced even without an advanced path segment.\nCustom ", (0,jsx_runtime.jsx)(_components.code, {
         children: "idParam"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "queryRouteSegment"
@@ -342,7 +344,7 @@ function _createMdxContent(props) {
         children: "mutationRouteSegment"
       }), " change the paths,\nnot the guard names."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["An exact variant replaces its base guard; only undefined inherits. Denials return\n", (0,jsx_runtime.jsx)(_components.strong, {
+      children: ["An exact context member replaces its operation scalar/default; only undefined inherits,\nthen outer default/shorthand, then deny. Same-owner runtime exact context defaults\nprecede fallback. Context is explicit server-owned metadata, never inferred from POST.\nDenials return\n", (0,jsx_runtime.jsx)(_components.strong, {
         children: "HTTP 401 Unauthorized"
       }), " before validation/service dispatch. All endpoints remain\nregistered in ", (0,jsx_runtime.jsx)(_components.code, {
         children: "router.router.getEndpoints()"
@@ -353,7 +355,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl from '@web-ts-toolkit/access-router';\n\n// User is already registered with the default runtime.\nconst router = acl.createRouter('User', {\n  basePath: '/users',\n  operationAccess: { list: true, read: true, basicRead: false },\n  permissionSchema: { name: true },\n});\nrouter.operationAccess('basicRead', false); // Live key update.\n"
+        children: "import acl from '@web-ts-toolkit/access-router';\n\n// User is already registered with the default runtime.\nconst router = acl.createRouter('User', {\n  basePath: '/users',\n  operationAccess: { list: true, read: { default: true, basic: false } },\n  permissionSchema: { name: true },\n});\nrouter.operationAccess('read.basic', false); // Live member update.\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Among top-level model routes, this denies GET/HEAD ", (0,jsx_runtime.jsx)(_components.code, {
@@ -361,7 +363,7 @@ function _createMdxContent(props) {
       }), " only. Both advanced reads and GET ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/users"
       }), " remain\nallowed, subject to ordinary field/row policy; new/count/distinct/mutation guards\nare unaffected. Subdocument reads use the documented field fallback. With\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "{ list: true, advancedList: false }"
+        children: "{ list: { default: true, advanced: false } }"
       }), ", only POST\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "/users/__query"
       }), " is denied among the list pair."]
@@ -412,13 +414,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base/:id/<sub>"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "subs.<sub>.basicList"
+              children: "subs.<sub>.list.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/:id/<sub>/__query"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "subs.<sub>.advancedList"
+              children: "subs.<sub>.list.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -430,19 +432,19 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base/:id/<sub>/:subId"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "subs.<sub>.basicRead"
+              children: "subs.<sub>.read.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/:id/<sub>/:subId/__query"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "subs.<sub>.advancedRead"
+              children: "subs.<sub>.read.advanced"
             })]
           })]
         })]
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Unpaired subdocument mutations retain their base guards:"
+      children: "Unpaired subdocument mutations select basic:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -450,21 +452,29 @@ function _createMdxContent(props) {
         }), " and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "PATCH /base/:id/<sub>/:subId"
         }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "subs.<sub>.update"
+          children: "subs.<sub>.update.basic"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "POST /base/:id/<sub>"
         }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "subs.<sub>.create"
+          children: "subs.<sub>.create.basic"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "DELETE /base/:id/<sub>/:subId"
         }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "subs.<sub>.delete"
+          children: "subs.<sub>.delete.basic"
         })]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Root sub-operations select the corresponding field operation's root member;\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subUpdate"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subBulkUpdate"
+      }), " both select ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subs.<sub>.update.root"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "That gives you generated list, advanced list, bulk update, read, advanced read, update, create, and delete operations for each discovered subdocument collection."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
@@ -495,13 +505,13 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicList"
+              children: "list.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/__query"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedList"
+              children: "list.advanced"
             })]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -513,7 +523,7 @@ function _createMdxContent(props) {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "GET /base/:id"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicRead"
+              children: "read.basic"
             })]
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -521,17 +531,21 @@ function _createMdxContent(props) {
             }), ", ", (0,jsx_runtime.jsx)(_components.code, {
               children: "POST /base/__query/__filter"
             }), " → ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "advancedRead"
+              children: "read.advanced"
             })]
           })]
         })]
       })]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["These four keys use data-router options only, with no model-default inheritance.\nSet ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["These nested rules use data-router options only, with no model-default inheritance.\nSet ", (0,jsx_runtime.jsx)(_components.code, {
         children: "idParam: 'id'"
       }), " explicitly for the illustrated data identifier paths.\nBoth advanced reads share ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedRead"
-      }), "; HEAD follows the basic GET guard."]
+        children: "read.advanced"
+      }), "; HEAD follows the basic GET guard.\nRoot list/read select ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "list.root"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read.root"
+      }), ", never the advanced member."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "root-router",
       children: "Root Router"
@@ -631,13 +645,13 @@ function _createMdxContent(props) {
         children: "internal services"
       }), "\nfrom server code for per-call authority; generated route guards still apply independently."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Root entries retain existing base operation names and target base entry checks;\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicList"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedRead"
-      }), " (and the other variants) are not valid ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Root entries retain existing base operation names but select target operation.root,\nthen its scalar/default and applicable outer fallback. Nested member paths and\nremoved flat names are not valid ", (0,jsx_runtime.jsx)(_components.code, {
         children: "op"
-      }), " values.\nAllowing a direct variant does not override a denied root base entry. A denied\nentry has status 401 inside the HTTP 200 batch envelope. The enclosing root\nendpoint's own ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " values. Allowing a direct member does not\noverride a denied root member. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ read: { default: false, root: true } }"
+      }), " grants\nroot read entry only; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ read: { default: true, root: false } }"
+      }), " does the reverse.\nA denied\nentry has status 401 inside the HTTP 200 batch envelope. The enclosing root\nendpoint's own ", (0,jsx_runtime.jsx)(_components.code, {
         children: "operationAccess"
       }), " remains a scalar guard."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
@@ -755,9 +769,9 @@ function _createMdxContent(props) {
         children: "setOptions(...)"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Operation variants are live behavior options. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.operationAccess('basicRead', false)"
-      }), " updates one key. Passing an object replaces the whole ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Operation members are live behavior options. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.operationAccess('read.basic', false)"
+      }), " updates one member (undefined restores fallback). Passing an object replaces the whole ", (0,jsx_runtime.jsx)(_components.code, {
         children: "operationAccess"
       }), "\nobject shallowly, not a deep merge. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "router.options"

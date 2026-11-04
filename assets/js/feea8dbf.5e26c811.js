@@ -584,13 +584,13 @@ function _createMdxContent(props) {
         children: "req.method"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Field selection, row/filter policy, validate/prepare/decorate hooks, related-model\nchecks, and root entry guards remain base-scoped. A permitted variant does not\ngrant fields or authorize a related target's advanced endpoint policy.\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedUpsert"
+      children: ["Field selection, row/filter policy, validate/prepare/decorate hooks, related-model\nchecks remain base-scoped. A permitted entry member does not\ngrant fields or authorize a related target's advanced endpoint policy.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsert.advanced"
       }), " does not additionally require ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedCreate"
+        children: "create.advanced"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedUpdate"
-      }), ";\nits existing create/update branch policy still applies. Root entries keep base\noperation names/checks, returning entry 401 inside their HTTP 200 envelope."]
+        children: "update.advanced"
+      }), ";\nits existing create/update branch policy still applies. Root entries keep base\noperation names but select the target root member, independently of the outer\nroot scalar guard, returning entry 401 inside their HTTP 200 envelope."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "important-behavior",
       children: "Important behavior"
@@ -610,10 +610,10 @@ function _createMdxContent(props) {
           children: ["base ", (0,jsx_runtime.jsx)(_components.code, {
             children: "list"
           })]
-        }), "\noperation access. ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "list: false, advancedList: true"
+        }), "\nscalar/default operation access. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "list: { default: false, advanced: true }"
         }), " cannot permit retry;\n", (0,jsx_runtime.jsx)(_components.code, {
-          children: "list: true, basicList: false"
+          children: "list: { default: true, basic: false }"
         }), " cannot block it. ", (0,jsx_runtime.jsx)(_components.code, {
           children: "tryList"
         }), " defaults to true.\nForbidden and BadRequest never retry. Denied route entry is distinct from an\nallowed read miss (ordinary 404 when retry is disabled)."]
@@ -910,9 +910,9 @@ function _createMdxContent(props) {
       }), " parent/subdocument read/list policy.\nTrusted dedicated calls can explicitly configure ", (0,jsx_runtime.jsx)(_components.code, {
         children: "authorization.visibility"
       }), "; no\nmutation authority flows into it. Public routes always use request authority. Disabling\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicRead"
+        children: "read.basic"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicList"
+        children: "list.basic"
       }), " endpoints does not hide otherwise readable mutation output;\nallowing an advanced read route does not override a denied base response guard."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "A denied response guard, terminal false policy or no readable match hides output\nwithout failing the committed write:"

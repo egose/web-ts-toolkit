@@ -55,8 +55,8 @@ const toc = [{
   "id": "authority-hook-inputs-and-metadata",
   "level": 3
 }, {
-  "value": "Owned READ/LIST authorization modes",
-  "id": "owned-readlist-authorization-modes",
+  "value": "Owned authorization modes",
+  "id": "owned-authorization-modes",
   "level": 3
 }, {
   "value": "Populate operation policies",
@@ -486,15 +486,19 @@ function _createMdxContent(props) {
         children: "public*Options"
       }), " before internal\nmethods; already-resolved flags take precedence over internal defaults. Public upsert\nuses its create/update branch's public bucket. A model service captures current presentation\ndefaults from its originating runtime per call; per-call model authority captures current\npolicy before awaiting hooks. Retained services keep their original core, actor, model\nconnection and related registry across a same-request runtime handoff. Base-filter cache\nentries are reused only for the same model/access and policy function.\nRequest base-filter caches remain owned by their request/runtime/access."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "owned-readlist-authorization-modes",
-      children: "Owned READ/LIST authorization modes"
+      id: "owned-authorization-modes",
+      children: "Owned authorization modes"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["There is one document-stage engine and exactly two independent server options:\n", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["There is one document-stage engine and four independent server model/default options:\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "readAuthorizationMode"
-      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "listAuthorizationMode"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAuthorizationMode"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "updateAuthorizationMode"
       }), ", each ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'isolated' | 'trusted'"
+        children: "AuthorizationMode = 'isolated' | 'trusted'"
       }), ",\ndefault ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "isolated"
       }), ". See the shipped ", (0,jsx_runtime.jsx)(_components.a, {
@@ -504,14 +508,36 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createAccessRuntime } from '@web-ts-toolkit/access-router';\nconst api = createAccessRuntime();\napi.setDefaultModelOptions({ readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });\napi.setModelOptions('Employee', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'trusted' });\napi.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });\napi.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default\napi.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only\n"
+        children: "import { createAccessRuntime } from '@web-ts-toolkit/access-router';\nconst api = createAccessRuntime();\napi.setDefaultModelOptions({\n  readAuthorizationMode: 'isolated',\n  listAuthorizationMode: 'isolated',\n  createAuthorizationMode: 'isolated',\n  updateAuthorizationMode: 'isolated',\n});\napi.setModelOptions('Employee', {\n  readAuthorizationMode: 'isolated',\n  listAuthorizationMode: 'trusted',\n  createAuthorizationMode: 'trusted',\n  updateAuthorizationMode: 'isolated',\n});\napi.setModelOptions('Payroll', { readAuthorizationMode: 'isolated', listAuthorizationMode: 'isolated' });\napi.setModelOption('Employee', 'listAuthorizationMode', undefined); // inherit the live default\napi.setModelOption('Employee', 'readAuthorizationMode', 'isolated'); // NEW calls only\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Isolated owns bounded detached projected source and gives document hooks disposable\nviews. Trusted may borrow admitted ordinary projected source/doc-hook input: mutations\ncan affect values/calculated facts; hidden unvisited graphs are not whole-document\nbounded. ", (0,jsx_runtime.jsx)(_components.strong, {
+      children: ["Root READ/LIST use their matching settings. CREATE (including bulk) and UPDATE use\ntheir settings ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "only for post-persistence/lifecycle output"
+      }), ". UPSERT selects its\nexecuted branch's captured CREATE or UPDATE mode, retaining initiating ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsert"
+      }), " and\nbranch-specific accesses; no fifth setting or READ/LIST rename exists."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Isolated owns bounded detached source and gives document-permission output hooks\ndisposable views. Trusted may borrow admitted ordinary source/doc-hook input:\nmutations can affect response values/calculated facts. Only ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "query-origin"
+      }), " trusted\noutput can leave hidden unvisited graphs unbounded. ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Both write modes always acquire\na full bounded detached source"
+      }), ", including mutable native leaves; trusted omits only\nthe subsequent disposable hook-view copy. Live documents, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_doc"
+      }), ", payloads and\nlifecycle snapshots are never lent. Conversion failure at this boundary fails output\nrather than lending ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_doc"
+      }), ". No source-copy saving or universal speedup is promised."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
         children: "Both own actor, private policy and normalized frozen boolean facts"
       }), ", enforce\noriginal actor, rows/fields/targets and selected/native 20,000-slot/depth-100 bounds.\nBoth retain separate getter views, return staging and private argument-four isolation.\nNo sandbox, transaction, rollback, external freshness or blanket security equivalence."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Capture precedes hooks/awaits. Genuine embedded scopes inherit their owner; related\ntargets use their own captured model/access mode and policy, not their parent's mode.\nREAD-to-LIST retry keeps initiating READ mode with a fresh stage. Independent service\ncalls capture anew. Writes/new/dedicated subdocuments always stay isolated."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Capture precedes hooks/awaits, including both UPSERT modes, never re-reading settings\nafter save. Genuine embedded scopes inherit owner mode/facts. Related targets use\ntheir ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "own model's captured READ/LIST mode"
+      }), " at effective access, including genuine\nwrite-origin populate, with independent policy/facts. Parent mode cannot lower an\nisolated target; target borrowing cannot mutate an isolated parent's source or live\nwrite graph. Write-origin targets still require mandatory full bounded detachment,\nnot the trusted-query hidden-graph exception. READ-to-LIST retry retains READ with a\nfresh stage; independent nested READ/LIST calls capture anew."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Input admission/pre-write grants and the hydrated pre-write UPDATE hook, validation,\npreparation/transform/save/lifecycle contracts are unchanged, not newly detached or\nsandboxed. NEW/helpers/dedicated subdocuments/COUNT/DELETE/DISTINCT/custom origins\ngain no trusted stage. No implicit save/query/rollback is added. Output errors may\noccur ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "after the write commits"
+      }), "; do not automatically retry the write."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Only literal enum strings or undefined restoration are valid. Bulk setters reject\natomically. Retired controls reject by presence, even false/undefined/inherited/\nnon-enumerable. New/old selectors are prohibited in HTTP/root/per-call/helper/defaults/\ninclude/populate/subquery authority slots; same-named business fields remain data.\nTrusted transitions warn once per effective owner/access; logger failures cannot abort.\nSwitching to isolated affects new calls, not in-flight captures. Rollback means a tested\nmatching application/library revision, never re-adding removed flags or assuming mixed\nrolling compatibility. No timing or universal-speedup claim follows from mode names."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
@@ -793,46 +819,30 @@ function _createMdxContent(props) {
         children: "OperationAccess"
       }), " in ", (0,jsx_runtime.jsx)(_components.code, {
         children: "ModelRouterOptions.operationAccess"
-      }), " for all fourteen\nmodel keys: ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicList"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedList"
+      }), ". Model operations\nnew/list/read/create/update/upsert/delete/count/distinct accept a scalar guard or\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ default?, basic?, advanced?, root? }"
+      }), ". Root and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "./advanced"
+      }), " export\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OperationAccessContext"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicRead"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedRead"
-      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicCreate"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedCreate"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicUpdate"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedUpdate"
-      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicUpsert"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedUpsert"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicCount"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedCount"
-      }), ", and\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicDistinct"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedDistinct"
-      }), ". The ", (0,jsx_runtime.jsx)(_components.a, {
+        children: "OperationAccessVariants"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OperationAccessRule"
+      }), ".\nThe ", (0,jsx_runtime.jsx)(_components.a, {
         href: "./routing#model-router-routes",
-        children: "complete routing matrix"
-      }), "\nmaps endpoints to these keys. Data routers use four list/read keys; subdocument\nfields use four nested list/read keys."]
+        children: "routing matrix"
+      }), " maps endpoints to members.\nData list/read and subdocument list/read/create/update/delete use the same shape.\nThe old flat keys and flat-name type are removed, not compatibility aliases; see\nthe installed package's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MIGRATION.md"
+      }), " for all seven mapping pairs."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["An exact variant ", (0,jsx_runtime.jsx)(_components.strong, {
+      children: ["An exact context member ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "replaces"
-      }), " the base guard. Only undefined inherits the existing\nbase exact → ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " the operation's fallback. Only undefined\ninherits: exact context → operation scalar/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "default"
+      }), " → outer\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "operationAccess.default"
-      }), " → scalar ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "operationAccess"
-      }), " shorthand\nresolution. False, an empty array, and a false-returning hook are final. With no\nother fallback/default variant configured:"]
+      }), "/scalar shorthand → deny. False, an empty array, and a\nfalse-returning hook are final. Malformed defined values deny without fallback.\nAn empty top-level operation object can use the outer fallback. With no other grants:"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
       children: [(0,jsx_runtime.jsx)(_components.thead, {
         children: (0,jsx_runtime.jsxs)(_components.tr, {
@@ -874,7 +884,7 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "list: true, basicList: false"
+              children: "list: { default: true, basic: false }"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "denied"
@@ -886,7 +896,7 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "list: true, advancedList: false"
+              children: "list: { default: true, advanced: false }"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "allowed"
@@ -898,20 +908,8 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "list: false, basicList: true"
+              children: "list: { default: false, basic: true }"
             })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "allowed"
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "denied"
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "denied"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsxs)(_components.td, {
-            children: ["only ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "basicList: true"
-            })]
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "allowed"
           }), (0,jsx_runtime.jsx)(_components.td, {
@@ -922,7 +920,19 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "list: true, basicList: undefined"
+              children: "list: { basic: true }"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "allowed"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "denied"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "denied"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "list: { default: true, basic: undefined }"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "allowed"
@@ -930,19 +940,43 @@ function _createMdxContent(props) {
             children: "allowed"
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "allowed"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "list: { default: false, root: true }"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "denied"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "denied"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "allowed"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "list: { default: true, root: false }"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "allowed"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "allowed"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "denied"
           })]
         })]
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';\n\nconst baseOnly = {\n  operationAccess: { list: true, read: true },\n  permissionSchema: { name: true },\n} satisfies ModelRouterOptions;\nconst advancedReadsOnly = {\n  basePath: '/users',\n  operationAccess: { list: true, read: true, basicRead: false },\n  permissionSchema: { name: true },\n} satisfies ModelRouterOptions;\nconst basicListsOnly = {\n  operationAccess: { list: true, advancedList: false },\n} satisfies ModelRouterOptions;\nconst permissionBased = {\n  operationAccess: { list: true, read: true, advancedList: 'isAdmin', advancedRead: ['canRead', 'isAdmin'] },\n  permissionSchema: { name: { list: true, read: true } },\n} satisfies ModelRouterOptions;\nconst shorthand = { operationAccess: 'canUseApi' } satisfies ModelRouterOptions;\nconst withDefault = {\n  operationAccess: { default: 'canUseApi', list: true, basicRead: false },\n} satisfies ModelRouterOptions;\n\nacl.setDefaultModelOptions({ operationAccess: { list: true, read: true } });\nacl.setDefaultModelOption('operationAccess.advancedRead', 'isAdmin');\nconst defaultRead = acl.getDefaultModelOption('operationAccess.advancedRead');\n"
+        children: "import acl, { type ModelRouterOptions } from '@web-ts-toolkit/access-router';\n\nconst baseOnly = {\n  operationAccess: { list: true, read: true },\n  permissionSchema: { name: true },\n} satisfies ModelRouterOptions;\nconst advancedReadsOnly = {\n  basePath: '/users',\n  operationAccess: { list: true, read: { default: true, basic: false } },\n  permissionSchema: { name: true },\n} satisfies ModelRouterOptions;\nconst basicListsOnly = {\n  operationAccess: { list: { default: true, advanced: false } },\n} satisfies ModelRouterOptions;\nconst permissionBased = {\n  operationAccess: {\n    list: { default: true, advanced: 'isAdmin' },\n    read: { default: true, advanced: ['canRead', 'isAdmin'] },\n  },\n  permissionSchema: { name: { list: true, read: true } },\n} satisfies ModelRouterOptions;\nconst shorthand = { operationAccess: 'canUseApi' } satisfies ModelRouterOptions;\nconst withDefault = {\n  operationAccess: { default: 'canUseApi', list: true, read: { basic: false } },\n} satisfies ModelRouterOptions;\n\nacl.setDefaultModelOptions({ operationAccess: { list: true, read: true } });\nacl.setDefaultModelOption('operationAccess.read', { default: true, advanced: 'isAdmin' });\nconst defaultRead = acl.getDefaultModelOption('operationAccess.read.advanced');\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Among top-level model routes, ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicRead: false"
+        children: "read.basic: false"
       }), " denies only GET-by-id (and its HEAD fallback), leaving both\nadvanced read POSTs authorized by ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "read: true"
+        children: "read.default: true"
       }), ". List/new/count/distinct/mutation\nguards remain independent. Denial is ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "HTTP 401"
       }), ", with endpoints still present\nin ", (0,jsx_runtime.jsx)(_components.code, {
@@ -968,23 +1002,25 @@ function _createMdxContent(props) {
       id: "model-default-specificity",
       children: "Model default specificity"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Model exact variant lookup consults the runtime's same exact default path if the\nmodel value is undefined, ", (0,jsx_runtime.jsx)(_components.strong, {
+      children: ["Model exact context lookup consults its owning runtime's same exact default path if\nthe model member is undefined, ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "before"
-      }), " base fallback. A default ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advancedRead"
-      }), " can\ntherefore outrank a model's ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " operation fallback. A default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read.advanced"
+      }), "\ncan outrank a model's scalar ", (0,jsx_runtime.jsx)(_components.code, {
         children: "read"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "default"
-      }), ", or shorthand; an exact model variant\noutranks that default variant. A model object still replaces its stored\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read.default"
+      }), "; its own exact member wins.\nA model object still replaces its stored\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "operationAccess"
       }), " object shallowly, rather than recursively inheriting all siblings."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Copied default values remain stored until updated. Later default setter calls do\nnot broadcast replacement over existing model values; clearing a stored variant\nmay expose the current exact runtime default. ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["This is not recursive merging: model ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read: {}"
+      }), " does not independently inherit a\nruntime ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read.default"
+      }), "; an operation object inherited through existing base lookup\ncan supply its own default. Omitted model operationAccess inherits model defaults;\nwithout grants the built-in policy denies. Explicit whole-model operationAccess\nundefined permits runtime exact-operation fallback, not a bare/outer catch-all.\nClearing a context member can expose the current exact runtime default.\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "getDefaultModelOption"
-      }), " reads a\npath exactly, without variant/base or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: ".default"
-      }), " resolution.\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), " reads a path exactly, without final entry resolution.\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "getDefaultModelOptions()"
       }), " returns a frozen snapshot. Data routers have no model\ndefault inheritance."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
@@ -992,29 +1028,25 @@ function _createMdxContent(props) {
       children: "Subdocument field rules"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["For ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "subs.comments.basicList"
-      }), ", precedence is exact field variant → field ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "list"
-      }), "\n→ defined field scalar/closed object → top-level ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basicList"
-      }), " ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "only for an absent\nfield"
-      }), " → existing top-level ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "list"
-      }), " fallback. Read/advanced variants follow the\nsame ordering."]
+        children: "subs.comments.list.basic"
+      }), ", precedence is exact field context (including\nsame-owner runtime exact default) → field operation scalar/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "list.default"
+      }), " → field\nscalar or deny for a closed object. Only an ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "absent field"
+      }), " uses top-level list\nwith the same context. Read/advanced/root follow the same ordering."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';\n\nconst options = {\n  operationAccess: {\n    list: true,\n    read: true,\n    subs: {\n      comments: { list: true, read: true, basicList: false, advancedRead: 'isAdmin' },\n      items: { read: true }, // Closed: omitted list rules deny both items list routes.\n      attachments: 'isAdmin',\n    },\n  },\n} satisfies ModelRouterOptions;\n"
+        children: "import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';\n\nconst options = {\n  operationAccess: {\n    list: true,\n    read: true,\n    subs: {\n      comments: { list: { default: true, basic: false }, read: { default: true, advanced: 'isAdmin', root: false } },\n      items: { read: true }, // Closed: omitted list rules deny both items list routes.\n      attachments: 'isAdmin',\n    },\n  },\n} satisfies ModelRouterOptions;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["A defined object without the applicable operation cannot be reopened by top-level\nallows. Exact field lookups retain model-default specificity; an inherited defined\nfield also stays closed. There is no nested ", (0,jsx_runtime.jsx)(_components.code, {
-        children: ".default"
-      }), " fallback. Legacy scalar ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["A defined object without the applicable operation cannot be reopened by top-level\nallows. Exact field lookups retain model-default specificity; an inherited defined\nfield also stays closed, including empty operation objects. An operation's own\ndefault is supported; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subs.comments.default"
+      }), " is not a field wildcard. Legacy scalar ", (0,jsx_runtime.jsx)(_components.code, {
         children: "subs"
       }), " rules remain\naccepted, but do not act as an umbrella for absent fields; use explicit field rules."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Route grants retain base field/row/hook, root-entry, related-target, read-miss\nfallback, upsert branch, and mutation-response policies. See ", (0,jsx_runtime.jsx)(_components.a, {
+      children: ["Entry grants do not authorize context-free related-target/retry/visibility checks;\nthose select operation scalar/default, never transport members. Field/row/hook,\npopulate flags, trusted services and upsert branch behavior stay unchanged.\nThe root router's own scalar guard is independent of target root members.\nSee ", (0,jsx_runtime.jsx)(_components.a, {
         href: "./services#route-entry-and-service-policy",
         children: "Services"
       }), "."]
@@ -1199,21 +1231,17 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "operationAccess"
-        }), " supports ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "list"
-        }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "read"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " supports scalar shorthand, outer ", (0,jsx_runtime.jsx)(_components.code, {
           children: "default"
-        }), ", scalar shorthand, and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "basicList"
+        }), ", and scalar or nested ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "default"
         }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "advancedList"
+          children: "basic"
         }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "basicRead"
+          children: "advanced"
         }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "advancedRead"
-        })]
+          children: "root"
+        }), " list/read rules (broader existing option assignments stay accepted)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "permissionSchema"
@@ -1333,7 +1361,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import mongoose from 'mongoose';\nimport { createAccessRuntime } from '@web-ts-toolkit/access-router';\n\nconst runtime = createAccessRuntime();\nconst User = mongoose.model('ConfigurationVariantUser', new mongoose.Schema({ name: String }));\nconst router = runtime.createRouter(User, {\n  basePath: '/users',\n  operationAccess: { list: true, read: true },\n  permissionSchema: { name: true },\n});\nrouter.operationAccess('basicRead', false); // Preserve the other keys.\nrouter.operationAccess('subs.comments.basicRead', false);\nrouter.set('operationAccess.advancedList', 'isAdmin');\nrouter.setOption('operationAccess.basicRead', undefined); // Restore inheritance.\nruntime.setModelOption(router.modelName, 'operationAccess.basicRead', false);\n\nrouter.operationAccess({ list: true, read: true, basicRead: false }); // Whole rule replacement.\nrouter.setOptions({ operationAccess: { list: true, advancedList: false } }); // Same shallow assignment.\nconst current = runtime.getModelOptions(router.modelName);\nconst exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.basicRead');\n\nconst dataRouter = runtime.createDataRouter('VariantData', {\n  idParam: 'id',\n  data: [],\n  operationAccess: { list: true, read: true },\n});\ndataRouter.setOption('operationAccess.basicRead', false);\ndataRouter.runtime.setDataOption('VariantData', 'operationAccess.advancedRead', true);\nconst currentData = dataRouter.runtime.getDataOptions('VariantData');\n"
+        children: "import mongoose from 'mongoose';\nimport { createAccessRuntime } from '@web-ts-toolkit/access-router';\n\nconst runtime = createAccessRuntime();\nconst User = mongoose.model('ConfigurationVariantUser', new mongoose.Schema({ name: String }));\nconst router = runtime.createRouter(User, {\n  basePath: '/users',\n  operationAccess: { list: { default: true }, read: { default: true } },\n  permissionSchema: { name: true },\n});\nrouter.operationAccess('read.basic', false); // Preserve the other members.\nrouter.operationAccess('subs.comments.read.basic', false);\nrouter.set('operationAccess.list.advanced', 'isAdmin');\nrouter.setOption('operationAccess.read.basic', undefined); // Restore fallback.\nruntime.setModelOption(router.modelName, 'operationAccess.read.root', false);\n\nrouter.operationAccess({ list: true, read: { default: true, basic: false } }); // Whole rule replacement.\nrouter.setOptions({ operationAccess: { list: { default: true, advanced: false } } }); // Same shallow assignment.\nconst current = runtime.getModelOptions(router.modelName);\nconst exactVariant = runtime.runtime.getExactModelOption(router.modelName, 'operationAccess.read.basic');\n\nconst dataRouter = runtime.createDataRouter('VariantData', {\n  idParam: 'id',\n  data: [],\n  operationAccess: { list: true, read: true },\n});\ndataRouter.setOption('operationAccess.read', { default: true, basic: false });\ndataRouter.runtime.setDataOption('VariantData', 'operationAccess.read.advanced', true);\nconst currentData = dataRouter.runtime.getDataOptions('VariantData');\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -1342,11 +1370,7 @@ function _createMdxContent(props) {
         children: "setOption('operationAccess', ...)"
       }), ", and property\nhelper object forms replace that entire object shallowly. Dotted paths are setter\narguments, not flat dotted properties in constructor options. A path update under\nscalar shorthand starts an object; use ", (0,jsx_runtime.jsx)(_components.code, {
         children: "default"
-      }), " to retain the broad base fallback.\nUse typed ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "set"
-      }), "/", (0,jsx_runtime.jsx)(_components.code, {
-        children: "setOption"
-      }), " with undefined to clear; property-helper key updates\nare for defined values."]
+      }), " to retain the broad base fallback.\nTwo-argument typed/member property setters accept undefined to clear a member."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "router.options"
@@ -1354,7 +1378,7 @@ function _createMdxContent(props) {
         children: "getModelOption"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "getDataOption"
-      }), " use nested-option fallback, not route-specific\nvariant-to-base resolution. Exact getters expose the variant path (with exact model\ndefault fallback); request guards resolve live runtime options."]
+      }), " use nested-option fallback, not route-specific\nfinal nested entry resolution and can return operation objects. Exact getters expose a member path (with exact model\ndefault fallback); request guards resolve live runtime options."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-pages",
       children: "Related Pages"

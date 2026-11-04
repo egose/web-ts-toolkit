@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">@web-ts-toolkit/access-router-deco | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="@web-ts-toolkit/access-router-deco | web-ts-toolkit"><meta data-rh="true" name="description" content="Decorator-based configuration for @web-ts-toolkit/access-router."><meta data-rh="true" property="og:description" content="Decorator-based configuration for @web-ts-toolkit/access-router."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router Deco","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco"}]}</script><link rel="stylesheet" href="/assets/css/styles.3d079bff.css">
-<script src="/assets/js/runtime~main.0ecd80ae.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.24f6fe27.js" defer="defer"></script>
 <script src="/assets/js/main.0c9dea1b.js" defer="defer"></script>
 </head>
 <body>
@@ -94,15 +94,32 @@ and CJS requires its <code>.d.ts</code>, matching access-router&#x27;s declarati
 Missing hooks yield empty facts; thrown/rejected hooks also warn. Invalid fulfilled
 maps fail the whole operation with 400. Existing-document input keeps pre-write facts;
 post-write output has a separate stage. Data/raw/new-input evaluation has empty facts.</p>
-<p>Configure independent <code>readAuthorizationMode</code> / <code>listAuthorizationMode</code> on server
+<p>Configure independent <code>readAuthorizationMode</code>, <code>listAuthorizationMode</code>,
+<code>createAuthorizationMode</code> and <code>updateAuthorizationMode</code> on server
 model/default options, including <code>Router</code>, <code>RouterOptions</code>, scoped option properties
-or factory <code>defaultModelOptions</code>. Literal <code>isolated</code> is the default; <code>trusted</code> may
-borrow an admitted ordinary projected source only. Actor/policy/facts stay owned,
-targets select their own mode, embedded scopes inherit their owner, READ retries
-retain READ mode, and writes/new/dedicated origins stay isolated. Undefined restores
+or factory <code>defaultModelOptions</code>. All use <code>AuthorizationMode = &#x27;isolated&#x27; | &#x27;trusted&#x27;</code>,
+default isolated. Root READ/LIST use the matching setting; CREATE (including bulk)
+and UPDATE apply <strong>only to post-persistence/lifecycle output</strong>. UPSERT selects its
+executed branch&#x27;s captured setting while retaining initiating <code>upsert</code>/branch accesses;
+no fifth setting or READ/LIST rename exists. Undefined restores
 inheritance. All ten retired unsafe keys reject by presence (even false/undefined/
 inherited/non-enumerable); global/module/root/per-call/wire/default-method placements
 reject. Bulk updates are atomic; logger failures do not change committed settings.</p>
+<p>Both write modes always acquire a full bounded detached source/native leaves;
+trusted omits only the subsequent disposable document-hook view copy. Never lend
+live documents, <code>_doc</code>, payloads or lifecycle snapshots; conversion failure at this
+boundary fails output. Trusted mutations can affect response values/calculated facts.
+Actor/policy/facts, getter views/return staging and private inputs stay protected.
+Embedded scopes inherit owner mode/facts; related targets select their <strong>own model&#x27;s
+READ/LIST mode</strong>, including genuine write-origin populate. Those targets still need
+full bounded detachment, unlike trusted query-origin hidden unvisited graphs. Parent
+mode cannot lower an isolated target; target borrowing cannot mutate an isolated
+parent&#x27;s source/live write graph. READ retries retain READ; independent calls recapture.
+NEW/helpers/dedicated/COUNT/DELETE/DISTINCT/custom origins gain no trusted stage.
+Modes capture before hooks/awaits, affecting new calls only; input admission and the
+hydrated pre-write UPDATE hook, validation/preparation/transform/save/lifecycle
+contracts are unchanged, not newly detached or sandboxed. No implicit save/query/rollback
+is added; output failure can occur after commit. No copy-saving or timing guarantee.</p>
 <p>Decorated methods keep class-instance <code>this</code>, unlike ordinary field predicates&#x27;
 original-request <code>this</code>; inject the original request with <code>@Request()</code> and never
 store request authority on shared class fields. Doc/virtual/decorate contexts are

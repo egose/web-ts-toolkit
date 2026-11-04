@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Services | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Services | web-ts-toolkit"><meta data-rh="true" name="description" content="Routers expose service access for custom routes and tests."><meta data-rh="true" property="og:description" content="Routers expose service access for custom routes and tests."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Services","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/services"}]}</script><link rel="stylesheet" href="/assets/css/styles.3d079bff.css">
-<script src="/assets/js/runtime~main.0ecd80ae.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.24f6fe27.js" defer="defer"></script>
 <script src="/assets/js/main.0c9dea1b.js" defer="defer"></script>
 </head>
 <body>
@@ -234,11 +234,12 @@ Direct service calls are trusted application calls and retain their existing
 checks; service methods do not universally enforce initiating operationAccess or
 infer a transport variant from <code>req.method</code>.</p>
 <p>Field selection, row/filter policy, validate/prepare/decorate hooks, related-model
-checks, and root entry guards remain base-scoped. A permitted variant does not
+checks remain base-scoped. A permitted entry member does not
 grant fields or authorize a related target&#x27;s advanced endpoint policy.
-<code>advancedUpsert</code> does not additionally require <code>advancedCreate</code>/<code>advancedUpdate</code>;
+<code>upsert.advanced</code> does not additionally require <code>create.advanced</code>/<code>update.advanced</code>;
 its existing create/update branch policy still applies. Root entries keep base
-operation names/checks, returning entry 401 inside their HTTP 200 envelope.</p>
+operation names but select the target root member, independently of the outer
+root scalar guard, returning entry 401 inside their HTTP 200 envelope.</p>
 <h3 class="anchor anchorTargetStickyNavbar_DYXl" id="important-behavior">Important behavior<a href="#important-behavior" class="hash-link" aria-label="Direct link to Important behavior" title="Direct link to Important behavior" translate="no">​</a></h3>
 <ul>
 <li class=""><code>skim</code> is deprecated and retained as a compatibility no-op. Authorization,
@@ -246,8 +247,8 @@ document grants, virtuals and decoration run regardless of its value. Use <code>
 for hydration and the explicit metadata flags for serialization choices.</li>
 <li class=""><code>_read(id, args, { tryList: true })</code> and <code>_readFilter(filter, args, options)</code> can
 fall back from an authorized read miss to list access, subject to <strong>base <code>list</code></strong>
-operation access. <code>list: false, advancedList: true</code> cannot permit retry;
-<code>list: true, basicList: false</code> cannot block it. <code>tryList</code> defaults to true.
+scalar/default operation access. <code>list: { default: false, advanced: true }</code> cannot permit retry;
+<code>list: { default: true, basic: false }</code> cannot block it. <code>tryList</code> defaults to true.
 Forbidden and BadRequest never retry. Denied route entry is distinct from an
 allowed read miss (ordinary 404 when retry is disabled).</li>
 <li class=""><code>_update(..., { returningAll: false })</code> trims the response to the updated fields</li>
@@ -400,7 +401,7 @@ service <code>addFirst</code> still governs insertion order, without adding an H
 <p>These visibility checks default to <strong>base</strong> parent/subdocument read/list policy.
 Trusted dedicated calls can explicitly configure <code>authorization.visibility</code>; no
 mutation authority flows into it. Public routes always use request authority. Disabling
-<code>basicRead</code>/<code>basicList</code> endpoints does not hide otherwise readable mutation output;
+<code>read.basic</code>/<code>list.basic</code> endpoints does not hide otherwise readable mutation output;
 allowing an advanced read route does not override a denied base response guard.</p>
 <p>A denied response guard, terminal false policy or no readable match hides output
 without failing the committed write:</p>
