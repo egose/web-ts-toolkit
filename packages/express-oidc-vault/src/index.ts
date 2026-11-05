@@ -10,6 +10,7 @@ import {
   invalidAuthorizationState,
   snapshotAuthorizationTransaction,
 } from './authorization-transaction';
+import { prepareCallbackErrorLocation, resolveFrontendErrorRedirectUri } from './callback-error-redirect';
 import { resolveOidcVaultConfig, type OidcVaultResolvedConfig } from './config';
 import {
   DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS,
@@ -173,7 +174,7 @@ const getNow = (options: OidcVaultOptions): number => (options.now ?? Date.now)(
  * `no-store` is the authoritative RFC 9111 directive; the legacy headers add
  * no retention protection once `no-store` is present and would widen the
  * contract without evidence. No default `Referrer-Policy`; the opt-in logout
- * continuation applies its own feature-scoped `no-referrer` below.
+ * continuation and callback-error recovery apply feature-scoped `no-referrer`.
  * Redirect targets (`Location`) intentionally expose protocol-required values
  * (provider authorization URL, frontend `?code=`, upstream `id_token_hint`)
  * to the navigation target; a referrer policy cannot hide that target and
@@ -232,6 +233,11 @@ const validateOidcVaultOptions = (
   if (fingerprintRecognition !== undefined)
     assertDeviceBindingStoreCapabilities(options.storeProvider, 'fingerprintRecognition');
   const frontendRedirectUri = normalizeFrontendRedirectUri(options);
+  const frontendErrorRedirectUri = resolveFrontendErrorRedirectUri(
+    otherOptions.frontendErrorRedirectUri,
+    backendOrigin,
+    normalizeOidcVaultBasePath(otherOptions.basePath),
+  );
   validatePostLogoutRedirectUri(options);
   validateCookieOptions(cookieOptions);
   const transactionCookie = resolveTransactionCookieOptions(
@@ -277,6 +283,7 @@ const validateOidcVaultOptions = (
     fingerprintRecognition,
     transactionCookie,
     logoutNavigation,
+    frontendErrorRedirectUri,
     ...(logoutNavigation === undefined ? {} : { postLogoutRedirectUri: logoutNavigation.postLogoutRedirectUri }),
     ...(frontendRedirectUri !== undefined ? { frontendRedirectUri } : {}),
     ...(options.trustedOrigins ? { trustedOrigins: [...options.trustedOrigins] } : {}),
@@ -518,6 +525,13 @@ async function handleRouteError(
   // Keep response authority detached before a mutable observer can touch the
   // error or challenge headers. No raw claims/provider diagnostics enter JSON.
   const response = toVaultRouteErrorResponse(error, options.deviceBinding);
+  const errorLocation = prepareCallbackErrorLocation({
+    route,
+    method: req.method,
+    accept: req.headers.accept,
+    target: options.frontendErrorRedirectUri,
+    body: response.body,
+  });
   try {
     await options.hooks?.onError?.({
       ...createHookContext(route, req, res),
@@ -532,6 +546,15 @@ async function handleRouteError(
     return;
   }
 
+  if (errorLocation !== undefined) {
+    res.setHeader('Location', errorLocation);
+    applyCredentialResponseCachePolicy(res);
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.removeHeader('WWW-Authenticate');
+    res.removeHeader('DPoP-Nonce');
+    res.status(302).end();
+    return;
+  }
   sendVaultRoutePolicyResponse(res, response);
 }
 
@@ -1525,6 +1548,10 @@ function registerRoutes(
  * The default mount is /auth/oidc and default transport is body. Configure
  * issuer/clientId (or complete manual endpoints), a pinned backendOrigin,
  * frontendRedirectUri for callback completion, and a storeProvider.
+ * Optional frontendErrorRedirectUri recovers explicitly HTML-preferred terminal
+ * GET callback errors with an empty 302 and bounded public diagnostics; omitted
+ * or ineligible requests keep JSON. It never changes callback authentication or
+ * starts a retry. See the option for URL validation, negotiation and byte limits.
  *
  * With deviceBinding enabled, JSON POST login selects a verified persistent
  * browser key, callback authenticates the temporary HttpOnly cookie, and
@@ -1537,8 +1564,9 @@ function registerRoutes(
  *
  * Construction takes an internal resolved snapshot of `options` without
  * mutating the caller object: normalized values (such as
- * `frontendRedirectUri`) are stored on the snapshot, plain-data containers
- * (`cookie`, `trustedOrigins`, `config`) are shallow-copied, `transactionCookie`
+ * `frontendRedirectUri` and `frontendErrorRedirectUri`) are stored on the
+ * snapshot, plain-data containers (`cookie`, `trustedOrigins`, `config`) are
+ * shallow-copied, `transactionCookie`
  * is resolved into a detached/frozen security configuration, and service
  * references (`storeProvider`, `hooks`, `tokenIssuer`, `now`) are retained
  * by reference, never deep-cloned. Mutating or replacing the caller options

@@ -127,6 +127,73 @@ describe('BOV-11 doc signer/validator example', () => {
   });
 });
 
+describe('FER-03 callback error recovery documentation', () => {
+  const readme = readFileSync(join(__dirname, '..', 'README.md'), 'utf8');
+  const website = readFileSync(
+    join(__dirname, '..', '..', '..', 'website', 'docs', 'packages', 'express-oidc-vault.md'),
+    'utf8',
+  );
+  const recovery = (text: string) => text.split('## Frontend Callback Error Recovery\n')[1]?.split('\n## ')[0];
+
+  it('keeps the shipped and website recovery contract/examples identical', () => {
+    expect(recovery(readme)).toBeTruthy();
+    expect(recovery(website)).toBe(recovery(readme));
+    for (const heading of [
+      'Same-page success and error destination',
+      'Dedicated error destination',
+      'Frontend error display and explicit retry',
+    ]) {
+      expect(recovery(readme)).toContain(`### ${heading}\n`);
+    }
+  });
+
+  it('states the opt-in, negotiation, validation and inclusive byte/fallback policies', () => {
+    for (const doc of [readme, website]) {
+      const section = recovery(doc);
+      for (const contract of [
+        'GET callback handler',
+        'HEAD/non-GET',
+        'Parser/router',
+        'nonfatal post-commit',
+        'JSON wins ties',
+        'application/xhtml+xml',
+        'text/html;q=0, */*;q=1',
+        'no implicit fallback',
+        'does not expand `trustedOrigins`',
+        'userinfo (including empty `@`)',
+        'fragments (including bare `#`)',
+        'same-backend callback loops',
+        '?%63ode=',
+        'inclusive UTF-8 byte counts',
+        '2,048 bytes',
+        '128 bytes',
+        '512 bytes',
+        '4,096 bytes',
+        'original captured sanitized JSON/status/protocol headers',
+        'no truncation',
+        'display-only',
+        'browser history and access logs',
+        'never forwarded',
+      ]) {
+        expect(section).toContain(contract);
+      }
+      expect(doc).toContain('Release/upgrade guidance: `frontendErrorRedirectUri` is additive and opt-in');
+    }
+  });
+
+  it('uses escaped display and an injected explicit fresh-login action without session mutation', () => {
+    const section = recovery(readme)!;
+    const frontend = section
+      .split('### Frontend error display and explicit retry\n')[1]
+      .match(/```ts\n([\s\S]*?)\n```/)?.[1];
+    expect(frontend).toContain("if (!url.searchParams.has('error')) return false;");
+    expect(frontend).toContain('message.textContent =');
+    expect(frontend).toContain('retry.onclick = async () =>');
+    expect(frontend).toContain('await startFreshLogin();');
+    expect(frontend).not.toMatch(/\.innerHTML\s*=|sessionStorage|localStorage|\.exchange\(|\.logout\(|fetch\(/);
+  });
+});
+
 describe('BOV-11 doc log-redaction example', () => {
   it('excludes sentinel session IDs, query credentials, and secret-bearing error messages', () => {
     const sentinelPrevious = 'sess-sentinel-prev-001';

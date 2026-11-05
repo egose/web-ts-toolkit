@@ -39,6 +39,8 @@ assert.strictEqual(new oidcVault.OidcVaultDpopReplayCapacityError().name, 'OidcV
 // Real installed CJS request-aware helper/middleware construction and legacy
 // confirmation refusal; the ESM consumer exercises full HTTP proof/replay.
 (async () => {
+  const { verifyFrontendErrorRedirect } = await import('./frontend-error-redirect-runtime.mjs');
+  await verifyFrontendErrorRedirect(oidcVault, require('@web-ts-toolkit/express-oidc-vault-memory-store'));
   const { SignJWT } = require('jose');
   const key = new Uint8Array(32).fill(23);
   const jkt = 'A'.repeat(43);

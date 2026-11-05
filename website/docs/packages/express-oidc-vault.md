@@ -12,6 +12,7 @@ OIDC session middleware for Express with body or cookie session transport and se
 - OIDC login redirect with PKCE, `state`, and `nonce`
 - opt-in JSON POST login, HttpOnly browser transaction cookie, and original-key DPoP through callback/exchange/refresh/logout
 - callback token exchange and `id_token` validation
+- opt-in frontend error navigation for explicitly HTML-preferred failed GET callbacks
 - server-side storage of upstream refresh tokens and `id_token`s
 - one-time local exchange codes for the frontend callback handoff
 - session refresh with session ID rotation
@@ -193,7 +194,7 @@ Use the memory store for local development and tests. For production deployments
 
 After original live/alias lineage identity and required proof/nonce/replay checks, local logout (`redirect` unset or `false`) never contacts the provider: it revokes the local lineage, clears the cookie under cookie transport, delivers `onLogout` for a live handle, and returns `200 { loggedOut: true }`. Redirected live logout commits that local result before best-effort upstream discovery/redirect; failure or a missing endpoint falls back to local success with private `onError`. Built-in alias-only logout authenticates the surviving lineage's key/provider using `getSessionRevocationContext`, then revokes without live-session hooks or upstream credentials. No currently live target is idempotent success without deletion/proof reservation/hooks; the selected transport's handle/cookie is still required. A proof/identity mismatch leaves the lineage/cookie untouched. Stateless JWTs are not revoked.
 
-Every vault response carries `Cache-Control: no-store`, including parser errors. Legacy `Pragma`/`Expires` are unnecessary. The opt-in `/logout/navigation` route additionally carries `Referrer-Policy: no-referrer`; other routes retain their existing header policy. These headers do not clear history, disable proxy logging, strip callback `?code=` (use frontend `history.replaceState`), or hide protocol-required URL values from the navigation target. Assert both transports' response headers in integration tests.
+Every vault response carries `Cache-Control: no-store`, including parser errors. Legacy `Pragma`/`Expires` are unnecessary. The opt-in `/logout/navigation` route and eligible frontend callback error 302s additionally carry `Referrer-Policy: no-referrer`; other responses retain their existing header policy. These headers do not clear history, disable proxy logging, strip callback `?code=` (use frontend `history.replaceState`), or hide protocol-required URL values from the navigation target. Assert both transports' response headers in integration tests.
 
 ## Public Options And Defaults
 
@@ -204,6 +205,7 @@ Every vault response carries `Cache-Control: no-store`, including parser errors.
 | `storeProvider`                 | required                                   | Durable vault store provider. Use Redis or MongoDB for production and multi-instance deployments.                                                                                                                                                  |
 | `config`                        | required provider values                   | Supply `issuer` and `clientId`, or use `resolveOidcVaultConfigFromEnv(process.env)`. Endpoint settings select manual mode; see Config Modes.                                                                                                       |
 | `frontendRedirectUri`           | unset                                      | Default browser return target after backend callback completion. Required if login accepts custom `returnTo`. Validated before durable callback state; missing destination fails the callback with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI`. |
+| `frontendErrorRedirectUri`      | unset                                      | Fixed opt-in destination for explicitly HTML-preferred terminal GET callback errors; otherwise existing JSON/status. Independent of success/default/trusted origins. See Frontend Callback Error Recovery for validation and byte limits.          |
 | `postLogoutRedirectUri`         | unset                                      | Provider-registered return URL for redirected logout and opt-in navigation. Navigation applies stricter syntax/2048-byte checks; upstream failures retain local logout.                                                                            |
 | `fetchUserInfo`                 | enabled when usable                        | Fetches UserInfo if an endpoint exists and the response supplies an access token; false disables it. Claims merge only after matching subject.                                                                                                     |
 | `authorizationTransactionTtlMs` | `600000`                                   | TTL for one-time authorization transactions created during login.                                                                                                                                                                                  |
@@ -223,6 +225,137 @@ Every vault response carries `Cache-Control: no-store`, including parser errors.
 | `now`                           | `Date.now`                                 | Epoch-millisecond clock for TTL and vault proof/nonce/replay checks; shared policy/store clocks must agree.                                                                                                                                        |
 
 Construction takes an internal resolved snapshot without mutating caller options. Cookie/config/trusted-origin containers are copied; transaction-cookie, fingerprint and DPoP policies/allowlists are detached/frozen, and nonce bytes are privately copied. Store/hooks/issuer/clock services remain shared references. Frozen/reused inputs work. Config itself is optional in the type, but issuer/clientId or the complete manual set is required by construction. Vault and API deviceBinding must be configured independently.
+
+## Frontend Callback Error Recovery
+
+`frontendErrorRedirectUri?: string` is an additive, opt-in **presentation** option, not a successful login. Distinguish these URLs:
+
+| URL                                                                       | Purpose                                                                                                                                                              |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `https://api.example.com/auth/oidc/callback`                              | Backend provider callback (`backendOrigin` + normalized `basePath` + `/callback`); register this with the IdP.                                                       |
+| `frontendRedirectUri`, e.g. `https://app.example.com/callback`            | Successful frontend default; the transaction's validated `returnTo` takes precedence. Receives a fresh local exchange `code`, not the provider's authorization code. |
+| `frontendErrorRedirectUri`, e.g. `https://help.example.net/sign-in-error` | Fixed frontend failure destination; receives public diagnostics only, never an exchange credential.                                                                  |
+
+The provider normally calls the backend with `?code=...&state=...` or `?error=...&state=...`. State, transaction cookie (when applicable), provider identity/tokens, and session/code creation still undergo their existing validation. A password/MFA error shown entirely at the IdP does not reach this callback. Recovery changes no validation, transaction consumption, rollback, cookie cleanup, or established-session revocation rules; body/cookie transports and existing binding modes remain supported without adding a callback proof requirement.
+
+### Same-page success and error destination
+
+This unbound development example sends both outcomes to the application's `/callback` page. The frontend must branch on `error` **before** attempting successful `code` exchange:
+
+```ts
+import express from 'express';
+import { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+
+const app = express();
+app.use(
+  createOidcVaultMiddleware({
+    backendOrigin: 'https://api.example.com',
+    basePath: '/auth/oidc', // Register https://api.example.com/auth/oidc/callback at the IdP.
+    config: { issuer: process.env.OIDC_ISSUER, clientId: process.env.OIDC_CLIENT_ID },
+    storeProvider: createMemoryOidcVaultStore(), // Use shared durable storage in production.
+    frontendRedirectUri: 'https://app.example.com/callback',
+    frontendErrorRedirectUri: 'https://app.example.com/callback',
+  }),
+);
+```
+
+### Dedicated error destination
+
+The error page may be on a different origin and keeps its configured pathname and unrelated query entries:
+
+```ts
+import { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+
+const vault = createOidcVaultMiddleware({
+  backendOrigin: 'https://api.example.com',
+  config: { issuer: process.env.OIDC_ISSUER, clientId: process.env.OIDC_CLIENT_ID },
+  storeProvider: createMemoryOidcVaultStore(),
+  frontendRedirectUri: 'https://app.example.com/callback',
+  frontendErrorRedirectUri: 'https://help.example.net/sign-in-error?locale=en',
+});
+```
+
+The error destination is snapshotted deployment configuration, never derived from incoming `returnTo`, state, Host/forwarded headers, or transaction data. Its origin need not match `frontendRedirectUri` or `trustedOrigins`; configuring it **does not expand `trustedOrigins`** or grant API/POST access. It may be configured without a successful frontend default, but it cannot satisfy the success prerequisite: `transaction.returnTo ?? frontendRedirectUri` still controls success, with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI` before provider/session/code work when neither exists.
+
+### Eligibility, diagnostics and limits
+
+Only terminal errors from the registered **GET callback handler** qualify. Parser/router errors before that handler, HEAD/non-GET requests, all other lifecycle/API routes, and nonfatal post-commit notification errors keep their existing behavior. In particular, an `onSessionCreated` notification failure must not turn a successful callback into an error navigation. Do not redirect inside `hooks.onError`, which also observes nonfatal notifications.
+
+The request must explicitly accept bare `text/html` or `application/xhtml+xml` at a positive quality **strictly greater** than effective `application/json` quality. JSON wins ties regardless of header order. Media wildcards never opt in; JSON quality uses the most specific matching range (`application/json` > `application/*` > `*/*`), preserving `q=0` exclusions. Examples with the option configured:
+
+| `Accept`                                                        | Failed GET callback           |
+| --------------------------------------------------------------- | ----------------------------- |
+| `text/html` or `application/xhtml+xml`                          | 302 to the error page         |
+| `text/html, */*;q=0.8`                                          | 302                           |
+| `text/html, application/json` (either order)                    | Original JSON/status          |
+| `text/html;q=0.8, application/json;q=0.9`                       | Original JSON/status          |
+| Missing/empty, `*/*`, `text/*`, `application/*`, or `image/png` | Original JSON/status          |
+| `text/html;q=0, */*;q=1` or `text/html;q=0.5, */*;q=1`          | Original JSON/status          |
+| `text/html, application/json;q=0, */*;q=1`                      | 302 (specific JSON exclusion) |
+| `text/html;q=bogus` or `text/html, garbage`                     | Original JSON/status          |
+
+Matching is case-insensitive. A malformed nonempty member (including invalid/duplicate `q` or unmatched quotes) makes the whole signal ineligible. Quality is an unquoted 0–1 with at most three decimal places; equally specific duplicates use the highest quality. Media parameters before `q` do not match the bare supported candidates; valid accept extensions after `q` do not change matching. Accept is a presentation signal, not authentication or browser identity; fallback never introduces HTTP 406.
+
+Omitting `frontendErrorRedirectUri` preserves sanitized JSON and the original error status **even for HTML requests**. There is **no implicit fallback** to `frontendRedirectUri`, the login endpoint, or `returnTo`.
+
+An eligible response is an **empty HTTP 302**, with `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, applicable cookie cleanup preserved, and no `WWW-Authenticate`/`DPoP-Nonce` challenge. The URL API replaces all decoded case-insensitive configured `error`/`error_description` variants with exactly one lowercase parameter each:
+
+```text
+https://help.example.net/sign-in-error?locale=en&error=OIDC_VAULT_INVALID_STATE&error_description=OIDC+state+is+invalid+or+expired.
+```
+
+`error` is the stable public library code; `error_description` is its sanitized public client message. Unknown failures use `OIDC_VAULT_INTERNAL_ERROR` / `Unexpected OIDC vault error.` The incoming provider message, authorization `code`, `state`, tokens, session identifiers, and other callback query values are **never forwarded**. Only deliberately public messages belong in application-defined public errors. The sanitized response and prepared destination are captured before mutable error observers; `hooks.onError` still observes the original failure. Already-sent responses retain existing error forwarding, not a second response.
+
+Construction rejects non-absolute/non-HTTP(S) error URLs, raw whitespace/controls/backslashes, userinfo (including empty `@`), fragments (including bare `#`), and same-backend callback loops. Loop comparison uses the canonical origin (host/default-port normalization) and normalized callback pathname, case-insensitively with one trailing slash removed; URL dot segments normalize, but proxy aliases/recursively decoded paths are not inferred. For example, backend `https://api.example.com` rejects `https://API.EXAMPLE.COM:443/auth/oidc/x/../CALLBACK/?view=error`.
+
+Decoded, case-insensitive configured query names `code`, `state`, `sessionId`, `session_id`, `access_token`, `accessToken`, `refresh_token`, `refreshToken`, `id_token`, `idToken`, and `id_token_hint` are rejected even with empty values (`?%63ode=` is invalid). Unrelated query entries, including duplicates, are preserved semantically. This finite list is not a general secret detector: never put secrets in other configured parameters.
+
+All limits below are **inclusive UTF-8 byte counts**, not JavaScript string lengths:
+
+| Value                                    | Limit / failure policy                                                             |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| Raw configured URI **and** canonical URI | Each at most **2,048 bytes**; exceeding either throws during construction.         |
+| Public `error` code                      | Nonempty string, at most **128 bytes**.                                            |
+| Public `error_description` message       | String, at most **512 bytes** (e.g. 128 `😀` characters).                          |
+| Final serialized, URL-encoded `Location` | At most **4,096 bytes**, including encoding expansion and preserved query entries. |
+
+Invalid/oversized public fields, preparation exceptions, or an oversized final Location fall back to the **original captured sanitized JSON/status/protocol headers**. There is no truncation, code/message replacement, recursive error observation, callback replay, or additional provider/store work for presentation fallback.
+
+### Frontend error display and explicit retry
+
+Query diagnostics are **display-only**: anyone can construct them. They neither authenticate a user nor establish session revocation; do not exchange an `error` as a code, clear a valid session solely because of this URL, or infer authentication from its absence. URLs can appear in browser history and access logs despite no-store/no-referrer. Remove diagnostics from the current URL when practical (this does not erase existing logs/history), and treat even public messages as untrusted display text.
+
+Create a text element with ID `sign-in-error` and a button with ID `retry-sign-in`. Call this branch before your normal success-code handling. Inject your existing **fresh login** action (for DPoP/recognition, the normal proof-aware POST login; for legacy unbound mode, navigation to the login endpoint). It runs only on an explicit click, never by replaying the backend callback or automatically retrying:
+
+```ts
+export function renderCallbackFailure(startFreshLogin: () => Promise<void>): boolean {
+  const url = new URL(location.href);
+  if (!url.searchParams.has('error')) return false; // Continue ordinary success handling.
+  const code = url.searchParams.get('error') ?? '';
+  const description = url.searchParams.get('error_description') ?? 'Sign-in could not be completed.';
+  url.searchParams.delete('error');
+  url.searchParams.delete('error_description');
+  history.replaceState(null, '', url.href);
+
+  const message = document.getElementById('sign-in-error');
+  if (message) message.textContent = `${code}: ${description}`; // Escaped text, never innerHTML.
+  const retry = document.querySelector<HTMLButtonElement>('#retry-sign-in');
+  if (retry) {
+    retry.onclick = async () => {
+      retry.disabled = true;
+      try {
+        await startFreshLogin(); // New login transaction, not callback replay.
+      } catch {
+        retry.disabled = false;
+        if (message) message.textContent = 'Unable to start sign-in. Please try again.';
+      }
+    };
+  }
+  return true; // Stop success-code exchange for this error branch; no auth/session mutation.
+}
+```
 
 ## DPoP: complete local JWT and API configuration
 
@@ -321,7 +454,7 @@ Defaults: ES256/P-256, proof age **60s** (integer 1–300), skew **5s** (integer
 
 JSON **POST &lt;basePath&gt;/login** takes `{ returnTo?: string }` and returns only `200 { authorizationUrl }`; navigate after persisting the key. Body/query JWK/jkt shortcuts cannot bind. Optional absent proof creates a cookie-only transaction; invalid supplied proof rejects. GET never selects a key. ReturnTo is body-only and remains on the configured frontend origin.
 
-POST login/guarded exchange validate Origin (valid Referer fallback only when Origin is absent) in **both transports**, rejecting missing/null/duplicate/untrusted sources. After source/body checks, proof/nonce/replay precede discovery/hooks/allocation. Callback is headerless: state and the temporary cookie hash authenticate the original record, atomically matched before upstream exchange/session/code creation. PKCE/state/OIDC nonce remain unchanged. Missing/wrong cookies do not spend or clear; authenticated terminal provider-error callbacks consume/clear with fixed callback-error JSON.
+POST login/guarded exchange validate Origin (valid Referer fallback only when Origin is absent) in **both transports**, rejecting missing/null/duplicate/untrusted sources. After source/body checks, proof/nonce/replay precede discovery/hooks/allocation. Callback is headerless: state and the temporary cookie hash authenticate the original record, atomically matched before upstream exchange/session/code creation. PKCE/state/OIDC nonce remain unchanged. Missing/wrong cookies do not spend or clear; authenticated terminal provider-error callbacks consume/clear with fixed callback-error diagnostics (JSON unless eligible frontend error recovery selects 302).
 
 The fresh **32-byte** transaction secret is HttpOnly, host-only, Path=/, Secure on HTTPS, default Lax; HTTPS name `__Host-oidc_vault_transaction`, HTTP `oidc_vault_transaction`. Only name/lax-or-none are configurable; None requires HTTPS. No Domain/path/Strict/HttpOnly/Secure opt-out. Session/transaction names must differ; multiple mounts need distinct names. Duplicate/malformed/noncanonical selected cookies reject; unrelated malformed cookies are ignored. One pending flow per browser/mount: new initiation replaces the cookie. Its deadline rounds down to the transaction TTL (default 10m), then callback shortens it to the code TTL (30s). Successful exchange/authenticated terminal issuance failure clears it; mismatches/nonces do not. Abandoned records/cookies expire.
 
@@ -901,7 +1034,7 @@ Minimum required manual config:
 - Token responses must include `token_type: Bearer`.
 - `expires_in`, when present, must be a finite non-negative integer.
 - Discovery, token, and UserInfo JSON bodies must be non-null, non-array objects; valid non-object JSON is a controlled 502 provider error.
-- Non-success token/UserInfo responses normally surface sanitized 502s; rejected upstream redirects never become browser-facing 3xx. A complete bounded HTTP-400 JSON `error: 'invalid_grant'` specifically for a refresh-token grant returns **401 `OIDC_VAULT_REFRESH_REJECTED` / `OIDC refresh was rejected. Sign in again.`** when its local record is still current. This indicates rejection (expiry, revocation or reuse), not proven expiry. Replaced records, other grants/statuses, `invalid_client`, malformed bodies and outages retain generic non-terminal provider failures. This adds no cookie clearing or lineage deletion and is not a distributed lease.
+- Non-success token/UserInfo responses normally surface sanitized 502s; upstream redirects are never followed or forwarded. An eligible callback failure can instead use only the fixed frontend error destination described above. A complete bounded HTTP-400 JSON `error: 'invalid_grant'` specifically for a refresh-token grant returns **401 `OIDC_VAULT_REFRESH_REJECTED` / `OIDC refresh was rejected. Sign in again.`** when its local record is still current. This indicates rejection (expiry, revocation or reuse), not proven expiry. Replaced records, other grants/statuses, `invalid_client`, malformed bodies and outages retain generic non-terminal provider failures. This adds no cookie clearing or lineage deletion and is not a distributed lease.
 - Updated browser clients recognize that new code as sign-in-required; old clients sanitize the unknown code as non-terminal, and old servers still return generic errors. Never infer logout from every provider failure or HTTP 401.
 - Present `access_token`/`id_token`/`refresh_token` fields must be non-empty strings and a present `scope` must be a string; malformed present fields are rejected rather than treated as omissions. Callback responses additionally require `id_token` and `refresh_token`, and no session is persisted until all provider checks pass. The callback destination (transaction `returnTo` or `frontendRedirectUri`) is validated before any provider call or durable session/code creation and fails with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI` when neither is configured, so a missing destination cannot strand credentials.
 - Upstream OAuth `expires_in` describes the upstream access token only. It does not set `OidcVaultSession.expiresAt` or shorten the refresh-token-backed vault session.
@@ -1142,6 +1275,7 @@ All new-route success/error/redirect responses carry **Cache-Control: no-store**
 
 ## Migration And Behavior Changes
 
+- Release/upgrade guidance: `frontendErrorRedirectUri` is additive and opt-in, with no store schema migration or browser-client upgrade required. Existing configurations keep JSON/status, successful `returnTo` precedence, and callback validation/cleanup. To replace a response-interception workaround, first deploy the frontend's error-first display/explicit fresh-login action, then set a validated fixed error URI. Do not implement navigation in `onError` or broaden `trustedOrigins`; leave the option unset if callback clients require the old HTML-request JSON response. See [Frontend Callback Error Recovery](#frontend-callback-error-recovery) for exact negotiation, URL/byte limits and JSON fallback.
 - Logout navigation is additive and opt-in. Use JSON POST plus top-level navigation through the backend continuation when integrating proof-authorized upstream logout. Replace duplicated discovery/cookie/alias logic with this protocol. Keep ordinary `/logout` for local-only/legacy unbound sessions. Built-in stores support tickets; custom stores need both optional methods only when enabling `logoutNavigation`. Enabled flows tighten configured return-URI validation as described above. There is no store schema migration for disabled custom stores.
 
 - The local JWT issuer helper is additive. Replace manual signing/`cnf.jkt`/tokenType/expiry construction with `createOidcVaultJwtAccessTokenIssuer`, preserving business claims in its mapper. Set an explicit strong key, algorithm, issuer and audience; use `mapSubject` for subject remapping and remove reserved fields from `mapClaims`. It omits vault sid by default, including in cookie transport. Existing custom issuers retain output validation and rollback behavior.
@@ -1389,7 +1523,7 @@ Every provider has dpopReplayMaxEntries (positive safe integer, default **100000
 | 400                 | OIDC_VAULT_INVALID_FINGERPRINT           | Fingerprint signal is invalid.                 |
 | 403                 | OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED   | Browser recognition changed; sign in again.    |
 
-Source failures keep 403 OIDC_VAULT_UNTRUSTED_ORIGIN and route-specific fixed Login/Exchange/Refresh/Logout request origin is not trusted. Authenticated provider-error callback uses 400 OIDC_VAULT_CALLBACK_ERROR / OIDC callback failed. Browser JSON is only code/message, never raw claims/URLs/keys/provider diagnostics; original errors go privately to core hooks.onError or API onError (replay cause retained).
+Source failures keep 403 OIDC_VAULT_UNTRUSTED_ORIGIN and route-specific fixed Login/Exchange/Refresh/Logout request origin is not trusted. Authenticated provider-error callback uses OIDC_VAULT_CALLBACK_ERROR / OIDC callback failed. (HTTP 400 JSON unless eligible frontend error recovery selects 302). Browser JSON is only code/message, never raw claims/URLs/keys/provider diagnostics; original errors go privately to core hooks.onError or API onError (replay cause retained).
 
 For default ES256, API proof/downgrade errors use `DPoP error="invalid_dpop_proof", algs="ES256"`; invalid DPoP token/unbound DPoP use invalid_token, invalid Bearer/required-unbound Bearer use `Bearer error="invalid_token"`. Missing optional credentials advertise `Bearer, DPoP algs="ES256"`; required only DPoP. Nonce uses `DPoP error="use_dpop_nonce", algs="ES256"`. No error_description; non-401 failures have no auth challenge. Disabled legacy parser/errors remain compatible.
 

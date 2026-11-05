@@ -1104,6 +1104,31 @@ export interface OidcVaultOptions {
    */
   frontendRedirectUri?: string;
   /**
+   * Opt-in fixed frontend destination for terminal GET callback errors only.
+   * Explicit text/html or application/xhtml+xml must have positive quality
+   * strictly above application/json (including JSON wildcards); JSON wins ties.
+   * Omission, malformed/missing/wildcard-only Accept, HEAD, parser errors and
+   * other routes retain their existing responses. No automatic retry/login.
+   *
+   * Construction snapshots an absolute HTTP(S) URL, independently of the success
+   * target/trustedOrigins. Raw and canonical forms must each be <=2048 UTF-8
+   * bytes, without whitespace, controls, backslashes, userinfo, fragments or a
+   * same-backend callback loop (case/trailing-slash aliases included). Decoded,
+   * case-insensitive code/state/sessionId/session_id/access_token/accessToken/
+   * refresh_token/refreshToken/id_token/idToken/id_token_hint query names are
+   * rejected. Other configured query entries/path are preserved; do not put
+   * secrets there. Configured error/error_description variants are replaced.
+   *
+   * Sends an empty 302 with no-store/no-referrer and sanitized public `error`
+   * (nonempty, <=128 UTF-8 bytes) and `error_description` (<=512 bytes). Invalid
+   * fields, preparation failure or a final encoded Location over 4096 bytes
+   * fall back to the original sanitized JSON/status, without truncation.
+   * Diagnostics are display-only, not authentication; URLs may appear in logs
+   * and history. Does not change success returnTo precedence or its prerequisite,
+   * callback validation/cleanup, or an established session on stale callbacks.
+   */
+  frontendErrorRedirectUri?: string;
+  /**
    * Optional provider-registered HTTP(S) URL used in the upstream end-session
    * redirect. Consulted for redirected logout (`redirect: true`) and opt-in
    * logout navigation; navigation additionally validates/snapshots its syntax

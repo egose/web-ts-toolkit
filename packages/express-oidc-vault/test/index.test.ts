@@ -435,6 +435,159 @@ describe('createOidcVaultMiddleware', () => {
     expect(postLogoutRefreshResponse.status).toBe(401);
   });
 
+  describe.each(['body', 'cookie'] as const)('FER-02 legacy unbound recovery (%s)', (sessionTransport) => {
+    const errorTarget = 'https://frontend.example.com/callback?view=error';
+
+    it('keeps success/returnTo and nonfatal postcommit notifications successful; stale callbacks preserve the established session', async () => {
+      const app = express();
+      const storeProvider = createMemoryOidcVaultStore();
+      const createSession = vi.spyOn(storeProvider, 'createSession');
+      const createCode = vi.spyOn(storeProvider, 'createExchangeCode');
+      const revoke = vi.spyOn(storeProvider, 'deleteSessionsByLogicalSessionId');
+      const diagnostic = new Error('private legacy postcommit notification');
+      const observed: unknown[] = [];
+      app.use(
+        createOidcVaultMiddleware({
+          backendOrigin,
+          config: { issuer: `${issuerBaseUrl}/issuer`, clientId: 'client_1' },
+          frontendRedirectUri: 'https://frontend.example.com/callback',
+          frontendErrorRedirectUri: errorTarget,
+          storeProvider,
+          sessionTransport,
+          trustedOrigins: ['https://frontend.example.com'],
+          hooks: {
+            onSessionCreated() {
+              throw diagnostic;
+            },
+            onError({ error }) {
+              observed.push(error);
+              throw new Error('private notification observer failure');
+            },
+          },
+        }),
+      );
+      const login = await request(app).get('/auth/oidc/login').query({ returnTo: '/custom-target?view=success' });
+      const authorization = new URL(login.headers.location as string);
+      const query = {
+        state: authorization.searchParams.get('state'),
+        code: `authcode:${authorization.searchParams.get('nonce')}`,
+      };
+      const success = await request(app).get('/auth/oidc/callback').set('Accept', 'text/html').query(query);
+      expect(success.status).toBe(302);
+      const destination = new URL(success.headers.location as string);
+      expect(destination.pathname).toBe('/custom-target');
+      expect(destination.searchParams.get('view')).toBe('success');
+      expect(destination.searchParams.get('error')).toBeNull();
+      expect(destination.searchParams.get('code')).toMatch(/^code_/);
+      expect(observed).toEqual([diagnostic]);
+      const exchange = await request(app)
+        .post('/auth/oidc/exchange')
+        .send({ code: destination.searchParams.get('code') });
+      expect(exchange.status).toBe(200);
+      const sessionId = createSession.mock.calls[0][0].sessionId;
+      const established = await storeProvider.getSession(sessionId);
+      expect(established).not.toHaveProperty('deviceBinding');
+      const stale = await request(app)
+        .get('/auth/oidc/callback')
+        .set('Accept', 'text/html')
+        .set('Cookie', `oidc_vault_session=${sessionId}`)
+        .query(query);
+      expect(stale.status).toBe(302);
+      const failure = new URL(stale.headers.location as string);
+      expect(failure.origin + failure.pathname).toBe('https://frontend.example.com/callback');
+      expect(failure.searchParams.get('view')).toBe('error');
+      expect(failure.searchParams.get('error')).toBe('OIDC_VAULT_INVALID_STATE');
+      expect(failure.searchParams.get('code')).toBeNull();
+      expect(stale.text).toBe('');
+      expect(stale.headers['set-cookie']).toBeUndefined();
+      expect(stale.headers['cache-control']).toBe('no-store');
+      expect(stale.headers['referrer-policy']).toBe('no-referrer');
+      expect(await storeProvider.getSession(sessionId)).toEqual(established);
+      expect(createSession).toHaveBeenCalledTimes(1);
+      expect(createCode).toHaveBeenCalledTimes(1);
+      expect(revoke).not.toHaveBeenCalled();
+      expect(observed).toHaveLength(2);
+      expect(observed[1]).toHaveProperty('code', 'OIDC_VAULT_INVALID_STATE');
+    });
+
+    it.each(['provider rejection', 'provider validation', 'precreate hook', 'code store'] as const)(
+      'presents legacy %s once without new authority or extra cleanup',
+      async (failure) => {
+        const app = express();
+        const store = createMemoryOidcVaultStore();
+        const consume = vi.spyOn(store, 'consumeAuthorizationTransaction');
+        const createSession = vi.spyOn(store, 'createSession');
+        const createCode = vi.spyOn(store, 'createExchangeCode');
+        const revoke = vi.spyOn(store, 'deleteSessionsByLogicalSessionId');
+        const diagnostic = new Error(`private legacy ${failure}`);
+        const onError = vi.fn();
+        if (failure === 'code store') createCode.mockRejectedValueOnce(diagnostic);
+        if (failure === 'provider validation') authorizationCodeTokenResponseOverride = { refresh_token: null };
+        app.use(
+          createOidcVaultMiddleware({
+            backendOrigin,
+            config: { issuer: `${issuerBaseUrl}/issuer`, clientId: 'client_1' },
+            frontendRedirectUri: 'https://frontend.example.com/callback',
+            frontendErrorRedirectUri: errorTarget,
+            // Reuse the package's old consume-only adapter contract as well as GET login.
+            storeProvider: bindStoreProvider(store),
+            sessionTransport,
+            trustedOrigins: ['https://frontend.example.com'],
+            hooks: {
+              onError,
+              ...(failure === 'precreate hook'
+                ? {
+                    onBeforeSessionCreate() {
+                      throw diagnostic;
+                    },
+                  }
+                : {}),
+            },
+          }),
+        );
+        const login = await request(app).get('/auth/oidc/login');
+        const authorization = new URL(login.headers.location as string);
+        const state = authorization.searchParams.get('state');
+        const providerCallsBefore = authorizationCodeTokenRequests.length;
+        const response = await request(app)
+          .get('/auth/oidc/callback')
+          .set('Accept', 'text/html')
+          .query({
+            state,
+            ...(failure === 'provider rejection'
+              ? { error: 'private-upstream-rejection', error_description: 'private diagnostic' }
+              : { code: `authcode:${authorization.searchParams.get('nonce')}` }),
+          });
+        expect(response.status).toBe(302);
+        expect(response.text).toBe('');
+        const target = new URL(response.headers.location as string);
+        const expectedCode =
+          failure === 'provider rejection'
+            ? 'OIDC_VAULT_CALLBACK_ERROR'
+            : failure === 'provider validation'
+              ? 'OIDC_VAULT_INVALID_TOKEN_RESPONSE'
+              : 'OIDC_VAULT_INTERNAL_ERROR';
+        expect(target.searchParams.get('error')).toBe(expectedCode);
+        expect(target.searchParams.get('code')).toBeNull();
+        expect(response.headers.location).not.toContain('private');
+        expect(response.headers['set-cookie']).toBeUndefined();
+        expect(onError).toHaveBeenCalledTimes(1);
+        if (failure === 'precreate hook' || failure === 'code store')
+          expect(onError.mock.calls[0][0].error).toBe(diagnostic);
+        expect(consume).toHaveBeenCalledTimes(1);
+        expect(await store.getAuthorizationTransaction(state!)).toBeNull();
+        expect(authorizationCodeTokenRequests.length - providerCallsBefore).toBe(
+          failure === 'provider rejection' ? 0 : 1,
+        );
+        expect(createSession).toHaveBeenCalledTimes(failure === 'code store' ? 1 : 0);
+        expect(createCode).toHaveBeenCalledTimes(failure === 'code store' ? 1 : 0);
+        expect(revoke).toHaveBeenCalledTimes(failure === 'code store' ? 1 : 0);
+        if (failure === 'code store')
+          expect(await store.getSession(createSession.mock.calls[0][0].sessionId)).toBeNull();
+      },
+    );
+  });
+
   it('uses backendOrigin for login and callback redirect_uri even when Host differs', async () => {
     const app = express();
     authorizationCodeTokenRequests = [];
