@@ -43,6 +43,42 @@ Run tests:
 pnpm test
 ```
 
+`pnpm test` keeps workspace test scripts serial to avoid overlapping dependency
+builds. CI uses an alternative that runs independent packages in parallel within
+each group, waits for the entire group to finish, and only starts the next group
+if it passed:
+
+```sh
+pnpm build
+pnpm test:grouped
+```
+
+Run a single group with `pnpm test:group:1` (through `pnpm test:group:12`), after
+building the workspace. Groups must not run concurrently with each other or with
+another workspace build/test run in the same checkout.
+
+| Group | Packages (omit the `@web-ts-toolkit/` scope)           |
+| ----- | ------------------------------------------------------ |
+| 1     | utils, json-frame, express-runtime                     |
+| 2     | http-errors, asset-inliner                             |
+| 3     | express-response-handler, express-request-attestation  |
+| 4     | express-json-router, mongoose-rxdb                     |
+| 5     | access-router, express-oidc-vault                      |
+| 6     | access-router-deco, express-oidc-vault-memory-store    |
+| 7     | access-router-client, express-oidc-vault-mongodb-store |
+| 8     | access-router-react, express-oidc-vault-redis-store    |
+| 9     | message-service, oidc-vault-dpop-client                |
+| 10    | access-router-runtime, pdf-reader                      |
+| 11    | moo, oidc-vault-dpop-example                           |
+| 12    | react-vite, create-access-router-mongo-starter         |
+
+`pnpm test:groups:check` checks the runner and verifies that every tested workspace
+appears exactly once, with no build/read conflicts inside a group. Group membership
+and test-only dependency overrides live in `scripts/test-groups.mjs`. Review the
+overrides when tests gain cross-package builds or compiled fixtures; manifest
+dependency changes are checked automatically. Existing package test scripts and
+their test coverage are unchanged.
+
 ## Release
 
 Publish all workspace packages with:

@@ -57,10 +57,10 @@ jobs:
       working-directory: packages/pdf-reader
       run: pnpm exec playwright install-deps chromium
 
-    - name: Run unit tests
+    - name: Run grouped unit tests
       run: |
         pnpm build
-        pnpm test
+        pnpm test:grouped
 
   access-router-minimum-node-smoke:
     runs-on: ubuntu-24.04

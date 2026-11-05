@@ -5,6 +5,8 @@
 - `pnpm install` — install dependencies
 - `pnpm build` — build all workspace packages (`pnpm -r --if-present build`)
 - `pnpm test` — run all workspace tests
+- `pnpm test:grouped` — run safe parallel test groups sequentially (used by CI)
+- `pnpm test:groups:check` — verify group coverage, build/read safety and runner tests
 - `pnpm lint` — run eslint over the repo
 - `pnpm build-artifact -- --version <ver>` — assemble the asdf release artifact
 - `pnpm verify-artifact -- --version <ver>` — verify the asdf release artifact
@@ -12,11 +14,19 @@
 ## Testing notes
 
 `pnpm test` runs package test scripts **serially** (`--workspace-concurrency=1`).
-Each package's test script rebuilds itself and its transitive deps via
+Most package test scripts rebuild themselves and their transitive deps via
 `pnpm --filter <pkg>... build && vitest …`. Running these concurrently caused
 multiple `tsup` processes to write to the same shared `dist/` (e.g.
-`express-response-handler`) at once and race on CI. Keep the run serialized
-unless the per-package pre-build is removed in favor of a single root build.
+`express-response-handler`) at once and race on CI. Keep this default serialized.
+
+CI builds the workspace first, then uses `pnpm test:grouped`: numbered groups run
+sequentially and stop on failure; packages within each group run concurrently.
+`scripts/test-groups.mjs` checks coverage and dependency build/read conflicts before
+running any group, including test-only accesses absent from package manifests.
+Update its overrides when cross-package fixture/build behavior changes. Do not
+run separate groups concurrently in one checkout. `react-vite` shares compiled
+dependencies read-only with the starter in group 12; its override requires review
+if its test script changes.
 
 ## Temporary files and durable task evidence
 
