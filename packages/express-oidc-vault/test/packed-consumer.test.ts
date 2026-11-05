@@ -255,6 +255,7 @@ function copyConsumerSources(consumerDir: string): void {
     'diagnostics-runtime.mjs',
     'jwt-issuer-runtime.mjs',
     'logout-navigation-runtime.mjs',
+    'frontend-error-redirect-runtime.mjs',
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
   }
@@ -316,6 +317,10 @@ function compileInstalledReadme(consumerDir: string): void {
   const server = snippet('### Complete DPoP server');
   writeFileSync(path.resolve(consumerDir, 'readme-server.ts'), server);
   writeFileSync(path.resolve(consumerDir, 'readme-server.cts'), server);
+  const recoverySnippets = [
+    snippet('### Same-page success and error destination'),
+    snippet('### Dedicated error destination'),
+  ];
   const backendSnippets = [
     server,
     snippet('### POST login and browser-authenticated callback'),
@@ -334,6 +339,7 @@ function compileInstalledReadme(consumerDir: string): void {
     snippet('## Structured DPoP Diagnostics And Token Outcomes'),
     snippet('### JWT issuer helper'),
     snippet('### Logout navigation server'),
+    ...recoverySnippets,
   ];
   // Pure wire snippets are compiled in the DOM-only lane, not rescued by the
   // backend's Express/Node ambient types.
@@ -347,6 +353,11 @@ function compileInstalledReadme(consumerDir: string): void {
   }
   const files = backendSnippets.map((code, index) => {
     const file = `readme-backend-${index}.ts`;
+    writeFileSync(path.resolve(consumerDir, file), `${code}\nexport {};\n`);
+    return file;
+  });
+  const recoveryCjsFiles = recoverySnippets.map((code, index) => {
+    const file = `readme-recovery-${index}.cts`;
     writeFileSync(path.resolve(consumerDir, file), `${code}\nexport {};\n`);
     return file;
   });
@@ -364,7 +375,7 @@ function compileInstalledReadme(consumerDir: string): void {
     path.resolve(consumerDir, 'tsconfig-readme-nodenext.json'),
     JSON.stringify({
       compilerOptions: options,
-      files: [...files, 'readme-server.cts'],
+      files: [...files, 'readme-server.cts', ...recoveryCjsFiles],
     }),
   );
   writeFileSync(
@@ -374,6 +385,7 @@ function compileInstalledReadme(consumerDir: string): void {
       files,
     }),
   );
+  const recoveryFrontend = snippet('### Frontend error display and explicit retry');
   const browserSnippets = [
     snippet('### Browser DPoP client'),
     snippet('### Low-level proof signing for an owned request'),
@@ -382,6 +394,7 @@ function compileInstalledReadme(consumerDir: string): void {
     snippet('### Frontend signal adapter'),
     snippet('### Published recognition adapter'),
     ...wireSnippets,
+    recoveryFrontend,
   ];
   const website = readFileSync(path.resolve(workspaceRoot, 'website/docs/packages/express-oidc-vault.md'), 'utf8');
   expect(ticketSection(website)).toBe(ticketSection(readme));
@@ -389,6 +402,9 @@ function compileInstalledReadme(consumerDir: string): void {
     text.split('## Proof-Authorized Logout Navigation\n')[1]?.split('\n## ')[0];
   expect(navigationSection(readme)).toBeTruthy();
   expect(navigationSection(website)).toBe(navigationSection(readme));
+  const recoverySection = (text: string) => text.split('## Frontend Callback Error Recovery\n')[1]?.split('\n## ')[0];
+  expect(recoverySection(readme)).toBeTruthy();
+  expect(recoverySection(website)).toBe(recoverySection(readme));
   for (const [websiteHeading, readmeHeading] of [
     ['## DPoP: complete local JWT and API configuration', '### Complete DPoP server'],
     ['### JWT issuer helper', '### JWT issuer helper'],
@@ -427,7 +443,12 @@ function compileInstalledReadme(consumerDir: string): void {
   browserSnippets.push(websiteClient);
   const browserFiles = browserSnippets.map((code, index) => {
     expect(code).not.toMatch(/@web-ts-toolkit\/express-oidc-vault['"]/);
-    const file = index === 1 ? 'readme-proof.ts' : `readme-browser-${index}.ts`;
+    const file =
+      code === recoveryFrontend
+        ? 'readme-callback-error.ts'
+        : index === 1
+          ? 'readme-proof.ts'
+          : `readme-browser-${index}.ts`;
     writeFileSync(path.resolve(consumerDir, file), `${code}\nexport {};\n`);
     return file;
   });
@@ -570,12 +591,20 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
       }
       expect(text).toContain('No live reservation is evicted');
       expect(text).toContain('Create the OIDC lifecycle router using a named package-root import');
+      expect(text).toContain('frontendErrorRedirectUri?: string;');
+      expect(text).toContain('Opt-in fixed frontend destination for terminal GET callback errors only.');
+      expect(text).toContain('strictly above application/json (including JSON wildcards); JSON wins ties.');
+      expect(text).toContain('fall back to the original sanitized JSON/status, without truncation.');
+      expect(text).not.toMatch(
+        /resolveFrontendErrorRedirectUri|explicitlyPrefersCallbackHtml|prepareCallbackErrorLocation/,
+      );
     }
     for (const declaration of ['wire.d.ts', 'wire.d.mts']) {
       const text = readFileSync(path.resolve(unpackRoot, declaration), 'utf8');
       expect(text).not.toMatch(/\bimport\b|express|node:|NodeJS|declare module/);
       expect(text).toContain('safe exp * 1000 milliseconds');
       expect(text).toContain('no live reusable API credential');
+      expect(text).not.toContain('frontendErrorRedirectUri');
     }
     for (const entry of ['wire.js', 'wire.mjs']) {
       expect(readFileSync(path.resolve(unpackRoot, entry), 'utf8')).not.toMatch(

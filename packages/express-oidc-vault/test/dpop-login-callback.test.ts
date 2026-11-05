@@ -16,6 +16,7 @@ import {
   type OidcVaultTransactionCookieOptions,
   type OidcVaultDpopDiagnosticEvent,
 } from '../src/index';
+import { OidcVaultHttpError } from '../src/errors';
 import { __resetProviderClientCachesForTests } from '../src/provider-client';
 import { createDpopReplayKey, resolveDpopEffectiveNamespace } from '../src/dpop-replay';
 
@@ -1299,6 +1300,358 @@ describe.each(TRANSPORTS)('DBJWT-04 callback authority/terminal cleanup (%s)', (
     expect(nonce.headers['cache-control']).toBe('no-store');
     expect(nonce.headers['set-cookie']).toBeUndefined();
     expect(f.calls.reserve).not.toHaveBeenCalled();
+  });
+});
+
+describe.each(TRANSPORTS)('FER-02 guarded callback recovery (%s)', (transport) => {
+  const frontendErrorRedirectUri = 'https://help.example.net/sign-in-error?locale=en';
+  const expectRecovery = (response: request.Response, code: string, message?: string) => {
+    expect(response.status).toBe(302);
+    expect(response.text).toBe('');
+    const target = new URL(response.headers.location as string);
+    expect(target.origin + target.pathname).toBe('https://help.example.net/sign-in-error');
+    expect(target.searchParams.get('locale')).toBe('en');
+    expect(target.searchParams.get('error')).toBe(code);
+    if (message !== undefined) expect(target.searchParams.get('error_description')).toBe(message);
+    expect([...target.searchParams.keys()]).toEqual(['locale', 'error', 'error_description']);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
+    expect(response.headers['www-authenticate']).toBeUndefined();
+    expect(response.headers['dpop-nonce']).toBeUndefined();
+    expect(response.headers.location).not.toMatch(/private|authcode|upstream-refresh/);
+  };
+
+  it.each(['optional', 'required'] as const)(
+    '%s mode preserves mismatched attempts/cookies, then consumes and clears only authenticated provider rejection',
+    async (mode) => {
+      const f = fixture(transport, { frontendErrorRedirectUri, deviceBinding: { mode } });
+      const browser = createBrowser(f.app);
+      const other = createBrowser(f.app);
+      const login = await startLogin(f, browser);
+      const otherLogin = await startLogin(f, other, proofFor({ key: keyB }));
+      const before = await f.store.getAuthorizationTransaction(login.state);
+      providerRequests = [];
+      const missing = await request(f.app)
+        .get(`${BASE_PATH}/callback`)
+        .set('Accept', 'text/html')
+        .query({ state: login.state, error: 'private-upstream-rejection' });
+      expectRecovery(missing, INVALID_BROWSER.code, INVALID_BROWSER.message);
+      const transferred = await callback(other, login).set('Accept', 'text/html');
+      expectRecovery(transferred, INVALID_BROWSER.code, INVALID_BROWSER.message);
+      for (const rejected of [missing, transferred]) expect(rejected.headers['set-cookie']).toBeUndefined();
+      expect(f.calls.consumeTransaction).not.toHaveBeenCalled();
+      expect(await f.store.getAuthorizationTransaction(login.state)).toEqual(before);
+      expect(await f.store.getAuthorizationTransaction(otherLogin.state)).not.toBeNull();
+      expectNoCallbackWork(f);
+      const honest = await browser.get(`${BASE_PATH}/callback`).set('Accept', 'text/html').query({
+        state: login.state,
+        error: 'private-upstream-rejection',
+        error_description: 'private-provider-description',
+      });
+      expectRecovery(honest, 'OIDC_VAULT_CALLBACK_ERROR', 'OIDC callback failed.');
+      expect(cookieLines(honest)).toHaveLength(1);
+      expect(cookieLines(honest)[0]).toContain(`${COOKIE_NAME}=; Path=/; SameSite=Lax; HttpOnly; Secure; Max-Age=0;`);
+      expect(await f.store.getAuthorizationTransaction(login.state)).toBeNull();
+      expect(await f.store.getAuthorizationTransaction(otherLogin.state)).not.toBeNull();
+      expect(f.calls.consumeTransaction).toHaveBeenCalledTimes(1);
+      expect(f.calls.reserve).toHaveBeenCalledTimes(2); // Only the two POST initiations.
+      expectNoCallbackWork(f);
+      expect(f.onError).toHaveBeenCalledTimes(3);
+      expect(f.onError.mock.calls[2][0].error).toHaveProperty('message', 'private-upstream-rejection');
+      const replay = await callback(browser, login).set('Accept', 'text/html');
+      expectRecovery(replay, 'OIDC_VAULT_INVALID_STATE');
+      expect(replay.headers['set-cookie']).toBeUndefined();
+      expect(f.calls.consumeTransaction).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['invalid provider nonce', 'precreate hook', 'session store', 'code store'] as const)(
+    'presents %s once after the existing authenticated cleanup/rollback',
+    async (failure) => {
+      const diagnostic = new Error(`private guarded ${failure}`);
+      const f = fixture(transport, {
+        frontendErrorRedirectUri,
+        deviceBinding: { mode: 'required' },
+        hooks: {
+          ...(failure === 'precreate hook'
+            ? {
+                onBeforeSessionCreate() {
+                  throw diagnostic;
+                },
+              }
+            : {}),
+          onError({ res }) {
+            res.setHeader('Cache-Control', 'public');
+            res.setHeader('Referrer-Policy', 'unsafe-url');
+            res.setHeader('WWW-Authenticate', 'PRIVATE');
+            res.setHeader('DPoP-Nonce', 'private nonce');
+            throw new Error('private observer failure');
+          },
+        },
+      });
+      const browser = createBrowser(f.app);
+      const login = await startLogin(f, browser);
+      if (failure === 'invalid provider nonce') invalidIdNonce = true;
+      if (failure === 'session store') f.calls.createSession.mockRejectedValueOnce(diagnostic);
+      if (failure === 'code store') f.calls.createCode.mockRejectedValueOnce(diagnostic);
+      const response = await callback(browser, login)
+        .set('Accept', 'text/html')
+        .set('DPoP', 'ignored-navigation-proof');
+      expectRecovery(
+        response,
+        failure === 'invalid provider nonce' ? 'OIDC_VAULT_INVALID_ID_TOKEN' : 'OIDC_VAULT_INTERNAL_ERROR',
+      );
+      expect(cookieLines(response)).toHaveLength(1);
+      expect(cookieLines(response)[0]).toContain(`${COOKIE_NAME}=;`);
+      expect(cookieLines(response)[0]).toContain('Max-Age=0;');
+      expect(await f.store.getAuthorizationTransaction(login.state)).toBeNull();
+      expect(f.calls.consumeTransaction).toHaveBeenCalledTimes(1);
+      expect(f.calls.createSession).toHaveBeenCalledTimes(
+        failure === 'session store' || failure === 'code store' ? 1 : 0,
+      );
+      expect(f.calls.createCode).toHaveBeenCalledTimes(failure === 'code store' ? 1 : 0);
+      expect(f.calls.revoke).toHaveBeenCalledTimes(failure === 'code store' ? 1 : 0);
+      if (failure === 'code store') {
+        const created = f.calls.createSession.mock.calls[0][0];
+        expect(f.calls.revoke).toHaveBeenCalledWith({ logicalSessionId: created.sessionId });
+        expect(await f.store.getSession(created.sessionId)).toBeNull();
+      }
+      expect(providerRequests.filter((entry) => entry.path.endsWith('/token'))).toHaveLength(1);
+      expect(providerRequests.every((entry) => entry.dpop === undefined)).toBe(true);
+      expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+      expect(f.onError).toHaveBeenCalledTimes(1);
+      if (failure !== 'invalid provider nonce') expect(f.onError.mock.calls[0][0].error).toBe(diagnostic);
+    },
+  );
+
+  it('error-only configuration cannot satisfy the successful destination prerequisite or spend a guarded attempt', async () => {
+    const f = fixture(transport, { frontendErrorRedirectUri, frontendRedirectUri: undefined });
+    const browser = createBrowser(f.app);
+    const login = await startLogin(f, browser);
+    const before = await f.store.getAuthorizationTransaction(login.state);
+    providerRequests = [];
+    const response = await callback(browser, login).set('Accept', 'text/html');
+    expectRecovery(response, 'OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI');
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(await f.store.getAuthorizationTransaction(login.state)).toEqual(before);
+    expect(f.calls.consumeTransaction).not.toHaveBeenCalled();
+    expect(f.onError).toHaveBeenCalledTimes(1);
+    expectNoCallbackWork(f);
+  });
+
+  it.each(['message', 'location', 'exception'] as const)(
+    'authenticated %s presentation fallback preserves original JSON and exactly one terminal cookie cleanup',
+    async (failure) => {
+      const publicMessage = failure === 'message' ? '😀'.repeat(128) + 'a' : 'Public application denial.';
+      const diagnostic = new OidcVaultHttpError(403, 'PUBLIC_DENIAL', 'private callback veto', publicMessage);
+      const f = fixture(transport, {
+        frontendErrorRedirectUri:
+          failure === 'location' ? `https://help.example.net/error?hint=${'~'.repeat(1500)}` : frontendErrorRedirectUri,
+        hooks: {
+          onBeforeSessionCreate() {
+            throw diagnostic;
+          },
+        },
+      });
+      const browser = createBrowser(f.app);
+      const login = await startLogin(f, browser);
+      if (failure === 'exception') {
+        const originalSet = URLSearchParams.prototype.set;
+        vi.spyOn(URLSearchParams.prototype, 'set').mockImplementation(function (name, value) {
+          if (name === 'error_description') throw new Error('private serializer failure');
+          return originalSet.call(this, name, value);
+        });
+      }
+      const response = await callback(browser, login).set('Accept', 'text/html');
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ code: 'PUBLIC_DENIAL', message: publicMessage });
+      expect(response.headers.location).toBeUndefined();
+      expect(response.headers['referrer-policy']).toBeUndefined();
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(cookieLines(response)).toHaveLength(1);
+      expect(cookieLines(response)[0]).toContain(`${COOKIE_NAME}=;`);
+      expect(cookieLines(response)[0]).toContain('Max-Age=0;');
+      expect(f.onError).toHaveBeenCalledTimes(1);
+      expect(f.onError.mock.calls[0][0].error).toBe(diagnostic);
+      expect(await f.store.getAuthorizationTransaction(login.state)).toBeNull();
+      expect(f.calls.consumeTransaction).toHaveBeenCalledTimes(1);
+      expect(f.calls.createSession).not.toHaveBeenCalled();
+      expect(f.calls.createCode).not.toHaveBeenCalled();
+      expect(f.calls.revoke).not.toHaveBeenCalled();
+      expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+      expect(providerRequests.filter((entry) => entry.path.endsWith('/token'))).toHaveLength(1);
+    },
+  );
+
+  it('expired and unknown state redirect without clearing a live attempt cookie or doing callback work', async () => {
+    const f = fixture(transport, { frontendErrorRedirectUri });
+    const browser = createBrowser(f.app);
+    const expired = await startLogin(f, browser);
+    f.clock.value += 600_001;
+    const live = await startLogin(f, browser, proofFor({ claims: { iat: Math.floor(f.clock.value / 1000) } }));
+    const liveRecord = await f.store.getAuthorizationTransaction(live.state);
+    providerRequests = [];
+    for (const state of [expired.state, 'unknown-state']) {
+      const response = await browser
+        .get(`${BASE_PATH}/callback`)
+        .set('Accept', 'text/html')
+        .query({ state, code: 'private-code' });
+      expectRecovery(response, 'OIDC_VAULT_INVALID_STATE');
+      expect(response.headers['set-cookie']).toBeUndefined();
+    }
+    expect(await f.store.getAuthorizationTransaction(live.state)).toEqual(liveRecord);
+    expect(f.calls.consumeTransaction).not.toHaveBeenCalled();
+    expect(f.onError).toHaveBeenCalledTimes(2);
+    expectNoCallbackWork(f);
+  });
+
+  it('keeps a postcommit failure successful and protects the established bound session on a stale callback', async () => {
+    const diagnostic = new Error('private guarded postcommit failure');
+    const f = fixture(transport, {
+      frontendErrorRedirectUri,
+      deviceBinding: { mode: 'required' },
+      hooks: {
+        onSessionCreated() {
+          throw diagnostic;
+        },
+        onError() {
+          throw new Error('private observer failure');
+        },
+      },
+    });
+    const browser = createBrowser(f.app);
+    const login = await startLogin(f, browser, proofFor(), { returnTo: '/captured-success' });
+    const success = await callback(browser, login).set('Accept', 'text/html');
+    expect(success.status).toBe(302);
+    const destination = new URL(success.headers.location as string);
+    expect(destination.origin + destination.pathname).toBe(`${FRONTEND_ORIGIN}/captured-success`);
+    expect(destination.searchParams.get('error')).toBeNull();
+    const record = (await f.store.getExchangeCode(destination.searchParams.get('code')!))!;
+    const established = await f.store.getSession(record.sessionId);
+    expect(established?.deviceBinding).toEqual({ type: 'dpop', jkt: keyA.jkt });
+    expect(cookieLines(success)[0]).toContain(`${COOKIE_NAME}=${login.secret};`);
+    expect(f.onError).toHaveBeenCalledTimes(1);
+    expect(f.onError.mock.calls[0][0].error).toBe(diagnostic);
+    const stale = await callback(browser, login)
+      .set('Accept', 'text/html')
+      .set('Cookie', `${browser.cookieHeader()}; oidc_vault_session=${record.sessionId}`);
+    expectRecovery(stale, 'OIDC_VAULT_INVALID_STATE');
+    expect(stale.headers['set-cookie']).toBeUndefined();
+    expect(await f.store.getSession(record.sessionId)).toEqual(established);
+    expect(await f.store.getExchangeCode(record.code)).toEqual(record);
+    expect(f.calls.createSession).toHaveBeenCalledTimes(1);
+    expect(f.calls.createCode).toHaveBeenCalledTimes(1);
+    expect(f.calls.revoke).not.toHaveBeenCalled();
+    expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+    expect(providerRequests.filter((entry) => entry.path.endsWith('/token'))).toHaveLength(1);
+    expect(f.onError).toHaveBeenCalledTimes(2);
+  });
+
+  it('required mode legacy state still fails before consume/provider work, with no challenge on the 302', async () => {
+    const f = fixture(transport, { frontendErrorRedirectUri, deviceBinding: { mode: 'required' } });
+    const legacy: AuthorizationTransaction = {
+      state: 'fer-legacy',
+      nonce: 'legacy',
+      pkceVerifier: 'legacy',
+      codeChallenge: 'legacy',
+      createdAt: NOW,
+      expiresAt: NOW + 60_000,
+    };
+    await f.store.createAuthorizationTransaction(legacy);
+    const response = await request(f.app)
+      .get(`${BASE_PATH}/callback`)
+      .set('Accept', 'text/html')
+      .query({ state: legacy.state, code: 'private-code' });
+    expectRecovery(response, REQUIRED.code, REQUIRED.message);
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(await f.store.getAuthorizationTransaction(legacy.state)).toEqual(legacy);
+    expect(f.calls.consumeTransaction).not.toHaveBeenCalled();
+    expect(f.calls.consumeLegacyTransaction).not.toHaveBeenCalled();
+    expectNoCallbackWork(f);
+  });
+
+  it('optional cookie-only POST login failures do not enroll a device or invent callback proof work', async () => {
+    const f = fixture(transport, { frontendErrorRedirectUri });
+    const browser = createBrowser(f.app);
+    const login = await browser.post(`${BASE_PATH}/login`).set('Origin', FRONTEND_ORIGIN).send({});
+    expect(login.status).toBe(200);
+    browser.capture(login);
+    const state = new URL(login.body.authorizationUrl as string).searchParams.get('state')!;
+    expect(await f.store.getAuthorizationTransaction(state)).not.toHaveProperty('deviceBinding');
+    providerRequests = [];
+    const response = await browser
+      .get(`${BASE_PATH}/callback`)
+      .set('Accept', 'text/html')
+      .query({ state, error: 'private-provider-rejection' });
+    expectRecovery(response, 'OIDC_VAULT_CALLBACK_ERROR', 'OIDC callback failed.');
+    expect(cookieLines(response)[0]).toContain('Max-Age=0;');
+    expect(await f.store.getAuthorizationTransaction(state)).toBeNull();
+    expect(f.calls.consumeTransaction).toHaveBeenCalledTimes(1);
+    expect(f.calls.reserve).not.toHaveBeenCalled();
+    expectNoCallbackWork(f);
+    expect(f.onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('disabled device policy cannot spend a stored bound attempt; recovery drops its JSON challenge only on 302', async () => {
+    const f = fixture(transport, { frontendErrorRedirectUri });
+    const browser = createBrowser(f.app);
+    const login = await startLogin(f, browser);
+    const before = await f.store.getAuthorizationTransaction(login.state);
+    const disabled = express();
+    disabled.use(createOidcVaultMiddleware({ ...f.options, deviceBinding: undefined }));
+    providerRequests = [];
+    for (const accept of ['text/html', 'application/json']) {
+      const response = await request(disabled)
+        .get(`${BASE_PATH}/callback`)
+        .set('Accept', accept)
+        .set('Cookie', browser.cookieHeader())
+        .query({ state: login.state, code: 'private-code' });
+      if (accept === 'text/html')
+        expectRecovery(response, 'OIDC_VAULT_DPOP_REQUIRED', 'DPoP authentication is required.');
+      else {
+        expect(response.status).toBe(401);
+        expect(response.body.code).toBe('OIDC_VAULT_DPOP_REQUIRED');
+        expect(response.headers['www-authenticate']).toBe('DPoP error="invalid_dpop_proof", algs="ES256"');
+        expect(response.headers.location).toBeUndefined();
+      }
+      expect(response.headers['set-cookie']).toBeUndefined();
+    }
+    expect(await f.store.getAuthorizationTransaction(login.state)).toEqual(before);
+    expect(f.calls.consumeTransaction).not.toHaveBeenCalled();
+    expect(f.calls.reserve).toHaveBeenCalledTimes(1);
+    expectNoCallbackWork(f);
+    expect(f.onError).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves noncallback invalid-proof and nonce challenges on their original JSON protocol with the option enabled', async () => {
+    const f = fixture(transport, {
+      frontendErrorRedirectUri,
+      deviceBinding: { nonce: { secret: randomBytes(32) } },
+    });
+    const invalid = await request(f.app)
+      .post(`${BASE_PATH}/login`)
+      .set('Origin', FRONTEND_ORIGIN)
+      .set('Accept', 'text/html')
+      .set('DPoP', proofFor({ signingKey: keyB }))
+      .send({});
+    expect(invalid.status).toBe(401);
+    expect(invalid.body).toEqual(INVALID_PROOF);
+    expect(invalid.headers['www-authenticate']).toBe('DPoP error="invalid_dpop_proof", algs="ES256"');
+    expect(invalid.headers.location).toBeUndefined();
+    const nonce = await request(f.app)
+      .post(`${BASE_PATH}/login`)
+      .set('Origin', FRONTEND_ORIGIN)
+      .set('Accept', 'text/html')
+      .set('DPoP', proofFor())
+      .send({});
+    expect(nonce.status).toBe(400);
+    expect(nonce.body.code).toBe('OIDC_VAULT_USE_DPOP_NONCE');
+    expect(nonce.headers['dpop-nonce']).toMatch(/^v1\./);
+    expect(nonce.headers['www-authenticate']).toBeUndefined();
+    expect(nonce.headers.location).toBeUndefined();
+    expect(f.calls.consumeTransaction).not.toHaveBeenCalled();
+    expect(f.calls.reserve).not.toHaveBeenCalled();
+    expectNoCallbackWork(f);
   });
 });
 

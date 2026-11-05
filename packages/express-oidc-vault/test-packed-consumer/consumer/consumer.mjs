@@ -4,6 +4,8 @@ import http from 'node:http';
 
 import express from 'express';
 import { calculateJwkThumbprint, decodeJwt, exportJWK, SignJWT } from 'jose';
+import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
+import { verifyFrontendErrorRedirect } from './frontend-error-redirect-runtime.mjs';
 
 import {
   DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS,
@@ -66,6 +68,8 @@ assert.strictEqual(typeof resolveOidcVaultConfigFromEnv, 'function');
 assert.ok(new OidcVaultStoreConflictError() instanceof Error);
 assert.ok(new OidcVaultDpopReplayCapacityError() instanceof Error);
 assert.strictEqual(new OidcVaultDpopReplayCapacityError().name, 'OidcVaultDpopReplayCapacityError');
+
+await verifyFrontendErrorRedirect({ createOidcVaultMiddleware }, { createMemoryOidcVaultStore });
 
 // Real installed ESM authentication, exercising bundled internal verifier and
 // request-aware declarations' runtime contract without any source deep import.

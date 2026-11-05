@@ -71,3 +71,46 @@ try {
   globalThis.fetch = nativeFetch;
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
+
+// Execute the compiled installed README's error-first display branch too. These
+// minimal DOM sinks reject HTML injection and require an explicit retry click.
+const { renderCallbackFailure } = await import('./compiled-readme/readme-callback-error.js');
+const originalBrowserGlobals = new Map(['location', 'history', 'document'].map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+const message = { textContent: '', set innerHTML(_value) { assert.fail('Diagnostics must never become HTML.'); } };
+const retry = { disabled: false, onclick: undefined };
+let replacedUrl;
+let loginCalls = 0;
+try {
+  const url = new URL('https://app.example.com/callback?view=compact');
+  url.searchParams.set('error', 'OIDC_VAULT_INVALID_STATE');
+  url.searchParams.set('error_description', '<img src=x onerror=alert(1)>');
+  globalThis.location = { href: url.href };
+  globalThis.history = { replaceState(_state, _unused, href) { replacedUrl = href; } };
+  globalThis.document = {
+    getElementById(id) { assert.equal(id, 'sign-in-error'); return message; },
+    querySelector(selector) { assert.equal(selector, '#retry-sign-in'); return retry; },
+  };
+  assert.equal(renderCallbackFailure(async () => { loginCalls++; }), true);
+  assert.equal(message.textContent, 'OIDC_VAULT_INVALID_STATE: <img src=x onerror=alert(1)>');
+  assert.equal(replacedUrl, 'https://app.example.com/callback?view=compact');
+  assert.equal(loginCalls, 0);
+  assert.equal(retry.disabled, false);
+  await retry.onclick();
+  assert.equal(loginCalls, 1);
+  assert.equal(retry.disabled, true);
+
+  renderCallbackFailure(async () => { loginCalls++; throw new Error('private-login-failure'); });
+  await retry.onclick();
+  assert.equal(loginCalls, 2);
+  assert.equal(retry.disabled, false);
+  assert.equal(message.textContent, 'Unable to start sign-in. Please try again.');
+
+  globalThis.location = { href: 'https://app.example.com/callback?code=local-success-code' };
+  assert.equal(renderCallbackFailure(async () => { assert.fail('No automatic login.'); }), false);
+  assert.equal(loginCalls, 2);
+} finally {
+  for (const [name, descriptor] of originalBrowserGlobals) {
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    else delete globalThis[name];
+  }
+}

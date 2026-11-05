@@ -198,6 +198,31 @@ void invalidLifetime;
 const router = createOidcVaultMiddleware(options);
 router satisfies express.Router;
 
+// FER-03: additive root options in installed ESM NodeNext and Bundler lanes.
+options.frontendErrorRedirectUri satisfies string | undefined;
+const samePageRecovery: OidcVaultOptions = { ...options, frontendErrorRedirectUri: 'https://app.example.com/callback' };
+const dedicatedRecovery: OidcVaultOptions = {
+  ...options,
+  frontendErrorRedirectUri: 'https://help.example.net/sign-in-error?locale=en',
+};
+const errorOnlyRecovery: OidcVaultOptions = {
+  backendOrigin: options.backendOrigin,
+  config,
+  storeProvider,
+  frontendErrorRedirectUri: 'https://help.example.net/sign-in-error',
+};
+createOidcVaultMiddleware(samePageRecovery) satisfies express.Router;
+createOidcVaultMiddleware(dedicatedRecovery) satisfies express.Router;
+createOidcVaultMiddleware(errorOnlyRecovery) satisfies express.Router;
+// @ts-expect-error The fixed destination is a string, never a request-derived resolver.
+const dynamicRecovery: OidcVaultOptions = { ...options, frontendErrorRedirectUri: () => '/error' };
+const urlRecovery: OidcVaultOptions = {
+  ...options,
+  // @ts-expect-error URL instances are not the public string option.
+  frontendErrorRedirectUri: new URL('https://app.example.com/error'),
+};
+void [dynamicRecovery, urlRecovery];
+
 const validator: OidcVaultAccessTokenValidator = {
   async validate(token) {
     return { subject: token };
