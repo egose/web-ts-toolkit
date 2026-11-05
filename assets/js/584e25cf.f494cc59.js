@@ -93,6 +93,26 @@ const toc = [{
   "id": "public-options-and-defaults",
   "level": 2
 }, {
+  "value": "Frontend Callback Error Recovery",
+  "id": "frontend-callback-error-recovery",
+  "level": 2
+}, {
+  "value": "Same-page success and error destination",
+  "id": "same-page-success-and-error-destination",
+  "level": 3
+}, {
+  "value": "Dedicated error destination",
+  "id": "dedicated-error-destination",
+  "level": 3
+}, {
+  "value": "Eligibility, diagnostics and limits",
+  "id": "eligibility-diagnostics-and-limits",
+  "level": 3
+}, {
+  "value": "Frontend error display and explicit retry",
+  "id": "frontend-error-display-and-explicit-retry",
+  "level": 3
+}, {
   "value": "DPoP: complete local JWT and API configuration",
   "id": "dpop-complete-local-jwt-and-api-configuration",
   "level": 2
@@ -327,6 +347,8 @@ function _createMdxContent(props) {
         children: ["callback token exchange and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "id_token"
         }), " validation"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "opt-in frontend error navigation for explicitly HTML-preferred failed GET callbacks"
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["server-side storage of upstream refresh tokens and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "id_token"
@@ -1045,9 +1067,9 @@ function _createMdxContent(props) {
         children: "Expires"
       }), " are unnecessary. The opt-in ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/logout/navigation"
-      }), " route additionally carries ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " route and eligible frontend callback error 302s additionally carry ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Referrer-Policy: no-referrer"
-      }), "; other routes retain their existing header policy. These headers do not clear history, disable proxy logging, strip callback ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "; other responses retain their existing header policy. These headers do not clear history, disable proxy logging, strip callback ", (0,jsx_runtime.jsx)(_components.code, {
         children: "?code="
       }), " (use frontend ", (0,jsx_runtime.jsx)(_components.code, {
         children: "history.replaceState"
@@ -1128,6 +1150,16 @@ function _createMdxContent(props) {
             }), ". Validated before durable callback state; missing destination fails the callback with ", (0,jsx_runtime.jsx)(_components.code, {
               children: "500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI"
             }), "."]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "frontendErrorRedirectUri"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "unset"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Fixed opt-in destination for explicitly HTML-preferred terminal GET callback errors; otherwise existing JSON/status. Independent of success/default/trusted origins. See Frontend Callback Error Recovery for validation and byte limits."
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -1352,6 +1384,413 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Construction takes an internal resolved snapshot without mutating caller options. Cookie/config/trusted-origin containers are copied; transaction-cookie, fingerprint and DPoP policies/allowlists are detached/frozen, and nonce bytes are privately copied. Store/hooks/issuer/clock services remain shared references. Frozen/reused inputs work. Config itself is optional in the type, but issuer/clientId or the complete manual set is required by construction. Vault and API deviceBinding must be configured independently."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "frontend-callback-error-recovery",
+      children: "Frontend Callback Error Recovery"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "frontendErrorRedirectUri?: string"
+      }), " is an additive, opt-in ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "presentation"
+      }), " option, not a successful login. Distinguish these URLs:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "URL"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Purpose"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "https://api.example.com/auth/oidc/callback"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Backend provider callback (", (0,jsx_runtime.jsx)(_components.code, {
+              children: "backendOrigin"
+            }), " + normalized ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "basePath"
+            }), " + ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "/callback"
+            }), "); register this with the IdP."]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "frontendRedirectUri"
+            }), ", e.g. ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "https://app.example.com/callback"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Successful frontend default; the transaction's validated ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "returnTo"
+            }), " takes precedence. Receives a fresh local exchange ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "code"
+            }), ", not the provider's authorization code."]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "frontendErrorRedirectUri"
+            }), ", e.g. ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "https://help.example.net/sign-in-error"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Fixed frontend failure destination; receives public diagnostics only, never an exchange credential."
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The provider normally calls the backend with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "?code=...&state=..."
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "?error=...&state=..."
+      }), ". State, transaction cookie (when applicable), provider identity/tokens, and session/code creation still undergo their existing validation. A password/MFA error shown entirely at the IdP does not reach this callback. Recovery changes no validation, transaction consumption, rollback, cookie cleanup, or established-session revocation rules; body/cookie transports and existing binding modes remain supported without adding a callback proof requirement."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "same-page-success-and-error-destination",
+      children: "Same-page success and error destination"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This unbound development example sends both outcomes to the application's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/callback"
+      }), " page. The frontend must branch on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error"
+      }), " ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "before"
+      }), " attempting successful ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "code"
+      }), " exchange:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import express from 'express';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';\n\nconst app = express();\napp.use(\n  createOidcVaultMiddleware({\n    backendOrigin: 'https://api.example.com',\n    basePath: '/auth/oidc', // Register https://api.example.com/auth/oidc/callback at the IdP.\n    config: { issuer: process.env.OIDC_ISSUER, clientId: process.env.OIDC_CLIENT_ID },\n    storeProvider: createMemoryOidcVaultStore(), // Use shared durable storage in production.\n    frontendRedirectUri: 'https://app.example.com/callback',\n    frontendErrorRedirectUri: 'https://app.example.com/callback',\n  }),\n);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "dedicated-error-destination",
+      children: "Dedicated error destination"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The error page may be on a different origin and keeps its configured pathname and unrelated query entries:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';\n\nconst vault = createOidcVaultMiddleware({\n  backendOrigin: 'https://api.example.com',\n  config: { issuer: process.env.OIDC_ISSUER, clientId: process.env.OIDC_CLIENT_ID },\n  storeProvider: createMemoryOidcVaultStore(),\n  frontendRedirectUri: 'https://app.example.com/callback',\n  frontendErrorRedirectUri: 'https://help.example.net/sign-in-error?locale=en',\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The error destination is snapshotted deployment configuration, never derived from incoming ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "returnTo"
+      }), ", state, Host/forwarded headers, or transaction data. Its origin need not match ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "frontendRedirectUri"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "trustedOrigins"
+      }), "; configuring it ", (0,jsx_runtime.jsxs)(_components.strong, {
+        children: ["does not expand ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "trustedOrigins"
+        })]
+      }), " or grant API/POST access. It may be configured without a successful frontend default, but it cannot satisfy the success prerequisite: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "transaction.returnTo ?? frontendRedirectUri"
+      }), " still controls success, with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI"
+      }), " before provider/session/code work when neither exists."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "eligibility-diagnostics-and-limits",
+      children: "Eligibility, diagnostics and limits"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only terminal errors from the registered ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "GET callback handler"
+      }), " qualify. Parser/router errors before that handler, HEAD/non-GET requests, all other lifecycle/API routes, and nonfatal post-commit notification errors keep their existing behavior. In particular, an ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onSessionCreated"
+      }), " notification failure must not turn a successful callback into an error navigation. Do not redirect inside ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hooks.onError"
+      }), ", which also observes nonfatal notifications."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The request must explicitly accept bare ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "text/html"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/xhtml+xml"
+      }), " at a positive quality ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "strictly greater"
+      }), " than effective ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/json"
+      }), " quality. JSON wins ties regardless of header order. Media wildcards never opt in; JSON quality uses the most specific matching range (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/json"
+      }), " > ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/*"
+      }), " > ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "*/*"
+      }), "), preserving ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "q=0"
+      }), " exclusions. Examples with the option configured:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Accept"
+            })
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Failed GET callback"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html"
+            }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "application/xhtml+xml"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "302 to the error page"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html, */*;q=0.8"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "302"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html, application/json"
+            }), " (either order)"]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Original JSON/status"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html;q=0.8, application/json;q=0.9"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Original JSON/status"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Missing/empty, ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "*/*"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "text/*"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "application/*"
+            }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "image/png"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Original JSON/status"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html;q=0, */*;q=1"
+            }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html;q=0.5, */*;q=1"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Original JSON/status"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html, application/json;q=0, */*;q=1"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "302 (specific JSON exclusion)"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html;q=bogus"
+            }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "text/html, garbage"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Original JSON/status"
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Matching is case-insensitive. A malformed nonempty member (including invalid/duplicate ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "q"
+      }), " or unmatched quotes) makes the whole signal ineligible. Quality is an unquoted 0–1 with at most three decimal places; equally specific duplicates use the highest quality. Media parameters before ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "q"
+      }), " do not match the bare supported candidates; valid accept extensions after ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "q"
+      }), " do not change matching. Accept is a presentation signal, not authentication or browser identity; fallback never introduces HTTP 406."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Omitting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "frontendErrorRedirectUri"
+      }), " preserves sanitized JSON and the original error status ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "even for HTML requests"
+      }), ". There is ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "no implicit fallback"
+      }), " to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "frontendRedirectUri"
+      }), ", the login endpoint, or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "returnTo"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["An eligible response is an ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "empty HTTP 302"
+      }), ", with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Cache-Control: no-store"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Referrer-Policy: no-referrer"
+      }), ", applicable cookie cleanup preserved, and no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "WWW-Authenticate"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DPoP-Nonce"
+      }), " challenge. The URL API replaces all decoded case-insensitive configured ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error_description"
+      }), " variants with exactly one lowercase parameter each:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-text",
+        children: "https://help.example.net/sign-in-error?locale=en&error=OIDC_VAULT_INVALID_STATE&error_description=OIDC+state+is+invalid+or+expired.\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "error"
+      }), " is the stable public library code; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error_description"
+      }), " is its sanitized public client message. Unknown failures use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_INTERNAL_ERROR"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Unexpected OIDC vault error."
+      }), " The incoming provider message, authorization ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "code"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "state"
+      }), ", tokens, session identifiers, and other callback query values are ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "never forwarded"
+      }), ". Only deliberately public messages belong in application-defined public errors. The sanitized response and prepared destination are captured before mutable error observers; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hooks.onError"
+      }), " still observes the original failure. Already-sent responses retain existing error forwarding, not a second response."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Construction rejects non-absolute/non-HTTP(S) error URLs, raw whitespace/controls/backslashes, userinfo (including empty ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@"
+      }), "), fragments (including bare ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "#"
+      }), "), and same-backend callback loops. Loop comparison uses the canonical origin (host/default-port normalization) and normalized callback pathname, case-insensitively with one trailing slash removed; URL dot segments normalize, but proxy aliases/recursively decoded paths are not inferred. For example, backend ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "https://api.example.com"
+      }), " rejects ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "https://API.EXAMPLE.COM:443/auth/oidc/x/../CALLBACK/?view=error"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Decoded, case-insensitive configured query names ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "code"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "state"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sessionId"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "session_id"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access_token"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "accessToken"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "refresh_token"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "refreshToken"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "id_token"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idToken"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "id_token_hint"
+      }), " are rejected even with empty values (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "?%63ode="
+      }), " is invalid). Unrelated query entries, including duplicates, are preserved semantically. This finite list is not a general secret detector: never put secrets in other configured parameters."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["All limits below are ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "inclusive UTF-8 byte counts"
+      }), ", not JavaScript string lengths:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Value"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Limit / failure policy"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Raw configured URI ", (0,jsx_runtime.jsx)(_components.strong, {
+              children: "and"
+            }), " canonical URI"]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Each at most ", (0,jsx_runtime.jsx)(_components.strong, {
+              children: "2,048 bytes"
+            }), "; exceeding either throws during construction."]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Public ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "error"
+            }), " code"]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Nonempty string, at most ", (0,jsx_runtime.jsx)(_components.strong, {
+              children: "128 bytes"
+            }), "."]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Public ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "error_description"
+            }), " message"]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["String, at most ", (0,jsx_runtime.jsx)(_components.strong, {
+              children: "512 bytes"
+            }), " (e.g. 128 ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "😀"
+            }), " characters)."]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Final serialized, URL-encoded ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "Location"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["At most ", (0,jsx_runtime.jsx)(_components.strong, {
+              children: "4,096 bytes"
+            }), ", including encoding expansion and preserved query entries."]
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Invalid/oversized public fields, preparation exceptions, or an oversized final Location fall back to the ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "original captured sanitized JSON/status/protocol headers"
+      }), ". There is no truncation, code/message replacement, recursive error observation, callback replay, or additional provider/store work for presentation fallback."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "frontend-error-display-and-explicit-retry",
+      children: "Frontend error display and explicit retry"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Query diagnostics are ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "display-only"
+      }), ": anyone can construct them. They neither authenticate a user nor establish session revocation; do not exchange an ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error"
+      }), " as a code, clear a valid session solely because of this URL, or infer authentication from its absence. URLs can appear in browser history and access logs despite no-store/no-referrer. Remove diagnostics from the current URL when practical (this does not erase existing logs/history), and treat even public messages as untrusted display text."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Create a text element with ID ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sign-in-error"
+      }), " and a button with ID ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "retry-sign-in"
+      }), ". Call this branch before your normal success-code handling. Inject your existing ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "fresh login"
+      }), " action (for DPoP/recognition, the normal proof-aware POST login; for legacy unbound mode, navigation to the login endpoint). It runs only on an explicit click, never by replaying the backend callback or automatically retrying:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "export function renderCallbackFailure(startFreshLogin: () => Promise<void>): boolean {\n  const url = new URL(location.href);\n  if (!url.searchParams.has('error')) return false; // Continue ordinary success handling.\n  const code = url.searchParams.get('error') ?? '';\n  const description = url.searchParams.get('error_description') ?? 'Sign-in could not be completed.';\n  url.searchParams.delete('error');\n  url.searchParams.delete('error_description');\n  history.replaceState(null, '', url.href);\n\n  const message = document.getElementById('sign-in-error');\n  if (message) message.textContent = `${code}: ${description}`; // Escaped text, never innerHTML.\n  const retry = document.querySelector<HTMLButtonElement>('#retry-sign-in');\n  if (retry) {\n    retry.onclick = async () => {\n      retry.disabled = true;\n      try {\n        await startFreshLogin(); // New login transaction, not callback replay.\n      } catch {\n        retry.disabled = false;\n        if (message) message.textContent = 'Unable to start sign-in. Please try again.';\n      }\n    };\n  }\n  return true; // Stop success-code exchange for this error branch; no auth/session mutation.\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "dpop-complete-local-jwt-and-api-configuration",
       children: "DPoP: complete local JWT and API configuration"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
@@ -1461,7 +1900,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["POST login/guarded exchange validate Origin (valid Referer fallback only when Origin is absent) in ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "both transports"
-      }), ", rejecting missing/null/duplicate/untrusted sources. After source/body checks, proof/nonce/replay precede discovery/hooks/allocation. Callback is headerless: state and the temporary cookie hash authenticate the original record, atomically matched before upstream exchange/session/code creation. PKCE/state/OIDC nonce remain unchanged. Missing/wrong cookies do not spend or clear; authenticated terminal provider-error callbacks consume/clear with fixed callback-error JSON."]
+      }), ", rejecting missing/null/duplicate/untrusted sources. After source/body checks, proof/nonce/replay precede discovery/hooks/allocation. Callback is headerless: state and the temporary cookie hash authenticate the original record, atomically matched before upstream exchange/session/code creation. PKCE/state/OIDC nonce remain unchanged. Missing/wrong cookies do not spend or clear; authenticated terminal provider-error callbacks consume/clear with fixed callback-error diagnostics (JSON unless eligible frontend error recovery selects 302)."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The fresh ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "32-byte"
@@ -2137,7 +2576,7 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Discovery, token, and UserInfo JSON bodies must be non-null, non-array objects; valid non-object JSON is a controlled 502 provider error."
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["Non-success token/UserInfo responses normally surface sanitized 502s; rejected upstream redirects never become browser-facing 3xx. A complete bounded HTTP-400 JSON ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["Non-success token/UserInfo responses normally surface sanitized 502s; upstream redirects are never followed or forwarded. An eligible callback failure can instead use only the fixed frontend error destination described above. A complete bounded HTTP-400 JSON ", (0,jsx_runtime.jsx)(_components.code, {
           children: "error: 'invalid_grant'"
         }), " specifically for a refresh-token grant returns ", (0,jsx_runtime.jsxs)(_components.strong, {
           children: ["401 ", (0,jsx_runtime.jsx)(_components.code, {
@@ -2575,6 +3014,21 @@ function _createMdxContent(props) {
       children: "Migration And Behavior Changes"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["\n", (0,jsx_runtime.jsxs)(_components.p, {
+          children: ["Release/upgrade guidance: ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "frontendErrorRedirectUri"
+          }), " is additive and opt-in, with no store schema migration or browser-client upgrade required. Existing configurations keep JSON/status, successful ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "returnTo"
+          }), " precedence, and callback validation/cleanup. To replace a response-interception workaround, first deploy the frontend's error-first display/explicit fresh-login action, then set a validated fixed error URI. Do not implement navigation in ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "onError"
+          }), " or broaden ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "trustedOrigins"
+          }), "; leave the option unset if callback clients require the old HTML-request JSON response. See ", (0,jsx_runtime.jsx)(_components.a, {
+            href: "#frontend-callback-error-recovery",
+            children: "Frontend Callback Error Recovery"
+          }), " for exact negotiation, URL/byte limits and JSON fallback."]
+        }), "\n"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["\n", (0,jsx_runtime.jsxs)(_components.p, {
           children: ["Logout navigation is additive and opt-in. Use JSON POST plus top-level navigation through the backend continuation when integrating proof-authorized upstream logout. Replace duplicated discovery/cookie/alias logic with this protocol. Keep ordinary ", (0,jsx_runtime.jsx)(_components.code, {
             children: "/logout"
@@ -3056,7 +3510,7 @@ function _createMdxContent(props) {
         })]
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Source failures keep 403 OIDC_VAULT_UNTRUSTED_ORIGIN and route-specific fixed Login/Exchange/Refresh/Logout request origin is not trusted. Authenticated provider-error callback uses 400 OIDC_VAULT_CALLBACK_ERROR / OIDC callback failed. Browser JSON is only code/message, never raw claims/URLs/keys/provider diagnostics; original errors go privately to core hooks.onError or API onError (replay cause retained)."
+      children: "Source failures keep 403 OIDC_VAULT_UNTRUSTED_ORIGIN and route-specific fixed Login/Exchange/Refresh/Logout request origin is not trusted. Authenticated provider-error callback uses OIDC_VAULT_CALLBACK_ERROR / OIDC callback failed. (HTTP 400 JSON unless eligible frontend error recovery selects 302). Browser JSON is only code/message, never raw claims/URLs/keys/provider diagnostics; original errors go privately to core hooks.onError or API onError (replay cause retained)."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["For default ES256, API proof/downgrade errors use ", (0,jsx_runtime.jsx)(_components.code, {
         children: "DPoP error=\"invalid_dpop_proof\", algs=\"ES256\""
