@@ -8,6 +8,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -120,6 +121,14 @@ const testVersion = '0.99.0-test';
 const rootLicensePath = path.resolve(workspaceRoot, 'LICENSE');
 const typescriptVersion = rootPackageJson.devDependencies.typescript;
 const nodeTypesVersion = rootPackageJson.devDependencies['@types/node'];
+/**
+ * The OAR-05 helper compiles run `tsc` from an unpacked tarball under
+ * `os.tmpdir()`, which is not guaranteed to sit inside the workspace (CI leaves
+ * TMPDIR at /tmp). The default typeRoots walk-up would then miss `@types/node`
+ * — access-router does not depend on it directly, only the workspace root
+ * installs it — so the generated tsconfigs pin the workspace type root.
+ */
+const workspaceRootTypesDir = path.resolve(workspaceRoot, 'node_modules', '@types');
 
 const workspacePackages = [
   { name: '@web-ts-toolkit/utils', dir: path.resolve(workspaceRoot, 'packages/utils') },
@@ -348,6 +357,11 @@ function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
   // Do not build unrelated workspace CLIs or overwrite a previous release artifact.
   const scopedRoot = mkdtempSync(path.join(os.tmpdir(), 'access-router-scoped-artifact-'));
   tempRoots.push(scopedRoot);
+  // `buildReleaseArtifact` validates that `distDir` resolves inside
+  // `realpathSync(cwd)`. `os.tmpdir()` is not guaranteed to sit inside the
+  // workspace (CI leaves TMPDIR at /tmp), so anchor the assembler invocation to
+  // the scoped temp root itself instead of the workspace root.
+  const scopedRootReal = realpathSync(scopedRoot);
   const packagesDir = path.join(scopedRoot, 'packages');
   // The assembler requires a real CLI owner. Stage one existing compiled CLI
   // read-only for discovery, not a synthetic bin or a claimed CLI build/test.
@@ -366,11 +380,11 @@ function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
   }
   const { buildReleaseArtifact } = publisherRequire('@repo-toolkit/release-artifact');
   const { artifactRoot } = buildReleaseArtifact({
-    cwd: workspaceRoot,
+    cwd: scopedRootReal,
     version: testVersion,
     toolName: 'web-ts-toolkit',
     packagesDir,
-    distDir: path.join(scopedRoot, 'dist'),
+    distDir: path.join(scopedRootReal, 'dist'),
     nodeModulesMode: 'none',
     versionFiles: [],
   }) as { artifactRoot: string };
@@ -1455,6 +1469,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
           esModuleInterop: true,
           outDir: 'helpers-out',
           types: ['node'],
+          typeRoots: [workspaceRootTypesDir],
         },
         files: ['helpers.mts', 'helpers.cts', 'hooks.mts', 'hooks.cts'],
       }),
@@ -1485,6 +1500,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
           esModuleInterop: true,
           noEmit: true,
           types: ['node'],
+          typeRoots: [workspaceRootTypesDir],
         },
         files: ['removed.mts', 'removed.cts'],
       }),
