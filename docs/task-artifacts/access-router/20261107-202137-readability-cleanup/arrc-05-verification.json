@@ -1,0 +1,233 @@
+{
+  "task": "ARRC-05",
+  "head": "28f7266fc010b7e3f14664fcc452d50bdcae0fde",
+  "outcome": "Approved finalizer-local lexical renames/comments implemented; scoped checks pass; independent final acceptance remains ARRC-06",
+  "baseline": {
+    "moveLedger": "arrc-01-move-ledger.md",
+    "identity": "arrc-01-identity.json",
+    "previousImplementation": "arrc-04-verification.json",
+    "startingIdentityMatchedFresh": true,
+    "startingSourceFiles": 152,
+    "startingSourceSha256": "43ebdf372cacf1a3fcdce9b618ba511fcdf3f67068745e485a155a8feec56e23",
+    "startingTestFiles": 248,
+    "startingTestSha256": "ae59a43f873cb9859472ac632fdff42ec8692b08645522d881e8e21a591bee90"
+  },
+  "workingDirectory": "<repo-root>",
+  "commonEnvironment": {
+    "TMPDIR": "<repo-root>/_tmp-arrc-05-Dcyw7a",
+    "NO_COLOR": "1",
+    "FORCE_COLOR": "0"
+  },
+  "execution": {
+    "sequential": true,
+    "foregroundToolTimeoutMs": { "typecheck": 300000, "focused": 540000, "lint": 300000, "comparisons": 30000 },
+    "childCommandTimeoutMs": { "typecheck": 240000, "focused": 480000, "lint": 240000 },
+    "scratch": "_tmp-arrc-05-Dcyw7a",
+    "scratchIgnoreCheck": "git check-ignore -v _tmp-arrc-05-Dcyw7a",
+    "scratchIgnoreRule": ".gitignore:8:_tmp*",
+    "nodeVersion": "v26.12.1",
+    "queuedJobs": 0,
+    "additionalDelegation": false,
+    "commitsOrResets": false,
+    "sharedTaskEdited": false
+  },
+  "commands": [
+    {
+      "label": "typecheck",
+      "argv": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "typecheck"],
+      "startedAt": "2026-11-08T05:25:01.844Z",
+      "endedAt": "2026-11-08T05:25:29.313Z",
+      "seconds": 27.469,
+      "exit": 0,
+      "scrubbedLogSha256": "85e222d074ae38688df4aa3def3c7eb35f860ffee7e4bfa082659bc787c42c53",
+      "includes": "fresh pnpm --filter @web-ts-toolkit/access-router... build, then tsc --noEmit -p tsconfig.typecheck.json"
+    },
+    {
+      "label": "focused",
+      "argv": [
+        "pnpm", "--filter", "@web-ts-toolkit/access-router", "exec", "vitest", "run",
+        "--config", "vitest.config.ts",
+        "test/finalizer-preparation.unit.test.ts",
+        "test/service-authorization-finalizer.unit.test.ts",
+        "test/virtuals-finalizer.unit.test.ts",
+        "test/service-list-preparation.unit.test.ts",
+        "test/service-output-preparation.unit.test.ts",
+        "test/no-work-output-scheduling.unit.test.ts",
+        "test/owned-authorization-publication.unit.test.ts",
+        "test/owned-authorization-many-bounds.unit.test.ts",
+        "test/request-hook-concurrency.test.ts",
+        "test/request-hook-ownership.test.ts",
+        "test/retained-model-service-ownership.integration.test.ts",
+        "test/write-output-source-lifetime.unit.test.ts",
+        "test/access-router-crud-harness.unit.test.ts",
+        "test/access-router-crud-work.unit.test.ts",
+        "test/owned-authorization-work.unit.test.ts",
+        "test/owned-authorization-projection-work.unit.test.ts",
+        "test/output-publication-fusion-withdrawal.unit.test.ts",
+        "test/output-field-policy-cache.unit.test.ts",
+        "test/owned-authorization-boundaries.unit.test.ts",
+        "test/write-output-modes.unit.test.ts",
+        "--reporter=default", "--reporter=json", "--outputFile",
+        "<repo-root>/_tmp-arrc-05-Dcyw7a/focused-vitest.json"
+      ],
+      "extraEnvironment": {
+        "ARPC_CRUD_WORK_REPORT": "<repo-root>/_tmp-arrc-05-Dcyw7a/crud-work.json",
+        "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arrc-05-Dcyw7a/preparation-work.json"
+      },
+      "startedAt": "2026-11-08T05:25:35.918Z",
+      "endedAt": "2026-11-08T05:26:07.008Z",
+      "seconds": 31.090,
+      "exit": 0,
+      "scrubbedLogSha256": "6c408ff688b88627e1f2360411cc377f73913ea106c9cfdf316b780d20a10015"
+    },
+    {
+      "label": "lint",
+      "argv": ["pnpm", "exec", "eslint", "packages/access-router/src/output/finalize-model-output.ts"],
+      "startedAt": "2026-11-08T05:26:09.379Z",
+      "endedAt": "2026-11-08T05:26:11.709Z",
+      "seconds": 2.330,
+      "exit": 0,
+      "scrubbedLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "focused": {
+    "files": 20,
+    "total": 928,
+    "passed": 928,
+    "failed": 0,
+    "pending": 0,
+    "todo": 0,
+    "success": true,
+    "all16ModeTupleLabels": ["iiii", "iiit", "iiti", "iitt", "itii", "itit", "itti", "ittt", "tiii", "tiit", "titi", "titt", "ttii", "ttit", "ttti", "tttt"],
+    "perFilePassed": {
+      "test/access-router-crud-harness.unit.test.ts": 434,
+      "test/access-router-crud-work.unit.test.ts": 2,
+      "test/finalizer-preparation.unit.test.ts": 17,
+      "test/no-work-output-scheduling.unit.test.ts": 26,
+      "test/output-field-policy-cache.unit.test.ts": 23,
+      "test/output-publication-fusion-withdrawal.unit.test.ts": 11,
+      "test/owned-authorization-boundaries.unit.test.ts": 63,
+      "test/owned-authorization-many-bounds.unit.test.ts": 24,
+      "test/owned-authorization-projection-work.unit.test.ts": 16,
+      "test/owned-authorization-publication.unit.test.ts": 50,
+      "test/owned-authorization-work.unit.test.ts": 16,
+      "test/request-hook-concurrency.test.ts": 21,
+      "test/request-hook-ownership.test.ts": 3,
+      "test/retained-model-service-ownership.integration.test.ts": 52,
+      "test/service-authorization-finalizer.unit.test.ts": 46,
+      "test/service-list-preparation.unit.test.ts": 24,
+      "test/service-output-preparation.unit.test.ts": 13,
+      "test/virtuals-finalizer.unit.test.ts": 15,
+      "test/write-output-modes.unit.test.ts": 47,
+      "test/write-output-source-lifetime.unit.test.ts": 25
+    },
+    "selection": "Actual finalizer/preparation, lifetime/scheduling, bounds, deterministic work, publication-fusion withdrawal, field-policy cache, all-16-mode CRUD and write/source-lifetime controls; not a full package run",
+    "readFallbackAndBothUpsertBranchesPassed": true,
+    "existingAssertionsExpectedValuesOrSkipsChanged": false,
+    "newTests": 0,
+    "warning": "unchanged non-failing Vite native-config/ESM warning"
+  },
+  "identity": {
+    "algorithm": "SHA-256(JSON.stringify([relativePath,fileSHA256][])); recursive readdir name.localeCompare('en'), same as maintained CRUD filesUnder; no node_modules",
+    "source": {
+      "files": 152,
+      "sha256": "e63cf3cc91fb0236e354ea741678892a2800c09dac7dd0c2ddfdbda4bd160814",
+      "unchangedStartingFiles": 151,
+      "changedStartingFiles": ["output/finalize-model-output.ts"],
+      "addedFiles": [],
+      "removedFiles": []
+    },
+    "tests": {
+      "files": 248,
+      "sha256": "ae59a43f873cb9859472ac632fdff42ec8692b08645522d881e8e21a591bee90",
+      "unchangedStartingFiles": 248,
+      "unchangedARRC01Files": 247,
+      "changedFiles": [],
+      "addedFiles": [],
+      "removedFiles": []
+    },
+    "preservedServiceSha256": "2e249822e2d7efaf054aa9c47da5aa1f096c2128588640cd6d37810e2c355d44",
+    "preservedMetadataModuleSha256": "91a50cb7e4188c6f12241039300a81ce8a2768c3cb9b5e08127fc91d741f4a53",
+    "preservedMetadataTestSha256": "3c5ec37eae42f77f134cc412cfeef2eb1f566254ff509d0bc1325b6dac04eaab",
+    "publicFilesCheckedAgainstBaseline": 14,
+    "previousTaskAndArtifactFilesChecked": 14,
+    "baselineSourceCopiesCheckedAgainstDurableHashes": 151,
+    "protectedFileChanges": []
+  },
+  "mechanicalReview": {
+    "tool": "TypeScript 6.0.3 AST tokens and checker-resolved identifier bindings",
+    "beforeFileSha256": "d4f677f2c3714e2f79cd767aef4ebaf41d76745a66c508c41f3f771ac8e27be5",
+    "afterFileSha256": "ecf538d8160e11a56794d962f76cb56512d39691ab160aaad483a2c337c2866b",
+    "matchesARRC01OriginalSourceAndOperationalCopy": true,
+    "algorithm": "Parse complete pre/post text at the same virtual path with TypeScript createSourceFile/createProgram. Select only the module-local interface and two function declarations, the document-finalizer parameter and batch local declaration. Replace only identifier tokens resolved to those five symbols with approved ledger names. Compare every full-file nontrivia [SyntaxKind,text] token. Compare every identifier's local declaration kind/token index before/after and require renamed references to resolve to their exact counterpart; reject new-name capture. Reconstruct complete candidate bytes from only the 17 bound substitutions plus seven exact non-JSDoc comment insertions, preserving all other text. Compare all four exported type declarations and two exported function headers byte-for-byte. Transpile the approved-renamed original and candidate with ESNext target, ESNext/CommonJS modules and removeComments true; require identical outputs and no parse/transpile errors.",
+    "nontriviaTokens": 3601,
+    "checkedIdentifierSites": 1171,
+    "approvedBindings": 5,
+    "renamedIdentifierTokens": 17,
+    "bindings": [
+      { "scope": "module interface", "old": "Preparation", "new": "FinalizerPreparation", "tokens": 3 },
+      { "scope": "module function", "old": "prepare", "new": "prepareFinalizer", "tokens": 4 },
+      { "scope": "module function", "old": "finalizeSingleDoc", "new": "finalizeOutputDocument", "tokens": 4 },
+      { "scope": "document finalizer parameter", "old": "prepared", "new": "preparation", "tokens": 4 },
+      { "scope": "batch work local", "old": "prepared", "new": "preparation", "tokens": 2 }
+    ],
+    "allNontriviaTokensMatchAfterOnlyApprovedBindingRenames": true,
+    "allLocalIdentifierResolutionPreserved": true,
+    "newBindingCapture": false,
+    "propertyKeysStringsErrorsOperatorsTypesOrOtherIdentifiersNormalized": false,
+    "commentsAdded": 7,
+    "allOtherTextIncludingExistingCommentsAndWhitespaceByteIdentical": true,
+    "exportedTypeDeclarationsAndFunctionSignaturesByteIdentical": ["VirtualFinalizeAccess", "FinalizeSnapshot", "FinalizeModelOutputArgs", "FinalizeModelOutputsArgs", "finalizeModelOutput", "finalizeModelOutputs"],
+    "normalizedTokenSha256": "71db36ac85a92108beecd09527bd8f16d1a933d620d0d7e75eaf608d62851704",
+    "runtimeEmissionAfterOnlyApprovedBindingRenames": [
+      { "module": "ESNext", "byteIdentical": true, "bytes": 17814, "sha256": "8364ac54172224fb907097db762acfb856223c5c3d240cdae612ae9349c7c5bc" },
+      { "module": "CommonJS", "byteIdentical": true, "bytes": 19886, "sha256": "7e9e62f88a43a4434f07a5fa9738b842bce975eb3b2a9185a6ea2929d9f46f55" }
+    ],
+    "sourceDiff": { "added": 20, "removed": 13, "bytes": 6299, "sha256": "440e6cbd38612be67a1ed38099152525034f4e95bd321d277388db98e1c41c48" },
+    "preserved": "Existing preparation callsites and sharing, all checks/branches/awaits/captures, native copying, budgets, receiver dispatch, private handoffs, completion/publication lifetime, diagnostics/error strings and prior implementation changes"
+  },
+  "declarations": {
+    "manifest": "arrc-01-declarations.json",
+    "files": 8,
+    "totalBytes": 782693,
+    "pathsUnchanged": true,
+    "byteComparedTo": "_tmp-arrc-01-2nfaqj2y/baseline/declarations",
+    "byteAndDurableHashChanges": [],
+    "comparisonAfterFocusedTests": true
+  },
+  "workComparison": {
+    "baseline": "arrc-01-work-baseline.json",
+    "crud": {
+      "records": 96,
+      "rawSha256": "f8175081b1ddddfd58f87d779ee7c6a9cec5a8310f59a65b61b78e72287b7f2b",
+      "rawHashMatchesBaseline": true,
+      "allCountsAndOrderedTracesDeeplyEqual": true,
+      "differingIds": []
+    },
+    "preparation": {
+      "records": 32,
+      "rawSha256": "e6acf8b14c60ce66b9889f1bbbb4d5bae98dde3d8dd9bbe836de75bfb31b5589",
+      "rawHashMatchesBaseline": true,
+      "allCountsAndOrderedTracesDeeplyEqual": true,
+      "differingIds": []
+    },
+    "publication": { "records": 2, "observationsDeeplyEqual": true, "sha256": "a8ea6aa663bd44c7b10438737734792d22ec94a64708d83546b16d8c78537abc" },
+    "protocol": "Read unchanged ARPC_CRUD_WORK_REPORT and ARPC_OUTPUT_PREPARATION_REPORT arrays, compare deeply to durable baseline observations and raw hashes. Parse exactly two OAR04_WORK JSON stdout lines from owned-authorization-publication and compare deeply in order to the baseline publication array.",
+    "duplicateCandidateRowsArchived": false,
+    "limits": "128 fresh count/ordered-trace records and both publication observations match ARRC-01 exactly; duplicate data not archived. Work diagnostics are not timing/allocation measurements or a performance claim."
+  },
+  "preservation": {
+    "filesAdded": ["arrc-05-report.md", "arrc-05-verification.json"],
+    "previousArtifactsOverwritten": false,
+    "artifactsIgnored": false,
+    "manualAudit": "Strict JSON, relative Markdown links/baseline references, private path/session patterns, whitespace, git diff --check, protected hashes and declaration bytes checked before handoff",
+    "omitted": "Operational source snapshot, token/binding/comparison/runner scripts, full command logs and Vitest assertion JSON, duplicate work rows, source/declaration byte copies, dependencies, generated builds and MongoDB files. Scratch is disposable, not a portable reproduction bundle; reconstruction needs the baseline revision plus retained ARRC-02-04 changes, workspace dependencies/toolchain and memory-server prerequisites."
+  },
+  "blockers": [],
+  "notRun": [
+    "full package test (ARRC-06 owns one final run)",
+    "root/grouped/downstream tests or root build/lint sweep",
+    "benchmark campaign",
+    "independent ARRC-06 final acceptance"
+  ]
+}

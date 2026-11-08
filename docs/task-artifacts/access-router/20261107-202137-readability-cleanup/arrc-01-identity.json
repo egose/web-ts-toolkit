@@ -1,0 +1,1907 @@
+{
+  "task": "ARRC-01",
+  "capturedAt": "2026-11-08T04:29:06.984Z",
+  "head": "28f7266fc010b7e3f14664fcc452d50bdcae0fde",
+  "startingStatus": [
+    "?? docs/tasks/20261107-202137-access-router-internal-readability-cleanup.md"
+  ],
+  "trackedDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "trackedDiffBytes": 0,
+  "identityAlgorithm": "SHA-256(JSON.stringify([relativePath,fileSHA256][])); recursive readdir name.localeCompare('en'), same as maintained CRUD filesUnder; no node_modules",
+  "source": {
+    "files": 151,
+    "sha256": "072039b46ed3603f995bd04a9b0e09817dce13cef58679774b45da5efa02caef",
+    "entries": [
+      [
+        "acl/authorization-modes.ts",
+        "8170cace3912b8ea519c6157d131d35b70e64a9692550c21b07663abdb802ff5"
+      ],
+      [
+        "acl/authorization-snapshot.ts",
+        "b55dc57ebc9a510c5e5cb662ce88d754a3b440615be05d09a20181575f846b1b"
+      ],
+      [
+        "acl/captured-authorization-configuration.ts",
+        "49cab05954b9bc491de3cbdc43e11fa7fa3d9a65fae1f111a6c2ed2bb25437f8"
+      ],
+      [
+        "acl/distinct-field-authorization.ts",
+        "fa4f2ec156c4ff5f817ca09100cee386691e4804617f7f57f004d24d08edb0f5"
+      ],
+      [
+        "acl/document-grants.ts",
+        "d8394e288b788a8b3a1c88676e2f414724811a70a618ec6fcf7434553b7cc675"
+      ],
+      [
+        "acl/document-guard.ts",
+        "7557abfc25a664c74e0f7fdef26d4ca9587926c796e6fd4b7a936120353ba606"
+      ],
+      [
+        "acl/document-permissions-definition.ts",
+        "9528de19cc84a17351a1c7f3f7718c8f7a30fddd6088d9dd249b705a155c4eaf"
+      ],
+      [
+        "acl/document-stage.ts",
+        "a23fb83ab40c9866fc281fc3bf5460d95ffb8952d8e16e82d92eb31fc98e582c"
+      ],
+      [
+        "acl/field-authorization.ts",
+        "8839c61f8ceaa82ef188e1cecb1ea28913999ddcb7b872d278b97b4fec8b9d24"
+      ],
+      [
+        "acl/field-catalog.ts",
+        "48256d708ac5cb82a956bff53548f9f2d9666c67ab82f827ff0d9494cf07ce10"
+      ],
+      [
+        "acl/field-helper-options.ts",
+        "aa7884ca592ce36fa3cf6ff221a1c8aa389b987b4b5f5894d5e0043ad9bf14cf"
+      ],
+      [
+        "acl/filter-resolution.ts",
+        "cc7c8dba9ad792cfef193d5ea18b5068b6432fbcaec1608dd99cbbd446c7bab5"
+      ],
+      [
+        "acl/hook-runner.ts",
+        "0a901365e6d94584460c45e7be5e01782d142ee172e7267141dc9bbf420e5286"
+      ],
+      [
+        "acl/model-input-admission.ts",
+        "415fc8ec72b8de56d04c8959cc6c79921878ea7be82df830555911bf58329e88"
+      ],
+      [
+        "acl/model-output-planning.ts",
+        "f8ecb626df2e0706482be4b7ec24514a1a97c928511fd2d1d3be02f42e0b1b04"
+      ],
+      [
+        "acl/model-service-owner.ts",
+        "fb8f609b81c8680f56ecb4a7c1b233a248fb3d0ed159758fbba3268690f19b8d"
+      ],
+      [
+        "acl/output-field-filter.ts",
+        "3a0d7cd1bd2183022d02bb8349375739cde07acbccd9e3a63198e00679721a3b"
+      ],
+      [
+        "acl/output-field-policy.ts",
+        "869cea1730f381ceaa6affbc1ca9d8bb112ced6a1f66375f72ee93de7478212b"
+      ],
+      [
+        "acl/output-helper-many-admission.ts",
+        "b6a0a1de9f498e779b807f31c8916ae44f3a7a0c6580a393a07c9be6973e727c"
+      ],
+      [
+        "acl/output-helper-options.ts",
+        "394aff7932b61551b4eb72f7957f9d0e7cd67361a5d198c913c775756abaa201"
+      ],
+      [
+        "acl/output-projection.ts",
+        "acf311d54a7918a2b042900e2fce0ee497a332b2b5c7fcaebfdfc8c3a47cb4d1"
+      ],
+      [
+        "acl/output-publication.ts",
+        "67c3045f3869eca165a3e26e7d6bc257b0b614042da96f2666f872415956ae84"
+      ],
+      [
+        "acl/output-selection.ts",
+        "b1c8914530dfebbc12459e144a92d5c2aefa9a8f49788d105a8e95540c1cb8a2"
+      ],
+      [
+        "acl/output-work-ledger.ts",
+        "494942b53c6274e46f1af7be2b6107f6515196784d70524e25ef6461cb5aed71"
+      ],
+      [
+        "acl/owned-permissions.ts",
+        "4a02090c32e02ab2e6df765d4e61f187e509354ddafd23d9e6fb6ed095736c46"
+      ],
+      [
+        "acl/persisted-dependencies.ts",
+        "9252b198799fadc812476f236e7ef4394baab8d0a66d3344cdb910fe3630ed79"
+      ],
+      [
+        "acl/populate-access.ts",
+        "f04d9af6af2b79732e9c4c3eff3b91c85dec0b6f65ed2c8c930e49fe805d5cfd"
+      ],
+      [
+        "acl/populate-policy.ts",
+        "ea286e7f51d91c6d40d155870a824fe7594652736d832252c3d6b63bf8e1a37e"
+      ],
+      [
+        "acl/populate-target-configuration.ts",
+        "43c2710749b2f01ef91772b4a81b393657a0d6332ccd11ffff1b113d65891039"
+      ],
+      [
+        "acl/populate-target.ts",
+        "1502f406ab9d1a5f7a1cf20a8c31005d2bedf04501bfcd82c7e63e6a12651ed4"
+      ],
+      [
+        "acl/prepared-query.ts",
+        "6ef83db4fa50c859984c9483fc0b2858a2be96a06929c264422c904cf4f35fbd"
+      ],
+      [
+        "acl/related-execution.ts",
+        "ad2658fe2d5e4568483b1d24b74d977c883999605e131d6d58ce105784751f4f"
+      ],
+      [
+        "acl/request-context.ts",
+        "0f2ad846767d328c8c513553a3125c9805497b8e21252d70e5973978aaf5a65e"
+      ],
+      [
+        "acl/select-resolution.ts",
+        "3bed37be6c9c385af6c84e3b13ae15e24512b722750607ecd4a5e1e7b30bcc16"
+      ],
+      [
+        "acl/service-authorization.ts",
+        "3ca219ea526bc9f00d9ffb7ff2272ef4ce539fcb9c9cc14adc9b3cf0acd980dd"
+      ],
+      [
+        "acl/service-execution.ts",
+        "1a2e789a03aa6a4206f6f2c5e501d6213ec66456210668ba217fd21f745e840a"
+      ],
+      [
+        "acl/subdocument-authorization.ts",
+        "84d7ed96e3d6df14e29662c6afc2ed466e66add10f017594ada381ad0b3dbc1d"
+      ],
+      [
+        "acl/subdocument-output.ts",
+        "00f9435612b55aceb4db3c6ee334a64a1a68619145410d90c3fb487f9fc77623"
+      ],
+      [
+        "acl/trusted-output-materialization.ts",
+        "41e481508a6cd7f072b4ad81683a19492ba6b6d4874296b8e7b8a5d8ce41b3f1"
+      ],
+      [
+        "acl/virtual-descriptor.ts",
+        "92491b8a0724518e4246042538790ac429d5c33e00cc4957bd28cc2a8d45610f"
+      ],
+      [
+        "acl/virtual-populate-dependencies.ts",
+        "3345a22eb0f6a19fe1ed2939f933a32987a2c7338c0e8dbed1dbef90250f5553"
+      ],
+      [
+        "acl/virtual-populate-execution.ts",
+        "53307d475cdb4cdb25b44693ea31ca9670cc3f76dd5c9f960fa8ebeb07c97850"
+      ],
+      [
+        "acl/virtual-projection.ts",
+        "da6c827ec67c81acbe69f627798a8c42eba70cafd5fdd7012bb82312fdbd0682"
+      ],
+      [
+        "advanced.ts",
+        "c0a8a973374c9020fb5e91ca212e437e5525268e6d1ea6e17b88822fb52e7dc0"
+      ],
+      [
+        "cache.ts",
+        "93a6f9b29ea266e657c6abf829561efc348528439e450f0a599104df7b98392e"
+      ],
+      [
+        "core-data.ts",
+        "cc60761a0107a9fb863342c3a8c3dfabe18322da5b5b3b28d132a4c2b3039eff"
+      ],
+      [
+        "core-shared.ts",
+        "21c412f4ae956099b9e9ff5f3b626dd03b6b9ed5393d4db14288c1d4292007b0"
+      ],
+      [
+        "core.ts",
+        "950df5179f9d9f2f9dda6176c08423e7ef60f6c87cccdf9f2f94247752d0644a"
+      ],
+      [
+        "correlated-includes.ts",
+        "322e4522851dd1e9d93efec533b37199d21a3fca316400406d2f3c2725a8b325"
+      ],
+      [
+        "enums.ts",
+        "065e854d99b82f6bc8af2fdffcb079abd80f94cdde014fe687dd40517815a4a5"
+      ],
+      [
+        "filter-type-tests.ts",
+        "f1bfec64c5d714d16c2bbf99affe2c35f6156f8c0f753b20bf6fa1e7fd38f688"
+      ],
+      [
+        "helpers/apply-update.ts",
+        "9745f0bfc456217411514cb7c8f08c38027ebb9ad12b0c45adae188959d7f926"
+      ],
+      [
+        "helpers/collection.ts",
+        "cd7a692f5aac52e36810b41d620064b85202abfe4284af99a9399d64b49a7ab9"
+      ],
+      [
+        "helpers/concurrency.ts",
+        "b0c0f9ac920a33f2d12f72fe8e4bc8a144ad9457f00df2b273acab821c45152c"
+      ],
+      [
+        "helpers/document.ts",
+        "34ba277043db400cc27c00b4ed2229729ab16824921c05c94de36e1eed80451e"
+      ],
+      [
+        "helpers/errors.ts",
+        "acef9847c54c332e8149d8cdae60208addf1174dd1ad0eed46f3acb0626955c1"
+      ],
+      [
+        "helpers/index.ts",
+        "035e8b9d684f15d734dba66232f17b81c27041a1b236c4cb3f5af5e3623739ed"
+      ],
+      [
+        "helpers/query.ts",
+        "393728b487ef286f72ce1d1d7f89b07ce6b2067ba8c00f195a7172bd18a745db"
+      ],
+      [
+        "helpers/request-work.ts",
+        "0371b95c8be1af68b0855fe2caa5cfe28502b559c3481773f430767111c0c30a"
+      ],
+      [
+        "helpers/sort-policy.ts",
+        "42f3b4f24483f1c1903c27ac86ba96dbf455b461376e3e50585c0f7142b1edb2"
+      ],
+      [
+        "http/response-pipelines/data-response.ts",
+        "0baf5d4a08d4331b374ef71ad1a2b3cd9f305d0a0d5b3700a2a877256be6336e"
+      ],
+      [
+        "http/response-pipelines/list-response.ts",
+        "fc5ab2687b6f90349b5b24499351c08a40e8c1cb60660f95f5510666a3cf216b"
+      ],
+      [
+        "http/response-pipelines/model-response.ts",
+        "f8de0e80a6df393d6b46bf8500f4d94d840babe61fe1e5d0d19181cb28217387"
+      ],
+      [
+        "http/response-pipelines/service-result.ts",
+        "20fd94b599c5728149e31c1b1da3edeb7185bfd019f55c7a9535fc125d5dee4b"
+      ],
+      [
+        "index.ts",
+        "ec000d030d38a9595dd58b2a08c98107acf81220cbf3e744d042f0be13c3f15d"
+      ],
+      [
+        "interfaces/access.ts",
+        "ec0b37df6f5f8ae0bafcfe3782ae1d44ea766ec0c6fa913915f4ffc88a5a3087"
+      ],
+      [
+        "interfaces/base.ts",
+        "e3e9e139c40bbaf1f9889976caa3679fd5ee676d2df0a922bb12d0e699b865aa"
+      ],
+      [
+        "interfaces/data.ts",
+        "61d396c257f0e9f98ba0f4b809a01eea4da0023f12c8d5015bc63b0de966fba2"
+      ],
+      [
+        "interfaces/filtered-output.ts",
+        "6ffa308d535c87b7bba5048c0cc0479853b67e48825e28ce55499388c2f63f85"
+      ],
+      [
+        "interfaces/index.ts",
+        "0947f6730571bbeb03affb3640524a9473769e00123f2fd3f57c04f4e9e46463"
+      ],
+      [
+        "interfaces/query-types.ts",
+        "00291885463a26d7c8541bceb6cd96a0f6ed1e11c453ac468461541a15053d92"
+      ],
+      [
+        "interfaces/request.ts",
+        "3020ffad00f7206f5f9164c38adf43f61ce993baa450b18c564e566da9b3dbaf"
+      ],
+      [
+        "interfaces/root.ts",
+        "c9b230e017ffbf5899281bcc725028749d84560251e3129d583e0c28054e7b9a"
+      ],
+      [
+        "interfaces/router-hooks.ts",
+        "4b703c54ba4de9cebe8943cdc6b375fdb476014e3d2bfc5499de3642ea3d3833"
+      ],
+      [
+        "interfaces/service-authorization.ts",
+        "be05a978424b7a933f87a6cf9ed2dfe118e873925149a1e8a603777bea9eb643"
+      ],
+      [
+        "interfaces/service-create.ts",
+        "865ef0fb39ac9516623f557aedf82583103affeee5205bb1f26bf015731af567"
+      ],
+      [
+        "interfaces/service-exists.ts",
+        "f3ca0bd5042e0348dcaf224749480130ebebff714ba92ffe77ec3a389020b845"
+      ],
+      [
+        "interfaces/service-find.ts",
+        "398fb3ef08bf15601098b557925ceb89fafcefd08f904a53bf1798dd197ecc48"
+      ],
+      [
+        "interfaces/service-list.ts",
+        "47f0eceef9dfb815548a0942c1fa21730db933173bb7352a2afad19e8e8677a2"
+      ],
+      [
+        "interfaces/service-read.ts",
+        "cdf5366cda8608d7a435f12034697769a2fef8488f805ccef42150b244f1ffba"
+      ],
+      [
+        "interfaces/service-update.ts",
+        "25f9e3d456a59596fa44d609ca3c8345ee0c63b5c52bbfde09c461e8a97fe2c8"
+      ],
+      [
+        "interfaces/service.ts",
+        "938e555ccdad4604d11e53270fbe819a5b7a6cefdfaa94bed56f2612817ee68b"
+      ],
+      [
+        "interfaces/subdocument-authorization.ts",
+        "079a1bc49dee081ffb3a6e53f5d44394d118e6c36c5f38845fb8920cd735c2d6"
+      ],
+      [
+        "lib.ts",
+        "7bbe55e35961d2b28f7a2eb8fdd9cec1dda58e4679130517fb376d85e0cb11d0"
+      ],
+      [
+        "logger-default.ts",
+        "4bcbf144b6f00d6bbce8d2206292b32a325fe187601438a590a997753641bdfc"
+      ],
+      [
+        "logger-helpers.ts",
+        "2e985de2408c1b2d6a7535b54a58951c8891208fc145762253e32b723864b82d"
+      ],
+      [
+        "logger.ts",
+        "1f982901401cb7734d6355fbfb2b6cbb403fbcc7541ca663eb0eed84520e73e1"
+      ],
+      [
+        "meta.ts",
+        "47a478bbb960cbc9df557d239761c2f504b855635b1b31434172a69574d1d2ea"
+      ],
+      [
+        "middleware.ts",
+        "e867acbf8062f2566ce498b7f0d310939358e9b238756c5e05de3c6cd63f90e2"
+      ],
+      [
+        "model.ts",
+        "34bc8cac9800f9fd33229db4ef21234f1914b84709830a189e8a32de71a2dcda"
+      ],
+      [
+        "openapi/build-spec.ts",
+        "dce5ab3da25aef7f9dd383960782c4a2c09d760d622b8c2015314b5a54477945"
+      ],
+      [
+        "openapi/errors.ts",
+        "4a077c6899e7a61022b9d2fef2cdcaa171b121036a65e5eebab534b279247988"
+      ],
+      [
+        "openapi/index.ts",
+        "969e61309b01062a8f08a6d3ce891498542789b51fb8043ff2927de9c2854d66"
+      ],
+      [
+        "openapi/registry.ts",
+        "77d9eceb7d009f1074c3113a5a592c71f46ee3a4b1cc80574504e412b4319461"
+      ],
+      [
+        "openapi/responses.ts",
+        "3cf812071e947b2571e1914f005b4a0da2507c21b9001f18340205f27f919b8a"
+      ],
+      [
+        "openapi/route-registration.ts",
+        "b5fca9f278d297a3d12f775c15215592d772f0781241bd2d685e3eadaf25d879"
+      ],
+      [
+        "openapi/router.ts",
+        "9d439ed481ababb51e4aebca6bb13bb8632020bbdeae1b53a815197618d213f8"
+      ],
+      [
+        "openapi/schemas.ts",
+        "81f9bec94163fb16f1d4134d114c8f353f2d05cf1df499b01b9c8be2784f93e9"
+      ],
+      [
+        "openapi/types.ts",
+        "df6c10571cc65c3932648c2f8872d0258a917b3c65b2f8eb3fc069db1ec092b2"
+      ],
+      [
+        "operation-access.ts",
+        "9814b8d1aed28d36b532192ae9c1d21d9d74d3abb9dcaa4b386868737371079b"
+      ],
+      [
+        "options/data-manager.ts",
+        "3cff8bf0cd91c789e451c9dcbb2d032c3003a72cc5f26bc71e048390b3b55077"
+      ],
+      [
+        "options/data-options.ts",
+        "041c4f64363388e2fc0bce1e8fe5d470f5fda5e0c014ca76b34f093d46530274"
+      ],
+      [
+        "options/data-values.ts",
+        "7b3888aed1a94747986cca1fe13d06a994cc786cc63a9a545cc43a2b8eb57280"
+      ],
+      [
+        "options/default-model-options.ts",
+        "8dc83eac32e44b524839ab191243a0eebb917d72971c770bd6e6c7590968e70b"
+      ],
+      [
+        "options/global-options.ts",
+        "fc6140e1bddf8d314c2c6ed88c8913a1aa98b887ff0a032fd42b75b7ee685cff"
+      ],
+      [
+        "options/hydration.ts",
+        "11aeb7687c113df24f41665f81b9cb88410fae74bc4d5abb534b2805c295288d"
+      ],
+      [
+        "options/index.ts",
+        "2b690fa23f962c0a8dc7d9f0a5dd34fff745ddb1cc1e856367d3572221b3366c"
+      ],
+      [
+        "options/manager.ts",
+        "29d0e2d36e5f46aa94f3065d1c6f76f6843043afb508b299d4f612686c1d6c60"
+      ],
+      [
+        "options/model-options.ts",
+        "64df7f01f6a0ebb8c4efaa88d6bab83eeef4b64bdff2e1162f2066edcef0b7ca"
+      ],
+      [
+        "options/populate-policy.ts",
+        "bf6ef731f7d8152ad3cf8de4d17dbebaf898bbcde45b88a6ee8e0bf4f982a49b"
+      ],
+      [
+        "output/finalize-model-output.ts",
+        "d4f677f2c3714e2f79cd767aef4ebaf41d76745a66c508c41f3f771ac8e27be5"
+      ],
+      [
+        "output/include-output.ts",
+        "d4c9281e586059471e88ceef039773fb05afab04875ef44ae0209750c4415b90"
+      ],
+      [
+        "output/model-output-context.ts",
+        "3734a5e695eb2297c71e7d4577883bfd9a09a33f58f67a1f4c749315b2065ca9"
+      ],
+      [
+        "output/permissions-alias.ts",
+        "22b5505123b3c5ebddce4bb2aacd20bee0f39c7ab03e72b33acfcb2415be3137"
+      ],
+      [
+        "permission.ts",
+        "1ee1579a40962ec83e1f9669b098c2f08257c7eb9336b73ae81c9dabf86f7903"
+      ],
+      [
+        "plugins.ts",
+        "78cc99536a45b483fd5b3449246fcc1b7a97310a611f0de3348a04fe684429ea"
+      ],
+      [
+        "processors.ts",
+        "ac5dc80163ff701a93e018daf80901847f1ef2690f12b3216882a24ce20e08f7"
+      ],
+      [
+        "request-complexity.ts",
+        "7d63e368abc21027f85bb40f8547d6fdc3f65d712e66b1077750864c9bcb019d"
+      ],
+      [
+        "routers/data-router.ts",
+        "4c8cf3942f8ed6c0498bf30d229756b18b013b97fcb317012eff743a9f4a0689"
+      ],
+      [
+        "routers/index.ts",
+        "ad31e3b4205b3e05d10c34b01b4d5e8e887c3b095c25a91b4bb6cd1c432ac0e9"
+      ],
+      [
+        "routers/model-router-collection-routes.ts",
+        "ff87e9c5dbd45643c7c87f5be23f5e7008a091ebb583a635063919135c96067c"
+      ],
+      [
+        "routers/model-router-document-routes.ts",
+        "e77631964074a38ddcd1b6a299e8559ba48deab75ff6442accf9e0fb2bbf586c"
+      ],
+      [
+        "routers/model-router-route-context.ts",
+        "f1171f50ca00e2596ef89a50a8828d84f2206c92406e50ac95c4f6311e14feec"
+      ],
+      [
+        "routers/model-router-subdocument-routes.ts",
+        "fcd9f93de174e042502cb5f534d52216c049057808da10e40bd1e0a78f749f3d"
+      ],
+      [
+        "routers/model-router.ts",
+        "fc9b9b48353826f6cd38285febd808e2e5261e792bc2119765113570fd6cd3cc"
+      ],
+      [
+        "routers/root-router.ts",
+        "d6f2fa6b0faaa5cbf49e5cc7efcd3288a4f4ac60bc66df5c5afb0db665711542"
+      ],
+      [
+        "routers/router-mutation.ts",
+        "37b5bdccf5f7f794ac5419c0d6a5957b4bdc07104234b4c880f41c49b8bc38d7"
+      ],
+      [
+        "routers/shared.ts",
+        "72d90e4fd801899316f76bb4f9928c28501f64b7a81a6e700b00653b9a347af8"
+      ],
+      [
+        "routers/validation.ts",
+        "8741bbf71c4fbbfde9a151fe398623e003615c2c3fbd62c8be74dadf646cad3f"
+      ],
+      [
+        "runtime-context.ts",
+        "bf1f317b648685ed00769f3b6783b125a2f21ca843a77bc31d13c88013d39208"
+      ],
+      [
+        "runtime.ts",
+        "8f3a1badb398da30ede6626c8b6d2c86c13ecc6cadbad1f600b4ce222a77786e"
+      ],
+      [
+        "services/base.ts",
+        "690e39eaa567e11eb8cc25e73031f8c0663cb1567fb60abc0237abfb9ea51983"
+      ],
+      [
+        "services/data-service.ts",
+        "8770e61fe75aedb977df6e3dcc58eb8203e90e16651ab36f3df99eba0d1a8537"
+      ],
+      [
+        "services/grouped-count.ts",
+        "4b7ad5e31f15159c1a7c1a1c513e555579c566a678638c4664e198a4d4a08ede"
+      ],
+      [
+        "services/index.ts",
+        "9866fe02ebb47be8276d7e5eb21fb758e5a4ec89895e5a565c03c4ceb20aab3c"
+      ],
+      [
+        "services/model-service-defaults.ts",
+        "25eebc8db846bf8c79660668ed823e908ecc190a0ce42ecc92dfa28b61e2e812"
+      ],
+      [
+        "services/model-service-intent.ts",
+        "a2df340935c12a626bf34fcd8b5882acac144ea71bf91ca8b2b05de7d8506ffb"
+      ],
+      [
+        "services/model-subdocument-service.ts",
+        "f371694a7f0983496cb62f91622961572afcf0db44caec5e33db9e1f4b16f568"
+      ],
+      [
+        "services/public-service.ts",
+        "cad17f1e73fba42a0010b25ce27e0f92cb5992b3b4e86096720cfe866734bf77"
+      ],
+      [
+        "services/service.ts",
+        "606babc3f5181f70ce752f9928f24c3f99c8dfbde786d264957e67447ff6c232"
+      ],
+      [
+        "symbols.ts",
+        "59f866ec1b7bd46714233457e0fad777d88b01043a55e06fa1eb350c8a802ffd"
+      ],
+      [
+        "types/mongoose-schema-jsonschema.d.ts",
+        "fd268a86a8c0967ce249dde3d7b79be353636b8d0f53722a25d95d906caf4f94"
+      ],
+      [
+        "validation/common.ts",
+        "ce1512ce8dde3be6cdd821d544303c3a0a789c0e4cdb6f20fc9f1f15ae4e7a4c"
+      ],
+      [
+        "validation/data-router.ts",
+        "f117305650aca8f6ac2709b5e5b0d4e2117814a1094df960d7ccb7c8cad50b36"
+      ],
+      [
+        "validation/index.ts",
+        "1a3c3f0b64ffb5a7e3144a3dc4a5713a67d6ee5cf0b7c9d535550ae26829d32c"
+      ],
+      [
+        "validation/model-router.ts",
+        "f7ace3e6beec4cc52bd4d7aa28fef3eef44599df604fd8cc55a23467eeb20811"
+      ],
+      [
+        "validation/parsers.ts",
+        "3f00e5f91d2d46242d7cf9e30fb4b0ae2f8b03fa58eeeb703614a4f1b5120791"
+      ],
+      [
+        "validation/public-admission-schema.ts",
+        "9f47309dd0efbd1384de94088419a070620bfb6522d1a606fa979a4d6fde8289"
+      ],
+      [
+        "validation/public-admission.ts",
+        "856981132bed37e8fe6e6156856e44b21d0d4d9c142a2affac7c5e135b948487"
+      ],
+      [
+        "validation/root-router.ts",
+        "6d18cda6e1267e746cce9f625f18ff2233bb8d960d9c340b909364500d33d7e4"
+      ],
+      [
+        "validation/types.ts",
+        "b990c67c42298f6088af6711b51460fa3a25da433fc4295801615e286ccecdac"
+      ]
+    ]
+  },
+  "tests": {
+    "files": 247,
+    "sha256": "22f30bb1725f17ea9e48bc2528d6d8593ac648d3c5f53e1c2745ccf40198a0c0",
+    "entries": [
+      [
+        "access-router-crud-driver.unit.test.ts",
+        "2869024b947c36ffb90490e7ab376ff7a5811a9fd6d771c1c2d62116db277a01"
+      ],
+      [
+        "access-router-crud-fixture.ts",
+        "cd5f7ad4a7d32a57a8f29850d947df357e440023982a5cdf9a761ff80e44ac50"
+      ],
+      [
+        "access-router-crud-harness.unit.test.ts",
+        "189c1232369e1f573830f9dd23617197292cdda7358da668dcc1bd71929e2eb9"
+      ],
+      [
+        "access-router-crud-v2.unit.test.ts",
+        "97edd1d1ae8b3891f7f501a385cc6c935d5d3d60bfc4cb2ccce7c5a07a6ba588"
+      ],
+      [
+        "access-router-crud-work.unit.test.ts",
+        "1d0e6e9b8dc829838ac3180768102ca9783daa83a14d095b8ea7e41f897da86c"
+      ],
+      [
+        "advanced-mutation-bodies.integration.test.ts",
+        "248ef0ccad8e9900078a45ae1e204e2e41197803c71126eb5e504649a70eb3e6"
+      ],
+      [
+        "arc21-projection-identity-and-count-argument.contract.test.ts",
+        "786dd3168cf72143b3005e73a95fbb502eb4509ffbbe3cbff932fa24fd1bc171"
+      ],
+      [
+        "arf12-new-route-denial.integration.test.ts",
+        "37cc4171ad0aca0e78be8b2e7bd077a5c183c8e04898e5d04c7cdaca5b03e9ba"
+      ],
+      [
+        "arf12-root-distinct.authorization.integration.test.ts",
+        "b95920c7dff4304d152691f4617489c017c837e9ca01fad6f3d85ec50a07de31"
+      ],
+      [
+        "authorization-fast-path-consumer.types.fixture.ts",
+        "77f4f8c91d7786077ff52efdebf635d34991a24f471c98ac2d401737182a9666"
+      ],
+      [
+        "authorization-fast-path-native.runtime.fixture.mjs",
+        "4955a10b5d3a8fb6e5e010bdf8c923d903b92394930f260b5c79acf2742dd5db"
+      ],
+      [
+        "authorization-fast-path-native.unit.test.ts",
+        "e05a65c9432c490ca0891f282377c735750968bd5a1e6fd33ae515378de165a7"
+      ],
+      [
+        "authorization-fast-path-options.integration.test.ts",
+        "e55e897804bcaa6e893857ea9cdb25f2e7d722467bfca16f127a43172c1f0e63"
+      ],
+      [
+        "authorization-fast-path-options.unit.test.ts",
+        "163fbd52d3f653cc4cb0a945b08a49b2e23f062fcd7cbeda59fafbe91cc13b3c"
+      ],
+      [
+        "authorization-fast-path-owner.unit.test.ts",
+        "e70864aef7976e5d5672b0112eb6398ad2bbf170ad4d6e2e87700b5b9110dcdc"
+      ],
+      [
+        "authorization-fast-path-runtime.integration.test.ts",
+        "7d053e271a943bf9146b48135b3594dae5cb3d139f987cd53faf7c31fd1b76cd"
+      ],
+      [
+        "authorization-fast-path-runtime.unit.test.ts",
+        "6b07a9043aac0300ba15961eab13296e89f550cd52ef3fb4e712ef99bc88bcb9"
+      ],
+      [
+        "authorization-snapshot-copy-builder.unit.test.ts",
+        "6f6a84f827cd7f69a35909cc43352b79d3c1aa074c8d38ab5e1be14d4c6570b3"
+      ],
+      [
+        "authorization-snapshot-copy.reference.ts",
+        "56f4a9fef41efc7f72e6043dce600bf405c96610d172d15119a2a53c2d587323"
+      ],
+      [
+        "authorization-snapshot.unit.test.ts",
+        "ca364f688f44a4c8e245f3792203c26b645d6eedc324e27d1ae0f365e851bf59"
+      ],
+      [
+        "basic-data-list.integration.test.ts",
+        "bfef07cc41b3e1045acac1043793f79e6b8a3871ed5c3de90651c24c1ad43788"
+      ],
+      [
+        "basic-list-sort.integration.test.ts",
+        "62bd3d4a66a451dfae62912b10c54ddc72c14d83358220c41942972e958ab0c2"
+      ],
+      [
+        "bulk-create-metadata-filter-trace.integration.test.ts",
+        "8a540c3c5e864bffe5eb4048e49c70f1f552699700305168cb9b7651df9a03e5"
+      ],
+      [
+        "captured-catalog-preparation.unit.test.ts",
+        "af1b4e500a61a5f34862a1627a397063701e2da9dbd36af4aaf2144a309c811a"
+      ],
+      [
+        "collection.test.ts",
+        "89f8368ab200508b9bf948eb462e4c5494123faca0913f7744d8b7a27c1b2098"
+      ],
+      [
+        "concurrency.test.ts",
+        "19b2da99587dbb6de65711e8e03b4a88c509642b6da1c9c46ea141f2421d068d"
+      ],
+      [
+        "correlated-includes.escape.integration.test.ts",
+        "17db0567abd324e36bad91d904bf7b3620160d81dfc65b83ed071fed0b74202a"
+      ],
+      [
+        "correlated-includes.execution.test.ts",
+        "969cc2fbdfa5964988fb95ad6df3fc1777dfd402ecd583d848a93cded4fbbb69"
+      ],
+      [
+        "correlated-includes.resolver.test.ts",
+        "456fefa7af61ee3f7f23bc7e51a58b98ea1e903d05c9eccb0a23f0cc6baee227"
+      ],
+      [
+        "correlated-includes.validation.test.ts",
+        "50b93623c456ca386734c3bb7645e5df10dffaca45301c8fa016ae9123e85054"
+      ],
+      [
+        "cross-resource-authorization.integration.test.ts",
+        "0f58aaab6d1adbb057623b1418fddbed796c417b9f7712e3f605169d3ba27b19"
+      ],
+      [
+        "data-router.test.ts",
+        "f3f8ed7e14bc49fbb13a11ebe8f642b6bde20514f45f9206caafb6b1fac64abc"
+      ],
+      [
+        "data-service-hot-path.test.ts",
+        "5fe12d7c4e8bc05b501d5f9d4e101844216adcde8ad2289d1f09b2fac019094d"
+      ],
+      [
+        "data-service-scaling.test.ts",
+        "6b9fb1225ba846d53ebc872ef081974713659ebe140d6811b8145c175a061f23"
+      ],
+      [
+        "data-value-ownership.test.ts",
+        "c38f14eebf1885121c59d98ddb464796535aa50ca16d1290ac8557ecf047384d"
+      ],
+      [
+        "default-model-options.integration.test.ts",
+        "204dab45a7e835ea9ac813785b57af625d1bce51d3a4311a2c0568beca474bb0"
+      ],
+      [
+        "default-model-options.unit.test.ts",
+        "f4cc278d8529fdcafffec6fa5d86dbd06d20e18b4eaaa223aac3e3e88c5538a2"
+      ],
+      [
+        "distinct-composite-authorization.integration.test.ts",
+        "ba79f79933681f805295f878c92b0eb67bb1b676bbc4068b1e622801d73ee334"
+      ],
+      [
+        "distinct-field-authorization.integration.test.ts",
+        "66d88caa845f9c59fb1927f43acf45274d7366b3340b1a94d1b1fc551692a82c"
+      ],
+      [
+        "doc-permissions-exposure.integration.test.ts",
+        "43962d57f1c761057eb41c7948d3c3aadafd5e861199853c81cedac0bb6bcd5d"
+      ],
+      [
+        "document-authorization-validation.unit.test.ts",
+        "9b09084c75c2d5741b7b3a7ccd4027614167c7d1815c25d81bcbe7524e0368a9"
+      ],
+      [
+        "document-isolation-builder.unit.test.ts",
+        "dc779346f4266427d4c91df67f06ebc7e2b56596ea2c58288a9cbbe7bf285b96"
+      ],
+      [
+        "document-isolation.reference.ts",
+        "035b2b001ebb3826a8cfc608014c26a5f7271be6c0fb2726f5b7853f996bd4a7"
+      ],
+      [
+        "document-permissions-dependencies.integration.test.ts",
+        "7d13efee264104b69a024454b7f6527594345f47f5e4b0a5ec7e21e2298a7870"
+      ],
+      [
+        "document-permissions-dependencies.types.fixture.ts",
+        "694f989d2d4858d6bbb6422c67691d44c4435cf5171543d0f3a6c0bc9cc9918e"
+      ],
+      [
+        "document-permissions-dependencies.unit.test.ts",
+        "8d3000f30491b9fcad36db4b57d6c083f9677b13a60f8431cd9d00fae26e2b92"
+      ],
+      [
+        "documentation-authorization-guidance.test.ts",
+        "8b2cb04ccdf67fb32507818e645e83b0ac2fb53a634bdf260f68cde36387d4d7"
+      ],
+      [
+        "documentation-examples.test.ts",
+        "38616376cb4093d91bc277df48192d413970d5eebd381490f66a26f7e131039b"
+      ],
+      [
+        "export-contract.test.ts",
+        "63ae56c8c371473241e3c82bffccafc9547fbcd59959f57291f3cb0888e8143c"
+      ],
+      [
+        "field-catalog.unit.test.ts",
+        "3ce54c5a2ad3d680d0c0a22a9ee1b49a746c668396b77866b83269040a8dc864"
+      ],
+      [
+        "field-helper-consumer.runtime.fixture.ts",
+        "49ae05773c0e7d413fa324ecd94204f9a4fe93fb1f56394665bfe08bd622eac7"
+      ],
+      [
+        "field-helper-migration.types.fixture.ts",
+        "8867ce0855e749f1c2ffd5b1ed947331e190e5df3e3fc4ea8e29bd1fc036b45c"
+      ],
+      [
+        "field-helper-removal.contract.test.ts",
+        "8f02f335c94d1b183197cca8a7915c96a20ae80a5bd9c189d50db55f25e45507"
+      ],
+      [
+        "field-helper-request-boundaries.integration.test.ts",
+        "3ac452d550589d7a9d4043943ec45cc92a06ee81010520b335156a8777751556"
+      ],
+      [
+        "field-permissions-defaults.unit.test.ts",
+        "c791e0d5e8026ad87a41c0282c8e182ed695550615a2e88142d04d1345ec9f31"
+      ],
+      [
+        "field-permissions-opt-out.integration.test.ts",
+        "52df602aa514c6cb49f33037ce8edcc1841ca8942d6bbd24456d60baa9d67418"
+      ],
+      [
+        "field-permissions-placeholder.integration.test.ts",
+        "69438124bd09ee39ea836820ab43f625bbaddf14b278bac1993c98e80554b0f7"
+      ],
+      [
+        "filter-denial.integration.test.ts",
+        "8de4ac77576ea76e04fd444a9cdc38f21b1b61db9b1bbc4a9a6ba7ba149afddf"
+      ],
+      [
+        "finalizer-preparation.unit.test.ts",
+        "1b7b7d4f13e2ae0ef2ece988dc5fe0b7c747230f264687f4e012fb669b6f82e3"
+      ],
+      [
+        "global-setup.ts",
+        "155f5effa0a983b6f7a760da03ccc98cafd4cf0cdaaaf012887fa0071294daff"
+      ],
+      [
+        "grouped-count-casting.integration.test.ts",
+        "06c16ffa8914dbe88c6bbfd1ce506cf1d3c21a4a65902c9b4bb12032f42cc994"
+      ],
+      [
+        "grouped-count-consumer.types.fixture.ts",
+        "68dc1c67d21777739127e541f34f1e0923d601327c220efc9d4e7720178a9c75"
+      ],
+      [
+        "grouped-count-numeric.integration.test.ts",
+        "eaa8e830d2b19f944130549a29e4f79e3169abd06ceaf33a7565f8d112a79956"
+      ],
+      [
+        "grouped-count-query-equivalence.integration.test.ts",
+        "76cdb5a504d6b0c1e08e79d77dda7f95caa84db8043fc7e747c83a00eafbe73c"
+      ],
+      [
+        "guard.test.ts",
+        "69cc82d60cb311c9af3a42ddcbc7176145710ec9beb02b5d944141a3a3b20dd2"
+      ],
+      [
+        "hook-admission-fixture.ts",
+        "17968423866d5d920b65d9428c4a4b8c0313790e810b3b3092f9b9a9ab58a8ae"
+      ],
+      [
+        "hook-concurrency.test.ts",
+        "1e2beec21de86464cd111fa38a36bfc675a1a11bf05c5c6fa719467182dc576f"
+      ],
+      [
+        "hydration-characterization.integration.test.ts",
+        "d39f55498e586e3f7de36d7fb76186a8647d1bffd51a23d4b9d581ab914f7801"
+      ],
+      [
+        "hydration-configuration.test.ts",
+        "15518480e9a398f99597dfb3bdfe3d9abe3fdb1f67be11c27c6cb8f0703fadd5"
+      ],
+      [
+        "hydration-consumer.types.fixture.ts",
+        "66227f11f9eb0fa53cfc75ffbd29e885b8c44efa903ce31d444889734ef939ea"
+      ],
+      [
+        "hydration-request-boundaries.integration.test.ts",
+        "24ba1ddd4199c28f0ffdfedc05bb601ffbca9d4e72c0985e041199db6890c0c3"
+      ],
+      [
+        "include-permission-metadata.integration.test.ts",
+        "6a00542d8cf3225464d968a2f62f6f8af6296a24d17cf3b4cb4468fac79ae972"
+      ],
+      [
+        "include-source-provenance.integration.test.ts",
+        "73687a78fe6bb63a6bd329cf1d73c6b7e027bc77fad9cb245efd3f3225062aac"
+      ],
+      [
+        "list-snapshot-checks.integration.test.ts",
+        "1f20f6bab6bb1f3f4524647ee02c81f45c110582d218447680c9108208ffbee0"
+      ],
+      [
+        "logger-redaction.test.ts",
+        "f60d34601fa2ce5ee04988a24e89d2741219afffaece8fd8882b2732b7484efd"
+      ],
+      [
+        "migration-guide-fixture.ts",
+        "4d9f984acd444e1fbf9b60378935f773f28e0fad42e0ce39fe4bd4ffbb2afd0a"
+      ],
+      [
+        "model-authorization-capture.unit.test.ts",
+        "b3eb4b2ad8309ba178d43046ed60dbcfee8c345fca47cc296782dc432f70a189"
+      ],
+      [
+        "model-router.integration.test.ts",
+        "5d0bbac2db544bda98c000706664ffe7f8cf68cb2410e31eb51cc840748e63f5"
+      ],
+      [
+        "model-router.routes.integration.test.ts",
+        "46fc41bda4af790c84131db7c3ccebd28aa7e4918facea3c7b7d228d15a294aa"
+      ],
+      [
+        "model-router.test.ts",
+        "50d9cb478648823dc975ddadf3067053a9b6f49b863a72219ce7025064c32002"
+      ],
+      [
+        "model-subdocument-routes.integration.test.ts",
+        "4cd74493ee46eeb049f1c34e684498ddf67de9103e4f1d346be78f498d6be0a2"
+      ],
+      [
+        "nested-operation-access-admission.contract.test.ts",
+        "ab7505d78b7c4dc83f6e43d00553b72d0a207ac179f1c8a1db2d8081b3039af8"
+      ],
+      [
+        "nested-operation-access-capture.contract.test.ts",
+        "44b1e4c064ffba113eac48f22ffee91d874265d7c420e8296b74b9e82610b48e"
+      ],
+      [
+        "nested-operation-access-consumer-types.test.ts",
+        "00ee7efd43f27140b51b728306461dd6512f03558a0f9a124177a183895aa2c0"
+      ],
+      [
+        "nested-operation-access-consumer.types.fixture.ts",
+        "12a622b5a836a3c133a2edf88764c4bb6156ade2d60584863d5c84260399e7b4"
+      ],
+      [
+        "nested-operation-access-entries.integration.test.ts",
+        "a0b132a96bc0cd35daba792ae3a19804a4fe165f01bec5597b04477713dd70c0"
+      ],
+      [
+        "nested-operation-access-resolution.contract.test.ts",
+        "6e4bd37a8e92e87f425a8c995e2e9b4581a5f3b333110e8fbcef40d536802f1e"
+      ],
+      [
+        "nested-operation-access.invalid.types.fixture.ts",
+        "d594c496ee55ca92e78bbc96c3bc6a33be182e6c5ee64cef3155c47c4e7023bc"
+      ],
+      [
+        "nested-update-integrity.integration.test.ts",
+        "53f07de7f4cef63ce9962c73a5bfb848f62ee9a176bcc35eb25aa9a4d233cbb4"
+      ],
+      [
+        "no-work-output-scheduling.unit.test.ts",
+        "390b1047876cc040ea26f82d65e21971cc50cf73268519803969ecd19a6fab73"
+      ],
+      [
+        "openapi-collision.test.ts",
+        "8f2d628b8d3c61cec9e2044db35b3b035d4f95c680fe5008bd833b0fe906c444"
+      ],
+      [
+        "openapi.test.ts",
+        "0549cd3f0a4d8173904655e98fa39c985d9b94bbeb60d9d0adbfa80ac9141f68"
+      ],
+      [
+        "operation-access-baseline.contract.test.ts",
+        "dda36e3b938a532dab2a7254ee9219b040c35c8c457b7e64cf6073e606bb400f"
+      ],
+      [
+        "operation-access-boundaries.integration.test.ts",
+        "e3788b929c8ead10ce5f190b576e795704604e2b4e659d73bbbcfc98a4a31c08"
+      ],
+      [
+        "operation-access-data-subdocument-routes.integration.test.ts",
+        "b802f90a97fe4e24612b70b733a6a02ab0cffbfdef24918affd2550bb6db285a"
+      ],
+      [
+        "operation-access-model-routes.integration.test.ts",
+        "325b68295b1437570be806290be3c7758ad595cd66f3689458658ea2c1cc0aab"
+      ],
+      [
+        "operation-access-variants.contract.test.ts",
+        "8c946a257bdca2b41d838f1df7d94ff91cc3842d599682b1136da172270aa767"
+      ],
+      [
+        "options-ownership.test.ts",
+        "5ef3e6e91776338bdc4f8c54667677b099a5660dad4e40e0268918819a55b739"
+      ],
+      [
+        "output-field-policy-cache.unit.test.ts",
+        "71b5e794ab34061807f9692b103d81fb9b2ad1ae26da06f5ef07004f05bd160b"
+      ],
+      [
+        "output-publication-fusion-withdrawal.types.fixture.ts",
+        "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341"
+      ],
+      [
+        "output-publication-fusion-withdrawal.unit.test.ts",
+        "5b9ba0497effdfd8f3f7d05c57db2b57d4af717864b2980812511d109d0c486e"
+      ],
+      [
+        "owned-authorization-alternate.unit.test.ts",
+        "582e40d3a6f8291507dbf065801ac14cc511e9f121beab6b6366e0f2aff9dd5e"
+      ],
+      [
+        "owned-authorization-boundaries.unit.test.ts",
+        "cc1e1cefbdbc131eeaffeed53c12b71313e1bebfc3bdadd5110c7baa2c82712d"
+      ],
+      [
+        "owned-authorization-consumers.unit.test.ts",
+        "68fbfe5ce3b833ee43a4453336ed3b5cc434d7995cb902673566c2168698311d"
+      ],
+      [
+        "owned-authorization-cutover.invalid.types.fixture.ts",
+        "2902b4ec83470c9eda48f4a9c914ea1453ed5c461d730c76c41f9f4d897135a1"
+      ],
+      [
+        "owned-authorization-facts.unit.test.ts",
+        "87f2360316ef82dfc11f7ad73a5b75da5783e3124a9b163befebcaf509e07482"
+      ],
+      [
+        "owned-authorization-guard-consumer.integration.test.ts",
+        "27b889324dc63afd7bc09ca23e516669d1c547769ab5c9952f3fdd888afe0e5f"
+      ],
+      [
+        "owned-authorization-guard-consumer.unit.test.ts",
+        "70fb70c65ff486d45f61daf9bae08b0509126ae22e89e534c7bc7c9e5cb8aa1f"
+      ],
+      [
+        "owned-authorization-helpers.runtime.fixture.mjs",
+        "998d769b00d4f2988ee315a4117061bccdbb7918fc265fbe7ffb47951d70a384"
+      ],
+      [
+        "owned-authorization-helpers.unit.test.ts",
+        "1e8ca8eda11f86105e1ff33ef100749fcbcae6cb07afa9da64fbeadbdfe98fcc"
+      ],
+      [
+        "owned-authorization-hooks.invalid.types.fixture.ts",
+        "07402efdb7ada6af091049ebf241f96d5822c8ce17798a074b7e7a9619496b74"
+      ],
+      [
+        "owned-authorization-hooks.types.fixture.ts",
+        "733317b0e88ca656e2817e2f505c21c408b6e85dd307bec78c8a826ea3957eb9"
+      ],
+      [
+        "owned-authorization-many-bounds.unit.test.ts",
+        "6b400721bbb5e73faaa07cf994cf03a9cd72b61f10e7094e3b87aaa13f6438b8"
+      ],
+      [
+        "owned-authorization-many-consumer.runtime.fixture.ts",
+        "a90d2dc44d7ba0c4c9e84d62861da47aa48c00f4f0c5ce22b384e84c0ba16995"
+      ],
+      [
+        "owned-authorization-many-consumer.types.fixture.ts",
+        "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb"
+      ],
+      [
+        "owned-authorization-many.invalid.types.fixture.ts",
+        "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9"
+      ],
+      [
+        "owned-authorization-many.types.fixture.ts",
+        "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544"
+      ],
+      [
+        "owned-authorization-many.unit.test.ts",
+        "5ceef898fcb6e5a7c970249f295c60ac63dd6a1a2adf4d726fb251fa494c1f1b"
+      ],
+      [
+        "owned-authorization-migration.invalid.types.fixture.ts",
+        "4c45da6a6b792a1ee1ca162da689ee16bf9636f136076517271356c4f6de667a"
+      ],
+      [
+        "owned-authorization-modes.integration.test.ts",
+        "f0aaafd6eec29b6af170dc2ff17eecc83946dfe10e4066e0a1a06f66edf698f0"
+      ],
+      [
+        "owned-authorization-modes.unit.test.ts",
+        "24246da84a046c9721efa1a92480724da737dd8c3f6e992cf4cf2c79933622a9"
+      ],
+      [
+        "owned-authorization-projection-work.unit.test.ts",
+        "0f6f57ec4b677c9c1429fbbb3b5135922e7ea8f63d68751596f7152cd6b813fb"
+      ],
+      [
+        "owned-authorization-publication.unit.test.ts",
+        "e631a49041367d02b743231727de5732c85432ccf657a5480ae40929e2644db6"
+      ],
+      [
+        "owned-authorization-records.unit.test.ts",
+        "00114394c2b6e578795250f001e9722265f4c3645daa3ed206a35a174e30e51d"
+      ],
+      [
+        "owned-authorization-runtime-profiles.unit.test.ts",
+        "bc78877936bf713858ae21d5d0f63ce14cda93e00649acee909bf1a0acf2858b"
+      ],
+      [
+        "owned-authorization-stage.unit.test.ts",
+        "6686eca8ca85df0fb97739aca9a81a7bfa38c601928cf4e15bd2bdd928d86062"
+      ],
+      [
+        "owned-authorization-types.test.ts",
+        "acae635bbcc5ba8a8cf77108886960bed1afd6940d85457b965b46cd186a79ce"
+      ],
+      [
+        "owned-authorization-work.unit.test.ts",
+        "cf90121b2d3092aad9a242a21f73825867487349ce33e333cf4557e574ce8b62"
+      ],
+      [
+        "owned-output-context-fixture.ts",
+        "feffbf016bd06a5285b98a8088be0847288d5a1e934a6bfac32e9251a892e222"
+      ],
+      [
+        "owned-stage-test-fixture.ts",
+        "8baa05f7dca7d4166b5977c63daedbb4084534a4fd890a20226a9308eea9b691"
+      ],
+      [
+        "packed-consumer-compatibility.test.ts",
+        "96f2c67b3c6c5e6a62cc79297d47491b5079287079d46877cb8fc8cc070f88b4"
+      ],
+      [
+        "pagination-overflow.test.ts",
+        "4a604190aca62a203fae8dde9e554e0ddd941f970474bb163e12188274c98c1d"
+      ],
+      [
+        "permission.test.ts",
+        "d7e7c44abc293ef22c600ff30c3376dea6a2126f5b2bdf00f021f588fdbe837c"
+      ],
+      [
+        "permissions-posture.integration.test.ts",
+        "5254484f39bd0f28ea6c4d9e28dc11bd302f7d44983c4fcff95c5b605f7fc95b"
+      ],
+      [
+        "populate-operation-policy.binding.test.ts",
+        "b754495797d49519d47588e265e183f366e6ca6aab9e4493f648162897a52b8f"
+      ],
+      [
+        "populate-operation-policy.config.test.ts",
+        "93388a88bb21e4adabe8a7aa1feb71c80174376e2a40436781b3a29462ca5327"
+      ],
+      [
+        "populate-operation-policy.dependencies.test.ts",
+        "3b7b209c5b040791929e39893bfc86d47e7116761ddb2f7e5e05494f922b92c1"
+      ],
+      [
+        "populate-operation-policy.helper-isolation.test.ts",
+        "ba48478581b8350b8864a054825b45ed2feff6b64c19b838abf7ca47e2f9868c"
+      ],
+      [
+        "populate-operation-policy.include-binding.review.test.ts",
+        "ac426dbea1a6e109d11e783c638b9f6230172621f2cb3690de08c5503335e3f5"
+      ],
+      [
+        "populate-operation-policy.include-binding.test.ts",
+        "6eeed4f9280d962cbf27ab47038e475652bda2826e4d00baefeddc0ca93a5315"
+      ],
+      [
+        "populate-operation-policy.nested-targets.test.ts",
+        "037e41183164f3e568c2cfb8d4fc1a3c80c9725fe5caa19d6f12e397376baa57"
+      ],
+      [
+        "populate-operation-policy.queries.test.ts",
+        "1c27846ac9ea3cecbd1d2aa4b331189ec94726bfd34ef9acfd10416d397a314a"
+      ],
+      [
+        "populate-operation-policy.review.test.ts",
+        "c4587d58401c315e3734fe4c22c2f2fb990a8bcaf82cd8c48e2fcfa71c51c738"
+      ],
+      [
+        "populate-operation-policy.target-options.test.ts",
+        "d6ab41201c3d7aa63ae2a1e21a468bdf8d7f985ae8040c07ccece2077ffe5a87"
+      ],
+      [
+        "private-populate-read-policy.config.test.ts",
+        "e1e88a2f825a0fef4dee6169fc941f9b5d98d25b0ffd1a0afb7a54ce81896dce"
+      ],
+      [
+        "private-populate-read-policy.review.test.ts",
+        "8ec9fda86c96c5970d255eecd2b69ce6e892392ed46e0b2765b89db571e0703f"
+      ],
+      [
+        "private-populate-read-policy.runtime.test.ts",
+        "aeda5c4f07c5109712aa2e4412ee2a0438c51c2ed96f83ea33b554754a76a1fb"
+      ],
+      [
+        "private-populate-read-policy.types.fixture.ts",
+        "b00273ede56723a7118787c78b07d3121bf19fc359a8fa21c327d5763fdc5970"
+      ],
+      [
+        "processors-path-hardening.test.ts",
+        "cafa5047d3324184c59d8e14d9a96ec26614c17d586357ed3c708e71fb30cba3"
+      ],
+      [
+        "processors.test.ts",
+        "8e0453da0b5bf9dd48ca886a8d33d15fa28ff19409a4754b8c396d41897a1ec3"
+      ],
+      [
+        "query-snapshot-options.integration.test.ts",
+        "b22224bea97dc09509d2f71f6c0dd45fb1d1405763f1a7988d977831c465c65b"
+      ],
+      [
+        "query-snapshot-options.unit.test.ts",
+        "00dc1f06a6dbfab4cb8302707d21e3c3afa56dd00493d74385357572b4aeed5c"
+      ],
+      [
+        "read-list-fallback-authorization.integration.test.ts",
+        "2ba24b8cdcae1842622cc01c9051025fa83f646f024259f69206a9f5b697bcbf"
+      ],
+      [
+        "read-snapshot-checks.integration.test.ts",
+        "c53c3f1b0f8f605633ab1c0e5ba6ed01099b370c50cde7274df2f909330f0bc6"
+      ],
+      [
+        "related-execution.binding.unit.test.ts",
+        "87980eb05ab1d769f7c8c841c252769d8407e9aaacee82be3dc8d802257f677a"
+      ],
+      [
+        "request-complexity.integration.test.ts",
+        "1cfb62b442216e695bc4405f440eb3519a1feaa0e357c9f29a7a1cc4a6922001"
+      ],
+      [
+        "request-hook-concurrency.test.ts",
+        "4c4d5d0368811f6a466205d2385c724b91e327a74cbf179bd9952467aeeff9bb"
+      ],
+      [
+        "request-hook-ownership.test.ts",
+        "e6198a61f234379c0e90b3a489da7d2dc3e5aef95329ffada26a022e44493a03"
+      ],
+      [
+        "request-persistence-concurrency.test.ts",
+        "bc592473599383174be2f81e4636cdbb5be54550e921f86bfed84c9dd9c3dfed"
+      ],
+      [
+        "require-explicit-select.integration.test.ts",
+        "873a51238811b59c7a189bfae991b6ad2b456e0c5eb3408f023cc00012c1d195"
+      ],
+      [
+        "response-pipeline.internal.test.ts",
+        "e169bd58894a51ecc6ad7b02799a819305e63b0befaecb245ccd47c5c1a495d4"
+      ],
+      [
+        "retained-model-service-ownership.integration.test.ts",
+        "058a3d69b367ea619d56dc1ed43495b90d986fbb3abb9e093755b7932db04a27"
+      ],
+      [
+        "root-router.integration.test.ts",
+        "0b2555cac5e772f1d2bde185acb9033c910f5a8a67427e837123b0a23010de80"
+      ],
+      [
+        "root-router.variants.integration.test.ts",
+        "2f40e521053de4309380420da2c2860c74a21646d12f2af36f4871606cae83cf"
+      ],
+      [
+        "runtime-isolation.integration.test.ts",
+        "6a2b28c517e02ad19ade544e49903d91b5e9dbb4688e0d46c86bc3f16f2ac53b"
+      ],
+      [
+        "runtime-permission-handoff.integration.test.ts",
+        "1cc3c18ab1e5a7305781841ced3f6c2da5a0faffebcf0e246c22f3dc5169d478"
+      ],
+      [
+        "schema-mutation.regression.test.ts",
+        "d195401cb8c2b104e1f860735d2eb79b70a416df9b28b0e08744f98fb716b86a"
+      ],
+      [
+        "service-authorization-baseline.contract.test.ts",
+        "ff4d26bf07fb6ccd4986d7157edd10f1e7104ab51f48715d5ad9d2763f80e25b"
+      ],
+      [
+        "service-authorization-boundary-admission.contract.test.ts",
+        "b707c73d5994adcc57b9b58d83d1d31aef74c963e20d6407b186bc029b5dcab6"
+      ],
+      [
+        "service-authorization-boundary.types.fixture.ts",
+        "dbaeab17e750ac8671ef5a9e89dbbb3d1c78635822738ea88a4ce771083b1972"
+      ],
+      [
+        "service-authorization-consumer.types.fixture.ts",
+        "7bb3ee8a219dcffdd7e6fa505efa0b6e8a0eccae08fbe30524faf7e8c45f9737"
+      ],
+      [
+        "service-authorization-context.unit.test.ts",
+        "a3d58abd6a02469eddefa3ad90124bf8fd51f78754b3cc822179a00678785566"
+      ],
+      [
+        "service-authorization-direct.integration.test.ts",
+        "e6d0f6ebf073c538b9866b8e3c6ed2bf47be4e13838ea283ae72826da276812c"
+      ],
+      [
+        "service-authorization-final-review.integration.test.ts",
+        "ed2d3816db7e265b76372d914c4d10c35e42475aed545293bb3e8f5a67efeb83"
+      ],
+      [
+        "service-authorization-finalizer.unit.test.ts",
+        "cc7c4d4389b71d871212219bb65e237142690b38cc15f908e0658bdbc8de4b89"
+      ],
+      [
+        "service-authorization-fixture.ts",
+        "69b7ea0b3f0777f2380e9f884f159648ddeb46bed40cd653ae6b7ac6ef3b2d66"
+      ],
+      [
+        "service-authorization-input.integration.test.ts",
+        "de5917b25cc83e22c3ca4ce57df50ae798ce1582ff0657b8d27ea8d9b017eb29"
+      ],
+      [
+        "service-authorization-migration.contract.test.ts",
+        "d660c2e2c4d658aa50e3830ab6547eb7e6b7b3d2b291f94d3bd4a8d20ed0964e"
+      ],
+      [
+        "service-authorization-migration.types.fixture.ts",
+        "06420bf7e5047ae7812f7b368d49eaa167170d3c6cbe3144dd957b6728f002b8"
+      ],
+      [
+        "service-authorization-mutations.integration.test.ts",
+        "d5dfbc57f60f7f27683d2a6f673264ea371ef7a51f1c55fc8c085beaa5e2e1fd"
+      ],
+      [
+        "service-authorization-prepared-query.unit.test.ts",
+        "9f403e3ed3595a78ee62511d605e58edcce64d8f5057b3af2c42f0740340d11b"
+      ],
+      [
+        "service-authorization-projection.unit.test.ts",
+        "8574aaea56c7fc04072eddae712d0019f0c7dfb83b65503ad38c7895c073a8f2"
+      ],
+      [
+        "service-authorization-public-boundaries.integration.test.ts",
+        "c6795e496dfa810404fe8c54b6550091e6a3da1a699b8d5f60c530649beeae3e"
+      ],
+      [
+        "service-authorization-reads.unit.test.ts",
+        "295606749a15b9af1501462a6b4b8cd833cd56ce1e297dff58c4b6776925eef8"
+      ],
+      [
+        "service-authorization-related.integration.test.ts",
+        "079d1c47e2fa22de893ff2ac86684581fc4a7a6b3f87390ee1db91024c5633a6"
+      ],
+      [
+        "service-authorization-rows.integration.test.ts",
+        "0427634c137d6da19cd7c755c4918b3ed80ec1ddc4bab17455c14f5f94f05f39"
+      ],
+      [
+        "service-authorization-subdocument-policies.integration.test.ts",
+        "a533057e6c4fbbe2638a5b04f8cb43423a48b49ca4e25d10b55b06c419329ad0"
+      ],
+      [
+        "service-authorization-subdocuments.integration.test.ts",
+        "74a757a675fe76fa7515cf5fe7055409c24f6b21a19498ec7975ae410b503a7b"
+      ],
+      [
+        "service-authorization.types.fixture.ts",
+        "82da76115bb48c44de171c3d31bbf7b39aa5d4d647bfbfb3ff773c97102cbf73"
+      ],
+      [
+        "service-defaults.integration.test.ts",
+        "e051c6b75d6b71ac3b0f678dd4e3d0dc146668ecae348f8bfa72cba119a3b082"
+      ],
+      [
+        "service-denial-contract.test.ts",
+        "579efbe64a0340e50dece4cabc96c13be51674358b7d7685e18cff6facc737b1"
+      ],
+      [
+        "service-execution-capture.unit.test.ts",
+        "33847ce792ca558c066fce4610d391d11645b5beafac4b7ef1ca25730ddab03b"
+      ],
+      [
+        "service-exists.integration.test.ts",
+        "5404adb7e28da97a8aea3de75397a65af7374a0a97ef338e5f41e321160ac66f"
+      ],
+      [
+        "service-list-preparation.unit.test.ts",
+        "e4e384fc72b240628f9e9a084f8f30109834425c0d0a647a68682ea013f75e67"
+      ],
+      [
+        "service-logging-contract.integration.test.ts",
+        "00b63faf0ef7a63df61eccf6035c8677f0ab42b81dff124917e5624c6286d633"
+      ],
+      [
+        "service-logging-contract.unit.test.ts",
+        "c18cf0f8040836ec843bb49484e71334f712df74eb6df2e76350cb41ae04a443"
+      ],
+      [
+        "service-output-preparation.unit.test.ts",
+        "4fc736c373c7c7d8824b1085842f8f73983e2348327be1df5cfd0279496fdd7f"
+      ],
+      [
+        "service.internal.test.ts",
+        "e4d729b0e3484bf9fb38b1d18e5b8c47729e9d9e300966d3484c20ebece0fb13"
+      ],
+      [
+        "setup.ts",
+        "6a8e463d6942d7610ff8c75f602c5193495675647c5be124e7da1eb1032f9678"
+      ],
+      [
+        "side-effect-initialization.test.ts",
+        "b8380f179e01c0c0b9eaae4b002217e2109d095b82e5d54ba2aaa5e078f77752"
+      ],
+      [
+        "sort-field-authorization.integration.test.ts",
+        "6cfb80120a665b8f2de4b9849128a2418efb3c161c01cae15c44d6928c26c640"
+      ],
+      [
+        "sort-options.integration.test.ts",
+        "c4ec3e7cfc5a44d255ce2778596f15df6982c26f11a5f0ac307ad5ea08ed8259"
+      ],
+      [
+        "sort-policy.unit.test.ts",
+        "a1ee7118a31b9550ad0bda47b92c4e7dd52641e117699bda75014cab1a10feb8"
+      ],
+      [
+        "strict-consumer-types.test.ts",
+        "01fa8b171f4bf028357ec835ddb2cfa6ce4fc310a6409481389f1e55b5b59381"
+      ],
+      [
+        "strict-typecheck.test.ts",
+        "2e7f1c5a2e3394701bd7834852e04663aaf37f485044d9550a8f10371b296c60"
+      ],
+      [
+        "subdocument-mutation-visibility.integration.test.ts",
+        "e04c2719871a1bd5b91378db3331d1fb2b922f47461b21140c199fe192e3ce38"
+      ],
+      [
+        "subdocument-populate-authorization.integration.test.ts",
+        "aba1f96659056a344a777182a65e98a30b595780d3eb955d706120626d47244b"
+      ],
+      [
+        "tasks-processors.test.ts",
+        "2f618d18c1578fbfca1af75f2a67d247fea76922c0f8116b4ff027665b3353e9"
+      ],
+      [
+        "tree-shaking-smoke.test.ts",
+        "d41f7691f5920375cd70a7678c4b91a5bdd05cea54cba478f4fa8a3ff430131f"
+      ],
+      [
+        "validation-arc02.test.ts",
+        "2af03bdf19f7d245d76416c1eff5e2147bb872246e73478211b63ae77f16c1b5"
+      ],
+      [
+        "validation-arh06.test.ts",
+        "533d956d96dee08c71f2667bac1351adf40483407eea8222f4a6d69f67a67e2d"
+      ],
+      [
+        "validation-arh07.test.ts",
+        "ce482b2f54a81b76b91cbd697f02207adb0d5ffe023d42f28952089d581037f8"
+      ],
+      [
+        "validation-error-boundary.test.ts",
+        "7c16761a88ae9531c632aa4abe4f476414a837c43919b3d890086d6995a81426"
+      ],
+      [
+        "virtual-filter-literals.integration.test.ts",
+        "b7b049a613f81448cc83de22b727941c49d87fa3d182e7f8d9c85386b50c9540"
+      ],
+      [
+        "virtual-filter-parser.unit.test.ts",
+        "cecc5da955686b46b4aa0a18f510d8ce590ff3f659ddaac202e1fa0bfe5ec443"
+      ],
+      [
+        "virtuals-baseline.contract.test.ts",
+        "5096df55d2cc431e0fd5b3d4a3ca01b7faa7329b43ad5619edb33bb15490484c"
+      ],
+      [
+        "virtuals-config.contract.test.ts",
+        "268e6cd5e66452a22b32163f6118da8df0444e9241cf463d46a7df28af8fa7e8"
+      ],
+      [
+        "virtuals-direct-operations.integration.test.ts",
+        "c2794dc67eab304199739ee2ec82bb2584dc47e6b831fb766f75352851d8b33a"
+      ],
+      [
+        "virtuals-embedded-subdocuments.integration.test.ts",
+        "d0b855053ca29648c518d9c1e440f41aa6cc97e2508f2dce324231ec78332167"
+      ],
+      [
+        "virtuals-finalizer.unit.test.ts",
+        "860ce57f11295cc08ccfa29efdd3c1e2b1609518c59fdffaaa6e18c0260c7c4c"
+      ],
+      [
+        "virtuals-hardening.boundary.test.ts",
+        "6a5d2842e140149a3843f1051d2ba1d9ab40b3285145bf2619c516368f755314"
+      ],
+      [
+        "virtuals-original-refs.characterization.test.ts",
+        "ce6ecfa0bfbfdc257700b4153b453daf55b2f492ffe34e17de58775790d6d9de"
+      ],
+      [
+        "virtuals-performance.probe.test.ts",
+        "304378d1dd26ed285cafe18b5edd95a29228afb9ddf2ffc305ecd368a587d4d0"
+      ],
+      [
+        "virtuals-populate-dependencies.capture-boundaries.review.test.ts",
+        "36f33ce98526eae976bf563a6f88097f7852b0f9a61a8c37ef80588ab694f627"
+      ],
+      [
+        "virtuals-populate-dependencies.config.test.ts",
+        "a7b2e2ef445d2b6e27feb4bfb4765ad12d9fc2fd6781569192b63830e77b4ac0"
+      ],
+      [
+        "virtuals-populate-dependencies.consumer.runtime.fixture.ts",
+        "1e8f9d526a2833dfeafed81ec6f7088e731060d256da63c9eb2cfb953d32154d"
+      ],
+      [
+        "virtuals-populate-dependencies.dispatch.test.ts",
+        "13177a302ba58dcdd9aefc1db7e0919ec5f8fcc190faedc130944fee1063a874"
+      ],
+      [
+        "virtuals-populate-dependencies.fallback.test.ts",
+        "790e7ae2db9ad4e94500013b6c2d572cc7e424c7afa45ad30c4a71a83c80bb15"
+      ],
+      [
+        "virtuals-populate-dependencies.integration.test.ts",
+        "5a0bea9a3b76e17ee4b3d40f6fe29aa1cb91d94e097722f89cd4765218bca0f6"
+      ],
+      [
+        "virtuals-populate-dependencies.intent.test.ts",
+        "fd1c341a6aa7ffac6d2d0d4905fbd6f850d8b5d2fc77c0877eca226781e799c9"
+      ],
+      [
+        "virtuals-populate-dependencies.operation-guards.test.ts",
+        "ed297932445226931e7d6fde7479238f0d0c89a604cf8d8fd9d6f0f188c7c705"
+      ],
+      [
+        "virtuals-populate-dependencies.parity.test.ts",
+        "7e5be199e0aa38fc2d1d015a81267d939c3df85f2eca221b613f180c684f6e8b"
+      ],
+      [
+        "virtuals-populate-dependencies.performance.test.ts",
+        "258a600daedcee42a54d08b72d7ba8a61b784ea37a2d616d6bcb6af8333e7d8c"
+      ],
+      [
+        "virtuals-populate-dependencies.planner.test.ts",
+        "bd6235e074b58b43ed711a0f25d9dea4ffebc179a64771afc24b6f4a7f752eec"
+      ],
+      [
+        "virtuals-populate-dependencies.review.test.ts",
+        "34b7dfa34a91615116f294892b7509e6b55a3ce323ac8e9e7582ff59e3905dfb"
+      ],
+      [
+        "virtuals-populate-dependencies.traversal.test.ts",
+        "31b109ab4480b407d09195222ca4db93a6c0f1ef1a20441caff964a3598be098"
+      ],
+      [
+        "virtuals-populate-dependencies.types.fixture.ts",
+        "192a2b537795147ce19f3cb424daf2993effb50e1fa9577a54b98a54569b0f6d"
+      ],
+      [
+        "virtuals-populate-include.integration.test.ts",
+        "0e7d654dcd7c799699ab57021886508f14b872315b2b536ccd753f53c62f6100"
+      ],
+      [
+        "virtuals-projection-planner.unit.test.ts",
+        "3dadce8d67b50ce51d3c2ef46463959ee91a74bedd387ce020570132aa061431"
+      ],
+      [
+        "virtuals-route-parity.integration.test.ts",
+        "32e87aa3f85b54136903eaab336bddc266964323b72ab17100aaa2c4cc501ff7"
+      ],
+      [
+        "virtuals-validation-openapi.contract.test.ts",
+        "9d81478907be3f6f23dbf3b4578147b4bd3a862a12bc187f7fa1d48854099caf"
+      ],
+      [
+        "write-output-authorization.unit.test.ts",
+        "7abd9367d15710967d87cf6ed597eeb24861e213f1b94925e708395728004268"
+      ],
+      [
+        "write-output-modes.unit.test.ts",
+        "f97e48813d417eb80841c476583faad6a067616c757f80d841e25118cf0b99f7"
+      ],
+      [
+        "write-output-origin-ownership.unit.test.ts",
+        "2e7f1cc693e0e48fdd14ec982116ed61c8228844a8ed36c49412142e9abfa3bf"
+      ],
+      [
+        "write-output-populate.unit.test.ts",
+        "1bafd47ebde71946265a4e321856814b45c9925cc18711f2db443bb0996c2479"
+      ],
+      [
+        "write-output-source-lifetime.unit.test.ts",
+        "902c7aaf0e7a45b78447aca41452efa79c682ac7d78e9cc409700459ec252e2f"
+      ],
+      [
+        "write-output-test-fixture.ts",
+        "acc3536b54a3a917c78b1e13ce029b69adcd63028463d8a8bc2210f298674788"
+      ]
+    ]
+  },
+  "publicFiles": [
+    {
+      "path": "packages/access-router/package.json",
+      "bytes": 2547,
+      "sha256": "9e84237a18da5ba5caf6cd739b512d8aa9cefc7d5f16424d4f48d9b0270a8f1e"
+    },
+    {
+      "path": "packages/access-router/tsup.config.ts",
+      "bytes": 767,
+      "sha256": "4df8c11eca67a582f3d4baa63ff6b337e938e3339d577f8f50fc5eb79f3a205a"
+    },
+    {
+      "path": "packages/access-router/tsconfig.json",
+      "bytes": 421,
+      "sha256": "c8674487548a74efbe1117a07887f140c748758d5d49d857249fdd654e938f03"
+    },
+    {
+      "path": "packages/access-router/tsconfig.typecheck.json",
+      "bytes": 183,
+      "sha256": "6c983646fc2001d8f4ab207dfe516d940e0d1eee37082a9c967d80a46316760e"
+    },
+    {
+      "path": "packages/access-router/vitest.config.ts",
+      "bytes": 252,
+      "sha256": "84ea9f9a4cb1eabe820a9b9015d80881778c1f591a6a66686b23086d12435178"
+    },
+    {
+      "path": "packages/access-router/src/index.ts",
+      "bytes": 17266,
+      "sha256": "ec000d030d38a9595dd58b2a08c98107acf81220cbf3e744d042f0be13c3f15d"
+    },
+    {
+      "path": "packages/access-router/src/advanced.ts",
+      "bytes": 300,
+      "sha256": "c0a8a973374c9020fb5e91ca212e437e5525268e6d1ea6e17b88822fb52e7dc0"
+    },
+    {
+      "path": "packages/access-router/src/processors.ts",
+      "bytes": 20606,
+      "sha256": "ac5dc80163ff701a93e018daf80901847f1ef2690f12b3216882a24ce20e08f7"
+    },
+    {
+      "path": "packages/access-router/src/services/index.ts",
+      "bytes": 117,
+      "sha256": "9866fe02ebb47be8276d7e5eb21fb758e5a4ec89895e5a565c03c4ceb20aab3c"
+    },
+    {
+      "path": "packages/access-router/src/interfaces/index.ts",
+      "bytes": 874,
+      "sha256": "0947f6730571bbeb03affb3640524a9473769e00123f2fd3f57c04f4e9e46463"
+    },
+    {
+      "path": "package.json",
+      "bytes": 2574,
+      "sha256": "1ae33f85f3ca8999509bc2bc3d7d27718a39063dce2d2bb4c361c4ae483cccbe"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "bytes": 764143,
+      "sha256": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "bytes": 680,
+      "sha256": "1692f75b1a4f4b4d22ce74685ec246976cc581dd3b56d75bade732f3e7316141"
+    },
+    {
+      "path": "tsconfig.base.json",
+      "bytes": 3173,
+      "sha256": "f15579b3e57e1074ab9ae3661398f3864dcb0548dec4d291189abe75d252b7ee"
+    }
+  ],
+  "publicManifest": {
+    "name": "@web-ts-toolkit/access-router",
+    "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
+    "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
+    "version": "0.0.0-PLACEHOLDER",
+    "license": "PLACEHOLDER",
+    "sideEffects": [
+      "./**/index.js",
+      "./**/index.mjs",
+      "./**/advanced.js",
+      "./**/advanced.mjs"
+    ],
+    "repository": "PLACEHOLDER",
+    "keywords": [
+      "express",
+      "mongoose",
+      "acl",
+      "crud",
+      "openapi",
+      "access-router",
+      "router"
+    ],
+    "main": "dist/index.js",
+    "module": "dist/index.mjs",
+    "types": "dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": {
+          "import": "./dist/index.d.mts",
+          "require": "./dist/index.d.ts",
+          "default": "./dist/index.d.ts"
+        },
+        "import": "./dist/index.mjs",
+        "require": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./advanced": {
+        "types": {
+          "import": "./dist/advanced.d.mts",
+          "require": "./dist/advanced.d.ts",
+          "default": "./dist/advanced.d.ts"
+        },
+        "import": "./dist/advanced.mjs",
+        "require": "./dist/advanced.js",
+        "default": "./dist/advanced.js"
+      },
+      "./processors": {
+        "types": {
+          "import": "./dist/processors.d.mts",
+          "require": "./dist/processors.d.ts",
+          "default": "./dist/processors.d.ts"
+        },
+        "import": "./dist/processors.mjs",
+        "require": "./dist/processors.js",
+        "default": "./dist/processors.js"
+      }
+    },
+    "scripts": {
+      "build": "tsup --config tsup.config.ts",
+      "typecheck": "pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json",
+      "test": "pnpm --filter @web-ts-toolkit/access-router... build && vitest run --config vitest.config.ts"
+    },
+    "files": [
+      "README.md",
+      "MIGRATION.md",
+      "llms.txt",
+      "dist"
+    ],
+    "engines": {
+      "node": ">=24"
+    },
+    "dependencies": {
+      "@web-ts-toolkit/express-json-router": "workspace:*",
+      "@web-ts-toolkit/utils": "workspace:*",
+      "just-diff": "^6.0.2",
+      "mongoose-schema-jsonschema": "^4.0.1",
+      "sift": "^17.1.3",
+      "winston": "^3.19.0",
+      "zod": "^4.1.12"
+    },
+    "peerDependencies": {
+      "express": ">=5.0.0",
+      "mongoose": ">=8.0.0"
+    },
+    "devDependencies": {
+      "@types/express": "^5.0.6",
+      "ajv": "^8.20.0",
+      "arktype": "^2.2.0",
+      "esbuild": "^0.28.0",
+      "express": "^5.2.1",
+      "mongodb-memory-server": "^11.2.0",
+      "mongoose": "^9.8.0",
+      "supertest": "^7.2.2"
+    }
+  },
+  "node": "v26.12.1",
+  "pnpm": "11.18.0",
+  "scratch": "_tmp-arrc-01-2nfaqj2y",
+  "sourceByteCopies": "_tmp-arrc-01-2nfaqj2y/baseline/packages/access-router/src",
+  "historicalComparison": {
+    "manifest": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-08-verification.json",
+    "manifestSha256": "96b6412d535d305229d478f1b03b6e44ca44d7b7cdc333f6fa386a6edb803228",
+    "source": {
+      "expectedFiles": 151,
+      "actualFiles": 151,
+      "expectedSha256": "072039b46ed3603f995bd04a9b0e09817dce13cef58679774b45da5efa02caef",
+      "actualSha256": "072039b46ed3603f995bd04a9b0e09817dce13cef58679774b45da5efa02caef",
+      "matches": true
+    },
+    "tests": {
+      "expectedFiles": 247,
+      "actualFiles": 247,
+      "expectedSha256": "16cdad676e6cae71b0a9d683498b37740c4fd8c57901c2fde5bcbea87a21bf6d",
+      "actualSha256": "22f30bb1725f17ea9e48bc2528d6d8593ac648d3c5f53e1c2745ccf40198a0c0",
+      "matches": false
+    },
+    "lock": {
+      "expectedSha256": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+      "actualSha256": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+      "matches": true
+    },
+    "maintained": [
+      {
+        "path": "packages/access-router/test/access-router-crud-driver.unit.test.ts",
+        "sha256": "5b447d24a36cc666a72312aa13590176c672f86d3eae78e3bf77090ba6927358",
+        "actualSha256": "2869024b947c36ffb90490e7ab376ff7a5811a9fd6d771c1c2d62116db277a01",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/access-router-crud-fixture.ts",
+        "sha256": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+        "actualSha256": "cd5f7ad4a7d32a57a8f29850d947df357e440023982a5cdf9a761ff80e44ac50",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/access-router-crud-harness.unit.test.ts",
+        "sha256": "ee107cd59ff31ccb0f1d9ba23db5527b749cf9ea4c0cad8fccf981dcf9fb3dec",
+        "actualSha256": "189c1232369e1f573830f9dd23617197292cdda7358da668dcc1bd71929e2eb9",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/access-router-crud-v2.unit.test.ts",
+        "sha256": "90c00437e7c739df6554816273c05ec3125acf3f9207a1573916fa65d1622158",
+        "actualSha256": "97edd1d1ae8b3891f7f501a385cc6c935d5d3d60bfc4cb2ccce7c5a07a6ba588",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/access-router-crud-work.unit.test.ts",
+        "sha256": "c40e4cb066c707dc69e7f199623b627a9f0daef23c268244348dc05e0f62b685",
+        "actualSha256": "1d0e6e9b8dc829838ac3180768102ca9783daa83a14d095b8ea7e41f897da86c",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/bulk-create-metadata-filter-trace.integration.test.ts",
+        "sha256": "a2e6ed173845355f37c6a18d4c3f95e24e9b7331ac0548aa5fd8bd10c2060b83",
+        "actualSha256": "8a540c3c5e864bffe5eb4048e49c70f1f552699700305168cb9b7651df9a03e5",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/no-work-output-scheduling.unit.test.ts",
+        "sha256": "390b1047876cc040ea26f82d65e21971cc50cf73268519803969ecd19a6fab73",
+        "actualSha256": "390b1047876cc040ea26f82d65e21971cc50cf73268519803969ecd19a6fab73",
+        "matches": true
+      },
+      {
+        "path": "packages/access-router/test/service-logging-contract.integration.test.ts",
+        "sha256": "c1c5ee3ae1816ef6d90dea9d46ec85860d6b5d56e2ad63639f47649deb04a2c0",
+        "actualSha256": "00b63faf0ef7a63df61eccf6035c8677f0ab42b81dff124917e5624c6286d633",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/service-logging-contract.unit.test.ts",
+        "sha256": "c9db936a1b642554a34f9fc61e1f1111f56b1fe67e4a71c88f89ca830f212155",
+        "actualSha256": "c18cf0f8040836ec843bb49484e71334f712df74eb6df2e76350cb41ae04a443",
+        "matches": false
+      },
+      {
+        "path": "packages/access-router/test/service-output-preparation.unit.test.ts",
+        "sha256": "3f9bca3f38ccf87d08630d78a7a531d7a2a5fd47ae719465b2d0dc48100e0773",
+        "actualSha256": "4fc736c373c7c7d8824b1085842f8f73983e2348327be1df5cfd0279496fdd7f",
+        "matches": false
+      },
+      {
+        "path": "scripts/benchmarks/access-router-crud-v2-worker.mjs",
+        "sha256": "88130f7a0f49bcad56945de92b04fa236a44b4264d120a5df28d98890a36f30b",
+        "actualSha256": "88130f7a0f49bcad56945de92b04fa236a44b4264d120a5df28d98890a36f30b",
+        "matches": true
+      },
+      {
+        "path": "scripts/benchmarks/access-router-crud-v2.md",
+        "sha256": "ce0258e3fc19dc42534f2f0335a83840f4b654385fdb575eb1efc1a3fa41cf8e",
+        "actualSha256": "f137c2900518c4a1d803227871b89ac913974bc7d9b2c82235c49b37aeec314a",
+        "matches": false
+      },
+      {
+        "path": "scripts/benchmarks/access-router-crud-v2.mjs",
+        "sha256": "e68adae8db5c032524c685b38ee62f2e8fc013652956d7d399e1551b6b8f19a7",
+        "actualSha256": "e68adae8db5c032524c685b38ee62f2e8fc013652956d7d399e1551b6b8f19a7",
+        "matches": true
+      },
+      {
+        "path": "scripts/benchmarks/access-router-crud-worker.mjs",
+        "sha256": "db7c483b988d7818c250b80f2c1530dfde08cd9f70b9e585bd24630b60e5d45b",
+        "actualSha256": "db7c483b988d7818c250b80f2c1530dfde08cd9f70b9e585bd24630b60e5d45b",
+        "matches": true
+      },
+      {
+        "path": "scripts/benchmarks/access-router-crud.md",
+        "sha256": "260d578cbfe7dc5e1485e8527045881abd1ccf305cd9982483abfbd8506d44c9",
+        "actualSha256": "260d578cbfe7dc5e1485e8527045881abd1ccf305cd9982483abfbd8506d44c9",
+        "matches": true
+      },
+      {
+        "path": "scripts/benchmarks/access-router-crud.mjs",
+        "sha256": "4f3bc03eec952671a69fb7e4c5b68cebfcf8b1e976e12a5c2cea59bd93e6f27e",
+        "actualSha256": "4f3bc03eec952671a69fb7e4c5b68cebfcf8b1e976e12a5c2cea59bd93e6f27e",
+        "matches": true
+      }
+    ]
+  }
+}

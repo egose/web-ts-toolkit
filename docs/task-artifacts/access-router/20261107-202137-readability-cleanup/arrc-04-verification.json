@@ -1,0 +1,214 @@
+{
+  "task": "ARRC-04",
+  "head": "28f7266fc010b7e3f14664fcc452d50bdcae0fde",
+  "outcome": "Approved local eager-logging aliases/comments implemented; scoped checks pass; independent final acceptance remains ARRC-06",
+  "baseline": {
+    "moveLedger": "arrc-01-move-ledger.md",
+    "identity": "arrc-01-identity.json",
+    "previousImplementation": "arrc-03-verification.json",
+    "startingIdentityMatchedFresh": true,
+    "startingSourceFiles": 152,
+    "startingSourceSha256": "c9b4e6eeee20d1175d256d1f4d44f41174123c068944cbbc81ba56012e951f8e",
+    "startingTestFiles": 248,
+    "startingTestSha256": "ae59a43f873cb9859472ac632fdff42ec8692b08645522d881e8e21a591bee90"
+  },
+  "workingDirectory": "<repo-root>",
+  "commonEnvironment": {
+    "TMPDIR": "<repo-root>/_tmp-arrc-04-wIsNhZYV",
+    "NO_COLOR": "1",
+    "FORCE_COLOR": "0"
+  },
+  "execution": {
+    "sequential": true,
+    "foregroundToolTimeoutMs": 2400000,
+    "scratch": "_tmp-arrc-04-wIsNhZYV",
+    "scratchIgnoreCheck": "git check-ignore -v _tmp-arrc-04-wIsNhZYV",
+    "scratchIgnoreRule": ".gitignore:8:_tmp*",
+    "queuedJobs": 0,
+    "additionalDelegation": false,
+    "commitsOrResets": false,
+    "sharedTaskEdited": false,
+    "nodeVersion": "v26.12.1"
+  },
+  "commands": [
+    {
+      "label": "typecheck",
+      "argv": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "typecheck"],
+      "startedAt": "2026-11-08T05:15:10.448Z",
+      "endedAt": "2026-11-08T05:15:37.856Z",
+      "seconds": 27.402,
+      "exit": 0,
+      "scrubbedLogSha256": "47357ea2f25fe3a6b861a720e9818433d01552b4f5875239f437021136f7675f",
+      "includes": "fresh access-router and necessary transitive builds, then tsc --noEmit -p tsconfig.typecheck.json"
+    },
+    {
+      "label": "focused",
+      "argv": [
+        "pnpm", "--filter", "@web-ts-toolkit/access-router", "exec", "vitest", "run",
+        "--config", "vitest.config.ts",
+        "test/service-logging-contract.unit.test.ts",
+        "test/service-logging-contract.integration.test.ts",
+        "test/logger-redaction.test.ts",
+        "test/access-router-crud-harness.unit.test.ts",
+        "test/access-router-crud-work.unit.test.ts",
+        "test/service-output-preparation.unit.test.ts",
+        "test/owned-authorization-work.unit.test.ts",
+        "test/owned-authorization-projection-work.unit.test.ts",
+        "--reporter=default", "--reporter=json", "--outputFile",
+        "<repo-root>/_tmp-arrc-04-wIsNhZYV/focused-vitest.json"
+      ],
+      "extraEnvironment": {
+        "ARPC_CRUD_WORK_REPORT": "<repo-root>/_tmp-arrc-04-wIsNhZYV/crud-work.json",
+        "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arrc-04-wIsNhZYV/preparation-work.json"
+      },
+      "startedAt": "2026-11-08T05:15:40.618Z",
+      "endedAt": "2026-11-08T05:15:54.473Z",
+      "seconds": 13.854,
+      "exit": 0,
+      "scrubbedLogSha256": "1f53f36071d8c909c7fd527cdf0bbbda68a076b52c91af93fbe571b2aa37a4f3"
+    },
+    {
+      "label": "lint",
+      "argv": ["pnpm", "exec", "eslint", "packages/access-router/src/services/service.ts"],
+      "startedAt": "2026-11-08T05:15:57.533Z",
+      "endedAt": "2026-11-08T05:16:00.036Z",
+      "seconds": 2.502,
+      "exit": 0,
+      "scrubbedLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "focused": {
+    "files": 8,
+    "total": 516,
+    "passed": 516,
+    "failed": 0,
+    "pending": 0,
+    "todo": 0,
+    "success": true,
+    "perFilePassed": {
+      "test/access-router-crud-harness.unit.test.ts": 434,
+      "test/access-router-crud-work.unit.test.ts": 2,
+      "test/logger-redaction.test.ts": 11,
+      "test/owned-authorization-projection-work.unit.test.ts": 16,
+      "test/owned-authorization-work.unit.test.ts": 16,
+      "test/service-logging-contract.integration.test.ts": 8,
+      "test/service-logging-contract.unit.test.ts": 16,
+      "test/service-output-preparation.unit.test.ts": 13
+    },
+    "selection": "Exactly the three logging suites, all-16-mode CRUD harness and four deterministic-work suites; no full package run",
+    "all16ModeTuples": "Unchanged 434-test CRUD harness passed: 432 catalog cases and two guards, including READ fallback and both UPSERT branches",
+    "existingAssertionsExpectedValuesOrSkipsChanged": false,
+    "newTests": 0,
+    "warning": "unchanged non-failing Vite native-config/ESM warning"
+  },
+  "identity": {
+    "algorithm": "SHA-256(JSON.stringify([relativePath,fileSHA256][])); recursive readdir name.localeCompare('en'), same as maintained CRUD filesUnder; no node_modules",
+    "source": {
+      "files": 152,
+      "sha256": "43ebdf372cacf1a3fcdce9b618ba511fcdf3f67068745e485a155a8feec56e23",
+      "changedStartingFiles": ["services/service.ts"],
+      "unchangedStartingFiles": 151,
+      "addedFiles": [],
+      "removedFiles": []
+    },
+    "tests": {
+      "files": 248,
+      "sha256": "ae59a43f873cb9859472ac632fdff42ec8692b08645522d881e8e21a591bee90",
+      "unchangedStartingFiles": 248,
+      "unchangedARRC01Files": 247,
+      "changedFiles": [],
+      "addedFiles": [],
+      "removedFiles": []
+    },
+    "preservedMetadataModuleSha256": "91a50cb7e4188c6f12241039300a81ce8a2768c3cb9b5e08127fc91d741f4a53",
+    "preservedMetadataTestSha256": "3c5ec37eae42f77f134cc412cfeef2eb1f566254ff509d0bc1325b6dac04eaab",
+    "publicFilesCheckedAgainstBaseline": 14,
+    "protectedStartingFilesChecked": 26,
+    "previousTaskAndArtifactFilesChecked": 12,
+    "baselineSourceCopiesCheckedAgainstDurableHashes": 151,
+    "protectedFileChanges": []
+  },
+  "mechanicalReview": {
+    "tool": "TypeScript 6.0.3",
+    "beforeFileSha256": "8dcde427c01204af32f294e1ce42265f57e056e3579d20a92ff6e69209e999df",
+    "afterFileSha256": "2e249822e2d7efaf054aa9c47da5aa1f096c2128588640cd6d37810e2c355d44",
+    "algorithm": "Parse pre/post service with createSourceFile at the same path. Require exactly two unexported aliases with AST types identical to the original extra annotations; remove only those alias nodes and expand only those two parameter type references. Compare complete normalized AST trees by SyntaxKind and leaf text, excluding JSDoc/trivia/positions. Compare both method bodies directly, exact debugLog object-literal/as-expression bytes, all other class-member text and class header/member order. Independently reconstruct the complete candidate from six exact approved text substitutions. Transpile the full source before/after with target ESNext, module ESNext/CommonJS, removeComments true, sourceMap/declaration false; require byte-identical JavaScript outputs and no parse/transpile errors.",
+    "approvedExactTextEdits": 6,
+    "aliasesAdded": 2,
+    "parameterAnnotationsSubstituted": 2,
+    "commentsAdded": 3,
+    "sourceDiff": { "added": 11, "removed": 2 },
+    "normalizedASTSha256": "32be5ed01438ad623d22042356ce1f2de8cc372060312a2dd7639e3f2cc071f6",
+    "normalizedNontriviaTokens": 20244,
+    "wholeFileParsedASTIdenticalAfterOnlyTypeNormalization": true,
+    "allOtherClassMembersByteIdentical": true,
+    "classHeaderAndAllMemberNamesAndOrderIdentical": true,
+    "noOtherTextChanges": true,
+    "aliasesExported": false,
+    "methods": [
+      {
+        "method": "beginOp",
+        "alias": "ServiceOperationStartExtras",
+        "bodyASTIdentical": true,
+        "exactObjectLiteralAndCastSha256": "fbeca8f1fed431896839c6acb047ea6c59edbc660268c44594431b9f727b988e",
+        "exactObjectLiteralAndCastBytes": 179
+      },
+      {
+        "method": "completeOp",
+        "alias": "ServiceOperationCompletionExtras",
+        "bodyASTIdentical": true,
+        "exactObjectLiteralAndCastSha256": "778a1214e2dc2180b554c689ed18c644d01623a95be47b44fa3b5bd9415e84d9",
+        "exactObjectLiteralAndCastBytes": 222
+      }
+    ],
+    "runtimeOutputs": [
+      { "module": "ESNext", "bytes": 106934, "sha256": "acca34adfe36f0a82559e240830a003853e5bcd0b84936dc1512a4d4d1b138da", "byteIdentical": true },
+      { "module": "CommonJS", "bytes": 114108, "sha256": "7b2f54d25dbba204605647c78d7de9a7a50de9f8be1e60821f0ada85681bbaa1", "byteIdentical": true }
+    ],
+    "preserved": "Exact executable expressions/casts, receiver dispatch, clock/summary/model-name/extra-read ordering, caller argument evaluation and eager level/logger resolution; logger-helpers and OpLogContext untouched; metadata factory and populate bindings/comments retained",
+    "newLoggingModuleLazyContextLevelCacheOrEvents": false
+  },
+  "declarations": {
+    "manifest": "arrc-01-declarations.json",
+    "files": 8,
+    "totalBytes": 782693,
+    "pathsUnchanged": true,
+    "byteComparedTo": "_tmp-arrc-01-2nfaqj2y/baseline/declarations",
+    "byteAndDurableHashChanges": [],
+    "comparisonAfterFocusedTests": true
+  },
+  "workComparison": {
+    "baseline": "arrc-01-work-baseline.json",
+    "crud": {
+      "records": 96,
+      "rawSha256": "f8175081b1ddddfd58f87d779ee7c6a9cec5a8310f59a65b61b78e72287b7f2b",
+      "rawHashMatchesBaseline": true,
+      "allCountsAndOrderedTracesDeeplyEqual": true,
+      "differingIds": []
+    },
+    "preparation": {
+      "records": 32,
+      "rawSha256": "e6acf8b14c60ce66b9889f1bbbb4d5bae98dde3d8dd9bbe836de75bfb31b5589",
+      "rawHashMatchesBaseline": true,
+      "allCountsAndOrderedTracesDeeplyEqual": true,
+      "differingIds": []
+    },
+    "duplicateCandidateRowsArchived": false,
+    "limits": "128 fresh records match the durable ARRC-01 observations exactly; no duplicate rows archived. These are deterministic work diagnostics, not timing/allocation measurements or a performance claim. Unrelated publication observations were not rerun."
+  },
+  "preservation": {
+    "filesAdded": ["arrc-04-report.md", "arrc-04-verification.json"],
+    "previousArtifactsOverwritten": false,
+    "artifactsIgnored": false,
+    "manualAudit": "Strict JSON, relative links/baseline references, private path/session patterns, whitespace, git diff --check, protected hashes and declaration bytes checked before handoff",
+    "auditHarnessCorrection": "The first audit helper incorrectly required exit 0 from git diff --no-index --check for new files; Git returned 1 with no diagnostics. Corrected the helper to accept 0/1 only with empty stdout/stderr, then reran. No source, test or contract change was needed.",
+    "omitted": "Operational source snapshot, AST/emission/check/runner scripts, full command logs and Vitest assertion JSON, duplicate work rows, source/declaration byte copies, dependencies, generated builds and MongoDB files. Scratch is disposable, not a portable reproduction bundle; reconstruction needs the baseline revision plus retained ARRC-02/03 changes, workspace dependencies/toolchain and memory-server prerequisites."
+  },
+  "blockers": [],
+  "notRun": [
+    "full package test (ARRC-06 owns one final run)",
+    "root/grouped/downstream tests or root build/lint sweep",
+    "benchmark campaign",
+    "ARRC-05/06 implementation or independent final acceptance"
+  ]
+}

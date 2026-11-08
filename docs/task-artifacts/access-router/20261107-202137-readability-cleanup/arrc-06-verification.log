@@ -1,0 +1,41 @@
+ARRC-06 final acceptance — curated summary and selected stdout, not full raw logs.
+Working directory: <repo-root>. All commands sequential and foreground; queued jobs: 0.
+Node v26.12.1; pnpm 11.18.0; Vitest 4.1.11; TypeScript 6.0.3; tsup 8.5.1; linux x64.
+Environment overrides: TMPDIR=<repo-root>/_tmp-arrc-06-ACEtYj; NO_COLOR=1; FORCE_COLOR=0.
+Scratch ignored by .gitignore:8:_tmp*. Exact argv/times/raw-log hashes: arrc-06-verification.json.
+
+2026-11-08T16:53:08.386531Z — pnpm --filter @web-ts-toolkit/access-router typecheck
+Exit 0; 30.848 s. Fresh filtered/transitive build, then source tsc --noEmit.
+
+2026-11-08T16:53:42.771913Z — pnpm --filter @web-ts-toolkit/access-router test
+ARPC_CRUD_WORK_REPORT=<repo-root>/_tmp-arrc-06-ACEtYj/crud-work.json
+ARPC_OUTPUT_PREPARATION_REPORT=<repo-root>/_tmp-arrc-06-ACEtYj/preparation-work.json
+Foreground tool timeout: 3000000 ms. Exactly one full package run.
+Exit 0; command duration 1800.363 s.
+ Test Files  211 passed (211)
+      Tests  7565 passed (7565)
+   Duration  1776.28s (transform 3.85s, setup 69.68s, import 23.54s, tests 1661.05s, environment 17ms)
+No failed/skipped/todo tests. Existing non-failing Vite native-config/ESM warning retained.
+
+2026-11-08T17:23:51.788847Z — pnpm exec eslint packages/access-router/src packages/access-router/test
+Exit 0; 7.937 s; no lint output.
+
+2026-11-08T17:25:08.711596Z — two publication work cases only (exact argv in JSON)
+Full-run default reporter omitted these stdout observations; no second full run.
+OAR04_WORK {"mode":"isolated","rows":6,"fields":24,"wholeSourceMaterializations":12,"selectedScalarMaterializations":144,"callbacks":144,"hooks":6,"adapterReads":1}
+OAR04_WORK {"mode":"trusted","rows":6,"fields":24,"wholeSourceMaterializations":0,"selectedScalarMaterializations":144,"callbacks":144,"hooks":6,"adapterReads":1}
+ Test Files  1 passed (1)
+      Tests  2 passed | 48 skipped (50)
+Exit 0; 2.659 s. The 48 cases were name-filtered out, not newly skipped in source.
+All 50 cases had already passed as part of the full package run.
+
+Post-verification comparisons:
+8 declaration paths / 782693 bytes: identical to ARRC-01 hashes and operational byte copies.
+96 CRUD records: deeply equal; raw SHA-256 f8175081b1ddddfd58f87d779ee7c6a9cec5a8310f59a65b61b78e72287b7f2b.
+32 preparation records: deeply equal; raw SHA-256 e6acf8b14c60ce66b9889f1bbbb4d5bae98dde3d8dd9bbe836de75bfb31b5589.
+2 publication observations: deeply equal; array SHA-256 a8ea6aa663bd44c7b10438737734792d22ec94a64708d83546b16d8c78537abc.
+247 original test/fixture files, 14 public/config files and all 15 earlier artifacts: unchanged.
+Source tree SHA-256 e63cf3cc91fb0236e354ea741678892a2800c09dac7dd0c2ddfdbda4bd160814.
+Test/fixture tree SHA-256 ae59a43f873cb9859472ac632fdff42ec8692b08645522d881e8e21a591bee90.
+Accepted. No source/test edits, commits, resets, deletions, delegation or shared-task edits.
+No root/grouped/downstream sweep or performance campaign. No queued/background jobs.

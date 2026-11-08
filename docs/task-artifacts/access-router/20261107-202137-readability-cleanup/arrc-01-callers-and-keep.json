@@ -1,0 +1,3183 @@
+{
+  "task": "ARRC-01",
+  "scope": "repository-wide tracked code read-only search; source plus generated declaration AST member inventory",
+  "scannedTrackedCodeFiles": 1473,
+  "rules": "Keep every listed class member name, order, accessibility, parameter positions/types/default expressions, dispatch receiver and declaration bytes. Only approved lexical names/body comments may change.",
+  "classMembers": [
+    {
+      "path": "packages/access-router/dist/parsers-fSBARZSn.d.ts",
+      "class": "Service",
+      "members": [
+        {
+          "order": 0,
+          "name": "#private",
+          "kind": "PropertyDeclaration",
+          "visibility": "native-private",
+          "modifiers": [],
+          "line": 2726,
+          "declarationTextSha256": "72ce4048cd9ec63f9f4d89648405b23be8a9e11783704a2d83d6f42fd2c57231"
+        },
+        {
+          "order": 1,
+          "name": "model",
+          "kind": "PropertyDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2727,
+          "declarationTextSha256": "321a190bc1bf013651b212ea5d6bc5132a5df020adc44b97bcb835337f761e70"
+        },
+        {
+          "order": 2,
+          "name": "options",
+          "kind": "GetAccessor",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2728,
+          "declarationTextSha256": "3a4065f3b42a4f0e02421f5d9341a515feefc28c11444b854140d977b449f9fc"
+        },
+        {
+          "order": 3,
+          "name": "defaultsOverride",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2729,
+          "declarationTextSha256": "cb325eff2ad4ddcaf8d620bb328b897bbb80c4cdcbcaac0fbb95fc1be8e933f1"
+        },
+        {
+          "order": 4,
+          "name": "defaults",
+          "kind": "GetAccessor",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2737,
+          "declarationTextSha256": "7221f787c9b34ef6047ab6884af500ea8ce1094b94b7c111ff12e736ebba237b"
+        },
+        {
+          "order": 5,
+          "name": "defaults",
+          "kind": "SetAccessor",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2738,
+          "declarationTextSha256": "9436299e0ed669386c6b7ee30065e0496e40e8c6bfee05aa6786143db13e36ff"
+        },
+        {
+          "order": 6,
+          "name": "baseFields",
+          "kind": "PropertyDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2739,
+          "declarationTextSha256": "abfe81d14a87f41431bce918c552950bf113acd2645088683cfc3930c349a2cc"
+        },
+        {
+          "order": 7,
+          "name": "baseFieldsExt",
+          "kind": "GetAccessor",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2740,
+          "declarationTextSha256": "4be1882c426999ff153f6ee11fc2a7a4c2b3c2636b304aa65813a15c94abe110"
+        },
+        {
+          "order": 8,
+          "name": "hookGate",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "line": 2741,
+          "declarationTextSha256": "5c9176fdabe3900ed4ef92cf96a7a70a001c26ad604be8cc32a9eba8be8a8fc7"
+        },
+        {
+          "order": 9,
+          "name": "persist",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "line": 2742,
+          "declarationTextSha256": "3eac6bf7227e63c940bddf6f8b9da93f4c2559d258f6c6e4db2874bb2e4360ea"
+        },
+        {
+          "order": 10,
+          "name": "findRawParentDoc",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2744,
+          "declarationTextSha256": "eb48321bd3cbc2e7d38bb67964ceb26ce0fb42f4b2b49cdd7bf1a12b4a2de953"
+        },
+        {
+          "order": 11,
+          "name": "createModelAdapter",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2749,
+          "declarationTextSha256": "c82659ab74407141832516ef9a24241d1369d85b2b78e94078204c4541c03049"
+        },
+        {
+          "order": 12,
+          "name": "getModelRouterOptions",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2750,
+          "declarationTextSha256": "ab6c4063dd0238dcddd7a564b4e45aeadc71eda32ae121deb6b3bcde92006a51"
+        },
+        {
+          "order": 13,
+          "name": "getPermissionsPosture",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2755,
+          "declarationTextSha256": "9f23e964e74249ef6561f1a7740d582607af676df1d3ca9e01fd5df26931607a"
+        },
+        {
+          "order": 14,
+          "name": "asServiceHookContext",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2759,
+          "declarationTextSha256": "0f96d7461e170b6057a8835e3cdc272bcbee35b4886b47cfc327b150ebea5896"
+        },
+        {
+          "order": 15,
+          "name": "admitServiceCall",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2761,
+          "declarationTextSha256": "5b8b085ac1a88bd3bfb685482cef3f983bd5345079e381f2d2e1e67ce9ce2f65"
+        },
+        {
+          "order": 16,
+          "name": "executionOutputPlan",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2762,
+          "declarationTextSha256": "140a511aabe38a7954d4d1c0ea332ba2e457096b93a88b303202a7d7aeb15367"
+        },
+        {
+          "order": 17,
+          "name": "preparedOutputIntent",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2763,
+          "declarationTextSha256": "d82687c5ecdb19f8a349b2b73afa92b6c74b8d1463b300de8fd6f359b19e95b5"
+        },
+        {
+          "order": 18,
+          "name": "loadOutputPopulateDependencies",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2767,
+          "declarationTextSha256": "a7bcc8ff3cce5a3c423d30d52264d463ccf160bc0d4063c338d7e3d606225047"
+        },
+        {
+          "order": 19,
+          "name": "prepareDetachedOutputRows",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2769,
+          "declarationTextSha256": "b9e955ea24f4c77c0f7f26325febd35a64a48c4950c208c15aee8228ec0f6c8d"
+        },
+        {
+          "order": 20,
+          "name": "requestSortFields",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2770,
+          "declarationTextSha256": "0418941d8487b8e8d857c5bbcb7c763e33ca5b31715cce285b8b495a2ef1f3f6"
+        },
+        {
+          "order": 21,
+          "name": "admitOutputRows",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2772,
+          "declarationTextSha256": "e93138b57957f4be07b5647d8cee5a1df345d2d122ac186ddeb1786c213fb635"
+        },
+        {
+          "order": 22,
+          "name": "finalizeDirectOutput",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2774,
+          "declarationTextSha256": "233712f13e94004556e831cdb337881ea8cab8e50ae8f1fa11a5559c72a708b1"
+        },
+        {
+          "order": 23,
+          "name": "captureTrustedCorrelatedSource",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2776,
+          "declarationTextSha256": "b99a9ed8c3b8f83421af5194a4c783c39610dde173bfcfcb601e7a8c18aec3da"
+        },
+        {
+          "order": 24,
+          "name": "getEffectiveAllowedSortFields",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2777,
+          "declarationTextSha256": "cf1b35e39e80b11e13892e063d25fbf5df969febc53aa6c6eaddb14966c286f0"
+        },
+        {
+          "order": 25,
+          "name": "resolveEffectiveSelect",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2783,
+          "declarationTextSha256": "2b069016ed757b751c79163dc6f0148e9ed55b1000fb1d09c79c139ec9110086"
+        },
+        {
+          "order": 26,
+          "name": "captureVirtualSnapshot",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2789,
+          "declarationTextSha256": "cd2111eb914d071996ed8741a8426498d74c99e20364450926f3a12b2798ddc2"
+        },
+        {
+          "order": 27,
+          "name": "getVirtualGlobalPermissions",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2790,
+          "declarationTextSha256": "e93c6a2b6c5e28ea89dfa92f4008c0916c4b56c9a95a5d30694c6d612c78bfe5"
+        },
+        {
+          "order": 28,
+          "name": "getVirtualHookConcurrencyLimit",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2794,
+          "declarationTextSha256": "27c45819829daf194d1b63fccd143e86be73ab02be3ef9ea0cd4bb49e46d76ee"
+        },
+        {
+          "order": 29,
+          "name": "getServiceRequest",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2802,
+          "declarationTextSha256": "6b6f6a8e8c94b5d3bb9c2106148f6f7c0508697a0aa8de34da21a5920f7767f9"
+        },
+        {
+          "order": 30,
+          "name": "getServiceModelName",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2803,
+          "declarationTextSha256": "2f7d32f6b2e79f0fb8ef4adcc669d733a47ca2dd7120be1b149efb6c7fdf76a8"
+        },
+        {
+          "order": 31,
+          "name": "getServiceMongooseModel",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2804,
+          "declarationTextSha256": "2cdb80ed99ddd9acd8d754683d6987ac977d00de1940bcaa1073c525c48d8825"
+        },
+        {
+          "order": 32,
+          "name": "finalizePopulateForSubParent",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2814,
+          "declarationTextSha256": "ddf5a79e22554c85287ffb87ae3a04df229f2d234f930e1628ff392b3fc4c41b"
+        },
+        {
+          "order": 33,
+          "name": "filterAllowedFieldsForVirtuals",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2815,
+          "declarationTextSha256": "8e11dfdd975954072da2947bbd253b9709be4cc64b7d48ef596224cabb0172e8"
+        },
+        {
+          "order": 34,
+          "name": "stripVirtualsFromFilterForSnapshot",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2816,
+          "declarationTextSha256": "ecc8a0c9963030a5a55145d8050746b8a031d0cab86011f4aad9f0614b95ab1f"
+        },
+        {
+          "order": 35,
+          "name": "getAssociationFieldFromOptions",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2833,
+          "declarationTextSha256": "36c9314306c7ac31b2b38a1d991d79fa16d1c015cf0f9948c5be5a77e7ee4de5"
+        },
+        {
+          "order": 36,
+          "name": "buildDbSelectForAssociation",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2834,
+          "declarationTextSha256": "41b4319542d522dc4dbff995d7db8cf8a89db82d6a2a07c8c91639440afe2998"
+        },
+        {
+          "order": 37,
+          "name": "captureAssociationValues",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2835,
+          "declarationTextSha256": "df21461c0c826c0f6a34b6c732c14d9958a9db57da68d6a864e3a92c6fe9ea1d"
+        },
+        {
+          "order": 38,
+          "name": "captureRelated",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2836,
+          "declarationTextSha256": "3ce20deb850d586428402c8c665c4125d189bd35c0b4a53298d846545836ac4a"
+        },
+        {
+          "order": 39,
+          "name": "genExecutionPopulate",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2844,
+          "declarationTextSha256": "94e391ac365288d35efb478d89dee99df9277909027ffd700821693b2790f4b6"
+        },
+        {
+          "order": 40,
+          "name": "isScalarPopulateValue",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2845,
+          "declarationTextSha256": "dfcf94078e7dd99a88ee216cddb5f5d0aa144f88c174b7d1c8dcac32a524b5f3"
+        },
+        {
+          "order": 41,
+          "name": "populateTargetIdentity",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2847,
+          "declarationTextSha256": "932461ab2bf4d8afb1ec560cdd35cf2ab95ba781f178cd9001c852bc0b0e3259"
+        },
+        {
+          "order": 42,
+          "name": "finalizeSinglePopulateTarget",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2848,
+          "declarationTextSha256": "1335ecc0263ab1d92253adda9c1c0316689a91ccc2a8b35ac7fa8ba11792631a"
+        },
+        {
+          "order": 43,
+          "name": "populateOutputCache",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "line": 2849,
+          "declarationTextSha256": "b025e8cb603329cf8844f10c6fb3165a071f0c63c400b11fde4db41f857b8fd3"
+        },
+        {
+          "order": 44,
+          "name": "populateBudgetRecipients",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "line": 2850,
+          "declarationTextSha256": "596be65524b7d95f832571b9bd92238d05564297d0d354e2c9bc7920a0df5b66"
+        },
+        {
+          "order": 45,
+          "name": "populateInputSlots",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "line": 2851,
+          "declarationTextSha256": "89678bbe3f9367536381fff622601d60f21c69e586cfc953272c155088cee2b1"
+        },
+        {
+          "order": 46,
+          "name": "populateInputArrays",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "line": 2852,
+          "declarationTextSha256": "bbface099808d58aeef1be100c8f58e264fdd67063f399750469617caf4d0214"
+        },
+        {
+          "order": 47,
+          "name": "registerPopulateRecipients",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2854,
+          "declarationTextSha256": "6d59431acab7259f1856901ee78ca48a991a74a54a7b1e9e983c608e7dfd2724"
+        },
+        {
+          "order": 48,
+          "name": "finalizePopulatePath",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2855,
+          "declarationTextSha256": "af62b5f5c31892f70f9df552fc68c739a4bad329f51b95d31113a6d973d15949"
+        },
+        {
+          "order": 49,
+          "name": "finalizePopulateForSingleDoc",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2856,
+          "declarationTextSha256": "ea6d1b8cc76ab903c72dc9721c920de8794cc4132ca2f13c993a29acb43e0eab"
+        },
+        {
+          "order": 50,
+          "name": "beginOp",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2857,
+          "declarationTextSha256": "4f58ea8ea287ef9f5882cce1dd3e85444c591a165d6a899da0909e3e7d0a1c00"
+        },
+        {
+          "order": 51,
+          "name": "completeOp",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2858,
+          "declarationTextSha256": "3a04a5167b36347fbde0820e0136faa7ddd420c05be08179adfec23a5803b004"
+        },
+        {
+          "order": 52,
+          "name": "constructor",
+          "kind": "Constructor",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2859,
+          "declarationTextSha256": "aeed07eb60830561ddf65071632509e5c8c368a013ae1edd47f35c95169f7b06"
+        },
+        {
+          "order": 53,
+          "name": "findOne",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2860,
+          "declarationTextSha256": "77e4273a0f8e331798ea7d849f82179ceae72b6bd426375350fe66be13f9e724"
+        },
+        {
+          "order": 54,
+          "name": "findOnePrepared",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2861,
+          "declarationTextSha256": "3c4c3a0c8b55d0a6617c0eda58ce81230d2179bf68281cede6da6d479ad7db29"
+        },
+        {
+          "order": 55,
+          "name": "findById",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2862,
+          "declarationTextSha256": "2551302ae407852b37ac718b1e82f82b81476920ccccbdd7fe1fe796b9a6de44"
+        },
+        {
+          "order": 56,
+          "name": "find",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2863,
+          "declarationTextSha256": "81c0511739392d887535ffdb2f301ddf42ca314779781c0514138fe43a37ba8d"
+        },
+        {
+          "order": 57,
+          "name": "findPrepared",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2864,
+          "declarationTextSha256": "ec6dd4e3eea17767f039ae5df968fa931ac945b192ec97ca22ba1e89a1e8e772"
+        },
+        {
+          "order": 58,
+          "name": "create",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2865,
+          "declarationTextSha256": "39d9336601a116996a0a6121295ac7d9f715b0a5c8a8be37fd9514f18d94ee42"
+        },
+        {
+          "order": 59,
+          "name": "createPrepared",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2866,
+          "declarationTextSha256": "79b21b452cb29741586ea8a057bf5a77530d16731460928baa2015e5fc6c8b02"
+        },
+        {
+          "order": 60,
+          "name": "formatBulkValidationIssue",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2867,
+          "declarationTextSha256": "60e37b2964c3048efcbeabb19809cad14bbc01192a89dffeb753a65460d455e8"
+        },
+        {
+          "order": 61,
+          "name": "new",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2868,
+          "declarationTextSha256": "e1c7424a3a14989618a2f2bce5ac20a4fb179182a81b9b2fe9388a828d23a96f"
+        },
+        {
+          "order": 62,
+          "name": "updateOne",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2878,
+          "declarationTextSha256": "ebec81e8ddd4f4a50cf1c405c61cb37074f2b13ef68880f4b74e5517262e3db5"
+        },
+        {
+          "order": 63,
+          "name": "updateOnePrepared",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2879,
+          "declarationTextSha256": "3589bfd72c786f4eb22ec8cf34bf72bdc765e6fa6845d89d414c21404e82201d"
+        },
+        {
+          "order": 64,
+          "name": "updateById",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2880,
+          "declarationTextSha256": "efdf3e64acaddf4bddeffab1a519764ea0758d140d45d4e9c2fcac9940c6430b"
+        },
+        {
+          "order": 65,
+          "name": "upsert",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2881,
+          "declarationTextSha256": "918a85bcc16381cd2561a08308661237fb641e821eacf27e37ceebf15962dac0"
+        },
+        {
+          "order": 66,
+          "name": "delete",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2882,
+          "declarationTextSha256": "edd1d4cda0fef5fbedb1114c35d79bcbb37ab143f4c72af9d82cbc8da3792196"
+        },
+        {
+          "order": 67,
+          "name": "exists",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2889,
+          "declarationTextSha256": "858635c1309ef0f27fbf991e0ddac37a980c0aec7772530b419a2a7e91d47763"
+        },
+        {
+          "order": 68,
+          "name": "exists",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2893,
+          "declarationTextSha256": "4cd41b4736589fda69d45dec3b1efb75da522330a6f0255a1cde65a79aeb2461"
+        },
+        {
+          "order": 69,
+          "name": "isValidDistinctFieldName",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2894,
+          "declarationTextSha256": "2651a3b6c4468426eb8724d93ee7663a1c837934e667679fefb7568a175ccfd4"
+        },
+        {
+          "order": 70,
+          "name": "authorizeDistinctField",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 2895,
+          "declarationTextSha256": "87bf0ad790d0393c3f5fe95f23bf3d7ca0558e4d660f97058abe7914464687b1"
+        },
+        {
+          "order": 71,
+          "name": "distinct",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2903,
+          "declarationTextSha256": "24f8e83f2c815b83e9bec9fdd704897610c49a980534d9d7e629b973618e1d08"
+        },
+        {
+          "order": 72,
+          "name": "count",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2913,
+          "declarationTextSha256": "3bfd2e9fc4f853608df6a867bf83e5b4217b11df530fe611d1e87d8beb494e97"
+        },
+        {
+          "order": 73,
+          "name": "countTrusted",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2922,
+          "declarationTextSha256": "943ab1c86e5c7aa9de1934171c3324531d6ca017fa76cd016038f703bebe7065"
+        },
+        {
+          "order": 74,
+          "name": "countByFieldValues",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2959,
+          "declarationTextSha256": "ecf1fb1f55b9b2ba5edd836edd64fb61b2cc1d916210b700a0ca46233ed3bcdb"
+        },
+        {
+          "order": 75,
+          "name": "countPreparedByFieldValueGroups",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2960,
+          "declarationTextSha256": "ec9fd93fd9b76b87da11442b0c7213414b91c160ac78cca2b4cbf4492f0379b6"
+        },
+        {
+          "order": 76,
+          "name": "getDocPermissions",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2961,
+          "declarationTextSha256": "0b2ada74bbda121d5feba3d5a8ce3afcd0582c47b44efea178bae9de85a099ab"
+        },
+        {
+          "order": 77,
+          "name": "resolveUpsertArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2962,
+          "declarationTextSha256": "07f166feae6cdadb72680c91fb3a8e5b6d500d98dd0f12cf5da573b6a3f60d5a"
+        },
+        {
+          "order": 78,
+          "name": "resolveUpsertOptions",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2963,
+          "declarationTextSha256": "2561a34bf859150b218448131552177796f0661381a340d1ac9ab8402e3f65e5"
+        },
+        {
+          "order": 79,
+          "name": "resolveExistsOptions",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2964,
+          "declarationTextSha256": "653ccb228d6adc943d6f2a248533010bc31cd4130f67cff660fe2964446f53b2"
+        },
+        {
+          "order": 80,
+          "name": "getFieldPermissionAccess",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2965,
+          "declarationTextSha256": "a3cdadd98f44dcc234a2f0fe7f2ccb98ca40beb209d4b34d95930b1b8704da0e"
+        },
+        {
+          "order": 81,
+          "name": "getAccessibleIdSet",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 2966,
+          "declarationTextSha256": "4f2ff5ad059ca77c747ff42ec84362d091c5ee15fa54f67f5c80366fad7d0e47"
+        },
+        {
+          "order": 82,
+          "name": "listSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2968,
+          "declarationTextSha256": "0744b982518b21ae285a362edf9d1947fb7f1b183e7a0ca293dbba9802083d5b"
+        },
+        {
+          "order": 83,
+          "name": "readSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2970,
+          "declarationTextSha256": "0b0193c7a5ec25116c2c80d6b6a02035fc77bfbf2ab569d0e7b5c8f25c57bb7a"
+        },
+        {
+          "order": 84,
+          "name": "updateSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2979,
+          "declarationTextSha256": "443187a9ccbef06dcc49a1a1ccd9d79fcff8067f683b151ec043a56457f3a993"
+        },
+        {
+          "order": 85,
+          "name": "bulkUpdateSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2986,
+          "declarationTextSha256": "44196aebf251b42798b0c4d924b6487591ed4dcb91d5233ea5a14df30d5b0b61"
+        },
+        {
+          "order": 86,
+          "name": "createSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2995,
+          "declarationTextSha256": "d97ef9b167f69e4282187c4a0d2364311e2a3fde8f04e9f15396164d1a80b496"
+        },
+        {
+          "order": 87,
+          "name": "deleteSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2997,
+          "declarationTextSha256": "72fcd93983900996ee47df220fe64a38b83ea468f442d30bc88d7f240650817f"
+        },
+        {
+          "order": 88,
+          "name": "getParentDoc",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 2999,
+          "declarationTextSha256": "f65b9bfd1f19930cba8de20e78ba91b221f1fa78c8e17da9fd7c927e8b32734e"
+        }
+      ]
+    },
+    {
+      "path": "packages/access-router/dist/parsers-fSBARZSn.d.ts",
+      "class": "PublicService",
+      "members": [
+        {
+          "order": 0,
+          "name": "#private",
+          "kind": "PropertyDeclaration",
+          "visibility": "native-private",
+          "modifiers": [],
+          "line": 3003,
+          "declarationTextSha256": "72ce4048cd9ec63f9f4d89648405b23be8a9e11783704a2d83d6f42fd2c57231"
+        },
+        {
+          "order": 1,
+          "name": "constructor",
+          "kind": "Constructor",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3004,
+          "declarationTextSha256": "aeed07eb60830561ddf65071632509e5c8c368a013ae1edd47f35c95169f7b06"
+        },
+        {
+          "order": 2,
+          "name": "listSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3006,
+          "declarationTextSha256": "3a5c43920ef35e0891b5811a7bc669e3a029fef85c9661229045978e161f73ba"
+        },
+        {
+          "order": 3,
+          "name": "readSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3007,
+          "declarationTextSha256": "f247073fef1c7bba0ae4f9aeb22a43e49ab358cf620a78245786be9dbf8206e7"
+        },
+        {
+          "order": 4,
+          "name": "createSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3008,
+          "declarationTextSha256": "b50563df07afb1fdd364df21938a1626dcbb6d083ae144a05b62cb5ee4c41a16"
+        },
+        {
+          "order": 5,
+          "name": "updateSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3009,
+          "declarationTextSha256": "a05880517b07081680db9cd26269d7d2d8303a22921b9982b40f9b69a38a791a"
+        },
+        {
+          "order": 6,
+          "name": "bulkUpdateSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3010,
+          "declarationTextSha256": "8f9379dac27225dbdf1f50b94b5f031e66dc99e54ce364c7bdeeba593c18923b"
+        },
+        {
+          "order": 7,
+          "name": "deleteSub",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3011,
+          "declarationTextSha256": "202437646f0945ffe42fb0c329c5814552e7ec49b22d2fec1af71f733b604208"
+        },
+        {
+          "order": 8,
+          "name": "_list",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3012,
+          "declarationTextSha256": "fcdac5bb4086697dfe00a8cd859e39c782ca70c888e4b07a45735f7eeb1d6b14"
+        },
+        {
+          "order": 9,
+          "name": "_create",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3016,
+          "declarationTextSha256": "cacf2b36f4bc1bafef3e92cdc0ed7bae37a72ae43e726e2a99deaee44e07adb9"
+        },
+        {
+          "order": 10,
+          "name": "_new",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3020,
+          "declarationTextSha256": "0061af0950bb10589d1e376ec53201d297d7bb117f6e02bbb53cfb253b2e4d6b"
+        },
+        {
+          "order": 11,
+          "name": "_read",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3028,
+          "declarationTextSha256": "16f2702fd8e4c30ca1bcbc64dc6e34b84ead3f60156420c664c65e1ce9496a54"
+        },
+        {
+          "order": 12,
+          "name": "_readFilter",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3032,
+          "declarationTextSha256": "3fd2eb44fb87618b958415b224ea852b0e4588a0f1492ee23bf7e2e9971d06db"
+        },
+        {
+          "order": 13,
+          "name": "_update",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3037,
+          "declarationTextSha256": "59eab1fbd683d02f32b85e66d5bb3d71e9f613d340874cf4baca85f350f6efa2"
+        },
+        {
+          "order": 14,
+          "name": "_upsert",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3054,
+          "declarationTextSha256": "4cd7807604d123acf00d1fe73f1e757e4a19dfe01067d6391083e116b4e46167"
+        },
+        {
+          "order": 15,
+          "name": "_delete",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3058,
+          "declarationTextSha256": "91fcad85902c8fc94928d7f5a742de4cccd3cd0a4e581739d732039064800a78"
+        },
+        {
+          "order": 16,
+          "name": "_distinct",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3059,
+          "declarationTextSha256": "b19802e919185a752c615767b783b3155f62af12688351465b1d80fda073849b"
+        },
+        {
+          "order": 17,
+          "name": "_count",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3060,
+          "declarationTextSha256": "7b395e8c947bf0d2e48f8107866d412b63624c9f0b39ad6a135e1a85314f8615"
+        },
+        {
+          "order": 18,
+          "name": "captureListFallbackAdmission",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3062,
+          "declarationTextSha256": "aeccbfbf05607d540092b7bbb8f15622cb8b9e0a59115809cc2635759d45dd33"
+        },
+        {
+          "order": 19,
+          "name": "admitPublicCall",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3063,
+          "declarationTextSha256": "8dd06abf8e80783040554ae6b94a4ae8b14b45c94b1923d3fddaaf4ce6ac0c39"
+        },
+        {
+          "order": 20,
+          "name": "resolvePublicListArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3064,
+          "declarationTextSha256": "959c53fca75d85f2c3807a8d877be61940193f867069619de385da595388dfdd"
+        },
+        {
+          "order": 21,
+          "name": "resolvePublicListOptions",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3065,
+          "declarationTextSha256": "a801c9d540179798d176085c781879a0a65eb65e23422b0fa2c6c3bb261b6da5"
+        },
+        {
+          "order": 22,
+          "name": "resolvePublicCreateArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3066,
+          "declarationTextSha256": "e9de3d23b348f4f8723a872c19fb93646869ab0aedd26ea14a0af8b2cdebe034"
+        },
+        {
+          "order": 23,
+          "name": "resolvePublicCreateOptions",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3067,
+          "declarationTextSha256": "4581d6ae119819faeede7cd8b784a365d95e9a38757003934bada16aef7f6451"
+        },
+        {
+          "order": 24,
+          "name": "resolvePublicReadArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3068,
+          "declarationTextSha256": "1d068eb396b6442c4f831d395426f6ffb94447f4d5df86de9dc0852414dfa179"
+        },
+        {
+          "order": 25,
+          "name": "resolvePublicReadFilterArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3069,
+          "declarationTextSha256": "7b3c5ebd692def372414fe51405bbed68de7eedc363382469fcb01197b5e98c9"
+        },
+        {
+          "order": 26,
+          "name": "resolvePublicReadOptions",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3070,
+          "declarationTextSha256": "b94cc1189b755bdfea24a690ecbba27929190483a197e4b6607050e6a35bd7af"
+        },
+        {
+          "order": 27,
+          "name": "resolvePublicUpdateArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3071,
+          "declarationTextSha256": "7eb5e300766ca6f92c457b07748193b6a792e55b3d3157ee8d9c1de6b1c7a106"
+        },
+        {
+          "order": 28,
+          "name": "resolvePublicUpdateOptions",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3072,
+          "declarationTextSha256": "4de81c2868d7f01c7894844d8ff6d1f8e428e2f7aebaf4b30558b4dd8541a908"
+        }
+      ]
+    },
+    {
+      "path": "packages/access-router/dist/parsers-fSBARZSn.d.ts",
+      "class": "Base",
+      "members": [
+        {
+          "order": 0,
+          "name": "req",
+          "kind": "PropertyDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3262,
+          "declarationTextSha256": "7c786cc01c1c3b928c0a677065727d97447b8def9addb0cf5f223cf0b8b97eee"
+        },
+        {
+          "order": 1,
+          "name": "modelName",
+          "kind": "PropertyDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3263,
+          "declarationTextSha256": "94a42d133b7e7b6854fb676ebf4927323e5bd56d065c8eda7a3435577a245a81"
+        },
+        {
+          "order": 2,
+          "name": "requestRuntime",
+          "kind": "PropertyDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected",
+            "readonly"
+          ],
+          "line": 3264,
+          "declarationTextSha256": "1c470bafc7540c71173076be0812bb4578aeeb56d63eb934fab444338c9963b9"
+        },
+        {
+          "order": 3,
+          "name": "requestCore",
+          "kind": "PropertyDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected",
+            "readonly"
+          ],
+          "line": 3265,
+          "declarationTextSha256": "1b63d99496aee391227a7771787aa003f1a65b3f88a1a5e031cc042917c41c20"
+        },
+        {
+          "order": 4,
+          "name": "constructor",
+          "kind": "Constructor",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3266,
+          "declarationTextSha256": "aeed07eb60830561ddf65071632509e5c8c368a013ae1edd47f35c95169f7b06"
+        },
+        {
+          "order": 5,
+          "name": "decorate",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3267,
+          "declarationTextSha256": "e988a7863b613c947b196e514445c095144f0045328dc0e2aed70af15a56af10"
+        },
+        {
+          "order": 6,
+          "name": "decorateAll",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3268,
+          "declarationTextSha256": "f675565d93feee9413ad67985d1f368c3c412eec80edaede4fd30e909b2c9b7e"
+        },
+        {
+          "order": 7,
+          "name": "genAllowedFields",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3275,
+          "declarationTextSha256": "1f312b5d47848a77033879b4098b599c3d0bcfb5c1e2e2eede33f81955aa0789"
+        },
+        {
+          "order": 8,
+          "name": "genDocPermissions",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3277,
+          "declarationTextSha256": "fbebce9beea39abd9b6c2672bea4373e79c7b8ca17a1fb7dfc57e10612a5cca0"
+        },
+        {
+          "order": 9,
+          "name": "genFilter",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3278,
+          "declarationTextSha256": "f1a75a28f25180cebd852bac603f1bd8d88f6fbaea93f3fb2f7bbf248b50d83f"
+        },
+        {
+          "order": 10,
+          "name": "getIdentifier",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3279,
+          "declarationTextSha256": "8437893cbdbf2c8648df740af23432aa7a0190d2c3ff4565f9a70e99c78db3c4"
+        },
+        {
+          "order": 11,
+          "name": "genIDFilter",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3280,
+          "declarationTextSha256": "88c6b23b47bc9d94d438c5db228276dfc05869db857e56c86c6c41ceab79f500"
+        },
+        {
+          "order": 12,
+          "name": "genPopulate",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3282,
+          "declarationTextSha256": "1977b4662bf21d22d56e6673a83c0a8477930e0c2a3c20c4ad67b9fe580805d3"
+        },
+        {
+          "order": 13,
+          "name": "genSelect",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3290,
+          "declarationTextSha256": "324d91d7ed56f27bab1dc3366843856f85d57a6718321de8096cdd103bc83d5b"
+        },
+        {
+          "order": 14,
+          "name": "genQuerySelect",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3292,
+          "declarationTextSha256": "8c72b984d352010fcbc86fbb7283d3f88f130771fbe491abce926447297e057c"
+        },
+        {
+          "order": 15,
+          "name": "addEmptyPermissions",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3294,
+          "declarationTextSha256": "52e20311e47fa787acc5bd5773cf778aec7e33769bd2e70e529dadda9ec38a45"
+        },
+        {
+          "order": 16,
+          "name": "addDocPermissions",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3296,
+          "declarationTextSha256": "de64df97ac36e29519251b66f98d7c2abadee72e681e873e3bcb1137f75b4fa5"
+        },
+        {
+          "order": 17,
+          "name": "addFieldPermissions",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3298,
+          "declarationTextSha256": "4cccae31f87a0ba77c30ae10e985f6fecd04f981da8364a5f12d6ddce0d3ad50"
+        },
+        {
+          "order": 18,
+          "name": "pickAllowedFields",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3308,
+          "declarationTextSha256": "0089227172e709c287c80e3444292e45e2943d37c7e67cc03a7eda7b7ed2c1bc"
+        },
+        {
+          "order": 19,
+          "name": "pickAllowedFieldsMany",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3339,
+          "declarationTextSha256": "cc9241eaaf549f59e8e02f9386f034d078247e4b952f8c7dbfb8496f549859f6"
+        },
+        {
+          "order": 20,
+          "name": "trimOutputFields",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3341,
+          "declarationTextSha256": "307475dbd9952aecdc92a3b48c2d6735e88b89dd30c80e1fba93603736c44862"
+        },
+        {
+          "order": 21,
+          "name": "prepare",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3342,
+          "declarationTextSha256": "9f3cd1eb6210db86ab8c1bd79583ac95694480738c60d8c7e9ff416a0476dfb4"
+        },
+        {
+          "order": 22,
+          "name": "runTasks",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3343,
+          "declarationTextSha256": "eeeb5577a36b3add664b9c8ef456fef2686b7432c0d1d862fe3cd58685515160"
+        },
+        {
+          "order": 23,
+          "name": "transform",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3344,
+          "declarationTextSha256": "e4737870775250d39ea00493061ba14bfd1e3fe18d6070d373129e97d4ba639c"
+        },
+        {
+          "order": 24,
+          "name": "afterPersist",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3345,
+          "declarationTextSha256": "478bf904d0cc22c8a1bab92e43290c20179949330cd4a3794309b323c55400e1"
+        },
+        {
+          "order": 25,
+          "name": "changes",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3346,
+          "declarationTextSha256": "51651b8534d6b5f3f65cfb9f5563ff18b084e6df1dce5e3a13b00f10cc2e93f7"
+        },
+        {
+          "order": 26,
+          "name": "beforeDelete",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3347,
+          "declarationTextSha256": "d85f8454631365e66914594c6d6c875a4877fc910b89f23d52a2858c89a09590"
+        },
+        {
+          "order": 27,
+          "name": "afterDelete",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3348,
+          "declarationTextSha256": "83f0244960aa49a4562634a4995c5145233e94988dcc3f348c8c024a2da26332"
+        },
+        {
+          "order": 28,
+          "name": "validate",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3349,
+          "declarationTextSha256": "d0f56fcc8fae13c75c880c907e9a26408fb98bbe2c6a4fbb36ac086241f0759d"
+        },
+        {
+          "order": 29,
+          "name": "checkIfModelPermissionExists",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3350,
+          "declarationTextSha256": "fe791712e02b05ec26475de64f7cea09f456a989ed49da6810b93f9e1fc671ff"
+        },
+        {
+          "order": 30,
+          "name": "validateClientFilter",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3351,
+          "declarationTextSha256": "9ccd89a2870a9ab9566187f8b5f2ff0aa9f89a0cdb1c37c1b50be129d9e60ae0"
+        },
+        {
+          "order": 31,
+          "name": "getRequestComplexity",
+          "kind": "MethodDeclaration",
+          "visibility": "public",
+          "modifiers": [],
+          "line": 3352,
+          "declarationTextSha256": "b0d05ddabf22cd08710b904d9d0afa716e540a2bb3e27a3548a76a5b9352837b"
+        },
+        {
+          "order": 32,
+          "name": "getClientRequestErrorResult",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3365,
+          "declarationTextSha256": "9e116e3edb030729d06ee6c2ea2fa9132924f573f94afdfaf4c5c01a4b039460"
+        },
+        {
+          "order": 33,
+          "name": "throwClientRequestError",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3366,
+          "declarationTextSha256": "493b4b2f70262ce0ad67bfcdbdb1d4fcd9475a03accfcce7689557e8558cea51"
+        },
+        {
+          "order": 34,
+          "name": "getAuthorizedTargetService",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3367,
+          "declarationTextSha256": "602c3db9abb7ccdf9684fb6296382a015b4632a087ae2d314bfaec47c6fa74e1"
+        },
+        {
+          "order": 35,
+          "name": "relatedBinding",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3368,
+          "declarationTextSha256": "b11b159351065e4353e8fa40fea357b628343be51c398eea8203af47d047bf03"
+        },
+        {
+          "order": 36,
+          "name": "relatedExecution",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3369,
+          "declarationTextSha256": "5369b85f17b4ffa103a515039b8da2fc337ba433ff66ebc7bc353b993f72c34e"
+        },
+        {
+          "order": 37,
+          "name": "processInclude",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3370,
+          "declarationTextSha256": "c9be8f04aa47b695279efa45b77cc237f68db454a032659a3ef1f513b3a40603"
+        },
+        {
+          "order": 38,
+          "name": "validateIncludeOutputPath",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3377,
+          "declarationTextSha256": "a6034a4a0fd0c8283afd9e6399a5b566e3b6563b904286183b7aca831e1412b6"
+        },
+        {
+          "order": 39,
+          "name": "collectVirtualDbPathsForPreflight",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3387,
+          "declarationTextSha256": "81012bc38b6330e35ce1959df49de71ccf0a12a41aaadb59dfdf330f55ad467a"
+        },
+        {
+          "order": 40,
+          "name": "validateIncludeVirtualCollision",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3388,
+          "declarationTextSha256": "b661df99c1367316a784ec071c0bf86add980e36f078a06a5c7ee622219c3c23"
+        },
+        {
+          "order": 41,
+          "name": "assertIncludeOutputPaths",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3389,
+          "declarationTextSha256": "1c6d35ac0793f421eb87ea8d72e9f9faf72c372f5471d58dfc48344442da0b7c"
+        },
+        {
+          "order": 42,
+          "name": "getForeignKeyValues",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3390,
+          "declarationTextSha256": "24b73a78276166e5fa4b079e70dba46ac32ae0ff4ecd9a0d33faa620544c43df"
+        },
+        {
+          "order": 43,
+          "name": "getForeignKey",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3391,
+          "declarationTextSha256": "13cc8506817d58521a781f3cd7a60ca4eac0ec97607db2252bff3ed1a13dce32"
+        },
+        {
+          "order": 44,
+          "name": "buildForeignKeyIndex",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3392,
+          "declarationTextSha256": "ce1c8cbc4694b284d7366091799a3f1be3c41a55188275439e193f00cd1c250d"
+        },
+        {
+          "order": 45,
+          "name": "getIndexedMatches",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3393,
+          "declarationTextSha256": "e57b3ff17b8a17ec4117bc7729397a31ad1daa653aee88de9f19c7a01f4f0fb8"
+        },
+        {
+          "order": 46,
+          "name": "sanitizeIncludeArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3394,
+          "declarationTextSha256": "8d81def3e7c7ded549547549cb46b0c938a8bd08ec9fbd754374b7a72ea22acf"
+        },
+        {
+          "order": 47,
+          "name": "assertIncludeForeignField",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3395,
+          "declarationTextSha256": "0fa22abc13fcf19c67a79ea618c71a4dc39a52f4b8a9ef8999e625616b969269"
+        },
+        {
+          "order": 48,
+          "name": "includeDocs",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3396,
+          "declarationTextSha256": "e6b3e17bcc579d93d664589c4f22d7d13183934134b1fd2db3de4a2c98b69388"
+        },
+        {
+          "order": 49,
+          "name": "includeDocsRead",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3397,
+          "declarationTextSha256": "fcb10eb86463b2e6ccae0d5e30cd8cf662eaf6b20bb88d7f4901553ef5f1fd52"
+        },
+        {
+          "order": 50,
+          "name": "includeDocsList",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3398,
+          "declarationTextSha256": "d52a7b59c40bbc57d9d1d5e29675110cd59c897f901508c985df0c3ae637f33a"
+        },
+        {
+          "order": 51,
+          "name": "includeDocsCount",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3399,
+          "declarationTextSha256": "0b63c59857d41d4453c23e61bceeeeec0519772280ab62230b9d23b133f1a6d5"
+        },
+        {
+          "order": 52,
+          "name": "getCorrelatedExecState",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3400,
+          "declarationTextSha256": "0182ed5af01d326bf7801969abab2feeff420b6878087add64ff23fee254c642"
+        },
+        {
+          "order": 53,
+          "name": "claimCorrelatedQuerySlot",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3401,
+          "declarationTextSha256": "ed175d33781323dba2dfc88f623a3a23e69af0e65459c63b254748c3dfa25b0b"
+        },
+        {
+          "order": 54,
+          "name": "sanitizeCorrelatedArgs",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3402,
+          "declarationTextSha256": "39cc733c6b6fe1788edc54e159a431dfbbc70f7c142767367ae250503b93e142"
+        },
+        {
+          "order": 55,
+          "name": "includeCorrelatedDocs",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3403,
+          "declarationTextSha256": "cc55d44fac1cd308a1dac564dc9c8728540df118ae50303530a3fd8ca150cfdc"
+        },
+        {
+          "order": 56,
+          "name": "includeCorrelatedRead",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3404,
+          "declarationTextSha256": "897e87ef1bd2f8a7cf0ec78b6a025cae6dec8a26dc0f319f2f7a14c6dabf386a"
+        },
+        {
+          "order": 57,
+          "name": "includeCorrelatedList",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3405,
+          "declarationTextSha256": "db2d5037135d6913d85263457b0c20daeb105a9bafb9071f0b8b821e04d6c158"
+        },
+        {
+          "order": 58,
+          "name": "includeCorrelatedCount",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3406,
+          "declarationTextSha256": "c759aaf02c42b5f5fecf2e31206f7be8a791a03b1af50af16d0912c0f6e873db"
+        },
+        {
+          "order": 59,
+          "name": "parseClientData",
+          "kind": "MethodDeclaration",
+          "visibility": "protected",
+          "modifiers": [
+            "protected"
+          ],
+          "line": 3407,
+          "declarationTextSha256": "85b3cfab4d1ea6c5c8fce5650d5b737d244146a6a3e06226066aae7943a1c2f0"
+        },
+        {
+          "order": 60,
+          "name": "handleSubQuery",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3408,
+          "declarationTextSha256": "6c0b7b8057b71d81bbdf1f8966516c7c69b880d71756483863d38ef582be7ce1"
+        },
+        {
+          "order": 61,
+          "name": "handleDate",
+          "kind": "PropertyDeclaration",
+          "visibility": "private",
+          "modifiers": [
+            "private"
+          ],
+          "line": 3409,
+          "declarationTextSha256": "00eda43b22e1fb767655199ada56612d2943d83f0f4770372d56c7221442b1fb"
+        }
+      ]
+    }
+  ],
+  "privateTestCallers": {
+    "finalizeDirectOutput": [],
+    "finalizeSinglePopulateTarget": [],
+    "finalizePopulatePath": [],
+    "finalizePopulateForSingleDoc": [],
+    "beginOp": [],
+    "completeOp": [],
+    "asServiceHookContext": [],
+    "getFieldPermissionAccess": [],
+    "getAccessibleIdSet": [],
+    "isScalarPopulateValue": [],
+    "populateTargetIdentity": [],
+    "registerPopulateRecipients": []
+  },
+  "occurrences": {
+    "finalizeDirectOutput": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 551,
+        "text": "private async finalizeDirectOutput(args: {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1780,
+        "text": "let output: Awaited<ReturnType<Service<TModel, TVirtuals>['finalizeDirectOutput']>>;"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1782,
+        "text": "output = await this.finalizeDirectOutput({"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2137,
+        "text": "const output = await this.finalizeDirectOutput({"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2390,
+        "text": "const output = await this.finalizeDirectOutput({"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2484,
+        "text": "this.finalizeDirectOutput({"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2707,
+        "text": "const output = await this.finalizeDirectOutput({"
+      }
+    ],
+    "finalizeSinglePopulateTarget": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1003,
+        "text": "private async finalizeSinglePopulateTarget("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1244,
+        "text": "return this.finalizeSinglePopulateTarget("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1262,
+        "text": "const finalized = await this.finalizeSinglePopulateTarget("
+      }
+    ],
+    "finalizePopulatePath": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1162,
+        "text": "private async finalizePopulatePath("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1183,
+        "text": "await this.finalizePopulatePath("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1278,
+        "text": "await this.finalizePopulatePath("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1317,
+        "text": "await this.finalizePopulatePath("
+      }
+    ],
+    "finalizePopulateForSingleDoc": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 785,
+        "text": "await this.finalizePopulateForSingleDoc("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1297,
+        "text": "private async finalizePopulateForSingleDoc("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1391,
+        "text": "this.finalizePopulateForSingleDoc("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1759,
+        "text": "await this.finalizePopulateForSingleDoc("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2124,
+        "text": "await this.finalizePopulateForSingleDoc("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2377,
+        "text": "await this.finalizePopulateForSingleDoc("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2694,
+        "text": "await this.finalizePopulateForSingleDoc("
+      }
+    ],
+    "beginOp": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1335,
+        "text": "private beginOp("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1581,
+        "text": "const startedAt = this.beginOp('findOne', _filter, {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1982,
+        "text": "const startedAt = this.beginOp('find', _filter, {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2580,
+        "text": "const startedAt = this.beginOp('updateOne', _filter, {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2805,
+        "text": "const startedAt = this.beginOp('upsert', _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2878,
+        "text": "const startedAt = this.beginOp('delete', filter);"
+      }
+    ],
+    "completeOp": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1351,
+        "text": "private completeOp("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1588,
+        "text": "this.completeOp('findOne', startedAt, Codes.Forbidden, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1595,
+        "text": "this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1607,
+        "text": "this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1626,
+        "text": "this.completeOp('findOne', startedAt, Codes.NotFound, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1682,
+        "text": "this.completeOp('findOne', fetched.startedAt, Codes.Success, fetched._filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1744,
+        "text": "this.completeOp('findOne', startedAt, result.code, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1774,
+        "text": "this.completeOp('findOne', startedAt, result.code, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1796,
+        "text": "this.completeOp('findOne', startedAt, result.code, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1801,
+        "text": "this.completeOp('findOne', startedAt, Codes.Success, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1991,
+        "text": "this.completeOp('find', startedAt, Codes.Forbidden, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1998,
+        "text": "this.completeOp('find', startedAt, Codes.BadRequest, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2004,
+        "text": "this.completeOp('find', startedAt, Codes.BadRequest, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2054,
+        "text": "this.completeOp('find', startedAt, result.code, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2155,
+        "text": "this.completeOp('find', startedAt, Codes.Success, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2585,
+        "text": "this.completeOp('updateOne', startedAt, Codes.Forbidden, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2602,
+        "text": "this.completeOp('updateOne', startedAt, Codes.NotFound, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2618,
+        "text": "this.completeOp('updateOne', startedAt, result.code, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2644,
+        "text": "this.completeOp('updateOne', startedAt, Codes.BadRequest, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2649,
+        "text": "this.completeOp('updateOne', startedAt, Codes.BadRequest, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2720,
+        "text": "this.completeOp('updateOne', startedAt, Codes.Success, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2807,
+        "text": "this.completeOp('upsert', startedAt, Codes.Forbidden, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2856,
+        "text": "this.completeOp('upsert', startedAt, result.code, _filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2881,
+        "text": "this.completeOp('delete', startedAt, Codes.Forbidden, filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2886,
+        "text": "this.completeOp('delete', startedAt, Codes.NotFound, filter);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2911,
+        "text": "this.completeOp('delete', startedAt, Codes.Success, filter);"
+      }
+    ],
+    "asServiceHookContext": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 375,
+        "text": "private asServiceHookContext(context: ModelHookContext): ServiceHookContext {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 609,
+        "text": "this.asServiceHookContext(context).fieldPermissionAccess ??"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2118,
+        "text": "this.asServiceHookContext(contexts[i]).fieldPermissionAccess = fieldPermissionAccess;"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2669,
+        "text": "this.asServiceHookContext(context).diff = (d) => {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2682,
+        "text": "this.asServiceHookContext(context).diff(doc);"
+      }
+    ],
+    "getFieldPermissionAccess": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 610,
+        "text": "(await this.getFieldPermissionAccess([source._id], args.publication));"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2103,
+        "text": "? await this.getFieldPermissionAccess("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 3327,
+        "text": "private async getFieldPermissionAccess(ids: unknown[], publication?: OutputPublication) {"
+      }
+    ],
+    "getAccessibleIdSet": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 3338,
+        "text": "? trackPublicationWork(publication, this.getAccessibleIdSet(uniqueIds, 'read'))"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 3339,
+        "text": ": this.getAccessibleIdSet(uniqueIds, 'read'),"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 3341,
+        "text": "? trackPublicationWork(publication, this.getAccessibleIdSet(uniqueIds, 'update'))"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 3342,
+        "text": ": this.getAccessibleIdSet(uniqueIds, 'update'),"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 3348,
+        "text": "private async getAccessibleIdSet(ids: string[], access: BaseFilterAccess) {"
+      }
+    ],
+    "isScalarPopulateValue": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 974,
+        "text": "private isScalarPopulateValue(value: unknown): boolean {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1017,
+        "text": "if (this.isScalarPopulateValue(rawTarget)) return rawTarget;"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1139,
+        "text": "if (this.isScalarPopulateValue(value)) return;"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1242,
+        "text": "if (this.isScalarPopulateValue(value))"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1261,
+        "text": "if (this.isScalarPopulateValue(child)) return;"
+      }
+    ],
+    "populateTargetIdentity": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 998,
+        "text": "private populateTargetIdentity(value: object, publication: OutputPublication): object {"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1037,
+        "text": "const cacheKey = this.populateTargetIdentity(rawTarget as object, owner);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1140,
+        "text": "const key = this.populateTargetIdentity(value, row.publication);"
+      }
+    ],
+    "registerPopulateRecipients": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 783,
+        "text": "this.registerPopulateRecipients([{ doc: parentDoc, budget, publication }], populateEntries);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1105,
+        "text": "private registerPopulateRecipients("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1378,
+        "text": "this.registerPopulateRecipients("
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 1711,
+        "text": "this.registerPopulateRecipients([outputRow], _populate as Populate[]);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2028,
+        "text": "this.registerPopulateRecipients(outputRows, filteredPopulate as Populate[]);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2368,
+        "text": "this.registerPopulateRecipients(outputRows, resolvedPopulate);"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 2688,
+        "text": "this.registerPopulateRecipients([row], _populate as Populate[]);"
+      }
+    ],
+    "finalizePopulateForSubParent": [
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "line": 763,
+        "text": "public async finalizePopulateForSubParent("
+      }
+    ]
+  },
+  "serviceCalls": [
+    {
+      "method": "asServiceHookContext",
+      "caller": "finalizeDirectOutput",
+      "line": 609,
+      "arguments": [
+        "context"
+      ]
+    },
+    {
+      "method": "getFieldPermissionAccess",
+      "caller": "finalizeDirectOutput",
+      "line": 610,
+      "arguments": [
+        "[source._id]",
+        "args.publication"
+      ]
+    },
+    {
+      "method": "registerPopulateRecipients",
+      "caller": "finalizePopulateForSubParent",
+      "line": 783,
+      "arguments": [
+        "[{ doc: parentDoc, budget, publication }]",
+        "populateEntries"
+      ]
+    },
+    {
+      "method": "finalizePopulateForSingleDoc",
+      "caller": "finalizePopulateForSubParent",
+      "line": 785,
+      "arguments": [
+        "parentDoc",
+        "populateEntries",
+        "parentContext",
+        "parentOperation",
+        "limit",
+        "gate",
+        "undefined",
+        "references",
+        "budget",
+        "publication"
+      ]
+    },
+    {
+      "method": "isScalarPopulateValue",
+      "caller": "finalizeSinglePopulateTarget",
+      "line": 1017,
+      "arguments": [
+        "rawTarget"
+      ]
+    },
+    {
+      "method": "populateTargetIdentity",
+      "caller": "finalizeSinglePopulateTarget",
+      "line": 1037,
+      "arguments": [
+        "rawTarget as object",
+        "owner"
+      ]
+    },
+    {
+      "method": "isScalarPopulateValue",
+      "caller": "registerPopulateRecipients",
+      "line": 1139,
+      "arguments": [
+        "value"
+      ]
+    },
+    {
+      "method": "populateTargetIdentity",
+      "caller": "registerPopulateRecipients",
+      "line": 1140,
+      "arguments": [
+        "value",
+        "row.publication"
+      ]
+    },
+    {
+      "method": "finalizePopulatePath",
+      "caller": "finalizePopulatePath",
+      "line": 1183,
+      "arguments": [
+        "el",
+        "segments",
+        "segIdx",
+        "meta",
+        "parentOperation",
+        "parentContext",
+        "hookLimit",
+        "sharedGate",
+        "Array.isArray(original) ? original[index] : undefined",
+        "references",
+        "budget",
+        "publication",
+        "parentAuthorization",
+        "[...address, index]"
+      ]
+    },
+    {
+      "method": "isScalarPopulateValue",
+      "caller": "finalizePopulatePath",
+      "line": 1242,
+      "arguments": [
+        "value"
+      ]
+    },
+    {
+      "method": "finalizeSinglePopulateTarget",
+      "caller": "finalizePopulatePath",
+      "line": 1244,
+      "arguments": [
+        "value",
+        "meta",
+        "parentOperation",
+        "parentContext",
+        "hookLimit",
+        "sharedGate",
+        "originalValue",
+        "budget",
+        "publication",
+        "parentAuthorization",
+        "depth"
+      ]
+    },
+    {
+      "method": "isScalarPopulateValue",
+      "caller": "finalizePopulatePath",
+      "line": 1261,
+      "arguments": [
+        "child"
+      ]
+    },
+    {
+      "method": "finalizeSinglePopulateTarget",
+      "caller": "finalizePopulatePath",
+      "line": 1262,
+      "arguments": [
+        "child",
+        "meta",
+        "parentOperation",
+        "parentContext",
+        "hookLimit",
+        "sharedGate",
+        "originalChild",
+        "budget",
+        "publication",
+        "parentAuthorization",
+        "address.length + 1"
+      ]
+    },
+    {
+      "method": "finalizePopulatePath",
+      "caller": "finalizePopulatePath",
+      "line": 1278,
+      "arguments": [
+        "child",
+        "segments",
+        "segIdx + 1",
+        "meta",
+        "parentOperation",
+        "parentContext",
+        "hookLimit",
+        "sharedGate",
+        "originalChild",
+        "references",
+        "budget",
+        "publication",
+        "parentAuthorization",
+        "[...address, key]"
+      ]
+    },
+    {
+      "method": "finalizePopulatePath",
+      "caller": "finalizePopulateForSingleDoc",
+      "line": 1317,
+      "arguments": [
+        "getIncludeSource(doc)",
+        "segments",
+        "0",
+        "meta",
+        "parentOperation",
+        "parentContext",
+        "hookLimit",
+        "sharedGate",
+        "getIncludeOriginal(doc, parentAuthorization)",
+        "references",
+        "budget",
+        "publication",
+        "parentAuthorization"
+      ]
+    },
+    {
+      "method": "registerPopulateRecipients",
+      "caller": "constructor",
+      "line": 1378,
+      "arguments": [
+        "rows.map((doc, index) => ({ doc, budget: budgets[index], publication: state.publication }))",
+        "populate"
+      ]
+    },
+    {
+      "method": "finalizePopulateForSingleDoc",
+      "caller": "constructor",
+      "line": 1391,
+      "arguments": [
+        "doc",
+        "populate",
+        "context",
+        "state.access.operation",
+        "this.hookGate.limit",
+        "this.hookGate",
+        "state.authorization",
+        "references[index]",
+        "budgets[index]",
+        "state.publication"
+      ]
+    },
+    {
+      "method": "beginOp",
+      "caller": "#fetchOnePrepared",
+      "line": 1581,
+      "arguments": [
+        "'findOne'",
+        "_filter",
+        "{\n      sort: effectiveSort,\n      selectCount: finalSelect.length,\n      populateCount: Array.isArray(_populate) ? _populate.length : _populate ? 1 : 0,\n    }"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "#fetchOnePrepared",
+      "line": 1588,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "Codes.Forbidden",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "#fetchOnePrepared",
+      "line": 1595,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "Codes.BadRequest",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "#fetchOnePrepared",
+      "line": 1607,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "Codes.BadRequest",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "#fetchOnePrepared",
+      "line": 1626,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "Codes.NotFound",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "#findOneConditionPrepared",
+      "line": 1682,
+      "arguments": [
+        "'findOne'",
+        "fetched.startedAt",
+        "Codes.Success",
+        "fetched._filter"
+      ]
+    },
+    {
+      "method": "registerPopulateRecipients",
+      "caller": "findOnePrepared",
+      "line": 1711,
+      "arguments": [
+        "[outputRow]",
+        "_populate as Populate[]"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findOnePrepared",
+      "line": 1744,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "result.code",
+        "_filter"
+      ]
+    },
+    {
+      "method": "finalizePopulateForSingleDoc",
+      "caller": "findOnePrepared",
+      "line": 1759,
+      "arguments": [
+        "doc",
+        "_populate as Populate[]",
+        "context",
+        "'read'",
+        "findOneHookLimit",
+        "findOneGate",
+        "state.authorization",
+        "outputRow.references",
+        "outputRow.budget",
+        "outputRow.publication"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findOnePrepared",
+      "line": 1774,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "result.code",
+        "_filter"
+      ]
+    },
+    {
+      "method": "finalizeDirectOutput",
+      "caller": "findOnePrepared",
+      "line": 1782,
+      "arguments": [
+        "{\n        doc,\n        plan: virtualPlan,\n        context,\n        includePermissions,\n        includeFieldPermissions,\n        stage: outputRow.stage,\n        budget: outputRow.budget,\n        publication: outputRow.publication,\n        references: outputRow.references,\n      }"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findOnePrepared",
+      "line": 1796,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "result.code",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findOnePrepared",
+      "line": 1801,
+      "arguments": [
+        "'findOne'",
+        "startedAt",
+        "Codes.Success",
+        "_filter"
+      ]
+    },
+    {
+      "method": "beginOp",
+      "caller": "findPrepared",
+      "line": 1982,
+      "arguments": [
+        "'find'",
+        "_filter",
+        "{\n      sort: effectiveSort,\n      skip: pagination.skip,\n      limit: pagination.limit,\n      selectCount: finalSelect.concat(includeLocalFields, correlatedReferenceFields).length,\n      populateCount: Array.isArray(filteredPopulate) ? filteredPopulate.length : filteredPopulate ? 1 : 0,\n    }"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findPrepared",
+      "line": 1991,
+      "arguments": [
+        "'find'",
+        "startedAt",
+        "Codes.Forbidden",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findPrepared",
+      "line": 1998,
+      "arguments": [
+        "'find'",
+        "startedAt",
+        "Codes.BadRequest",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findPrepared",
+      "line": 2004,
+      "arguments": [
+        "'find'",
+        "startedAt",
+        "Codes.BadRequest",
+        "_filter"
+      ]
+    },
+    {
+      "method": "registerPopulateRecipients",
+      "caller": "findPrepared",
+      "line": 2028,
+      "arguments": [
+        "outputRows",
+        "filteredPopulate as Populate[]"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findPrepared",
+      "line": 2054,
+      "arguments": [
+        "'find'",
+        "startedAt",
+        "result.code",
+        "_filter"
+      ]
+    },
+    {
+      "method": "getFieldPermissionAccess",
+      "caller": "findPrepared",
+      "line": 2103,
+      "arguments": [
+        "docs.map((doc) => getDocValue(getIncludeSource(doc) as never, '_id'))",
+        "state.publication"
+      ]
+    },
+    {
+      "method": "asServiceHookContext",
+      "caller": "findPrepared",
+      "line": 2118,
+      "arguments": [
+        "contexts[i]"
+      ]
+    },
+    {
+      "method": "finalizePopulateForSingleDoc",
+      "caller": "findPrepared",
+      "line": 2124,
+      "arguments": [
+        "doc",
+        "filteredPopulate as Populate[]",
+        "contexts[i]",
+        "'list'",
+        "hookLimit",
+        "sharedGate",
+        "state.authorization",
+        "outputRows[i].references",
+        "outputRows[i].budget",
+        "outputRows[i].publication"
+      ]
+    },
+    {
+      "method": "finalizeDirectOutput",
+      "caller": "findPrepared",
+      "line": 2137,
+      "arguments": [
+        "{\n          doc,\n          plan: virtualPlan,\n          context: contexts[i],\n          includePermissions,\n          includeFieldPermissions,\n          privateAssociationField,\n          stage: outputRows[i].stage,\n          budget: outputRows[i].budget,\n          publication: outputRows[i].publication,\n          references: outputRows[i].references,\n        }"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "findPrepared",
+      "line": 2155,
+      "arguments": [
+        "'find'",
+        "startedAt",
+        "Codes.Success",
+        "_filter"
+      ]
+    },
+    {
+      "method": "registerPopulateRecipients",
+      "caller": "createPrepared",
+      "line": 2368,
+      "arguments": [
+        "outputRows",
+        "resolvedPopulate"
+      ]
+    },
+    {
+      "method": "finalizePopulateForSingleDoc",
+      "caller": "createPrepared",
+      "line": 2377,
+      "arguments": [
+        "doc",
+        "resolvedPopulate as Populate[]",
+        "contexts[index]",
+        "initiatingOperation",
+        "hookLimit",
+        "createGate",
+        "outputState.authorization",
+        "row.references",
+        "row.budget",
+        "row.publication"
+      ]
+    },
+    {
+      "method": "finalizeDirectOutput",
+      "caller": "createPrepared",
+      "line": 2390,
+      "arguments": [
+        "{\n          doc,\n          plan: createPlan,\n          context: contexts[index],\n          includePermissions,\n          includeFieldPermissions,\n          stage: row.stage,\n          budget: row.budget,\n          publication: row.publication,\n          references: row.references,\n        }"
+      ]
+    },
+    {
+      "method": "finalizeDirectOutput",
+      "caller": "new",
+      "line": 2484,
+      "arguments": [
+        "{\n          doc: row.doc,\n          plan: newPlan,\n          context: newContext,\n          includePermissions,\n          stage: row.stage,\n          budget: row.budget,\n          publication: row.publication,\n        }"
+      ]
+    },
+    {
+      "method": "beginOp",
+      "caller": "updateOnePrepared",
+      "line": 2580,
+      "arguments": [
+        "'updateOne'",
+        "_filter",
+        "{\n      populateCount: Array.isArray(_populate) ? _populate.length : _populate ? 1 : 0,\n    }"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "updateOnePrepared",
+      "line": 2585,
+      "arguments": [
+        "'updateOne'",
+        "startedAt",
+        "Codes.Forbidden",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "updateOnePrepared",
+      "line": 2602,
+      "arguments": [
+        "'updateOne'",
+        "startedAt",
+        "Codes.NotFound",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "updateOnePrepared",
+      "line": 2618,
+      "arguments": [
+        "'updateOne'",
+        "startedAt",
+        "result.code",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "updateOnePrepared",
+      "line": 2644,
+      "arguments": [
+        "'updateOne'",
+        "startedAt",
+        "Codes.BadRequest",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "updateOnePrepared",
+      "line": 2649,
+      "arguments": [
+        "'updateOne'",
+        "startedAt",
+        "Codes.BadRequest",
+        "_filter"
+      ]
+    },
+    {
+      "method": "asServiceHookContext",
+      "caller": "updateOnePrepared",
+      "line": 2669,
+      "arguments": [
+        "context"
+      ]
+    },
+    {
+      "method": "asServiceHookContext",
+      "caller": "updateOnePrepared",
+      "line": 2682,
+      "arguments": [
+        "context"
+      ]
+    },
+    {
+      "method": "registerPopulateRecipients",
+      "caller": "updateOnePrepared",
+      "line": 2688,
+      "arguments": [
+        "[row]",
+        "_populate as Populate[]"
+      ]
+    },
+    {
+      "method": "finalizePopulateForSingleDoc",
+      "caller": "updateOnePrepared",
+      "line": 2694,
+      "arguments": [
+        "row.doc",
+        "_populate as Populate[]",
+        "context",
+        "initiatingOperation",
+        "updateHookLimit",
+        "updateGate",
+        "outputState.authorization",
+        "row.references",
+        "row.budget",
+        "row.publication"
+      ]
+    },
+    {
+      "method": "finalizeDirectOutput",
+      "caller": "updateOnePrepared",
+      "line": 2707,
+      "arguments": [
+        "{\n      doc: row.doc,\n      plan: updatePlan,\n      context,\n      includePermissions,\n      includeFieldPermissions,\n      stage: row.stage,\n      budget: row.budget,\n      publication: row.publication,\n      references: row.references,\n    }"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "updateOnePrepared",
+      "line": 2720,
+      "arguments": [
+        "'updateOne'",
+        "startedAt",
+        "Codes.Success",
+        "_filter"
+      ]
+    },
+    {
+      "method": "beginOp",
+      "caller": "upsert",
+      "line": 2805,
+      "arguments": [
+        "'upsert'",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "upsert",
+      "line": 2807,
+      "arguments": [
+        "'upsert'",
+        "startedAt",
+        "Codes.Forbidden",
+        "_filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "upsert",
+      "line": 2856,
+      "arguments": [
+        "'upsert'",
+        "startedAt",
+        "result.code",
+        "_filter"
+      ]
+    },
+    {
+      "method": "beginOp",
+      "caller": "delete",
+      "line": 2878,
+      "arguments": [
+        "'delete'",
+        "filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "delete",
+      "line": 2881,
+      "arguments": [
+        "'delete'",
+        "startedAt",
+        "Codes.Forbidden",
+        "filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "delete",
+      "line": 2886,
+      "arguments": [
+        "'delete'",
+        "startedAt",
+        "Codes.NotFound",
+        "filter"
+      ]
+    },
+    {
+      "method": "completeOp",
+      "caller": "delete",
+      "line": 2911,
+      "arguments": [
+        "'delete'",
+        "startedAt",
+        "Codes.Success",
+        "filter"
+      ]
+    },
+    {
+      "method": "getAccessibleIdSet",
+      "caller": "getFieldPermissionAccess",
+      "line": 3338,
+      "arguments": [
+        "uniqueIds",
+        "'read'"
+      ]
+    },
+    {
+      "method": "getAccessibleIdSet",
+      "caller": "getFieldPermissionAccess",
+      "line": 3339,
+      "arguments": [
+        "uniqueIds",
+        "'read'"
+      ]
+    },
+    {
+      "method": "getAccessibleIdSet",
+      "caller": "getFieldPermissionAccess",
+      "line": 3341,
+      "arguments": [
+        "uniqueIds",
+        "'update'"
+      ]
+    },
+    {
+      "method": "getAccessibleIdSet",
+      "caller": "getFieldPermissionAccess",
+      "line": 3342,
+      "arguments": [
+        "uniqueIds",
+        "'update'"
+      ]
+    }
+  ],
+  "finalizerModuleCallers": [
+    {
+      "path": "packages/access-router/src/acl/populate-target.ts",
+      "line": 37,
+      "text": "import type { FinalizeSnapshot } from '../output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/src/acl/subdocument-output.ts",
+      "line": 18,
+      "text": "import { finalizeModelOutputs } from '../output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/src/core.ts",
+      "line": 490,
+      "text": "const targetSnapshot = targetConfiguration as import('./output/finalize-model-output').FinalizeSnapshot;"
+    },
+    {
+      "path": "packages/access-router/src/services/service.ts",
+      "line": 125,
+      "text": "import { finalizeModelOutput, type FinalizeSnapshot } from '../output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/finalizer-preparation.unit.test.ts",
+      "line": 8,
+      "text": "import { finalizeModelOutput, finalizeModelOutputs } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/no-work-output-scheduling.unit.test.ts",
+      "line": 24,
+      "text": "import { finalizeModelOutput } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/output-field-policy-cache.unit.test.ts",
+      "line": 26,
+      "text": "import { finalizeModelOutput, finalizeModelOutputs } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/output-publication-fusion-withdrawal.unit.test.ts",
+      "line": 6,
+      "text": "import * as finalizers from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/owned-authorization-boundaries.unit.test.ts",
+      "line": 38,
+      "text": "import { finalizeModelOutput } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/owned-authorization-stage.unit.test.ts",
+      "line": 62,
+      "text": "import { finalizeModelOutput } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/owned-authorization-work.unit.test.ts",
+      "line": 5,
+      "text": "import { finalizeModelOutput } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/service-authorization-finalizer.unit.test.ts",
+      "line": 25,
+      "text": "} from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/service-authorization-reads.unit.test.ts",
+      "line": 14,
+      "text": "import { finalizeModelOutputs } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/service-output-preparation.unit.test.ts",
+      "line": 11,
+      "text": "import { finalizeModelOutput } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/virtuals-finalizer.unit.test.ts",
+      "line": 4,
+      "text": "import { finalizeModelOutput, finalizeModelOutputs } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/virtuals-populate-dependencies.integration.test.ts",
+      "line": 27,
+      "text": "import type { FinalizeSnapshot } from '../src/output/finalize-model-output';"
+    },
+    {
+      "path": "packages/access-router/test/virtuals-populate-dependencies.integration.test.ts",
+      "line": 1623,
+      "text": "const { finalizeModelOutput } = await import('../src/output/finalize-model-output');"
+    },
+    {
+      "path": "packages/access-router/test/virtuals-populate-dependencies.traversal.test.ts",
+      "line": 13,
+      "text": "import { finalizeModelOutput } from '../src/output/finalize-model-output';"
+    }
+  ],
+  "exportedFinalizerKeep": [
+    "VirtualFinalizeAccess",
+    "FinalizeSnapshot",
+    "FinalizeModelOutputArgs",
+    "FinalizeModelOutputsArgs",
+    "finalizeModelOutput",
+    "finalizeModelOutputs"
+  ],
+  "nativePrivateSourceKeep": [
+    {
+      "path": "packages/access-router/src/services/service.ts",
+      "class": "Service",
+      "names": [
+        "#fetchOnePrepared",
+        "#findOneConditionPrepared"
+      ]
+    },
+    {
+      "path": "packages/access-router/src/services/base.ts",
+      "class": "Base",
+      "names": []
+    },
+    {
+      "path": "packages/access-router/src/services/public-service.ts",
+      "class": "PublicService",
+      "names": [
+        "#readById",
+        "#readById",
+        "#readById"
+      ]
+    }
+  ]
+}
