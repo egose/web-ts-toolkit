@@ -125,7 +125,8 @@ export interface FinalizeModelOutputsArgs extends Omit<
   rowReferences?: readonly ReadonlyMap<string, unknown>[];
 }
 
-interface Preparation {
+// Reusable resolver inputs, not resolved stage facts or materialized output.
+interface FinalizerPreparation {
   configuration: ReturnType<typeof readServiceFinalizerConfiguration>;
   resolve: ReturnType<typeof prepareOutputDocumentStage>;
   virtualNames: readonly string[];
@@ -159,8 +160,9 @@ function assertFinalizer(args: FinalizeModelOutputArgs): void {
     authorizationError('finalizer call/model/scope/access mismatch');
 }
 
-function prepare(args: FinalizeModelOutputArgs): Preparation {
+function prepareFinalizer(args: FinalizeModelOutputArgs): FinalizerPreparation {
   assertFinalizer(args);
+  // Configuration belongs to the captured call, not live service options.
   const configuration = readServiceFinalizerConfiguration(args.plan.authorization!, args.plan.authorizationBinding!);
   const virtuals = scopeVirtuals(configuration.virtuals, args.scopePath ?? args.plan.scopePath ?? []);
   return {
@@ -172,9 +174,9 @@ function prepare(args: FinalizeModelOutputArgs): Preparation {
   };
 }
 
-async function finalizeSingleDoc(
+async function finalizeOutputDocument(
   args: FinalizeModelOutputArgs,
-  prepared: Preparation,
+  preparation: FinalizerPreparation,
 ): Promise<Record<string, unknown>> {
   assertFinalizer(args);
   const plan = args.plan,
@@ -201,7 +203,8 @@ async function finalizeSingleDoc(
     failTrustedOutputBudget(budget, new ServiceAuthorizationError('cyclic selected document output'));
   const nextLineage = new Set(lineage).add(source);
   visitTrustedOutput(budget, depth, args.prepaid ? 0 : 1);
-  await prepared.resolve({
+  // Resolve this stage's document facts before field decisions and bounded materialization.
+  await preparation.resolve({
     authorization,
     binding,
     snapshot: source,
@@ -260,7 +263,7 @@ async function finalizeSingleDoc(
       lineage: nextLineage,
       prepaid: true,
     };
-    const childPreparation = prepare(base);
+    const childPreparation = prepareFinalizer(base);
     const one = async (
       value: unknown,
       childDepth: number,
@@ -289,7 +292,7 @@ async function finalizeSingleDoc(
           failTrustedOutputBudget(budget, new ServiceAuthorizationError('unsupported selected embedded value'));
         return null;
       }
-      return finalizeSingleDoc(
+      return finalizeOutputDocument(
         {
           ...base,
           input: value,
@@ -320,7 +323,7 @@ async function finalizeSingleDoc(
   }
   for (const { path, value } of args.includeAttachments ?? [])
     setTrustedOutputPath(working, path, value, budget, depth);
-  for (const field of prepared.virtualNames) delete working[field];
+  for (const field of preparation.virtualNames) delete working[field];
   const candidates = plan.candidates ?? [];
   const hasDependencies = (dependsOn: readonly string[]) =>
     dependsOn.every((key) => Object.hasOwn(working, key) && working[key] !== undefined);
@@ -407,6 +410,7 @@ async function finalizeSingleDoc(
     },
     (error) => failOutputPublication(owner, error),
   );
+  // Field decisions and copies below remain stage-local and charged to the receiving budget.
   const output: Record<string, unknown> = {};
   for (const field of plan.outputPersistedFields) {
     if (
@@ -455,8 +459,9 @@ async function finalizeSingleDoc(
       materializeTrustedOutputValue(source._id, '_id', budget, { keep: () => true }, depth + 1, true),
     );
   }
+  // Completion may reenter; revalidate stage, budget and publication before closing the stage.
   if (args.completeOutput) await args.completeOutput(output, stage, construction);
-  else retainOutputMetadata(output, source, prepared.configuration, binding.scopePath ?? [], construction);
+  else retainOutputMetadata(output, source, preparation.configuration, binding.scopePath ?? [], construction);
   readDocumentStage(stage, binding);
   assertTrustedOutputBudget(budget);
   assertOutputPublication(owner);
@@ -469,12 +474,13 @@ export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promis
   const owner = args.publication ?? outputPublicationFor(args.plan.authorization!);
   const work = async () => {
     try {
-      return await finalizeSingleDoc({ ...args, publication: owner }, prepare(args));
+      return await finalizeOutputDocument({ ...args, publication: owner }, prepareFinalizer(args));
     } catch (error) {
       failOutputPublication(owner, error);
       throw error;
     }
   };
+  // Nested work keeps its enclosing publication; only the owning entry settles it.
   return args.publication ? work() : runOutputPublication(owner, work);
 }
 
@@ -488,13 +494,14 @@ export async function finalizeModelOutputs(args: FinalizeModelOutputsArgs): Prom
   const owner = args.publication ?? outputPublicationFor(args.plan.authorization!);
   const work = async () => {
     const base = { ...rest, input: undefined as unknown, publication: owner };
-    const prepared = prepare(base);
+    // Only this existing batch shares preparation; row facts and budgets remain distinct.
+    const preparation = prepareFinalizer(base);
     const gate = getRequestWorkState(args.request, args.plan.authorizationBinding!.runtime as AccessRuntime).hookGate;
     return mapWithConcurrencyLimit(
       inputs,
       gate.limit,
       (input, index) =>
-        finalizeSingleDoc(
+        finalizeOutputDocument(
           {
             ...base,
             input,
@@ -503,7 +510,7 @@ export async function finalizeModelOutputs(args: FinalizeModelOutputsArgs): Prom
             completedReferences: rowReferences?.[index] ?? rest.completedReferences,
             onFinalized: rest.onFinalized ? (output, context) => rest.onFinalized!(output, context, index) : undefined,
           },
-          prepared,
+          preparation,
         ),
       (error) => failOutputPublication(owner, error),
     );

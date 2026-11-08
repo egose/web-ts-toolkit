@@ -70,11 +70,7 @@ import {
   excludeDocumentStagePath,
   getQueryReferenceOriginal,
 } from '../acl/document-stage';
-import {
-  copyAuthorizedReference,
-  prepareOutputDocumentStage,
-  requestOutputFieldPaths,
-} from '../acl/output-field-filter';
+import { copyAuthorizedReference, prepareOutputDocumentStage } from '../acl/output-field-filter';
 import type { DocumentStage } from '../acl/document-stage';
 import {
   assertOutputPublication,
@@ -123,13 +119,11 @@ import { normalizeDocumentGrants } from '../acl/document-grants';
 import { evaluateRouteGuard, intersectFilters } from '../core-shared';
 import { validateExpandedCorrelatedOperands } from '../correlated-includes';
 import { finalizeModelOutput, type FinalizeSnapshot } from '../output/finalize-model-output';
-import { attachPermissionsAlias, removeGeneratedPermissionsAlias } from '../output/permissions-alias';
 import {
   getIncludeOriginal,
   getIncludeAttachments,
   getIncludeSource,
   prepareIncludeOutput,
-  restoreIncludeOutput,
 } from '../output/include-output';
 import {
   assertTrustedOutputBudget,
@@ -140,7 +134,6 @@ import {
   failTrustedOutputBudget,
   setTrustedOutputPath,
   shallowTrustedOutputArray,
-  unsetTrustedOutputPath,
   visitTrustedOutput,
   type TrustedOutputBudget,
 } from '../acl/trusted-output-materialization';
@@ -245,6 +238,7 @@ import {
 } from './model-subdocument-service';
 import { resolveExistsOptions, resolveUpsertArgs, resolveUpsertOptions } from './model-service-defaults';
 import { captureModelServiceIntent, type ModelServiceIntentMethod } from './model-service-intent';
+import { createModelOutputMetadataCompletion } from './model-output-metadata';
 import { createModelOutputContext } from '../output/model-output-context';
 import { consumeDocumentCondition } from '../acl/document-guard';
 
@@ -255,6 +249,12 @@ type ServiceHookContext = ModelHookContext & {
     updateIds?: Set<string>;
   };
 };
+
+type ServiceOperationStartExtras = Omit<OpLogContext, 'op' | 'startedAt' | 'filterKeyValueCount'>;
+type ServiceOperationCompletionExtras = Omit<
+  OpLogContext,
+  'op' | 'startedAt' | 'durationMs' | 'resultCode' | 'filterKeyValueCount'
+>;
 
 const assertModelDocument = <TModel>(
   value: unknown,
@@ -582,54 +582,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       completedReferences: args.references,
       includeAttachments: getIncludeAttachments(args.doc),
       virtualPopulateRow: getVirtualPopulateRow(getIncludeOriginal(args.doc, authorization) as object),
-      completeOutput: async (output, stage, construction) => {
-        const { grants } = readDocumentStage(stage, binding!);
-        // Private field-row bookkeeping remains outside every callback diagnostic.
-        const source = getIncludeSource(args.doc) as Record<string, unknown>;
-        if (args.privateAssociationField) unsetTrustedOutputPath(output, args.privateAssociationField, args.budget);
-        restoreIncludeOutput(args.doc, output, construction);
-        const field = (configuration.documentPermissionField as string) ?? '_permissions';
-        unsetTrustedOutputPath(output, field, args.budget);
-        removeGeneratedPermissionsAlias(output);
-        if (configuration.stripPermissionsField) return;
-        const exposed = configuration.exposedDocPermissionKeys as readonly string[] | undefined;
-        const metadata: Record<string, unknown> = {};
-        const metadataDepth = construction.depth + field.split('.').length;
-        // Admit the metadata root/path before callbacks build its contents. It is
-        // still private: any later failure discards the entire publication.
-        setTrustedOutputPath(output, field, metadata, args.budget, construction.depth);
-        if (args.includePermissions || args.includeFieldPermissions) {
-          for (const key of Object.keys(grants)) {
-            visitTrustedOutput(args.budget, metadataDepth + 1);
-            if (!exposed || exposed.includes(key)) defineTrustedOutputValue(metadata, key, grants[key]);
-          }
-        }
-        if (args.includeFieldPermissions && !configuration.disableFieldPermissions) {
-          const rowAccess =
-            this.asServiceHookContext(context).fieldPermissionAccess ??
-            (await this.getFieldPermissionAccess([source._id], args.publication));
-          const id = String(source._id);
-          const map = async (access: 'read' | 'update', allowed: boolean) => {
-            visitTrustedOutput(args.budget, metadataDepth + 1);
-            const paths = allowed
-              ? await requestOutputFieldPaths(stage, binding!, access, {
-                  budget: args.budget,
-                  depth: metadataDepth + 1,
-                })
-              : [];
-            if (!paths.length) visitTrustedOutput(args.budget, metadataDepth + 2);
-            return paths.length ? Object.fromEntries(paths.map((path) => [path, true])) : { $: '_' };
-          };
-          defineTrustedOutputValue(metadata, '_view', await map('read', rowAccess.readIds?.has(id) ?? false));
-          defineTrustedOutputValue(metadata, '_edit', await map('update', rowAccess.updateIds?.has(id) ?? false));
-        } else if (!args.includePermissions && !configuration.disableFieldPermissions) {
-          visitTrustedOutput(args.budget, metadataDepth + 1, 2);
-          visitTrustedOutput(args.budget, metadataDepth + 2, 2);
-          defineTrustedOutputValue(metadata, '_view', { $: '_' });
-          defineTrustedOutputValue(metadata, '_edit', { $: '_' });
-        }
-        attachPermissionsAlias(output, field);
-      },
+      completeOutput: createModelOutputMetadataCompletion(
+        args,
+        binding!,
+        configuration,
+        () => this.asServiceHookContext(context).fieldPermissionAccess,
+        (ids, publication) => this.getFieldPermissionAccess(ids, publication),
+      ),
       onFinalized: (_output, outputContext) => {
         finalizedContext = outputContext;
       },
@@ -783,13 +742,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     this.registerPopulateRecipients([{ doc: parentDoc, budget, publication }], populateEntries);
     await runOutputPublication(publication, async () => {
       await this.finalizePopulateForSingleDoc(
+        // Receiving document and target entries.
         parentDoc,
         populateEntries,
+        // Initiating execution and gates.
         parentContext,
         parentOperation,
         limit,
         gate,
+        // Parent authorization.
         undefined,
+        // Completed handoffs, receiving budget and publication.
         references,
         budget,
         publication,
@@ -1001,93 +964,104 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   private async finalizeSinglePopulateTarget(
-    rawTarget: unknown,
-    meta: PopulateTargetMeta,
-    parentOperation: string,
-    parentContext: ModelHookContext,
+    targetValue: unknown,
+    targetMeta: PopulateTargetMeta,
+    initiatingOperation: string,
+    parentHookContext: ModelHookContext,
     hookLimit: number,
     sharedGate: SharedHookGate,
-    originalTarget: unknown = rawTarget,
-    budget?: TrustedOutputBudget,
+    sourceTarget: unknown = targetValue,
+    receivingBudget?: TrustedOutputBudget,
     publication?: OutputPublication,
     parentAuthorization?: VirtualProjectionPlan['authorization'],
-    outputDepth = 1,
+    receivingDepth = 1,
   ): Promise<unknown> {
-    if (rawTarget === null || rawTarget === undefined) return rawTarget;
-    if (this.isScalarPopulateValue(rawTarget)) return rawTarget;
+    if (targetValue === null || targetValue === undefined) return targetValue;
+    if (this.isScalarPopulateValue(targetValue)) return targetValue;
     // Only documents/plain objects finalize; primitives pass through.
-    const isDoc = !types.isProxy(rawTarget) && (isPlainObject(rawTarget) || rawTarget instanceof Document);
-    if (!isDoc) failTrustedOutputBudget(budget!, new ServiceAuthorizationError('unsupported populated target'));
-    let cache = this.populateOutputCache.get(meta);
+    const isDoc = !types.isProxy(targetValue) && (isPlainObject(targetValue) || targetValue instanceof Document);
+    if (!isDoc)
+      failTrustedOutputBudget(receivingBudget!, new ServiceAuthorizationError('unsupported populated target'));
+    let cache = this.populateOutputCache.get(targetMeta);
     if (!cache) {
       cache = new WeakMap();
-      this.populateOutputCache.set(meta, cache);
+      this.populateOutputCache.set(targetMeta, cache);
       if (publication)
         retainPublicationResource(publication, () => {
-          this.populateOutputCache.delete(meta);
-          this.populateBudgetRecipients.delete(meta);
-          this.populateInputSlots.delete(meta);
-          this.populateInputArrays.delete(meta);
+          this.populateOutputCache.delete(targetMeta);
+          this.populateBudgetRecipients.delete(targetMeta);
+          this.populateInputSlots.delete(targetMeta);
+          this.populateInputArrays.delete(targetMeta);
         });
     }
     // Include source copies retain the actual fetched target identity for cache
     // reuse. Never infer this identity from IDs/values or finalize the original.
-    const originalKey = originalTarget && typeof originalTarget === 'object' ? originalTarget : (rawTarget as object);
-    const owner = publication ?? outputPublicationFor(meta.plan.authorization!);
-    const cacheKey = this.populateTargetIdentity(rawTarget as object, owner);
-    const recipients = this.populateBudgetRecipients.get(meta)?.get(cacheKey);
-    if (!recipients?.some((edge) => edge.budget === budget && edge.depth === outputDepth))
+    const sourceIdentity = sourceTarget && typeof sourceTarget === 'object' ? sourceTarget : (targetValue as object);
+    const publicationOwner = publication ?? outputPublicationFor(targetMeta.plan.authorization!);
+    const targetIdentity = this.populateTargetIdentity(targetValue as object, publicationOwner);
+    const receivingOccurrences = this.populateBudgetRecipients.get(targetMeta)?.get(targetIdentity);
+    if (!receivingOccurrences?.some((edge) => edge.budget === receivingBudget && edge.depth === receivingDepth))
       authorizationError('populate target requires preregistered receiving occurrences');
-    const existing = cache.get(cacheKey);
+    const existing = cache.get(targetIdentity);
     if (existing) {
-      const source = await existing;
+      const cachedTargetOutput = await existing;
       return materializeTrustedOutputValue(
-        source,
-        meta.plan.receivingModelName ?? '',
-        budget!,
+        cachedTargetOutput,
+        targetMeta.plan.receivingModelName ?? '',
+        receivingBudget!,
         { keep: () => true },
-        outputDepth,
+        receivingDepth,
       );
     }
     const targetContext = createModelOutputContext({
-      modelName: meta.targetModelName,
-      operation: parentContext.operation ?? parentOperation,
-      virtualAccess: meta.virtualAccess,
-      outputAccess: meta.outputAccess,
-      docPermissionsAccess: meta.docPermissionsAccess,
-      resolvedQuery: parentContext.resolvedQuery,
+      modelName: targetMeta.targetModelName,
+      operation: parentHookContext.operation ?? initiatingOperation,
+      virtualAccess: targetMeta.virtualAccess,
+      outputAccess: targetMeta.outputAccess,
+      docPermissionsAccess: targetMeta.docPermissionsAccess,
+      resolvedQuery: parentHookContext.resolvedQuery,
     });
-    bindOutputPublication(meta.plan.authorization!, owner);
-    const selectedBudget = createReceivingOutputBudget(recipients);
+    bindOutputPublication(targetMeta.plan.authorization!, publicationOwner);
+    // Shared construction charges all occurrences; the returned copy charges only this receiver.
+    const targetConstructionBudget = createReceivingOutputBudget(receivingOccurrences);
     // Query-origin trusted targets still need the isolated parent's pre-copy.
     // Write-origin targets instead acquire their own mandatory source below;
     // pre-copying them here would duplicate that boundary, not add protection.
-    const pending = finalizeModelOutput({
-      receivingModelName: meta.targetModelName,
+    const pendingTargetOutput = finalizeModelOutput({
+      receivingModelName: targetMeta.targetModelName,
       input:
         parentAuthorization &&
         readServiceAuthorizationMode(parentAuthorization, getServiceExecutors(this).binding()) === 'isolated' &&
-        readServiceAuthorizationMode(meta.plan.authorization!, meta.plan.authorizationBinding!) === 'trusted' &&
-        !isWriteOutputAuthorization(meta.plan.authorization!, meta.plan.authorizationBinding!)
-          ? copyDocumentView(rawTarget)
-          : rawTarget,
-      virtualAccess: meta.virtualAccess,
-      outputAccess: meta.outputAccess,
-      docPermissionsAccess: meta.docPermissionsAccess,
+        readServiceAuthorizationMode(targetMeta.plan.authorization!, targetMeta.plan.authorizationBinding!) ===
+          'trusted' &&
+        !isWriteOutputAuthorization(targetMeta.plan.authorization!, targetMeta.plan.authorizationBinding!)
+          ? copyDocumentView(targetValue)
+          : targetValue,
+      virtualAccess: targetMeta.virtualAccess,
+      outputAccess: targetMeta.outputAccess,
+      docPermissionsAccess: targetMeta.docPermissionsAccess,
       scopePath: [],
-      plan: meta.plan,
+      plan: targetMeta.plan,
       request: this.req as unknown as never,
       context: targetContext,
-      operation: (parentContext.operation as string) ?? parentOperation,
-      publication: owner,
-      outputBudget: selectedBudget,
+      operation: (parentHookContext.operation as string) ?? initiatingOperation,
+      publication: publicationOwner,
+      outputBudget: targetConstructionBudget,
       virtualPopulateRow:
-        getVirtualPopulateRow(originalKey) ??
-        getVirtualPopulateRow(getQueryReferenceOriginal(rawTarget as object, owner) ?? (rawTarget as object)),
+        getVirtualPopulateRow(sourceIdentity) ??
+        getVirtualPopulateRow(
+          getQueryReferenceOriginal(targetValue as object, publicationOwner) ?? (targetValue as object),
+        ),
     });
-    cache.set(cacheKey, pending);
-    const finalized = await pending;
-    return materializeTrustedOutputValue(finalized, meta.targetModelName, budget!, { keep: () => true }, outputDepth);
+    cache.set(targetIdentity, pendingTargetOutput);
+    const finalizedTargetOutput = await pendingTargetOutput;
+    return materializeTrustedOutputValue(
+      finalizedTargetOutput,
+      targetMeta.targetModelName,
+      receivingBudget!,
+      { keep: () => true },
+      receivingDepth,
+    );
   }
 
   private readonly populateOutputCache = new WeakMap<PopulateTargetMeta, WeakMap<object, Promise<unknown>>>();
@@ -1160,78 +1134,87 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
   }
 
   private async finalizePopulatePath(
-    current: unknown,
-    segments: string[],
-    segIdx: number,
-    meta: PopulateTargetMeta,
-    parentOperation: string,
-    parentContext: ModelHookContext,
+    traversalValue: unknown,
+    pathSegments: string[],
+    segmentIndex: number,
+    targetMeta: PopulateTargetMeta,
+    initiatingOperation: string,
+    parentHookContext: ModelHookContext,
     hookLimit: number,
     sharedGate: SharedHookGate,
-    original: unknown = current,
-    references?: Map<string, unknown>,
-    budget?: TrustedOutputBudget,
+    originalNode: unknown = traversalValue,
+    completedReferences?: Map<string, unknown>,
+    receivingBudget?: TrustedOutputBudget,
     publication?: OutputPublication,
     parentAuthorization?: VirtualProjectionPlan['authorization'],
-    address: readonly (string | number)[] = [],
+    outputAddress: readonly (string | number)[] = [],
   ): Promise<void> {
-    if (current === null || current === undefined) return;
-    if (Array.isArray(current)) {
-      const entries = this.populateInputArrays.get(meta)?.get(current);
+    if (traversalValue === null || traversalValue === undefined) return;
+    if (Array.isArray(traversalValue)) {
+      const entries = this.populateInputArrays.get(targetMeta)?.get(traversalValue);
       if (!entries) authorizationError('unregistered populate array');
       for (const [index, el] of entries.entries()) {
         await this.finalizePopulatePath(
+          // Traversal value/path position: arrays do not consume a path segment.
           el,
-          segments,
-          segIdx,
-          meta,
-          parentOperation,
-          parentContext,
+          pathSegments,
+          segmentIndex,
+          // Target policy and initiating execution/gates.
+          targetMeta,
+          initiatingOperation,
+          parentHookContext,
           hookLimit,
           sharedGate,
-          Array.isArray(original) ? original[index] : undefined,
-          references,
-          budget,
+          // Original provenance.
+          Array.isArray(originalNode) ? originalNode[index] : undefined,
+          // Completed handoffs, receiving budget and publication.
+          completedReferences,
+          receivingBudget,
           publication,
+          // Parent authorization and receiving output address.
           parentAuthorization,
-          [...address, index],
+          [...outputAddress, index],
         );
       }
       return;
     }
-    if (typeof current !== 'object') return;
-    if (segIdx >= segments.length) return;
-    const key = segments[segIdx];
-    let child: unknown;
+    if (typeof traversalValue !== 'object') return;
+    if (segmentIndex >= pathSegments.length) return;
+    const key = pathSegments[segmentIndex];
+    let traversalChild: unknown;
     let originalChild: unknown;
-    const slots = this.populateInputSlots.get(meta)?.get(current);
+    const slots = this.populateInputSlots.get(targetMeta)?.get(traversalValue);
     if (!slots?.has(key)) authorizationError('unregistered populate source slot');
-    child = slots.get(key);
+    traversalChild = slots.get(key);
     originalChild =
-      child && typeof child === 'object'
-        ? (getQueryReferenceOriginal(child, publication ?? outputPublicationFor(meta.plan.authorization!)) ?? child)
-        : child;
-    if (child === undefined || child === null) {
+      traversalChild && typeof traversalChild === 'object'
+        ? (getQueryReferenceOriginal(
+            traversalChild,
+            publication ?? outputPublicationFor(targetMeta.plan.authorization!),
+          ) ?? traversalChild)
+        : traversalChild;
+    if (traversalChild === undefined || traversalChild === null) {
       // Null at leaf is a populate miss (stays null); null intermediate ends traversal.
       return;
     }
-    if (segIdx === segments.length - 1) {
+    if (segmentIndex === pathSegments.length - 1) {
       // Leaf: finalize target doc(s), leave scalars untouched.
-      if (Array.isArray(child)) {
-        const finish = async (value: unknown, originalValue: unknown, depth: number): Promise<unknown> => {
+      if (Array.isArray(traversalChild)) {
+        const finalizeLeafValue = async (value: unknown, originalValue: unknown, depth: number): Promise<unknown> => {
           // Array structure/depth was admitted for every occurrence by recipient
           // registration before any target started. Never pass an unfinalized
           // nested array or borrowed native ID through a completed-reference handoff.
-          assertTrustedOutputBudget(budget!);
+          assertTrustedOutputBudget(receivingBudget!);
           if (Array.isArray(value)) {
-            const entries = this.populateInputArrays.get(meta)?.get(value);
+            const entries = this.populateInputArrays.get(targetMeta)?.get(value);
             if (!entries) authorizationError('unregistered populate array');
             const output: unknown[] = [];
             for (let index = 0; index < entries.length; index++)
               defineTrustedOutputValue(
                 output,
                 String(index),
-                await finish(
+                await finalizeLeafValue(
+                  // Traversed leaf, original provenance and receiving output depth.
                   entries[index],
                   Array.isArray(originalValue) ? originalValue[index] : undefined,
                   depth + 1,
@@ -1240,103 +1223,122 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
             return output;
           }
           if (this.isScalarPopulateValue(value))
-            return copyAuthorizedReference(value, entryPath, { budget: budget!, depth }, true);
+            return copyAuthorizedReference(value, entryPath, { budget: receivingBudget!, depth }, true);
           return this.finalizeSinglePopulateTarget(
+            // Target value/policy and initiating execution/gates.
             value,
-            meta,
-            parentOperation,
-            parentContext,
+            targetMeta,
+            initiatingOperation,
+            parentHookContext,
             hookLimit,
             sharedGate,
+            // Original provenance, never the finalized output.
             originalValue,
-            budget,
+            // Receiving budget/publication and independent parent authorization.
+            receivingBudget,
             publication,
             parentAuthorization,
+            // Receiving output depth, including nested arrays.
             depth,
           );
         };
-        const entryPath = [...address, key].join('.');
-        references?.set(entryPath, await finish(child, originalChild, address.length + 1));
+        const entryPath = [...outputAddress, key].join('.');
+        completedReferences?.set(
+          entryPath,
+          await finalizeLeafValue(traversalChild, originalChild, outputAddress.length + 1),
+        );
       } else {
-        if (this.isScalarPopulateValue(child)) return;
+        if (this.isScalarPopulateValue(traversalChild)) return;
         const finalized = await this.finalizeSinglePopulateTarget(
-          child,
-          meta,
-          parentOperation,
-          parentContext,
+          // Target value/policy and initiating execution/gates.
+          traversalChild,
+          targetMeta,
+          initiatingOperation,
+          parentHookContext,
           hookLimit,
           sharedGate,
+          // Original provenance, never the finalized output.
           originalChild,
-          budget,
+          // Receiving budget/publication and independent parent authorization.
+          receivingBudget,
           publication,
           parentAuthorization,
-          address.length + 1,
+          // Receiving output depth.
+          outputAddress.length + 1,
         );
-        references?.set([...address, key].join('.'), finalized);
+        completedReferences?.set([...outputAddress, key].join('.'), finalized);
       }
     } else {
       await this.finalizePopulatePath(
-        child,
-        segments,
-        segIdx + 1,
-        meta,
-        parentOperation,
-        parentContext,
+        // Traversal value and next path position.
+        traversalChild,
+        pathSegments,
+        segmentIndex + 1,
+        // Target policy and initiating execution/gates.
+        targetMeta,
+        initiatingOperation,
+        parentHookContext,
         hookLimit,
         sharedGate,
+        // Original provenance.
         originalChild,
-        references,
-        budget,
+        // Completed handoffs, receiving budget and publication.
+        completedReferences,
+        receivingBudget,
         publication,
+        // Parent authorization and receiving output address.
         parentAuthorization,
-        [...address, key],
+        [...outputAddress, key],
       );
     }
   }
 
   private async finalizePopulateForSingleDoc(
-    doc: unknown,
+    receivingDocument: unknown,
     populateEntries: Populate[],
-    parentContext: ModelHookContext,
-    parentOperation: string,
+    parentHookContext: ModelHookContext,
+    initiatingOperation: string,
     hookLimit: number,
     sharedGate: SharedHookGate,
     parentAuthorization?: VirtualProjectionPlan['authorization'],
-    references?: Map<string, unknown>,
-    budget?: TrustedOutputBudget,
+    completedReferences?: Map<string, unknown>,
+    receivingBudget?: TrustedOutputBudget,
     publication?: OutputPublication,
   ): Promise<void> {
-    if (!doc || !Array.isArray(populateEntries) || populateEntries.length === 0) return;
+    if (!receivingDocument || !Array.isArray(populateEntries) || populateEntries.length === 0) return;
     for (const entry of populateEntries) {
       if (!entry || typeof (entry as Populate).path !== 'string') continue;
-      const meta = getPopulateTargetMeta(entry);
+      const targetMeta = getPopulateTargetMeta(entry);
       // Only admitted, configured targets with retained output plans reach finalization.
-      if (!meta) continue;
-      const segments = (entry as Populate).path.split('.').filter(Boolean);
-      if (segments.length === 0) continue;
+      if (!targetMeta) continue;
+      const pathSegments = (entry as Populate).path.split('.').filter(Boolean);
+      if (pathSegments.length === 0) continue;
       await this.finalizePopulatePath(
-        getIncludeSource(doc),
-        segments,
+        // Traversal source and starting path position.
+        getIncludeSource(receivingDocument),
+        pathSegments,
         0,
-        meta,
-        parentOperation,
-        parentContext,
+        // Target policy and initiating execution/gates.
+        targetMeta,
+        initiatingOperation,
+        parentHookContext,
         hookLimit,
         sharedGate,
-        getIncludeOriginal(doc, parentAuthorization),
-        references,
-        budget,
+        // Original provenance.
+        getIncludeOriginal(receivingDocument, parentAuthorization),
+        // Completed handoffs, receiving budget and publication.
+        completedReferences,
+        receivingBudget,
         publication,
+        // Parent authorization; the output address starts at its default root.
         parentAuthorization,
       );
     }
   }
 
-  private beginOp(
-    op: string,
-    filter: unknown,
-    extra?: Omit<OpLogContext, 'op' | 'startedAt' | 'filterKeyValueCount'>,
-  ): number {
+  // Eager log payloads only; callers retain query orchestration.
+  private beginOp(op: string, filter: unknown, extra?: ServiceOperationStartExtras): number {
+    // Even with debug disabled, sample the start clock before model/summary/extra reads.
     const startedAt = Date.now();
     debugLog({
       op,
@@ -1353,8 +1355,9 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     startedAt: number,
     resultCode: string | number,
     filter: unknown,
-    extra?: Omit<OpLogContext, 'op' | 'startedAt' | 'durationMs' | 'resultCode' | 'filterKeyValueCount'>,
+    extra?: ServiceOperationCompletionExtras,
   ): void {
+    // Model and summary reads precede the duration clock; extras and the debug level check follow.
     debugLog({
       op,
       modelName: this.modelName,
@@ -1389,13 +1392,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           this.hookGate.limit,
           (doc, index) =>
             this.finalizePopulateForSingleDoc(
+              // Receiving document and target entries.
               doc,
               populate,
+              // Initiating execution and gates.
               context,
               state.access.operation,
               this.hookGate.limit,
               this.hookGate,
+              // Parent authorization.
               state.authorization,
+              // Completed handoffs, receiving budget and publication.
               references[index],
               budgets[index],
               state.publication,
@@ -1757,13 +1764,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     if (Array.isArray(_populate) && _populate.length > 0) {
       try {
         await this.finalizePopulateForSingleDoc(
+          // Receiving document and target entries.
           doc,
           _populate as Populate[],
+          // Initiating execution and gates.
           context,
           'read',
           findOneHookLimit,
           findOneGate,
+          // Parent authorization.
           state.authorization,
+          // Completed handoffs, receiving budget and publication.
           outputRow.references,
           outputRow.budget,
           outputRow.publication,
@@ -2122,13 +2133,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         // grants above stay raw; shared gate bounds peak work.
         if (Array.isArray(filteredPopulate) && filteredPopulate.length > 0) {
           await this.finalizePopulateForSingleDoc(
+            // Receiving document and target entries.
             doc,
             filteredPopulate as Populate[],
+            // Initiating execution and gates.
             contexts[i],
             'list',
             hookLimit,
             sharedGate,
+            // Parent authorization.
             state.authorization,
+            // Completed handoffs, receiving budget and publication.
             outputRows[i].references,
             outputRows[i].budget,
             outputRows[i].publication,
@@ -2375,13 +2390,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         // parent getters (own plans/contexts, trimming even without virtuals).
         if (resolvedPopulate.length > 0) {
           await this.finalizePopulateForSingleDoc(
+            // Receiving document and target entries.
             doc,
             resolvedPopulate as Populate[],
+            // Initiating execution and gates.
             contexts[index],
             initiatingOperation,
             hookLimit,
             createGate,
+            // Parent authorization.
             outputState.authorization,
+            // Completed handoffs, receiving budget and publication.
             row.references,
             row.budget,
             row.publication,
@@ -2692,13 +2711,17 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       const updateHookLimit = this.getVirtualHookConcurrencyLimit();
       const updateGate = this.hookGate;
       await this.finalizePopulateForSingleDoc(
+        // Receiving document and target entries.
         row.doc,
         _populate as Populate[],
+        // Initiating execution and gates.
         context,
         initiatingOperation,
         updateHookLimit,
         updateGate,
+        // Parent authorization.
         outputState.authorization,
+        // Completed handoffs, receiving budget and publication.
         row.references,
         row.budget,
         row.publication,
