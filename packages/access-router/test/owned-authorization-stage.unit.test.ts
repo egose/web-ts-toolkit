@@ -1291,7 +1291,6 @@ describe('OAR-03 basic source-mode migration and selected-resource poison', () =
       input: documentStageSource(stage, f.binding),
       request: f.request,
       ...access(),
-      snapshot: f.configuration,
       plan,
       documentStage: stage,
       onFinalized: (_output, diagnostic) => {

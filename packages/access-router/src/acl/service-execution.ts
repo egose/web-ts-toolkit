@@ -49,7 +49,6 @@ import type {
   SingleResult,
   AuthorizedSingleResult,
   AuthorizedListResult,
-  ServiceOutputDecorator,
   ErrorResult,
   HydrationMode,
   ModelHydrationOptions,
@@ -86,7 +85,6 @@ export interface ServiceExecutionState {
   readonly ownsPublication: boolean;
 }
 
-type Decorator = ServiceOutputDecorator;
 export interface ServiceExecutors<T, V extends object> {
   binding(): AuthorizationBinding;
   configuration(): AuthorizationConfiguration;
@@ -117,7 +115,6 @@ export interface ServiceExecutors<T, V extends object> {
     filter: Filter<T>,
     args: FindArgs<T>,
     options: FindOptions<T, V>,
-    decorate?: Decorator,
   ): Promise<AuthorizedListResult<T> | ErrorResult>;
   updateOne(
     execution: ServiceExecutionContext,
@@ -125,14 +122,12 @@ export interface ServiceExecutors<T, V extends object> {
     data: Record<string, unknown>,
     args: UpdateOneArgs<T>,
     options: UpdateOneOptions<T, V>,
-    decorate?: Decorator,
   ): Promise<AuthorizedSingleResult<T> | ErrorResult>;
   create(
     execution: ServiceExecutionContext,
     data: Record<string, unknown> | Record<string, unknown>[],
     args: CreateArgs,
     options: CreateOptions<T, V>,
-    decorate?: Decorator,
   ): Promise<AuthorizedListResult<T> | ErrorResult>;
   exists(filter: Filter<T>, includeId: boolean): Promise<SingleResult<unknown> | ErrorResult>;
   count(filter: Filter<T>): Promise<SingleResult<number> | ErrorResult>;

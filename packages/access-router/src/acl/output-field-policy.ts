@@ -1,11 +1,9 @@
 /** Private call-owned field preparation. Returned policy never reaches application code. */
-import { types } from 'node:util';
 import { isPlainObject } from '@web-ts-toolkit/utils';
 import type { AccessRouterPermissions } from '../permission';
 import type { FieldAuthorization } from '../interfaces/service-authorization';
 import {
   assertAuthorizationBinding,
-  canPrepareStaticOutputPolicy,
   getAuthorizationPermissions,
   readServiceOutputFieldAuthorization,
   serviceOutputFieldPolicyOwner,
@@ -22,7 +20,6 @@ import {
   prepareRequestFieldRule,
 } from './field-authorization';
 import type { FieldAuthorizationState } from './field-authorization';
-import { isCatalogOutputPath } from './field-catalog';
 import { debitOutputWork } from './output-work-ledger';
 
 type RequestRuleClassification = ReturnType<typeof prepareRequestFieldRule>;
@@ -98,7 +95,7 @@ export function requestRuleClassification(
   return classification;
 }
 
-/** Legacy cache eligibility is deliberately weaker than pure-batch eligibility. */
+/** Reuse invariant rule preparation, never a per-row field decision. */
 function invariantRuleLookup(schema: unknown, path: string): boolean {
   if (schema == null) return true;
   if (!isPlainObject(schema) || !Object.isFrozen(schema)) return false;
@@ -154,85 +151,4 @@ export function prepareOutputPath(
     if (invariant) cache.set(path, prepared);
   }
   return prepared;
-}
-
-function ordinaryContainer(value: unknown): value is Record<string, unknown> {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    !types.isProxy(value) &&
-    Object.getPrototypeOf(value) === Object.prototype &&
-    Object.isFrozen(value)
-  );
-}
-
-/** Prove the *lookup route*, not just its final classification. No function,
- * coercion, inherited slot, native or proxy can participate in this proof.
- * Strings/arrays deliberately remain on the legacy classifier/evaluator path.
- */
-function booleanRuleLookup(schema: unknown, path: string, access: string): boolean {
-  if (schema == null) return true;
-  if (!ordinaryContainer(schema)) return false;
-  const booleanRule = (raw: unknown): boolean => {
-    if (typeof raw === 'boolean' || raw === undefined) return true;
-    if (!ordinaryContainer(raw)) return false;
-    const slot = Object.getOwnPropertyDescriptor(raw, access);
-    return !!slot && 'value' in slot && (typeof slot.value === 'boolean' || slot.value === undefined);
-  };
-  const exact = Object.getOwnPropertyDescriptor(schema, path);
-  if (exact) return 'value' in exact && booleanRule(exact.value);
-  const [head, ...rest] = path.split('.');
-  const slot = Object.getOwnPropertyDescriptor(schema, head);
-  // Legacy nested extraction also reads schema[head], including inherited slots.
-  if (!slot) return !(head in schema);
-  if (!('value' in slot) || !booleanRule(slot.value)) return false;
-  if (!rest.length || slot.value == null) return true;
-  if (!ordinaryContainer(slot.value)) return false;
-  const sub = Object.getOwnPropertyDescriptor(slot.value, 'sub');
-  if (!sub) return !('sub' in slot.value);
-  if (!('value' in sub)) return false;
-  return !sub.value || booleanRuleLookup(sub.value, rest.join('.'), access);
-}
-
-export interface StaticOutputPath {
-  readonly path: string;
-  readonly backendGrant: boolean;
-  readonly granted: boolean;
-  readonly entries: readonly { readonly key: string; readonly allowed: boolean }[];
-}
-
-export function staticFieldPolicy(authorization: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
-  return canPrepareStaticOutputPolicy(authorization, binding) ? callFieldPolicy(authorization, binding) : undefined;
-}
-
-/** Admission/preparation only, always OUTSIDE the closed synchronous decision body. */
-export function prepareStaticOutputPaths(
-  authorization: ResolvedServiceAuthorization,
-  binding: AuthorizationBinding,
-  paths: readonly string[],
-  access: string,
-  requestOnly = false,
-): readonly StaticOutputPath[] | undefined {
-  const policy = staticFieldPolicy(authorization, binding);
-  if (!policy?.reusable || typeof policy.prefix !== 'string') return undefined;
-  const { catalog } = policy;
-  if (
-    paths.some(
-      (path) =>
-        (!requestOnly && !isCatalogOutputPath(catalog, path)) || !booleanRuleLookup(policy.schema, path, access),
-    )
-  )
-    return undefined;
-  return paths.map((path) => {
-    const prepared = prepareOutputPath(policy, authorization, binding, path, access);
-    return {
-      path,
-      backendGrant: !requestOnly && prepared.backendGrant,
-      granted: prepared.backendGrant || prepared.entries.every((entry) => entry.rule === true),
-      entries: prepared.entries.map((entry) => ({
-        key: `request:${access}:${entry.path}`,
-        allowed: entry.rule === true,
-      })),
-    };
-  });
 }

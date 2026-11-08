@@ -89,7 +89,6 @@ export interface FinalizeModelOutputArgs {
   docPermissionsAccess: VirtualFinalizeAccess;
   scopePath?: readonly string[];
   plan: VirtualProjectionPlan;
-  snapshot: FinalizeSnapshot;
   request: AccessRouterBaseRequest;
   /** Only query/operation primitives are projected; lifecycle data never crosses to callbacks. */
   context?:

@@ -129,7 +129,6 @@ async function invokeLane(f: Fixture, lane: Lane): Promise<DocumentGrants> {
     await finalizeModelOutput({
       receivingModelName: f.model.modelName,
       request: f.request,
-      snapshot,
       plan,
       ...access,
       input: f.snapshot,
@@ -606,7 +605,6 @@ describe('OAR-02 actor, configuration and actual fact-copy work', () => {
         receivingModelName: f.model.modelName,
         request: f.request,
         input: f.snapshot,
-        snapshot: configuration,
         plan,
         ...access,
         onFinalized: (_output, ctx) => {

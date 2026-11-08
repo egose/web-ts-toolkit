@@ -13,7 +13,6 @@ import {
 import { finalizeModelOutput } from '../src/output/finalize-model-output';
 import { createTrustedOutputBudget, createReceivingOutputBudget } from '../src/acl/trusted-output-materialization';
 import { outputPublicationFor, runOutputPublication } from '../src/acl/output-publication';
-import type { FinalizeSnapshot } from '../src/output/finalize-model-output';
 import type { ModelRequest } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 
@@ -73,7 +72,6 @@ describe('DPV-04 explicit package traversal ownership', () => {
       };
       const parentPlan = plan(Parent);
       const targetPlan = plan(Target, parentPlan.authorization);
-      const targetSnapshot = captureModelAuthorizationConfiguration(api.runtime, Target.modelName) as FinalizeSnapshot;
       const targets = await loadVirtualPopulateOutputRows(
         { request: req, runtime: api.runtime, family: {}, permissions, hydration: 'hydrated' },
         raw,
@@ -90,7 +88,6 @@ describe('DPV-04 explicit package traversal ownership', () => {
               request: req,
               ...access,
               plan: targetPlan,
-              snapshot: targetSnapshot,
               input,
               outputBudget: createReceivingOutputBudget([{ budget, depth: 2 }]),
               publication,
@@ -103,7 +100,6 @@ describe('DPV-04 explicit package traversal ownership', () => {
           request: req,
           ...access,
           plan: parentPlan,
-          snapshot: captureModelAuthorizationConfiguration(api.runtime, Parent.modelName) as FinalizeSnapshot,
           outputBudget: budget,
           publication,
           completedReferences: new Map([['targets', completed]]),

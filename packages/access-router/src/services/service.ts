@@ -554,7 +554,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     context: ModelHookContext;
     includePermissions?: boolean;
     includeFieldPermissions?: boolean;
-    sharedGate?: SharedHookGate;
     privateAssociationField?: string;
     stage: DocumentStage;
     budget: TrustedOutputBudget;
@@ -571,7 +570,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       receivingModelName: this.modelName,
       input: args.doc,
       plan,
-      snapshot: configuration as FinalizeSnapshot,
       virtualAccess: access.virtualAccess,
       outputAccess: access.outputAccess,
       docPermissionsAccess: access.docPermissionsAccess,
@@ -1078,7 +1076,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       docPermissionsAccess: meta.docPermissionsAccess,
       scopePath: [],
       plan: meta.plan,
-      snapshot: meta.snapshot,
       request: this.req as unknown as never,
       context: targetContext,
       operation: (parentContext.operation as string) ?? parentOperation,
@@ -1449,12 +1446,10 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       findOne: (execution, filter, args, options) => this.findOnePrepared(execution, filter, args, options),
       findOneCondition: (execution, filter, args, options) =>
         this.#findOneConditionPrepared(execution, filter, args, options),
-      find: (execution, query, filter, args, options, decorate) =>
-        this.findPrepared(execution, query, filter, args, options, decorate),
-      updateOne: (execution, filter, data, args, options, decorate) =>
-        this.updateOnePrepared(execution, filter, data, args, options, decorate),
-      create: (execution, data, args, options, decorate) =>
-        this.createPrepared(execution, data, args, options, decorate),
+      find: (execution, query, filter, args, options) => this.findPrepared(execution, query, filter, args, options),
+      updateOne: (execution, filter, data, args, options) =>
+        this.updateOnePrepared(execution, filter, data, args, options),
+      create: (execution, data, args, options) => this.createPrepared(execution, data, args, options),
       exists: async (filter, includeId) => {
         const result = await this.model.exists(filter);
         return {
@@ -1790,7 +1785,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
         context,
         includePermissions,
         includeFieldPermissions,
-        sharedGate: findOneGate,
         stage: outputRow.stage,
         budget: outputRow.budget,
         publication: outputRow.publication,
@@ -1908,7 +1902,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     filter: Filter<TModel>,
     args?: FindArgs<TModel>,
     options?: FindOptions<TModel, TVirtuals>,
-    decorate?: ServiceOutputDecorator,
   ): Promise<AuthorizedListResult<TModel> | ErrorResult> {
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
     const state = readServiceExecution(this, execution);
@@ -2147,7 +2140,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           context: contexts[i],
           includePermissions,
           includeFieldPermissions,
-          sharedGate,
           privateAssociationField,
           stage: outputRows[i].stage,
           budget: outputRows[i].budget,
@@ -2213,7 +2205,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     data: Record<string, unknown> | Record<string, unknown>[],
     args?: CreateArgs,
     options?: CreateOptions<TModel, TVirtuals>,
-    decorate?: ServiceOutputDecorator,
   ): Promise<AuthorizedListResult<TModel> | ErrorResult> {
     assertModelInputComplexity(data, this.getRequestComplexity());
     const state = readServiceExecution(this, execution);
@@ -2402,7 +2393,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
           context: contexts[index],
           includePermissions,
           includeFieldPermissions,
-          sharedGate: createGate,
           stage: row.stage,
           budget: row.budget,
           publication: row.publication,
@@ -2561,7 +2551,6 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
     data: Record<string, unknown>,
     args?: UpdateOneArgs<TModel>,
     options?: UpdateOneOptions<TModel, TVirtuals>,
-    decorate?: ServiceOutputDecorator,
   ): Promise<AuthorizedSingleResult<TModel> | ErrorResult> {
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
     assertModelInputComplexity(data, this.getRequestComplexity());

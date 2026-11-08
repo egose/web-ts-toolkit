@@ -52,8 +52,9 @@ export function authorizationRecord(value: unknown, label: string): Record<strin
 
 /**
  * Authority never aliases application values. Unlike general deep-clone helpers,
- * unsupported objects/accessors/cycles fail closed. Mutable leaf values are copied
- * again on reads: Object.freeze alone cannot make Date/Buffer/BSON immutable.
+ * unsupported objects/accessors/cycles fail closed. Private readers may reuse
+ * call-owned values; mutable leaves need copying at application exposure boundaries
+ * because Object.freeze alone cannot make Date/Buffer/BSON immutable.
  * Functions are retained only in package-captured configuration, never raw policy.
  */
 export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'document' = false): T {

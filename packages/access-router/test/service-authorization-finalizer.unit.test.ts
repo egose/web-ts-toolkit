@@ -100,7 +100,6 @@ function fixture(options: ModelRouterOptions = {}) {
       receivingModelName: 'Order',
       request,
       plan,
-      snapshot: configuration,
       ...access,
     };
   };
@@ -711,7 +710,6 @@ describe('SVA-03 path-aware trimming and virtual output', () => {
       receivingModelName: 'Customer',
       request: f.request,
       plan,
-      snapshot: configuration,
       ...accesses,
       input: { _id: 'child', name: 'C', secret: 'no' },
       onFinalized: (_doc, ctx) => {

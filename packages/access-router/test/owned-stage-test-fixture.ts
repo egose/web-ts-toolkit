@@ -149,7 +149,7 @@ export function ownedStageFixture(
     binding,
     requestedSelect: options.select ?? ['-_id'],
   });
-  const args = { receivingModelName: model.modelName, request, snapshot: configuration, plan, ...access };
+  const args = { receivingModelName: model.modelName, request, plan, ...access };
   const stage = async (source: Record<string, unknown>, facts: Readonly<Record<string, boolean>> = {}) => {
     const result = createDocumentStage(call, binding, source);
     await resolveDocumentStage(result, () => facts);

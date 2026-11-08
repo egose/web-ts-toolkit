@@ -1625,7 +1625,6 @@ describe('DPV-02 fetch scopes and failures', () => {
           receivingModelName: f.Source.modelName,
           input: readVirtualPopulatePublicRow(row),
           plan,
-          snapshot: {} as FinalizeSnapshot,
           request: f.req,
           virtualAccess: 'read',
           outputAccess: 'read',
