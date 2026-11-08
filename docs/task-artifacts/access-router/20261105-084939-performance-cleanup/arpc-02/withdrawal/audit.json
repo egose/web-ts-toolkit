@@ -1,0 +1,21 @@
+{
+  "disposition": "production candidate withdrawn; no performance change retained",
+  "filesReviewed": 25,
+  "markdownLinksChecked": 44,
+  "structuredFilesValid": true,
+  "privatePathAndSessionScan": "passed",
+  "trailingWhitespaceScan": "passed",
+  "destinationIgnored": false,
+  "gitDiffCheck": "passed",
+  "productionDiffEmpty": true,
+  "candidateProductionPatchAppliesToRestoredBaseline": true,
+  "exactOriginalCandidateTestReconstructedFromPatch": true,
+  "candidateTestHash": "4dd899ae5b597f7d8b47a83dab160783bbfb14c568a194f321bb42e45615978f",
+  "retainedTestHash": "3f9bca3f38ccf87d08630d78a7a531d7a2a5fd47ae719465b2d0dc48100e0773",
+  "untouchedFilesUnchanged": true,
+  "noiseCasesRecalculatedExactly": 16,
+  "noiseUsableCases": 0,
+  "originalArchivedNoiseBytesUnchanged": true,
+  "liveSourceAndDistByteIdenticalToBaseline": true,
+  "inventoryHash": "854b292410cdda3fa41d778370306e6b70e95cba72ea0be1269d4293f46bd8aa"
+}

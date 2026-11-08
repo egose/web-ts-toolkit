@@ -1,0 +1,22 @@
+{"repeat":2,"round":6,"panel":"upsert-public"}
+{"repeat":2,"round":6,"panel":"single-public"}
+{"repeat":2,"round":6,"panel":"control-public"}
+{"repeat":2,"round":6,"panel":"read-public"}
+{"repeat":2,"round":6,"panel":"scale-direct"}
+{"repeat":2,"round":6,"panel":"upsert-direct"}
+{"repeat":2,"round":6,"panel":"single-direct"}
+{"repeat":2,"round":6,"panel":"control-direct"}
+{"repeat":2,"round":6,"panel":"read-direct"}
+{"repeat":2,"round":7,"panel":"scale-public"}
+{"repeat":2,"round":7,"panel":"upsert-public"}
+file://<repo-root>/scripts/benchmarks/access-router-crud-v2.mjs:129
+      if (code !== 0) { reject(new Error(`panel ${panel.id}: worker exit ${code}/${signal}: ${stderr}`)); return; }
+                               ^
+
+Error: panel single-public: worker exit null/SIGKILL: 
+    at ChildProcess.<anonymous> (file://<repo-root>/scripts/benchmarks/access-router-crud-v2.mjs:129:32)
+    at ChildProcess.emit (node:events:526:24)
+    at maybeClose (node:internal/child_process:1156:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:334:5)
+
+Node.js v26.12.1

@@ -1,0 +1,458 @@
+{
+  "task": "ARPC-08",
+  "date": "2026-11-07",
+  "reviewerRole": "fresh independent final reviewer, not implementer; no subdelegation",
+  "decision": "accept revised retained cleanup/test/tooling scope; no blocking findings",
+  "originalSpeedupObjectiveComplete": false,
+  "performanceChangesRetained": [],
+  "deferredImprovements": [
+    "ARPC-02",
+    "ARPC-05"
+  ],
+  "head": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+  "node": "v26.12.1",
+  "pnpm": "11.18.0",
+  "vitest": "4.1.11",
+  "lockSha256": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+  "sourceIdentity": {
+    "files": 151,
+    "sha256": "072039b46ed3603f995bd04a9b0e09817dce13cef58679774b45da5efa02caef",
+    "originalSourceSha256": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+    "productionDiffSha256": "573c36a5fe089da5eafb61bb0228d8f2290f01e76bfdde3c7b9c54b59328d9b2",
+    "packageTrackedDiffSha256": "136d3f67bfc680dc842320bf0aa3795d7edb1819ccf50d60c04ef6c8d79b053b",
+    "allTrackedDiffSha256": "53e643e239889b045fe4bbe967ebc1b53e0ba29ca5bfde7d8b6ccbbe4b8c39d6",
+    "changedSourceFiles": [
+      {
+        "path": "packages/access-router/src/acl/authorization-snapshot.ts",
+        "sha256": "b55dc57ebc9a510c5e5cb662ce88d754a3b440615be05d09a20181575f846b1b"
+      },
+      {
+        "path": "packages/access-router/src/acl/output-field-policy.ts",
+        "sha256": "869cea1730f381ceaa6affbc1ca9d8bb112ced6a1f66375f72ee93de7478212b"
+      },
+      {
+        "path": "packages/access-router/src/acl/populate-target.ts",
+        "sha256": "1502f406ab9d1a5f7a1cf20a8c31005d2bedf04501bfcd82c7e63e6a12651ed4"
+      },
+      {
+        "path": "packages/access-router/src/acl/service-authorization.ts",
+        "sha256": "3ca219ea526bc9f00d9ffb7ff2272ef4ce539fcb9c9cc14adc9b3cf0acd980dd"
+      },
+      {
+        "path": "packages/access-router/src/acl/service-execution.ts",
+        "sha256": "1a2e789a03aa6a4206f6f2c5e501d6213ec66456210668ba217fd21f745e840a"
+      },
+      {
+        "path": "packages/access-router/src/acl/subdocument-output.ts",
+        "sha256": "00f9435612b55aceb4db3c6ee334a64a1a68619145410d90c3fb487f9fc77623"
+      },
+      {
+        "path": "packages/access-router/src/output/finalize-model-output.ts",
+        "sha256": "d4f677f2c3714e2f79cd767aef4ebaf41d76745a66c508c41f3f771ac8e27be5"
+      },
+      {
+        "path": "packages/access-router/src/services/service.ts",
+        "sha256": "606babc3f5181f70ce752f9928f24c3f99c8dfbde786d264957e67447ff6c232"
+      }
+    ],
+    "numstat": [
+      "3\t2\tpackages/access-router/src/acl/authorization-snapshot.ts",
+      "1\t85\tpackages/access-router/src/acl/output-field-policy.ts",
+      "4\t4\tpackages/access-router/src/acl/populate-target.ts",
+      "5\t18\tpackages/access-router/src/acl/service-authorization.ts",
+      "0\t5\tpackages/access-router/src/acl/service-execution.ts",
+      "0\t2\tpackages/access-router/src/acl/subdocument-output.ts",
+      "0\t1\tpackages/access-router/src/output/finalize-model-output.ts",
+      "4\t15\tpackages/access-router/src/services/service.ts"
+    ]
+  },
+  "testTreeIdentity": {
+    "files": 247,
+    "sha256": "16cdad676e6cae71b0a9d683498b37740c4fd8c57901c2fde5bcbea87a21bf6d"
+  },
+  "harnessAndGuideIdentity": {
+    "sha256": "4c983aa0d757be85ffda78c7106d6570cf5ad2ac73f332971a508191510d9bd9",
+    "files": [
+      [
+        "access-router-crud-v2-worker.mjs",
+        "88130f7a0f49bcad56945de92b04fa236a44b4264d120a5df28d98890a36f30b"
+      ],
+      [
+        "access-router-crud-v2.md",
+        "ce0258e3fc19dc42534f2f0335a83840f4b654385fdb575eb1efc1a3fa41cf8e"
+      ],
+      [
+        "access-router-crud-v2.mjs",
+        "e68adae8db5c032524c685b38ee62f2e8fc013652956d7d399e1551b6b8f19a7"
+      ],
+      [
+        "access-router-crud-worker.mjs",
+        "db7c483b988d7818c250b80f2c1530dfde08cd9f70b9e585bd24630b60e5d45b"
+      ],
+      [
+        "access-router-crud.md",
+        "260d578cbfe7dc5e1485e8527045881abd1ccf305cd9982483abfbd8506d44c9"
+      ],
+      [
+        "access-router-crud.mjs",
+        "4f3bc03eec952671a69fb7e4c5b68cebfcf8b1e976e12a5c2cea59bd93e6f27e"
+      ]
+    ],
+    "orderingAndDigest": "maintained CRUD filesUnder ordering; SHA-256(JSON.stringify([relativePath, fileHash][]))"
+  },
+  "maintainedAddedFileIdentities": [
+    {
+      "path": "packages/access-router/test/access-router-crud-driver.unit.test.ts",
+      "sha256": "5b447d24a36cc666a72312aa13590176c672f86d3eae78e3bf77090ba6927358"
+    },
+    {
+      "path": "packages/access-router/test/access-router-crud-fixture.ts",
+      "sha256": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d"
+    },
+    {
+      "path": "packages/access-router/test/access-router-crud-harness.unit.test.ts",
+      "sha256": "ee107cd59ff31ccb0f1d9ba23db5527b749cf9ea4c0cad8fccf981dcf9fb3dec"
+    },
+    {
+      "path": "packages/access-router/test/access-router-crud-v2.unit.test.ts",
+      "sha256": "90c00437e7c739df6554816273c05ec3125acf3f9207a1573916fa65d1622158"
+    },
+    {
+      "path": "packages/access-router/test/access-router-crud-work.unit.test.ts",
+      "sha256": "c40e4cb066c707dc69e7f199623b627a9f0daef23c268244348dc05e0f62b685"
+    },
+    {
+      "path": "packages/access-router/test/bulk-create-metadata-filter-trace.integration.test.ts",
+      "sha256": "a2e6ed173845355f37c6a18d4c3f95e24e9b7331ac0548aa5fd8bd10c2060b83"
+    },
+    {
+      "path": "packages/access-router/test/no-work-output-scheduling.unit.test.ts",
+      "sha256": "390b1047876cc040ea26f82d65e21971cc50cf73268519803969ecd19a6fab73"
+    },
+    {
+      "path": "packages/access-router/test/service-logging-contract.integration.test.ts",
+      "sha256": "c1c5ee3ae1816ef6d90dea9d46ec85860d6b5d56e2ad63639f47649deb04a2c0"
+    },
+    {
+      "path": "packages/access-router/test/service-logging-contract.unit.test.ts",
+      "sha256": "c9db936a1b642554a34f9fc61e1f1111f56b1fe67e4a71c88f89ca830f212155"
+    },
+    {
+      "path": "packages/access-router/test/service-output-preparation.unit.test.ts",
+      "sha256": "3f9bca3f38ccf87d08630d78a7a531d7a2a5fd47ae719465b2d0dc48100e0773"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud-v2-worker.mjs",
+      "sha256": "88130f7a0f49bcad56945de92b04fa236a44b4264d120a5df28d98890a36f30b"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud-v2.md",
+      "sha256": "ce0258e3fc19dc42534f2f0335a83840f4b654385fdb575eb1efc1a3fa41cf8e"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud-v2.mjs",
+      "sha256": "e68adae8db5c032524c685b38ee62f2e8fc013652956d7d399e1551b6b8f19a7"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud-worker.mjs",
+      "sha256": "db7c483b988d7818c250b80f2c1530dfde08cd9f70b9e585bd24630b60e5d45b"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud.md",
+      "sha256": "260d578cbfe7dc5e1485e8527045881abd1ccf305cd9982483abfbd8506d44c9"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud.mjs",
+      "sha256": "4f3bc03eec952671a69fb7e4c5b68cebfcf8b1e976e12a5c2cea59bd93e6f27e"
+    }
+  ],
+  "declarations": {
+    "comparison": "all eight full contents match original baseline and ARPC-07 after fresh builds",
+    "files": [
+      [
+        "advanced.d.mts",
+        "e074c1a4d43a10e2ae69e46cae3af077363d6557b5212a7e38808aab3aab1b84"
+      ],
+      [
+        "advanced.d.ts",
+        "60ee417fb0b3555c0a6a5cbab7bb30d2fa57414e2bd9aaeec8f248af6e079652"
+      ],
+      [
+        "index.d.mts",
+        "c1f3ab6c91ca689fc477e45ead8da3101e0d0a8e6533ce137d92b0ccd77400f4"
+      ],
+      [
+        "index.d.ts",
+        "ad5f59d3eff5fba8f6114bbb9f5d44dec15e6ec620379ebb3f7990ba008f6a70"
+      ],
+      [
+        "parsers-fSBARZSn.d.mts",
+        "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e"
+      ],
+      [
+        "parsers-fSBARZSn.d.ts",
+        "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e"
+      ],
+      [
+        "processors.d.mts",
+        "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+      ],
+      [
+        "processors.d.ts",
+        "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+      ]
+    ]
+  },
+  "commands": [
+    {
+      "label": "typecheck",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "workingDirectory": "<repo-root>",
+      "environment": {
+        "TMPDIR": "<repo-root>/_tmp-arpc-08-aiwhequb",
+        "NO_COLOR": "1",
+        "FORCE_COLOR": "0"
+      },
+      "exit": 0,
+      "seconds": 27.223,
+      "rawLogSha256": "a1366528864237088d7bc57ef7a42efab78a940fbe13e1b5247c9d581a6c27b3",
+      "scrubbedLogSha256": "3594ef6f0d6ce9441038f8d717997f79f6e53f22d22eb4820130060345fb4eda",
+      "toolTimeoutMs": 2400000
+    },
+    {
+      "label": "package-test",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test"
+      ],
+      "workingDirectory": "<repo-root>",
+      "environment": {
+        "TMPDIR": "<repo-root>/_tmp-arpc-08-aiwhequb",
+        "ARPC_CRUD_WORK_REPORT": "<repo-root>/_tmp-arpc-08-aiwhequb/crud-work.json",
+        "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arpc-08-aiwhequb/preparation-work.json",
+        "NO_COLOR": "1",
+        "FORCE_COLOR": "0"
+      },
+      "exit": 0,
+      "seconds": 1682.598,
+      "rawLogSha256": "fdbe351986b13a485d4bdc52734b8a61d0a049122aa51b47c432b12413a04b25",
+      "scrubbedLogSha256": "1177d4349e5efbabd8688c07766b4a39b91b555ed9ab1572fb8780c65005a338",
+      "summary": [
+        " Test Files  210 passed (210)",
+        "      Tests  7558 passed (7558)",
+        "   Start at  19:10:59",
+        "   Duration  1661.54s (transform 3.65s, setup 65.45s, import 21.94s, tests 1553.48s, environment 16ms)"
+      ],
+      "toolTimeoutMs": 2400000,
+      "testFilesPassed": 210,
+      "testsPassed": 7558,
+      "perFileCounts": null,
+      "failedOrSkippedOrPendingReported": false,
+      "executionCount": 1,
+      "reporterLimitation": "The console reporter emitted aggregate totals only; no per-file counts inferred."
+    },
+    {
+      "label": "lint",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/src",
+        "packages/access-router/test",
+        "scripts/benchmarks/access-router-crud-v2-worker.mjs",
+        "scripts/benchmarks/access-router-crud-v2.mjs",
+        "scripts/benchmarks/access-router-crud-worker.mjs",
+        "scripts/benchmarks/access-router-crud.mjs"
+      ],
+      "workingDirectory": "<repo-root>",
+      "environment": {
+        "TMPDIR": "<repo-root>/_tmp-arpc-08-aiwhequb",
+        "NO_COLOR": "1",
+        "FORCE_COLOR": "0"
+      },
+      "exit": 0,
+      "seconds": 7.81,
+      "rawLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scrubbedLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "toolTimeoutMs": 2400000
+    }
+  ],
+  "scratch": {
+    "directory": "<repo-root>/_tmp-arpc-08-aiwhequb",
+    "gitCheckIgnoreExit": 0,
+    "rule": "_tmp*"
+  },
+  "workAndHistoricalDataAudit": {
+    "originalBaselineReconstructedFromHead": {
+      "files": 151,
+      "hash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480"
+    },
+    "originalDeclarationsStillIdentical": 8,
+    "currentWork": {
+      "crudRecords": 96,
+      "preparationRecords": 32,
+      "crudHash": "f8175081b1ddddfd58f87d779ee7c6a9cec5a8310f59a65b61b78e72287b7f2b",
+      "preparationHash": "e6acf8b14c60ce66b9889f1bbbb4d5bae98dde3d8dd9bbe836de75bfb31b5589",
+      "matchesArchivedBaselineCrudRecords": true,
+      "matchesArpc07BeforeAndAfterRawHashes": true
+    },
+    "v1": {
+      "recalculatedCases": 432,
+      "usableWallAndCpuNoiseCells": 15,
+      "timingWorkers": 28
+    },
+    "arpc02": {
+      "recalculatedCases": 16,
+      "usableCells": 0,
+      "timingWorkers": 140,
+      "measuredInvocations": 155904
+    },
+    "v2Partial": {
+      "persistedPairs": 132,
+      "persistedWorkers": 264,
+      "completePanels": 2,
+      "completeCases": 8,
+      "usableCompleteCases": 0,
+      "completeReportExists": false
+    },
+    "arpc05": {
+      "recalculatedNoiseAndComparisonCases": 8,
+      "noiseWithinCapCells": 0,
+      "timingWorkers": 56,
+      "acceptance": false
+    },
+    "performanceMeasurementsExecutedHere": false,
+    "originalEligibilityRulesUnchanged": {
+      "rounds": 7,
+      "repeats": 2,
+      "noiseCap": 0.2
+    }
+  },
+  "originalFrozenSealReadOnlyVerification": {
+    "manifestSha256": "ff8d1318e628e48e352b8f6d6656f4b33d903fba6f4dbbcefb6ad54197e6ebfb",
+    "sourceFiles": 151,
+    "dependencyPackages": 127,
+    "bundleSha256": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c",
+    "loadedServiceCode": false
+  },
+  "preExistingEvidenceAndReachabilityAudit": {
+    "reachability": {
+      "currentCodeAndDistFilesScanned": 1541,
+      "currentRemovedSymbolHits": [],
+      "baselineHits": [
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:8:  canPrepareStaticOutputPolicy,",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:159:function ordinaryContainer(value: unknown): value is Record<string, unknown> {",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:173:function booleanRuleLookup(schema: unknown, path: string, access: string): boolean {",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:175:  if (!ordinaryContainer(schema)) return false;",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:178:    if (!ordinaryContainer(raw)) return false;",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:190:  if (!ordinaryContainer(slot.value)) return false;",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:194:  return !sub.value || booleanRuleLookup(sub.value, rest.join('.'), access);",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:197:export interface StaticOutputPath {",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:204:export function staticFieldPolicy(authorization: ResolvedServiceAuthorization, binding: AuthorizationBinding) {",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:205:  return canPrepareStaticOutputPolicy(authorization, binding) ? callFieldPolicy(authorization, binding) : undefined;",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:209:export function prepareStaticOutputPaths(",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:215:): readonly StaticOutputPath[] | undefined {",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:216:  const policy = staticFieldPolicy(authorization, binding);",
+        "HEAD:packages/access-router/src/acl/output-field-policy.ts:222:        (!requestOnly && !isCatalogOutputPath(catalog, path)) || !booleanRuleLookup(policy.schema, path, access),",
+        "HEAD:packages/access-router/src/acl/service-authorization.ts:867:export function canPrepareStaticOutputPolicy("
+      ]
+    },
+    "archiveFilesReviewed": 89,
+    "jsonFilesStrictParsed": 55,
+    "malformedJson": [],
+    "markdownFileLinksChecked": 163,
+    "brokenMarkdownLinks": [],
+    "privacyPatternHits": [],
+    "trailingWhitespace": [
+      {
+        "path": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-v2/timeout-excerpt.log",
+        "line": 16
+      }
+    ],
+    "archiveRecordedFileHashesChecked": 41,
+    "archiveHashMismatches": [],
+    "trackedTestAssertionCounts": {
+      "packages/access-router/test/owned-authorization-boundaries.unit.test.ts": {
+        "beforeExpectCalls": 81,
+        "afterExpectCalls": 81
+      },
+      "packages/access-router/test/owned-authorization-stage.unit.test.ts": {
+        "beforeExpectCalls": 195,
+        "afterExpectCalls": 195
+      },
+      "packages/access-router/test/owned-stage-test-fixture.ts": {
+        "beforeExpectCalls": 0,
+        "afterExpectCalls": 0
+      },
+      "packages/access-router/test/service-authorization-finalizer.unit.test.ts": {
+        "beforeExpectCalls": 176,
+        "afterExpectCalls": 176
+      },
+      "packages/access-router/test/virtuals-populate-dependencies.integration.test.ts": {
+        "beforeExpectCalls": 294,
+        "afterExpectCalls": 294
+      },
+      "packages/access-router/test/virtuals-populate-dependencies.traversal.test.ts": {
+        "beforeExpectCalls": 20,
+        "afterExpectCalls": 20
+      }
+    },
+    "checkpointedFiles": 2353,
+    "protectedChanges": [],
+    "preservedHistoricalWhitespaceOnly": true
+  },
+  "scopeLimits": [
+    "source-selected deterministic-adapter timing harness, not installed performance or DB latency",
+    "installed tests cover their existing bounded peer/module/guide workflows, not an exhaustive installed all-16 CRUD matrix",
+    "strict-consumer copied-dist staging is distinct from packed-consumer tarball installation",
+    "no root release build/publish or downstream acceptance",
+    "no new accepted timing/allocation/retained-heap/non-regression claim"
+  ],
+  "notRun": [
+    "root/grouped/downstream test suites",
+    "root build/lint sweep",
+    "root release-artifact commands",
+    "additional benchmark/calibration or heap/allocation experiments"
+  ],
+  "deferredPerformanceEvidence": [
+    "usable attributable preparation/logging baseline-candidate comparisons",
+    "allocation and retained heap",
+    "related/populate/correlated target performance",
+    "sort-heavy and dynamic-rule performance",
+    "enabled/changing logger performance",
+    "failure/reentry/in-flight/limit/duplicate-identity performance",
+    "real DB latency"
+  ],
+  "packetLog": {
+    "path": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-08-verification.log",
+    "sha256": "920239c85e6748472631e53b32927103ffd5e483a880bf14c4197b1e1723be6c",
+    "transformation": "concise terminal excerpts, routine build output omitted, checkout root scrubbed; raw log hashes in command records"
+  },
+  "archiveLimits": "Only report/concise log/verification manifest preserved. Raw logs/work bodies, generated builds/bundles/consumers/tarballs/dependencies/MongoDB data and scratch audit tooling omitted. Reproduction requires source revision plus retained diff, maintained tests/tooling, installed lock/toolchain and MongoDB/consumer prerequisites.",
+  "blockers": [],
+  "gitDiffCheck": "passed",
+  "artifactDestinationIgnored": false,
+  "finalPacketAudit": {
+    "artifactFilesIncludingNewPacket": 92,
+    "jsonFilesStrictParsed": 56,
+    "markdownFileLinksChecked": 176,
+    "brokenLinks": [],
+    "privatePathSessionOrCredentialPatternHits": [],
+    "malformedDuplicateKeyOrNonFiniteJson": [],
+    "newPacketTrailingWhitespace": [],
+    "historicalTimeoutLogLine16TrailingSpacePreserved": true,
+    "existingCheckpointedFilesUnchanged": 2353,
+    "newFiles": [
+      "arpc-08-review.md",
+      "arpc-08-verification.json",
+      "arpc-08-verification.log"
+    ]
+  }
+}

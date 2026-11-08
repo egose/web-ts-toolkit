@@ -1,0 +1,370 @@
+diff --git a/packages/access-router/test/service-lazy-logging.unit.test.ts b/packages/access-router/test/service-lazy-logging.unit.test.ts
+new file mode 100644
+index 0000000..1ace230
+--- /dev/null
++++ b/packages/access-router/test/service-lazy-logging.unit.test.ts
+@@ -0,0 +1,240 @@
++import mongoose from 'mongoose';
++import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
++import * as fs from 'node:fs/promises';
++import path from 'node:path';
++import type { AccessRouterLogger, AuthorizationMode } from '../src/interfaces';
++import * as logging from '../src/logger-helpers';
++import { defaultLogger } from '../src/logger-default';
++import { caseId, createCrudFixture, operations, type CrudCase } from './access-router-crud-fixture';
++import { quietOutput, sourceModes } from './owned-stage-test-fixture';
++import { writeOutputFixture } from './write-output-test-fixture';
++
++const work: unknown[] = [];
++afterAll(async () => {
++  if (!process.env.ARPC_LOGGING_WORK_REPORT) return;
++  const target = path.resolve(process.env.ARPC_LOGGING_WORK_REPORT);
++  expect(target.startsWith(`${path.resolve(process.env.TMPDIR!)}${path.sep}`)).toBe(true);
++  await fs.writeFile(target, JSON.stringify(work));
++});
++afterEach(() => vi.restoreAllMocks());
++
++const stableMessages = (messages: string[]) => messages.map((message) => {
++  const { startedAt: _start, durationMs: _duration, ...stable } = JSON.parse(message);
++  return stable;
++});
++
++const cases: CrudCase[] = sourceModes.flatMap((mode) => (['direct', 'public'] as const).flatMap((entry) =>
++  operations.filter((operation) => entry !== 'public' || operation !== 'update-filter').map((operation) => {
++    const spec = { modes: Array<AuthorizationMode>(4).fill(mode), entry, operation, shape: 'hooks' as const, rows: 4, width: 4 };
++    return { ...spec, id: caseId(spec) };
++  }),
++));
++
++describe('real service lazy debug summaries', () => {
++  it.each(cases)('$id skips disabled summaries without changing queries, hooks, writes or output', async (c) => {
++    const f = createCrudFixture(c, true);
++    const summaries = vi.spyOn(logging, 'summarizeFilter');
++    const messages: string[] = [];
++    const debug = vi.fn(function (this: AccessRouterLogger, message: string) {
++      expect(this).toBe(logger);
++      messages.push(message);
++    });
++    const level = vi.fn(function (this: AccessRouterLogger, name: string) {
++      expect(this).toBe(logger);
++      expect(name).toBe('debug');
++      return enabled;
++    });
++    let enabled = true;
++    let logger: AccessRouterLogger = { debug, isLevelEnabled: level };
++    f.runtime.setGlobalOptions({ logger });
++    try {
++      const output = f.check(await f.invoke());
++      const counts = { ...f.counts };
++      const trace = [...f.trace];
++      const expectedOps = c.operation.startsWith('create') || (c.entry === 'public' && c.operation === 'upsert-create')
++        ? []
++        : c.operation === 'read-fallback' && c.entry === 'public'
++          ? ['findOne', 'findOne', 'findOne', 'findOne']
++          : c.operation === 'upsert-update' && c.entry === 'direct'
++            ? ['upsert', 'updateOne', 'updateOne', 'upsert']
++            : Array(2).fill(c.operation.startsWith('read') ? 'findOne'
++              : c.operation.startsWith('list') ? 'find'
++                : c.operation === 'upsert-create' ? 'upsert' : 'updateOne');
++      expect(stableMessages(messages).map((m) => m.op)).toEqual(expectedOps);
++      expect(summaries).toHaveBeenCalledTimes(expectedOps.length);
++      expect(level).toHaveBeenCalledTimes(expectedOps.length);
++      const expectedMessages = stableMessages(messages);
++
++      for (const posture of ['disabled', 'missing-level', 'throwing-level', 'throwing-debug'] as const) {
++        f.reset();
++        summaries.mockClear();
++        debug.mockClear();
++        level.mockClear();
++        messages.length = 0;
++        enabled = posture !== 'disabled';
++        logger = {
++          ...(posture === 'missing-level' ? {} : { isLevelEnabled: posture === 'throwing-level' ? function (name) {
++            level.call(this, name);
++            throw new Error('level probe failed');
++          } : level }),
++          debug: posture === 'throwing-debug' ? function (...args) {
++            debug.apply(this, args);
++            throw new Error('debug handler failed');
++          } : debug,
++        };
++        f.runtime.setGlobalOptions({ logger });
++
++        expect(f.check(await f.invoke())).toEqual(output);
++        expect(f.counts).toEqual(counts);
++        expect(f.trace).toEqual(trace);
++        expect(summaries).toHaveBeenCalledTimes(posture === 'disabled' ? 0 : expectedOps.length);
++        expect(debug).toHaveBeenCalledTimes(posture === 'disabled' ? 0 : expectedOps.length);
++        expect(level).toHaveBeenCalledTimes(posture === 'missing-level' ? 0 : expectedOps.length);
++        expect(stableMessages(messages)).toEqual(posture === 'disabled' ? [] : expectedMessages);
++        work.push({ id: c.id, posture, summaries: summaries.mock.calls.length, debugCalls: debug.mock.calls.length,
++          levelChecks: level.mock.calls.length, counts: { ...f.counts }, trace: [...f.trace], messages: stableMessages(messages) });
++      }
++    } finally { f.dispose(); }
++  });
++
++  it.each(sourceModes)('%s large admitted logical/native filters are summarized only for enabled events', async (mode) => {
++    const f = writeOutputFixture(mode, { readAuthorizationMode: mode, listAuthorizationMode: mode });
++    const filter = {
++      $and: [
++        { $or: Array.from({ length: 24 }, (_, index) => ({ value: { $in: [`private-${index}`, /secret/i] } })) },
++        { when: { $gte: new Date(7) }, payload: Buffer.from('private-buffer') },
++        { ownerId: new mongoose.Types.ObjectId('0123456789abcdef01234567') },
++      ],
++    };
++    f.adapter.find.mockResolvedValue([f.stored.toObject()]);
++    const summarize = logging.summarizeFilter;
++    const entries = Object.entries;
++    let insideSummary = false;
++    let summaryTraversals = 0;
++    vi.spyOn(Object, 'entries').mockImplementation((value) => {
++      if (insideSummary) summaryTraversals += 1;
++      return entries(value);
++    });
++    const summaries = vi.spyOn(logging, 'summarizeFilter').mockImplementation((value) => {
++      insideSummary = true;
++      try { return summarize(value); } finally { insideSummary = false; }
++    });
++    const debug = vi.fn();
++    const level = vi.fn(() => false);
++    f.runtime.setGlobalOptions({ logger: { debug, isLevelEnabled: level } });
++    const args = { select: ['value', '-_id'], limit: 5 };
++    const disabled = await f.direct.find(filter, args, quietOutput);
++    expect(disabled).toMatchObject({ success: true, data: [{ value: 'before' }] });
++    expect(summaries).not.toHaveBeenCalled();
++    expect(summaryTraversals).toBe(0);
++    expect(debug).not.toHaveBeenCalled();
++    expect(level).toHaveBeenCalledTimes(2);
++    const admitted = f.adapter.find.mock.calls[0][0].filter;
++    expect(admitted).toEqual({ $and: [{ ...filter.$and[1], ...filter.$and[2] }, filter.$and[0]] });
++    expect(admitted).not.toBe(filter);
++
++    level.mockReturnValue(true);
++    const enabled = await f.public._list(filter, args, quietOutput);
++    expect(enabled).toMatchObject({ success: true, data: [{ value: 'before' }] });
++    expect(f.adapter.find.mock.calls[1][0].filter).toEqual(admitted);
++    expect(summaries).toHaveBeenCalledTimes(2);
++    expect(summaryTraversals).toBeGreaterThan(0);
++    // $and + $or + 24 predicate keys + two native-valued fields + ownerId.
++    const messages = debug.mock.calls.map(([message]) => JSON.parse(message));
++    expect(messages[0]).toEqual({ op: 'find', modelName: f.model.modelName, skip: 0, limit: 5,
++      populateCount: 0, selectCount: 2, filterKeyValueCount: 29, startedAt: expect.any(Number) });
++    expect(messages[1]).toEqual({ op: 'find', modelName: f.model.modelName, filterKeyValueCount: 29,
++      durationMs: expect.any(Number), resultCode: 'success' });
++    expect(JSON.stringify(messages)).not.toMatch(/private|secret|0123456789|\$and|\$in|REDACTED/);
++    expect(f.adapter.find).toHaveBeenCalledTimes(2);
++    expect(f.saves).not.toHaveBeenCalled();
++  });
++
++  it.each(sourceModes.flatMap((mode) => [false, true].map((initial) => ({ mode, initial }))))(
++    '$mode rechecks each event when debug changes from $initial, with unconditional start timing', async ({ mode, initial }) => {
++      const f = writeOutputFixture(mode, { listAuthorizationMode: mode });
++      let enabled = initial;
++      let now = 1000;
++      vi.spyOn(Date, 'now').mockImplementation(() => now);
++      const debug = vi.fn();
++      const isLevelEnabled = vi.fn(() => { now += 100; return enabled; });
++      f.runtime.setGlobalOptions({ logger: { debug, isLevelEnabled } });
++      f.adapter.find.mockImplementation(async () => {
++        enabled = !initial;
++        now = 1250;
++        return [f.stored.toObject()];
++      });
++      const summaries = vi.spyOn(logging, 'summarizeFilter');
++      expect(await f.direct.find({}, { select: ['value', '-_id'] }, quietOutput)).toMatchObject({ success: true });
++      expect(isLevelEnabled).toHaveBeenCalledTimes(2);
++      expect(summaries).toHaveBeenCalledTimes(1);
++      expect(debug).toHaveBeenCalledTimes(1);
++      const message = JSON.parse(debug.mock.calls[0][0]);
++      expect(message).toMatchObject(initial ? { startedAt: 1000 } : { durationMs: 250, resultCode: 'success' });
++      expect(message).not.toHaveProperty(initial ? 'durationMs' : 'startedAt');
++    },
++  );
++
++  it('resolves a replacement logger after the level probe and again at completion', async () => {
++    const f = writeOutputFixture('isolated');
++    const events: string[] = [];
++    const replacement: AccessRouterLogger = {
++      debug(message) { expect(this).toBe(replacement); events.push(JSON.parse(message).resultCode ?? 'begin'); },
++      isLevelEnabled() { expect(this).toBe(replacement); events.push('replacement-level'); return true; },
++    };
++    const original: AccessRouterLogger = {
++      isLevelEnabled() {
++        expect(this).toBe(original);
++        events.push('original-level');
++        f.runtime.setGlobalOptions({ logger: replacement });
++        return true;
++      },
++      debug: vi.fn(),
++    };
++    f.runtime.setGlobalOptions({ logger: original });
++    expect(await f.direct.find({}, {}, quietOutput)).toMatchObject({ success: true });
++    expect(events).toEqual(['original-level', 'begin', 'replacement-level', 'success']);
++    expect(original.debug).not.toHaveBeenCalled();
++  });
++
++  it('retains the default debug fallback and custom receiver when the handler is absent', async () => {
++    const f = writeOutputFixture('trusted');
++    const logger: AccessRouterLogger = {};
++    f.runtime.setGlobalOptions({ logger });
++    const fallback = vi.spyOn(defaultLogger, 'debug').mockImplementation(function (this: unknown) {
++      expect(this).toBe(logger);
++      return defaultLogger;
++    });
++    expect(await f.direct.find({}, {}, quietOutput)).toMatchObject({ success: true });
++    expect(fallback).toHaveBeenCalledTimes(2);
++    expect(stableMessages(fallback.mock.calls.map(([message]) => String(message))).map((m) => m.op)).toEqual(['find', 'find']);
++  });
++
++  it.each(sourceModes.flatMap((mode) => (['direct', 'public'] as const).map((entry) => ({ mode, entry }))))(
++    '$mode $entry DELETE success/miss/denial skips disabled work and keeps enabled structured errors', async ({ mode, entry }) => {
++      for (const outcome of ['success', 'not_found', 'forbidden'] as const) {
++        const f = writeOutputFixture(mode, outcome === 'forbidden' ? { baseFilter: { delete: () => false } } : {});
++        const remove = vi.spyOn(f.stored, 'deleteOne').mockResolvedValue(f.stored as never);
++        const debug = vi.fn();
++        const level = vi.fn(() => false);
++        f.runtime.setGlobalOptions({ logger: { debug, isLevelEnabled: level } });
++        if (outcome === 'not_found') f.adapter.findOne.mockResolvedValue(null);
++        const summaries = vi.spyOn(logging, 'summarizeFilter');
++        const invoke = () => entry === 'direct' ? f.direct.delete('existing') : f.public._delete('existing');
++        expect(await invoke()).toMatchObject({ code: outcome });
++        expect(summaries).not.toHaveBeenCalled();
++        expect(debug).not.toHaveBeenCalled();
++        expect(remove).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 0);
++        expect(f.adapter.findOne).toHaveBeenCalledTimes(outcome === 'forbidden' ? 0 : 1);
++        level.mockReturnValue(true);
++        expect(await invoke()).toMatchObject({ code: outcome });
++        expect(summaries).toHaveBeenCalledTimes(2);
++        expect(stableMessages(debug.mock.calls.map(([message]) => message))).toEqual([
++          { op: 'delete', modelName: f.model.modelName, filterKeyValueCount: outcome === 'forbidden' ? 0 : 1 },
++          { op: 'delete', modelName: f.model.modelName, filterKeyValueCount: outcome === 'forbidden' ? 0 : 1, resultCode: outcome },
++        ]);
++        summaries.mockRestore();
++      }
++    },
++  );
++});
+diff --git a/packages/access-router/test/service-lazy-logging.integration.test.ts b/packages/access-router/test/service-lazy-logging.integration.test.ts
+new file mode 100644
+index 0000000..ff20b95
+--- /dev/null
++++ b/packages/access-router/test/service-lazy-logging.integration.test.ts
+@@ -0,0 +1,118 @@
++import express from 'express';
++import mongoose from 'mongoose';
++import request from 'supertest';
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { createAccessRuntime } from '../src/index';
++import type { AuthorizationMode, ModelRequest } from '../src/interfaces';
++import * as logging from '../src/logger-helpers';
++import { useMongoTestDatabase } from './setup';
++
++useMongoTestDatabase();
++let serial = 0;
++const modes: AuthorizationMode[] = ['isolated', 'trusted'];
++const quiet = { includePermissions: false, includeFieldPermissions: false, includeCount: false };
++
++afterEach(() => {
++  vi.restoreAllMocks();
++  mongoose.deleteModel(/^Arpc05Scopes/);
++});
++
++describe('lazy logging across related/embedded real-service scopes', () => {
++  it.each(modes.flatMap((parentMode) => modes.flatMap((targetMode) =>
++    (['read', 'list'] as const).flatMap((parentOp) => (['read', 'list'] as const).flatMap((targetOp) =>
++      (['direct', 'public'] as const).map((entry) => ({ parentMode, targetMode, parentOp, targetOp, entry })),
++    )),
++  )))('$parentMode $parentOp parent / $targetMode $targetOp target / $entry keeps output, queries and hooks', async ({
++    parentMode, targetMode, parentOp, targetOp, entry,
++  }) => {
++    const api = createAccessRuntime();
++    const n = ++serial;
++    const queries: unknown[] = [];
++    const hooks: string[] = [];
++    const schema = (definition: mongoose.SchemaDefinition) => {
++      const result = new mongoose.Schema(definition, { versionKey: false });
++      result.pre('find', function () { queries.push([this.model.modelName, 'find', this.getFilter()]); });
++      result.pre('findOne', function () { queries.push([this.model.modelName, 'findOne', this.getFilter()]); });
++      return result;
++    };
++    const Target = mongoose.model(`Arpc05ScopesTarget${n}`, schema({ name: String, group: String, hidden: String }));
++    const Parent = mongoose.model(`Arpc05ScopesParent${n}`, schema({
++      name: String, group: String,
++      children: [new mongoose.Schema({ label: String, hidden: String }, { _id: false })],
++    }));
++    const hook = (scope: string) => (doc: any) => {
++      hooks.push(scope);
++      doc.name = `hook:${doc.name}`;
++      return {};
++    };
++    api.setGlobalOptions({ globalPermissions: () => [], logger: { isLevelEnabled: () => false } });
++    api.createRouter(Target, {
++      operationAccess: true, baseFilter: true, stripPermissionsField: true,
++      readAuthorizationMode: targetMode, listAuthorizationMode: targetMode,
++      permissionSchema: { name: true, hidden: false }, docPermissions: hook('target'),
++    });
++    const router = api.createRouter(Parent, {
++      basePath: '/arpc05-scopes', operationAccess: true, baseFilter: true, stripPermissionsField: true,
++      readAuthorizationMode: parentMode, listAuthorizationMode: parentMode,
++      permissionSchema: { name: true, group: true,
++        children: { read: true, list: true, sub: { label: true, hidden: false } } },
++      docPermissions: hook('parent'),
++    });
++    await Target.create({ name: 'target', group: 'g', hidden: 'never' });
++    const parent = await Parent.create({ name: 'parent', group: 'g', children: [{ label: 'child', hidden: 'never' }] });
++    const app = express().use(express.json()).use(router.routes);
++    let result: unknown;
++    let failure: unknown;
++    router.router.post('/probe', async (req, res) => {
++      try {
++        const core = (req as unknown as ModelRequest).macl;
++        const args = {
++          select: ['name', 'children', '-_id'],
++          include: { model: Target.modelName, path: 'related', op: targetOp, mode: 'correlated' as const,
++            filter: { group: { $parent: 'group' } }, args: { select: ['name', '-_id'] } },
++        };
++        result = entry === 'direct'
++          ? parentOp === 'read' ? await core.getService(Parent.modelName).findById(String(parent._id), args, quiet)
++            : await core.getService(Parent.modelName).find({}, args, quiet)
++          : parentOp === 'read' ? await core.getPublicService(Parent.modelName)._read(String(parent._id), args, quiet)
++            : await core.getPublicService(Parent.modelName)._list({}, args, quiet);
++      } catch (error) { failure = error; }
++      res.json({ ok: true });
++    });
++    const summaries = vi.spyOn(logging, 'summarizeFilter');
++    const debug = vi.fn();
++    const level = vi.fn(() => false);
++    api.setGlobalOptions({ logger: { debug, isLevelEnabled: level } });
++    await request(app).post('/arpc05-scopes/probe').send({}).expect(200);
++    if (failure) throw failure;
++    const target = { name: targetMode === 'trusted' ? 'hook:target' : 'target' };
++    const row = { name: parentMode === 'trusted' ? 'hook:parent' : 'parent', children: [{ label: 'child' }],
++      related: targetOp === 'read' ? target : [target] };
++    expect(result).toMatchObject({ success: true, data: parentOp === 'read' ? row : [row] });
++    expect(JSON.stringify(result)).not.toContain('never');
++    expect(summaries).not.toHaveBeenCalled();
++    expect(debug).not.toHaveBeenCalled();
++    const expectedQueries = [...queries];
++    const expectedHooks = [...hooks];
++    const checks = level.mock.calls.length;
++    expect(checks).toBeGreaterThanOrEqual(2);
++    queries.length = 0;
++    hooks.length = 0;
++    level.mockClear();
++    level.mockReturnValue(true);
++    await request(app).post('/arpc05-scopes/probe').send({}).expect(200);
++    if (failure) throw failure;
++    expect(result).toMatchObject({ success: true, data: parentOp === 'read' ? row : [row] });
++    expect(queries).toEqual(expectedQueries);
++    expect(hooks).toEqual(expectedHooks);
++    expect(summaries).toHaveBeenCalledTimes(checks);
++    expect(level).toHaveBeenCalledTimes(checks);
++    expect(debug).toHaveBeenCalledTimes(checks);
++    for (const [message] of debug.mock.calls) {
++      const parsed = JSON.parse(message);
++      expect([Parent.modelName, Target.modelName]).toContain(parsed.modelName);
++      expect(parsed.filterKeyValueCount).toEqual(expect.any(Number));
++      expect(parsed).not.toHaveProperty('query');
++    }
++  });
++});

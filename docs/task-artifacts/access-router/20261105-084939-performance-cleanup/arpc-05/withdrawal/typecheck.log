@@ -1,0 +1,131 @@
+$ pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json
+Scope: 5 of 32 workspace projects
+../utils build$ tsup --config tsup.config.ts
+../utils build: CLI Building entry: src/index.ts
+../utils build: CLI Using tsconfig: tsconfig.json
+../utils build: CLI tsup v8.5.1
+../utils build: CLI Using tsup config: <repo-root>/packages/utils/tsup.config.ts
+../utils build: CLI Target: node22
+../utils build: CJS Build start
+../utils build: ESM Build start
+../utils build: ESM dist/index.mjs 30.70 KB
+../utils build: ESM ⚡️ Build success in 52ms
+../utils build: CJS dist/index.js 33.25 KB
+../utils build: CJS ⚡️ Build success in 52ms
+../utils build: DTS Build start
+../utils build: DTS ⚡️ Build success in 972ms
+../utils build: DTS dist/index.d.ts  25.41 KB
+../utils build: DTS dist/index.d.mts 25.41 KB
+../utils build: Done
+../http-errors build$ tsup --config tsup.config.ts
+../http-errors build: CLI Building entry: src/index.ts
+../http-errors build: CLI Using tsconfig: tsconfig.json
+../http-errors build: CLI tsup v8.5.1
+../http-errors build: CLI Using tsup config: <repo-root>/packages/http-errors/tsup.config.ts
+../http-errors build: CLI Target: node22
+../http-errors build: CJS Build start
+../http-errors build: ESM Build start
+../http-errors build: CJS dist/index.js 22.70 KB
+../http-errors build: CJS ⚡️ Build success in 22ms
+../http-errors build: ESM dist/index.mjs 18.32 KB
+../http-errors build: ESM ⚡️ Build success in 22ms
+../http-errors build: DTS Build start
+../http-errors build: DTS ⚡️ Build success in 1077ms
+../http-errors build: DTS dist/index.d.ts  16.85 KB
+../http-errors build: DTS dist/index.d.mts 16.85 KB
+../http-errors build: Done
+../express-response-handler build$ tsup --config tsup.config.ts
+../express-response-handler build: CLI Building entry: src/create-handler.ts, src/error-format.ts, src/error-formats.ts, src/http-response.ts, src/index.ts, src/public-types.ts, src/responses/csv.ts, src/responses/index.ts, src/responses/success.ts
+../express-response-handler build: CLI Using tsconfig: tsconfig.json
+../express-response-handler build: CLI tsup v8.5.1
+../express-response-handler build: CLI Using tsup config: <repo-root>/packages/express-response-handler/tsup.config.ts
+../express-response-handler build: CLI Target: node22
+../express-response-handler build: CLI Cleaning output folder
+../express-response-handler build: CJS Build start
+../express-response-handler build: ESM Build start
+../express-response-handler build: CJS dist/create-handler.js    35.85 KB
+../express-response-handler build: CJS dist/error-formats.js     1.15 KB
+../express-response-handler build: CJS dist/error-format.js      7.13 KB
+../express-response-handler build: CJS dist/http-response.js     13.90 KB
+../express-response-handler build: CJS dist/index.js             36.71 KB
+../express-response-handler build: CJS dist/responses/index.js   2.12 KB
+../express-response-handler build: CJS dist/responses/csv.js     9.76 KB
+../express-response-handler build: CJS dist/public-types.js      1.17 KB
+../express-response-handler build: CJS dist/responses/success.js 3.03 KB
+../express-response-handler build: CJS ⚡️ Build success in 33ms
+../express-response-handler build: ESM dist/error-format.mjs      5.18 KB
+../express-response-handler build: ESM dist/create-handler.mjs    33.81 KB
+../express-response-handler build: ESM dist/responses/csv.mjs     8.63 KB
+../express-response-handler build: ESM dist/public-types.mjs      136.00 B
+../express-response-handler build: ESM dist/index.mjs             34.18 KB
+../express-response-handler build: ESM dist/responses/index.mjs   1023.00 B
+../express-response-handler build: ESM dist/responses/success.mjs 1.72 KB
+../express-response-handler build: ESM dist/http-response.mjs     12.90 KB
+../express-response-handler build: ESM dist/error-formats.mjs     136.00 B
+../express-response-handler build: ESM ⚡️ Build success in 34ms
+../express-response-handler build: DTS Build start
+../express-response-handler build: DTS ⚡️ Build success in 2286ms
+../express-response-handler build: DTS dist/error-format.d.ts       1.71 KB
+../express-response-handler build: DTS dist/index.d.ts              1.00 KB
+../express-response-handler build: DTS dist/create-handler.d.ts     743.00 B
+../express-response-handler build: DTS dist/error-formats.d.ts      154.00 B
+../express-response-handler build: DTS dist/http-response.d.ts      5.47 KB
+../express-response-handler build: DTS dist/responses/csv.d.ts      2.50 KB
+../express-response-handler build: DTS dist/responses/success.d.ts  1.02 KB
+../express-response-handler build: DTS dist/responses/index.d.ts    452.00 B
+../express-response-handler build: DTS dist/public-types.d.ts       5.19 KB
+../express-response-handler build: DTS dist/error-format.d.mts      1.72 KB
+../express-response-handler build: DTS dist/index.d.mts             1.01 KB
+../express-response-handler build: DTS dist/create-handler.d.mts    749.00 B
+../express-response-handler build: DTS dist/error-formats.d.mts     154.00 B
+../express-response-handler build: DTS dist/http-response.d.mts     5.48 KB
+../express-response-handler build: DTS dist/responses/csv.d.mts     2.50 KB
+../express-response-handler build: DTS dist/responses/success.d.mts 1.02 KB
+../express-response-handler build: DTS dist/responses/index.d.mts   452.00 B
+../express-response-handler build: DTS dist/public-types.d.mts      5.19 KB
+../express-response-handler build: Done
+../express-json-router build$ tsup --config tsup.config.ts
+../express-json-router build: CLI Building entry: src/index.ts
+../express-json-router build: CLI Using tsconfig: tsconfig.json
+../express-json-router build: CLI tsup v8.5.1
+../express-json-router build: CLI Using tsup config: <repo-root>/packages/express-json-router/tsup.config.ts
+../express-json-router build: CLI Target: node22
+../express-json-router build: CJS Build start
+../express-json-router build: ESM Build start
+../express-json-router build: ESM dist/index.mjs 10.04 KB
+../express-json-router build: ESM ⚡️ Build success in 14ms
+../express-json-router build: CJS dist/index.js 12.05 KB
+../express-json-router build: CJS ⚡️ Build success in 15ms
+../express-json-router build: DTS Build start
+../express-json-router build: DTS ⚡️ Build success in 1330ms
+../express-json-router build: DTS dist/index.d.ts  14.97 KB
+../express-json-router build: DTS dist/index.d.mts 14.97 KB
+../express-json-router build: Done
+. build$ tsup --config tsup.config.ts
+. build: CLI Building entry: src/advanced.ts, src/index.ts, src/processors.ts
+. build: CLI Using tsconfig: tsconfig.json
+. build: CLI tsup v8.5.1
+. build: CLI Using tsup config: <repo-root>/packages/access-router/tsup.config.ts
+. build: CLI Target: node22
+. build: CLI Cleaning output folder
+. build: CJS Build start
+. build: ESM Build start
+. build: CJS dist/processors.js 12.55 KB
+. build: CJS dist/advanced.js   211.56 KB
+. build: CJS dist/index.js      864.03 KB
+. build: CJS ⚡️ Build success in 187ms
+. build: ESM dist/advanced.mjs   201.38 KB
+. build: ESM dist/processors.mjs 10.64 KB
+. build: ESM dist/index.mjs      847.86 KB
+. build: ESM ⚡️ Build success in 188ms
+. build: DTS Build start
+. build: DTS ⚡️ Build success in 11344ms
+. build: DTS dist/advanced.d.ts          105.76 KB
+. build: DTS dist/index.d.ts             36.97 KB
+. build: DTS dist/processors.d.ts        10.29 KB
+. build: DTS dist/parsers-fSBARZSn.d.ts  229.11 KB
+. build: DTS dist/advanced.d.mts         105.76 KB
+. build: DTS dist/index.d.mts            36.97 KB
+. build: DTS dist/processors.d.mts       10.29 KB
+. build: DTS dist/parsers-fSBARZSn.d.mts 229.11 KB
+. build: Done

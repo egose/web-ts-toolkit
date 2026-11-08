@@ -1,0 +1,40 @@
+{
+  "protocolId": "access-router-crud-panels-v2",
+  "baselineOperationalSeal": "_tmp-arpc-01-4d6agBQe/baseline",
+  "baselineProductionSource": "_tmp-arpc-01-4d6agBQe/baseline/src",
+  "newOperationalScratch": "_tmp-arpc-01-v2-2rvJTj9O",
+  "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+  "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+  "bundleHash": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c",
+  "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+  "originalSealManifestSha256": "ff8d1318e628e48e352b8f6d6656f4b33d903fba6f4dbbcefb6ad54197e6ebfb",
+  "protocolSha256": "6546c28db177380ad3e0ae309273beedafad204daa66782f18fd53907394ee17",
+  "maintainedFiles": {
+    "scripts/benchmarks/access-router-crud-v2.mjs": "e68adae8db5c032524c685b38ee62f2e8fc013652956d7d399e1551b6b8f19a7",
+    "scripts/benchmarks/access-router-crud-v2-worker.mjs": "88130f7a0f49bcad56945de92b04fa236a44b4264d120a5df28d98890a36f30b",
+    "packages/access-router/test/access-router-crud-v2.unit.test.ts": "90c00437e7c739df6554816273c05ec3125acf3f9207a1573916fa65d1622158",
+    "scripts/benchmarks/access-router-crud-v2.md": "ce0258e3fc19dc42534f2f0335a83840f4b654385fdb575eb1efc1a3fa41cf8e"
+  },
+  "unchangedV1Files": {
+    "scripts/benchmarks/access-router-crud.mjs": "4f3bc03eec952671a69fb7e4c5b68cebfcf8b1e976e12a5c2cea59bd93e6f27e",
+    "scripts/benchmarks/access-router-crud-worker.mjs": "db7c483b988d7818c250b80f2c1530dfde08cd9f70b9e585bd24630b60e5d45b",
+    "packages/access-router/test/access-router-crud-fixture.ts": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d"
+  },
+  "unchangedV1Evidence": {
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-report.md": "317a1b9a89c15e68b43cd4311e4dc01b02181647f98503a332f83194a074742d",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-protocol.json": "38ca549cf04828ba33d8e1b898a1699b1d0bf42d5657a659daa7e00710c0c107",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-coverage.md": "8e28f670f5fd4e8ea828d544a22c53b3ebf0a1495e7f29a9610064726005372f",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/README.md": "757a1fa9064fa37ff2b7f1ff188e973cae43296a5b54d2640e4940005a4e6db2",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-provenance.json": "efd250158bec3810945adf531783f5d3a92f8e68f61f95ef9557404f96a249f6",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-work-observations.json": "f8175081b1ddddfd58f87d779ee7c6a9cec5a8310f59a65b61b78e72287b7f2b",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-work-findings.md": "eb6289c385258cac2453ad538ecf354579fae61a377c527683be9511784f4915",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-archive-manifest.json": "2ea566114729cd7d01f4d8bd69a1869cfa1e72a69d2fc4537f4260b49335b19a",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-work.json": "54089c8798a44c976b3660669a3cdd0b94ab38d57cb26f93cdaa8ea694e924a1",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-report.json": "00edf8fcf6253bb11ac98d13d1f1b73dea966c0f74e647f3468481052ab24477",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-source-selection.json": "bb6d7eb53d2f53d83d1db771cc21d6205c77e6bd68c7d7b4cce66aa8f87c085f",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-raw.json": "517f2be1371e47e7cb60404eea6f80ba9a6f3c692850217e7594421703fc2d78",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-summary.json": "559ea3510a203e98f73ff6edfcff14afe187c7599c334652e32f1fbf16f99ad3",
+    "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-verification.json": "725de7ddb2f64dc041d37b1db1d6daf9f5e9605b90b65f96df0b570f40da5c71"
+  },
+  "limits": "Reuse original source-selected bundle; no new source or fixture seal required. External dependency/Node bytes remain required. V1 evidence is referenced, not duplicated."
+}

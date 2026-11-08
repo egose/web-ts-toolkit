@@ -1,0 +1,16 @@
+[
+  {
+    "command": "pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/access-router-crud-v2.unit.test.ts test/access-router-crud-harness.unit.test.ts",
+    "exit": 0,
+    "seconds": 9.52,
+    "log": "_tmp-arpc-01-v2-2rvJTj9O/focused-1.log",
+    "originalLogSha256": "2d6ae57f381a8b152da3426d1e2d70af20b1ed04c48c5d75b4cf2a2caad979a6"
+  },
+  {
+    "command": "pnpm exec eslint scripts/benchmarks/access-router-crud-v2.mjs scripts/benchmarks/access-router-crud-v2-worker.mjs packages/access-router/test/access-router-crud-v2.unit.test.ts",
+    "exit": 0,
+    "seconds": 1.83,
+    "log": "_tmp-arpc-01-v2-2rvJTj9O/lint-1.log",
+    "originalLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

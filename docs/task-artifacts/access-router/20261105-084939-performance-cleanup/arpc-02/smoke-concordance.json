@@ -1,0 +1,59 @@
+[
+  {
+    "run": "_tmp-arpc-02-ZaZbr4lD/selected-smoke",
+    "cases": 432,
+    "baseline": {
+      "source": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+      "bundle": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c"
+    },
+    "candidate": {
+      "source": "7236a7ecac6151bf91a191c59033331c46f3a21c30be4318ff52fa1d98d0ca7f",
+      "bundle": "b6fa80859d24cad7f8209f53cb2d8c073c0a4fd405376115b1cfdb49d4e0f70e"
+    },
+    "identicalOutputsAndPersistedState": true,
+    "identicalConfiguredResolvedModesCountsAndOrderedTraces": true,
+    "orderedCaseIdsHash": "f7b76e60de76cd5b2c8c81f97c6ec567798c9d61cf179b7e46d09dfe9a5a017e",
+    "orderedOutputStateHashesHash": "d24aad01542f44deda0163e6b8daf82485da174f147688018af1c79637cbd3c8",
+    "orderedWorkAndTraceHash": "b5f1ab56babe4377070036b9d0608b791c9cc3f612c9e39d07edbe22eb17d715",
+    "rawWorkFileHash": "891ed5264e0c850a18841443fe2e1fa5b497c6aa21fbbae0869e36a59f6ec383",
+    "rawWorkOmitted": true
+  },
+  {
+    "run": "_tmp-arpc-02-ZaZbr4lD/combined-smoke",
+    "cases": 432,
+    "baseline": {
+      "source": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+      "bundle": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c"
+    },
+    "candidate": {
+      "source": "186104271a1cb1a7ae67b1bc784708cd21be229a7c05b257f9a2ae4050d57764",
+      "bundle": "9e163e34cd8765c66c0ef31f59617f52746476d4eede5081a2ac5b28e1c8607a"
+    },
+    "identicalOutputsAndPersistedState": true,
+    "identicalConfiguredResolvedModesCountsAndOrderedTraces": true,
+    "orderedCaseIdsHash": "f7b76e60de76cd5b2c8c81f97c6ec567798c9d61cf179b7e46d09dfe9a5a017e",
+    "orderedOutputStateHashesHash": "d24aad01542f44deda0163e6b8daf82485da174f147688018af1c79637cbd3c8",
+    "orderedWorkAndTraceHash": "b5f1ab56babe4377070036b9d0608b791c9cc3f612c9e39d07edbe22eb17d715",
+    "rawWorkFileHash": "7c866dee75296e697450c4220b026dbdcd15d8e49b2eb41f7ba1cd008297216c",
+    "rawWorkOmitted": true
+  },
+  {
+    "run": "_tmp-arpc-02-ZaZbr4lD/final-smoke",
+    "cases": 432,
+    "baseline": {
+      "source": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+      "bundle": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c"
+    },
+    "candidate": {
+      "source": "5223b96f9cfa7a9c70a39730aa94b06d0e12b427eca0eda814e63d517239a082",
+      "bundle": "b11e661317a005adfa59557f2d5a4f2e71558474bad52817fce04e5dd3474d6f"
+    },
+    "identicalOutputsAndPersistedState": true,
+    "identicalConfiguredResolvedModesCountsAndOrderedTraces": true,
+    "orderedCaseIdsHash": "f7b76e60de76cd5b2c8c81f97c6ec567798c9d61cf179b7e46d09dfe9a5a017e",
+    "orderedOutputStateHashesHash": "d24aad01542f44deda0163e6b8daf82485da174f147688018af1c79637cbd3c8",
+    "orderedWorkAndTraceHash": "b5f1ab56babe4377070036b9d0608b791c9cc3f612c9e39d07edbe22eb17d715",
+    "rawWorkFileHash": "96630b9fb29327ff21d37756ae47dbd09b243bbfa824d24a87f58cf01328bf9f",
+    "rawWorkOmitted": true
+  }
+]

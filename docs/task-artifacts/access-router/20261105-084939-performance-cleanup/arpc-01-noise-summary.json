@@ -1,0 +1,43 @@
+{
+  "cases": 432,
+  "repeats": 2,
+  "pairsPerRepeat": 7,
+  "workers": 28,
+  "samplesPerWorkerCase": 9,
+  "warmupsPerWorkerCase": 3,
+  "timedInvocations": 108864,
+  "warmupInvocations": 36288,
+  "metrics": {
+    "wall": {
+      "claimBlockedOver20pct": 400,
+      "within20pct": 32,
+      "medianNoise": 0.4733662275119694,
+      "minimumNoise": 0.0519674628950908,
+      "maximumNoise": 5.281099324977693
+    },
+    "cpu": {
+      "claimBlockedOver20pct": 417,
+      "within20pct": 15,
+      "medianNoise": 1.0465968732303492,
+      "minimumNoise": 0.08306076236004523,
+      "maximumNoise": 13.109999999999996
+    }
+  },
+  "bothMetricsWithinCap": [
+    "iiii/public/list-single/hooks/4x4",
+    "itii/direct/read-hit/hooks/4x4",
+    "tiit/public/read-hit/hooks/4x4",
+    "ttii/public/read-fallback/hooks/4x4",
+    "iiii/direct/list-many/rich/16x16",
+    "iiii/direct/create-bulk/rich/16x16",
+    "iiii/direct/list-many/metadata/16x16",
+    "iiii/direct/create-bulk/metadata/16x16",
+    "iiii/direct/create-bulk/logging/16x16",
+    "iiii/public/list-many/rich/16x16",
+    "iiii/public/list-many/metadata/16x16",
+    "tttt/direct/create-bulk/rich/16x16",
+    "tttt/direct/create-bulk/metadata/16x16",
+    "tttt/public/list-many/rich/16x16",
+    "tttt/public/create-bulk/rich/16x16"
+  ]
+}

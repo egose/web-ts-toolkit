@@ -1,0 +1,585 @@
+{
+  "baseline": "../arpc-01-work-observations.json",
+  "candidate": "crud-work.json",
+  "cells": [
+    {
+      "id": "iiii/direct/read-hit/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/list-many/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/create-bulk/bare/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/update-id/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/read-hit/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/list-many/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/create-bulk/bare/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/update-id/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/read-hit/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/list-many/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/create-bulk/hooks/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/update-id/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/read-hit/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/list-many/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/create-bulk/hooks/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/update-id/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/read-hit/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/list-many/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/create-bulk/metadata/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/update-id/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/read-hit/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/list-many/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/create-bulk/metadata/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/direct/update-id/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/read-hit/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/list-many/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/create-bulk/bare/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/update-id/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/read-hit/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/list-many/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/create-bulk/bare/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/update-id/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/read-hit/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/list-many/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/create-bulk/hooks/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/update-id/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/read-hit/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/list-many/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/create-bulk/hooks/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/update-id/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/read-hit/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/list-many/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/create-bulk/metadata/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/update-id/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/read-hit/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/list-many/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/create-bulk/metadata/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "iiii/public/update-id/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/read-hit/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/list-many/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/create-bulk/bare/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/update-id/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/read-hit/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/list-many/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/create-bulk/bare/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/update-id/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/read-hit/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/list-many/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/create-bulk/hooks/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/update-id/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/read-hit/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/list-many/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/create-bulk/hooks/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/update-id/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/read-hit/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/list-many/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/create-bulk/metadata/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/update-id/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/read-hit/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/list-many/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/create-bulk/metadata/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/direct/update-id/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/read-hit/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/list-many/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/create-bulk/bare/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/update-id/bare/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/read-hit/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/list-many/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/create-bulk/bare/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/update-id/bare/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/read-hit/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/list-many/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/create-bulk/hooks/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/update-id/hooks/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/read-hit/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/list-many/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/create-bulk/hooks/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/update-id/hooks/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/read-hit/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/list-many/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/create-bulk/metadata/1x4",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/update-id/metadata/1x4",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/read-hit/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/list-many/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/create-bulk/metadata/16x16",
+      "baselineSummaries": 0,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    },
+    {
+      "id": "tttt/public/update-id/metadata/16x16",
+      "baselineSummaries": 2,
+      "candidateSummaries": 0,
+      "otherCountsAndOrderedTraceUnchanged": true
+    }
+  ],
+  "baselineSummaries": 144,
+  "candidateSummaries": 0,
+  "otherCountsAndOrderedTracesUnchanged": true
+}

@@ -1,0 +1,59 @@
+{
+  "status": "candidate-unverified; coordinator owns retention/withdrawal",
+  "baseline": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "candidate": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "eadcc6c9ad0eec639641461db3d9bd5944e5c11fe87a1a0ef3f9390a9b0b1f25",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "c1d6d416962036f483916503c3146b7214164241b18a50710cb3278074b9a64a",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "38f26d6bdb0fd6bdc47eac6ddd04a570a0b62d00e93d25608d3439285c0c6fa8"
+  },
+  "sourceFileCount": 151,
+  "changedSourceFiles": [
+    "logger-helpers.ts",
+    "services/service.ts"
+  ],
+  "productionPatchSha256": "38f26d6bdb0fd6bdc47eac6ddd04a570a0b62d00e93d25608d3439285c0c6fa8",
+  "ownedFileHashes": {
+    "packages/access-router/src/logger-helpers.ts": "447ca915a128a8a377332db68708c1858b621fdacac588cb5bc282a6e186d391",
+    "packages/access-router/src/services/service.ts": "5d887e1c943f01addd4d9c988626b979714e694f48a2cd077df85d040aac1d9f",
+    "packages/access-router/test/service-lazy-logging.unit.test.ts": "d03239f178fa0e7454c26ad6c95d85ba20d28d4b47d599c7fca82603ac424610",
+    "packages/access-router/test/service-lazy-logging.integration.test.ts": "c101bd462201f2c4ae10b602f72f49e9801cfb6dfb91fdd54af999633d7e7eba"
+  },
+  "byteIdenticalPublicDeclarations": {
+    "advanced.d.mts": "e074c1a4d43a10e2ae69e46cae3af077363d6557b5212a7e38808aab3aab1b84",
+    "advanced.d.ts": "60ee417fb0b3555c0a6a5cbab7bb30d2fa57414e2bd9aaeec8f248af6e079652",
+    "index.d.mts": "c1f3ab6c91ca689fc477e45ead8da3101e0d0a8e6533ce137d92b0ccd77400f4",
+    "index.d.ts": "ad5f59d3eff5fba8f6114bbb9f5d44dec15e6ec620379ebb3f7990ba008f6a70",
+    "parsers-fSBARZSn.d.mts": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e",
+    "parsers-fSBARZSn.d.ts": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e",
+    "processors.d.mts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+    "processors.d.ts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+  },
+  "originalBaselineSeal": "_tmp-arpc-01-4d6agBQe/baseline",
+  "candidateSeal": "_tmp-arpc-05-OUTp1l6f/candidate",
+  "scratchHistoricalOnly": "_tmp-arpc-05-OUTp1l6f",
+  "omitted": "Generated source/bundle/dist/dependency/MongoDB trees and redundant development logs. Seals are checkout-local, not portable."
+}

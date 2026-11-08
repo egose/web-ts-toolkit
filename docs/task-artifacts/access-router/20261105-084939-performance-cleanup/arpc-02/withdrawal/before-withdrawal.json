@@ -1,0 +1,29 @@
+{
+  "action": "candidate verified before withdrawing only its three production-file changes",
+  "productionDiffHash": "99f8912173d021cf49bf091962d4b80732e03bafef0943757d8200b3bf93a317",
+  "candidateSourceHash": "5223b96f9cfa7a9c70a39730aa94b06d0e12b427eca0eda814e63d517239a082",
+  "baselineSourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+  "candidateTest": "packages/access-router/test/service-output-preparation.unit.test.ts",
+  "candidateTestHash": "4dd899ae5b597f7d8b47a83dab160783bbfb14c568a194f321bb42e45615978f",
+  "candidateTestPatch": "candidate-safety-tests.patch",
+  "candidateTestPatchHash": "6e3dc5c86906391b2d01d224b7fabc5f52933a957429ed37291f385839109bc0",
+  "reconstruction": "Patch adds the original candidate test to reviewed revision 6c3ceee where this file is absent. Reconcile explicitly with the retained characterization version if replaying on the current tree.",
+  "untouchedFiles": [
+    [
+      "packages/access-router/test/no-work-output-scheduling.unit.test.ts",
+      "390b1047876cc040ea26f82d65e21971cc50cf73268519803969ecd19a6fab73"
+    ],
+    [
+      "packages/access-router/test/bulk-create-metadata-filter-trace.integration.test.ts",
+      "a2e6ed173845355f37c6a18d4c3f95e24e9b7331ac0548aa5fd8bd10c2060b83"
+    ],
+    [
+      "docs/tasks/20261105-084939-access-router-performance-cleanup.md",
+      "c5fc2397bbe883c7f5fb17e232757bdc5db56a52a4202c3390f3bb45c098ff57"
+    ],
+    [
+      "scripts/benchmarks/README.md",
+      "d29fdbf9c04dd801cd083ad92eaae676ec49bd34bfd21d1400598ae83358afac"
+    ]
+  ]
+}

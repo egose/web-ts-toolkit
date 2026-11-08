@@ -1,0 +1,203 @@
+{
+  "cwd": "<repo-root>",
+  "TMPDIR": "<repo-root>/_tmp-arpc-05-OUTp1l6f",
+  "scratchIgnoreCheck": {
+    "command": [
+      "git",
+      "check-ignore",
+      "_tmp-arpc-05-OUTp1l6f"
+    ],
+    "exitCode": 0
+  },
+  "execution": "Foreground; runtime checks/builds/measurements sequential; no queued work.",
+  "checks": [
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/service-lazy-logging.unit.test.ts",
+        "--testNamePattern",
+        "large admitted"
+      ],
+      "tree": "original production baseline; initial new test file",
+      "exitCode": 1,
+      "result": "Expected red: 2 failed / 56 skipped; summarizeFilter called twice while disabled in each mode.",
+      "logPreserved": false
+    },
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router...",
+        "build"
+      ],
+      "exitCode": 0,
+      "result": "Filtered package/transitive build passed.",
+      "logPreserved": false
+    },
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/service-lazy-logging.unit.test.ts"
+      ],
+      "exitCode": 1,
+      "result": "Development of new tests: 52 failed / 6 passed; frozen logger mutation assumptions, selectCount expectation and delete policy capture corrected in tests.",
+      "logPreserved": false
+    },
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/service-lazy-logging.unit.test.ts"
+      ],
+      "exitCode": 0,
+      "result": "58 tests passed after test corrections.",
+      "logPreserved": false
+    },
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/service-lazy-logging.unit.test.ts",
+        "test/service-lazy-logging.integration.test.ts",
+        "test/logger-redaction.test.ts",
+        "test/filter-denial.integration.test.ts",
+        "test/read-list-fallback-authorization.integration.test.ts",
+        "test/write-output-modes.unit.test.ts",
+        "test/write-output-authorization.unit.test.ts",
+        "test/write-output-origin-ownership.unit.test.ts",
+        "test/write-output-populate.unit.test.ts",
+        "test/access-router-crud-harness.unit.test.ts",
+        "test/access-router-crud-work.unit.test.ts"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arpc-05-OUTp1l6f",
+      "exitCode": 0,
+      "seconds": 23.5,
+      "log": "focused.log",
+      "logSha256": "61ab7a50d3c21016fb0fba0bb1272c9fd99c145278f8fea6a414d6eb594e437e",
+      "logPreserved": false,
+      "result": "704 tests / 11 files passed"
+    },
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arpc-05-OUTp1l6f",
+      "exitCode": 0,
+      "seconds": 33.65,
+      "log": "typecheck.log",
+      "logSha256": "18a5d61a008bf37b61b1daf84a0e88e9053446a6219e220d534fa82bd3e50668",
+      "logPreserved": false
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/src/logger-helpers.ts",
+        "packages/access-router/src/services/service.ts",
+        "packages/access-router/test/service-lazy-logging.unit.test.ts",
+        "packages/access-router/test/service-lazy-logging.integration.test.ts"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arpc-05-OUTp1l6f",
+      "exitCode": 0,
+      "seconds": 3.3,
+      "log": "lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logPreserved": false
+    },
+    {
+      "command": [
+        "node",
+        "scripts/benchmarks/access-router-crud.mjs",
+        "freeze",
+        "_tmp-arpc-05-OUTp1l6f/candidate"
+      ],
+      "exitCode": 0,
+      "result": "New candidate seal created; original baseline untouched."
+    },
+    {
+      "command": [
+        "node",
+        "_tmp-arpc-05-OUTp1l6f/bounded-measure.mjs",
+        "_tmp-arpc-01-4d6agBQe/baseline",
+        "_tmp-arpc-05-OUTp1l6f/candidate",
+        "_tmp-arpc-05-OUTp1l6f/timing"
+      ],
+      "exitCode": 0,
+      "seconds": 82.673,
+      "result": "56 timing workers / 8 cells / 0 cells within noise cap; acceptance false.",
+      "timingWorkers": 56,
+      "diagnosticWorkers": 2
+    },
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/service-lazy-logging.unit.test.ts",
+        "test/service-lazy-logging.integration.test.ts",
+        "test/logger-redaction.test.ts",
+        "test/filter-denial.integration.test.ts",
+        "test/read-list-fallback-authorization.integration.test.ts",
+        "test/write-output-modes.unit.test.ts",
+        "test/write-output-authorization.unit.test.ts",
+        "test/write-output-origin-ownership.unit.test.ts",
+        "test/write-output-populate.unit.test.ts",
+        "test/access-router-crud-harness.unit.test.ts",
+        "test/access-router-crud-work.unit.test.ts"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arpc-05-OUTp1l6f",
+      "exitCode": 0,
+      "seconds": 24.02,
+      "log": "focused-final.log",
+      "logSha256": "cb0434305f1fd5033e2fbff5139af82468686f5ecf14145c056d3cb9752e3a00",
+      "logPreserved": true,
+      "result": "704 tests / 11 files passed"
+    }
+  ],
+  "notRun": [
+    "full package suite (reserved for final tree once)",
+    "root/grouped/downstream tests",
+    "no-work-output-scheduling.unit.test.ts",
+    "bulk-create-metadata-filter-trace.integration.test.ts",
+    "allocation or retained-heap probes"
+  ]
+}

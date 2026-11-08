@@ -1,0 +1,33 @@
+{
+  "copies": [
+    {
+      "original": "_tmp-arpc-01-4d6agBQe/baseline-noise-v1/protocol.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-protocol.json",
+      "sha256": "38ca549cf04828ba33d8e1b898a1699b1d0bf42d5657a659daa7e00710c0c107",
+      "bytes": 2296,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-4d6agBQe/baseline-noise-v1/work.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-work.json",
+      "sha256": "54089c8798a44c976b3660669a3cdd0b94ab38d57cb26f93cdaa8ea694e924a1",
+      "bytes": 374604,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-4d6agBQe/baseline-noise-v1/raw.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-raw.json",
+      "sha256": "517f2be1371e47e7cb60404eea6f80ba9a6f3c692850217e7594421703fc2d78",
+      "bytes": 494321,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-4d6agBQe/baseline-noise-v1/report.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-noise-report.json",
+      "sha256": "00edf8fcf6253bb11ac98d13d1f1b73dea966c0f74e647f3468481052ab24477",
+      "bytes": 261641,
+      "transformation": "none"
+    }
+  ],
+  "omissions": "Generated service bundles/source copies, dependency trees, full logs, database/consumer scratch. Curated source-selection proof omits smoke timings and original work traces; marker assertions are certified by final focused test pass, not invented captured stdout."
+}

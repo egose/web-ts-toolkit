@@ -1,0 +1,55 @@
+{
+  "copies": [
+    {
+      "original": "_tmp-arpc-01-v2-2rvJTj9O/core-noise-v2/protocol.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-v2/protocol.json",
+      "originalSha256": "6546c28db177380ad3e0ae309273beedafad204daa66782f18fd53907394ee17",
+      "archivedSha256": "6546c28db177380ad3e0ae309273beedafad204daa66782f18fd53907394ee17",
+      "bytes": 10260,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-v2-2rvJTj9O/core-noise-v2/plan.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-v2/plan.json",
+      "originalSha256": "a40dc69f1f9537afab13c3ed27a5dd495cd0aa2e6b735a894899697a070aaef7",
+      "archivedSha256": "a40dc69f1f9537afab13c3ed27a5dd495cd0aa2e6b735a894899697a070aaef7",
+      "bytes": 9532,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-v2-2rvJTj9O/core-noise-v2/work.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-v2/work.json",
+      "originalSha256": "adb384b8bc3bb70f42608d70fe0cd8960cb2c8597686d5cd5fb7c89e49ecfe42",
+      "archivedSha256": "adb384b8bc3bb70f42608d70fe0cd8960cb2c8597686d5cd5fb7c89e49ecfe42",
+      "bytes": 40411,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-v2-2rvJTj9O/core-noise-v2/raw.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-v2/raw-partial.json",
+      "originalSha256": "db66d30fc277647508a89e20e1de0a817220f0739fe871a445f88e3946732150",
+      "archivedSha256": "db66d30fc277647508a89e20e1de0a817220f0739fe871a445f88e3946732150",
+      "bytes": 464963,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-v2-2rvJTj9O/core-noise-v2/failure.json",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-v2/failure.json",
+      "originalSha256": "ce499b3ac7d1644dc19a5712f32ff8caf2d8eac09d62b9c6bd9eefb652a20988",
+      "archivedSha256": "ce499b3ac7d1644dc19a5712f32ff8caf2d8eac09d62b9c6bd9eefb652a20988",
+      "bytes": 83,
+      "transformation": "none"
+    },
+    {
+      "original": "_tmp-arpc-01-v2-2rvJTj9O/core-noise-v2.log",
+      "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-01-v2/timeout-excerpt.log",
+      "originalSha256": "09165187eaf7e1fff9a6895ba9ab9561f24be7dda83b6a14969e2b4eed9c2f16",
+      "archivedSha256": "16012c8987002926727c922133e09c48e42b5177f4b85e37e563569fbf5d520f",
+      "transformation": "last 22 lines; checkout root replaced by <repo-root>"
+    }
+  ],
+  "summaryComputation": "Read-only saved-data audit using maintained panelSummary on BOTH panels with all seven pairs in both repeats; all 40 coverage/quality records preserved. No report.json manufactured.",
+  "sourceAndToolHashesVerified": true,
+  "v1EvidenceBeforeHashesUnchanged": true,
+  "omissions": "Killed/unpersisted worker data does not exist in the saved packet. Full logs, generated bundles/dependencies, compile caches and test fixture scratch are not duplicated. Earlier v1 evidence remains referenced in place."
+}

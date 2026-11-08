@@ -1,0 +1,31 @@
+{
+  "filesChecked": 18,
+  "jsonAndMarkdownLinksValid": true,
+  "privatePathAndSessionScan": "passed",
+  "trailingWhitespaceScan": "passed",
+  "destinationIgnored": false,
+  "gitDiffCheck": "passed",
+  "patches": [
+    {
+      "name": "candidate-selected-only",
+      "sha256": "69123f8379d22b898ab6565ddc81435519b4a66a34cdf2864cc0428f63e1db72",
+      "reverseAppliesToFinalTree": false
+    },
+    {
+      "name": "candidate-combined",
+      "sha256": "abcad0ecd169edfb451a73bc44621c06a8a3c230fca00507ba07a2c653e86f3a",
+      "reverseAppliesToFinalTree": false
+    },
+    {
+      "name": "candidate-final",
+      "sha256": "99f8912173d021cf49bf091962d4b80732e03bafef0943757d8200b3bf93a317",
+      "reverseAppliesToFinalTree": true
+    }
+  ],
+  "liveProductionDiffMatchesFinalSeal": true,
+  "productionDiffHash": "99f8912173d021cf49bf091962d4b80732e03bafef0943757d8200b3bf93a317",
+  "publicDeclarationFilesByteIdenticalToBaseline": 8,
+  "realServiceWorkCasesComparedToArchivedBaseline": 32,
+  "actualCopyQueryHookCountsAndOrderedTracesUnchanged": true,
+  "inventoryHash": "c79930e7ed5b94baf600e1fc61a10d6038a5664318320d6eb88ccef5305c0b88"
+}

@@ -1,0 +1,182 @@
+{
+  "task": "ARPC-07",
+  "date": "2026-11-07",
+  "scope": "access-router only; sequential foreground execution",
+  "head": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+  "node": "v26.12.1",
+  "pnpm": "11.18.0",
+  "vitest": "4.1.11",
+  "lockSha256": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+  "sourceFiles": 151,
+  "originalSourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+  "cleanupSourceHash": "072039b46ed3603f995bd04a9b0e09817dce13cef58679774b45da5efa02caef",
+  "productionDiffSha256": "573c36a5fe089da5eafb61bb0228d8f2290f01e76bfdde3c7b9c54b59328d9b2",
+  "packageDiffSha256": "136d3f67bfc680dc842320bf0aa3795d7edb1819ccf50d60c04ef6c8d79b053b",
+  "workingDirectory": "<repo-root>",
+  "environment": { "TMPDIR": "<repo-root>/_tmp-arpc-07-cleanup-20261107" },
+  "scratchIgnoreCheck": { "command": ["git", "check-ignore", "-v", "_tmp-arpc-07-cleanup-20261107"], "exit": 0, "rule": "_tmp*" },
+  "commands": [
+    {
+      "label": "baseline-work",
+      "argv": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "exec", "vitest", "run", "--config", "vitest.config.ts", "test/access-router-crud-work.unit.test.ts", "test/service-output-preparation.unit.test.ts"],
+      "additionalEnvironment": {
+        "ARPC_CRUD_WORK_REPORT": "<repo-root>/_tmp-arpc-07-cleanup-20261107/baseline-crud-work.json",
+        "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arpc-07-cleanup-20261107/baseline-preparation-work.json"
+      },
+      "exit": 0, "commandSeconds": 4.86, "filesPassed": 2, "testsPassed": 15,
+      "originalLogSha256": "5c706655062ac52d358f0bb3a7d47da607bbc35ae0730f2a1b244ca0b0d43ce0"
+    },
+    {
+      "label": "typecheck",
+      "argv": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "typecheck"],
+      "exit": 0, "commandSeconds": 26.98,
+      "includes": "access-router and four required transitive builds, declaration emit and source typecheck",
+      "originalLogSha256": "020b7afe0a8ed5fd7fd6486b4db2491db3bffe9bb9aaf9609185dc1e4f0e30df"
+    },
+    {
+      "label": "focused",
+      "argv": [
+        "pnpm", "--filter", "@web-ts-toolkit/access-router", "exec", "vitest", "run", "--config", "vitest.config.ts",
+        "test/finalizer-preparation.unit.test.ts", "test/service-output-preparation.unit.test.ts", "test/service-list-preparation.unit.test.ts",
+        "test/output-field-policy-cache.unit.test.ts", "test/owned-authorization-work.unit.test.ts", "test/owned-authorization-projection-work.unit.test.ts",
+        "test/service-authorization-reads.unit.test.ts", "test/service-authorization-finalizer.unit.test.ts", "test/owned-authorization-stage.unit.test.ts",
+        "test/owned-authorization-boundaries.unit.test.ts", "test/service-authorization-prepared-query.unit.test.ts", "test/response-pipeline.internal.test.ts",
+        "test/write-output-modes.unit.test.ts", "test/write-output-authorization.unit.test.ts", "test/write-output-origin-ownership.unit.test.ts",
+        "test/write-output-source-lifetime.unit.test.ts", "test/write-output-populate.unit.test.ts", "test/owned-authorization-modes.unit.test.ts",
+        "test/access-router-crud-harness.unit.test.ts", "test/access-router-crud-work.unit.test.ts", "test/no-work-output-scheduling.unit.test.ts",
+        "test/service.internal.test.ts", "test/service-denial-contract.test.ts", "--reporter=default", "--reporter=json",
+        "--outputFile=<repo-root>/_tmp-arpc-07-cleanup-20261107/focused.json"
+      ],
+      "additionalEnvironment": {
+        "ARPC_CRUD_WORK_REPORT": "<repo-root>/_tmp-arpc-07-cleanup-20261107/cleanup-crud-work.json",
+        "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arpc-07-cleanup-20261107/cleanup-preparation-work.json"
+      },
+      "exit": 0, "commandSeconds": 20.8, "vitestSeconds": 19.59, "filesPassed": 23, "testsPassed": 1253,
+      "originalLogSha256": "1d1c20af3560f0cb343a73e07f4d0b0f367ca841d9c6624521c47855140e77be"
+    },
+    {
+      "label": "related",
+      "argv": [
+        "pnpm", "--filter", "@web-ts-toolkit/access-router", "exec", "vitest", "run", "--config", "vitest.config.ts",
+        "test/virtuals-populate-dependencies.traversal.test.ts", "test/virtuals-populate-dependencies.integration.test.ts",
+        "test/service-authorization-subdocuments.integration.test.ts", "test/service-authorization-related.integration.test.ts",
+        "test/service-authorization-mutations.integration.test.ts", "test/owned-authorization-modes.integration.test.ts",
+        "test/request-hook-concurrency.test.ts", "test/bulk-create-metadata-filter-trace.integration.test.ts", "test/populate-operation-policy.config.test.ts",
+        "--reporter=default", "--reporter=json", "--outputFile=<repo-root>/_tmp-arpc-07-cleanup-20261107/related.json"
+      ],
+      "exit": 0, "commandSeconds": 36.83, "vitestSeconds": 35.56, "filesPassed": 9, "testsPassed": 256,
+      "originalLogSha256": "86c98fb6f987db8a03c53395cee1b09fe96b19f40a23d3098b42bcb88e943ec1"
+    },
+    {
+      "label": "exports",
+      "argv": [
+        "pnpm", "--filter", "@web-ts-toolkit/access-router", "exec", "vitest", "run", "--config", "vitest.config.ts",
+        "test/export-contract.test.ts", "test/packed-consumer-compatibility.test.ts", "test/strict-consumer-types.test.ts", "test/tree-shaking-smoke.test.ts",
+        "--reporter=default", "--reporter=json", "--outputFile=<repo-root>/_tmp-arpc-07-cleanup-20261107/exports.json"
+      ],
+      "exit": 0, "commandSeconds": 549.68, "vitestSeconds": 548.52, "filesPassed": 4, "testsPassed": 114,
+      "originalLogSha256": "1b837330d45a365f2b73cc413374d351e43a6de6804b07eb2ab5ab0b56dd1c64"
+    },
+    {
+      "label": "lint",
+      "argv": [
+        "pnpm", "exec", "eslint",
+        "packages/access-router/src/acl/authorization-snapshot.ts", "packages/access-router/src/acl/output-field-policy.ts",
+        "packages/access-router/src/acl/populate-target.ts", "packages/access-router/src/acl/service-authorization.ts",
+        "packages/access-router/src/acl/service-execution.ts", "packages/access-router/src/acl/subdocument-output.ts",
+        "packages/access-router/src/output/finalize-model-output.ts", "packages/access-router/src/services/service.ts",
+        "packages/access-router/test/owned-stage-test-fixture.ts", "packages/access-router/test/service-authorization-finalizer.unit.test.ts",
+        "packages/access-router/test/owned-authorization-boundaries.unit.test.ts", "packages/access-router/test/owned-authorization-stage.unit.test.ts",
+        "packages/access-router/test/virtuals-populate-dependencies.traversal.test.ts", "packages/access-router/test/virtuals-populate-dependencies.integration.test.ts"
+      ],
+      "exit": 0, "commandSeconds": 2.87, "diagnostics": 0,
+      "originalLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "reporterChecks": { "allAssertionsPassed": true, "failedTests": 0, "pendingTests": 0, "cleanupFiles": 36, "cleanupTests": 1623 },
+  "perFilePassedTests": {
+    "focused": {
+      "access-router-crud-harness.unit.test.ts": 434,
+      "access-router-crud-work.unit.test.ts": 2,
+      "finalizer-preparation.unit.test.ts": 17,
+      "no-work-output-scheduling.unit.test.ts": 26,
+      "output-field-policy-cache.unit.test.ts": 23,
+      "owned-authorization-boundaries.unit.test.ts": 63,
+      "owned-authorization-modes.unit.test.ts": 172,
+      "owned-authorization-projection-work.unit.test.ts": 16,
+      "owned-authorization-stage.unit.test.ts": 111,
+      "owned-authorization-work.unit.test.ts": 16,
+      "response-pipeline.internal.test.ts": 3,
+      "service-authorization-finalizer.unit.test.ts": 46,
+      "service-authorization-prepared-query.unit.test.ts": 8,
+      "service-authorization-reads.unit.test.ts": 21,
+      "service-denial-contract.test.ts": 73,
+      "service-list-preparation.unit.test.ts": 24,
+      "service-output-preparation.unit.test.ts": 13,
+      "service.internal.test.ts": 10,
+      "write-output-authorization.unit.test.ts": 40,
+      "write-output-modes.unit.test.ts": 47,
+      "write-output-origin-ownership.unit.test.ts": 14,
+      "write-output-populate.unit.test.ts": 49,
+      "write-output-source-lifetime.unit.test.ts": 25
+    },
+    "related": {
+      "bulk-create-metadata-filter-trace.integration.test.ts": 24,
+      "owned-authorization-modes.integration.test.ts": 29,
+      "populate-operation-policy.config.test.ts": 23,
+      "request-hook-concurrency.test.ts": 21,
+      "service-authorization-mutations.integration.test.ts": 8,
+      "service-authorization-related.integration.test.ts": 26,
+      "service-authorization-subdocuments.integration.test.ts": 26,
+      "virtuals-populate-dependencies.integration.test.ts": 95,
+      "virtuals-populate-dependencies.traversal.test.ts": 4
+    },
+    "exports": {
+      "export-contract.test.ts": 49,
+      "packed-consumer-compatibility.test.ts": 13,
+      "strict-consumer-types.test.ts": 49,
+      "tree-shaking-smoke.test.ts": 3
+    }
+  },
+  "declarations": {
+    "comparison": "all eight complete file contents byte-identical before/after build",
+    "sha256": {
+      "packages/access-router/dist/advanced.d.mts": "e074c1a4d43a10e2ae69e46cae3af077363d6557b5212a7e38808aab3aab1b84",
+      "packages/access-router/dist/advanced.d.ts": "60ee417fb0b3555c0a6a5cbab7bb30d2fa57414e2bd9aaeec8f248af6e079652",
+      "packages/access-router/dist/index.d.mts": "c1f3ab6c91ca689fc477e45ead8da3101e0d0a8e6533ce137d92b0ccd77400f4",
+      "packages/access-router/dist/index.d.ts": "ad5f59d3eff5fba8f6114bbb9f5d44dec15e6ec620379ebb3f7990ba008f6a70",
+      "packages/access-router/dist/parsers-fSBARZSn.d.mts": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e",
+      "packages/access-router/dist/parsers-fSBARZSn.d.ts": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e",
+      "packages/access-router/dist/processors.d.mts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+      "packages/access-router/dist/processors.d.ts": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+    }
+  },
+  "workComparison": {
+    "comparison": "full raw JSON bytes and parsed records keyed by unique case id both identical; no observations discarded",
+    "crud": {
+      "records": 96,
+      "baselineAndCleanupRawSha256": "f8175081b1ddddfd58f87d779ee7c6a9cec5a8310f59a65b61b78e72287b7f2b",
+      "baselineAndCleanupCanonicalSha256": "be2bd429dff799f9a2fbbee59154889f4cdfaa7a8dfefbca3a0062717a834b2d"
+    },
+    "preparation": {
+      "records": 32,
+      "baselineAndCleanupRawSha256": "e6acf8b14c60ce66b9889f1bbbb4d5bae98dde3d8dd9bbe836de75bfb31b5589",
+      "baselineAndCleanupCanonicalSha256": "7a89c371c4a1c8cbc6e33a52e860900be78aa8156a086bb732e727e1ac6b0ef2"
+    },
+    "canonicalMethod": "Python json.dumps({record.id: record}, sort_keys=True), UTF-8 SHA-256",
+    "includes": "actual query/work/callback counts, ordered traces and resolved modes where recorded; outputs checked by maintained fixture assertions"
+  },
+  "preservation": { "checkpointedFiles": 2350, "allowedEditedFiles": 14, "protectedFilesUnchanged": 2336, "protectedChanges": [] },
+  "reachability": {
+    "beforeTextFilesScanned": 4480,
+    "excludedDirectories": [".git", "node_modules", "_tmp*"],
+    "currentExternalStaticChainCallers": 0,
+    "afterRemovedSymbolsInPackagesScriptsAndCurrentDist": 0,
+    "methodAndHistoricalHitDisposition": "arpc-07-keep-remove-ledger.md"
+  },
+  "notRun": ["full access-router suite reserved for independent final reviewer", "root/grouped/downstream suites", "root release artifact command", "additional timing/calibration/allocation probes"],
+  "performanceClaim": "none; command durations are runner diagnostics only",
+  "blockers": [],
+  "warnings": ["existing Vite native-config-loader warning; nonblocking", "rg unavailable; dedicated search and Python scanner used instead"],
+  "archiveLimits": "Curated summary only. Raw logs/assertion arrays/work-record bodies/checkpoint inventory, generated consumers/tarballs, dependencies/MongoDB files and scratch tooling omitted; hashes do not make omitted data independently recalculable. Use maintained tests, original revision plus retained diff, lockfile and documented prerequisites to reproduce."
+}

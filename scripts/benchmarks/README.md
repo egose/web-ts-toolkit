@@ -1,5 +1,10 @@
 # One-off access-router version benchmark
 
+The separate maintained [CRUD v1 driver](access-router-crud.md) measures real
+direct/public READ/LIST/CREATE/UPDATE/UPSERT workers in all four mode settings.
+It uses deterministic adapters (not DB latency); neither historical catalog below
+is repurposed or described as covering writes.
+
 **Current owned-authorization builds use `isolated` / `trusted`, not the ten retired
 flags below.** The interactive table still measures only the unchanged historical
 LIST fixtures. The separate fixed-protocol driver below explicitly selects READ,

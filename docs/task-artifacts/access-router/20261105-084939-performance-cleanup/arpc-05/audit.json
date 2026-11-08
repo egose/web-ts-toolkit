@@ -1,0 +1,264 @@
+{
+  "status": "candidate-unverified; original performance criteria not met",
+  "ownedPaths": [
+    "packages/access-router/src/logger-helpers.ts",
+    "packages/access-router/src/services/service.ts",
+    "packages/access-router/test/service-lazy-logging.unit.test.ts",
+    "packages/access-router/test/service-lazy-logging.integration.test.ts"
+  ],
+  "artifactDirectory": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-05",
+  "inventoryExcludesThisAudit": [
+    {
+      "path": "README.md",
+      "sha256": "c8aecbb7ff037abc2214058f41f68fbfd1d82769f9f09023922c5747a530f92f",
+      "bytes": 1610
+    },
+    {
+      "path": "bounded-measure.mjs",
+      "sha256": "2cbfb971ce3acd4d0fc47b9c41214f1a1ced2ad3d622bde898876e8a57b9a57f",
+      "bytes": 7984
+    },
+    {
+      "path": "candidate.patch",
+      "sha256": "38f26d6bdb0fd6bdc47eac6ddd04a570a0b62d00e93d25608d3439285c0c6fa8",
+      "bytes": 2298
+    },
+    {
+      "path": "crud-work.json",
+      "sha256": "d0c8fee72d5a4bcd1ff6024a04665d7724add00f24036b36c5c54e80f3454956",
+      "bytes": 46709
+    },
+    {
+      "path": "focused-final.log",
+      "sha256": "cb0434305f1fd5033e2fbff5139af82468686f5ecf14145c056d3cb9752e3a00",
+      "bytes": 604
+    },
+    {
+      "path": "logging-work.json",
+      "sha256": "808414360b26f7e9130fab8854746a98184203d0b493e667dae390f7091f3a11",
+      "bytes": 73909
+    },
+    {
+      "path": "protocol.md",
+      "sha256": "d79b54d7c3fc5d89f3269fd60424ec972413e5ba07307f40d15df81b60f1b4a2",
+      "bytes": 3471
+    },
+    {
+      "path": "provenance.json",
+      "sha256": "07662e24f6ba3c9eb46c883e84456ce85f455a2f0f3e0740057a69e8c4b88e29",
+      "bytes": 3569
+    },
+    {
+      "path": "report.md",
+      "sha256": "88b8e845b1629372f4cf1a21c0ed46e21f755a14001b977adf58abf2b70985a7",
+      "bytes": 11096
+    },
+    {
+      "path": "timing-comparison.json",
+      "sha256": "217df187c057b68e9be81f51145779caa264413eb6f8cd19d168855057f1bb97",
+      "bytes": 7438
+    },
+    {
+      "path": "timing-noise.json",
+      "sha256": "129f6d38fb7b2c6234241ba3fcd5f637e09f235d1f28b29f89d7d488ddcc3672",
+      "bytes": 7394
+    },
+    {
+      "path": "timing-protocol.json",
+      "sha256": "7910a066ac83a869da09010637eff5332400a542e0caae9d6af70c61ad1a824a",
+      "bytes": 4060
+    },
+    {
+      "path": "timing-raw.json",
+      "sha256": "33ab2e4fa4cfa06f034463b757ef9f2c823e8f5a893f0e4602443761df3610ca",
+      "bytes": 74204
+    },
+    {
+      "path": "timing-work.json",
+      "sha256": "d355e1df33806fa0b8fbf1322f872516efc38228afe59ee376504405586dd38a",
+      "bytes": 8676
+    },
+    {
+      "path": "verification.json",
+      "sha256": "99f3d6991d60a425c8cc4002368a44d542ae7a36318a64dcb9d2973b6bbba46b",
+      "bytes": 6211
+    },
+    {
+      "path": "work-comparison.json",
+      "sha256": "e9ffdfe8746fc95e67589554005d9fd918d2afd23435b1ffc512b0f335dd17e1",
+      "bytes": 16807
+    }
+  ],
+  "structuredFilesValid": true,
+  "markdownLinksChecked": 28,
+  "privatePathAndSessionScan": "passed",
+  "whitespaceScan": "passed (unified-diff context prefixes exempt; additions checked)",
+  "gitDiffCheck": "passed",
+  "artifactDestinationIgnored": false,
+  "productionPatchReverseCheck": "passed; patch matches live candidate without modifying files",
+  "measurementScriptSyntaxCheck": "passed",
+  "baselineAndCandidateSealsReverified": true,
+  "liveSourceMatchesCandidate": true,
+  "publicDeclarationFilesByteIdentical": 8,
+  "timingWorkersRecalculated": 56,
+  "measuredInvocationsPerPhase": 7168,
+  "noiseWithinCapCells": 0,
+  "totalCells": 8,
+  "unchangedPreregistrationAndScriptHashes": true,
+  "statisticsRecalculatedExactly": true,
+  "enabledMessagesAndApplicationDiagnosticTracesMatchAcrossSeals": true,
+  "protectedFilesMatchDuringRunCheckpoint": {
+    "docs/tasks/20261105-084939-access-router-performance-cleanup.md": "1e60638e915dc2f9555092e68cb302a0e4c5d3626521fe3f42c7e23f3fb1d776",
+    "packages/access-router/test/no-work-output-scheduling.unit.test.ts": "390b1047876cc040ea26f82d65e21971cc50cf73268519803969ecd19a6fab73",
+    "packages/access-router/test/bulk-create-metadata-filter-trace.integration.test.ts": "a2e6ed173845355f37c6a18d4c3f95e24e9b7331ac0548aa5fd8bd10c2060b83",
+    "scripts/benchmarks/README.md": "d29fdbf9c04dd801cd083ad92eaae676ec49bd34bfd21d1400598ae83358afac"
+  },
+  "protectedCheckpointLimit": "Checkpoint captured during this task after timing; no listed protected file was edited by this task.",
+  "auditDevelopmentNote": "Initial generic whitespace scan flagged a required single-space unified-diff context prefix. No artifact/source bytes changed; final scanner checks patch additions and git diff --check.",
+  "slowerPairCounts": [
+    {
+      "id": "iiii/direct/list-single/hooks/1x4",
+      "metric": "wall",
+      "slowerPairs": [
+        2,
+        2
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "iiii/direct/list-single/hooks/1x4",
+      "metric": "cpu",
+      "slowerPairs": [
+        3,
+        2
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/direct/list-single/hooks/1x4",
+      "metric": "wall",
+      "slowerPairs": [
+        3,
+        3
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/direct/list-single/hooks/1x4",
+      "metric": "cpu",
+      "slowerPairs": [
+        3,
+        3
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "iiii/direct/list-many/logging/16x16",
+      "metric": "wall",
+      "slowerPairs": [
+        5,
+        3
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "iiii/direct/list-many/logging/16x16",
+      "metric": "cpu",
+      "slowerPairs": [
+        4,
+        2
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/direct/list-many/logging/16x16",
+      "metric": "wall",
+      "slowerPairs": [
+        4,
+        2
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/direct/list-many/logging/16x16",
+      "metric": "cpu",
+      "slowerPairs": [
+        4,
+        3
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "iiii/public/list-single/hooks/1x4",
+      "metric": "wall",
+      "slowerPairs": [
+        5,
+        7
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "iiii/public/list-single/hooks/1x4",
+      "metric": "cpu",
+      "slowerPairs": [
+        5,
+        7
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/public/list-single/hooks/1x4",
+      "metric": "wall",
+      "slowerPairs": [
+        5,
+        1
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/public/list-single/hooks/1x4",
+      "metric": "cpu",
+      "slowerPairs": [
+        4,
+        0
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "iiii/public/list-many/logging/16x16",
+      "metric": "wall",
+      "slowerPairs": [
+        5,
+        3
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "iiii/public/list-many/logging/16x16",
+      "metric": "cpu",
+      "slowerPairs": [
+        5,
+        3
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/public/list-many/logging/16x16",
+      "metric": "wall",
+      "slowerPairs": [
+        4,
+        3
+      ],
+      "investigationThresholdMet": false
+    },
+    {
+      "id": "tttt/public/list-many/logging/16x16",
+      "metric": "cpu",
+      "slowerPairs": [
+        4,
+        5
+      ],
+      "investigationThresholdMet": false
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "command": "node scripts/benchmarks/access-router-crud-v2.mjs noise \"$PWD/_tmp-arpc-01-4d6agBQe/baseline\" \"$TMPDIR/core-noise-v2\" core",
+  "exit": 1,
+  "seconds": 1800.78,
+  "log": "_tmp-arpc-01-v2-2rvJTj9O/core-noise-v2.log",
+  "originalLogSha256": "09165187eaf7e1fff9a6895ba9ab9561f24be7dda83b6a14969e2b4eed9c2f16",
+  "outcome": "30-minute aggregate deadline; worker SIGKILL; no complete report.json",
+  "usable": false
+}
