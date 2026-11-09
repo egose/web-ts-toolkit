@@ -12,8 +12,12 @@ import type {
 /**
  * Named request-only genPopulate options. Omission/undefined uses the root scope.
  * Use ordinary response segments (['contacts']), not positional ['contacts', 'sub'].
+ * Positional access (default read) authorizes source request fields and supplies the
+ * target default; descriptor access overrides only the target. No document hooks,
+ * current document facts or captured parent output execution are available here.
  * Source fields, target operation/rows and persisted target fields retain request
  * checks. For explicit source/target output authority, use service query options.
+ * scopePath is the only supported option; there is no separate sourceAccess option.
  */
 export interface PopulatePlanningOptions {
   readonly scopePath?: readonly string[];
