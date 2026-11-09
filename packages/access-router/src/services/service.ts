@@ -852,9 +852,14 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never, 
       const descriptor = typeof entry === 'string' ? { path: entry } : entry;
       const targetAccess = descriptor.access || access;
       assertPopulateAccess(targetAccess);
+      // Source visibility belongs to its owning output, not the target policy.
       const sourceState = classifyEffectiveFieldAuthorization({
         path: descriptor.path,
-        rules: extractOutputFieldRules(captured.configuration.permissionSchema as never, descriptor.path, targetAccess),
+        rules: extractOutputFieldRules(
+          captured.configuration.permissionSchema as never,
+          descriptor.path,
+          captured.access.outputAccess,
+        ),
         outputFields: captured.authorization.outputFields,
         globalPermissions: getAuthorizationPermissions(state.authorization, state.binding),
         modelPermissionPrefix: captured.configuration.modelPermissionPrefix as string,

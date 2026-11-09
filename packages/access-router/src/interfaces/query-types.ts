@@ -303,14 +303,25 @@ export type PopulateAccess = 'list' | 'read';
  * remain enforced; direct/root target guards stay independent. Callers cannot supply
  * a model or either populate policy flag here. Private dependsOnPopulate declarations
  * have a narrower one-hop static-string ObjectId/same-connection contract.
+ * Service population checks the source relationship under its owning parent's
+ * effective output-field access, selection, captured authority and document facts,
+ * not this descriptor's target access. Read-to-list fallback uses source list fields;
+ * create/update responses use read fields without changing their separate virtual
+ * or docPermissions accesses. Target access never grants source visibility, and a
+ * visible source never grants target operations, rows or fields. Request-only
+ * genPopulate instead uses positional access for source admission, without current document facts.
+ * Denied source output is omitted; permitted refs retain IDs if population is not
+ * admitted. Admitted target misses stay scalar null or filtered reference arrays.
  */
 export interface Populate {
   path: string;
   select?: Projection;
   match?: unknown;
+  /** Target only: overrides query populateAccess, then the existing method/operation default. */
   access?: PopulateAccess;
 }
 
+/** Dedicated subdocument population remains path/select-only, with no target access selector. */
 export interface SubPopulate {
   path: string;
   select?: Projection;

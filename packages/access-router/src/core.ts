@@ -360,7 +360,12 @@ export class Core {
     });
   }
 
-  /** Request-only population. Use named response scopePath; positional subPaths are removed. */
+  /**
+   * Request-only population: positional access admits source fields and supplies
+   * the target default; descriptor access overrides only the target. No document
+   * hooks, current document facts or captured parent output execution. Only named
+   * response scopePath is supported; positional subPaths are removed.
+   */
   async genPopulate(
     modelName: string,
     access: SelectAccess | BaseFilterAccess = 'read',
@@ -417,10 +422,11 @@ export class Core {
           const parentPath = pathForSourcePermission.includes('.')
             ? pathForSourcePermission.split('.')[0]
             : pathForSourcePermission;
+          // Positional access owns source request admission; a descriptor only overrides the target.
           const allowedParentPaths = await this.requestPopulateSelect(
             sourceConfiguration,
             permissions,
-            populateAccess as SelectAccess,
+            access as SelectAccess,
             [parentPath],
             scopePath,
           );

@@ -602,7 +602,12 @@ export class Base<TModel = unknown, TVirtuals extends object = Record<never, nev
     return this.requestCore.genIDFilter<TModel>(this.modelName, id);
   }
 
-  /** Request-only population; named scopePath uses response segments, never positional subPaths. */
+  /**
+   * Request-only population: positional access (default read) admits source fields
+   * and supplies the target default; descriptor access overrides only the target.
+   * No document hooks, current document facts or captured parent output execution.
+   * The only option, scopePath, uses response segments, never positional subPaths.
+   */
   public async genPopulate(
     access?: SelectAccess,
     populate?: Populate | Populate[] | string | null,

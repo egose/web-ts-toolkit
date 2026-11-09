@@ -50,6 +50,7 @@ async function fixture(required: boolean) {
   const Parent = mongoose.model(
     `PopHelperIsolationParent${sequence}`,
     new mongoose.Schema({
+      refs: [{ type: mongoose.Schema.Types.ObjectId, ref: Target.modelName }],
       contacts: [{ refs: [{ type: mongoose.Schema.Types.ObjectId, ref: Target.modelName }] }],
     }),
   );
@@ -69,7 +70,8 @@ async function fixture(required: boolean) {
     { ...defaults, tenant: 'b' },
     defaults, // Matching but unrelated: it must never enter the reference query.
   ]);
-  const parent = await Parent.create({ contacts: [{ refs: rows.slice(0, -1).map((row) => row._id) }] });
+  const refs = rows.slice(0, -1).map((row) => row._id);
+  const parent = await Parent.create({ refs, contacts: [{ refs }] });
   const guard = vi.fn(() => required);
   const transform = vi.fn(async (filter: Record<string, unknown>) => filter);
   const base = vi.fn(() => ({ tenant: 'a' }));
@@ -83,7 +85,7 @@ async function fixture(required: boolean) {
   const router = api.createRouter(Parent, {
     basePath: '/parents',
     operationAccess: true,
-    permissionSchema: { contacts: { sub: { refs: true } } },
+    permissionSchema: { refs: true, contacts: { sub: { refs: true } } },
   });
   let callback: (req: ModelRequest) => Promise<void>;
   let failure: unknown;
@@ -99,6 +101,8 @@ async function fixture(required: boolean) {
   app.use(router.routes);
   const queries = vi.spyOn(Target.collection, 'find');
   return {
+    api,
+    router,
     owner,
     Parent,
     Target,
@@ -117,6 +121,57 @@ async function fixture(required: boolean) {
     },
   };
 }
+
+describe.each(['core', 'scoped-service'] as const)('PSA-01 request-only %s populate access', (entry) => {
+  const sourceRule = entry === 'core' ? 'permissionSchema.refs' : 'permissionSchema.contacts.sub.refs';
+  it('uses positional source read access and descriptor target list access', async () => {
+    const f = await fixture(true);
+    f.router.setOption(sourceRule, { read: true, list: false });
+    f.api.setModelOptions(f.Target.modelName, {
+      operationAccess: { read: false, list: true },
+      permissionSchema: { name: { read: false, list: true }, secret: false },
+    });
+    await f.execute(async (req) => {
+      const descriptor = { ...f.descriptor(), path: entry === 'core' ? 'refs' : 'contacts.refs', access: 'list' };
+      const plan =
+        entry === 'core'
+          ? await req.macl.genPopulate(f.Parent.modelName, 'read', descriptor)
+          : await req.macl.getService(f.Parent.modelName).genPopulate('read', descriptor, { scopePath: ['contacts'] });
+      expect(plan).toHaveLength(1);
+      const output = await f.Parent.findById(f.parent._id).populate(plan).lean();
+      expect(entry === 'core' ? output?.refs : output?.contacts[0].refs).toEqual([
+        { _id: f.rows[0]._id, name: 'kept' },
+      ]);
+    });
+  });
+
+  it('retains source request-only denials and independent target operation and row denials', async () => {
+    const f = await fixture(true);
+    f.api.setModelOption(f.Target.modelName, 'operationAccess', { read: false, list: true });
+    const sourceFacts = vi.fn(() => ({ visible: true }));
+    f.router.setOption('modelPermissionPrefix', 'doc:');
+    f.router.setOption('docPermissions.read', { dependsOn: [], get: sourceFacts });
+    await f.execute(async (req) => {
+      const descriptor = { ...f.descriptor(), path: entry === 'core' ? 'refs' : 'contacts.refs', access: 'list' };
+      const plan = () =>
+        entry === 'core'
+          ? req.macl.genPopulate(f.Parent.modelName, 'read', descriptor)
+          : req.macl.getService(f.Parent.modelName).genPopulate('read', descriptor, { scopePath: ['contacts'] });
+      for (const read of [false, 'doc:visible']) {
+        f.router.setOption(sourceRule, { read, list: true });
+        expect(await plan()).toEqual([]);
+      }
+      expect(sourceFacts).not.toHaveBeenCalled();
+      f.router.setOption(sourceRule, { read: true, list: false });
+      f.api.setModelOption(f.Target.modelName, 'operationAccess', { read: true, list: false });
+      expect(await plan()).toEqual([]);
+      f.api.setModelOption(f.Target.modelName, 'operationAccess.list', true);
+      f.api.setModelOption(f.Target.modelName, 'baseFilter.list', () => false);
+      expect(await plan()).toEqual([]);
+      expect(f.queries).not.toHaveBeenCalled();
+    });
+  });
+});
 
 describe.each([true, false])('POP-06 scoped helper isolation (Q=%s)', (required) => {
   it.each(['read', 'list', 'preview'] as const)(

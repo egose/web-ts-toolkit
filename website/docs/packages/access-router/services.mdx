@@ -290,8 +290,12 @@ Obsolete `buildVirtualPlan`/`buildSubVirtualPlan` service builders are removed i
 the named fetch helpers; retained execution plans and system retention remain private.
 
 `genPopulate(access?, populate?, options?)` takes request-only `PopulatePlanningOptions`
-with ordinary response `scopePath` segments. Source fields, target operation/rows and
-field checks remain request-only; private source fetch does not authorize population.
+with ordinary response `scopePath` segments as its only supported option. Positional
+`access` (default `'read'`) authorizes the source request field and supplies the target
+default; descriptor `access` overrides the target only. Source fields, target
+operation/rows and field checks remain request-only: no document hooks, current
+document facts or captured parent output execution. Private source fetch does not
+authorize population, and no separate `sourceAccess` option is added.
 Use service `populate` plus `authorization.related` when backend target authority is needed.
 
 `DataCore`/`DataService` field helpers instead accept **`DataFieldOptions`** (root and
@@ -434,6 +438,34 @@ Wire `options.populateAccess` and populate descriptor `access` accept only
 `'list' | 'read'` (`PopulateAccess` from the existing `/advanced` entrypoint).
 Related populate/include/subquery checks use target base operations, regardless
 of the initiating basic/advanced endpoint.
+
+For ordinary service population, target precedence is **descriptor `access` > query
+`options.populateAccess` > existing method/operation default**. Target operation
+admission where required by target policy, rows, fields, virtuals and document
+permissions use that access. The source relationship instead uses its owning
+parent's effective output-field access, captured authority, selection and
+owning-document facts; document-dependent source decisions may be deferred to the
+parent document stage. Target facts do not replace source facts.
+
+For example, source `related: { read: true, list: false }` can populate target
+`label: { list: true, read: false }` in an advanced read requesting
+`{ path: 'related', select: 'label', access: 'list' }`, if source read and target list
+admission/rows permit it. No source permission broadening is needed. See the
+[typed mixed-access example](https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#populate-source-and-target-access).
+Target access cannot admit a hidden/excluded source; readable source output cannot
+grant target operations, rows or fields.
+
+Effective source output access need not match the initiating operation: read-to-list
+fallback uses `list` fields; create/update responses (including upsert branches) use
+`read` fields, without replacing those writes' separate create/update virtual or
+`docPermissions` accesses. Dedicated `SubPopulate`/`genSubPopulate` remain path/select-only;
+no new selectors are supported on dedicated child routes.
+
+Denied source output is omitted. Permitted references retain IDs if population is
+not admitted (for example, target operation or terminal row denial). Once target
+population is admitted, missing/filtered targets remain scalar `null` or filtered
+reference arrays, not restored IDs. `select`, `match` and referenced-ID constraints
+remain in force.
 
 The shared Core populate boundary rejects all fourteen reserved route-variant
 names in effective option and per-descriptor access, including generic legacy

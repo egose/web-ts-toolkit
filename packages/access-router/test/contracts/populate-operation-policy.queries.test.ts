@@ -183,6 +183,396 @@ const deferred = () => {
   return { promise, release };
 };
 
+describe('PSA-01 independent source output and target access', () => {
+  it.each(['service', 'http'] as const)(
+    'populates a read-only source reference with list-only target fields through %s',
+    async (entry) => {
+      const f = await fixture(true);
+      f.source.setOption('permissionSchema.ref', { read: true, list: false });
+      f.api.setModelOption(f.targetName, 'operationAccess', { read: false, list: true });
+      // The fixture's original scalar reference is outside target list rows.
+      await f.Parent.updateOne({ _id: f.parent._id }, { ref: f.rows[1]._id });
+      const args = {
+        select: ['ref'],
+        populate: [{ path: 'ref', select: ['readOnly', 'listOnly'], access: 'list' }],
+      };
+      const expected = { _id: String(f.rows[1]._id), listOnly: 'list-field' };
+      if (entry === 'service') {
+        await f.execute(async (req) => {
+          const result = await req.macl
+            .getPublicService(f.sourceName)
+            ._read(String(f.parent._id), args, { ...quiet, tryList: false });
+          expect(result).toMatchObject({ success: true });
+          if (!result.success) throw new Error(result.code);
+          expect(JSON.parse(JSON.stringify(result.data)).ref).toEqual(expected);
+        });
+      } else {
+        const response = await request(f.app)
+          .post(`/parents/__query/${f.parent._id}`)
+          .send({ ...args, options: { ...quiet, tryList: false } })
+          .expect(200);
+        expect(response.body.ref).toEqual(expected);
+      }
+      const listed = await request(f.app)
+        .post('/parents/__query')
+        .send({ ...args, options: quiet })
+        .expect(200);
+      expect(listed.body.data[0]).not.toHaveProperty('ref');
+    },
+  );
+
+  it('does not let permissive target list access admit denied or excluded source output', async () => {
+    const f = await fixture(true);
+    f.api.setModelOption(f.targetName, 'operationAccess', { read: false, list: true });
+    await f.Parent.updateOne({ _id: f.parent._id }, { ref: f.rows[1]._id });
+    await f.execute(async (req) => {
+      const service = req.macl.getService(f.sourceName);
+      const populate = [{ path: 'ref', select: ['listOnly'], access: 'list' }];
+      f.source.setOption('permissionSchema.ref', { read: false, list: true });
+      const denied = await service.findOne({ _id: f.parent._id }, { select: ['ref', 'name'], populate }, quiet);
+      expect(denied).toMatchObject({ success: true, data: { name: 'parent' } });
+      if (!denied.success) throw new Error(denied.code);
+      expect(denied.data).not.toHaveProperty('ref');
+      f.source.setOption('permissionSchema.ref', { read: true, list: false });
+      const excluded = await service.findOne({ _id: f.parent._id }, { select: ['name', '-ref'], populate }, quiet);
+      expect(excluded).toMatchObject({ success: true, data: { name: 'parent' } });
+      if (!excluded.success) throw new Error(excluded.code);
+      expect(excluded.data).not.toHaveProperty('ref');
+    });
+  });
+
+  it.each(['operation', 'rows'] as const)(
+    'keeps target list %s denial independent of readable source output',
+    async (denial) => {
+      const f = await fixture(true);
+      f.source.setOption('permissionSchema.ref', { read: true, list: false });
+      f.api.setModelOption(f.targetName, 'operationAccess', { read: true, list: denial !== 'operation' });
+      if (denial === 'rows') f.api.setModelOption(f.targetName, 'baseFilter.list', () => false);
+      await f.Parent.updateOne({ _id: f.parent._id }, { ref: f.rows[1]._id });
+      await f.execute(async (req) => {
+        const result = await req.macl
+          .getService(f.sourceName)
+          .findOne(
+            { _id: f.parent._id },
+            { select: ['ref'], populate: [{ path: 'ref', select: ['readOnly', 'listOnly'], access: 'list' }] },
+            quiet,
+          );
+        expect(result).toMatchObject({ success: true, data: { ref: f.rows[1]._id } });
+      });
+      expect(f.queries).toEqual([]);
+    },
+  );
+});
+
+describe('PSA-02 effective source access across ordinary populate paths', () => {
+  it.each([true, false])('uses source list visibility, not target read visibility (allowed=%s)', async (allowed) => {
+    const f = await fixture(true);
+    f.source.setOption('permissionSchema.ref', { read: !allowed, list: allowed });
+    f.api.setModelOption(f.targetName, 'operationAccess', { read: true, list: false });
+    await f.execute(async (req) => {
+      const result = await req.macl.getPublicService(f.sourceName)._list(
+        { _id: f.parent._id },
+        {
+          select: ['ref', '-_id'],
+          populate: [{ path: 'ref', access: 'read', select: ['readOnly', 'listOnly', '-_id'] }],
+        },
+        quiet,
+      );
+      expect(result).toMatchObject({ success: true });
+      if (!result.success) throw new Error(result.code);
+      expect(result.data).toEqual(allowed ? [{ ref: { readOnly: 'read-field' } }] : [{}]);
+    });
+    expect(f.queries).toHaveLength(allowed ? 1 : 0);
+  });
+
+  describe.each([
+    { mode: 'isolated', hydration: 'lean' },
+    { mode: 'trusted', hydration: 'hydrated' },
+  ] as const)('source document facts ($mode / $hydration)', ({ mode, hydration }) => {
+    it.each([true, false])(
+      'evaluates read facts on the source parent, never the target (allowed=%s)',
+      async (allowed) => {
+        const f = await fixture(true, hydration);
+        const sourceFacts = vi.fn((doc: { _id: unknown; group?: string }, _permissions: unknown, context: unknown) => {
+          expect(doc._id).toEqual(f.parent._id);
+          expect(doc.group).toBe(allowed ? 'visible' : 'hidden');
+          expect(context).toMatchObject({ operation: 'read', outputAccess: 'read', docPermissionsAccess: 'read' });
+          return { owner: doc.group === 'visible' };
+        });
+        f.source.setOption('readAuthorizationMode', mode);
+        f.source.setOption('modelPermissionPrefix', 'doc:');
+        f.source.setOption('docPermissions.read', { dependsOn: ['group'], get: sourceFacts });
+        f.source.setOption('permissionSchema.ref', { read: 'doc:owner', list: false });
+        f.api.setModelOptions(f.targetName, {
+          operationAccess: { read: false, list: true },
+          listAuthorizationMode: mode,
+        });
+        await f.Parent.updateOne({ _id: f.parent._id }, { ref: f.rows[1]._id, group: allowed ? 'visible' : 'hidden' });
+        // The target has the opposite fact, under the same permission name.
+        await f.Target.updateOne({ _id: f.rows[1]._id }, { owner: allowed ? 'other' : 'actor' });
+        await f.execute(async (req) => {
+          const result = await req.macl.getService(f.sourceName).findOne(
+            { _id: f.parent._id },
+            {
+              select: ['ref', '-_id'],
+              populate: [{ path: 'ref', access: 'list', select: ['owned', 'readOnly', 'listOnly', '-_id'] }],
+            },
+            quiet,
+          );
+          expect(result).toMatchObject({ success: true });
+          if (!result.success) throw new Error(result.code);
+          expect(result.data).toEqual(allowed ? { ref: { listOnly: 'list-field' } } : {});
+        });
+        expect(sourceFacts).toHaveBeenCalledTimes(1);
+        expect(f.grants).toHaveBeenCalledTimes(1);
+        expect(f.grants.mock.calls[0][0]).toMatchObject({ _id: f.rows[1]._id, owner: allowed ? 'other' : 'actor' });
+      },
+    );
+  });
+
+  it.each(['read', 'list'] as const)(
+    'keeps descriptor overrides independent from the %s option default within one query',
+    async (populateAccess) => {
+      const f = await fixture(true);
+      for (const path of ['ref', 'refs', 'missing', 'nullable', 'absent', 'empty'])
+        f.source.setOption(`permissionSchema.${path}`, { read: true, list: false });
+      f.api.setModelOption(f.targetName, 'operationAccess', { read: true, list: true });
+      const select = ['readOnly', 'listOnly', 'secret', '-_id'];
+      await f.execute(async (req) => {
+        const result = await req.macl.getService(f.sourceName).findOne(
+          { _id: f.parent._id },
+          {
+            select: ['ref', 'refs', 'missing', 'nullable', 'absent', 'empty', '-_id'],
+            populate: [
+              { path: 'ref', select, ...(populateAccess === 'list' ? { access: 'read' } : {}) },
+              { path: 'refs', select, ...(populateAccess === 'read' ? { access: 'list' } : {}) },
+              ...['missing', 'nullable', 'absent', 'empty'].map((path) => ({ path, select })),
+            ],
+          },
+          { ...quiet, populateAccess },
+        );
+        expect(result).toMatchObject({ success: true });
+        if (!result.success) throw new Error(result.code);
+        expect(result.data).toEqual({
+          ref: { readOnly: 'read-field' },
+          refs: [{ listOnly: 'list-field' }],
+          missing: null,
+          nullable: null,
+          empty: [],
+        });
+      });
+    },
+  );
+
+  it('uses independent source and target access for same-document self references', async () => {
+    const f = await fixture(true);
+    f.Parent.schema.add({ self: { type: mongoose.Schema.Types.ObjectId, ref: f.sourceName } });
+    await f.Parent.updateOne({ _id: f.parent._id }, { self: f.parent._id });
+    f.source.setOption('permissionSchema', {
+      self: { read: true, list: false },
+      name: { read: false, list: true },
+      group: { read: true, list: false },
+    });
+    await f.execute(async (req) => {
+      const service = req.macl.getService(f.sourceName);
+      const args = {
+        select: ['self', '-_id'],
+        populate: [{ path: 'self', access: 'list', select: ['name', 'group', '-_id'] }],
+      };
+      const read = await service.findOne({ _id: f.parent._id }, args, quiet);
+      expect(read).toMatchObject({ success: true });
+      if (!read.success) throw new Error(read.code);
+      expect(read.data).toEqual({ self: { name: 'parent' } });
+      f.source.setOption('permissionSchema.self', { read: false, list: true });
+      args.populate[0].access = 'read';
+      const listed = await service.find({ _id: f.parent._id }, args, quiet);
+      expect(listed).toMatchObject({ success: true });
+      if (!listed.success) throw new Error(listed.code);
+      expect(listed.data).toEqual([{ self: { group: 'g' } }]);
+    });
+  });
+
+  it.each(['direct', 'root'] as const)(
+    'separates embedded-array source read rules from target list policy through %s',
+    async (entry) => {
+      const f = await fixture(true);
+      f.source.setOption('permissionSchema.children', {
+        read: true,
+        list: false,
+        sub: { label: true, ref: { read: true, list: false } },
+      });
+      f.api.setModelOption(f.targetName, 'operationAccess', { read: false, list: true });
+      const args = {
+        select: ['children', '-_id'],
+        populate: [{ path: 'children.ref', access: 'list', select: ['readOnly', 'listOnly', '-_id'] }],
+      };
+      const read = async () => {
+        if (entry === 'direct') {
+          const response = await request(f.app)
+            .post(`/parents/__query/${f.parent._id}`)
+            .send({ ...args, options: { ...quiet, tryList: false } })
+            .expect(200);
+          return response.body;
+        }
+        const response = await request(f.app)
+          .post('/root')
+          .send([
+            {
+              target: 'model',
+              name: f.sourceName,
+              op: 'read',
+              id: String(f.parent._id),
+              args,
+              options: { ...quiet, tryList: false },
+            },
+          ])
+          .expect(200);
+        expect(response.body[0]).toMatchObject({ statusCode: 200, result: { success: true } });
+        return response.body[0].result.data;
+      };
+      const output = await read();
+      expect(output).not.toHaveProperty('_id');
+      expect(output.children.map((child: { ref: unknown }) => child.ref)).toEqual([null, { listOnly: 'list-field' }]);
+      f.source.setOption('permissionSchema.children.sub.ref', { read: false, list: true });
+      const denied = await read();
+      expect(denied.children).toHaveLength(2);
+      for (const child of denied.children) {
+        expect(child).toHaveProperty('label');
+        expect(child).not.toHaveProperty('ref');
+      }
+    },
+  );
+
+  it.each(['direct', 'root'] as const)(
+    'keeps dedicated %s child population path/select-only with owning-parent facts and separate route gates',
+    async (entry) => {
+      const f = await fixture(true);
+      const facts = vi.fn((doc: { _id: unknown; group?: string }) => {
+        expect(doc._id).toEqual(f.parent._id);
+        return { owner: doc.group === 'g' };
+      });
+      f.source.setOption('modelPermissionPrefix', 'doc:');
+      f.source.setOption('docPermissions.read', { dependsOn: ['group'], get: facts });
+      // Parent output denial is deliberately not a dedicated child route gate.
+      f.source.setOption('permissionSchema.children', {
+        read: false,
+        list: false,
+        sub: { label: true, ref: { read: 'doc:owner', list: false } },
+      });
+      f.api.setModelOption(f.targetName, 'operationAccess', { read: true, list: false });
+      const args = { populate: [{ path: 'ref', select: ['readOnly', 'listOnly', '-_id'] }] };
+      const read = async () => {
+        if (entry === 'direct') {
+          const response = await request(f.app)
+            .post(`/parents/${f.parent._id}/children/${f.parent.children[0]._id}/__query`)
+            .send(args)
+            .expect(200);
+          return response.body;
+        }
+        const response = await request(f.app)
+          .post('/root')
+          .send([
+            {
+              target: 'model',
+              name: f.sourceName,
+              op: 'subRead',
+              id: String(f.parent._id),
+              sub: 'children',
+              subId: String(f.parent.children[0]._id),
+              args,
+            },
+          ])
+          .expect(200);
+        expect(response.body[0]).toMatchObject({ statusCode: 200, result: { success: true } });
+        return response.body[0].result.data;
+      };
+      expect((await read()).ref).toEqual({ readOnly: 'read-field' });
+      await f.Parent.updateOne({ _id: f.parent._id }, { group: 'hidden' });
+      const denied = await read();
+      expect(denied).toMatchObject({ label: 'visible-child' });
+      expect(denied).not.toHaveProperty('ref');
+      expect(facts).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(['id', 'filter'] as const)(
+    'uses effective list source access during read-to-list fallback by %s, not initiating read or target read',
+    async (entry) => {
+      const f = await fixture(true);
+      f.source.setOption('baseFilter.read', () => ({ name: 'not-found' }));
+      f.source.setOption('permissionSchema.ref', { read: false, list: true });
+      f.api.setModelOption(f.targetName, 'operationAccess', { read: true, list: false });
+      await f.execute(async (req) => {
+        const service = req.macl.getPublicService(f.sourceName);
+        const args = {
+          select: ['ref', '-_id'],
+          populate: [{ path: 'ref', access: 'read', select: ['readOnly', 'listOnly', '-_id'] }],
+        };
+        const read = () =>
+          entry === 'id'
+            ? service._read(String(f.parent._id), args, { ...quiet, tryList: true })
+            : service._readFilter({ _id: f.parent._id }, args, { ...quiet, tryList: true });
+        const allowed = await read();
+        expect(allowed).toMatchObject({
+          success: true,
+          data: { ref: { readOnly: 'read-field' } },
+          context: { operation: 'read', outputAccess: 'list', docPermissionsAccess: 'list' },
+        });
+        if (!allowed.success) throw new Error(allowed.code);
+        expect(allowed.data).toEqual({ ref: { readOnly: 'read-field' } });
+        f.source.setOption('permissionSchema.ref', { read: true, list: false });
+        const denied = await read();
+        expect(denied).toMatchObject({ success: true, data: {} });
+        if (!denied.success) throw new Error(denied.code);
+        expect(denied.data).not.toHaveProperty('ref');
+      });
+    },
+  );
+
+  describe.each(['isolated', 'trusted'] as const)('%s write output', (mode) => {
+    it.each(['create', 'update'] as const)(
+      'uses read source field access for %s responses, not mutation input or target list access',
+      async (operation) => {
+        const f = await fixture(true);
+        f.source.setOption(`${operation}AuthorizationMode`, mode);
+        f.api.setModelOption(f.targetName, 'operationAccess', { read: false, list: true });
+        f.Parent.schema.path('ref').default(f.rows[1]._id);
+        await f.Parent.updateOne({ _id: f.parent._id }, { ref: f.rows[1]._id });
+        await f.execute(async (req) => {
+          const service = req.macl.getService(f.sourceName);
+          for (const visible of [true, false]) {
+            f.source.setOption('permissionSchema.ref', { read: visible, list: !visible, create: false, update: false });
+            const args = {
+              select: ['name', 'ref'],
+              populate: [{ path: 'ref', access: 'list', select: ['readOnly', 'listOnly', '-_id'] }],
+            };
+            // Denied client input cannot seed this assertion: create uses a
+            // server default and update keeps the previously persisted reference.
+            const data = { name: `${operation}-${visible}`, ref: f.rows[0]._id };
+            const result =
+              operation === 'create'
+                ? await service.create(data, args, quiet)
+                : await service.updateOne({ _id: f.parent._id }, data, args, quiet);
+            expect(result).toMatchObject({ success: true });
+            if (!result.success) throw new Error(result.code);
+            if (result.kind === 'list') expect(result.contexts[0]).toMatchObject({ operation, outputAccess: 'read' });
+            else expect(result.context).toMatchObject({ operation, outputAccess: 'read' });
+            const output = (Array.isArray(result.data) ? result.data[0] : result.data) as {
+              _id: mongoose.Types.ObjectId;
+              name: string;
+              ref?: unknown;
+            };
+            expect(output.name).toBe(data.name);
+            if (visible) expect(output.ref).toEqual({ listOnly: 'list-field' });
+            else expect(output).not.toHaveProperty('ref');
+            expect((await f.Parent.collection.findOne({ _id: output._id }))?.ref).toEqual(f.rows[1]._id);
+          }
+        });
+      },
+    );
+  });
+});
+
 describe('POP-02 ordinary target operation admission', () => {
   it.each(['lean', 'hydrated'] as const)(
     'populates a configuration-only denied Document with selected fields and request rows (%s)',
