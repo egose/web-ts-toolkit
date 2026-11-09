@@ -77,6 +77,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+describe('proxy snapshot diagnostics', () => {
+  it('logs the rejected snapshot stack without inspecting the Proxy or changing the error', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const get = vi.fn(() => {
+      throw new Error('must not inspect proxy');
+    });
+    const proxy = new Proxy({}, { get });
+
+    expectAuthorizationError(() => copyAuthorizationValue({ nested: proxy }), 'proxy snapshot input');
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const [message, error] = log.mock.calls[0];
+    expect(message).toBe('[access-router] Authorization snapshot rejected a Proxy');
+    expect(error).toBeInstanceOf(ServiceAuthorizationError);
+    expect((error as Error).stack).toContain('copyAuthorizationValue');
+    expect(get).not.toHaveBeenCalled();
+  });
+});
+
 describe('ARCPU-05 canonical BSON snapshots', () => {
   it.each(canonicalCases)(
     'matches wire type/bits and owns each mutable $name clone through serialization',

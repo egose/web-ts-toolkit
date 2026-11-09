@@ -71,7 +71,13 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
       if (typeof input === 'string') prepareTrustedOutputPayload(budget, input);
       return input;
     }
-    if (types.isProxy(input)) authorizationError('proxy snapshot input');
+    if (types.isProxy(input)) {
+      const error = new ServiceAuthorizationError('proxy snapshot input');
+      // Log the capture stack, never the rejected value: inspecting a Proxy may
+      // execute application code or expose private document/policy contents.
+      console.error('[access-router] Authorization snapshot rejected a Proxy', error);
+      throw error;
+    }
     const ownedCatalog = configuration === true ? readOwnedAuthorizationCatalogWork(input) : undefined;
     if (ownedCatalog) {
       // Only fresh library-generated frozen primitive catalogs qualify. Charge
