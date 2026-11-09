@@ -1,0 +1,57 @@
+{
+  "task": "ARRC-01",
+  "freshness": "captured immediately after successful fresh package typecheck/build",
+  "fileCount": 8,
+  "totalBytes": 782693,
+  "historicalByteHashesMatch": true,
+  "files": [
+    {
+      "path": "packages/access-router/dist/advanced.d.mts",
+      "bytes": 108295,
+      "sha256": "e074c1a4d43a10e2ae69e46cae3af077363d6557b5212a7e38808aab3aab1b84",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/advanced.d.mts"
+    },
+    {
+      "path": "packages/access-router/dist/advanced.d.ts",
+      "bytes": 108294,
+      "sha256": "60ee417fb0b3555c0a6a5cbab7bb30d2fa57414e2bd9aaeec8f248af6e079652",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/advanced.d.ts"
+    },
+    {
+      "path": "packages/access-router/dist/index.d.mts",
+      "bytes": 37865,
+      "sha256": "c1f3ab6c91ca689fc477e45ead8da3101e0d0a8e6533ce137d92b0ccd77400f4",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/index.d.mts"
+    },
+    {
+      "path": "packages/access-router/dist/index.d.ts",
+      "bytes": 37863,
+      "sha256": "ad5f59d3eff5fba8f6114bbb9f5d44dec15e6ec620379ebb3f7990ba008f6a70",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/index.d.ts"
+    },
+    {
+      "path": "packages/access-router/dist/parsers-fSBARZSn.d.mts",
+      "bytes": 234653,
+      "sha256": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/parsers-fSBARZSn.d.mts"
+    },
+    {
+      "path": "packages/access-router/dist/parsers-fSBARZSn.d.ts",
+      "bytes": 234653,
+      "sha256": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/parsers-fSBARZSn.d.ts"
+    },
+    {
+      "path": "packages/access-router/dist/processors.d.mts",
+      "bytes": 10535,
+      "sha256": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/processors.d.mts"
+    },
+    {
+      "path": "packages/access-router/dist/processors.d.ts",
+      "bytes": 10535,
+      "sha256": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331",
+      "byteCopy": "_tmp-arrc-01-2nfaqj2y/baseline/declarations/processors.d.ts"
+    }
+  ]
+}

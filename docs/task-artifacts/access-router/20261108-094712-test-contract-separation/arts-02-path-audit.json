@@ -1,0 +1,1154 @@
+{
+  "schema": 1,
+  "moduleEdges": 1881,
+  "publicEquivalentSwitches": [
+    {
+      "file": "F016",
+      "from": "../src/index",
+      "to": "../../dist/index.mjs",
+      "target": "packages/access-router/dist/index.mjs"
+    },
+    {
+      "file": "F016",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F032",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F044",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F063",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F064",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F068",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F073",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F074",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F079",
+      "from": "../src/interfaces",
+      "to": "../../dist/index.mjs",
+      "target": "packages/access-router/dist/index.mjs"
+    },
+    {
+      "file": "F081",
+      "from": "../src/interfaces",
+      "to": "../../dist/index.mjs",
+      "target": "packages/access-router/dist/index.mjs"
+    },
+    {
+      "file": "F108",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F121",
+      "from": "../src/index",
+      "to": "../../dist/index.mjs",
+      "target": "packages/access-router/dist/index.mjs"
+    },
+    {
+      "file": "F121",
+      "from": "../src/acl/authorization-modes",
+      "to": "../support/public/migration-guide-fixture",
+      "target": "packages/access-router/test/support/public/migration-guide-fixture"
+    },
+    {
+      "file": "F130",
+      "from": "../src/interfaces",
+      "to": "../../../dist/index.mjs",
+      "target": "packages/access-router/dist/index.mjs"
+    },
+    {
+      "file": "F138",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F142",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F147",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F148",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F152",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F152",
+      "from": "../src/acl/authorization-modes",
+      "to": "../support/public/migration-guide-fixture",
+      "target": "packages/access-router/test/support/public/migration-guide-fixture"
+    },
+    {
+      "file": "F155",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F163",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F169",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F177",
+      "from": "../src/interfaces",
+      "to": "../../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F178",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F186",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F189",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F215",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F225",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F228",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F229",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F231",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F232",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F233",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    },
+    {
+      "file": "F236",
+      "from": "../src/interfaces",
+      "to": "../../dist/advanced.mjs",
+      "target": "packages/access-router/dist/advanced.mjs"
+    }
+  ],
+  "rootDerivations": [
+    {
+      "file": "F001",
+      "oldLine": 17,
+      "newLine": 17,
+      "oldExpression": "path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')",
+      "newExpression": "path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')",
+      "resolvesTo": "<repo-root>"
+    },
+    {
+      "file": "F004",
+      "oldLine": 21,
+      "newLine": 21,
+      "oldExpression": "path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')",
+      "newExpression": "path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')",
+      "resolvesTo": "<repo-root>"
+    },
+    {
+      "file": "F047",
+      "oldLine": 12,
+      "newLine": 12,
+      "oldExpression": "path.resolve(__dirname, '../README.md')",
+      "newExpression": "path.resolve(__dirname, '../../README.md')",
+      "resolvesTo": "packages/access-router/README.md"
+    },
+    {
+      "file": "F048",
+      "oldLine": 10,
+      "newLine": 10,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F049",
+      "oldLine": 93,
+      "newLine": 93,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F085",
+      "oldLine": 7,
+      "newLine": 7,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F102",
+      "oldLine": 12,
+      "newLine": 12,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F128",
+      "oldLine": 7,
+      "newLine": 7,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F132",
+      "oldLine": 100,
+      "newLine": 100,
+      "oldExpression": "path.resolve(__dirname, '..', '..', '..')",
+      "newExpression": "path.resolve(__dirname, '..', '..', '..', '..')",
+      "resolvesTo": "<repo-root>"
+    },
+    {
+      "file": "F132",
+      "oldLine": 101,
+      "newLine": 101,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F170",
+      "oldLine": 769,
+      "newLine": 769,
+      "oldExpression": "path.resolve(import.meta.dirname, '..')",
+      "newExpression": "path.resolve(import.meta.dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F179",
+      "oldLine": 300,
+      "newLine": 300,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F205",
+      "oldLine": 12,
+      "newLine": 12,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F206",
+      "oldLine": 6,
+      "newLine": 6,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    },
+    {
+      "file": "F210",
+      "oldLine": 8,
+      "newLine": 8,
+      "oldExpression": "path.resolve(__dirname, '..', '..', '..')",
+      "newExpression": "path.resolve(__dirname, '..', '..', '..', '..')",
+      "resolvesTo": "<repo-root>"
+    },
+    {
+      "file": "F210",
+      "oldLine": 9,
+      "newLine": 9,
+      "oldExpression": "path.resolve(__dirname, '..')",
+      "newExpression": "path.resolve(__dirname, '../..')",
+      "resolvesTo": "packages/access-router"
+    }
+  ],
+  "generatedRecipeImports": [
+    {
+      "file": "F115",
+      "specifier": "./collection-raw-recipe.mjs",
+      "origin": "packages/access-router/MIGRATION.md",
+      "marker": "export async function rawBefore("
+    },
+    {
+      "file": "F115",
+      "specifier": "./collection-presentation-recipe.mjs",
+      "origin": "packages/access-router/MIGRATION.md",
+      "marker": "export function presentationSubset("
+    },
+    {
+      "file": "F115",
+      "specifier": "./collection-current-recipe.mjs",
+      "origin": "packages/access-router/MIGRATION.md",
+      "marker": "export async function currentList("
+    }
+  ],
+  "preservedDormantImports": [
+    {
+      "file": "F190",
+      "specifier": "../dist/index.js"
+    },
+    {
+      "file": "F190",
+      "specifier": "../dist/advanced.js"
+    },
+    {
+      "file": "F190",
+      "specifier": "../dist/advanced.js"
+    },
+    {
+      "file": "F190",
+      "specifier": "../dist/index.js"
+    }
+  ],
+  "generatedInstalledSources": [
+    {
+      "file": "F010",
+      "normalizedInstalledSourceSha256": "77f4f8c91d7786077ff52efdebf635d34991a24f471c98ac2d401737182a9666"
+    },
+    {
+      "file": "F011",
+      "normalizedInstalledSourceSha256": "4955a10b5d3a8fb6e5e010bdf8c923d903b92394930f260b5c79acf2742dd5db"
+    },
+    {
+      "file": "F045",
+      "normalizedInstalledSourceSha256": "a99fc5538fb4a44a078278fb3fc6f00e442e3c7ce0deac287b83b0431808316a"
+    },
+    {
+      "file": "F051",
+      "normalizedInstalledSourceSha256": "49ae05773c0e7d413fa324ecd94204f9a4fe93fb1f56394665bfe08bd622eac7"
+    },
+    {
+      "file": "F052",
+      "normalizedInstalledSourceSha256": "8867ce0855e749f1c2ffd5b1ed947331e190e5df3e3fc4ea8e29bd1fc036b45c"
+    },
+    {
+      "file": "F062",
+      "normalizedInstalledSourceSha256": "68dc1c67d21777739127e541f34f1e0923d601327c220efc9d4e7720178a9c75"
+    },
+    {
+      "file": "F070",
+      "normalizedInstalledSourceSha256": "66227f11f9eb0fa53cfc75ffbd29e885b8c44efa903ce31d444889734ef939ea"
+    },
+    {
+      "file": "F086",
+      "normalizedInstalledSourceSha256": "12a622b5a836a3c133a2edf88764c4bb6156ade2d60584863d5c84260399e7b4"
+    },
+    {
+      "file": "F089",
+      "normalizedInstalledSourceSha256": "d594c496ee55ca92e78bbc96c3bc6a33be182e6c5ee64cef3155c47c4e7023bc"
+    },
+    {
+      "file": "F101",
+      "normalizedInstalledSourceSha256": "19301b968035cd99edde102342e1c3d0b977112cad4e6b33a33bb1e2eb863341"
+    },
+    {
+      "file": "F106",
+      "normalizedInstalledSourceSha256": "2902b4ec83470c9eda48f4a9c914ea1453ed5c461d730c76c41f9f4d897135a1"
+    },
+    {
+      "file": "F110",
+      "normalizedInstalledSourceSha256": "998d769b00d4f2988ee315a4117061bccdbb7918fc265fbe7ffb47951d70a384"
+    },
+    {
+      "file": "F112",
+      "normalizedInstalledSourceSha256": "07402efdb7ada6af091049ebf241f96d5822c8ce17798a074b7e7a9619496b74"
+    },
+    {
+      "file": "F113",
+      "normalizedInstalledSourceSha256": "733317b0e88ca656e2817e2f505c21c408b6e85dd307bec78c8a826ea3957eb9"
+    },
+    {
+      "file": "F115",
+      "normalizedInstalledSourceSha256": "a90d2dc44d7ba0c4c9e84d62861da47aa48c00f4f0c5ce22b384e84c0ba16995"
+    },
+    {
+      "file": "F116",
+      "normalizedInstalledSourceSha256": "80ef322894400cbc21850667710dc5af633351d22ad25d2ac2ef8666d6afe2eb"
+    },
+    {
+      "file": "F117",
+      "normalizedInstalledSourceSha256": "ea07559479684bed9299e12e73a86531206d78a53f9a0b7897b21b21a59d11c9"
+    },
+    {
+      "file": "F118",
+      "normalizedInstalledSourceSha256": "ed0c62893c4d6a69449f08e013e24210cbf3a86fe3cf076ae2501def56b1c544"
+    },
+    {
+      "file": "F120",
+      "normalizedInstalledSourceSha256": "4c45da6a6b792a1ee1ca162da689ee16bf9636f136076517271356c4f6de667a"
+    },
+    {
+      "file": "F149",
+      "normalizedInstalledSourceSha256": "b00273ede56723a7118787c78b07d3121bf19fc359a8fa21c327d5763fdc5970"
+    },
+    {
+      "file": "F171",
+      "normalizedInstalledSourceSha256": "84e4eaf7bf67a0bcdd009f11772f14fa0aa85c900faee34ee6692405a098b73e"
+    },
+    {
+      "file": "F172",
+      "normalizedInstalledSourceSha256": "7bb3ee8a219dcffdd7e6fa505efa0b6e8a0eccae08fbe30524faf7e8c45f9737"
+    },
+    {
+      "file": "F180",
+      "normalizedInstalledSourceSha256": "06420bf7e5047ae7812f7b368d49eaa167170d3c6cbe3144dd957b6728f002b8"
+    },
+    {
+      "file": "F227",
+      "normalizedInstalledSourceSha256": "1e8f9d526a2833dfeafed81ec6f7088e731060d256da63c9eb2cfb953d32154d"
+    },
+    {
+      "file": "F238",
+      "normalizedInstalledSourceSha256": "192a2b537795147ce19f3cb424daf2993effb50e1fa9577a54b98a54569b0f6d"
+    }
+  ],
+  "independentControlKeys": {
+    "retired": [
+      "unsafeSkipListDocumentSnapshotChecks",
+      "unsafeSkipReadDocumentSnapshotChecks",
+      "unsafeSkipListOutputSnapshotChecks",
+      "unsafeSkipReadOutputSnapshotChecks",
+      "unsafeSkipListNestedDocumentSnapshotChecks",
+      "unsafeSkipReadNestedDocumentSnapshotChecks",
+      "unsafeSkipListInitialOutputSnapshotCopy",
+      "unsafeSkipReadInitialOutputSnapshotCopy",
+      "unsafeUseListAuthorizationFastPath",
+      "unsafeUseReadAuthorizationFastPath"
+    ],
+    "modes": [
+      "readAuthorizationMode",
+      "listAuthorizationMode",
+      "createAuthorizationMode",
+      "updateAuthorizationMode"
+    ],
+    "combined": [
+      "unsafeSkipListDocumentSnapshotChecks",
+      "unsafeSkipReadDocumentSnapshotChecks",
+      "unsafeSkipListOutputSnapshotChecks",
+      "unsafeSkipReadOutputSnapshotChecks",
+      "unsafeSkipListNestedDocumentSnapshotChecks",
+      "unsafeSkipReadNestedDocumentSnapshotChecks",
+      "unsafeSkipListInitialOutputSnapshotCopy",
+      "unsafeSkipReadInitialOutputSnapshotCopy",
+      "unsafeUseListAuthorizationFastPath",
+      "unsafeUseReadAuthorizationFastPath",
+      "readAuthorizationMode",
+      "listAuthorizationMode",
+      "createAuthorizationMode",
+      "updateAuthorizationMode"
+    ]
+  },
+  "supportCallers": [
+    {
+      "file": "F002",
+      "from": "packages/access-router/test/access-router-crud-fixture.ts",
+      "to": "packages/access-router/test/access-router-crud-fixture.ts",
+      "kind": "private-stable",
+      "callers": [
+        "packages/access-router/test/internal/access-router-crud-driver.unit.test.ts",
+        "packages/access-router/test/internal/access-router-crud-harness.unit.test.ts",
+        "packages/access-router/test/internal/access-router-crud-v2.unit.test.ts",
+        "packages/access-router/test/internal/access-router-crud-work.unit.test.ts",
+        "packages/access-router/test/internal/service-output-preparation.unit.test.ts",
+        "scripts/benchmarks/access-router-crud.mjs"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F010",
+      "from": "packages/access-router/test/authorization-fast-path-consumer.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/authorization-fast-path-consumer.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F011",
+      "from": "packages/access-router/test/authorization-fast-path-native.runtime.fixture.mjs",
+      "to": "packages/access-router/test/support/public/authorization-fast-path-native.runtime.fixture.mjs",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F019",
+      "from": "packages/access-router/test/authorization-snapshot-copy.reference.ts",
+      "to": "packages/access-router/test/support/private/authorization-snapshot-copy.reference.ts",
+      "kind": "private",
+      "callers": [
+        "packages/access-router/test/internal/authorization-snapshot-copy-builder.unit.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F043",
+      "from": "packages/access-router/test/document-isolation.reference.ts",
+      "to": "packages/access-router/test/support/private/document-isolation.reference.ts",
+      "kind": "private",
+      "callers": [
+        "packages/access-router/test/internal/document-isolation-builder.unit.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F045",
+      "from": "packages/access-router/test/document-permissions-dependencies.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/document-permissions-dependencies.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F051",
+      "from": "packages/access-router/test/field-helper-consumer.runtime.fixture.ts",
+      "to": "packages/access-router/test/support/public/field-helper-consumer.runtime.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F052",
+      "from": "packages/access-router/test/field-helper-migration.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/field-helper-migration.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F060",
+      "from": "packages/access-router/test/global-setup.ts",
+      "to": "packages/access-router/test/global-setup.ts",
+      "kind": "public-stable",
+      "callers": [
+        "packages/access-router/vitest.config.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F062",
+      "from": "packages/access-router/test/grouped-count-consumer.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/grouped-count-consumer.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F066",
+      "from": "packages/access-router/test/hook-admission-fixture.ts",
+      "to": "packages/access-router/test/support/public/hook-admission-fixture.ts",
+      "kind": "public",
+      "callers": [
+        "packages/access-router/test/invariants/authorization-fast-path-options.integration.test.ts",
+        "packages/access-router/test/invariants/authorization-fast-path-options.unit.test.ts",
+        "packages/access-router/test/invariants/authorization-fast-path-runtime.unit.test.ts",
+        "packages/access-router/test/invariants/document-authorization-validation.unit.test.ts",
+        "packages/access-router/test/invariants/hook-concurrency.test.ts",
+        "packages/access-router/test/internal/model-output-metadata.unit.test.ts",
+        "packages/access-router/test/internal/no-work-output-scheduling.unit.test.ts",
+        "packages/access-router/test/invariants/output-field-policy-cache.unit.test.ts",
+        "packages/access-router/test/invariants/owned-authorization-boundaries.unit.test.ts",
+        "packages/access-router/test/invariants/owned-authorization-facts.unit.test.ts",
+        "packages/access-router/test/invariants/owned-authorization-modes.unit.test.ts",
+        "packages/access-router/test/invariants/owned-authorization-stage.unit.test.ts",
+        "packages/access-router/test/invariants/query-snapshot-options.unit.test.ts",
+        "packages/access-router/test/invariants/request-hook-concurrency.test.ts",
+        "packages/access-router/test/invariants/request-hook-ownership.test.ts",
+        "packages/access-router/test/invariants/write-output-modes.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-populate.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-source-lifetime.unit.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F070",
+      "from": "packages/access-router/test/hydration-consumer.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/hydration-consumer.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F076",
+      "from": "packages/access-router/test/migration-guide-fixture.ts",
+      "to": "packages/access-router/test/support/public/migration-guide-fixture.ts",
+      "kind": "public",
+      "callers": [
+        "packages/access-router/test/contracts/documentation-examples.test.ts",
+        "packages/access-router/test/internal/export-contract.test.ts",
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F086",
+      "from": "packages/access-router/test/nested-operation-access-consumer.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/nested-operation-access-consumer.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/nested-operation-access-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F089",
+      "from": "packages/access-router/test/nested-operation-access.invalid.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/nested-operation-access.invalid.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/nested-operation-access-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F101",
+      "from": "packages/access-router/test/output-publication-fusion-withdrawal.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/output-publication-fusion-withdrawal.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F106",
+      "from": "packages/access-router/test/owned-authorization-cutover.invalid.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-cutover.invalid.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/owned-authorization-types.test.ts",
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F110",
+      "from": "packages/access-router/test/owned-authorization-helpers.runtime.fixture.mjs",
+      "to": "packages/access-router/test/support/public/owned-authorization-helpers.runtime.fixture.mjs",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F112",
+      "from": "packages/access-router/test/owned-authorization-hooks.invalid.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-hooks.invalid.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/owned-authorization-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F113",
+      "from": "packages/access-router/test/owned-authorization-hooks.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-hooks.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/owned-authorization-types.test.ts",
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F115",
+      "from": "packages/access-router/test/owned-authorization-many-consumer.runtime.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-many-consumer.runtime.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts"
+      ],
+      "generatedModules": [
+        {
+          "generated": "./collection-raw-recipe.mjs",
+          "origin": "packages/access-router/MIGRATION.md",
+          "marker": "export async function rawBefore(",
+          "caller": "packages/access-router/test/packed-consumer-compatibility.test.ts:539-549"
+        },
+        {
+          "generated": "./collection-presentation-recipe.mjs",
+          "origin": "packages/access-router/MIGRATION.md",
+          "marker": "export function presentationSubset(",
+          "caller": "packages/access-router/test/packed-consumer-compatibility.test.ts:539-549"
+        },
+        {
+          "generated": "./collection-current-recipe.mjs",
+          "origin": "packages/access-router/MIGRATION.md",
+          "marker": "export async function currentList(",
+          "caller": "packages/access-router/test/packed-consumer-compatibility.test.ts:539-549"
+        }
+      ],
+      "dormant": false
+    },
+    {
+      "file": "F116",
+      "from": "packages/access-router/test/owned-authorization-many-consumer.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-many-consumer.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F117",
+      "from": "packages/access-router/test/owned-authorization-many.invalid.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-many.invalid.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F118",
+      "from": "packages/access-router/test/owned-authorization-many.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-many.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F120",
+      "from": "packages/access-router/test/owned-authorization-migration.invalid.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-authorization-migration.invalid.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F130",
+      "from": "packages/access-router/test/owned-output-context-fixture.ts",
+      "to": "packages/access-router/test/support/public/owned-output-context-fixture.ts",
+      "kind": "public",
+      "callers": [
+        "packages/access-router/test/contracts/include-source-provenance.integration.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.dependencies.test.ts",
+        "packages/access-router/test/contracts/private-populate-read-policy.review.test.ts",
+        "packages/access-router/test/invariants/service-authorization-final-review.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-mutations.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-related.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-subdocuments.integration.test.ts",
+        "packages/access-router/test/internal/virtuals-finalizer.unit.test.ts",
+        "packages/access-router/test/internal/virtuals-populate-dependencies.integration.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.parity.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F131",
+      "from": "packages/access-router/test/owned-stage-test-fixture.ts",
+      "to": "packages/access-router/test/support/private/owned-stage-test-fixture.ts",
+      "kind": "private",
+      "callers": [
+        "packages/access-router/test/invariants/authorization-fast-path-owner.unit.test.ts",
+        "packages/access-router/test/invariants/authorization-fast-path-runtime.unit.test.ts",
+        "packages/access-router/test/invariants/document-authorization-validation.unit.test.ts",
+        "packages/access-router/test/internal/field-permissions-defaults.unit.test.ts",
+        "packages/access-router/test/internal/finalizer-preparation.unit.test.ts",
+        "packages/access-router/test/invariants/guard.test.ts",
+        "packages/access-router/test/internal/model-output-metadata.unit.test.ts",
+        "packages/access-router/test/internal/no-work-output-scheduling.unit.test.ts",
+        "packages/access-router/test/invariants/output-field-policy-cache.unit.test.ts",
+        "packages/access-router/test/internal/output-publication-fusion-withdrawal.unit.test.ts",
+        "packages/access-router/test/invariants/owned-authorization-consumers.unit.test.ts",
+        "packages/access-router/test/invariants/owned-authorization-guard-consumer.unit.test.ts",
+        "packages/access-router/test/internal/owned-authorization-projection-work.unit.test.ts",
+        "packages/access-router/test/invariants/owned-authorization-records.unit.test.ts",
+        "packages/access-router/test/internal/owned-authorization-work.unit.test.ts",
+        "packages/access-router/test/invariants/service-authorization-boundary-admission.contract.test.ts",
+        "packages/access-router/test/invariants/service-authorization-context.unit.test.ts",
+        "packages/access-router/test/internal/service-authorization-reads.unit.test.ts",
+        "packages/access-router/test/internal/service-list-preparation.unit.test.ts",
+        "packages/access-router/test/internal/service-logging-contract.unit.test.ts",
+        "packages/access-router/test/internal/service-output-preparation.unit.test.ts",
+        "packages/access-router/test/internal/virtuals-finalizer.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-authorization.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-modes.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-origin-ownership.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-populate.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-source-lifetime.unit.test.ts",
+        "packages/access-router/test/support/private/write-output-test-fixture.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F149",
+      "from": "packages/access-router/test/private-populate-read-policy.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/private-populate-read-policy.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F171",
+      "from": "packages/access-router/test/service-authorization-boundary.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/service-authorization-boundary.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/invariants/service-authorization-boundary-admission.contract.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F172",
+      "from": "packages/access-router/test/service-authorization-consumer.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/service-authorization-consumer.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F177",
+      "from": "packages/access-router/test/service-authorization-fixture.ts",
+      "to": "packages/access-router/test/support/public/service-authorization-fixture.ts",
+      "kind": "public",
+      "callers": [
+        "packages/access-router/test/contracts/service-authorization-direct.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-input.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-mutations.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-public-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-related.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-subdocuments.integration.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F180",
+      "from": "packages/access-router/test/service-authorization-migration.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/service-authorization-migration.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/invariants/service-authorization-migration.contract.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F190",
+      "from": "packages/access-router/test/service-authorization.types.fixture.ts",
+      "to": "packages/access-router/test/support/private/service-authorization.types.fixture.ts",
+      "kind": "private-dormant",
+      "callers": [],
+      "generatedModules": [],
+      "dormant": true
+    },
+    {
+      "file": "F200",
+      "from": "packages/access-router/test/setup.ts",
+      "to": "packages/access-router/test/setup.ts",
+      "kind": "public-stable",
+      "callers": [
+        "packages/access-router/test/contracts/advanced-mutation-bodies.integration.test.ts",
+        "packages/access-router/test/contracts/arc21-projection-identity-and-count-argument.contract.test.ts",
+        "packages/access-router/test/contracts/arf12-new-route-denial.integration.test.ts",
+        "packages/access-router/test/contracts/arf12-root-distinct.authorization.integration.test.ts",
+        "packages/access-router/test/invariants/authorization-fast-path-options.integration.test.ts",
+        "packages/access-router/test/contracts/authorization-fast-path-runtime.integration.test.ts",
+        "packages/access-router/test/contracts/basic-list-sort.integration.test.ts",
+        "packages/access-router/test/invariants/bulk-create-metadata-filter-trace.integration.test.ts",
+        "packages/access-router/test/contracts/correlated-includes.escape.integration.test.ts",
+        "packages/access-router/test/contracts/correlated-includes.execution.test.ts",
+        "packages/access-router/test/contracts/cross-resource-authorization.integration.test.ts",
+        "packages/access-router/test/internal/data-service-scaling.test.ts",
+        "packages/access-router/test/invariants/default-model-options.integration.test.ts",
+        "packages/access-router/test/invariants/default-model-options.unit.test.ts",
+        "packages/access-router/test/invariants/distinct-composite-authorization.integration.test.ts",
+        "packages/access-router/test/contracts/distinct-field-authorization.integration.test.ts",
+        "packages/access-router/test/contracts/doc-permissions-exposure.integration.test.ts",
+        "packages/access-router/test/contracts/document-permissions-dependencies.integration.test.ts",
+        "packages/access-router/test/internal/field-helper-request-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/field-permissions-opt-out.integration.test.ts",
+        "packages/access-router/test/contracts/field-permissions-placeholder.integration.test.ts",
+        "packages/access-router/test/invariants/filter-denial.integration.test.ts",
+        "packages/access-router/test/contracts/grouped-count-casting.integration.test.ts",
+        "packages/access-router/test/contracts/grouped-count-numeric.integration.test.ts",
+        "packages/access-router/test/contracts/grouped-count-query-equivalence.integration.test.ts",
+        "packages/access-router/test/contracts/hydration-characterization.integration.test.ts",
+        "packages/access-router/test/invariants/hydration-request-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/include-permission-metadata.integration.test.ts",
+        "packages/access-router/test/contracts/include-source-provenance.integration.test.ts",
+        "packages/access-router/test/contracts/list-snapshot-checks.integration.test.ts",
+        "packages/access-router/test/contracts/logger-redaction.test.ts",
+        "packages/access-router/test/contracts/model-router.integration.test.ts",
+        "packages/access-router/test/contracts/model-router.routes.integration.test.ts",
+        "packages/access-router/test/contracts/model-subdocument-routes.integration.test.ts",
+        "packages/access-router/test/contracts/nested-update-integrity.integration.test.ts",
+        "packages/access-router/test/contracts/openapi-collision.test.ts",
+        "packages/access-router/test/invariants/operation-access-boundaries.integration.test.ts",
+        "packages/access-router/test/invariants/operation-access-data-subdocument-routes.integration.test.ts",
+        "packages/access-router/test/invariants/operation-access-model-routes.integration.test.ts",
+        "packages/access-router/test/contracts/owned-authorization-guard-consumer.integration.test.ts",
+        "packages/access-router/test/contracts/owned-authorization-modes.integration.test.ts",
+        "packages/access-router/test/contracts/permissions-posture.integration.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.binding.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.dependencies.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.helper-isolation.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.include-binding.review.test.ts",
+        "packages/access-router/test/invariants/populate-operation-policy.include-binding.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.nested-targets.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.queries.test.ts",
+        "packages/access-router/test/contracts/populate-operation-policy.review.test.ts",
+        "packages/access-router/test/invariants/populate-operation-policy.target-options.test.ts",
+        "packages/access-router/test/contracts/private-populate-read-policy.review.test.ts",
+        "packages/access-router/test/contracts/private-populate-read-policy.runtime.test.ts",
+        "packages/access-router/test/contracts/query-snapshot-options.integration.test.ts",
+        "packages/access-router/test/contracts/read-list-fallback-authorization.integration.test.ts",
+        "packages/access-router/test/contracts/read-snapshot-checks.integration.test.ts",
+        "packages/access-router/test/contracts/request-complexity.integration.test.ts",
+        "packages/access-router/test/contracts/require-explicit-select.integration.test.ts",
+        "packages/access-router/test/contracts/root-router.integration.test.ts",
+        "packages/access-router/test/contracts/root-router.variants.integration.test.ts",
+        "packages/access-router/test/contracts/runtime-permission-handoff.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-baseline.contract.test.ts",
+        "packages/access-router/test/contracts/service-authorization-direct.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-final-review.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-input.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-migration.contract.test.ts",
+        "packages/access-router/test/invariants/service-authorization-mutations.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-public-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-related.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-rows.integration.test.ts",
+        "packages/access-router/test/invariants/service-authorization-subdocument-policies.integration.test.ts",
+        "packages/access-router/test/contracts/service-authorization-subdocuments.integration.test.ts",
+        "packages/access-router/test/contracts/service-defaults.integration.test.ts",
+        "packages/access-router/test/contracts/service-exists.integration.test.ts",
+        "packages/access-router/test/internal/service-logging-contract.integration.test.ts",
+        "packages/access-router/test/internal/service-output-preparation.unit.test.ts",
+        "packages/access-router/test/contracts/sort-field-authorization.integration.test.ts",
+        "packages/access-router/test/contracts/sort-options.integration.test.ts",
+        "packages/access-router/test/contracts/subdocument-mutation-visibility.integration.test.ts",
+        "packages/access-router/test/contracts/subdocument-populate-authorization.integration.test.ts",
+        "packages/access-router/test/contracts/virtual-filter-literals.integration.test.ts",
+        "packages/access-router/test/contracts/virtuals-baseline.contract.test.ts",
+        "packages/access-router/test/contracts/virtuals-config.contract.test.ts",
+        "packages/access-router/test/contracts/virtuals-direct-operations.integration.test.ts",
+        "packages/access-router/test/contracts/virtuals-embedded-subdocuments.integration.test.ts",
+        "packages/access-router/test/contracts/virtuals-hardening.boundary.test.ts",
+        "packages/access-router/test/internal/virtuals-original-refs.characterization.test.ts",
+        "packages/access-router/test/internal/virtuals-performance.probe.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.capture-boundaries.review.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.dispatch.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.fallback.test.ts",
+        "packages/access-router/test/internal/virtuals-populate-dependencies.integration.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.intent.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.operation-guards.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.parity.test.ts",
+        "packages/access-router/test/internal/virtuals-populate-dependencies.performance.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-dependencies.review.test.ts",
+        "packages/access-router/test/internal/virtuals-populate-dependencies.traversal.test.ts",
+        "packages/access-router/test/contracts/virtuals-populate-include.integration.test.ts",
+        "packages/access-router/test/contracts/virtuals-route-parity.integration.test.ts",
+        "packages/access-router/test/internal/virtuals-validation-openapi.contract.test.ts",
+        "packages/access-router-deco/test/hydration.integration.test.ts",
+        "packages/access-router-deco/test/populate-policy.integration.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F227",
+      "from": "packages/access-router/test/virtuals-populate-dependencies.consumer.runtime.fixture.ts",
+      "to": "packages/access-router/test/support/public/virtuals-populate-dependencies.consumer.runtime.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F238",
+      "from": "packages/access-router/test/virtuals-populate-dependencies.types.fixture.ts",
+      "to": "packages/access-router/test/support/public/virtuals-populate-dependencies.types.fixture.ts",
+      "kind": "public-consumer",
+      "callers": [
+        "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "packages/access-router/test/contracts/strict-consumer-types.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    },
+    {
+      "file": "F248",
+      "from": "packages/access-router/test/write-output-test-fixture.ts",
+      "to": "packages/access-router/test/support/private/write-output-test-fixture.ts",
+      "kind": "private",
+      "callers": [
+        "packages/access-router/test/internal/service-logging-contract.unit.test.ts",
+        "packages/access-router/test/internal/service-output-preparation.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-modes.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-populate.unit.test.ts",
+        "packages/access-router/test/invariants/write-output-source-lifetime.unit.test.ts"
+      ],
+      "generatedModules": [],
+      "dormant": false
+    }
+  ],
+  "notes": [
+    "Every original static/type/dynamic/CJS module edge was paired with its moved edge; all active local targets resolve.",
+    "Below contracts, source-vs-built module identity is unchanged. Only approved public root/type/key-list switches differ.",
+    "Dormant fixture is intentionally byte-identical and uncompiled; its old relative imports are not repaired or considered active coverage.",
+    "Three collection recipe modules are generated from the exact recorded MIGRATION blocks, not blanket unresolved-import exceptions.",
+    "Public filesystem fixture reads and replacement prefixes changed together; all 25 generated installed sources remain byte-identical.",
+    "Historical caller line references above are provenance only; maintained callers resolve through the executed file map."
+  ]
+}

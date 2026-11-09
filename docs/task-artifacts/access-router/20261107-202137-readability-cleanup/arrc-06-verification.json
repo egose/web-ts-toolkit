@@ -1,0 +1,170 @@
+{
+  "task": "ARRC-06",
+  "outcome": "accepted",
+  "blockers": [],
+  "head": "28f7266fc010b7e3f14664fcc452d50bdcae0fde",
+  "candidate": "Baseline HEAD plus retained uncommitted refactor and seven-test characterization file; not bare HEAD",
+  "workingDirectory": "<repo-root>",
+  "commonEnvironmentOverrides": {
+    "TMPDIR": "<repo-root>/_tmp-arrc-06-ACEtYj",
+    "NO_COLOR": "1",
+    "FORCE_COLOR": "0"
+  },
+  "runtime": {
+    "node": "v26.12.1", "pnpm": "11.18.0", "vitest": "4.1.11",
+    "typescript": "6.0.3", "tsup": "8.5.1", "platform": "linux", "arch": "x64"
+  },
+  "execution": {
+    "sequential": true,
+    "fullPackageRuns": 1,
+    "fullPackageForegroundToolTimeoutMs": 3000000,
+    "otherCommandForegroundToolTimeoutMs": 300000,
+    "backgroundJobs": 0,
+    "additionalDelegation": false,
+    "sourceOrTestsEditedByReviewer": false,
+    "sharedTaskEdited": false,
+    "commitsResetsOrDeletes": false,
+    "scratch": "_tmp-arrc-06-ACEtYj",
+    "ignoreCheck": ".gitignore:8:_tmp*\t_tmp-arrc-06-ACEtYj"
+  },
+  "commands": [
+    {
+      "label": "typecheck",
+      "argv": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "typecheck"],
+      "startedAt": "2026-11-08T16:53:08.386531+00:00",
+      "endedAt": "2026-11-08T16:53:39.236146+00:00",
+      "seconds": 30.848, "exit": 0,
+      "scrubbedRawLogSha256": "642108eb80e3973dfff9be30d735e19a83ff003ee6b00381a9910a2243345b13",
+      "includes": "fresh filtered/transitive build, then tsc --noEmit -p tsconfig.typecheck.json"
+    },
+    {
+      "label": "test",
+      "argv": ["pnpm", "--filter", "@web-ts-toolkit/access-router", "test"],
+      "extraEnvironmentOverrides": {
+        "ARPC_CRUD_WORK_REPORT": "<repo-root>/_tmp-arrc-06-ACEtYj/crud-work.json",
+        "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arrc-06-ACEtYj/preparation-work.json"
+      },
+      "startedAt": "2026-11-08T16:53:42.771913+00:00",
+      "endedAt": "2026-11-08T17:23:43.135564+00:00",
+      "seconds": 1800.363, "exit": 0,
+      "scrubbedRawLogSha256": "d2700414b3df89a74af64bcf527f372f43239f04447b2ce4be6c343144fcfdc5"
+    },
+    {
+      "label": "lint",
+      "argv": ["pnpm", "exec", "eslint", "packages/access-router/src", "packages/access-router/test"],
+      "startedAt": "2026-11-08T17:23:51.788847+00:00",
+      "endedAt": "2026-11-08T17:23:59.725798+00:00",
+      "seconds": 7.937, "exit": 0,
+      "scrubbedRawLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "publication",
+      "argv": [
+        "pnpm", "--filter", "@web-ts-toolkit/access-router", "exec", "vitest", "run",
+        "--config", "vitest.config.ts", "test/owned-authorization-publication.unit.test.ts",
+        "--testNamePattern", "observes actual source/view/materialization work",
+        "--reporter=default", "--reporter=json", "--outputFile",
+        "<repo-root>/_tmp-arrc-06-ACEtYj/publication-vitest.json"
+      ],
+      "startedAt": "2026-11-08T17:25:08.711596+00:00",
+      "endedAt": "2026-11-08T17:25:11.371091+00:00",
+      "seconds": 2.659, "exit": 0,
+      "scrubbedRawLogSha256": "bdb24dacdbe624917b0cf372f57d70e690924df5b3c8b9f9b8486d089cec5b22"
+    }
+  ],
+  "fullSuite": {
+    "files": 211, "total": 7565, "passed": 7565, "failed": 0, "skipped": 0, "todo": 0,
+    "vitestSeconds": 1776.28,
+    "actualReporterSummaryOnly": true,
+    "consumerExportPackedStrictAndTreeShakingChecksRetained": true,
+    "warning": "unchanged non-failing Vite native-config/ESM warning"
+  },
+  "publicationRecapture": {
+    "files": 1, "passed": 2, "failed": 0, "filteredOut": 48, "sourceSkipsAdded": 0,
+    "reason": "Only missing stdout evidence recaptured after successful full suite; all 50 publication cases already passed in full run"
+  },
+  "identityAlgorithm": "SHA-256(JSON.stringify([relativePath,fileSHA256][])); recursive readdir name.localeCompare('en'), same as maintained CRUD filesUnder; no node_modules",
+  "identity": {
+    "source": {
+      "files": 152,
+      "sha256": "e63cf3cc91fb0236e354ea741678892a2800c09dac7dd0c2ddfdbda4bd160814",
+      "matchesFinalARRC05AndPreTestTree": true,
+      "unchangedBaselineFiles": 149,
+      "changedBaselineFiles": ["output/finalize-model-output.ts", "services/service.ts"],
+      "addedBaselineFiles": ["services/model-output-metadata.ts"],
+      "removedBaselineFiles": []
+    },
+    "testedProductionFiles": [
+      { "path": "packages/access-router/src/output/finalize-model-output.ts", "sha256": "ecf538d8160e11a56794d962f76cb56512d39691ab160aaad483a2c337c2866b" },
+      { "path": "packages/access-router/src/services/service.ts", "sha256": "2e249822e2d7efaf054aa9c47da5aa1f096c2128588640cd6d37810e2c355d44" },
+      { "path": "packages/access-router/src/services/model-output-metadata.ts", "sha256": "91a50cb7e4188c6f12241039300a81ce8a2768c3cb9b5e08127fc91d741f4a53" }
+    ],
+    "tests": {
+      "files": 248,
+      "sha256": "ae59a43f873cb9859472ac632fdff42ec8692b08645522d881e8e21a591bee90",
+      "originalBaselineFiles": 247,
+      "originalFilesByteIdentical": true,
+      "newCharacterizationCases": 7,
+      "newTestSha256": "3c5ec37eae42f77f134cc412cfeef2eb1f566254ff509d0bc1325b6dac04eaab",
+      "matchesFinalARRC05AndPreTestTree": true,
+      "existingAssertionsExpectationsOrSkipsChanged": false
+    },
+    "protectedStartingTrackedFiles": 2357,
+    "protectedStartingFilesIncludingTaskAndHistoricalArtifacts": 2373,
+    "changedStartingFiles": [],
+    "publicConfigFilesComparedToBaseline": 14,
+    "publicManifestAndEntrypointsUnchanged": true,
+    "operationalBaselineSourceCopiesUnchanged": 151,
+    "historicalArtifacts": {
+      "files": 15,
+      "orderedFilenameHashTreeSha256": "63281934b11df5e4462296cdef913f783b87e241300d244b6f69d31f46ccc9f8",
+      "allStartingBytesUnchanged": true,
+      "oldPerformancePacketUntouched": true
+    }
+  },
+  "independentSourceReview": {
+    "tool": "TypeScript 6.0.3 parser tokens and checker-resolved local declarations",
+    "serviceOrderedSourceMembers": 91,
+    "serviceMemberNamesAndOrderPreserved": true,
+    "unaffectedMembersAndModuleStatementsTokenIdentical": true,
+    "populate": { "approvedBindings": 34, "identifierSubstitutions": 180, "tokensAndLocalDeclarationResolutionMatch": true, "defaultsPropertyKeysAndCallArgumentsPreserved": true },
+    "logging": { "bothExecutableBodiesTokenIdentical": true, "bothAliasTypesMatchOriginalOmitTypes": true },
+    "metadata": { "callbackBodyTokens": 499, "tokensMatchAfterOnlyTwoForwardingSubstitutionsAndErasedNonNullAssertions": true, "factorySynchronousSingleReturn": true, "serviceWrapperTokensOtherwiseIdentical": true, "deferredRealReceiverForwardersReviewed": true },
+    "finalizer": { "approvedBindings": 5, "identifierSubstitutions": 17, "nontriviaTokens": 3601, "identifierSites": 1171, "tokensAndLocalDeclarationResolutionMatch": true, "normalizedTokenSha256": "71db36ac85a92108beecd09527bd8f16d1a933d620d0d7e75eaf608d62851704" },
+    "diagnosticCorrection": "Scratch context-free scanner misread template continuations; replaced with parser AST tokens before successful comparison. No product/test failure or source change."
+  },
+  "declarations": {
+    "baseline": "arrc-01-declarations.json",
+    "files": 8, "totalBytes": 782693,
+    "comparedAfterFullSuiteAndPublicationRecapture": true,
+    "pathsBytesAndHashesIdentical": true,
+    "byteComparedTo": "_tmp-arrc-01-2nfaqj2y/baseline/declarations",
+    "differences": [],
+    "declaredClassMemberInventoriesPreserved": { "Service": 89, "PublicService": 29, "Base": 62 }
+  },
+  "modes": {
+    "axes": ["READ", "LIST", "CREATE", "UPDATE"],
+    "all16ActualModeTuplesPassed": true,
+    "crudHarnessTests": 434, "catalogCases": 432, "guardTests": 2,
+    "tupleLabels": ["iiii", "iiit", "iiti", "iitt", "itii", "itit", "itti", "ittt", "tiii", "tiit", "titi", "titt", "ttii", "ttit", "ttti", "tttt"],
+    "readFallbackRetainsReadModeWithListAccess": true,
+    "bothUpsertBranchesAndCapturedModes": true,
+    "mixedParentTargetReadListModes": true,
+    "owningEmbeddedStageSemantics": true,
+    "bothWriteModesDetachLiveSources": true
+  },
+  "workComparison": {
+    "baseline": "arrc-01-work-baseline.json",
+    "crud": { "records": 96, "rawSha256": "f8175081b1ddddfd58f87d779ee7c6a9cec5a8310f59a65b61b78e72287b7f2b", "allCountsAndOrderedTracesDeeplyEqual": true, "rawHashMatchesBaseline": true, "differingIds": [] },
+    "preparation": { "records": 32, "rawSha256": "e6acf8b14c60ce66b9889f1bbbb4d5bae98dde3d8dd9bbe836de75bfb31b5589", "allCountsAndOrderedTracesDeeplyEqual": true, "rawHashMatchesBaseline": true, "differingIds": [] },
+    "publication": { "records": 2, "sha256": "a8ea6aa663bd44c7b10438737734792d22ec94a64708d83546b16d8c78537abc", "observationsDeeplyEqual": true, "capturedBy": "publication command; full default reporter omitted these stdout observations" },
+    "limits": "Fresh deterministic work/ordered traces, not timing/allocation measurements or a performance claim; duplicate 128 rows omitted because raw hashes and deep equality match preserved baseline"
+  },
+  "preservation": {
+    "addedFiles": ["arrc-06-review.md", "arrc-06-verification.json", "arrc-06-verification.log", "README.md"],
+    "summaryLogIsCuratedNotFullCommandLog": true,
+    "strictJsonPrivacyLinksWhitespaceAndNonignoredDestinationAudited": true,
+    "omitted": "Full logs/assertion JSON, source/declaration copies, scratch scripts, duplicate work arrays, dependency/cache/database trees, generated consumers/builds/tarballs. Reproduction requires recorded toolchain, dependencies, MongoDB prerequisites and retained candidate change set; baseline HEAD alone is insufficient. Other inherited environment values are not archived."
+  },
+  "notRun": ["root build/lint/test sweep", "grouped or downstream test suites", "benchmark/performance campaign", "second full package run"]
+}

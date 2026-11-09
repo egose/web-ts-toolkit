@@ -1,0 +1,44 @@
+{
+  "disposition": "ARPC-05 production withdrawn; no performance optimization retained",
+  "baseline": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "restoredSourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+  "sourceFilesMatched": 151,
+  "distFilesMatched": 15,
+  "productionDiffEmpty": true,
+  "untrackedProductionSourceFiles": 0,
+  "originalAndCandidateSealsUnchanged": true,
+  "restoredOwnedSourceHashes": {
+    "packages/access-router/src/logger-helpers.ts": "2e985de2408c1b2d6a7535b54a58951c8891208fc145762253e32b723864b82d",
+    "packages/access-router/src/services/service.ts": "b40fc334c3500bf85a950be3b96d60240da59376f4f1c3f3cecec02c19321a14"
+  },
+  "retainedTestHashes": {
+    "packages/access-router/test/service-logging-contract.unit.test.ts": "c9db936a1b642554a34f9fc61e1f1111f56b1fe67e4a71c88f89ca830f212155",
+    "packages/access-router/test/service-logging-contract.integration.test.ts": "c1c5ee3ae1816ef6d90dea9d46ec85860d6b5d56e2ad63639f47649deb04a2c0"
+  },
+  "retainedTestCounts": {
+    "unit": 16,
+    "integration": 8,
+    "total": 24
+  },
+  "candidateTestsArchivedWithoutModification": {
+    "unit": 58,
+    "integration": 32,
+    "total": 90
+  },
+  "unrelatedAndHistoricalFilesUnchanged": 92,
+  "historicalParentFilesUnchanged": 17
+}

@@ -1,0 +1,49 @@
+{
+  "kind": "smoke-code-selection-proof-not-performance-acceptance",
+  "baseline": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "2244ed8ae236b5def3edf022648438c1c513b3d6696c8e220153973753af3cf8",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "candidate": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "60475b6387817c3fc1cc57d35d6073c244f161bc993b8dacb0f489281e93c49d",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "8207508355dd78bc98e182e7b4cad497b3a486421250e9e4765942a92c143c3d",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+  "cases": 432,
+  "outputStateHashesEqual": true,
+  "outputStateHashAggregate": "d24aad01542f44deda0163e6b8daf82485da174f147688018af1c79637cbd3c8",
+  "baselineWorkerSelection": {
+    "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+    "bundleHash": "2244ed8ae236b5def3edf022648438c1c513b3d6696c8e220153973753af3cf8"
+  },
+  "candidateWorkerSelection": {
+    "sourceHash": "60475b6387817c3fc1cc57d35d6073c244f161bc993b8dacb0f489281e93c49d",
+    "bundleHash": "8207508355dd78bc98e182e7b4cad497b3a486421250e9e4765942a92c143c3d"
+  },
+  "markerAssertions": "The final passing package-local driver regression asserts candidate-marker in candidate and baseline-marker in baseline via separate Node imports. Candidate corruption after the smoke is intentional and rejected.",
+  "originalProtocol": "_tmp-arpc-01-4d6agBQe/_tmp-arpc-crud-driver-WCGner/smoke/protocol.json",
+  "originalProtocolSha256": "c8368ba8129aad1ba401969e32b1b2dddd158e2272e009abe9f1ed46c01df46a",
+  "originalWorkSha256": "03773e275cadeedd9296fd73d760a57a05b7d0ebc60be97f2840e59318e5b467"
+}

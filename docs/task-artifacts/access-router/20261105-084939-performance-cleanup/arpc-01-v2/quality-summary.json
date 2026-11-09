@@ -1,0 +1,1132 @@
+{
+  "status": "timed-out-incomplete-no-performance-claim",
+  "comparisonUsable": false,
+  "acceptedCases": 0,
+  "selectedCases": 40,
+  "completeCases": 8,
+  "incompleteCases": 32,
+  "selectedPanels": 10,
+  "completePanels": [
+    "upsert-public",
+    "scale-public"
+  ],
+  "persistedPanelPairs": 132,
+  "expectedPanelPairs": 140,
+  "persistedTimingWorkers": 264,
+  "expectedTimingWorkers": 280,
+  "persistedWorkerCaseRecords": 1056,
+  "persistedMeasuredInvocations": 634752,
+  "persistedWarmupInvocations": 1259072,
+  "warmupFailureRecords": 47,
+  "shortWindowRecords": 0,
+  "measuredServiceMs": {
+    "min": 189.65628999999944,
+    "max": 829.4116379999869
+  },
+  "warmupElapsedMs": {
+    "min": 524.7113770000005,
+    "max": 2813.723897
+  },
+  "coverage": [
+    {
+      "panel": "read-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "control-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "single-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "upsert-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "scale-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "read-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "control-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "single-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "requiredPerRepeat": 7,
+      "complete": false
+    },
+    {
+      "panel": "upsert-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "requiredPerRepeat": 7,
+      "complete": true
+    },
+    {
+      "panel": "scale-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "requiredPerRepeat": 7,
+      "complete": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "iiii/direct/read-hit/hooks/1x4",
+      "panel": "read-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 1,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two",
+        "unsettled-warmup"
+      ]
+    },
+    {
+      "id": "tttt/direct/read-hit/hooks/1x4",
+      "panel": "read-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/read-miss/bare/1x1",
+      "panel": "read-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 29952,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/list-empty/bare/1x1",
+      "panel": "read-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 29952,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/read-hit/bare/1x1",
+      "panel": "control-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/direct/read-hit/bare/1x1",
+      "panel": "control-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 24960,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/list-single/hooks/1x4",
+      "panel": "control-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/direct/list-single/hooks/1x4",
+      "panel": "control-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/create-single/hooks/1x4",
+      "panel": "single-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/direct/create-single/hooks/1x4",
+      "panel": "single-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/update-id/hooks/1x4",
+      "panel": "single-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/direct/update-id/hooks/1x4",
+      "panel": "single-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/upsert-create/hooks/1x4",
+      "panel": "upsert-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/direct/upsert-create/hooks/1x4",
+      "panel": "upsert-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 1,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two",
+        "unsettled-warmup"
+      ]
+    },
+    {
+      "id": "iiii/direct/upsert-update/hooks/1x4",
+      "panel": "upsert-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/direct/upsert-update/hooks/1x4",
+      "panel": "upsert-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/list-many/hooks/16x16",
+      "panel": "scale-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 4992,
+      "warmupFailures": 1,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two",
+        "unsettled-warmup"
+      ]
+    },
+    {
+      "id": "tttt/direct/list-many/hooks/16x16",
+      "panel": "scale-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 4992,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/direct/create-bulk/hooks/16x16",
+      "panel": "scale-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 4992,
+      "warmupFailures": 9,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two",
+        "unsettled-warmup"
+      ]
+    },
+    {
+      "id": "tttt/direct/create-bulk/hooks/16x16",
+      "panel": "scale-direct",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 4992,
+      "warmupFailures": 6,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two",
+        "unsettled-warmup"
+      ]
+    },
+    {
+      "id": "iiii/public/read-hit/hooks/1x4",
+      "panel": "read-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/public/read-hit/hooks/1x4",
+      "panel": "read-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/public/read-miss/bare/1x1",
+      "panel": "read-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 24960,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/public/list-empty/bare/1x1",
+      "panel": "read-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 24960,
+      "warmupFailures": 1,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two",
+        "unsettled-warmup"
+      ]
+    },
+    {
+      "id": "iiii/public/read-hit/bare/1x1",
+      "panel": "control-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/public/read-hit/bare/1x1",
+      "panel": "control-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/public/list-single/hooks/1x4",
+      "panel": "control-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/public/list-single/hooks/1x4",
+      "panel": "control-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 19968,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/public/create-single/hooks/1x4",
+      "panel": "single-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/public/create-single/hooks/1x4",
+      "panel": "single-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/public/update-id/hooks/1x4",
+      "panel": "single-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "tttt/public/update-id/hooks/1x4",
+      "panel": "single-public",
+      "pairedRounds": [
+        7,
+        6
+      ],
+      "complete": false,
+      "workers": 26,
+      "measuredOperations": 14976,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "fewer-than-seven-pairs-in-repeat-two"
+      ]
+    },
+    {
+      "id": "iiii/public/upsert-create/hooks/1x4",
+      "panel": "upsert-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 16128,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "cpu-noise-over-20pct"
+      ],
+      "wallNoise": 0.09318829550643848,
+      "cpuNoise": 0.24050149685559918
+    },
+    {
+      "id": "tttt/public/upsert-create/hooks/1x4",
+      "panel": "upsert-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 16128,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "wall-noise-over-20pct",
+        "cpu-noise-over-20pct"
+      ],
+      "wallNoise": 0.22851605838743638,
+      "cpuNoise": 0.37333656836876705
+    },
+    {
+      "id": "iiii/public/upsert-update/hooks/1x4",
+      "panel": "upsert-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 10752,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "cpu-noise-over-20pct"
+      ],
+      "wallNoise": 0.12429943085651973,
+      "cpuNoise": 0.29397830844335493
+    },
+    {
+      "id": "tttt/public/upsert-update/hooks/1x4",
+      "panel": "upsert-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 16128,
+      "warmupFailures": 1,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "unsettled-warmup",
+        "cpu-noise-over-20pct"
+      ],
+      "wallNoise": 0.1932368221227858,
+      "cpuNoise": 0.24101781445415393
+    },
+    {
+      "id": "iiii/public/list-many/hooks/16x16",
+      "panel": "scale-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 5376,
+      "warmupFailures": 1,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "unsettled-warmup"
+      ],
+      "wallNoise": 0.13405673835988552,
+      "cpuNoise": 0.16482602988923922
+    },
+    {
+      "id": "tttt/public/list-many/hooks/16x16",
+      "panel": "scale-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 5376,
+      "warmupFailures": 0,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "cpu-noise-over-20pct"
+      ],
+      "wallNoise": 0.10296632522394189,
+      "cpuNoise": 0.2112429892886446
+    },
+    {
+      "id": "iiii/public/create-bulk/hooks/16x16",
+      "panel": "scale-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 5376,
+      "warmupFailures": 10,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "unsettled-warmup"
+      ],
+      "wallNoise": 0.06229605232804469,
+      "cpuNoise": 0.09701566638615633
+    },
+    {
+      "id": "tttt/public/create-bulk/hooks/16x16",
+      "panel": "scale-public",
+      "pairedRounds": [
+        7,
+        7
+      ],
+      "complete": true,
+      "workers": 28,
+      "measuredOperations": 5376,
+      "warmupFailures": 16,
+      "shortWindows": 0,
+      "acceptedForComparison": false,
+      "blockers": [
+        "unsettled-warmup"
+      ],
+      "wallNoise": 0.15760547205238895,
+      "cpuNoise": 0.16793866648164824
+    }
+  ],
+  "completePanelStatistics": [
+    {
+      "id": "iiii/public/upsert-create/hooks/1x4",
+      "requestsPerSecond": 2197.633459332631,
+      "metrics": {
+        "wall": {
+          "baselineMs": 0.45725673263888883,
+          "candidateMs": 0.45503493576389037,
+          "baselineP95Ms": 0.4697863159722036,
+          "candidateP95Ms": 0.493272517361114,
+          "repeatRatios": [
+            1.0010148273203627,
+            1.0059956494836368
+          ],
+          "noise": 0.09318829550643848,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 0.5695850694444445,
+          "candidateMs": 0.5622256944444446,
+          "baselineP95Ms": 0.6912638888888891,
+          "candidateP95Ms": 0.6369513888888894,
+          "repeatRatios": [
+            1.0040111030682994,
+            0.9177346638974724
+          ],
+          "noise": 0.24050149685559918,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "upsert-public",
+      "quality": {
+        "warmupFailures": 0,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    },
+    {
+      "id": "tttt/public/upsert-create/hooks/1x4",
+      "requestsPerSecond": 2328.7927750108815,
+      "metrics": {
+        "wall": {
+          "baselineMs": 0.4335742638888955,
+          "candidateMs": 0.4294070347222403,
+          "baselineP95Ms": 0.48784385416666887,
+          "candidateP95Ms": 0.5212182552083289,
+          "repeatRatios": [
+            1.0096533327583435,
+            0.9746555846312168
+          ],
+          "noise": 0.22851605838743638,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 0.5407604166666664,
+          "candidateMs": 0.5169999999999999,
+          "baselineP95Ms": 0.6252760416666667,
+          "candidateP95Ms": 0.707532986111111,
+          "repeatRatios": [
+            1.032440722327316,
+            0.9109342453369916
+          ],
+          "noise": 0.37333656836876705,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "upsert-public",
+      "quality": {
+        "warmupFailures": 0,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    },
+    {
+      "id": "iiii/public/upsert-update/hooks/1x4",
+      "requestsPerSecond": 1837.0024651041924,
+      "metrics": {
+        "wall": {
+          "baselineMs": 0.5234384869791597,
+          "candidateMs": 0.5443650833333429,
+          "baselineP95Ms": 0.6022013671875056,
+          "candidateP95Ms": 0.608677872395841,
+          "repeatRatios": [
+            1.0292738864960622,
+            0.9968914591558081
+          ],
+          "noise": 0.12429943085651973,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 0.6471640624999999,
+          "candidateMs": 0.6549453124999999,
+          "baselineP95Ms": 0.8840494791666664,
+          "candidateP95Ms": 0.8407421875000002,
+          "repeatRatios": [
+            1.0429409454087117,
+            0.9503321784548768
+          ],
+          "noise": 0.29397830844335493,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "upsert-public",
+      "quality": {
+        "warmupFailures": 0,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    },
+    {
+      "id": "tttt/public/upsert-update/hooks/1x4",
+      "requestsPerSecond": 1821.4370965402768,
+      "metrics": {
+        "wall": {
+          "baselineMs": 0.5437444913194409,
+          "candidateMs": 0.5490170381944274,
+          "baselineP95Ms": 0.6687647100694432,
+          "candidateP95Ms": 0.6534562986111239,
+          "repeatRatios": [
+            1.0333332370672799,
+            1.0100796793798652
+          ],
+          "noise": 0.1932368221227858,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 0.6522222222222219,
+          "candidateMs": 0.6872187500000003,
+          "baselineP95Ms": 0.8067326388888889,
+          "candidateP95Ms": 0.8259374999999999,
+          "repeatRatios": [
+            1.0975408904255826,
+            1.0547813526072867
+          ],
+          "noise": 0.24101781445415393,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "upsert-public",
+      "quality": {
+        "warmupFailures": 1,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    },
+    {
+      "id": "iiii/public/list-many/hooks/16x16",
+      "requestsPerSecond": 575.1766966778013,
+      "metrics": {
+        "wall": {
+          "baselineMs": 1.7466547135416743,
+          "candidateMs": 1.7385961666666294,
+          "baselineP95Ms": 1.9941111093749744,
+          "candidateP95Ms": 1.8179017083333235,
+          "repeatRatios": [
+            0.9751004468497267,
+            1.0011003210408977
+          ],
+          "noise": 0.13405673835988552,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 2.0051458333333336,
+          "candidateMs": 2.040864583333333,
+          "baselineP95Ms": 2.261822916666666,
+          "candidateP95Ms": 2.1745625,
+          "repeatRatios": [
+            0.9898572956825383,
+            1.0097267516974862
+          ],
+          "noise": 0.16482602988923922,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "scale-public",
+      "quality": {
+        "warmupFailures": 1,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    },
+    {
+      "id": "tttt/public/list-many/hooks/16x16",
+      "requestsPerSecond": 698.5112538694395,
+      "metrics": {
+        "wall": {
+          "baselineMs": 1.4306889166666512,
+          "candidateMs": 1.4316161614583127,
+          "baselineP95Ms": 1.5558573333333523,
+          "candidateP95Ms": 1.5622856875000082,
+          "repeatRatios": [
+            1.0041317118407531,
+            1.0096939669369436
+          ],
+          "noise": 0.10296632522394189,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 1.6277552083333335,
+          "candidateMs": 1.5591614583333329,
+          "baselineP95Ms": 1.9349270833333332,
+          "candidateP95Ms": 1.9373802083333331,
+          "repeatRatios": [
+            0.9754313761870221,
+            0.982319182494135
+          ],
+          "noise": 0.2112429892886446,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "scale-public",
+      "quality": {
+        "warmupFailures": 0,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    },
+    {
+      "id": "iiii/public/create-bulk/hooks/16x16",
+      "requestsPerSecond": 251.05111506091822,
+      "metrics": {
+        "wall": {
+          "baselineMs": 3.92937628125001,
+          "candidateMs": 3.983252572916664,
+          "baselineP95Ms": 4.1298799687500365,
+          "candidateP95Ms": 4.118898927083346,
+          "repeatRatios": [
+            1.0076194058816015,
+            1.0162545341876734
+          ],
+          "noise": 0.06229605232804469,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 4.353395833333333,
+          "candidateMs": 4.324651041666667,
+          "baselineP95Ms": 4.455578125,
+          "candidateP95Ms": 4.603317708333333,
+          "repeatRatios": [
+            1.0241784934848759,
+            0.9843372463864872
+          ],
+          "noise": 0.09701566638615633,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "scale-public",
+      "quality": {
+        "warmupFailures": 10,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    },
+    {
+      "id": "tttt/public/create-bulk/hooks/16x16",
+      "requestsPerSecond": 261.027336736329,
+      "metrics": {
+        "wall": {
+          "baselineMs": 3.872280229166672,
+          "candidateMs": 3.831016369791674,
+          "baselineP95Ms": 4.019730874999993,
+          "candidateP95Ms": 4.319852281249932,
+          "repeatRatios": [
+            1.0002294499970563,
+            1.0154675590348936
+          ],
+          "noise": 0.15760547205238895,
+          "result": "noise-calibration"
+        },
+        "cpu": {
+          "baselineMs": 4.273791666666667,
+          "candidateMs": 4.202739583333333,
+          "baselineP95Ms": 4.568031250000001,
+          "candidateP95Ms": 4.734421875,
+          "repeatRatios": [
+            0.971379446378933,
+            1.012354782233161
+          ],
+          "noise": 0.16793866648164824,
+          "result": "noise-calibration"
+        }
+      },
+      "panel": "scale-public",
+      "quality": {
+        "warmupFailures": 16,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "usable": false
+    }
+  ],
+  "limitations": [
+    "No report.json was produced; this is a post-run audit, not a calibration packet.",
+    "All persisted pairs included. Eight fully paired cells all fail unchanged gates; 32 cells lack the final pair in repeat two.",
+    "Counts exclude killed/unpersisted work. Last four warmup blocks are retained, not full warmup trajectories.",
+    "No rerun, candidate measurement, cap relaxation, dropped warmups or reduced round requirement."
+  ]
+}

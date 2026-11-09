@@ -1,0 +1,78 @@
+[
+  {
+    "label": "withdrawal-typecheck",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "typecheck"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 33.29783083499999,
+    "log": "_tmp-arpc-02-withdraw-PW5VIYmi/withdrawal-typecheck.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-withdraw-PW5VIYmi",
+    "logHash": "3c85528d01d92e2c0a0182789928a5ed684255dd364e1908dc45a3a54453f471"
+  },
+  {
+    "label": "withdrawal-focused-tests",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/service-output-preparation.unit.test.ts",
+      "test/service-list-preparation.unit.test.ts",
+      "test/finalizer-preparation.unit.test.ts",
+      "test/access-router-crud-work.unit.test.ts",
+      "test/access-router-crud-harness.unit.test.ts",
+      "test/write-output-modes.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 12.011148203,
+    "log": "_tmp-arpc-02-withdraw-PW5VIYmi/withdrawal-focused-tests.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-withdraw-PW5VIYmi",
+    "logHash": "2b4f663869d461180dd87489af69b5cf0c4f7681dca355530e2156376fa06cbf",
+    "workReportEnvironment": {
+      "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arpc-02-withdraw-PW5VIYmi/work.json"
+    }
+  },
+  {
+    "label": "withdrawal-lint",
+    "command": [
+      "pnpm",
+      "exec",
+      "eslint",
+      "packages/access-router/src/acl/output-field-filter.ts",
+      "packages/access-router/src/output/finalize-model-output.ts",
+      "packages/access-router/src/services/service.ts",
+      "packages/access-router/test/service-output-preparation.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 3.398922303,
+    "log": "_tmp-arpc-02-withdraw-PW5VIYmi/withdrawal-lint.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-withdraw-PW5VIYmi",
+    "logHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "label": "withdrawal-seal",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud.mjs",
+      "freeze",
+      "_tmp-arpc-02-withdraw-PW5VIYmi/retained-baseline"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 2.4497919379999997,
+    "log": "_tmp-arpc-02-withdraw-PW5VIYmi/withdrawal-seal.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-withdraw-PW5VIYmi",
+    "logHash": "b0b345b317d976c82e0368f43949c428e49b3d09b89784a8439ab1429a595db9"
+  }
+]

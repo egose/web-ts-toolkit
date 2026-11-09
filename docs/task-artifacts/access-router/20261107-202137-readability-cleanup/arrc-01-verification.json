@@ -1,0 +1,521 @@
+{
+  "task": "ARRC-01",
+  "completedAt": "2026-11-08T04:37:22.127Z",
+  "decision": "approved narrow move/name boundaries; no production/test changes",
+  "head": "28f7266fc010b7e3f14664fcc452d50bdcae0fde",
+  "commands": [
+    {
+      "label": "typecheck",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "workingDirectory": "<repo-root>",
+      "environment": {
+        "TMPDIR": "<repo-root>/_tmp-arrc-01-2nfaqj2y",
+        "NO_COLOR": "1",
+        "FORCE_COLOR": "0"
+      },
+      "startedAt": "2026-11-08T04:29:13.719Z",
+      "endedAt": "2026-11-08T04:29:41.294Z",
+      "seconds": 27.574,
+      "exit": 0,
+      "signal": null,
+      "rawLogSha256": "ce616d7584f9675cb63ea45917bda5e082a36f49171038feb8632904533cb2db",
+      "scrubbedLogSha256": "2d695db4280d7a4b3eb765983cacaff5c0b2cdf8456931d0261b7e6ecdaff6ea",
+      "toolTimeoutMs": 2400000
+    },
+    {
+      "label": "focused",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/finalizer-preparation.unit.test.ts",
+        "test/service-list-preparation.unit.test.ts",
+        "test/service-output-preparation.unit.test.ts",
+        "test/permissions-posture.integration.test.ts",
+        "test/bulk-create-metadata-filter-trace.integration.test.ts",
+        "test/include-permission-metadata.integration.test.ts",
+        "test/write-output-populate.unit.test.ts",
+        "test/service-authorization-related.integration.test.ts",
+        "test/service-authorization-subdocuments.integration.test.ts",
+        "test/virtuals-populate-dependencies.traversal.test.ts",
+        "test/virtuals-populate-dependencies.integration.test.ts",
+        "test/virtuals-populate-include.integration.test.ts",
+        "test/no-work-output-scheduling.unit.test.ts",
+        "test/owned-authorization-publication.unit.test.ts",
+        "test/owned-authorization-many-bounds.unit.test.ts",
+        "test/request-hook-concurrency.test.ts",
+        "test/request-hook-ownership.test.ts",
+        "test/retained-model-service-ownership.integration.test.ts",
+        "test/service-logging-contract.unit.test.ts",
+        "test/service-logging-contract.integration.test.ts",
+        "test/logger-redaction.test.ts",
+        "test/access-router-crud-harness.unit.test.ts",
+        "test/write-output-modes.unit.test.ts",
+        "test/write-output-source-lifetime.unit.test.ts",
+        "test/read-list-fallback-authorization.integration.test.ts",
+        "test/service-authorization-prepared-query.unit.test.ts",
+        "test/response-pipeline.internal.test.ts",
+        "test/access-router-crud-work.unit.test.ts",
+        "test/owned-authorization-work.unit.test.ts",
+        "test/owned-authorization-projection-work.unit.test.ts",
+        "test/service-authorization-finalizer.unit.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile",
+        "<repo-root>/_tmp-arrc-01-2nfaqj2y/focused-vitest.json"
+      ],
+      "workingDirectory": "<repo-root>",
+      "environment": {
+        "TMPDIR": "<repo-root>/_tmp-arrc-01-2nfaqj2y",
+        "NO_COLOR": "1",
+        "FORCE_COLOR": "0",
+        "ARPC_CRUD_WORK_REPORT": "<repo-root>/_tmp-arrc-01-2nfaqj2y/crud-work.json",
+        "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arrc-01-2nfaqj2y/preparation-work.json"
+      },
+      "startedAt": "2026-11-08T04:29:48.370Z",
+      "endedAt": "2026-11-08T04:31:16.993Z",
+      "seconds": 88.623,
+      "exit": 0,
+      "signal": null,
+      "rawLogSha256": "fb9669df1ebfd11160e8c7d2a7ce0d1bc2567e8eed39551f54d9a56f49e1f548",
+      "scrubbedLogSha256": "4bd3e93c9861b381dc8a2e95f277827f3db3fa1d5d4535270b882e32bbb7d388",
+      "selectedFiles": [
+        "finalizer-preparation.unit.test.ts",
+        "service-list-preparation.unit.test.ts",
+        "service-output-preparation.unit.test.ts",
+        "permissions-posture.integration.test.ts",
+        "bulk-create-metadata-filter-trace.integration.test.ts",
+        "include-permission-metadata.integration.test.ts",
+        "write-output-populate.unit.test.ts",
+        "service-authorization-related.integration.test.ts",
+        "service-authorization-subdocuments.integration.test.ts",
+        "virtuals-populate-dependencies.traversal.test.ts",
+        "virtuals-populate-dependencies.integration.test.ts",
+        "virtuals-populate-include.integration.test.ts",
+        "no-work-output-scheduling.unit.test.ts",
+        "owned-authorization-publication.unit.test.ts",
+        "owned-authorization-many-bounds.unit.test.ts",
+        "request-hook-concurrency.test.ts",
+        "request-hook-ownership.test.ts",
+        "retained-model-service-ownership.integration.test.ts",
+        "service-logging-contract.unit.test.ts",
+        "service-logging-contract.integration.test.ts",
+        "logger-redaction.test.ts",
+        "access-router-crud-harness.unit.test.ts",
+        "write-output-modes.unit.test.ts",
+        "write-output-source-lifetime.unit.test.ts",
+        "read-list-fallback-authorization.integration.test.ts",
+        "service-authorization-prepared-query.unit.test.ts",
+        "response-pipeline.internal.test.ts",
+        "access-router-crud-work.unit.test.ts",
+        "owned-authorization-work.unit.test.ts",
+        "owned-authorization-projection-work.unit.test.ts",
+        "service-authorization-finalizer.unit.test.ts"
+      ],
+      "toolTimeoutMs": 2400000
+    },
+    {
+      "label": "lint",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/src/services/service.ts",
+        "packages/access-router/src/acl/model-service-owner.ts",
+        "packages/access-router/src/output/finalize-model-output.ts",
+        "packages/access-router/src/logger-helpers.ts"
+      ],
+      "workingDirectory": "<repo-root>",
+      "environment": {
+        "TMPDIR": "<repo-root>/_tmp-arrc-01-2nfaqj2y",
+        "NO_COLOR": "1",
+        "FORCE_COLOR": "0"
+      },
+      "startedAt": "2026-11-08T04:34:43.794Z",
+      "endedAt": "2026-11-08T04:34:46.547Z",
+      "seconds": 2.747,
+      "exit": 0,
+      "signal": null,
+      "rawLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scrubbedLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "toolTimeoutMs": 2400000
+    }
+  ],
+  "focused": {
+    "files": 31,
+    "passedTests": 1171,
+    "totalTests": 1171,
+    "failedTests": 0,
+    "pendingTests": 0,
+    "todoTests": 0,
+    "success": true,
+    "reporterJsonSuiteCount": 87,
+    "reporterJsonSuiteCountMeaning": "includes describe contexts; use perFile.length for file count",
+    "perFile": [
+      {
+        "path": "packages/access-router/test/access-router-crud-harness.unit.test.ts",
+        "tests": 434,
+        "passed": 434,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/access-router-crud-work.unit.test.ts",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/bulk-create-metadata-filter-trace.integration.test.ts",
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/finalizer-preparation.unit.test.ts",
+        "tests": 17,
+        "passed": 17,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/include-permission-metadata.integration.test.ts",
+        "tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/logger-redaction.test.ts",
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/no-work-output-scheduling.unit.test.ts",
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/owned-authorization-many-bounds.unit.test.ts",
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/owned-authorization-projection-work.unit.test.ts",
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/owned-authorization-publication.unit.test.ts",
+        "tests": 50,
+        "passed": 50,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/owned-authorization-work.unit.test.ts",
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/permissions-posture.integration.test.ts",
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/read-list-fallback-authorization.integration.test.ts",
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/request-hook-concurrency.test.ts",
+        "tests": 21,
+        "passed": 21,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/request-hook-ownership.test.ts",
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/response-pipeline.internal.test.ts",
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/retained-model-service-ownership.integration.test.ts",
+        "tests": 52,
+        "passed": 52,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-authorization-finalizer.unit.test.ts",
+        "tests": 46,
+        "passed": 46,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-authorization-prepared-query.unit.test.ts",
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-authorization-related.integration.test.ts",
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-authorization-subdocuments.integration.test.ts",
+        "tests": 26,
+        "passed": 26,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-list-preparation.unit.test.ts",
+        "tests": 24,
+        "passed": 24,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-logging-contract.integration.test.ts",
+        "tests": 8,
+        "passed": 8,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-logging-contract.unit.test.ts",
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/service-output-preparation.unit.test.ts",
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/virtuals-populate-dependencies.integration.test.ts",
+        "tests": 95,
+        "passed": 95,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/virtuals-populate-dependencies.traversal.test.ts",
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/virtuals-populate-include.integration.test.ts",
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/write-output-modes.unit.test.ts",
+        "tests": 47,
+        "passed": 47,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/write-output-populate.unit.test.ts",
+        "tests": 49,
+        "passed": 49,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      },
+      {
+        "path": "packages/access-router/test/write-output-source-lifetime.unit.test.ts",
+        "tests": 25,
+        "passed": 25,
+        "failed": 0,
+        "pendingOrSkipped": 0,
+        "status": "passed"
+      }
+    ],
+    "rawJsonSha256": "bafe96e76ede9909c69766e495fb3ba093df171e2e934f5da55131dcc655e123",
+    "rawJsonArchived": false
+  },
+  "protection": {
+    "trackedFilesChecked": 2357,
+    "changedProtectedFiles": [],
+    "sourceByteCopiesChecked": 151,
+    "sourceCopyChanges": [],
+    "declarationFilesComparedByteForByteAfterChecks": 8,
+    "changedDeclarations": [],
+    "trackedDiffBytes": 0,
+    "trackedDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "testExpectationsChanged": false,
+    "sourceOrTestsEdited": false,
+    "taskFileEdited": false,
+    "newMaintainedTests": 0
+  },
+  "historicalFullSuiteReuse": {
+    "accepted": false,
+    "historicalTests": 7558,
+    "historicalFiles": 210,
+    "reason": "Current production and lock identities match ARPC-08; current test tree and nine individually recorded test/fixture bytes do not. Full result remains historical only, not a fresh or independently identity-matched ARRC baseline. No baseline full rerun; ARRC-06 retains one final full-package run.",
+    "comparison": "arrc-01-identity.json#historicalComparison"
+  },
+  "gates": {
+    "compatibilityMoveMap": "pass",
+    "callerAndDeclarationReview": "pass",
+    "V1FreshFocusedBaseline": "pass",
+    "V2FreshTypecheckWithBuild": "pass",
+    "optionalScopedLintFourSourceFiles": "pass",
+    "protectedSourceTestsUnchanged": "pass",
+    "completeDeclarationBytesFrozen": "pass",
+    "historicalFullSuiteReuse": "rejected-not-required",
+    "finalFullPackageAcceptance": "not run; ARRC-06 after implementation"
+  },
+  "warnings": [
+    "Non-failing Vite configLoader native/ESM syntax warning from existing vitest.config.ts; configuration unchanged."
+  ],
+  "setupProbe": {
+    "command": "node _tmp-arrc-01-2nfaqj2y/freeze.mjs",
+    "initialExit": 1,
+    "reason": "Scratch inventory initially assumed a root tsconfig.json that does not exist; corrected to actual tsconfig.base.json before successful freeze. No build/test failure or protected change."
+  },
+  "scratch": {
+    "path": "_tmp-arrc-01-2nfaqj2y",
+    "ignored": true,
+    "gitCheckIgnoreRule": ".gitignore:8:_tmp*",
+    "sourceByteCopies": "_tmp-arrc-01-2nfaqj2y/baseline/packages/access-router/src",
+    "declarationByteCopies": "_tmp-arrc-01-2nfaqj2y/baseline/declarations",
+    "operationalOnly": true
+  },
+  "preservation": {
+    "path": "docs/task-artifacts/access-router/20261107-202137-readability-cleanup",
+    "generatedFileManifests": [
+      {
+        "path": "docs/task-artifacts/access-router/20261107-202137-readability-cleanup/arrc-01-identity.json",
+        "bytes": 66866,
+        "sha256": "83b6097084ed49dad08ad2fda6f2786bdcc2a9751de95ccae44fbf7615592603"
+      },
+      {
+        "path": "docs/task-artifacts/access-router/20261107-202137-readability-cleanup/arrc-01-declarations.json",
+        "bytes": 2294,
+        "sha256": "cb28a39bf0a5dae50b5d514415755e6c2e99715b9173492b25c5de4ca3693624"
+      },
+      {
+        "path": "docs/task-artifacts/access-router/20261107-202137-readability-cleanup/arrc-01-callers-and-keep.json",
+        "bytes": 97844,
+        "sha256": "8701e0c22f0becde31661c8d62675f68f61f20716b2e2fd0fdaf684a1284cf8c"
+      },
+      {
+        "path": "docs/task-artifacts/access-router/20261107-202137-readability-cleanup/arrc-01-work-baseline.json",
+        "bytes": 60762,
+        "sha256": "233f4eb7afd57fb405169989461e18e15a38599aad1d72ecf9f051205dfffa71"
+      }
+    ],
+    "limits": "Preserved raw deterministic work observations and exact source/test/public/declaration hashes, not full logs/JSON test assertions, source/declaration byte-copy trees, generated builds/consumers/dependencies or MongoDB data. Byte copies remain operational scratch; reconstruct from baseline HEAD plus locked toolchain when scratch is unavailable. No historical evidence overwritten."
+  },
+  "handoffAudit": {
+    "command": "python3 _tmp-arrc-01-2nfaqj2y/audit.py",
+    "artifactFiles": 7,
+    "strictJsonFilesParsed": 5,
+    "markdownLinksChecked": 10,
+    "brokenLinks": [],
+    "privacyHits": [],
+    "trailingWhitespace": [],
+    "referenceHashesOrBytesChecked": 424,
+    "referenceHashOrByteMismatches": [],
+    "initialTrackedFilesRechecked": 2357,
+    "changedTrackedFiles": [],
+    "trackedDiffBytes": 0,
+    "gitDiffCheck": "pass",
+    "untrackedPacketNoIndexDiffCheck": "pass; added-file diff exit 1 accepted only with no check diagnostics",
+    "artifactFilesIgnored": false,
+    "scratchIgnoreRule": ".gitignore:8:_tmp*",
+    "limitations": "Manual privacy-pattern/link/hash/JSON/whitespace checks, not a new repository-wide secret scan. Initial scratch audit treated an added-file diff exit 1 as failure; corrected to require no check diagnostics before the successful audit."
+  },
+  "blockers": [],
+  "queuedJobs": 0,
+  "additionalDelegation": false,
+  "commitsCreated": false,
+  "notRun": [
+    "full package baseline suite",
+    "root/grouped/downstream tests",
+    "root build or lint sweep",
+    "benchmark campaign",
+    "ARRC-02 through ARRC-06 implementation/final acceptance"
+  ]
+}

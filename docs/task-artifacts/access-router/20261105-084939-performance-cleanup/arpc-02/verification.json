@@ -1,0 +1,371 @@
+[
+  {
+    "label": "selected-build",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router...",
+      "build"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 23.591667999,
+    "log": "_tmp-arpc-02-ZaZbr4lD/selected-build.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "3790e51b4ccc5d7c160c503578595ff4de4ce821f862055eeecd9475be6e291b"
+  },
+  {
+    "label": "selected-tests",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/service-output-preparation.unit.test.ts",
+      "test/finalizer-preparation.unit.test.ts",
+      "test/service-authorization-reads.unit.test.ts",
+      "test/field-catalog.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 5.597720058,
+    "log": "_tmp-arpc-02-ZaZbr4lD/selected-tests.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "adeea3464354c24d18084a7f0d92e37ebbe1687d056dfac20b88e04f68c1eb56"
+  },
+  {
+    "label": "selected-seal",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud.mjs",
+      "freeze",
+      "_tmp-arpc-02-ZaZbr4lD/candidate-selected-only"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 2.641706718,
+    "log": "_tmp-arpc-02-ZaZbr4lD/selected-seal.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "5f1305ed6074ab53d0f31c61929d63fb0ba69d542489bcbcbec8fc241581ffb9"
+  },
+  {
+    "label": "candidate-typecheck",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "typecheck"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 32.718663381,
+    "log": "_tmp-arpc-02-ZaZbr4lD/candidate-typecheck.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "2738a83c1e71144da48ef362c35a073cf0cff3301db99dcd42d6d688e4191ce9"
+  },
+  {
+    "label": "candidate-preparation-tests",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/service-output-preparation.unit.test.ts",
+      "test/service-list-preparation.unit.test.ts",
+      "test/finalizer-preparation.unit.test.ts",
+      "test/access-router-crud-work.unit.test.ts",
+      "test/access-router-crud-harness.unit.test.ts",
+      "test/write-output-modes.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 10.692727122,
+    "log": "_tmp-arpc-02-ZaZbr4lD/candidate-preparation-tests.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "28f777e07c2d37fe11462612e09e5378ff8326bdcf167658f7e3589e5658af87"
+  },
+  {
+    "label": "candidate-boundary-tests",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/service-output-preparation.unit.test.ts",
+      "test/owned-authorization-work.unit.test.ts",
+      "test/owned-authorization-projection-work.unit.test.ts",
+      "test/output-field-policy-cache.unit.test.ts",
+      "test/owned-authorization-publication.unit.test.ts",
+      "test/owned-authorization-stage.unit.test.ts",
+      "test/owned-authorization-facts.unit.test.ts",
+      "test/owned-authorization-boundaries.unit.test.ts",
+      "test/owned-authorization-modes.unit.test.ts",
+      "test/write-output-authorization.unit.test.ts",
+      "test/write-output-origin-ownership.unit.test.ts",
+      "test/write-output-source-lifetime.unit.test.ts",
+      "test/write-output-populate.unit.test.ts",
+      "test/request-hook-concurrency.test.ts",
+      "test/request-hook-ownership.test.ts",
+      "test/request-persistence-concurrency.test.ts",
+      "test/response-pipeline.internal.test.ts",
+      "test/service-authorization-prepared-query.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 18.636197497999998,
+    "log": "_tmp-arpc-02-ZaZbr4lD/candidate-boundary-tests.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "workReportEnvironment": {
+      "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arpc-02-ZaZbr4lD/work.json"
+    },
+    "logHash": "621d6d4e41e9923de65495fa1c0f99ae5c6089f61cdb0a86993b8a1bd0d7783f"
+  },
+  {
+    "label": "candidate-related-tests",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/owned-authorization-modes.integration.test.ts",
+      "test/read-list-fallback-authorization.integration.test.ts",
+      "test/service-authorization-related.integration.test.ts",
+      "test/service-authorization-subdocuments.integration.test.ts",
+      "test/virtuals-populate-include.integration.test.ts",
+      "test/field-catalog.unit.test.ts",
+      "test/service-authorization-reads.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 19.824475682999996,
+    "log": "_tmp-arpc-02-ZaZbr4lD/candidate-related-tests.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "fc583f22e43cc8b23bd0d3d1c7163ad8a81918e0b36bfd771839d6b6706640c7"
+  },
+  {
+    "label": "candidate-lint",
+    "command": [
+      "pnpm",
+      "exec",
+      "eslint",
+      "packages/access-router/src/acl/output-field-filter.ts",
+      "packages/access-router/src/output/finalize-model-output.ts",
+      "packages/access-router/src/services/service.ts",
+      "packages/access-router/test/service-output-preparation.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 2.888495899,
+    "log": "_tmp-arpc-02-ZaZbr4lD/candidate-lint.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "label": "candidate-seal",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud.mjs",
+      "freeze",
+      "_tmp-arpc-02-ZaZbr4lD/candidate-combined"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 2.4052103149999997,
+    "log": "_tmp-arpc-02-ZaZbr4lD/candidate-seal.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "8da64273e59564ae9d2cbd2e9884896c04a12f38f7c0c289d8634e939af10134"
+  },
+  {
+    "label": "selected-smoke",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud.mjs",
+      "smoke",
+      "_tmp-arpc-01-4d6agBQe/baseline",
+      "_tmp-arpc-02-ZaZbr4lD/candidate-selected-only",
+      "_tmp-arpc-02-ZaZbr4lD/selected-smoke"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 11.567870346,
+    "log": "_tmp-arpc-02-ZaZbr4lD/selected-smoke.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "57c37c33c14749bf5a6641c2417f15d922e41093649644d7f9aa0dfcea7863be"
+  },
+  {
+    "label": "combined-smoke",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud.mjs",
+      "smoke",
+      "_tmp-arpc-01-4d6agBQe/baseline",
+      "_tmp-arpc-02-ZaZbr4lD/candidate-combined",
+      "_tmp-arpc-02-ZaZbr4lD/combined-smoke"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 11.712397072,
+    "log": "_tmp-arpc-02-ZaZbr4lD/combined-smoke.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "13ed7d8496c961f6441e4f45459e11973f39f4b309fc5e93b39b544e0c10f07f"
+  },
+  {
+    "label": "focused-noise-v2",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud-v2.mjs",
+      "noise",
+      "_tmp-arpc-01-4d6agBQe/baseline",
+      "_tmp-arpc-02-ZaZbr4lD/focused-noise-v2",
+      "scale-direct",
+      "scale-public",
+      "iiii/direct/read-hit/hooks/1x4",
+      "tttt/direct/read-hit/hooks/1x4",
+      "iiii/direct/list-single/hooks/1x4",
+      "tttt/direct/list-single/hooks/1x4",
+      "iiii/direct/create-single/hooks/1x4",
+      "tttt/direct/create-single/hooks/1x4",
+      "iiii/direct/update-id/hooks/1x4",
+      "tttt/direct/update-id/hooks/1x4"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 1317.304539875,
+    "log": "_tmp-arpc-02-ZaZbr4lD/focused-noise-v2.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "b53f882512af4694f1864e30366ba45b670d018d1d17c362f16b906033225419"
+  },
+  {
+    "label": "final-typecheck",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "typecheck"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 33.473908777000005,
+    "log": "_tmp-arpc-02-ZaZbr4lD/final-typecheck.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "4bacf256072cac16f45ad7c86aa20c205abbf1afd9f0e225d8e1a6a44d4b6b05"
+  },
+  {
+    "label": "final-tests",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@web-ts-toolkit/access-router",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "test/service-output-preparation.unit.test.ts",
+      "test/service-list-preparation.unit.test.ts",
+      "test/finalizer-preparation.unit.test.ts",
+      "test/access-router-crud-work.unit.test.ts",
+      "test/access-router-crud-harness.unit.test.ts",
+      "test/write-output-modes.unit.test.ts",
+      "test/owned-authorization-work.unit.test.ts",
+      "test/owned-authorization-projection-work.unit.test.ts",
+      "test/output-field-policy-cache.unit.test.ts",
+      "test/owned-authorization-publication.unit.test.ts",
+      "test/owned-authorization-stage.unit.test.ts",
+      "test/owned-authorization-facts.unit.test.ts",
+      "test/owned-authorization-boundaries.unit.test.ts",
+      "test/owned-authorization-modes.unit.test.ts",
+      "test/write-output-authorization.unit.test.ts",
+      "test/write-output-origin-ownership.unit.test.ts",
+      "test/write-output-source-lifetime.unit.test.ts",
+      "test/write-output-populate.unit.test.ts",
+      "test/request-hook-concurrency.test.ts",
+      "test/request-hook-ownership.test.ts",
+      "test/request-persistence-concurrency.test.ts",
+      "test/response-pipeline.internal.test.ts",
+      "test/service-authorization-prepared-query.unit.test.ts",
+      "test/owned-authorization-modes.integration.test.ts",
+      "test/read-list-fallback-authorization.integration.test.ts",
+      "test/service-authorization-related.integration.test.ts",
+      "test/service-authorization-subdocuments.integration.test.ts",
+      "test/virtuals-populate-include.integration.test.ts",
+      "test/field-catalog.unit.test.ts",
+      "test/service-authorization-reads.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 49.356932734000004,
+    "log": "_tmp-arpc-02-ZaZbr4lD/final-tests.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "workReportEnvironment": {
+      "ARPC_OUTPUT_PREPARATION_REPORT": "<repo-root>/_tmp-arpc-02-ZaZbr4lD/work.json"
+    },
+    "logHash": "599e994518615cba202e8fa8fdae52a2f894d44f28226cadf41d76366803b62a"
+  },
+  {
+    "label": "final-lint",
+    "command": [
+      "pnpm",
+      "exec",
+      "eslint",
+      "packages/access-router/src/acl/output-field-filter.ts",
+      "packages/access-router/src/output/finalize-model-output.ts",
+      "packages/access-router/src/services/service.ts",
+      "packages/access-router/test/service-output-preparation.unit.test.ts"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 2.272484359,
+    "log": "_tmp-arpc-02-ZaZbr4lD/final-lint.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "label": "final-seal",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud.mjs",
+      "freeze",
+      "_tmp-arpc-02-ZaZbr4lD/candidate-final"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 2.45702414,
+    "log": "_tmp-arpc-02-ZaZbr4lD/final-seal.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "dd1c120c2b7d1eca81cdf421eaebaebcfa6e427be47e147abd6559dbaa4458f5"
+  },
+  {
+    "label": "final-smoke",
+    "command": [
+      "node",
+      "scripts/benchmarks/access-router-crud.mjs",
+      "smoke",
+      "_tmp-arpc-01-4d6agBQe/baseline",
+      "_tmp-arpc-02-ZaZbr4lD/candidate-final",
+      "_tmp-arpc-02-ZaZbr4lD/final-smoke"
+    ],
+    "exit": 0,
+    "signal": null,
+    "seconds": 13.185330476999999,
+    "log": "_tmp-arpc-02-ZaZbr4lD/final-smoke.log",
+    "tmpdir": "<repo-root>/_tmp-arpc-02-ZaZbr4lD",
+    "logHash": "e950c92d433d4f4bd125b06f65f38135567a6a51d5ec7f0105667720238f8ef1"
+  }
+]

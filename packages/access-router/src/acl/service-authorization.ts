@@ -793,7 +793,7 @@ export function isOutputHelperAuthorization(
   return callRecord(call).factOrigin === 'output-helper';
 }
 
-/** Hydration is open configuration: detach this slice, never the unrelated call graph. */
+/** Private hydration wrapper over call-owned configuration; no slice copy or graph traversal. */
 export function readServiceAuthorizationHydration(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
@@ -816,7 +816,7 @@ export function readServiceOutputMetadata(call: ResolvedServiceAuthorization, bi
   return Object.freeze(outputMetadata(record.configuration));
 }
 
-/** Hook lookup is open configuration: keep native/function-backed parents resolution-local. */
+/** Private hook lookup over call-owned configuration; this wrapper does not copy native values. */
 export function readServiceDocumentPermissions(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
@@ -826,8 +826,8 @@ export function readServiceDocumentPermissions(call: ResolvedServiceAuthorizatio
   });
 }
 
-/** Finalization owns detached virtual/metadata/hook slices. Field rules have their
- * own call-scoped reader; filters, defaults and related targets are not row work.
+/** Private finalizer wrapper over call-owned virtual/metadata/hook slices, not a row copy.
+ * Field rules have their own reader; filters, defaults and related targets are not row work.
  */
 export function readServiceFinalizerConfiguration(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
@@ -846,7 +846,7 @@ export function readServiceOutputPolicy(call: ResolvedServiceAuthorization, bind
   return callRecord(call).output;
 }
 
-/** Rules are open configuration, not proven immutable: detach just this slice on every read. */
+/** Private field-rule wrapper over call-owned schema/prefix; native values are not recopied here. */
 export function readServiceOutputFieldAuthorization(call: ResolvedServiceAuthorization, binding: AuthorizationBinding) {
   assertAuthorizationBinding(call, binding);
   const record = callRecord(call);
@@ -858,19 +858,6 @@ export function readServiceOutputFieldAuthorization(call: ResolvedServiceAuthori
     permissionSchema: record.configuration.permissionSchema,
     modelPermissionPrefix: record.configuration.modelPermissionPrefix,
   });
-}
-
-/** Same stored-source eligibility as the field reader, without an observable
- * speculative native copy before falling back to the legacy field evaluator.
- * Necessary, not sufficient: the field module must also prove each lookup route.
- */
-export function canPrepareStaticOutputPolicy(
-  call: ResolvedServiceAuthorization,
-  binding: AuthorizationBinding,
-): boolean {
-  assertAuthorizationBinding(call, binding);
-  const record = callRecord(call);
-  return typeof (record.configuration.modelPermissionPrefix ?? '') === 'string';
 }
 
 export function getAuthorizationPermissions(

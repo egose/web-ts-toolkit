@@ -1,0 +1,61 @@
+[
+  {
+    "command": "pnpm --filter @web-ts-toolkit/access-router typecheck",
+    "exit": 0,
+    "seconds": 20.74,
+    "log": "_tmp-arpc-01-4d6agBQe/baseline-typecheck.log",
+    "originalLogSha256": "e48d93bf14aae9ac9c6fcb3dd3b02836aa3d46575024ec3d6076c98d50cc5ffd"
+  },
+  {
+    "command": "pnpm --filter @web-ts-toolkit/access-router test",
+    "exit": 0,
+    "seconds": 1282.16,
+    "log": "_tmp-arpc-01-4d6agBQe/baseline-test.log",
+    "originalLogSha256": "abe057654d5438f1f3a0c42b7707dce040bffebaa20f5c162b179198d3e40cf2",
+    "summary": [
+      "Test Files  204 passed (204)",
+      "Tests  7403 passed (7403)",
+      "Duration  1266.07s (transform 2.63s, setup 50.09s, import 16.00s, tests 1184.92s, environment 11ms)"
+    ]
+  },
+  {
+    "command": "pnpm exec eslint packages/access-router/src packages/access-router/test scripts/benchmarks/access-router-crud.mjs scripts/benchmarks/access-router-crud-worker.mjs",
+    "exit": 0,
+    "seconds": 6.0,
+    "log": "_tmp-arpc-01-4d6agBQe/baseline-lint.log",
+    "originalLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "command": "pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/access-router-crud-harness.unit.test.ts test/access-router-crud-driver.unit.test.ts test/access-router-crud-work.unit.test.ts test/write-output-modes.unit.test.ts",
+    "exit": 0,
+    "seconds": 16.99,
+    "log": "_tmp-arpc-01-4d6agBQe/focused-final.log",
+    "originalLogSha256": "7647b6c9b1452e2e8108288c613a6b66281cec5167ca4b436c6492fdb53f722e",
+    "summary": [
+      "Test Files  4 passed (4)",
+      "Tests  486 passed (486)",
+      "Duration  16.06s (transform 648ms, setup 1.17s, import 663ms, tests 13.93s, environment 0ms)"
+    ]
+  },
+  {
+    "command": "pnpm exec eslint packages/access-router/test/access-router-crud-fixture.ts packages/access-router/test/access-router-crud-harness.unit.test.ts packages/access-router/test/access-router-crud-driver.unit.test.ts packages/access-router/test/access-router-crud-work.unit.test.ts scripts/benchmarks/access-router-crud.mjs scripts/benchmarks/access-router-crud-worker.mjs",
+    "exit": 0,
+    "seconds": 1.3,
+    "log": "_tmp-arpc-01-4d6agBQe/lint-final.log",
+    "originalLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "command": "node scripts/benchmarks/access-router-crud.mjs freeze \"$TMPDIR/baseline\"",
+    "exit": 0,
+    "seconds": 1.56,
+    "log": "_tmp-arpc-01-4d6agBQe/baseline-freeze.log",
+    "originalLogSha256": "b0b345b317d976c82e0368f43949c428e49b3d09b89784a8439ab1429a595db9"
+  },
+  {
+    "command": "node scripts/benchmarks/access-router-crud.mjs noise \"$TMPDIR/baseline\" \"$TMPDIR/baseline-noise-v1\"",
+    "exit": 0,
+    "seconds": 190.87,
+    "log": "_tmp-arpc-01-4d6agBQe/baseline-noise-v1.log",
+    "originalLogSha256": "5305e1a66efe2ec670d46dc7a88bf44051df55cc45eee8bd8c9c12944a329bc7"
+  }
+]

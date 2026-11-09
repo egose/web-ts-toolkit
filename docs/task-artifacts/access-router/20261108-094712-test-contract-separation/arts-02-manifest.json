@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "task": "ARTS-02",
+  "sourceRevision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "purpose": "Executed mechanical migration supplement; the 15-file ARTS-01 baseline bundle is unchanged.",
+  "files": [
+    {
+      "path": "arts-02-report.md",
+      "bytes": 8962,
+      "sha256": "b32814b3323a875c7b20451dd8b977dc5e8f9d87c79e30ec7ab1666d18b7632f"
+    },
+    {
+      "path": "arts-02-preservation.jsonl",
+      "bytes": 478372,
+      "sha256": "7a861500b1993e19351e7e68a8292c1814e0dce345f859e3c43399e8f043050c"
+    },
+    {
+      "path": "arts-02-focused-cases.jsonl",
+      "bytes": 286593,
+      "sha256": "156d6ab1129abb13c0e3bd4ca57c863f36810d876b30c680f050391929fde34f"
+    },
+    {
+      "path": "arts-02-path-audit.json",
+      "bytes": 50821,
+      "sha256": "118e216671d6b4c0cbeed739f20685b401c8a0cd377f3d0ceeebd3fcd277c057"
+    },
+    {
+      "path": "arts-02-verification.json",
+      "bytes": 37445,
+      "sha256": "2daf033b3826dc5efbf4d193c157a48748ac9494507ed881305263932a889432"
+    },
+    {
+      "path": "arts-02-verify-preservation.mjs",
+      "bytes": 11241,
+      "sha256": "ce4330876c8fdc0b43c2fb25eda0ea3998b30574ed33b4563f150e4239993e99"
+    }
+  ],
+  "provenance": "New original ARTS-02 report/verifier and curated exact path/import repair spans, AST hashes, original runtime case IDs, discovery and command results; not copied raw scratch trees.",
+  "reconstruction": "Read-only arts-02-verify-preservation.mjs uses baseline Git objects and the delivered ARTS-02 tree plus recorded TypeScript version. Exact runtime argv/results are in arts-02-verification.json.",
+  "omitted": [
+    "Raw logs and full reporter JSON",
+    "Dependencies and generated installed consumers/tarballs",
+    "Binaries and Mongo data",
+    "Disposable relocation/curation generators and proposed source copies"
+  ],
+  "limits": "The manifest authenticates the curated records against their present hashes, not independent review, hermetic runtime reproducibility or final ARTS-06 acceptance."
+}

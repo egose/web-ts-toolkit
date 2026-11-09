@@ -16,7 +16,6 @@ import { bindOutputPublication, createPublicationRowBudget, runOutputPublication
 import type { TrustedOutputBudget } from './trusted-output-materialization';
 import { createModelOutputContext } from '../output/model-output-context';
 import { finalizeModelOutputs } from '../output/finalize-model-output';
-import type { FinalizeSnapshot } from '../output/finalize-model-output';
 import { captureRelatedTargets } from './related-execution';
 import type { AuthorizationConfiguration } from './service-authorization';
 import type { AccessRouterPermissions } from '../permission';
@@ -198,7 +197,6 @@ export async function finalizeSubdocumentRows<T, V extends object>(
       receivingModelName: state.binding.modelName,
       inputs,
       plan,
-      snapshot: readServiceAuthorization(state.authorization, state.binding).configuration as FinalizeSnapshot,
       request: service.getServiceRequest(),
       context,
       ...state.access,

@@ -1,0 +1,1237 @@
+{
+  "schema": 1,
+  "task": "ARTS-03",
+  "scope": "Focused verification only; no complete layer/default run",
+  "scratch": "_tmp-arts-03-20261108224050",
+  "cwd": ".",
+  "TMPDIR": "<repo-root>/_tmp-arts-03-20261108224050",
+  "toolchain": {
+    "node": "v26.12.1",
+    "pnpm": "11.18.0",
+    "vitest": "4.1.11",
+    "typescript": "6.0.3"
+  },
+  "commands": [
+    {
+      "label": "internal-smoke",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:internal",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "test/internal/strict-typecheck.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-20261108224050/internal-smoke.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-08T22:51:18.730Z",
+      "exit": 1,
+      "elapsedMs": 3131
+    },
+    {
+      "label": "internal-smoke-r2",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:internal",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "test/internal/strict-typecheck.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-20261108224050/internal-smoke-r2.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-08T22:52:01.839Z",
+      "exit": 0,
+      "elapsedMs": 32005
+    },
+    {
+      "label": "lint",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/src",
+        "packages/access-router/test",
+        "packages/access-router/scripts",
+        "packages/access-router/vitest.config.ts",
+        "packages/access-router/vitest.shared.ts",
+        "packages/access-router/vitest.contracts.config.ts",
+        "packages/access-router/vitest.invariants.config.ts",
+        "packages/access-router/vitest.internal.config.ts"
+      ],
+      "started": "2026-11-08T22:55:57.575Z",
+      "exit": 0,
+      "elapsedMs": 8207
+    },
+    {
+      "label": "typecheck",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "started": "2026-11-08T22:56:24.030Z",
+      "exit": 0,
+      "elapsedMs": 27720
+    },
+    {
+      "label": "contracts-smoke",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:contracts",
+        "test/contracts/processors-path-hardening.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-20261108224050/contracts-smoke.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-08T22:56:55.290Z",
+      "exit": 0,
+      "elapsedMs": 25648
+    },
+    {
+      "label": "invariants-smoke",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:invariants",
+        "test/invariants/owned-authorization-records.unit.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-20261108224050/invariants-smoke.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-08T22:57:24.436Z",
+      "exit": 0,
+      "elapsedMs": 24609
+    },
+    {
+      "label": "internal-smoke-final",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:internal",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "test/internal/strict-typecheck.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-20261108224050/internal-smoke-final.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-08T22:57:52.871Z",
+      "exit": 0,
+      "elapsedMs": 31720
+    },
+    {
+      "label": "layers-check",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:layers:check"
+      ],
+      "started": "2026-11-08T22:59:42.897Z",
+      "exit": 0,
+      "elapsedMs": 2300
+    },
+    {
+      "label": "internal-smoke-sealed",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:internal",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "test/internal/strict-typecheck.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-20261108224050/internal-smoke-sealed.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-08T23:03:06.070Z",
+      "exit": 0,
+      "elapsedMs": 32563
+    },
+    {
+      "label": "lint-sealed",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/src",
+        "packages/access-router/test",
+        "packages/access-router/scripts",
+        "packages/access-router/vitest.config.ts",
+        "packages/access-router/vitest.shared.ts",
+        "packages/access-router/vitest.contracts.config.ts",
+        "packages/access-router/vitest.invariants.config.ts",
+        "packages/access-router/vitest.internal.config.ts"
+      ],
+      "started": "2026-11-08T23:03:48.612Z",
+      "exit": 0,
+      "elapsedMs": 8004
+    },
+    {
+      "label": "preservation",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-verify-checkpoint.mjs"
+      ],
+      "started": "2026-11-08T23:04:01.802Z",
+      "exit": 0,
+      "elapsedMs": 447
+    },
+    {
+      "label": "capture",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "_tmp-arts-03-20261108224050/curate.mjs"
+      ],
+      "started": "2026-11-08T23:05:22.193Z",
+      "exit": 0,
+      "elapsedMs": 1809
+    },
+    {
+      "label": "evidence-review",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "_tmp-arts-03-20261108224050/review-evidence.mjs"
+      ],
+      "started": "2026-11-08T23:07:07.358Z",
+      "exit": 0,
+      "elapsedMs": 169
+    }
+  ],
+  "checkpoint": {
+    "revision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+    "originalMigratedFiles": 248,
+    "migratedBytesDigest": "292d10d8b0a666bc25fddb6937ded50565840dfc78ed9968d300effb34056971",
+    "preservation": "Exact ARTS-02 bytes imply its sealed full AST, assertions, expected values, tables, negative directives and cleanup remain identical; no recount substitution.",
+    "protectedNonTestInputs": 186,
+    "unchangedNonTestInputs": 184,
+    "exactApprovedExceptions": [
+      "packages/access-router/package.json",
+      "packages/access-router/vitest.config.ts"
+    ],
+    "sourceFiles": 152,
+    "sourceDigest": "936a5c248f9cb9c92ce38355920b890ac1ae68d1b75affadc3f90901a507ff62",
+    "priorEvidenceFiles": 22,
+    "priorEvidenceDigest": "5583ed091b37f8d2b9e0acc23c1c808423acce6fea86f11098f6df97a25b301c",
+    "declarationFiles": 8,
+    "declarationDigest": "0b8dad3ee3c2db7c5a55ce35e3c677e6c0c082010dd3b9cdcb8b37a6e50ed8f1",
+    "runtimeExports": {
+      "index": 46,
+      "advanced": 48,
+      "processors": 6
+    },
+    "packageMetadataExceptScriptsUnchanged": true,
+    "deliveredFilesVerified": 10
+  },
+  "discovery": {
+    "api": "Installed Vitest createVitest / globTestSpecifications; contexts closed sequentially; no runtime execution",
+    "counts": {
+      "contracts": 97,
+      "invariants": 64,
+      "internal": 51
+    },
+    "total": 212,
+    "selected": {
+      "contracts": [
+        "test/contracts/advanced-mutation-bodies.integration.test.ts",
+        "test/contracts/arc21-projection-identity-and-count-argument.contract.test.ts",
+        "test/contracts/arf12-new-route-denial.integration.test.ts",
+        "test/contracts/arf12-root-distinct.authorization.integration.test.ts",
+        "test/contracts/authorization-fast-path-runtime.integration.test.ts",
+        "test/contracts/basic-data-list.integration.test.ts",
+        "test/contracts/basic-list-sort.integration.test.ts",
+        "test/contracts/correlated-includes.escape.integration.test.ts",
+        "test/contracts/correlated-includes.execution.test.ts",
+        "test/contracts/cross-resource-authorization.integration.test.ts",
+        "test/contracts/data-router.test.ts",
+        "test/contracts/data-service-hot-path.test.ts",
+        "test/contracts/distinct-field-authorization.integration.test.ts",
+        "test/contracts/doc-permissions-exposure.integration.test.ts",
+        "test/contracts/document-permissions-dependencies.integration.test.ts",
+        "test/contracts/documentation-examples.test.ts",
+        "test/contracts/field-permissions-opt-out.integration.test.ts",
+        "test/contracts/field-permissions-placeholder.integration.test.ts",
+        "test/contracts/grouped-count-casting.integration.test.ts",
+        "test/contracts/grouped-count-numeric.integration.test.ts",
+        "test/contracts/grouped-count-query-equivalence.integration.test.ts",
+        "test/contracts/hydration-characterization.integration.test.ts",
+        "test/contracts/hydration-configuration.test.ts",
+        "test/contracts/include-permission-metadata.integration.test.ts",
+        "test/contracts/include-source-provenance.integration.test.ts",
+        "test/contracts/list-snapshot-checks.integration.test.ts",
+        "test/contracts/logger-redaction.test.ts",
+        "test/contracts/model-router.integration.test.ts",
+        "test/contracts/model-router.routes.integration.test.ts",
+        "test/contracts/model-router.test.ts",
+        "test/contracts/model-subdocument-routes.integration.test.ts",
+        "test/contracts/nested-operation-access-consumer-types.test.ts",
+        "test/contracts/nested-update-integrity.integration.test.ts",
+        "test/contracts/openapi-collision.test.ts",
+        "test/contracts/openapi.test.ts",
+        "test/contracts/operation-access-baseline.contract.test.ts",
+        "test/contracts/options-ownership.test.ts",
+        "test/contracts/owned-authorization-guard-consumer.integration.test.ts",
+        "test/contracts/owned-authorization-modes.integration.test.ts",
+        "test/contracts/owned-authorization-types.test.ts",
+        "test/contracts/packed-consumer-compatibility.test.ts",
+        "test/contracts/permissions-posture.integration.test.ts",
+        "test/contracts/populate-operation-policy.binding.test.ts",
+        "test/contracts/populate-operation-policy.dependencies.test.ts",
+        "test/contracts/populate-operation-policy.helper-isolation.test.ts",
+        "test/contracts/populate-operation-policy.include-binding.review.test.ts",
+        "test/contracts/populate-operation-policy.nested-targets.test.ts",
+        "test/contracts/populate-operation-policy.queries.test.ts",
+        "test/contracts/populate-operation-policy.review.test.ts",
+        "test/contracts/private-populate-read-policy.review.test.ts",
+        "test/contracts/private-populate-read-policy.runtime.test.ts",
+        "test/contracts/processors-path-hardening.test.ts",
+        "test/contracts/processors.test.ts",
+        "test/contracts/query-snapshot-options.integration.test.ts",
+        "test/contracts/read-list-fallback-authorization.integration.test.ts",
+        "test/contracts/read-snapshot-checks.integration.test.ts",
+        "test/contracts/request-complexity.integration.test.ts",
+        "test/contracts/require-explicit-select.integration.test.ts",
+        "test/contracts/retained-model-service-ownership.integration.test.ts",
+        "test/contracts/root-router.integration.test.ts",
+        "test/contracts/root-router.variants.integration.test.ts",
+        "test/contracts/runtime-isolation.integration.test.ts",
+        "test/contracts/runtime-permission-handoff.integration.test.ts",
+        "test/contracts/schema-mutation.regression.test.ts",
+        "test/contracts/service-authorization-baseline.contract.test.ts",
+        "test/contracts/service-authorization-direct.integration.test.ts",
+        "test/contracts/service-authorization-input.integration.test.ts",
+        "test/contracts/service-authorization-related.integration.test.ts",
+        "test/contracts/service-authorization-subdocuments.integration.test.ts",
+        "test/contracts/service-defaults.integration.test.ts",
+        "test/contracts/service-exists.integration.test.ts",
+        "test/contracts/side-effect-initialization.test.ts",
+        "test/contracts/sort-field-authorization.integration.test.ts",
+        "test/contracts/sort-options.integration.test.ts",
+        "test/contracts/strict-consumer-types.test.ts",
+        "test/contracts/subdocument-mutation-visibility.integration.test.ts",
+        "test/contracts/subdocument-populate-authorization.integration.test.ts",
+        "test/contracts/tree-shaking-smoke.test.ts",
+        "test/contracts/validation-arc02.test.ts",
+        "test/contracts/validation-arh06.test.ts",
+        "test/contracts/validation-arh07.test.ts",
+        "test/contracts/validation-error-boundary.test.ts",
+        "test/contracts/virtual-filter-literals.integration.test.ts",
+        "test/contracts/virtuals-baseline.contract.test.ts",
+        "test/contracts/virtuals-config.contract.test.ts",
+        "test/contracts/virtuals-direct-operations.integration.test.ts",
+        "test/contracts/virtuals-embedded-subdocuments.integration.test.ts",
+        "test/contracts/virtuals-hardening.boundary.test.ts",
+        "test/contracts/virtuals-populate-dependencies.capture-boundaries.review.test.ts",
+        "test/contracts/virtuals-populate-dependencies.dispatch.test.ts",
+        "test/contracts/virtuals-populate-dependencies.fallback.test.ts",
+        "test/contracts/virtuals-populate-dependencies.intent.test.ts",
+        "test/contracts/virtuals-populate-dependencies.operation-guards.test.ts",
+        "test/contracts/virtuals-populate-dependencies.parity.test.ts",
+        "test/contracts/virtuals-populate-dependencies.review.test.ts",
+        "test/contracts/virtuals-populate-include.integration.test.ts",
+        "test/contracts/virtuals-route-parity.integration.test.ts"
+      ],
+      "invariants": [
+        "test/invariants/authorization-fast-path-native.unit.test.ts",
+        "test/invariants/authorization-fast-path-options.integration.test.ts",
+        "test/invariants/authorization-fast-path-options.unit.test.ts",
+        "test/invariants/authorization-fast-path-owner.unit.test.ts",
+        "test/invariants/authorization-fast-path-runtime.unit.test.ts",
+        "test/invariants/authorization-snapshot.unit.test.ts",
+        "test/invariants/bulk-create-metadata-filter-trace.integration.test.ts",
+        "test/invariants/concurrency.test.ts",
+        "test/invariants/data-value-ownership.test.ts",
+        "test/invariants/default-model-options.integration.test.ts",
+        "test/invariants/default-model-options.unit.test.ts",
+        "test/invariants/distinct-composite-authorization.integration.test.ts",
+        "test/invariants/document-authorization-validation.unit.test.ts",
+        "test/invariants/document-permissions-dependencies.unit.test.ts",
+        "test/invariants/filter-denial.integration.test.ts",
+        "test/invariants/guard.test.ts",
+        "test/invariants/hook-concurrency.test.ts",
+        "test/invariants/hydration-request-boundaries.integration.test.ts",
+        "test/invariants/model-authorization-capture.unit.test.ts",
+        "test/invariants/nested-operation-access-admission.contract.test.ts",
+        "test/invariants/nested-operation-access-capture.contract.test.ts",
+        "test/invariants/nested-operation-access-entries.integration.test.ts",
+        "test/invariants/nested-operation-access-resolution.contract.test.ts",
+        "test/invariants/operation-access-boundaries.integration.test.ts",
+        "test/invariants/operation-access-data-subdocument-routes.integration.test.ts",
+        "test/invariants/operation-access-model-routes.integration.test.ts",
+        "test/invariants/operation-access-variants.contract.test.ts",
+        "test/invariants/output-field-policy-cache.unit.test.ts",
+        "test/invariants/owned-authorization-boundaries.unit.test.ts",
+        "test/invariants/owned-authorization-consumers.unit.test.ts",
+        "test/invariants/owned-authorization-facts.unit.test.ts",
+        "test/invariants/owned-authorization-guard-consumer.unit.test.ts",
+        "test/invariants/owned-authorization-helpers.unit.test.ts",
+        "test/invariants/owned-authorization-many-bounds.unit.test.ts",
+        "test/invariants/owned-authorization-many.unit.test.ts",
+        "test/invariants/owned-authorization-modes.unit.test.ts",
+        "test/invariants/owned-authorization-publication.unit.test.ts",
+        "test/invariants/owned-authorization-records.unit.test.ts",
+        "test/invariants/owned-authorization-stage.unit.test.ts",
+        "test/invariants/populate-operation-policy.config.test.ts",
+        "test/invariants/populate-operation-policy.include-binding.test.ts",
+        "test/invariants/populate-operation-policy.target-options.test.ts",
+        "test/invariants/private-populate-read-policy.config.test.ts",
+        "test/invariants/query-snapshot-options.unit.test.ts",
+        "test/invariants/related-execution.binding.unit.test.ts",
+        "test/invariants/request-hook-concurrency.test.ts",
+        "test/invariants/request-hook-ownership.test.ts",
+        "test/invariants/request-persistence-concurrency.test.ts",
+        "test/invariants/service-authorization-boundary-admission.contract.test.ts",
+        "test/invariants/service-authorization-context.unit.test.ts",
+        "test/invariants/service-authorization-final-review.integration.test.ts",
+        "test/invariants/service-authorization-finalizer.unit.test.ts",
+        "test/invariants/service-authorization-migration.contract.test.ts",
+        "test/invariants/service-authorization-mutations.integration.test.ts",
+        "test/invariants/service-authorization-prepared-query.unit.test.ts",
+        "test/invariants/service-authorization-public-boundaries.integration.test.ts",
+        "test/invariants/service-authorization-rows.integration.test.ts",
+        "test/invariants/service-authorization-subdocument-policies.integration.test.ts",
+        "test/invariants/service-denial-contract.test.ts",
+        "test/invariants/write-output-authorization.unit.test.ts",
+        "test/invariants/write-output-modes.unit.test.ts",
+        "test/invariants/write-output-origin-ownership.unit.test.ts",
+        "test/invariants/write-output-populate.unit.test.ts",
+        "test/invariants/write-output-source-lifetime.unit.test.ts"
+      ],
+      "internal": [
+        "test/internal/access-router-crud-driver.unit.test.ts",
+        "test/internal/access-router-crud-harness.unit.test.ts",
+        "test/internal/access-router-crud-v2.unit.test.ts",
+        "test/internal/access-router-crud-work.unit.test.ts",
+        "test/internal/authorization-snapshot-copy-builder.unit.test.ts",
+        "test/internal/captured-catalog-preparation.unit.test.ts",
+        "test/internal/collection.test.ts",
+        "test/internal/correlated-includes.resolver.test.ts",
+        "test/internal/correlated-includes.validation.test.ts",
+        "test/internal/data-service-scaling.test.ts",
+        "test/internal/document-isolation-builder.unit.test.ts",
+        "test/internal/documentation-authorization-guidance.test.ts",
+        "test/internal/export-contract.test.ts",
+        "test/internal/field-catalog.unit.test.ts",
+        "test/internal/field-helper-removal.contract.test.ts",
+        "test/internal/field-helper-request-boundaries.integration.test.ts",
+        "test/internal/field-permissions-defaults.unit.test.ts",
+        "test/internal/finalizer-preparation.unit.test.ts",
+        "test/internal/model-output-metadata.unit.test.ts",
+        "test/internal/no-work-output-scheduling.unit.test.ts",
+        "test/internal/output-publication-fusion-withdrawal.unit.test.ts",
+        "test/internal/owned-authorization-alternate.unit.test.ts",
+        "test/internal/owned-authorization-projection-work.unit.test.ts",
+        "test/internal/owned-authorization-runtime-profiles.unit.test.ts",
+        "test/internal/owned-authorization-work.unit.test.ts",
+        "test/internal/pagination-overflow.test.ts",
+        "test/internal/permission.test.ts",
+        "test/internal/response-pipeline.internal.test.ts",
+        "test/internal/service-authorization-projection.unit.test.ts",
+        "test/internal/service-authorization-reads.unit.test.ts",
+        "test/internal/service-execution-capture.unit.test.ts",
+        "test/internal/service-list-preparation.unit.test.ts",
+        "test/internal/service-logging-contract.integration.test.ts",
+        "test/internal/service-logging-contract.unit.test.ts",
+        "test/internal/service-output-preparation.unit.test.ts",
+        "test/internal/service.internal.test.ts",
+        "test/internal/sort-policy.unit.test.ts",
+        "test/internal/strict-typecheck.test.ts",
+        "test/internal/tasks-processors.test.ts",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "test/internal/virtual-filter-parser.unit.test.ts",
+        "test/internal/virtuals-finalizer.unit.test.ts",
+        "test/internal/virtuals-original-refs.characterization.test.ts",
+        "test/internal/virtuals-performance.probe.test.ts",
+        "test/internal/virtuals-populate-dependencies.config.test.ts",
+        "test/internal/virtuals-populate-dependencies.integration.test.ts",
+        "test/internal/virtuals-populate-dependencies.performance.test.ts",
+        "test/internal/virtuals-populate-dependencies.planner.test.ts",
+        "test/internal/virtuals-populate-dependencies.traversal.test.ts",
+        "test/internal/virtuals-projection-planner.unit.test.ts",
+        "test/internal/virtuals-validation-openapi.contract.test.ts"
+      ]
+    },
+    "defaultSha256": "8aeb1fded8db203edc02700a48dde4c82c2328622e692d42128ef42c3d2f680b",
+    "runnableSha256": "8aeb1fded8db203edc02700a48dde4c82c2328622e692d42128ef42c3d2f680b",
+    "unionSha256": "8aeb1fded8db203edc02700a48dde4c82c2328622e692d42128ef42c3d2f680b",
+    "missingFromDefault": [],
+    "missingFromLayers": [],
+    "overlapCount": 0,
+    "settings": {
+      "environment": "node",
+      "fileParallelism": false,
+      "testTimeout": 30000,
+      "setupFiles": [
+        "test/global-setup.ts"
+      ]
+    }
+  },
+  "graph": {
+    "files": 127,
+    "modules": 227,
+    "filesSha256": "f4bedb46592487f8f89fd6d4d4c610c48f5d1e7b32b7793b120d0238a0bbb615",
+    "nonContractFiles": [
+      "test/global-setup.ts",
+      "test/setup.ts",
+      "test/support/public/authorization-fast-path-consumer.types.fixture.ts",
+      "test/support/public/authorization-fast-path-native.runtime.fixture.mjs",
+      "test/support/public/document-permissions-dependencies.types.fixture.ts",
+      "test/support/public/field-helper-consumer.runtime.fixture.ts",
+      "test/support/public/field-helper-migration.types.fixture.ts",
+      "test/support/public/grouped-count-consumer.types.fixture.ts",
+      "test/support/public/hydration-consumer.types.fixture.ts",
+      "test/support/public/migration-guide-fixture.ts",
+      "test/support/public/nested-operation-access-consumer.types.fixture.ts",
+      "test/support/public/nested-operation-access.invalid.types.fixture.ts",
+      "test/support/public/output-publication-fusion-withdrawal.types.fixture.ts",
+      "test/support/public/owned-authorization-cutover.invalid.types.fixture.ts",
+      "test/support/public/owned-authorization-helpers.runtime.fixture.mjs",
+      "test/support/public/owned-authorization-hooks.invalid.types.fixture.ts",
+      "test/support/public/owned-authorization-hooks.types.fixture.ts",
+      "test/support/public/owned-authorization-many-consumer.runtime.fixture.ts",
+      "test/support/public/owned-authorization-many-consumer.types.fixture.ts",
+      "test/support/public/owned-authorization-many.invalid.types.fixture.ts",
+      "test/support/public/owned-authorization-many.types.fixture.ts",
+      "test/support/public/owned-authorization-migration.invalid.types.fixture.ts",
+      "test/support/public/owned-output-context-fixture.ts",
+      "test/support/public/private-populate-read-policy.types.fixture.ts",
+      "test/support/public/service-authorization-boundary.types.fixture.ts",
+      "test/support/public/service-authorization-consumer.types.fixture.ts",
+      "test/support/public/service-authorization-fixture.ts",
+      "test/support/public/service-authorization-migration.types.fixture.ts",
+      "test/support/public/virtuals-populate-dependencies.consumer.runtime.fixture.ts",
+      "test/support/public/virtuals-populate-dependencies.types.fixture.ts"
+    ],
+    "errors": []
+  },
+  "runs": [
+    {
+      "label": "contracts-smoke",
+      "success": true,
+      "passed": 35,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "files": [
+        {
+          "path": "packages/access-router/test/contracts/processors-path-hardening.test.ts",
+          "sha256": "a2a1d62cc153a463cb9356666ec90ab25eb91cf21f76041f78b94fc1dc033f3c",
+          "cases": [
+            {
+              "id": "8c055754cbdc937b294a6981ef84f6213a4fa19e393cdbcf7ab464501788cca5",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) malformed or missing intermediates are safe no-ops treats a missing intermediate path as a no-op without throwing",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "aacabce674c8c2a45dd92ad0ee811b5ec89b0f75a43ecb844aac1d943da4a1b9",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) malformed or missing intermediates are safe no-ops treats a null intermediate as a no-op without throwing",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "9a7e8c2ace00dd7bafedd44d398363cb745e62d38358043cc41efe54fadce546",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) malformed or missing intermediates are safe no-ops treats a scalar intermediate (string in src) as a no-op",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "b9d3a2bbf84b816a50bd5c6f9b7497e35a4f62bdfb8e28976a5b091bc7fac24b",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) malformed or missing intermediates are safe no-ops returns the input object when no operations apply (mutable default)",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "4406596ae3e8707fb170e289af8d47885f9765581008eb52b92a57a8a40bd81e",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) malformed or missing intermediates are safe no-ops returns a distinct object (cloned) in immutable mode even when all ops are no-ops",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "1176126bf85abd08d1b91570311fd4eba3d7662fc57830220bdb75c2dde0e02f",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) empty and missing operation fields are safe no-ops treats an empty src string as a no-op",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "8c542803375b0fe6f011d55fbc7eb9db0011086f0e820b379140dcfb773fe51e",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) empty and missing operation fields are safe no-ops treats an empty dest string as a no-op",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "7bf8b4bf6cf62cbfe89ec8675a1295e70aec0d542b3d5bcae300ed23584272ba",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) empty and missing operation fields are safe no-ops skips operations whose src/dest are not strings",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "f4977a1d92e53a12c14a8d95441c63498d13d66081353881d9687091bcab3c09",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) scalar array entries cannot corrupt ids leaves a scalar primitive array in place (no null id corruption)",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "8b9871b4e818b543139a94ab6a2c0a6a9aff9c5e84cb8be0f3a204b041453119",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) scalar array entries cannot corrupt ids leaves a mixed (object + primitive) array in place to avoid partial depopulation",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "81800e42088145319e7259aa1c6d9289579e7df4334f8561c6ee14e3c8fbdd7c",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) scalar array entries cannot corrupt ids depopulates a fully-populated record array into its id array",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "9889a36bfcdba01e59f27a7fc366e02150b9fa11db22d629633f4938e6ca3e6a",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) scalar array entries cannot corrupt ids depopulates an empty array to an empty id array (preserves empty-list signal)",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "572011185412f06b36cc996aedc0622d74217655db391b9f736bd239d63f0fe3",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) missing id fields produce descriptive errors instead of silent undefined ids throws a descriptive error when an array record is missing the id field",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "dbdd61859cac8ea18953e2460971d5ea437472781747f56c148573b99d62e196",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) missing id fields produce descriptive errors instead of silent undefined ids throws a descriptive error when the object leaf is missing the id field",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "c14644037445665c479f41e352283a65704a6a2669733dd80d228a2d113cea38",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) missing id fields produce descriptive errors instead of silent undefined ids honors the configured idField when checking for missing ids (empty string counts as a valid id, like 0)",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "9172c70a1d4dd16f8e8f16c2e131b6c515d16224b2549752582ce289e09d8b5a",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) missing id fields produce descriptive errors instead of silent undefined ids does not throw when an idField resolves to a falsy id value of 0",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "cdf8738eff5fc68d7cb43c6db5602a25140b19374294f9e25197e464b22e4451",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype-like keys are rejected before any mutation rejects __proto__ in src with a descriptive error",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "f77b8fc57a8eb0877cbaa23c95f829c73c4e39248462d02a19cafaaf7b0e5f50",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype-like keys are rejected before any mutation rejects constructor in src with a descriptive error even if set on the object",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "2f25f46f7f18ccce14ec33660ceab2b705848c8fe96d27d0d8deff6b000bf4f8",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype-like keys are rejected before any mutation rejects prototype in src with a descriptive error",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "2abeee4aa30ffdc6da8e6d8e163cbad7e0a4129490b93e9308356ada2198d361",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype-like keys are rejected before any mutation rejects __proto__ in dest with a descriptive error",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "0c08158dcf3c34fcf662a5b4f3276a3488dcfaf84889f6ba197ce2fe7cd0faa7",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype-like keys are rejected before any mutation rejects unsafe segments anywhere within a nested src path",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "c777cbcf9954a3c3ce552cb3c1bbfe440d403b334b931badb25669a84b48f9b4",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype-like keys are rejected before any mutation rejects unsafe segments anywhere within a nested dest path",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "f693985bf926b897d959053f04153279933126ee3010195144b5e6054cb0bc85",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype-like keys are rejected before any mutation does not mutate Object.prototype when an attacker supplies a __proto__ destination",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "778b38a686100458c886bf252e0be61a63f6e6d8defacb1517df7c14344de6bc",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) mutable and immutable modes behave identically except for object identity mutates the input when mutable is true (default)",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "f50d5dbebd1420d270c3990f91eab616d58b6863da7fd571fe3850cd62057eb0",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) mutable and immutable modes behave identically except for object identity returns a clone (distinct identity) when mutable is false and leaves the input untouched",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "6aaf32e5b9fc5f3fe9d8811c279c68e6aa6fadd1b7659628c963b7930a41202d",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) mutable and immutable modes behave identically except for object identity produces value-identical output in mutable and immutable modes",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "dd745f914d396f3278d81361a7061e87adab891a9cb062de124e73f8d27de173",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) mutable and immutable modes behave identically except for object identity honors an explicit mutable: true the same as the default",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "90a5e6a28df0103ed13eb5dcabe87e97e783119288120970b8905f642207bf67",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) overlapping operations are sequential and well-defined runs operations in input order; the second op sees the first op output",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "aec2a657ab29b8dee929d083b47a448b89af78224f153c8bfb1c22c2d71fd64a",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) overlapping operations are sequential and well-defined chains the dest value into a second depopulate if a later op targets the relocated value",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "ec3a22d3854dd6e8bbb687e66c5868d9c74550e179734ae69efa26a7015a0ba6",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) documented default mutable and idField behavior defaults mutable to true when options is omitted",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "5721055b6aa9a54a39c0c5425866f0378bb78399171de49f60e4e18704ef3fa7",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) documented default mutable and idField behavior defaults mutable to true when options is an empty object",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "b2d4397e06cca2766ce092c4851a11c765d3ddf0dd15e4eb7d7fad5aab30c6e7",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) documented default mutable and idField behavior defaults idField to _id when options is omitted",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "307af7966b9e01449cf6d772df04d4bc5b7674d3f56bd42ff72da72f8863413c",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) documented default mutable and idField behavior honors a custom idField of name across both single-object and array leaves",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "cbccd834a863185fbeb036840d8e7810066d2b2a4bde7a576d29c17e4f50278f",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype integrity on real-world object shapes preserves a null-prototype object (Object.create(null)) after depopulation",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "d04a92a9204a29bde923d1bbc819dc1e101a3c871305d1b917c2ed7604f39560",
+              "fullName": "processors/copyAndDepopulate path hardening (AR-21) prototype integrity on real-world object shapes preserves Object.prototype on ordinary objects after depopulation",
+              "occurrence": 1,
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "invariants-smoke",
+      "success": true,
+      "passed": 9,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "files": [
+        {
+          "path": "packages/access-router/test/invariants/owned-authorization-records.unit.test.ts",
+          "sha256": "ba3b7259a1a280f0a1d146012d6ec9b46e4458a22604b8ae02b8d1db9b2bcadf",
+          "cases": [
+            {
+              "id": "8e582ac1c7e8b5a1d8191e82063b1a3700b8a1483e6ee3ca2bdbfa00a4ddb024",
+              "fullName": "private authority records own lazy slots before application/native work 'isolated' resolves facts once without observing an inherited 'result' slot",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "b3cd8a345c1dd0dc647847063814618db67dfe74bf1b94c83195372a7c0d623f",
+              "fullName": "private authority records own lazy slots before application/native work 'isolated' resolves facts once without observing an inherited 'grants' slot",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "edc3c81cf9a79ec0b2ac218ba173b156ca89ee2e2238a6bf5e30d1e1d72d2b6d",
+              "fullName": "private authority records own lazy slots before application/native work 'trusted' resolves facts once without observing an inherited 'result' slot",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "f648e6ad50398b9074c50017155fe103efab29ca894ad881803854b45a9aa2ea",
+              "fullName": "private authority records own lazy slots before application/native work 'trusted' resolves facts once without observing an inherited 'grants' slot",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "3a87afef429bd9b0475cf72ba444d3f4e271e73668dca568b6e825ec9153c513",
+              "fullName": "private authority records own lazy slots before application/native work publication poison remains the exact failure despite an inherited failure setter",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "85f54d7841b5f45bcaaf2330f28b67c9aa11f1c18231a2cbb99331152855e212",
+              "fullName": "private authority records own lazy slots before application/native work a caught selected overflow poisons its budget even with an inherited failure setter",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "e45df164ffe66f52fe5e39b1aa92a4bb2a6a6982f1d450cd2161d22b320d3958",
+              "fullName": "private authority records own lazy slots before application/native work related construction cannot lose its receiving depleted budget to an inherited recipients setter",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "048b093d836d2eca463d53cf3c68e32120854d5bfaa52c515b3b1759bebbadf5",
+              "fullName": "private authority records own lazy slots before application/native work root private call preparation cannot be replaced by an inherited view getter",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "59734f7fba2a9ce1912bcda01623b3124088b710ca1ace3133bdcd5130e766fa",
+              "fullName": "private authority records own lazy slots before application/native work embedded private call preparation cannot be replaced by an inherited view getter",
+              "occurrence": 1,
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "internal-smoke-sealed",
+      "success": true,
+      "passed": 61,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "files": [
+        {
+          "path": "packages/access-router/test/internal/strict-typecheck.test.ts",
+          "sha256": "63d349b221849b325cb45aae58abc36bc41919307a069a82b13403879727c361",
+          "cases": [
+            {
+              "id": "aa98a7e14f573d1f824c28d43aa02585af10f93646ea9aebe9c0b9e67e953430",
+              "fullName": "ARF-14 package strict typecheck enables noImplicitAny in the package tsconfig",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "cbb3abd504d72ec01a51f12c0b25e09ed15d30c272a598d96ee9d073dce59545",
+              "fullName": "ARF-14 package strict typecheck declares and passes the dedicated package typecheck command",
+              "occurrence": 1,
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "path": "packages/access-router/test/internal/test-layer-boundaries.unit.test.ts",
+          "sha256": "598a101c59855c35c910622150991b457a2830e8c357f8c0e0045df8047cd6d7",
+          "cases": [
+            {
+              "id": "2b9d37f057c95885cb7bc2b03d78ff72c949d46fc4eb367ce3286f4c61734c50",
+              "fullName": "contract dependency boundary accepts public runtime/type entries and transitive public support; stops at entry implementation",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "5ff563e9cbee408972d7d5e408223c09b02d9981cb5153189256eae6acb36c99",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../../src/secret';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "86c48ca371c61b8035b8a0572c6a818ce1a37c22948aa9556b27b6e13cc49813",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import type { Secret } from '../../src/secret';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "eeaab6bfad2d1cff8391b14365cba5bb7de0c36d2be40cf64feb80a172be2fd3",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: export * from '../../src/secret';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "3974c21c94a9dbcc4289b7256882a0c042323f8ccb3527a2af6cfcb13c00dcbf",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: export type { Secret } from '../../src/secret';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "f4ca822dd778321adaa4fe20d07cc8fa9b010c57b6421ed8e299c1a52fb54818",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: type T = import('../../src/secret').Secret;",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "9b7c762572e2f1bc6dc8ff01f86137148b8bc31d465a4301eadc07fabce3c2d5",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: const value = require('../../src/secret');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "99f891032b3768d501dcd345fba53b10949abaf42c3b2dd569914c00feaa5ae5",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import secret = require('../../src/secret');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "189b948f5df9ed35d4699967fce1c84c2c0ab3dc8465dd0abe4add7c98259835",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: void import('../../src/secret');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "42244b22ec0597329503eb5b31bafb87e5f9ef079eea53c45e5a3aba1208d6a7",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../support/private/helper';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "d88977c44c08cf7fcc744202eda8a24e3c915e6f444bb1683259e8bcc5fad811",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../internal/private.test';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "e0e9b9267a4293b0226083d71be6ad8c04d6e7eac5d5847177f7c7a1128dd8a9",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../invariants/private.test';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "fab67cd132840667d451315aced18e0651943afe183e424ef1a4f75dc5cc78f4",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../access-router-crud-fixture';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "c225072087990009ff934ffc3deb157f02e97a34b09a4b8247bf385f79948f66",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../support/private/service-authorization.types.fixture';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "e3a7ff7a252bf8090cbe89ba703f31a94fad4b55dd98914143f3c46a71ab85fe",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../../dist/private-chunk.mjs';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "b40f11d8d448ad0d1e7853e2f336a4a22ad60762ba4414f0c8e787bb31ca0b13",
+              "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import type { Secret } from '../../dist/private-chunk.d.ts';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "6245f350e6824a47187729c9b6628b0f976e1497923a1911684fe1b076040a5b",
+              "fullName": "contract dependency boundary reports the transitive dependency chain",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "4247f923bc6eda22c52f5c0777228622658ee284d4bc236be71fcbc852e501af",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: const name = '../support/public/helper'; void import(name);",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "a81a3348e0135cfd22a1ca3a80276ebe171a1f22a92e4f8074ac949c564cf37d",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: const name = '../../src/secret'; require(name);",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "5f382030485be25911da8b5531fc50850f173636240bc71dee86f4a1db0f3f51",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: void import(`../../src/${part}`);",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "6facfbf81ca7d01bac5c8b5210f239f869515563e003ff02ac602798fa670cbe",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: const load = require; load('../../src/secret');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "366d92ca137988546fa29402c3b579216d60951b855829f3042199de82227ddc",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import { createRequire as cr } from 'node:module'; const load = cr(import.meta.url); load('../../src/secret');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "fda5a125ec30f649c3e5320fce2d8f4965131c807960b0596bf0d8a4f8deacdc",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '#private';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "2fe226600006ad32d3ee4e0f259e0a473dc35f359ab0425d7443af8ea5ad2ea1",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '@web-ts-toolkit/access-router/dist/index.js';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "d9ccb3b726b3bfec53190020fd0bb5ecc9bf8e9b78ea925dd690d7c950174cfb",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '@web-ts-toolkit/access-router/src/secret';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "7fdaa11ade0f7328c46c2c58e7f86b8b5701445bcb39fa41f26de44383e92874",
+              "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '../support/public/missing';",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "0a836b890c58fa7910dcca8902329143392fceba09cc25f66a1221c78216426b",
+              "fullName": "contract dependency boundary rejects tsconfig path aliases to private source",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "0038ae571997ea3cc43126eb6c7cbaa596f022a41cd24b0b9fafa4e16ec69bc4",
+              "fullName": "contract dependency boundary does not let a Vitest alias replace the supported public entry with source",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "0d6b63f142ce36783c2437957a51639e8e5bfd9d94bc6fe4a368dfcd96a7add5",
+              "fullName": "contract dependency boundary audits configured setup and its transitive support",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "528bc9f0860d8120fd1b89ef61f8d92a40c4a73f172acf3821879a255df6e585",
+              "fullName": "contract dependency boundary parses emitted consumer module contexts, including joined source and local generated siblings",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "41dfbbeace787daeb98c0b4ac8484868377699f64003da790ad13d4f5ab6bdd5",
+              "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: readFileSync(path.join(packageRoot, 'test/support/private/helper.ts'));",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "64539a15c2ed54d9065bcff0556aa15ad14141e8e3c2d743bc802ae2440bb47e",
+              "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: writeFileSync(file, readFileSync(path.join(packageRoot, 'src', 'secret.ts')));",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "4e53b08d3cc8b22bfc46bc3160107868c02891787452d42a11f71f7464c9d639",
+              "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: const config = { files: ['../../src/secret.ts'] };",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "4b52a5501cd885cc09043f6747ad85f14b32296bc0d124f7c4450556c8eb97a0",
+              "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: const config = { include: ['dist/private-chunk.d.ts'] };",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "89f75a06741e2235d806cdd21fdb16fb66232fd6b1d0a8009883d7befd7bce89",
+              "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: ts.createProgram(['src/secret.ts'], {});",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "47e5b8279c3836ded998e6ef62af4a032782f2baee07d66d8171d214021c56be",
+              "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: ts.createProgram(computed, {});",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "20fc352d0961c776b15537184ce5bd481c0f5984cba049eafa00720609eb3d4f",
+              "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: writeFileSync(file, `${prefix} import('${privatePath}')`);",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "910247e0401e4de90a78585749e222a7efb0093ab9a86999aaae78c382517fcf",
+              "fullName": "contract dependency boundary audits finite compiler fixture lists instead of trusting their string paths",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "bc71a7c86fbec365461c49b9b5298a8a1674747460f824577af76b421d7ca837",
+              "fullName": "contract dependency boundary maps only exact finite generated documentation outputs and audits their bodies",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "1d56ab1513656f259fb7e61669ac8e5e331c79a8866a5bdeca6503b42fb24c3f",
+              "fullName": "contract dependency boundary does not let an inspection-only read review become executable consumer source",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "3e3663f4d3c4cd318904016353392eb5d4322843f8ccb2a1dc6302dee8ee38a6",
+              "fullName": "contract dependency boundary ties reviewed document-generator file lists to readable finite inventories",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "ff49b2b87e372c21661bd7c9ae4bab9079c4ef947acd83c28a647c10f476be87",
+              "fullName": "contract dependency boundary allows one unused failure-only deep type alias, never a binding or successful use",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "b35820dc3ff173d3ace6592af1bbe61fe7887f606e18332696a93188ef9283b6",
+              "fullName": "contract dependency boundary requires exact assert.throws shape and finite subpaths for negative resolution",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "09af22d0d07679626639449b6bd040ef9512aff40b71745431f45c60f420689f",
+              "fullName": "contract dependency boundary forbids consuming or re-exporting the negative-only alias from another module",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "6e2bc3116a954043dabe3c956d1b45c87d590902265f097179f67fa0c10f9224",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi } from 'vitest'; vi.mock('@web-ts-toolkit/access-router', () => ({}));",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "198e432e6deda3d136ed13e5410a2227784c8259b7c4024b50761f5d403815ff",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi } from 'vitest'; vi['mock']('@web-ts-toolkit/access-router', () => ({}));",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "be84f72d1c613fa49bcbce8042b22cb536d234d8af58a8e86a886ab0777e587f",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi as mocker } from 'vitest'; mocker.doMock('../support/public/helper');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "97a5d601d4c26e378fcccec5085659ba033b5b1fe349ebee8171959a88aa2223",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi } from 'vitest'; vi.spyOn(service, 'genIDFilter');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "0fef5b9d4e5244339d38c78ba2cf5d0da3586b7474daec6c289194278a766bb5",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { ModelRouter } from '@web-ts-toolkit/access-router'; vi.spyOn(ModelRouter.prototype, 'getService');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "360e87d9f2e1023700e79bd0e0fd80904435bdf58cdda0a1d315ac8ba84258aa",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { createAccessRuntime } from '@web-ts-toolkit/access-router'; const api = createAccessRuntime(); const router = api.createRouter('x'); vi.spyOn(router, 'getPublicService');",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "2777c67085a68848dddf8564736b588bb1102232039abf14d38de34126d1aad1",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: service['processOp'] = () => ({});",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "a6c1e5ecbd456447edcae091cdb413fc0684e88e5aad5a42eab9a8607e09b19b",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: Object.defineProperty(service, 'trimOutputFields', { value() {} });",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "ab0e7d854922881ee0200df2278734d83169597594585293859885a0b7fad3c4",
+              "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { createAccessRuntime } from '@web-ts-toolkit/access-router'; const api = createAccessRuntime(); const router = api.createRouter('x'); const service = router.getService(req); service.findOne = vi.fn();",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "3711771ce21dd56647a6eba5e620a350fa406d5394a219a241095a9d99c5b102",
+              "fullName": "contract dependency boundary allows application hooks, Mongoose/model spies and supported service defaults",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "907d2460e64cb94a6b66b45e27b385d825ca57cf036e9a7c715efbfad6729b80",
+              "fullName": "exhaustive disjoint layer selection accepts exactly one owner per nonempty suite and the exact default union",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "fedd3c0587c07ced11cd5a0036b011d7727bf823263abd745183189f021e57ae",
+              "fullName": "exhaustive disjoint layer selection rejects runnable outside layers: test/orphan.test.ts",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "1741c187e153fd3b2a57ad7761b3e1b9b03427f9545b20b0c86f5d3f5f7ef560",
+              "fullName": "exhaustive disjoint layer selection rejects runnable outside layers: test/support/public/orphan.test.ts",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "47cad68809187670945469602c99d494c4250e4a9051ff78a25dc2ed6513db64",
+              "fullName": "exhaustive disjoint layer selection rejects runnable outside layers: src/orphan.test.ts",
+              "occurrence": 1,
+              "status": "passed"
+            },
+            {
+              "id": "7db00a49cb1d10b67bf06b9314c793fd93a28801d05239091290a6ef23d66401",
+              "fullName": "exhaustive disjoint layer selection rejects overlaps, empty layers, exclusions, unselected tests and wrong ownership",
+              "occurrence": 1,
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "evidenceReview": {
+    "jsonFiles": 2,
+    "reviewedFiles": 14,
+    "links": 5,
+    "privacy": "pass",
+    "whitespace": "pass",
+    "ignoreStatus": "pass",
+    "gitDiffCheck": "pass",
+    "discovery": "212 exact/disjoint",
+    "focusedCases": 105
+  },
+  "notes": [
+    "The first recorded smoke failed in preflight before build/tests because an in-development heuristic confused returned data and documented public raw calls with implementation patches; fixed without editing originals.",
+    "internal-smoke-r2 passed 55 cases; the final guard subsequently gained six regression cases. Only the final sealed run above is current evidence.",
+    "Initial exploratory checker runs also exposed a syntax typo and missing finite inventories; no original assertion or production behavior was changed.",
+    "Known nonfatal Vite future-native-config warnings retained; no warning, empty-suite or test suppression flags.",
+    "Full runtime per-layer/default totals are deliberately not claimed; ARTS-06 owns those runs."
+  ]
+}

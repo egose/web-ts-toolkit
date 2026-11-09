@@ -14,9 +14,9 @@
  *   actual target, never a caller option. Plans remain separate internal metadata.
  * - Internal metadata is stored non-enumerably under {@link POPULATE_TARGET_PLAN}
  *   (a `Symbol`, invisible to Mongoose and to JSON serializers). It carries
- *   the target's `VirtualProjectionPlan` + coherent `FinalizeSnapshot` for the
- *   operation so planning and finalization share one snapshot and in-flight
- *   descriptor replacement cannot mix versions.
+ *   the target's `VirtualProjectionPlan`, whose private call retains captured
+ *   policy for finalization, plus a coherent options snapshot for inspection.
+ *   The snapshot is not finalizer authority.
  *
  * Existing nested populate-descriptor support: dotted paths through embedded
  * data (e.g. `contacts.friend` where `contacts` is an array of subdocuments)
@@ -51,7 +51,7 @@ export interface PopulateTargetMeta {
   requestedSelect?: unknown;
   /** Coherent planner output for the target (candidates + fetch vs output). */
   plan: VirtualProjectionPlan;
-  /** Coherent options snapshot for the target finalizer. */
+  /** Captured options for package inspection, not finalizer authority. */
   snapshot: FinalizeSnapshot;
   /** Captured raw-query binding only. Contains no target rows or private inputs. */
   fetchBinding?: {

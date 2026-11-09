@@ -1,0 +1,58 @@
+diff --git a/packages/access-router/src/logger-helpers.ts b/packages/access-router/src/logger-helpers.ts
+index 3047296..4ad7bba 100644
+--- a/packages/access-router/src/logger-helpers.ts
++++ b/packages/access-router/src/logger-helpers.ts
+@@ -209,11 +209,12 @@ const safeApply = (fn: (...args: unknown[]) => unknown, thisArg: unknown, args:
+   }
+ };
+ 
+-export const debug = (ctx: OpLogContext): void => {
++// Internal lazy context support keeps expensive summaries behind the one level check.
++export const debug = (ctx: OpLogContext | (() => OpLogContext)): void => {
+   if (!isLevelEnabled('debug')) return;
+   const target = resolveLogger();
+   const fn = target?.debug ?? defaultLogger.debug;
+-  const message = buildOpMessage(ctx);
++  const message = buildOpMessage(typeof ctx === 'function' ? ctx() : ctx);
+   safeApply(fn as (...a: unknown[]) => unknown, target ?? defaultLogger, [message]);
+ };
+ 
+diff --git a/packages/access-router/src/services/service.ts b/packages/access-router/src/services/service.ts
+index 8bb78bd..6bdf11a 100644
+--- a/packages/access-router/src/services/service.ts
++++ b/packages/access-router/src/services/service.ts
+@@ -1341,13 +1341,13 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+     extra?: Omit<OpLogContext, 'op' | 'startedAt' | 'filterKeyValueCount'>,
+   ): number {
+     const startedAt = Date.now();
+-    debugLog({
++    debugLog(() => ({
+       op,
+       modelName: this.modelName,
+       filterKeyValueCount: summarizeFilter(filter).filterKeyValueCount,
+       startedAt,
+       ...(extra ?? {}),
+-    } as OpLogContext);
++    }));
+     return startedAt;
+   }
+ 
+@@ -1358,14 +1358,15 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+     filter: unknown,
+     extra?: Omit<OpLogContext, 'op' | 'startedAt' | 'durationMs' | 'resultCode' | 'filterKeyValueCount'>,
+   ): void {
+-    debugLog({
++    const durationMs = Date.now() - startedAt;
++    debugLog(() => ({
+       op,
+       modelName: this.modelName,
+       filterKeyValueCount: summarizeFilter(filter).filterKeyValueCount,
+-      durationMs: Date.now() - startedAt,
++      durationMs,
+       resultCode,
+       ...(extra ?? {}),
+-    } as OpLogContext);
++    }));
+   }
+ 
+   constructor(req: ModelRequest, modelName: string) {

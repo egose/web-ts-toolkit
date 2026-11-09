@@ -1,0 +1,87 @@
+{
+  "disposition": "production candidate withdrawn; no performance change retained",
+  "reason": "No usable noise-calibrated timing cells; work counts are not measured allocation savings and cannot establish both-mode benefit plus non-regression.",
+  "baselineDirectory": "_tmp-arpc-01-4d6agBQe/baseline",
+  "withdrawnCandidateDirectory": "_tmp-arpc-02-ZaZbr4lD/candidate-final",
+  "retainedDirectory": "_tmp-arpc-02-withdraw-PW5VIYmi/retained-baseline",
+  "baseline": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "withdrawnCandidate": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "5223b96f9cfa7a9c70a39730aa94b06d0e12b427eca0eda814e63d517239a082",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "b11e661317a005adfa59557f2d5a4f2e71558474bad52817fce04e5dd3474d6f",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "99f8912173d021cf49bf091962d4b80732e03bafef0943757d8200b3bf93a317"
+  },
+  "retained": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+    "fixtureHash": "f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d",
+    "bundleHash": "c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
+    "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "exactSourceFilesRestored": 151,
+  "exactDistFilesRestored": 15,
+  "productionDiffEmpty": true,
+  "noUntrackedProductionFiles": true,
+  "originalSealsUnmodifiedAndVerified": true,
+  "untouchedFilesReverified": [
+    [
+      "packages/access-router/test/no-work-output-scheduling.unit.test.ts",
+      "390b1047876cc040ea26f82d65e21971cc50cf73268519803969ecd19a6fab73"
+    ],
+    [
+      "packages/access-router/test/bulk-create-metadata-filter-trace.integration.test.ts",
+      "a2e6ed173845355f37c6a18d4c3f95e24e9b7331ac0548aa5fd8bd10c2060b83"
+    ],
+    [
+      "docs/tasks/20261105-084939-access-router-performance-cleanup.md",
+      "c5fc2397bbe883c7f5fb17e232757bdc5db56a52a4202c3390f3bb45c098ff57"
+    ],
+    [
+      "scripts/benchmarks/README.md",
+      "d29fdbf9c04dd801cd083ad92eaae676ec49bd34bfd21d1400598ae83358afac"
+    ]
+  ],
+  "retainedTest": "packages/access-router/test/service-output-preparation.unit.test.ts",
+  "retainedTestHash": "3f9bca3f38ccf87d08630d78a7a531d7a2a5fd47ae719465b2d0dc48100e0773",
+  "candidateTestPreserved": "candidate-safety-tests.patch",
+  "retainedContractTests": 13,
+  "focusedFilesPassed": 6,
+  "focusedTestsPassed": 537,
+  "currentRealServiceCasesMatchOriginalBaseline": 32,
+  "furtherTimingProtocolsRun": false,
+  "allocationProbeRun": false,
+  "retainedHeapProbeRun": false,
+  "unrelatedCharacterizationTestsRun": false,
+  "fullPackageTestRerun": false
+}

@@ -1,0 +1,84 @@
+{
+  "cwd": "<repo-root>",
+  "TMPDIR": "<repo-root>/_tmp-arpc-05-withdraw-ytjtUOUN",
+  "scratchIgnoreCheck": {
+    "command": [
+      "git",
+      "check-ignore",
+      "_tmp-arpc-05-withdraw-ytjtUOUN"
+    ],
+    "exitCode": 0
+  },
+  "execution": "Foreground and sequential; no benchmarks/calibration; no queued work",
+  "checks": [
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arpc-05-withdraw-ytjtUOUN",
+      "exitCode": 0,
+      "seconds": 28.46,
+      "log": "typecheck.log",
+      "logSha256": "29f4ddeb3a7f9c93acb5e53a0cd62def707fb09de3cfde69e9880b693c5818b1",
+      "result": "Passed; includes required filtered package/transitive dependency builds"
+    },
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/service-logging-contract.unit.test.ts",
+        "test/service-logging-contract.integration.test.ts",
+        "test/logger-redaction.test.ts",
+        "test/filter-denial.integration.test.ts",
+        "test/read-list-fallback-authorization.integration.test.ts",
+        "test/write-output-modes.unit.test.ts",
+        "test/write-output-authorization.unit.test.ts",
+        "test/write-output-origin-ownership.unit.test.ts",
+        "test/write-output-populate.unit.test.ts",
+        "test/access-router-crud-harness.unit.test.ts",
+        "test/access-router-crud-work.unit.test.ts"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arpc-05-withdraw-ytjtUOUN",
+      "exitCode": 0,
+      "seconds": 17.5,
+      "log": "focused.log",
+      "logSha256": "1d02a783fbf79157059ca6dcef31f524a0dfa6706437c7e17d14f4f421b3c8b2",
+      "result": "638 tests / 11 files passed; 24 retained baseline characterizations included; no skips/failures"
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/src/logger-helpers.ts",
+        "packages/access-router/src/services/service.ts",
+        "packages/access-router/test/service-logging-contract.unit.test.ts",
+        "packages/access-router/test/service-logging-contract.integration.test.ts"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arpc-05-withdraw-ytjtUOUN",
+      "exitCode": 0,
+      "seconds": 2.73,
+      "log": "lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "Passed; only the two restored source files and two retained test files"
+    }
+  ],
+  "notRun": [
+    "full package suite",
+    "root/grouped/downstream suites",
+    "additional calibration/timing/allocation probes",
+    "other owners' no-work-output-scheduling.unit.test.ts and bulk-create-metadata-filter-trace.integration.test.ts"
+  ]
+}

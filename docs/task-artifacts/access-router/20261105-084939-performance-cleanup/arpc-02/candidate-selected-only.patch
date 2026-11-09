@@ -1,0 +1,112 @@
+diff --git a/packages/access-router/src/acl/output-field-filter.ts b/packages/access-router/src/acl/output-field-filter.ts
+index 89b9182..72c244c 100644
+--- a/packages/access-router/src/acl/output-field-filter.ts
++++ b/packages/access-router/src/acl/output-field-filter.ts
+@@ -313,12 +313,58 @@ export function copyOutputValue(
+   path: string,
+   construction: OutputMaterialization,
+   prepaid = false,
++  prepared?: PreparedOutputValueCopy,
+ ): unknown {
++  if (prepared) return prepared(value, plan, path, construction, prepaid);
+   return prepareOutputValueCopy(plan)(value, path, construction, prepaid);
+ }
+ 
++export type PreparedOutputValueCopy = (
++  value: unknown,
++  plan: OutputSelectionShape,
++  path: string,
++  construction: OutputMaterialization,
++  prepaid?: boolean,
++) => unknown;
++
++function sameCopyStrings(current: readonly string[] | undefined, captured: readonly string[]): boolean {
++  if ((current?.length ?? 0) !== captured.length) return false;
++  for (let index = 0; index < captured.length; index++) if (current![index] !== captured[index]) return false;
++  return true;
++}
++
++/** Explicit construction-local immutable inputs, not a plan-identity cache. Private
++ * plans remain mutable: a changed selection/binding falls back at EACH value's
++ * observation boundary, including mutations by an earlier awaited field rule.
++ * No stage, decision, copied value or budget is retained in this preparation. */
++export function prepareSelectedOutputCopy(plan: OutputSelectionShape): PreparedOutputValueCopy {
++  const authorization = plan.authorization!,
++    binding = plan.authorizationBinding!;
++  const selection = Object.freeze(plan.effectiveSelectNorm.slice());
++  const scope = Object.freeze((binding.scopePath ?? []).slice());
++  const copy = prepareOutputValueCopy({
++    authorization,
++    authorizationBinding: binding,
++    effectiveSelectNorm: selection,
++  });
++  return (value, current, path, construction, prepaid = false) => {
++    if (
++      current.authorization !== authorization ||
++      current.authorizationBinding !== binding ||
++      !sameCopyStrings(binding.scopePath, scope) ||
++      !sameCopyStrings(current.effectiveSelectNorm, selection)
++    )
++      return copyOutputValue(value, current, path, construction, prepaid);
++    return copy(value, path, construction, prepaid);
++  };
++}
++
+ /** Immutable call-local copy policy; does not memoize decisions or certify values. */
+-function prepareOutputValueCopy(plan: OutputSelectionShape) {
++function prepareOutputValueCopy(
++  plan: Pick<OutputSelectionShape, 'authorization' | 'authorizationBinding'> & {
++    effectiveSelectNorm: readonly string[];
++  },
++) {
+   const { catalog } = readServiceOutputPolicy(plan.authorization!, plan.authorizationBinding!);
+   const excluded = plan.effectiveSelectNorm
+     .filter((token) => token.startsWith('-'))
+diff --git a/packages/access-router/src/output/finalize-model-output.ts b/packages/access-router/src/output/finalize-model-output.ts
+index 272d498..70bd765 100644
+--- a/packages/access-router/src/output/finalize-model-output.ts
++++ b/packages/access-router/src/output/finalize-model-output.ts
+@@ -34,8 +34,10 @@ import {
+   evaluateAuthorizedOutputField,
+   hasWholeOutputValueGrant,
+   prepareOutputDocumentStage,
++  prepareSelectedOutputCopy,
+   retainOutputMetadata,
+   type OutputMaterialization,
++  type PreparedOutputValueCopy,
+ } from '../acl/output-field-filter';
+ import {
+   assertOutputPublication,
+@@ -130,6 +132,7 @@ interface Preparation {
+   configuration: ReturnType<typeof readServiceFinalizerConfiguration>;
+   resolve: ReturnType<typeof prepareOutputDocumentStage>;
+   virtualNames: readonly string[];
++  copyValue?: PreparedOutputValueCopy;
+ }
+ 
+ function scopeVirtuals(root: unknown, scope: readonly string[]): Record<string, unknown> | undefined {
+@@ -403,6 +406,7 @@ async function finalizeSingleDoc(
+           [...(binding.scopePath ?? []), candidate.name].join('.'),
+           { budget, depth: depth + 1 },
+           true,
++          (prepared.copyValue ??= prepareSelectedOutputCopy(plan)),
+         ),
+       );
+     },
+@@ -444,7 +448,15 @@ async function finalizeSingleDoc(
+       )
+     )
+       value = copyAuthorizedReference(value, path, next, true);
+-    else value = copyOutputValue(value, plan, path, next, true);
++    else
++      value = copyOutputValue(
++        value,
++        plan,
++        path,
++        next,
++        true,
++        (prepared.copyValue ??= prepareSelectedOutputCopy(plan)),
++      );
+     if (value !== undefined) defineTrustedOutputValue(output, field, value);
+   }
+   for (const [field, value] of staged) defineTrustedOutputValue(output, field, value);

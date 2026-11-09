@@ -1,0 +1,61 @@
+ARPC-08 independent final package verification
+Working directory: <repo-root>
+All runtime gates were foreground, awaited and sequential.
+TMPDIR=<repo-root>/_tmp-arpc-08-aiwhequb; git check-ignore accepted _tmp*.
+Excerpts below omit routine dependency/build output and replace the checkout path.
+
+[typecheck]
+pnpm --filter @web-ts-toolkit/access-router typecheck
+exit=0 commandSeconds=27.223
+. build: CJS dist/advanced.js   211.56 KB
+. build: CJS dist/index.js      863.67 KB
+. build: CJS ⚡️ Build success in 190ms
+. build: DTS Build start
+. build: DTS ⚡️ Build success in 11608ms
+. build: DTS dist/advanced.d.ts          105.76 KB
+. build: DTS dist/index.d.ts             36.97 KB
+. build: DTS dist/processors.d.ts        10.29 KB
+. build: DTS dist/parsers-fSBARZSn.d.ts  229.11 KB
+. build: DTS dist/advanced.d.mts         105.76 KB
+. build: DTS dist/index.d.mts            36.97 KB
+. build: DTS dist/processors.d.mts       10.29 KB
+. build: DTS dist/parsers-fSBARZSn.d.mts 229.11 KB
+. build: Done
+
+[package-test]
+pnpm --filter @web-ts-toolkit/access-router test
+exit=0 commandSeconds=1682.598
+ARPC_CRUD_WORK_REPORT=<repo-root>/_tmp-arpc-08-aiwhequb/crud-work.json
+ARPC_OUTPUT_PREPARATION_REPORT=<repo-root>/_tmp-arpc-08-aiwhequb/preparation-work.json
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 <repo-root>/packages/access-router
+
+{"repeat":1,"round":1,"panel":"single-public"}
+
+ Test Files  210 passed (210)
+      Tests  7558 passed (7558)
+   Start at  19:10:59
+   Duration  1661.54s (transform 3.65s, setup 65.45s, import 21.94s, tests 1553.48s, environment 16ms)
+
+
+[lint]
+pnpm exec eslint packages/access-router/src packages/access-router/test scripts/benchmarks/access-router-crud-v2-worker.mjs scripts/benchmarks/access-router-crud-v2.mjs scripts/benchmarks/access-router-crud-worker.mjs scripts/benchmarks/access-router-crud.mjs
+exit=0 commandSeconds=7.81
+(no diagnostics)
+
+[Read-only evidence checks]
+96 current CRUD records deep-equal the archived baseline; their raw hash matches ARPC-07.
+32 current preparation records have the same raw hash as ARPC-07 before/after.
+All eight rebuilt declarations match original baseline/ARPC-07 bytes.
+v1 432 cases recalculated: 15 within both noise caps.
+Focused ARPC-02 16 cases recalculated: 0 usable, 140 workers, 155904 measured invocations.
+Partial core-v2: 132 saved pairs / 264 workers, 8 complete cases; none usable; no report.json.
+ARPC-05 8 noise/comparison cases recalculated: 0 within both caps; acceptance=false.
+Original baseline seal reverified read-only: 151 source files / 127 dependency packages.
+No new service timing/calibration/heap measurement was executed outside package-owned smoke tests.
+The first generic whitespace audit exited 1 for the sealed historical timeout log line 16.
+Final audit classifies that one trailing space explicitly; original bytes/seal are unchanged.
+No package test/typecheck/lint command failed.

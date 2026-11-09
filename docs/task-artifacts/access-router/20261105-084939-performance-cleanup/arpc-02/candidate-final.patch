@@ -1,0 +1,283 @@
+diff --git a/packages/access-router/src/acl/output-field-filter.ts b/packages/access-router/src/acl/output-field-filter.ts
+index 89b9182..82e7913 100644
+--- a/packages/access-router/src/acl/output-field-filter.ts
++++ b/packages/access-router/src/acl/output-field-filter.ts
+@@ -313,12 +313,61 @@ export function copyOutputValue(
+   path: string,
+   construction: OutputMaterialization,
+   prepaid = false,
++  prepared?: PreparedOutputValueCopy,
+ ): unknown {
++  if (prepared) return prepared(value, plan, path, construction, prepaid);
+   return prepareOutputValueCopy(plan)(value, path, construction, prepaid);
+ }
+ 
++export type PreparedOutputValueCopy = (
++  value: unknown,
++  plan: OutputSelectionShape,
++  path: string,
++  construction: OutputMaterialization,
++  prepaid?: boolean,
++) => unknown;
++
++function sameCopyStrings(current: readonly string[] | undefined, captured: readonly string[]): boolean {
++  if ((current?.length ?? 0) !== captured.length) return false;
++  for (let index = 0; index < captured.length; index++) if (current![index] !== captured[index]) return false;
++  return true;
++}
++
++/** Explicit construction-local immutable inputs, not a plan-identity cache. Private
++ * plans remain mutable: a changed selection/binding falls back at EACH value's
++ * observation boundary, including mutations by an earlier awaited field rule.
++ * No stage, decision, copied value or budget is retained in this preparation. */
++export function prepareSelectedOutputCopy(plan: OutputSelectionShape): PreparedOutputValueCopy {
++  const authorization = plan.authorization!,
++    binding = plan.authorizationBinding!;
++  assertAuthorizationBinding(authorization, binding);
++  const selection = Object.freeze(plan.effectiveSelectNorm.slice());
++  const scope = Object.freeze((binding.scopePath ?? []).slice());
++  const copy = prepareOutputValueCopy({
++    authorization,
++    authorizationBinding: binding,
++    effectiveSelectNorm: selection,
++  });
++  return (value, current, path, construction, prepaid = false) => {
++    assertAuthorizationBinding(current.authorization!, current.authorizationBinding!);
++    if (
++      current.authorization !== authorization ||
++      current.authorizationBinding !== binding ||
++      !sameCopyStrings(binding.scopePath, scope) ||
++      !Array.isArray(current.effectiveSelectNorm) ||
++      !sameCopyStrings(current.effectiveSelectNorm, selection)
++    )
++      return copyOutputValue(value, current, path, construction, prepaid);
++    return copy(value, path, construction, prepaid);
++  };
++}
++
+ /** Immutable call-local copy policy; does not memoize decisions or certify values. */
+-function prepareOutputValueCopy(plan: OutputSelectionShape) {
++function prepareOutputValueCopy(
++  plan: Pick<OutputSelectionShape, 'authorization' | 'authorizationBinding'> & {
++    effectiveSelectNorm: readonly string[];
++  },
++) {
+   const { catalog } = readServiceOutputPolicy(plan.authorization!, plan.authorizationBinding!);
+   const excluded = plan.effectiveSelectNorm
+     .filter((token) => token.startsWith('-'))
+diff --git a/packages/access-router/src/output/finalize-model-output.ts b/packages/access-router/src/output/finalize-model-output.ts
+index 272d498..9db5cb4 100644
+--- a/packages/access-router/src/output/finalize-model-output.ts
++++ b/packages/access-router/src/output/finalize-model-output.ts
+@@ -34,8 +34,10 @@ import {
+   evaluateAuthorizedOutputField,
+   hasWholeOutputValueGrant,
+   prepareOutputDocumentStage,
++  prepareSelectedOutputCopy,
+   retainOutputMetadata,
+   type OutputMaterialization,
++  type PreparedOutputValueCopy,
+ } from '../acl/output-field-filter';
+ import {
+   assertOutputPublication,
+@@ -126,9 +128,15 @@ export interface FinalizeModelOutputsArgs extends Omit<
+   rowReferences?: readonly ReadonlyMap<string, unknown>[];
+ }
+ 
+-interface Preparation {
++interface SharedPreparation {
++  authorization: NonNullable<VirtualProjectionPlan['authorization']>;
++  binding: AuthorizationBinding;
+   configuration: ReturnType<typeof readServiceFinalizerConfiguration>;
+   resolve: ReturnType<typeof prepareOutputDocumentStage>;
++  copyValue?: PreparedOutputValueCopy;
++}
++interface Preparation {
++  shared: SharedPreparation;
+   virtualNames: readonly string[];
+ }
+ 
+@@ -160,13 +168,28 @@ function assertFinalizer(args: FinalizeModelOutputArgs): void {
+     authorizationError('finalizer call/model/scope/access mismatch');
+ }
+ 
+-function prepare(args: FinalizeModelOutputArgs): Preparation {
++function prepare(args: FinalizeModelOutputArgs, previous?: SharedPreparation): Preparation {
+   assertFinalizer(args);
+-  const configuration = readServiceFinalizerConfiguration(args.plan.authorization!, args.plan.authorizationBinding!);
++  const authorization = args.plan.authorization!,
++    binding = args.plan.authorizationBinding!;
++  const reusable = previous?.authorization === authorization && previous.binding === binding;
++  const configuration = reusable ? previous.configuration : readServiceFinalizerConfiguration(authorization, binding);
+   const virtuals = scopeVirtuals(configuration.virtuals, args.scopePath ?? args.plan.scopePath ?? []);
+   return {
+-    configuration,
+-    resolve: prepareOutputDocumentStage(args.plan.authorization!, args.plan.authorizationBinding!, configuration),
++    shared: reusable
++      ? previous
++      : {
++          authorization,
++          binding,
++          configuration,
++          // Current document definitions are captured own-data records or callable
++          // leaves, never native/function-attached lookup parents. Invocation,
++          // receivers, stage/context creation and binding checks remain per row.
++          resolve: prepareOutputDocumentStage(authorization, binding, configuration),
++          copyValue: undefined, // absent lazy slots must not resolve process-prototype input
++        },
++    // Virtual entries may contain native leaves. Keep classification at the old
++    // row boundary rather than assuming that captured containers make them inert.
+     virtualNames: Object.keys(virtuals ?? {}).filter(
+       (key) => !isPlainObject(virtuals![key]) || !Object.hasOwn(virtuals![key], 'sub'),
+     ),
+@@ -202,7 +225,7 @@ async function finalizeSingleDoc(
+     failTrustedOutputBudget(budget, new ServiceAuthorizationError('cyclic selected document output'));
+   const nextLineage = new Set(lineage).add(source);
+   visitTrustedOutput(budget, depth, args.prepaid ? 0 : 1);
+-  await prepared.resolve({
++  await prepared.shared.resolve({
+     authorization,
+     binding,
+     snapshot: source,
+@@ -403,6 +426,7 @@ async function finalizeSingleDoc(
+           [...(binding.scopePath ?? []), candidate.name].join('.'),
+           { budget, depth: depth + 1 },
+           true,
++          (prepared.shared.copyValue ??= prepareSelectedOutputCopy(plan)),
+         ),
+       );
+     },
+@@ -444,7 +468,15 @@ async function finalizeSingleDoc(
+       )
+     )
+       value = copyAuthorizedReference(value, path, next, true);
+-    else value = copyOutputValue(value, plan, path, next, true);
++    else
++      value = copyOutputValue(
++        value,
++        plan,
++        path,
++        next,
++        true,
++        (prepared.shared.copyValue ??= prepareSelectedOutputCopy(plan)),
++      );
+     if (value !== undefined) defineTrustedOutputValue(output, field, value);
+   }
+   for (const [field, value] of staged) defineTrustedOutputValue(output, field, value);
+@@ -457,7 +489,7 @@ async function finalizeSingleDoc(
+     );
+   }
+   if (args.completeOutput) await args.completeOutput(output, stage, construction);
+-  else retainOutputMetadata(output, source, prepared.configuration, binding.scopePath ?? [], construction);
++  else retainOutputMetadata(output, source, prepared.shared.configuration, binding.scopePath ?? [], construction);
+   readDocumentStage(stage, binding);
+   assertTrustedOutputBudget(budget);
+   assertOutputPublication(owner);
+@@ -466,11 +498,14 @@ async function finalizeSingleDoc(
+   return output;
+ }
+ 
+-export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promise<Record<string, unknown>> {
++async function finalizeOutput(
++  args: FinalizeModelOutputArgs,
++  prepareRow: (args: FinalizeModelOutputArgs) => Preparation,
++): Promise<Record<string, unknown>> {
+   const owner = args.publication ?? outputPublicationFor(args.plan.authorization!);
+   const work = async () => {
+     try {
+-      return await finalizeSingleDoc({ ...args, publication: owner }, prepare(args));
++      return await finalizeSingleDoc({ ...args, publication: owner }, prepareRow(args));
+     } catch (error) {
+       failOutputPublication(owner, error);
+       throw error;
+@@ -479,6 +514,24 @@ export async function finalizeModelOutput(args: FinalizeModelOutputArgs): Promis
+   return args.publication ? work() : runOutputPublication(owner, work);
+ }
+ 
++export function finalizeModelOutput(args: FinalizeModelOutputArgs): Promise<Record<string, unknown>> {
++  return finalizeOutput(args, prepare);
++}
++
++/** One ordinary service row group, not a service/global cache or a batch rewrite.
++ * Lazy preparation stays AFTER each row's populate handoff. Only closed captured
++ * inputs are shared; native virtual inspection, stages, callbacks and completion
++ * retain their original row boundary and async orchestration. */
++export function createModelOutputFinalizer(): typeof finalizeModelOutput {
++  let shared: SharedPreparation | undefined;
++  return (args) =>
++    finalizeOutput(args, (row) => {
++      const prepared = prepare(row, shared);
++      shared = prepared.shared;
++      return prepared;
++    });
++}
++
+ export async function finalizeModelOutputs(args: FinalizeModelOutputsArgs): Promise<Record<string, unknown>[]> {
+   const { inputs, documentStages, rowBudgets, rowReferences, ...rest } = args;
+   if (
+diff --git a/packages/access-router/src/services/service.ts b/packages/access-router/src/services/service.ts
+index 8bb78bd..4a4944b 100644
+--- a/packages/access-router/src/services/service.ts
++++ b/packages/access-router/src/services/service.ts
+@@ -122,7 +122,11 @@ import Permission from '../permission';
+ import { normalizeDocumentGrants } from '../acl/document-grants';
+ import { evaluateRouteGuard, intersectFilters } from '../core-shared';
+ import { validateExpandedCorrelatedOperands } from '../correlated-includes';
+-import { finalizeModelOutput, type FinalizeSnapshot } from '../output/finalize-model-output';
++import {
++  createModelOutputFinalizer,
++  finalizeModelOutput,
++  type FinalizeSnapshot,
++} from '../output/finalize-model-output';
+ import { attachPermissionsAlias, removeGeneratedPermissionsAlias } from '../output/permissions-alias';
+ import {
+   getIncludeOriginal,
+@@ -560,6 +564,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+     budget: TrustedOutputBudget;
+     publication: OutputPublication;
+     references?: ReadonlyMap<string, unknown>;
++    finalize?: typeof finalizeModelOutput;
+   }): Promise<{ data: Record<string, unknown>; context: ServiceOutputContext }> {
+     const { plan, context } = args;
+     const { authorization, authorizationBinding: binding } = plan;
+@@ -567,7 +572,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+     const configuration = readServiceOutputMetadata(authorization!, binding!);
+     if (args.privateAssociationField) excludeDocumentStagePath(args.stage, binding!, args.privateAssociationField);
+     let finalizedContext!: ServiceOutputContext;
+-    const data = await finalizeModelOutput({
++    const data = await (args.finalize ?? finalizeModelOutput)({
+       receivingModelName: this.modelName,
+       input: args.doc,
+       plan,
+@@ -2118,6 +2123,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+     // row traversal nor hooks hold a persistence permit.
+     const hookLimit = this.getVirtualHookConcurrencyLimit();
+     const sharedGate = this.hookGate;
++    const finalize = createModelOutputFinalizer();
+     docs = await mapWithConcurrencyLimit(
+       docs,
+       hookLimit,
+@@ -2153,6 +2159,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+           budget: outputRows[i].budget,
+           publication: outputRows[i].publication,
+           references: outputRows[i].references,
++          finalize,
+         });
+         outputContexts[i] = output.context;
+         return output.data;
+@@ -2375,6 +2382,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+     const detached = await this.prepareDetachedOutputRows(outputExecution, persistedDocs, createPlan, resolvedPopulate);
+     const outputRows = this.admitOutputRows(outputExecution, detached);
+     this.registerPopulateRecipients(outputRows, resolvedPopulate);
++    const finalize = createModelOutputFinalizer();
+     const docs = await mapWithConcurrencyLimit(
+       outputRows,
+       maxBulkConcurrency,
+@@ -2407,6 +2415,7 @@ export class Service<TModel = unknown, TVirtuals extends object = Record<never,
+           budget: row.budget,
+           publication: row.publication,
+           references: row.references,
++          finalize,
+         });
+         outputContexts[index] = output.context;
+         return output.data;

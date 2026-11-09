@@ -1,0 +1,267 @@
+{
+  "complete": true,
+  "kind": "baseline-versus-baseline-only",
+  "protocolPCandidateComparisonRun": false,
+  "candidateSmokeWiringSamplesRun": true,
+  "smokeTimingValuesAreNotAcceptanceEvidence": true,
+  "usableCases": 0,
+  "selectedCases": 16,
+  "coverage": [
+    {
+      "panel": "read-direct",
+      "pairedRounds": [
+        7,
+        7
+      ]
+    },
+    {
+      "panel": "control-direct",
+      "pairedRounds": [
+        7,
+        7
+      ]
+    },
+    {
+      "panel": "single-direct",
+      "pairedRounds": [
+        7,
+        7
+      ]
+    },
+    {
+      "panel": "scale-direct",
+      "pairedRounds": [
+        7,
+        7
+      ]
+    },
+    {
+      "panel": "scale-public",
+      "pairedRounds": [
+        7,
+        7
+      ]
+    }
+  ],
+  "workers": 140,
+  "expectedWorkers": 140,
+  "measuredOperations": 155904,
+  "warmupOperations": 393408,
+  "warmupFailures": 154,
+  "shortWindows": 0,
+  "serviceWindowMs": {
+    "min": 176.11236700000404,
+    "max": 1571.9617239999643
+  },
+  "cases": [
+    {
+      "id": "iiii/direct/read-hit/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 7,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.5928678760285648,
+      "cpuNoise": 1.2605494854151384,
+      "baselineWallMs": 0.5231753437499952,
+      "baselineCpuMs": 0.6922786458333333
+    },
+    {
+      "id": "tttt/direct/read-hit/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 3,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.1966381316977921,
+      "cpuNoise": 0.3864528629731687,
+      "baselineWallMs": 0.5247546840277819,
+      "baselineCpuMs": 0.6857361111111112
+    },
+    {
+      "id": "iiii/direct/list-single/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 4,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.20758783491140687,
+      "cpuNoise": 0.5265848089671272,
+      "baselineWallMs": 0.5114062118055366,
+      "baselineCpuMs": 0.6250208333333336
+    },
+    {
+      "id": "tttt/direct/list-single/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 2,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.3141319214061695,
+      "cpuNoise": 0.3156948399505013,
+      "baselineWallMs": 0.47752196354166426,
+      "baselineCpuMs": 0.5741423611111112
+    },
+    {
+      "id": "iiii/direct/create-single/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 3,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.17744034551813237,
+      "cpuNoise": 0.32210835367582824,
+      "baselineWallMs": 0.5844999513888894,
+      "baselineCpuMs": 0.7231059027777779
+    },
+    {
+      "id": "tttt/direct/create-single/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 2,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.328361381441864,
+      "cpuNoise": 0.3609682194815438,
+      "baselineWallMs": 0.5613945815972036,
+      "baselineCpuMs": 0.6689045138888888
+    },
+    {
+      "id": "iiii/direct/update-id/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 1,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.38469771889658544,
+      "cpuNoise": 0.467596087238795,
+      "baselineWallMs": 0.7562135807291585,
+      "baselineCpuMs": 0.9272578125000002
+    },
+    {
+      "id": "tttt/direct/update-id/hooks/1x4",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 4,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.42558391887228253,
+      "cpuNoise": 0.5364892312646294,
+      "baselineWallMs": 0.8029705078124975,
+      "baselineCpuMs": 1.0357526041666665
+    },
+    {
+      "id": "iiii/direct/list-many/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 13,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.6730469912295796,
+      "cpuNoise": 0.7535218743184484,
+      "baselineWallMs": 2.4460014270833264,
+      "baselineCpuMs": 2.6854427083333334
+    },
+    {
+      "id": "tttt/direct/list-many/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 9,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.6138968321167761,
+      "cpuNoise": 0.8749101222905251,
+      "baselineWallMs": 1.9431706145833136,
+      "baselineCpuMs": 2.196927083333333
+    },
+    {
+      "id": "iiii/direct/create-bulk/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 22,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.10232555950626376,
+      "cpuNoise": 0.09239366188697429,
+      "baselineWallMs": 5.228404416666682,
+      "baselineCpuMs": 5.586515625
+    },
+    {
+      "id": "tttt/direct/create-bulk/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 21,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.3542729396634877,
+      "cpuNoise": 0.41162825389308155,
+      "baselineWallMs": 5.436852567708324,
+      "baselineCpuMs": 5.917999999999999
+    },
+    {
+      "id": "iiii/public/list-many/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 7,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.22866145937304738,
+      "cpuNoise": 0.22561795199142054,
+      "baselineWallMs": 2.751950036458396,
+      "baselineCpuMs": 2.967270833333334
+    },
+    {
+      "id": "tttt/public/list-many/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 6,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.1484576574083658,
+      "cpuNoise": 0.24208870249645886,
+      "baselineWallMs": 2.2266860156249777,
+      "baselineCpuMs": 2.4778125
+    },
+    {
+      "id": "iiii/public/create-bulk/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 27,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.16704185323643883,
+      "cpuNoise": 0.23676726595397346,
+      "baselineWallMs": 6.042080416666669,
+      "baselineCpuMs": 6.613994791666666
+    },
+    {
+      "id": "tttt/public/create-bulk/hooks/16x16",
+      "usable": false,
+      "quality": {
+        "warmupFailures": 23,
+        "shortWindows": 0,
+        "workers": 28
+      },
+      "wallNoise": 0.28739317057183156,
+      "cpuNoise": 0.28063722664673296,
+      "baselineWallMs": 6.033801937500044,
+      "baselineCpuMs": 6.4336562499999985
+    }
+  ],
+  "noPerformanceOrNonRegressionClaim": true
+}

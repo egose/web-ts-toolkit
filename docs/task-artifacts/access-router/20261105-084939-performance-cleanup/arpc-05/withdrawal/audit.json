@@ -1,0 +1,75 @@
+{
+  "disposition": "ARPC-05 production withdrawn; original performance criteria were not met",
+  "sourceHash": "f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480",
+  "sourceFilesMatchedOriginalBaseline": 151,
+  "distFilesMatchedOriginalBaseline": 15,
+  "productionDiffEmpty": true,
+  "candidateProductionDiffVerifiedExactBeforeRevert": true,
+  "candidateProductionAnd90TestPatchesPreservedExactly": true,
+  "exactCandidateTestFilesReconstructed": 2,
+  "archivedCandidatePatchesApplyCheck": "passed without applying them",
+  "candidateTestCount": 90,
+  "retainedBaselineCharacterizationTests": 24,
+  "focusedTestsPassed": 638,
+  "focusedFilesPassed": 11,
+  "existingUnrelatedFilesUnchanged": 92,
+  "historicalParentFilesUnchanged": 17,
+  "protectedScopeOnly": true,
+  "sharedTaskAndOtherOwnersTestsUnchanged": true,
+  "baselineAndCandidateSealsReverified": true,
+  "structuredFilesValid": true,
+  "markdownLinksChecked": 17,
+  "privatePathsAndSessionScan": "passed",
+  "whitespaceScan": "passed; unified-diff context prefixes exempt, additions checked",
+  "gitDiffCheck": "passed",
+  "destinationIgnored": false,
+  "noAdditionalPerformanceCalibration": true,
+  "noQueuedWork": true,
+  "inventoryExcludesThisAudit": [
+    {
+      "path": "before-withdrawal.json",
+      "bytes": 21084,
+      "sha256": "1ba948e6052a1fe4d4f1b4affa4f6b171529447de9ff64b6300e30d03b181ed9"
+    },
+    {
+      "path": "candidate-90-tests.patch",
+      "bytes": 19590,
+      "sha256": "b2a516a2ceeed59dbc54da9fd99d8d193a60d12171dcc05f65440497b745610c"
+    },
+    {
+      "path": "candidate-production.patch",
+      "bytes": 2298,
+      "sha256": "38f26d6bdb0fd6bdc47eac6ddd04a570a0b62d00e93d25608d3439285c0c6fa8"
+    },
+    {
+      "path": "focused.log",
+      "bytes": 603,
+      "sha256": "1d02a783fbf79157059ca6dcef31f524a0dfa6706437c7e17d14f4f421b3c8b2"
+    },
+    {
+      "path": "lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "report.md",
+      "bytes": 8566,
+      "sha256": "863a0052e573ddb87d85a9568ddacf1789225275fe0a20070b5fc43fb9c483d1"
+    },
+    {
+      "path": "retained-state.json",
+      "bytes": 2059,
+      "sha256": "b51b6a3b8e3fa092513882be0776ba42ddee52fcaeec5c8f408d7a16b9dacfb0"
+    },
+    {
+      "path": "typecheck.log",
+      "bytes": 7683,
+      "sha256": "29f4ddeb3a7f9c93acb5e53a0cd62def707fb09de3cfde69e9880b693c5818b1"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 2947,
+      "sha256": "3026e6cacb5115b372f01f9f285f50ac6d30fdc24f6b8901980bc9c9a02910ff"
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "task": "ARTS-01",
+  "result": "passed",
+  "checkedAt": "2026-11-08T19:05:53.493242+00:00",
+  "commands": [
+    {
+      "argv": [
+        "node",
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verify-baseline.mjs",
+        "--declarations"
+      ],
+      "cwd": ".",
+      "TMPDIR": "<repo-root>/_tmp-arts-01-20261108-095305",
+      "exitCode": 0,
+      "seconds": 3.004,
+      "result": {
+        "result": "passed",
+        "mode": "unchanged working-tree baseline",
+        "protectedFiles": 434,
+        "files": 248,
+        "groups": 2615,
+        "staticCases": 2246,
+        "assertionCallSites": 11254,
+        "parameterizations": 849,
+        "directives": 411,
+        "runtimeFiles": 211,
+        "runtimeCases": 7565,
+        "layers": {
+          "contracts": 97,
+          "invariants": 64,
+          "internal": 50
+        },
+        "layerCases": {
+          "contracts": 3065,
+          "invariants": 3078,
+          "internal": 1422
+        },
+        "supportFiles": 37,
+        "declarationsChecked": true
+      }
+    },
+    {
+      "argv": [
+        "node",
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verify-baseline.mjs",
+        "--git-baseline",
+        "--declarations"
+      ],
+      "cwd": ".",
+      "TMPDIR": "<repo-root>/_tmp-arts-01-20261108-095305",
+      "exitCode": 0,
+      "seconds": 4.253,
+      "result": {
+        "result": "passed",
+        "mode": "recorded Git baseline",
+        "protectedFiles": 434,
+        "files": 248,
+        "groups": 2615,
+        "staticCases": 2246,
+        "assertionCallSites": 11254,
+        "parameterizations": 849,
+        "directives": 411,
+        "runtimeFiles": 211,
+        "runtimeCases": 7565,
+        "layers": {
+          "contracts": 97,
+          "invariants": 64,
+          "internal": 50
+        },
+        "layerCases": {
+          "contracts": 3065,
+          "invariants": 3078,
+          "internal": 1422
+        },
+        "supportFiles": 37,
+        "declarationsChecked": true
+      }
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verify-baseline.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 0.028
+    }
+  ],
+  "checks": {
+    "allStartingTrackedFiles": {
+      "checked": 2379,
+      "changed": []
+    },
+    "protectedInputFiles": 434,
+    "currentRevision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+    "trackedDiffEmpty": true,
+    "originalPatchBytes": 0,
+    "supportFiles": 37,
+    "dormantUncalledSupportFiles": 1,
+    "stableSupportExceptions": 3,
+    "jsonAndJsonlParsed": true,
+    "linksAndAnchorsChecked": true,
+    "supportCallerAndGeneratedOriginPathsResolve": true,
+    "privacyScanPassed": true,
+    "manualPrivacyReview": "No credentials, private session identifiers, identifying URLs or machine-specific absolute paths retained; repo-relative paths and <repo-root> placeholders only.",
+    "scratchIgnored": true,
+    "durableBundleAndFilesNotIgnored": true,
+    "gitDiffCheckPassed": true,
+    "addedArtifactWhitespaceCheckPassed": true,
+    "noProductionTestConfigOrSharedTaskEdit": true,
+    "noBackgroundOrScheduledJobsStarted": true
+  },
+  "limitations": [
+    "Verifier is baseline reconstruction/static preservation only, not ARTS-03 dependency enforcement or final migration acceptance.",
+    "No new runtime tests/builds were run during curation; the single fresh full package baseline is recorded in identities.json.",
+    "Initial artifact verifier syntax error was fixed before both passing modes; it was not a package baseline failure.",
+    "The coordinator task document was already untracked; only this artifact bundle is new durable work."
+  ]
+}

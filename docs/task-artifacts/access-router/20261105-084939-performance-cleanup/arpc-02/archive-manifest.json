@@ -1,0 +1,44 @@
+[
+  {
+    "original": "_tmp-arpc-02-ZaZbr4lD/work.json",
+    "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-02/work.json",
+    "sha256": "51db01314fbb894c6999c3fa5c87e23a426a961468dd719b593f6eb75c6a7614",
+    "bytes": 14097,
+    "transformation": "byte-for-byte"
+  },
+  {
+    "original": "_tmp-arpc-02-ZaZbr4lD/focused-noise-v2/protocol.json",
+    "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-02/noise/protocol.json",
+    "sha256": "7627df81364e38bacdc00a91577dd2487527803a2db9b119dff8de1196a27620",
+    "bytes": 5908,
+    "transformation": "byte-for-byte"
+  },
+  {
+    "original": "_tmp-arpc-02-ZaZbr4lD/focused-noise-v2/plan.json",
+    "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-02/noise/plan.json",
+    "sha256": "ba22be712205c7a6c75f49a7bf215e4e0b1b881355d0042ffbfb2dbd9e8563c0",
+    "bytes": 3934,
+    "transformation": "byte-for-byte"
+  },
+  {
+    "original": "_tmp-arpc-02-ZaZbr4lD/focused-noise-v2/work.json",
+    "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-02/noise/work.json",
+    "sha256": "08881c1e4c70c8d6b7afefdcad93e89e810f4e8a2992a152360862bf8869665e",
+    "bytes": 20517,
+    "transformation": "byte-for-byte"
+  },
+  {
+    "original": "_tmp-arpc-02-ZaZbr4lD/focused-noise-v2/raw.json",
+    "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-02/noise/raw.json",
+    "sha256": "6a23ddaac468365b67514f90c863cd5099e6b19bab51f43e6b170776db6584e4",
+    "bytes": 203047,
+    "transformation": "byte-for-byte"
+  },
+  {
+    "original": "_tmp-arpc-02-ZaZbr4lD/focused-noise-v2/report.json",
+    "archived": "docs/task-artifacts/access-router/20261105-084939-performance-cleanup/arpc-02/noise/report.json",
+    "sha256": "f70a6b2d64f535dc4ea9f38fbfcf87b7651e8d2945df305546421eecdb2bef1c",
+    "bytes": 17196,
+    "transformation": "byte-for-byte"
+  }
+]
