@@ -487,7 +487,15 @@ function _createMdxContent(props) {
         children: "PopulatePlanningOptions"
       }), "\nwith ordinary response ", (0,jsx_runtime.jsx)(_components.code, {
         children: "scopePath"
-      }), " segments. Source fields, target operation/rows and\nfield checks remain request-only; private source fetch does not authorize population.\nUse service ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " segments as its only supported option. Positional\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access"
+      }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'read'"
+      }), ") authorizes the source request field and supplies the target\ndefault; descriptor ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access"
+      }), " overrides the target only. Source fields, target\noperation/rows and field checks remain request-only: no document hooks, current\ndocument facts or captured parent output execution. Private source fetch does not\nauthorize population, and no separate ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sourceAccess"
+      }), " option is added.\nUse service ", (0,jsx_runtime.jsx)(_components.code, {
         children: "populate"
       }), " plus ", (0,jsx_runtime.jsx)(_components.code, {
         children: "authorization.related"
@@ -686,6 +694,45 @@ function _createMdxContent(props) {
       }), " from the existing ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/advanced"
       }), " entrypoint).\nRelated populate/include/subquery checks use target base operations, regardless\nof the initiating basic/advanced endpoint."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For ordinary service population, target precedence is ", (0,jsx_runtime.jsxs)(_components.strong, {
+        children: ["descriptor ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access"
+        }), " > query\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options.populateAccess"
+        }), " > existing method/operation default"]
+      }), ". Target operation\nadmission where required by target policy, rows, fields, virtuals and document\npermissions use that access. The source relationship instead uses its owning\nparent's effective output-field access, captured authority, selection and\nowning-document facts; document-dependent source decisions may be deferred to the\nparent document stage. Target facts do not replace source facts."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For example, source ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "related: { read: true, list: false }"
+      }), " can populate target\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "label: { list: true, read: false }"
+      }), " in an advanced read requesting\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ path: 'related', select: 'label', access: 'list' }"
+      }), ", if source read and target list\nadmission/rows permit it. No source permission broadening is needed. See the\n", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#populate-source-and-target-access",
+        children: "typed mixed-access example"
+      }), ".\nTarget access cannot admit a hidden/excluded source; readable source output cannot\ngrant target operations, rows or fields."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Effective source output access need not match the initiating operation: read-to-list\nfallback uses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "list"
+      }), " fields; create/update responses (including upsert branches) use\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read"
+      }), " fields, without replacing those writes' separate create/update virtual or\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissions"
+      }), " accesses. Dedicated ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SubPopulate"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "genSubPopulate"
+      }), " remain path/select-only;\nno new selectors are supported on dedicated child routes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Denied source output is omitted. Permitted references retain IDs if population is\nnot admitted (for example, target operation or terminal row denial). Once target\npopulation is admitted, missing/filtered targets remain scalar ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " or filtered\nreference arrays, not restored IDs. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "select"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "match"
+      }), " and referenced-ID constraints\nremain in force."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The shared Core populate boundary rejects all fourteen reserved route-variant\nnames in effective option and per-descriptor access, including generic legacy\ninclude/subquery options and trusted defaults, before target persistence. Other\ntrusted non-reserved custom access strings retain their runtime compatibility.\nInvalid selectors return controlled BadRequest: direct HTTP 400 or affected root\nentry 400/", (0,jsx_runtime.jsx)(_components.code, {
         children: "bad_request"

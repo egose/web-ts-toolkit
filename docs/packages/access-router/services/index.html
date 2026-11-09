@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Services | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Services | web-ts-toolkit"><meta data-rh="true" name="description" content="Routers expose service access for custom routes and tests."><meta data-rh="true" property="og:description" content="Routers expose service access for custom routes and tests."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/services" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Services","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/services"}]}</script><link rel="stylesheet" href="/assets/css/styles.3d079bff.css">
-<script src="/assets/js/runtime~main.72e42973.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.7630a9cf.js" defer="defer"></script>
 <script src="/assets/js/main.0c9dea1b.js" defer="defer"></script>
 </head>
 <body>
@@ -193,8 +193,12 @@ containers; explicit alias grants reject, while untouched persisted siblings rem
 Obsolete <code>buildVirtualPlan</code>/<code>buildSubVirtualPlan</code> service builders are removed in favor of
 the named fetch helpers; retained execution plans and system retention remain private.</p>
 <p><code>genPopulate(access?, populate?, options?)</code> takes request-only <code>PopulatePlanningOptions</code>
-with ordinary response <code>scopePath</code> segments. Source fields, target operation/rows and
-field checks remain request-only; private source fetch does not authorize population.
+with ordinary response <code>scopePath</code> segments as its only supported option. Positional
+<code>access</code> (default <code>&#x27;read&#x27;</code>) authorizes the source request field and supplies the target
+default; descriptor <code>access</code> overrides the target only. Source fields, target
+operation/rows and field checks remain request-only: no document hooks, current
+document facts or captured parent output execution. Private source fetch does not
+authorize population, and no separate <code>sourceAccess</code> option is added.
 Use service <code>populate</code> plus <code>authorization.related</code> when backend target authority is needed.</p>
 <p><code>DataCore</code>/<code>DataService</code> field helpers instead accept <strong><code>DataFieldOptions</code></strong> (root and
 <code>/advanced</code>), with only readonly <code>scopePath</code> and <code>{}</code> defaults. They retain the request-only
@@ -287,6 +291,30 @@ an ErrorResult or calling <code>res.json(result)</code> does not automatically s
 <code>&#x27;list&#x27; | &#x27;read&#x27;</code> (<code>PopulateAccess</code> from the existing <code>/advanced</code> entrypoint).
 Related populate/include/subquery checks use target base operations, regardless
 of the initiating basic/advanced endpoint.</p>
+<p>For ordinary service population, target precedence is <strong>descriptor <code>access</code> &gt; query
+<code>options.populateAccess</code> &gt; existing method/operation default</strong>. Target operation
+admission where required by target policy, rows, fields, virtuals and document
+permissions use that access. The source relationship instead uses its owning
+parent&#x27;s effective output-field access, captured authority, selection and
+owning-document facts; document-dependent source decisions may be deferred to the
+parent document stage. Target facts do not replace source facts.</p>
+<p>For example, source <code>related: { read: true, list: false }</code> can populate target
+<code>label: { list: true, read: false }</code> in an advanced read requesting
+<code>{ path: &#x27;related&#x27;, select: &#x27;label&#x27;, access: &#x27;list&#x27; }</code>, if source read and target list
+admission/rows permit it. No source permission broadening is needed. See the
+<a href="https://github.com/egose/web-ts-toolkit/blob/main/packages/access-router/README.md#populate-source-and-target-access" target="_blank" rel="noopener noreferrer" class="">typed mixed-access example</a>.
+Target access cannot admit a hidden/excluded source; readable source output cannot
+grant target operations, rows or fields.</p>
+<p>Effective source output access need not match the initiating operation: read-to-list
+fallback uses <code>list</code> fields; create/update responses (including upsert branches) use
+<code>read</code> fields, without replacing those writes&#x27; separate create/update virtual or
+<code>docPermissions</code> accesses. Dedicated <code>SubPopulate</code>/<code>genSubPopulate</code> remain path/select-only;
+no new selectors are supported on dedicated child routes.</p>
+<p>Denied source output is omitted. Permitted references retain IDs if population is
+not admitted (for example, target operation or terminal row denial). Once target
+population is admitted, missing/filtered targets remain scalar <code>null</code> or filtered
+reference arrays, not restored IDs. <code>select</code>, <code>match</code> and referenced-ID constraints
+remain in force.</p>
 <p>The shared Core populate boundary rejects all fourteen reserved route-variant
 names in effective option and per-descriptor access, including generic legacy
 include/subquery options and trusted defaults, before target persistence. Other
