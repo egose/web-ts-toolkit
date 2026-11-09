@@ -10,6 +10,41 @@ its diagnostic context have **no reusable authorization authority**. Neither mod
 is a callback sandbox, database transaction, rollback mechanism, external-cache
 freshness guarantee, blanket security-equivalence claim or performance promise.
 
+## Correction: populate source and target access
+
+Population now checks the source relationship under its owning parent's effective
+output-field access, independently of the requested target access. Previously,
+requesting target `list` access could leave a read-visible source reference as an ID
+because the source field denied `list`. A source `related: { read: true, list: false }`
+can now populate a target `label: { list: true, read: false }` in an advanced read
+requesting `{ path: 'related', select: 'label', access: 'list' }`. No source permission
+broadening is required; see the [mixed-access example](README.md#populate-source-and-target-access).
+
+Target precedence remains descriptor `access` > query `options.populateAccess` >
+existing method/operation default. Target operation admission, rows, fields, virtuals
+and document permissions still use that target access and existing target-owned policy.
+Source selection, captured authority and owning-document facts remain source-owned.
+A permissive target cannot expose a hidden source, and a readable source grants no
+target operation, row or field access. Denied source output is omitted; permitted
+references retain IDs when population is not admitted. Admitted target misses remain
+scalar `null` or filtered reference arrays, rather than restored IDs.
+
+Use effective output access, not the initiating operation name: read-to-list fallback
+uses source `list` fields; create/update responses (including upsert branches) use
+source `read` fields. This correction does not replace those writes' separate
+create/update virtual or `docPermissions` accesses with `read`.
+
+**Helper compatibility decision:** public signatures/options are unchanged.
+Request-only `Core.genPopulate`/`Service.genPopulate` use positional `access`
+(default `'read'`) for source request admission and as the target default; descriptor
+`access` overrides the target only. Code relying on a descriptor to change source
+admission must instead supply the intended positional source access. The helper has
+no document hooks, current document facts or captured parent output execution; use
+normal service population for that contract. Only existing `scopePath` is supported;
+there is no new `sourceAccess` option. Dedicated `SubPopulate`/`genSubPopulate` remain
+path/select-only, without new selectors on dedicated child routes. Private
+`dependsOnPopulate` behavior is unchanged.
+
 ## Breaking change: nested operation access
 
 **Hard removal, no compatibility period.** Flat operation-access variants and their

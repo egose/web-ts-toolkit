@@ -1555,8 +1555,13 @@ Scope migration uses **ordinary response segments**: replace
 `genSelect('read', select, { scopePath: ['contacts'] })` **for output planning**.
 Model output grants remain relative to the owning model (`contacts.email`).
 Replace `genPopulate('read', descriptors, ['contacts', 'sub'])` with
-`genPopulate('read', descriptors, { scopePath: ['contacts'] })`. This helper keeps
-source/target request checks; a privately fetched denied source still cannot populate.
+`genPopulate('read', descriptors, { scopePath: ['contacts'] })`. Positional `access`
+(default `'read'`) authorizes the source request field and supplies the target default;
+descriptor `access` overrides **only the target**. The helper keeps request-only
+source/target checks: no document hooks, current document facts or captured parent
+output execution. It does not reproduce the parent's document-stage output checks;
+private fetch inputs cannot admit a request-denied source. Its only supported option
+remains `scopePath`; no separate `sourceAccess` option is added.
 Use normal service `populate` plus scoped `authorization.related` for explicit
 backend target authority. The obsolete raw `buildVirtualPlan`/`buildSubVirtualPlan`
 service builders are removed; use named fetch helpers. Retained plans, private
@@ -2121,6 +2126,60 @@ access strings keep their existing runtime behavior. Invalid selectors return
 controlled BadRequest (direct HTTP 400; affected root entry 400/`bad_request`).
 Legacy read/list includes now propagate target BadRequest instead of silently
 omitting it, so nested invalid selectors cannot disappear from the result.
+
+### Populate source and target access
+
+Target access resolves per descriptor: **descriptor `access` > query
+`options.populateAccess` > existing method/operation default**. It governs the
+target's operation admission where required by target policy, row filters, selected
+fields, virtuals and document permissions. These selectors do not change source visibility.
+
+In normal service population, the source relationship uses its owning parent's effective
+**output-field access**, captured authority, selection and owning-document facts. Document-dependent source
+decisions can remain deferred until the parent document stage; target facts do not
+replace them. Effective output access is not necessarily the initiating operation:
+read-to-list fallback uses `list` fields, while create/update responses (including
+upsert branches) use `read` fields. The writes' separate create/update virtual and
+`docPermissions` accesses are not replaced by `read`.
+
+For example, register `Source.related` as a scalar ref to `Target`, with the following
+respective `permissionSchema` values. Assume source read and target list admission
+and their row policies permit the referenced documents. An admitted advanced read
+(`POST /sources/__query/:id`) can request list-policy target fields:
+
+<!-- doc-example: partial -->
+
+```ts
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
+
+const permissionSchemas = {
+  Source: { related: { read: true, list: false } },
+  Target: { label: { read: false, list: true } },
+} satisfies Record<string, ModelRouterOptions['permissionSchema']>;
+
+declare const req: ModelRequest;
+declare const sourceId: string;
+const result = await req.macl
+  .getPublicService('Source')
+  ._read(
+    sourceId,
+    { select: ['related'], populate: [{ path: 'related', select: 'label', access: 'list' }] },
+    { tryList: false },
+  );
+```
+
+The read can return `related.label` without granting source `related` in list
+responses or target `label` under read policy. No source permission broadening is
+needed. A permissive target cannot admit a hidden/excluded source; a readable source
+cannot grant target operations, rows or fields. Dedicated `SubPopulate`/`genSubPopulate`
+remain path/select-only; this does not add selectors to dedicated child routes.
+
+Denial and misses retain their existing cardinality: denied source output is omitted;
+permitted references keep IDs when population is not admitted (for example, target
+operation or terminal row denial). Once target population is admitted, missing or
+filtered targets produce `null` for a scalar or are filtered from a reference array,
+not restored to IDs. Ordinary `select`, `match` and referenced-ID constraints still apply.
 
 ### Runnable data-router split
 
