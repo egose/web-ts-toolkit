@@ -58,7 +58,11 @@
   "scripts": {
     "build": "tsup --config tsup.config.ts",
     "typecheck": "pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json",
-    "test": "pnpm --filter @web-ts-toolkit/access-router... build && vitest run --config vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/access-router... build && node scripts/check-test-layers.mjs && vitest run --config vitest.config.ts",
+    "test:contracts": "pnpm --filter @web-ts-toolkit/access-router... build && node scripts/check-test-layers.mjs && vitest run --config vitest.contracts.config.ts",
+    "test:invariants": "pnpm --filter @web-ts-toolkit/access-router... build && node scripts/check-test-layers.mjs && vitest run --config vitest.invariants.config.ts",
+    "test:internal": "pnpm --filter @web-ts-toolkit/access-router... build && node scripts/check-test-layers.mjs && vitest run --config vitest.internal.config.ts",
+    "test:layers:check": "node scripts/check-test-layers.mjs"
   },
   "files": [
     "README.md",
