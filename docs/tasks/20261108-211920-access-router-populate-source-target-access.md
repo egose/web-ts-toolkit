@@ -2,8 +2,9 @@
 
 Created: 2026-11-08 21:19:20 (local repository clock).
 
-Overall status: pending — observed behavior and source references are recorded;
-implementation and toolkit verification have not started.
+Overall status: completed — defect confirmed and corrected by subagents;
+regressions, documentation and applicable checks pass. Independent final review
+approved the integrated change with no blockers. Public API shapes are unchanged.
 
 ## Objective and scope
 
@@ -20,7 +21,8 @@ or changing private `dependsOnPopulate` behavior.
 
 Prepared using the task-as-you-go skill and [repository task conventions](README.md).
 Examples use generic library fixtures and require no knowledge of a consuming
-application. The original findings, task IDs, and pending status are retained.
+application. The original findings and task IDs are retained; execution updates
+are recorded below.
 
 ## Issue
 
@@ -147,7 +149,9 @@ below because the tasks share source, tests, and generated build outputs.
 
 ### Task PSA-01: Correct populate source-access resolution
 
-Status: pending
+Status: completed
+
+Assigned agent: IMPL-01 (implementation and focused reproductions).
 
 Kind: defect
 
@@ -183,9 +187,24 @@ Acceptance criteria:
 Verification: focused service/helper regressions using the package's Vitest
 configuration and built dependencies; record the exact commands and results.
 
+Completion evidence:
+
+- IMPL-01 changed only source admission in `Service.genExecutionPopulate` and
+  `Core.genPopulate`; target policy and public signatures are unchanged.
+- Before correction: six focused failures and three passes. After rebuilding:
+  nine focused passes, 105 passes across both affected contract suites, and 67
+  passes across two internal helper-boundary suites.
+- Standard contract scripts failed before Vitest on 94 consumer-inventory
+  preflight errors; direct Vitest used rebuilt package entries for focused checks.
+  This is not a full package acceptance pass. PSA-04 tracks the gate blocker.
+- Commands, assertions and forwarding review:
+  [PSA-01 handoff](../task-artifacts/access-router/20261108-populate-source-target-access/psa-01.md).
+
 ### Task PSA-02: Verify mixed-access behavior across affected paths
 
-Status: pending
+Status: completed
+
+Assigned agent: TEST-02 (broader regression coverage).
 
 Kind: defect
 
@@ -200,10 +219,11 @@ Finding: the external reproduction does not establish alternate-path or negative
 authorization coverage in the toolkit.
 
 References: PSA-01 evidence and these candidate suites under
-`packages/access-router/test/`: `populate-operation-policy.helper-isolation.test.ts`,
-`populate-operation-policy.queries.test.ts`,
-`subdocument-populate-authorization.integration.test.ts`, and
-`write-output-populate.unit.test.ts`.
+`packages/access-router/test/`:
+`contracts/populate-operation-policy.helper-isolation.test.ts`,
+`contracts/populate-operation-policy.queries.test.ts`,
+`contracts/subdocument-populate-authorization.integration.test.ts`, and
+`invariants/write-output-populate.unit.test.ts`.
 
 Requirements:
 
@@ -239,15 +259,35 @@ Acceptance criteria:
 Verification: run the extended regressions, affected existing suites, and package
 test/typecheck commands from the shared verification section.
 
+Completion evidence:
+
+- TEST-02 added 19 cases to the existing query contract suite without changing
+  existing assertions or implementation. Coordinator reviewed the test diff.
+- Standard scripts passed with dependency builds and exhaustive preflight:
+  480 tests across five contract files; 81 tests across two invariant files;
+  seven internal helper-boundary tests; final focused run of 19 new cases passed.
+- The [coverage ledger](../task-artifacts/access-router/20261108-populate-source-target-access/psa-02.md)
+  maps every matrix/path requirement to new or rerun existing controls, including
+  dedicated path/select-only children and unchanged private dependencies.
+- No additional product defect was found. New create-context assertion mistakes
+  were corrected to the existing result contract, not treated as product failures.
+- Coordinator ran standard full package checks serially from the repository root,
+  with checkout-local `TMPDIR`: `pnpm --filter @web-ts-toolkit/access-router test`
+  passed all 218 files / 7,762 tests, including strict/packed consumers, and
+  `pnpm --filter @web-ts-toolkit/access-router typecheck` passed. Exhaustive layer
+  preflight passed. Repository `pnpm lint` also passed after the code/test changes.
+
 ### Task PSA-03: Document and validate the correction
 
-Status: pending
+Status: completed
+
+Assigned agent: DOCS-03 (public documentation/JSDoc and affected-doc checks).
 
 Kind: defect
 
 Priority: P2 — aligns the public contract and consumer guidance with the fix.
 
-Dependencies: PSA-01, PSA-02
+Dependencies: PSA-01, PSA-02, PSA-04
 
 Primary ownership: access-router README/MIGRATION/JSDoc, affected website guidance,
 and this task's verification record.
@@ -277,6 +317,79 @@ Verification: review the diff against the intended behavior, run package tests
 and typecheck, and check changed documentation formatting/links. Verify decorator
 or client contracts if their shared interfaces or helper behavior are affected.
 
+Completion evidence:
+
+- DOCS-03 aligned README, MIGRATION, website services guidance and public JSDoc,
+  including a compiled typed mixed-access example. Signatures/options and runtime
+  behavior did not change beyond PSA-01; source AST comparisons confirmed this.
+- Post-documentation checks passed: 98 documentation/named-helper consumer tests;
+  source typecheck; 24 authorization-guidance tests; standard decorator suite
+  (23 files / 779 tests, including its typecheck); one fresh packed-publication
+  integrity test; emitted JSDoc, formatting, scoped lint and local link checks.
+- Name-filtered strict/packed selections are distinguished from full-matrix
+  coverage. The earlier full 218-file runtime suite is not repeated for comments
+  and documentation only; affected checks were rerun after those changes.
+- [PSA-03 handoff](../task-artifacts/access-router/20261108-populate-source-target-access/psa-03.md)
+  records exact commands, corrected formatter/probe-authoring failures and limits.
+- FINAL-04 independently reviewed code/tests/metadata, then final documentation,
+  public types and declaration-visible JSDoc. No blockers or actionable findings;
+  integrated scoped acceptance approved. See the
+  [final review](../task-artifacts/access-router/20261108-populate-source-target-access/final-04.md)
+  for independently inspected boundaries and verification limits.
+
+### Task PSA-04: Restore consumer-review inventory preflight
+
+Status: completed
+
+Kind: defect
+
+Priority: P2 — required to run the standard test gates; discovered during PSA-01.
+
+Assigned agent: GATE-04 (independent, narrow verification prerequisite).
+
+Dependencies: none
+
+Primary ownership: `packages/access-router/scripts/test-layer-consumers.mjs` and
+focused checker tests only if necessary. Do not modify populate implementation or
+consumer tests merely to avoid an inventory error.
+
+Finding: both pre-fix and post-fix standard contract commands stopped before
+Vitest with 94 stale/unmatched consumer inventory and graph errors in untouched
+packed/strict-consumer suites. Whether the errors also occur on the original HEAD
+must be independently established before calling them baseline failures.
+
+Requirements:
+
+1. Establish baseline provenance without reverting or replacing current work.
+2. Inspect actual producer/read/compiler expressions; repair only stale review
+   anchors/inventories if their public-input boundary is unchanged.
+3. Preserve fail-closed graph checks, input sets, negative cases and assertions.
+   Stop and report any real new private dependency or larger required redesign.
+
+Acceptance criteria:
+
+- The baseline classification is backed by evidence.
+- Standard test-layer preflight passes without exemptions or weakened checks.
+- Checker regression tests pass, and any correction is limited to reviewed drift.
+
+Verification: `pnpm --filter @web-ts-toolkit/access-router test:layers:check`, plus
+the repository's checker tests; run no shared-output builds concurrently with
+TEST-02. Record exact commands and limitations in the evidence bundle.
+
+Completion evidence:
+
+- GATE-04 reproduced the identical 94 errors in an isolated HEAD tracked-input
+  snapshot, without replacing current files. Existing `dist` reuse and limits are
+  documented; this establishes metadata baseline drift, not a pristine HEAD build.
+- Updated 40 line coordinates only in `scripts/test-layer-consumers.mjs`.
+  Coordinator independently compared evaluated old/new policy excluding line
+  coordinates: expressions, input sets and negative boundaries are identical.
+- Standard layer preflight passed; 76 maintained checker tests passed in a
+  standalone scratch copy with no shared build/runtime setup. Scoped ESLint,
+  report formatting and diff checks passed.
+- [PSA-04 handoff](../task-artifacts/access-router/20261108-populate-source-target-access/psa-04.md)
+  records baseline provenance, exact anchors, commands and reproducibility limits.
+
 ## Shared verification and completion
 
 Run commands from the repository root after installing workspace dependencies.
@@ -297,10 +410,14 @@ TMPDIR='<repo-root>/_tmp-populate-source-target-access' pnpm --filter @web-ts-to
 TMPDIR='<repo-root>/_tmp-populate-source-target-access' pnpm --filter @web-ts-toolkit/access-router-deco test
 ```
 
-Open implementation question: how should the request-only Core helper represent
-source context independently of target defaults? Resolve this while tracing its
-callers in PSA-01; obtain maintainer agreement if a public API change is needed.
-The canonical reproduction and focused tests can proceed without that decision.
+Helper compatibility decision (2026-11-09): preserve all public signatures and
+options. For request-only `Core.genPopulate`/`Service.genPopulate`, positional
+`access` authorizes the source request field and supplies the target default;
+descriptor `access` overrides the target only. This intentionally corrects mixed
+access behavior without adding an API shape or claiming document-stage authority
+for the request-only helper. Canonical service population instead uses captured
+`outputAccess` for source rules. Dedicated `SubPopulate` remains path/select-only;
+no new target-selector support is introduced for subdocument routes.
 
 Done means the intended access separation is implemented, the reproduction and
 authorization controls pass, package checks pass, and documentation is aligned.
@@ -308,5 +425,40 @@ Record actual results before marking tasks completed. Preserve useful handoff
 evidence under `docs/task-artifacts/access-router/20261108-populate-source-target-access/`
 according to the repository conventions.
 
-Implementation evidence: pending. Only the task document has been created/reviewed;
-toolkit runtime checks have not been run for this planning-only change.
+## Execution record
+
+- 2026-11-09: User authorized review and, if legitimate, implementation by
+  subagents. Baseline worktree was clean at `647a217`.
+- REVIEW-01 completed: confirmed `Service.genExecutionPopulate` passes resolved
+  target access to source `extractOutputFieldRules`, while owning output uses
+  captured `access.outputAccess`. Confirmed the same coupling in `Core.genPopulate`
+  via `requestPopulateSelect`. Impact is under-population, not a demonstrated
+  authorization bypass. No runtime checks were run by the reviewer.
+  See the [curated review](../task-artifacts/access-router/20261108-populate-source-target-access/review-01.md)
+  for fixture cautions, forwarding constraints and review limitations.
+- Execution: IMPL-01 delivered PSA-01. TEST-02 and GATE-04 then worked in parallel
+  on disjoint test/metadata ownership, with TEST-02 the sole shared-build/runtime
+  owner. After full package acceptance, DOCS-03 delivered documentation and affected
+  checks. Independent FINAL-04 first approved code/tests/metadata, then approved the
+  integrated documentation/type/runtime agreement after DOCS-03. All agent jobs
+  ended with no remaining blockers. No commit or release was created.
+- Coordinator owns this task record and final verification scheduling. Agents
+  must not run overlapping build/test commands that write shared outputs.
+- Fresh disposable scratch directory:
+  `_tmp-populate-source-target-20261109-DCsFHQ` (confirmed ignored). Runtime
+  `TMPDIR` must be the absolute path to this checkout-local directory; no durable
+  evidence may depend on its contents alone.
+- Environment: Node `v26.12.1`, pnpm `11.18.0`; workspace dependencies are present.
+- Baseline verification (repo root): `pnpm lint` passed before implementation;
+  the task document also passed `pnpm exec prettier --check`.
+- Toolkit runtime checks: focused PSA-01 checks passed as recorded above;
+  preflight repaired and verified by PSA-04. Standard PSA-02 focused scripts passed.
+  Coordinator full-package check passed 218 files / 7,762 tests and source
+  typecheck passed; current code/tests passed repository lint. Documentation-phase
+  affected checks and standard decorator checks subsequently passed. Website
+  production build and full-workspace tests/builds were not run (outside scope).
+- [Coordinator gate record](../task-artifacts/access-router/20261108-populate-source-target-access/verification.md)
+  preserves exact shared-check commands, scope and omitted-artifact limitations.
+- Final coordinator repository lint passed after documentation edits. Useful
+  scratch results are curated in maintained tests and the evidence bundle;
+  disposable logs, caches, snapshots and consumers were not copied or deleted.
