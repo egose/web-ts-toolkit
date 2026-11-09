@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "task": "ARTS-05",
+  "scope": "Documentation and read-only evidence reconciliation only; ARTS-06 independent review/full V3 is pending.",
+  "sourceRevision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "cwd": ".",
+  "scratch": "_tmp-arts-05-pfVH5Esm",
+  "TMPDIR": "<repo-root>/_tmp-arts-05-pfVH5Esm",
+  "toolchainUsed": { "node": "v26.12.1", "typescript": "6.0.3" },
+  "commands": [
+    {
+      "argv": ["git", "check-ignore", "_tmp-arts-05-pfVH5Esm"],
+      "exit": 0,
+      "result": "Fresh repository-local scratch is ignored."
+    },
+    {
+      "argv": ["node", "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-verify-checkpoint.mjs"],
+      "exit": 0,
+      "result": "Read-only checkpoint passed against current built outputs; no fresh build."
+    },
+    {
+      "argv": ["node", "_tmp-arts-05-pfVH5Esm/reconcile.mjs"],
+      "exit": 0,
+      "historicalScratchCommand": true,
+      "result": "Static original/case/support/matrix/seal audit and direct public graph audit passed; no Vitest or setup execution."
+    },
+    {
+      "argv": ["python3", "_tmp-arts-05-pfVH5Esm/check-docs.py"],
+      "historicalScratchCommand": true,
+      "exit": 0,
+      "result": "Documentation/structured-data/links/anchors/privacy/whitespace/ignore, unchanged inputs and no-active-jobs checks passed."
+    },
+    {
+      "argv": ["git", "diff", "--check"],
+      "invokedBy": "check-docs.py",
+      "exit": 0,
+      "result": "Tracked diff whitespace passed; all four new untracked documents also checked directly."
+    }
+  ],
+  "originalPreservation": {
+    "files": 248,
+    "exactInverseRepairs": 1093,
+    "gitBaselineBytesAndAllStaticRecordsMatched": true,
+    "groups": 2615,
+    "staticCases": 2246,
+    "assertionCallSites": 11254,
+    "parameterizations": 849,
+    "directives": 411,
+    "topLevelStatements": 4245,
+    "baselineRuntimeIdsRevalidated": 7565,
+    "uniqueFileFullTitlePairs": 7556,
+    "duplicateTitleExcessOccurrenceQualified": 9,
+    "arts02FocusedRowsMatched": 1145,
+    "originalRuntimeExpansionRerun": false,
+    "ledgers": ["migration-ledger.json", "arts-02-preservation.jsonl", "preservation-ledger.jsonl", "runtime-cases.jsonl", "arts-02-focused-cases.jsonl"]
+  },
+  "checkpoint": {
+    "sourceFiles": 152,
+    "declarationFiles": 8,
+    "arts03MaintainedToolingFiles": 10,
+    "protectedNonTestInputs": 186,
+    "unchangedBaselineNonTestInputs": 184,
+    "exactApprovedExceptions": ["packages/access-router/package.json", "packages/access-router/vitest.config.ts"],
+    "runtimeEsmAndCjsExports": { "index": 46, "advanced": 48, "processors": 6 },
+    "migratedBytesDigest": "292d10d8b0a666bc25fddb6937ded50565840dfc78ed9968d300effb34056971",
+    "sourceDigest": "936a5c248f9cb9c92ce38355920b890ac1ae68d1b75affadc3f90901a507ff62",
+    "declarationDigest": "0b8dad3ee3c2db7c5a55ce35e3c677e6c0c082010dd3b9cdcb8b37a6e50ed8f1",
+    "freshBuild": false
+  },
+  "supportAndMatrix": {
+    "supportDestinationsAndCallerMaps": 37,
+    "normalizedInstalledSources": 25,
+    "sealedRootRepairExpressionsPresent": 16,
+    "exactGeneratedRecipeBodies": 3,
+    "globalSetupRegistrationNow": "packages/access-router/vitest.shared.ts, shared by all four configs",
+    "retainedOriginalPublicFiles": 97,
+    "gapRows": 34,
+    "surfaceRows": 23,
+    "uniqueMappedCompanionCases": 93,
+    "sealedArts03GuardCases": 59,
+    "exporterCleanupOnlySupersessionVerified": true,
+    "exporterCleanupAddsCases": 0,
+    "publicStaticGraph": { "physicalFiles": 137, "parsedModules": 237, "errors": 0 },
+    "configuredAliasesRediscovered": false,
+    "blockers": []
+  },
+  "staticInventoryNotNewVitestDiscovery": { "contracts": 103, "invariants": 64, "internal": 51, "total": 218 },
+  "expectedNotExecutedFullCases": { "contracts": 3158, "invariants": 3078, "internal": 1481, "total": 7717, "formula": "7565 originals + 59 guards + 93 companions" },
+  "historicalEvidence": {
+    "unchangedFiles": 34,
+    "beforeAfterDigest": "df56e94ccd3e0f445a7b88756e05720d64fcf690b516dd0ce321814e1c470f17",
+    "digestAlgorithm": "SHA-256 of sorted repo-relative path + NUL + SHA-256 + newline records.",
+    "manifestChainChecked": ["bundle-manifest.json", "arts-02-manifest.json", "arts-03-manifest.json", "arts-04-manifest.json", "arts-04-cleanup-manifest.json"],
+    "exporterCurrentIdentitySource": "arts-04-cleanup-manifest.json",
+    "oldManifestsRewritten": false,
+    "capturedPreexistingInputsUnchanged": 476,
+    "trackedDiffUnchanged": true,
+    "sharedTaskUnchanged": true
+  },
+  "documentationAudit": {
+    "status": "passed",
+    "markdownFilesChecked": 13,
+    "localFileLinksChecked": 139,
+    "anchorLinksChecked": 10,
+    "uniqueResolvedTargets": 64,
+    "structuredFilesParsed": 22,
+    "jsonlRecordsParsed": 24335,
+    "privacyFilesScanned": 38,
+    "privacyScope": "New files and all 34 historical bundle files; local home/temp paths, private session IDs, common credential/key patterns plus manual review.",
+    "newFilesWhitespaceChecked": 4,
+    "durableFilesConfirmedNotIgnored": 38,
+    "scratchConfirmedIgnored": true,
+    "gitDiffCheckExit": 0,
+    "capturedPreexistingInputsUnchanged": 476,
+    "trackedDiffUnchanged": true,
+    "activeBuildTestPackageManagerJobs": 0
+  },
+  "newDocumentIdentities": [
+    {
+      "path": "packages/access-router/test/README.md",
+      "bytes": 13887,
+      "sha256": "2cb2cfa663420501eb5255d5cc06cacbe21219ce07dba2901e8c56d6b0ab365c"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-05-reconciliation.md",
+      "bytes": 14251,
+      "sha256": "f0055aec04b1c73616fa9689c3e6f6320473dcb3719d40a19af423ab41753ecf"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-05-report.md",
+      "bytes": 7754,
+      "sha256": "f87f7dbcdee8627d4ff48a65a07cd6a46c2ca124213f5595c71ab17f25bc0188"
+    }
+  ],
+  "scratchAuditCorrections": [
+    "Initial git diff capture exceeded Node execFileSync default buffer; raised the scratch capture buffer, not a test timeout.",
+    "Initial finite-input join incorrectly used kind instead of supportKind; corrected scratch lookup and retained the exact 25-input equality check.",
+    "An added scratch check incorrectly equated Vitest .each reporter columns with TS call-start columns; preserved the sealed reporter columns/IDs and validated definition lines, without claiming new runtime locations."
+  ],
+  "notRun": [
+    "pnpm --filter @web-ts-toolkit/access-router... build",
+    "pnpm --filter @web-ts-toolkit/access-router test:layers:check",
+    "pnpm --filter @web-ts-toolkit/access-router typecheck",
+    "pnpm --filter @web-ts-toolkit/access-router test:contracts (complete standalone run)",
+    "pnpm --filter @web-ts-toolkit/access-router test:invariants (complete standalone run)",
+    "pnpm --filter @web-ts-toolkit/access-router test:internal (complete standalone run)",
+    "pnpm --filter @web-ts-toolkit/access-router test (exhaustive default run)",
+    "pnpm exec eslint packages/access-router/src packages/access-router/test packages/access-router/scripts packages/access-router/vitest*.ts",
+    "Fresh Vitest discovery, runtime tests, root/grouped/downstream suites, unrelated CLI/release builds, performance campaigns"
+  ],
+  "pendingOwner": "ARTS-06 after ARTS-05 acceptance: independent actual-source/fixture review and all fresh V3 gates.",
+  "omitted": ["Temporary audit scripts/snapshot", "Raw logs/reporters", "Dependencies, generated consumers/builds/tarballs, Mongo data"],
+  "selfHashExcluded": true,
+  "noRuntimeTestsOrBuilds": true,
+  "noFurtherAgentsCommitsResetsDeletesOrSharedTaskEdits": true,
+  "noQueuedOrBackgroundJobs": true,
+  "limitations": "Static preservation/matrix audit is not runtime expansion, independent final acceptance, universal compatibility proof or a speed claim. Historical scratch commands are not runnable from this curated bundle alone."
+}

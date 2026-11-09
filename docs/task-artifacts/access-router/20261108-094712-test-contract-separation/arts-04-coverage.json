@@ -1,0 +1,3934 @@
+{
+  "schema": 1,
+  "task": "ARTS-04",
+  "status": "completed-for-bounded-companion-scope",
+  "sourceRevision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "scope": "Additive public-only companions. Not ARTS-06/full-layer/default acceptance. Original evidence and task remain frozen.",
+  "ceiling": 94,
+  "newPassedCases": 93,
+  "modeOrthogonalCases": 43,
+  "otherCases": 50,
+  "newRunnableFiles": 6,
+  "newSupportFiles": 4,
+  "caseIdentity": "SHA-256 of compact JSON [repoRelativeFile, fullTitle, line, column, oneBasedTitleOccurrence], same construction as the baseline but for additive new files.",
+  "noPrivateEvidenceSubstitution": true,
+  "gapRows": [
+    {
+      "id": "MODE-00",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "242d0c31b7156de44ec643d14a0598348a962db3bddda34b05a0d25891a2b968"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 0,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "isolated",
+        "isolated",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-01",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "b811df932d57bb483abe8b1decc2ad9805273cf7654426364756149e22576ff4"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 1,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "isolated",
+        "isolated",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-02",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "70140d2e6676b51a079b59d67de223c4b0f97ea23fa337b61571b6bdc980b9a2"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 2,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "trusted",
+        "isolated",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-03",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "a41b6c4b0f55e0b5de324f9ccffa1e668ea435cc0fa855310f3f9ce31276f0b5"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 3,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "trusted",
+        "isolated",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-04",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "d7b125b3382cf96946bbce3a255788098e6e9c2e0186e1643ac89a1cdc57264d"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 4,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "isolated",
+        "trusted",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-05",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "7864273beff333e32a0d2f035c0c00919d69a9913412bdfbd18f8bf157d85032"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 5,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "isolated",
+        "trusted",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-06",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "ed9a120d066ce6feacbe9cebbc1120cd468e86a1740b2263b85766845732f036"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 6,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "trusted",
+        "trusted",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-07",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "f69784a9a7b062e52b65117285afe706f7d64abb313e7ed4d9e721f5bb2e1efc"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 7,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "trusted",
+        "trusted",
+        "isolated"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-08",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "7a531104b5e386fac256b34907cccdd42107b55e2ba2850d5977d309164385ec"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 8,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "isolated",
+        "isolated",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-09",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "d0930aea868f240528852f7e995ddcc8a5aa88728beef2d5e792aafddb5821cf"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 9,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "isolated",
+        "isolated",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-10",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "5840ce05b9908a90aa9078d9e18ee0323ff7c9479bfb0792c8fb308061a279fc"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 10,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "trusted",
+        "isolated",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-11",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "b7bed77f25384f13cf156661986ab768bcd10c82b001f161da327b1f88ba69a4"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 11,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "trusted",
+        "isolated",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-12",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "0473bc3eb4f59e6f25a936cde3bba05b8c25788eaa584e765e79d5a181e07977"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 12,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "isolated",
+        "trusted",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-13",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "5c484e07bf9fb75fc6deead5a04a96d6df29a4afebedf94b192c461e4c2b9738"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 13,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "isolated",
+        "trusted",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-14",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "ce5693843925f26336a27d7069b5e16d38586624552db0e2904ef963e7b74ca7"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 14,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "isolated",
+        "trusted",
+        "trusted",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "MODE-15",
+      "status": "completed",
+      "newPassedCases": 1,
+      "maximumNewCases": 1,
+      "newCaseIds": [
+        "45bb967780ed62c459067f8d6e7a01e33fdc08d7f6050c11e560228c2e6dd7eb"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples.",
+      "mask": 15,
+      "modeOrder": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE"
+      ],
+      "modes": [
+        "trusted",
+        "trusted",
+        "trusted",
+        "trusted"
+      ],
+      "primaryOperations": [
+        "READ",
+        "LIST",
+        "CREATE",
+        "UPDATE",
+        "UPSERT-create",
+        "UPSERT-update"
+      ]
+    },
+    {
+      "id": "TARGET",
+      "status": "completed",
+      "newPassedCases": 8,
+      "maximumNewCases": 8,
+      "newCaseIds": [
+        "6d40b6423ddc77ed483c05345cadbc16f227bacafdfdb3454010be62cf2a6000",
+        "def5a3af4ec85be50951014a675d8f9b0fd6b1d3481c40c69f40fb324dcfe804",
+        "7535a67594d67ee69dff5495db17d7b800635e359017623e92a92e2cc4bd7602",
+        "b9f73d094f1f260a1466f5ec18e13b8436e87745dda29005320411efed5aac2e",
+        "319c4c26bc2586e9b26dad6dd612acbbee8c64458eb613fa23cdf56ff3c3733e",
+        "d7efc0e66da4fb875543661786a3a246300ac81625eaf294c466141bbc54901e",
+        "a910d798a9f2ddac257ee4f7c7f6d110db69ceb30b198b2cddb7223358ca13f3",
+        "cae87146cea0d705920287a86232cd595cc31fc0e3a5fbc2abfbc275db9ccf23"
+      ],
+      "retainedPublicFileIds": [
+        "F142",
+        "F143",
+        "F138",
+        "F073",
+        "F186"
+      ],
+      "acceptance": "Four independent target READ/LIST pairs under opposite source READ/LIST/CREATE/UPDATE postures; effective READ and LIST populate/include, both write-origin outputs with Date/Binary mutations, independent target facts, parent/sibling/storage detachment and unchanged actual populated target documents retained by application afterPersist."
+    },
+    {
+      "id": "CAPTURE",
+      "status": "completed",
+      "newPassedCases": 7,
+      "maximumNewCases": 8,
+      "newCaseIds": [
+        "c2bfe0b6e749b0ced0514a57d4a68ce1a63ef3e0d3cb46584ea87601896ea73a",
+        "bd212744510478e9770eebdeea30861c811649fca8f4c7bf96f3d0bfdfad980d",
+        "d15f0ccdd873e68d7e2c687e704550076db493747f40397d71a3e1a9ff76b419",
+        "a13c1928923ae7598a14847f36b3bea748ed329a4121cd878ce043b7f366bcc5",
+        "36f91f6201dc6c1aef151566c49a98cad62c7980d4b4422cd17216aa46f0ff89",
+        "6bbcac9156a45ba6d5bb5535ee5c87713228d99b3c6959f301d743c7e22b13cd",
+        "dd52b9e57c398fda87526db85737a6af1a266f99007f5e5c4342cc15ff318838"
+      ],
+      "retainedPublicFileIds": [
+        "F099",
+        "F069",
+        "F231",
+        "F225"
+      ],
+      "acceptance": "Six held operations, opposite branch settings, all settings flipped during hold, nested fresh read and subsequent fresh calls; real inherited/explicit/restored borrowing, immutable construction snapshot, warning membership per transition and logger failure containment."
+    },
+    {
+      "id": "FALLBACK",
+      "status": "completed",
+      "newPassedCases": 4,
+      "maximumNewCases": 4,
+      "newCaseIds": [
+        "2f9c6fdc96670bc5d7b321e9108bf8013e74216dbafbc03ea5aea9df81d5ab02",
+        "130f773120a07cf849362e4eccc07a20dd786e55b06d3a58d6a86099933b66a1",
+        "c96e0da12a449d089b128eda3fee6db743ae64de815c194a38954eeb2db98326",
+        "01e03e7c0feb0c0b314bb5e43a03b42fc9feb6c88108bc0a634d83bb0b0f13c6"
+      ],
+      "retainedPublicFileIds": [
+        "F154",
+        "F155",
+        "F194",
+        "F229"
+      ],
+      "acceptance": "Four READ/LIST pairs distinguish initiating READ borrowing on fallback from independent LIST; fresh fact stage, LIST admission and terminal false. Retained public tests protect other denial/row/field/target/HTTP/root branches."
+    },
+    {
+      "id": "DETACH",
+      "status": "completed",
+      "newPassedCases": 8,
+      "maximumNewCases": 8,
+      "newCaseIds": [
+        "e080e23adec3e15163d4e9df1a1f469f7fca5519f2f68b9d1bcc22f072927047",
+        "c41352dcb114a278b939cc75b94c135cc296e579b3ff64e18de8e0899d701688",
+        "e6341eeb3b1b5a47811fab8ab162ebabdac34d92dbdc03b969529a6461acead3",
+        "21529253a988196688c25fe2ff5029556e024c744aa2c0fc89a26603ef41d356",
+        "f035da490ed9651addf24ffb57884be8c804dd70bb5b72f572ae96eb23ed0e03",
+        "40c12611030af43db502c655c0b0a12577ce68d49ae9e17d78b435384a559188",
+        "37e5888ae43131f2fcdf64f4d2fdfbd1f35db4a70b14cb12ba62f31c4f2bff66",
+        "d0090a8b0d5e93a6de8ea2ce8a48f44e4f12e4232c31eae6fa2c3379618bc11c"
+      ],
+      "retainedPublicFileIds": [
+        "F178",
+        "F044",
+        "F068",
+        "F219"
+      ],
+      "acceptance": "Both write modes across all four branches: nested plain/Date/Buffer output mutations, unchanged payload/live afterPersist document/prepared and final snapshots/storage; genuine native selected-slot overflow after a committed create in both modes. TARGET supplies write-target native detachment."
+    },
+    {
+      "id": "ENTRY",
+      "status": "completed",
+      "newPassedCases": 6,
+      "maximumNewCases": 6,
+      "newCaseIds": [
+        "f7b54e306cdb2392e17cd56b00a57b345e3594cfebb9d88a42ce5af80d9533ff",
+        "9785289fc9b81673233873b7a2f52e4fca66af874e6c68bea56c3856bef35e10",
+        "3ea6bb3c89d762d10eae268d5f048c35e932f97efc0acc47ddd0b8df3697232a",
+        "05116d16c57c9dd5f1cc8d55c30b034b57c5d36fc49c94406685a7790dedcb61",
+        "dcca1b1e3b81dc13a7e1adf895ed1b5ec71fe98c534732c4e423ff02b6341057",
+        "c23b8b21d5444c29d110b9efbc47ee6a4ebb99f6d48535841f6ae11fdc91359e"
+      ],
+      "retainedPublicFileIds": [
+        "F094",
+        "F080",
+        "F032",
+        "F082",
+        "F164",
+        "F085"
+      ],
+      "acceptance": "Actual model/data basic/advanced/root grants; child field precedence and parent scope; HEAD/live defaults/restoration; original request custom acquisition and non-implied initiating gate; all-trusted excluded-origin helper/NEW/child/count/distinct smoke."
+    },
+    {
+      "id": "GUARD",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "6650e2a88d4ee1964594756f52d3621a219ea5a70fcd86a4902ba771075544d0",
+        "39e0834a5a5d69e5c928e45a6c36c58eb8fcc61388297fede2bfa3c58d2df2b7"
+      ],
+      "retainedPublicFileIds": [
+        "F108",
+        "F132"
+      ],
+      "acceptance": "Real initialized middleware and exported guard with params/query IDs, missing-ID no application query, scalar/array/function permissions and original request this. Existing packed guard and private-input public cases retained."
+    },
+    {
+      "id": "CONTROL",
+      "status": "completed",
+      "newPassedCases": 4,
+      "maximumNewCases": 4,
+      "newCaseIds": [
+        "4b711549b2b8675dd090aca639979aba75161ca97c9e2c6dd1c12d553687763e",
+        "f3e8ff8c0f87574e0ca3fce3bd0d86f2f60d350d1b3060740d1df304ccc7807b",
+        "1e362acc91cccf7ec0b26dd7c0a77f1683e84a3a095d45878940e166b29b9490",
+        "a053ae93ecbf8e521456cd5baf849a9cf137eb932bafd263a49db294c6d006b0"
+      ],
+      "retainedPublicFileIds": [
+        "F121",
+        "F178",
+        "F189",
+        "F094"
+      ],
+      "acceptance": "Backend nested authority/helper/default/related/child-dimension rejection without model work; HTTP/root whole-sibling preflight before hooks/writes; inert same-named business data and terminal false versus malformed controls. Original 14-key wire matrix retained."
+    },
+    {
+      "id": "ADMISSION",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "1a75a18909ad22302c4b000c3055694b5549fd162ceb6f347bbc1b7a829da77e",
+        "14a4d93365dc6e8de3fff88c1f714d61a05ac90f992de7cfa825dbd4b6bc3b32",
+        "16a984e3821de8c8f5bc036aee0877b19735edfb23e7e8d6b4869372effe632e"
+      ],
+      "retainedPublicFileIds": [
+        "F099",
+        "F069",
+        "F218",
+        "F048",
+        "F132"
+      ],
+      "acceptance": "Atomic whole/dotted/inherited/nonenumerable retired operation keys; invalid mode/dependency/virtual settings and invalid global populate placement; options/registry unchanged; exact undefined restoration and ordinary business fields. Non-false populate values intentionally normalize to strict, not invalid enum values."
+    },
+    {
+      "id": "FACTS",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "b13ebe5f28398ceb214dca0e5aaacd083aa6c783fc0a48dc27a995e3a176e917",
+        "19eec4a1976df4742f5f6dff9f9920ad5870343646ab194bf7c5b2990de8f295",
+        "ea86d7e202e3f3bc948cb57e451eae9c6263222b875c196221f3f44db573155d"
+      ],
+      "retainedPublicFileIds": [
+        "F016",
+        "F174",
+        "F178",
+        "F044",
+        "F167"
+      ],
+      "acceptance": "I/T disposable/borrowed view distinction and frozen owned boolean facts; later helpers/read do not acquire returned metadata authority; rich fulfilled maps fail; thrown/rejected hooks yield frozen empty facts with redacted structural logs."
+    },
+    {
+      "id": "DISTINCT",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "43dd30808df1bce8729fb2ae1e7c102910253883dd6daec14e3c885c3fb23893",
+        "766c9c75b88629282db76cf72c829fc9c13ca14d3eb911b5f12c71c0361e8228",
+        "c30bdaef286a3aded0e8d6e20e525e8448fc37c18c018c124c0c80ca4f1c7040"
+      ],
+      "retainedPublicFileIds": [
+        "F039",
+        "F009",
+        "F219"
+      ],
+      "acceptance": "Direct/root restricted composites deny without application distinct; fully granted composite and scalar child return fixed literals; dynamic/metadata/Mixed uncertainty never invokes distinct."
+    },
+    {
+      "id": "COLLECTION",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "f63cdf000aec03d1f7005daa47ba91792603a023b8c333990a7021c56e546b75",
+        "90b41a3abfff7bb7b8a8060afccbb995af727be11cdbadf304f77b40fbac060f",
+        "12f4d5adc2c425a9a10b45c4643bcf3af809a1a5957bdd931f095cb52d8a7cb5"
+      ],
+      "retainedPublicFileIds": [
+        "F132",
+        "F205",
+        "F128",
+        "F048"
+      ],
+      "acceptance": "Actual acquired helper rejects outer position/sparsity/native limits before predicates; individually valid 4MiB rows fail cumulatively as a whole; two 4MiB rows plus one small held row at gate 2 prove admitted callback drains before failed settlement/no partial or late publication, followed by a fresh successful helper. No private budget injection."
+    },
+    {
+      "id": "DATA",
+      "status": "completed",
+      "newPassedCases": 4,
+      "maximumNewCases": 4,
+      "newCaseIds": [
+        "ce439191e1e4d4cab1c107e42fb49c7240bf1735ebf8ed498bf0ef37d97be19f",
+        "6134347ad04d7f276c23236f4cad153747ba17504568f50fcb29751d48466266",
+        "c6827d3db50c2fd3c7ed1dd4412b59256ea003e263705fe2bbec8d1dbe643134",
+        "942b2ebf7cdcc5fc1e20ee6a92212885de776ba16559f007cc186a526309ce5b"
+      ],
+      "retainedPublicFileIds": [
+        "F032",
+        "F021",
+        "F033",
+        "F099"
+      ],
+      "acceptance": "One finite plain/Date/Buffer/Map/Set/typed-view bundle; owned configuration/snapshots/independent return values, old/new dataset versions, atomic malformed/native-proxy replacement, direct/root decorator detachment. Full original 20-value matrix stays lower-layer."
+    },
+    {
+      "id": "CALLBACK",
+      "status": "completed",
+      "newPassedCases": 5,
+      "maximumNewCases": 5,
+      "newCaseIds": [
+        "21c29a1f0e1a69df0b69a2e5a2df075109ab90b3024c098a5364fcf26420e6ca",
+        "142e1e299717f41af25b9c7348a401ffeda53aa20df1425d7c869e07cc922ac1",
+        "67502648b6da89f6a1428625848684f43e5e3a249858b2844a5377a60903e394",
+        "55e7c974ea9a2204f6ebba3bac4f48f93daf80c9d166fd84874bdbd1220bdcd0",
+        "35f1197c0bb0536fce01c8b6068e79b06bfdcb92726f41cc2422efbc3ccbdcc8"
+      ],
+      "retainedPublicFileIds": [
+        "F032",
+        "F132",
+        "F048",
+        "F094",
+        "F167"
+      ],
+      "acceptance": "Initialized data core/service/public aliases small named helper loops, original request this, two field arguments/frozen empty facts by value; one-argument operation guard; acquired permission keys/has/hasKey/variadic and array methods/reserved names. No private constructor or EMPTY identity."
+    },
+    {
+      "id": "METADATA",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "a19c6ebf51aded55c28a35615c1d0caebdc0e241187cd741d05e6a9e9c274727",
+        "6d00c349b9a45334b4d8de7b498971740cfc71c6f26557db2ce1274cec6d81de"
+      ],
+      "retainedPublicFileIds": [
+        "F040",
+        "F056",
+        "F057",
+        "F135",
+        "F073",
+        "F016"
+      ],
+      "acceptance": "Two query/create modes; aligned frozen list/single/write contexts, real source IDs, dotted alias, expose allowlist, request-only _view/_edit separate from backend grants, denied fields, per-parent mutation independence and disable/strip postures."
+    },
+    {
+      "id": "DTO",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "e50023ea992377bcc84853710d30b6f64cbe5eaa017f7bbed2a357789dcf07c2",
+        "61a7fb69465aa596c2974256f1bbed1047f56e2d3d42b88bbb289a7e15072d8e"
+      ],
+      "retainedPublicFileIds": [
+        "F164",
+        "F079",
+        "F174",
+        "F135"
+      ],
+      "acceptance": "Actual direct/root single/list/error envelopes retain supported metadata but recursively omit context/capabilities/provenance/private snapshots, including forbidden-control errors. No wire serializer import or fabricated result."
+    },
+    {
+      "id": "EXPORT",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "28fe8486d351649468fda00fe7306e90258838f2657fa8057977716d1f9bc2c4",
+        "4901dfef6226808122f34b6e909ffc4dbdff12f0a2325bc932d75caed698c713"
+      ],
+      "retainedPublicFileIds": [
+        "F132",
+        "F205",
+        "F128",
+        "F085",
+        "F048",
+        "F210"
+      ],
+      "acceptance": "New actual installed ESM/CJS package-name imports cover runtime semantic names/default-callable identity/advanced parsers/processors/absent private runtime exports. Frozen existing packed private-exports.cjs failure-only resolves and strict Bundler/NodeNext/Node16 positive/negative compiles remain the blocked-private-path/type evidence, not duplicated or replaced by name absence. No private declaration/chunk-name contract."
+    },
+    {
+      "id": "PROCESSORS",
+      "status": "completed",
+      "newPassedCases": 5,
+      "maximumNewCases": 5,
+      "newCaseIds": [
+        "b9562700a0ec38b1d54ff37f812b7b80b139c705454a5e7a497381f87599b4fc",
+        "bac9ca9cd7ce6781bcacf4758ffe9cd6b32830230e1983ce5b17a0b989d4f097",
+        "8bc8fd1134e6716ee6f17ad6560ffa5e0117ce3ebf681642d57bcedcccfc09ca",
+        "3595131d49fc687b3e094833332984f94caf13785b93248035fb226377cdeccf",
+        "29cf11bde21e3ffb9b4ac7b9293ef77048f68f282b2bc442c60df1f3ad5a59fd"
+      ],
+      "retainedPublicFileIds": [
+        "F151",
+        "F150",
+        "F132"
+      ],
+      "acceptance": "copyPaths/movePaths/sliceArrays/countPaths/maskPaths each have bounded public literal mutation/clone/noop/error groups, applicable fanout/slice caps/unsafe paths. Existing copyAndDepopulate contracts retained."
+    },
+    {
+      "id": "VALIDATION",
+      "status": "completed",
+      "newPassedCases": 6,
+      "maximumNewCases": 6,
+      "newCaseIds": [
+        "357138939c2429afff17dd05fe6e16d7f134b03be014e920a61cde75b6bc15e2",
+        "8eb8ed0de3256fe84659538539ea74bcd42d0ab77cef387f7b75458f661c32a1",
+        "17ad82de319ec7d6523521cadd4bfc4dc01bbf3a93da1943f7b546b30efb56cb",
+        "c6b56f0e77e7dd2431d7a7914b2ed440ed6f1449715ccb66ffced1b1e9ecffb1",
+        "03185b9657d0c911cbb77cb99c4f3573cecc1cd4583929b6aa30c5c3c9fef025",
+        "186ce4637773c8833ea6637220a9672a045691d8c9608d0e1cfc46479a339b72"
+      ],
+      "retainedPublicFileIds": [
+        "F006",
+        "F157",
+        "F027",
+        "F028",
+        "F241",
+        "F218",
+        "F093",
+        "F092",
+        "F211",
+        "F212",
+        "F213",
+        "F214"
+      ],
+      "acceptance": "Public advanced body/query/path/nested parsers; safe correlated parent/literal markers and malformed/op-exclusive input; string/array/object/exclusion grammar; real model/data/root/child parity and OpenAPI no-getter open-object behavior. No new adapter matrix."
+    }
+  ],
+  "groups": [
+    {
+      "id": "MODE",
+      "status": "completed",
+      "newPassedCases": 16,
+      "maximumNewCases": 16,
+      "newCaseIds": [
+        "242d0c31b7156de44ec643d14a0598348a962db3bddda34b05a0d25891a2b968",
+        "b811df932d57bb483abe8b1decc2ad9805273cf7654426364756149e22576ff4",
+        "70140d2e6676b51a079b59d67de223c4b0f97ea23fa337b61571b6bdc980b9a2",
+        "a41b6c4b0f55e0b5de324f9ccffa1e668ea435cc0fa855310f3f9ce31276f0b5",
+        "d7b125b3382cf96946bbce3a255788098e6e9c2e0186e1643ac89a1cdc57264d",
+        "7864273beff333e32a0d2f035c0c00919d69a9913412bdfbd18f8bf157d85032",
+        "ed9a120d066ce6feacbe9cebbc1120cd468e86a1740b2263b85766845732f036",
+        "f69784a9a7b062e52b65117285afe706f7d64abb313e7ed4d9e721f5bb2e1efc",
+        "7a531104b5e386fac256b34907cccdd42107b55e2ba2850d5977d309164385ec",
+        "d0930aea868f240528852f7e995ddcc8a5aa88728beef2d5e792aafddb5821cf",
+        "5840ce05b9908a90aa9078d9e18ee0323ff7c9479bfb0792c8fb308061a279fc",
+        "b7bed77f25384f13cf156661986ab768bcd10c82b001f161da327b1f88ba69a4",
+        "0473bc3eb4f59e6f25a936cde3bba05b8c25788eaa584e765e79d5a181e07977",
+        "5c484e07bf9fb75fc6deead5a04a96d6df29a4afebedf94b192c461e4c2b9738",
+        "ce5693843925f26336a27d7069b5e16d38586624552db0e2904ef963e7b74ca7",
+        "45bb967780ed62c459067f8d6e7a01e33fdc08d7f6050c11e560228c2e6dd7eb"
+      ],
+      "retainedPublicFileIds": [
+        "F152",
+        "F016",
+        "F155",
+        "F074"
+      ],
+      "acceptance": "Each tuple executes READ/LIST/CREATE/UPDATE/UPSERT-create/UPSERT-update, literal hook borrowing, branch contexts, frozen boolean facts, denied output/input and real stored values. Earlier public pairs did not cover these joint tuples."
+    },
+    {
+      "id": "TARGET",
+      "status": "completed",
+      "newPassedCases": 8,
+      "maximumNewCases": 8,
+      "newCaseIds": [
+        "6d40b6423ddc77ed483c05345cadbc16f227bacafdfdb3454010be62cf2a6000",
+        "def5a3af4ec85be50951014a675d8f9b0fd6b1d3481c40c69f40fb324dcfe804",
+        "7535a67594d67ee69dff5495db17d7b800635e359017623e92a92e2cc4bd7602",
+        "b9f73d094f1f260a1466f5ec18e13b8436e87745dda29005320411efed5aac2e",
+        "319c4c26bc2586e9b26dad6dd612acbbee8c64458eb613fa23cdf56ff3c3733e",
+        "d7efc0e66da4fb875543661786a3a246300ac81625eaf294c466141bbc54901e",
+        "a910d798a9f2ddac257ee4f7c7f6d110db69ceb30b198b2cddb7223358ca13f3",
+        "cae87146cea0d705920287a86232cd595cc31fc0e3a5fbc2abfbc275db9ccf23"
+      ],
+      "retainedPublicFileIds": [
+        "F142",
+        "F143",
+        "F138",
+        "F073",
+        "F186"
+      ],
+      "acceptance": "Four independent target READ/LIST pairs under opposite source READ/LIST/CREATE/UPDATE postures; effective READ and LIST populate/include, both write-origin outputs with Date/Binary mutations, independent target facts, parent/sibling/storage detachment and unchanged actual populated target documents retained by application afterPersist."
+    },
+    {
+      "id": "CAPTURE",
+      "status": "completed",
+      "newPassedCases": 7,
+      "maximumNewCases": 8,
+      "newCaseIds": [
+        "c2bfe0b6e749b0ced0514a57d4a68ce1a63ef3e0d3cb46584ea87601896ea73a",
+        "bd212744510478e9770eebdeea30861c811649fca8f4c7bf96f3d0bfdfad980d",
+        "d15f0ccdd873e68d7e2c687e704550076db493747f40397d71a3e1a9ff76b419",
+        "a13c1928923ae7598a14847f36b3bea748ed329a4121cd878ce043b7f366bcc5",
+        "36f91f6201dc6c1aef151566c49a98cad62c7980d4b4422cd17216aa46f0ff89",
+        "6bbcac9156a45ba6d5bb5535ee5c87713228d99b3c6959f301d743c7e22b13cd",
+        "dd52b9e57c398fda87526db85737a6af1a266f99007f5e5c4342cc15ff318838"
+      ],
+      "retainedPublicFileIds": [
+        "F099",
+        "F069",
+        "F231",
+        "F225"
+      ],
+      "acceptance": "Six held operations, opposite branch settings, all settings flipped during hold, nested fresh read and subsequent fresh calls; real inherited/explicit/restored borrowing, immutable construction snapshot, warning membership per transition and logger failure containment."
+    },
+    {
+      "id": "FALLBACK",
+      "status": "completed",
+      "newPassedCases": 4,
+      "maximumNewCases": 4,
+      "newCaseIds": [
+        "2f9c6fdc96670bc5d7b321e9108bf8013e74216dbafbc03ea5aea9df81d5ab02",
+        "130f773120a07cf849362e4eccc07a20dd786e55b06d3a58d6a86099933b66a1",
+        "c96e0da12a449d089b128eda3fee6db743ae64de815c194a38954eeb2db98326",
+        "01e03e7c0feb0c0b314bb5e43a03b42fc9feb6c88108bc0a634d83bb0b0f13c6"
+      ],
+      "retainedPublicFileIds": [
+        "F154",
+        "F155",
+        "F194",
+        "F229"
+      ],
+      "acceptance": "Four READ/LIST pairs distinguish initiating READ borrowing on fallback from independent LIST; fresh fact stage, LIST admission and terminal false. Retained public tests protect other denial/row/field/target/HTTP/root branches."
+    },
+    {
+      "id": "DETACH",
+      "status": "completed",
+      "newPassedCases": 8,
+      "maximumNewCases": 8,
+      "newCaseIds": [
+        "e080e23adec3e15163d4e9df1a1f469f7fca5519f2f68b9d1bcc22f072927047",
+        "c41352dcb114a278b939cc75b94c135cc296e579b3ff64e18de8e0899d701688",
+        "e6341eeb3b1b5a47811fab8ab162ebabdac34d92dbdc03b969529a6461acead3",
+        "21529253a988196688c25fe2ff5029556e024c744aa2c0fc89a26603ef41d356",
+        "f035da490ed9651addf24ffb57884be8c804dd70bb5b72f572ae96eb23ed0e03",
+        "40c12611030af43db502c655c0b0a12577ce68d49ae9e17d78b435384a559188",
+        "37e5888ae43131f2fcdf64f4d2fdfbd1f35db4a70b14cb12ba62f31c4f2bff66",
+        "d0090a8b0d5e93a6de8ea2ce8a48f44e4f12e4232c31eae6fa2c3379618bc11c"
+      ],
+      "retainedPublicFileIds": [
+        "F178",
+        "F044",
+        "F068",
+        "F219"
+      ],
+      "acceptance": "Both write modes across all four branches: nested plain/Date/Buffer output mutations, unchanged payload/live afterPersist document/prepared and final snapshots/storage; genuine native selected-slot overflow after a committed create in both modes. TARGET supplies write-target native detachment."
+    },
+    {
+      "id": "ENTRY",
+      "status": "completed",
+      "newPassedCases": 6,
+      "maximumNewCases": 6,
+      "newCaseIds": [
+        "f7b54e306cdb2392e17cd56b00a57b345e3594cfebb9d88a42ce5af80d9533ff",
+        "9785289fc9b81673233873b7a2f52e4fca66af874e6c68bea56c3856bef35e10",
+        "3ea6bb3c89d762d10eae268d5f048c35e932f97efc0acc47ddd0b8df3697232a",
+        "05116d16c57c9dd5f1cc8d55c30b034b57c5d36fc49c94406685a7790dedcb61",
+        "dcca1b1e3b81dc13a7e1adf895ed1b5ec71fe98c534732c4e423ff02b6341057",
+        "c23b8b21d5444c29d110b9efbc47ee6a4ebb99f6d48535841f6ae11fdc91359e"
+      ],
+      "retainedPublicFileIds": [
+        "F094",
+        "F080",
+        "F032",
+        "F082",
+        "F164",
+        "F085"
+      ],
+      "acceptance": "Actual model/data basic/advanced/root grants; child field precedence and parent scope; HEAD/live defaults/restoration; original request custom acquisition and non-implied initiating gate; all-trusted excluded-origin helper/NEW/child/count/distinct smoke."
+    },
+    {
+      "id": "GUARD",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "6650e2a88d4ee1964594756f52d3621a219ea5a70fcd86a4902ba771075544d0",
+        "39e0834a5a5d69e5c928e45a6c36c58eb8fcc61388297fede2bfa3c58d2df2b7"
+      ],
+      "retainedPublicFileIds": [
+        "F108",
+        "F132"
+      ],
+      "acceptance": "Real initialized middleware and exported guard with params/query IDs, missing-ID no application query, scalar/array/function permissions and original request this. Existing packed guard and private-input public cases retained."
+    },
+    {
+      "id": "CONTROL",
+      "status": "completed",
+      "newPassedCases": 4,
+      "maximumNewCases": 4,
+      "newCaseIds": [
+        "4b711549b2b8675dd090aca639979aba75161ca97c9e2c6dd1c12d553687763e",
+        "f3e8ff8c0f87574e0ca3fce3bd0d86f2f60d350d1b3060740d1df304ccc7807b",
+        "1e362acc91cccf7ec0b26dd7c0a77f1683e84a3a095d45878940e166b29b9490",
+        "a053ae93ecbf8e521456cd5baf849a9cf137eb932bafd263a49db294c6d006b0"
+      ],
+      "retainedPublicFileIds": [
+        "F121",
+        "F178",
+        "F189",
+        "F094"
+      ],
+      "acceptance": "Backend nested authority/helper/default/related/child-dimension rejection without model work; HTTP/root whole-sibling preflight before hooks/writes; inert same-named business data and terminal false versus malformed controls. Original 14-key wire matrix retained."
+    },
+    {
+      "id": "ADMISSION",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "1a75a18909ad22302c4b000c3055694b5549fd162ceb6f347bbc1b7a829da77e",
+        "14a4d93365dc6e8de3fff88c1f714d61a05ac90f992de7cfa825dbd4b6bc3b32",
+        "16a984e3821de8c8f5bc036aee0877b19735edfb23e7e8d6b4869372effe632e"
+      ],
+      "retainedPublicFileIds": [
+        "F099",
+        "F069",
+        "F218",
+        "F048",
+        "F132"
+      ],
+      "acceptance": "Atomic whole/dotted/inherited/nonenumerable retired operation keys; invalid mode/dependency/virtual settings and invalid global populate placement; options/registry unchanged; exact undefined restoration and ordinary business fields. Non-false populate values intentionally normalize to strict, not invalid enum values."
+    },
+    {
+      "id": "FACTS",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "b13ebe5f28398ceb214dca0e5aaacd083aa6c783fc0a48dc27a995e3a176e917",
+        "19eec4a1976df4742f5f6dff9f9920ad5870343646ab194bf7c5b2990de8f295",
+        "ea86d7e202e3f3bc948cb57e451eae9c6263222b875c196221f3f44db573155d"
+      ],
+      "retainedPublicFileIds": [
+        "F016",
+        "F174",
+        "F178",
+        "F044",
+        "F167"
+      ],
+      "acceptance": "I/T disposable/borrowed view distinction and frozen owned boolean facts; later helpers/read do not acquire returned metadata authority; rich fulfilled maps fail; thrown/rejected hooks yield frozen empty facts with redacted structural logs."
+    },
+    {
+      "id": "DISTINCT",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "43dd30808df1bce8729fb2ae1e7c102910253883dd6daec14e3c885c3fb23893",
+        "766c9c75b88629282db76cf72c829fc9c13ca14d3eb911b5f12c71c0361e8228",
+        "c30bdaef286a3aded0e8d6e20e525e8448fc37c18c018c124c0c80ca4f1c7040"
+      ],
+      "retainedPublicFileIds": [
+        "F039",
+        "F009",
+        "F219"
+      ],
+      "acceptance": "Direct/root restricted composites deny without application distinct; fully granted composite and scalar child return fixed literals; dynamic/metadata/Mixed uncertainty never invokes distinct."
+    },
+    {
+      "id": "COLLECTION",
+      "status": "completed",
+      "newPassedCases": 3,
+      "maximumNewCases": 3,
+      "newCaseIds": [
+        "f63cdf000aec03d1f7005daa47ba91792603a023b8c333990a7021c56e546b75",
+        "90b41a3abfff7bb7b8a8060afccbb995af727be11cdbadf304f77b40fbac060f",
+        "12f4d5adc2c425a9a10b45c4643bcf3af809a1a5957bdd931f095cb52d8a7cb5"
+      ],
+      "retainedPublicFileIds": [
+        "F132",
+        "F205",
+        "F128",
+        "F048"
+      ],
+      "acceptance": "Actual acquired helper rejects outer position/sparsity/native limits before predicates; individually valid 4MiB rows fail cumulatively as a whole; two 4MiB rows plus one small held row at gate 2 prove admitted callback drains before failed settlement/no partial or late publication, followed by a fresh successful helper. No private budget injection."
+    },
+    {
+      "id": "DATA",
+      "status": "completed",
+      "newPassedCases": 4,
+      "maximumNewCases": 4,
+      "newCaseIds": [
+        "ce439191e1e4d4cab1c107e42fb49c7240bf1735ebf8ed498bf0ef37d97be19f",
+        "6134347ad04d7f276c23236f4cad153747ba17504568f50fcb29751d48466266",
+        "c6827d3db50c2fd3c7ed1dd4412b59256ea003e263705fe2bbec8d1dbe643134",
+        "942b2ebf7cdcc5fc1e20ee6a92212885de776ba16559f007cc186a526309ce5b"
+      ],
+      "retainedPublicFileIds": [
+        "F032",
+        "F021",
+        "F033",
+        "F099"
+      ],
+      "acceptance": "One finite plain/Date/Buffer/Map/Set/typed-view bundle; owned configuration/snapshots/independent return values, old/new dataset versions, atomic malformed/native-proxy replacement, direct/root decorator detachment. Full original 20-value matrix stays lower-layer."
+    },
+    {
+      "id": "CALLBACK",
+      "status": "completed",
+      "newPassedCases": 5,
+      "maximumNewCases": 5,
+      "newCaseIds": [
+        "21c29a1f0e1a69df0b69a2e5a2df075109ab90b3024c098a5364fcf26420e6ca",
+        "142e1e299717f41af25b9c7348a401ffeda53aa20df1425d7c869e07cc922ac1",
+        "67502648b6da89f6a1428625848684f43e5e3a249858b2844a5377a60903e394",
+        "55e7c974ea9a2204f6ebba3bac4f48f93daf80c9d166fd84874bdbd1220bdcd0",
+        "35f1197c0bb0536fce01c8b6068e79b06bfdcb92726f41cc2422efbc3ccbdcc8"
+      ],
+      "retainedPublicFileIds": [
+        "F032",
+        "F132",
+        "F048",
+        "F094",
+        "F167"
+      ],
+      "acceptance": "Initialized data core/service/public aliases small named helper loops, original request this, two field arguments/frozen empty facts by value; one-argument operation guard; acquired permission keys/has/hasKey/variadic and array methods/reserved names. No private constructor or EMPTY identity."
+    },
+    {
+      "id": "METADATA",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "a19c6ebf51aded55c28a35615c1d0caebdc0e241187cd741d05e6a9e9c274727",
+        "6d00c349b9a45334b4d8de7b498971740cfc71c6f26557db2ce1274cec6d81de"
+      ],
+      "retainedPublicFileIds": [
+        "F040",
+        "F056",
+        "F057",
+        "F135",
+        "F073",
+        "F016"
+      ],
+      "acceptance": "Two query/create modes; aligned frozen list/single/write contexts, real source IDs, dotted alias, expose allowlist, request-only _view/_edit separate from backend grants, denied fields, per-parent mutation independence and disable/strip postures."
+    },
+    {
+      "id": "DTO",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "e50023ea992377bcc84853710d30b6f64cbe5eaa017f7bbed2a357789dcf07c2",
+        "61a7fb69465aa596c2974256f1bbed1047f56e2d3d42b88bbb289a7e15072d8e"
+      ],
+      "retainedPublicFileIds": [
+        "F164",
+        "F079",
+        "F174",
+        "F135"
+      ],
+      "acceptance": "Actual direct/root single/list/error envelopes retain supported metadata but recursively omit context/capabilities/provenance/private snapshots, including forbidden-control errors. No wire serializer import or fabricated result."
+    },
+    {
+      "id": "EXPORT",
+      "status": "completed",
+      "newPassedCases": 2,
+      "maximumNewCases": 2,
+      "newCaseIds": [
+        "28fe8486d351649468fda00fe7306e90258838f2657fa8057977716d1f9bc2c4",
+        "4901dfef6226808122f34b6e909ffc4dbdff12f0a2325bc932d75caed698c713"
+      ],
+      "retainedPublicFileIds": [
+        "F132",
+        "F205",
+        "F128",
+        "F085",
+        "F048",
+        "F210"
+      ],
+      "acceptance": "New actual installed ESM/CJS package-name imports cover runtime semantic names/default-callable identity/advanced parsers/processors/absent private runtime exports. Frozen existing packed private-exports.cjs failure-only resolves and strict Bundler/NodeNext/Node16 positive/negative compiles remain the blocked-private-path/type evidence, not duplicated or replaced by name absence. No private declaration/chunk-name contract."
+    },
+    {
+      "id": "PROCESSORS",
+      "status": "completed",
+      "newPassedCases": 5,
+      "maximumNewCases": 5,
+      "newCaseIds": [
+        "b9562700a0ec38b1d54ff37f812b7b80b139c705454a5e7a497381f87599b4fc",
+        "bac9ca9cd7ce6781bcacf4758ffe9cd6b32830230e1983ce5b17a0b989d4f097",
+        "8bc8fd1134e6716ee6f17ad6560ffa5e0117ce3ebf681642d57bcedcccfc09ca",
+        "3595131d49fc687b3e094833332984f94caf13785b93248035fb226377cdeccf",
+        "29cf11bde21e3ffb9b4ac7b9293ef77048f68f282b2bc442c60df1f3ad5a59fd"
+      ],
+      "retainedPublicFileIds": [
+        "F151",
+        "F150",
+        "F132"
+      ],
+      "acceptance": "copyPaths/movePaths/sliceArrays/countPaths/maskPaths each have bounded public literal mutation/clone/noop/error groups, applicable fanout/slice caps/unsafe paths. Existing copyAndDepopulate contracts retained."
+    },
+    {
+      "id": "VALIDATION",
+      "status": "completed",
+      "newPassedCases": 6,
+      "maximumNewCases": 6,
+      "newCaseIds": [
+        "357138939c2429afff17dd05fe6e16d7f134b03be014e920a61cde75b6bc15e2",
+        "8eb8ed0de3256fe84659538539ea74bcd42d0ab77cef387f7b75458f661c32a1",
+        "17ad82de319ec7d6523521cadd4bfc4dc01bbf3a93da1943f7b546b30efb56cb",
+        "c6b56f0e77e7dd2431d7a7914b2ed440ed6f1449715ccb66ffced1b1e9ecffb1",
+        "03185b9657d0c911cbb77cb99c4f3573cecc1cd4583929b6aa30c5c3c9fef025",
+        "186ce4637773c8833ea6637220a9672a045691d8c9608d0e1cfc46479a339b72"
+      ],
+      "retainedPublicFileIds": [
+        "F006",
+        "F157",
+        "F027",
+        "F028",
+        "F241",
+        "F218",
+        "F093",
+        "F092",
+        "F211",
+        "F212",
+        "F213",
+        "F214"
+      ],
+      "acceptance": "Public advanced body/query/path/nested parsers; safe correlated parent/literal markers and malformed/op-exclusive input; string/array/object/exclusion grammar; real model/data/root/child parity and OpenAPI no-getter open-object behavior. No new adapter matrix."
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "f7b54e306cdb2392e17cd56b00a57b345e3594cfebb9d88a42ce5af80d9533ff",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ENTRY-model basic/advanced/root use distinct grants before validation",
+      "fullTitle": "ARTS-04 actual entry admission ENTRY-model basic/advanced/root use distinct grants before validation",
+      "line": 14,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ENTRY"
+    },
+    {
+      "caseId": "9785289fc9b81673233873b7a2f52e4fca66af874e6c68bea56c3856bef35e10",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ENTRY-data basic/advanced/default policy changes real data verdicts",
+      "fullTitle": "ARTS-04 actual entry admission ENTRY-data basic/advanced/default policy changes real data verdicts",
+      "line": 51,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ENTRY"
+    },
+    {
+      "caseId": "3ea6bb3c89d762d10eae268d5f048c35e932f97efc0acc47ddd0b8df3697232a",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ENTRY-child field rules precede general transport rules but preserve parent row policy",
+      "fullTitle": "ARTS-04 actual entry admission ENTRY-child field rules precede general transport rules but preserve parent row policy",
+      "line": 66,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ENTRY"
+    },
+    {
+      "caseId": "05116d16c57c9dd5f1cc8d55c30b034b57c5d36fc49c94406685a7790dedcb61",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ENTRY-live setters restore defaults exactly and HEAD follows basic admission",
+      "fullTitle": "ARTS-04 actual entry admission ENTRY-live setters restore defaults exactly and HEAD follows basic admission",
+      "line": 84,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ENTRY"
+    },
+    {
+      "caseId": "dcca1b1e3b81dc13a7e1adf895ed1b5ec71fe98c534732c4e423ff02b6341057",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ENTRY-custom initialized request retains original receiver and real service output",
+      "fullTitle": "ARTS-04 actual entry admission ENTRY-custom initialized request retains original receiver and real service output",
+      "line": 98,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ENTRY"
+    },
+    {
+      "caseId": "c23b8b21d5444c29d110b9efbc47ee6a4ebb99f6d48535841f6ae11fdc91359e",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ENTRY-excluded all-trusted settings do not lend helper/NEW/child/count/distinct inputs",
+      "fullTitle": "ARTS-04 actual entry admission ENTRY-excluded all-trusted settings do not lend helper/NEW/child/count/distinct inputs",
+      "line": 125,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ENTRY"
+    },
+    {
+      "caseId": "6650e2a88d4ee1964594756f52d3621a219ea5a70fcd86a4902ba771075544d0",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "GUARD-model params/query IDs and missing-ID admission precede model work",
+      "fullTitle": "ARTS-04 exported guard with initialized requests GUARD-model params/query IDs and missing-ID admission precede model work",
+      "line": 146,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "GUARD"
+    },
+    {
+      "caseId": "39e0834a5a5d69e5c928e45a6c36c58eb8fcc61388297fede2bfa3c58d2df2b7",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "GUARD-permissions scalar/array/function conditions retain original request this",
+      "fullTitle": "ARTS-04 exported guard with initialized requests GUARD-permissions scalar/array/function conditions retain original request this",
+      "line": 168,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "GUARD"
+    },
+    {
+      "caseId": "4b711549b2b8675dd090aca639979aba75161ca97c9e2c6dd1c12d553687763e",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "CONTROL-backend options/helper/default/related/subdocument reject fabricated authority",
+      "fullTitle": "ARTS-04 public control lanes CONTROL-backend options/helper/default/related/subdocument reject fabricated authority",
+      "line": 192,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CONTROL"
+    },
+    {
+      "caseId": "f3e8ff8c0f87574e0ca3fce3bd0d86f2f60d350d1b3060740d1df304ccc7807b",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "CONTROL-http malformed envelope rejects before consumer hooks or writes",
+      "fullTitle": "ARTS-04 public control lanes CONTROL-http malformed envelope rejects before consumer hooks or writes",
+      "line": 227,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CONTROL"
+    },
+    {
+      "caseId": "1e362acc91cccf7ec0b26dd7c0a77f1683e84a3a095d45878940e166b29b9490",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "CONTROL-root whole sibling preflight rejects contaminated envelopes without writes",
+      "fullTitle": "ARTS-04 public control lanes CONTROL-root whole sibling preflight rejects contaminated envelopes without writes",
+      "line": 242,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CONTROL"
+    },
+    {
+      "caseId": "a053ae93ecbf8e521456cd5baf849a9cf137eb932bafd263a49db294c6d006b0",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "CONTROL-business same-spelled data is inert; terminal false differs from malformed controls",
+      "fullTitle": "ARTS-04 public control lanes CONTROL-business same-spelled data is inert; terminal false differs from malformed controls",
+      "line": 262,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CONTROL"
+    },
+    {
+      "caseId": "1a75a18909ad22302c4b000c3055694b5549fd162ceb6f347bbc1b7a829da77e",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ADMISSION-retired whole/dotted/inherited/nonenumerable operation keys never publish siblings",
+      "fullTitle": "ARTS-04 atomic public configuration ADMISSION-retired whole/dotted/inherited/nonenumerable operation keys never publish siblings",
+      "line": 284,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ADMISSION"
+    },
+    {
+      "caseId": "14a4d93365dc6e8de3fff88c1f714d61a05ac90f992de7cfa825dbd4b6bc3b32",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ADMISSION-invalid mode/dependency/populate/virtual config is atomic",
+      "fullTitle": "ARTS-04 atomic public configuration ADMISSION-invalid mode/dependency/populate/virtual config is atomic",
+      "line": 298,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ADMISSION"
+    },
+    {
+      "caseId": "16a984e3821de8c8f5bc036aee0877b19735edfb23e7e8d6b4869372effe632e",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "ADMISSION-restoration preserves business fields and live operation defaults",
+      "fullTitle": "ARTS-04 atomic public configuration ADMISSION-restoration preserves business fields and live operation defaults",
+      "line": 325,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "ADMISSION"
+    },
+    {
+      "caseId": "b13ebe5f28398ceb214dca0e5aaacd083aa6c783fc0a48dc27a995e3a176e917",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "FACTS-normalized frozen booleans and returned metadata never become future authority",
+      "fullTitle": "ARTS-04 public document facts FACTS-normalized frozen booleans and returned metadata never become future authority",
+      "line": 357,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "FACTS"
+    },
+    {
+      "caseId": "19eec4a1976df4742f5f6dff9f9920ad5870343646ab194bf7c5b2990de8f295",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "FACTS-rich fulfilled nonboolean map fails the whole public operation",
+      "fullTitle": "ARTS-04 public document facts FACTS-rich fulfilled nonboolean map fails the whole public operation",
+      "line": 398,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "FACTS"
+    },
+    {
+      "caseId": "ea86d7e202e3f3bc948cb57e451eae9c6263222b875c196221f3f44db573155d",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "FACTS-thrown/rejected hooks yield empty frozen facts and structural logs without sentinel leaks",
+      "fullTitle": "ARTS-04 public document facts FACTS-thrown/rejected hooks yield empty frozen facts and structural logs without sentinel leaks",
+      "line": 410,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "FACTS"
+    },
+    {
+      "caseId": "43dd30808df1bce8729fb2ae1e7c102910253883dd6daec14e3c885c3fb23893",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "DISTINCT-restricted composite denies before application I/O in direct and root paths",
+      "fullTitle": "ARTS-04 whole-value DISTINCT DISTINCT-restricted composite denies before application I/O in direct and root paths",
+      "line": 437,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DISTINCT"
+    },
+    {
+      "caseId": "766c9c75b88629282db76cf72c829fc9c13ca14d3eb911b5f12c71c0361e8228",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "DISTINCT-complete composite and explicit scalar child return literal values",
+      "fullTitle": "ARTS-04 whole-value DISTINCT DISTINCT-complete composite and explicit scalar child return literal values",
+      "line": 454,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DISTINCT"
+    },
+    {
+      "caseId": "c30bdaef286a3aded0e8d6e20e525e8448fc37c18c018c124c0c80ca4f1c7040",
+      "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "title": "DISTINCT-dynamic/metadata/Mixed uncertainty never invokes application distinct",
+      "fullTitle": "ARTS-04 whole-value DISTINCT DISTINCT-dynamic/metadata/Mixed uncertainty never invokes application distinct",
+      "line": 479,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DISTINCT"
+    },
+    {
+      "caseId": "ce439191e1e4d4cab1c107e42fb49c7240bf1735ebf8ed498bf0ef37d97be19f",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "DATA-configured caller and public snapshot native values detach",
+      "fullTitle": "ARTS-04 finite native data bundle DATA-configured caller and public snapshot native values detach",
+      "line": 45,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DATA"
+    },
+    {
+      "caseId": "6134347ad04d7f276c23236f4cad153747ba17504568f50fcb29751d48466266",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "DATA-returned rows detach across independent find/findOne/findById calls",
+      "fullTitle": "ARTS-04 finite native data bundle DATA-returned rows detach across independent find/findOne/findById calls",
+      "line": 70,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DATA"
+    },
+    {
+      "caseId": "c6827d3db50c2fd3c7ed1dd4412b59256ea003e263705fe2bbec8d1dbe643134",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "DATA-retained service owns old version; malformed/native-proxy replacements are atomic",
+      "fullTitle": "ARTS-04 finite native data bundle DATA-retained service owns old version; malformed/native-proxy replacements are atomic",
+      "line": 90,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DATA"
+    },
+    {
+      "caseId": "942b2ebf7cdcc5fc1e20ee6a92212885de776ba16559f007cc186a526309ce5b",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "DATA-direct/root decorations may mutate only returned plain/native copies",
+      "fullTitle": "ARTS-04 finite native data bundle DATA-direct/root decorations may mutate only returned plain/native copies",
+      "line": 113,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DATA"
+    },
+    {
+      "caseId": "21c29a1f0e1a69df0b69a2e5a2df075109ab90b3024c098a5364fcf26420e6ca",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "CALLBACK-core named helper methods pass two arguments and frozen empty facts",
+      "fullTitle": "ARTS-04 initialized data callback surfaces CALLBACK-core named helper methods pass two arguments and frozen empty facts",
+      "line": 136,
+      "column": 58,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CALLBACK"
+    },
+    {
+      "caseId": "142e1e299717f41af25b9c7348a401ffeda53aa20df1425d7c869e07cc922ac1",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "CALLBACK-service named helper methods pass two arguments and frozen empty facts",
+      "fullTitle": "ARTS-04 initialized data callback surfaces CALLBACK-service named helper methods pass two arguments and frozen empty facts",
+      "line": 136,
+      "column": 58,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CALLBACK"
+    },
+    {
+      "caseId": "67502648b6da89f6a1428625848684f43e5e3a249858b2844a5377a60903e394",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "CALLBACK-public-aliases named helper methods pass two arguments and frozen empty facts",
+      "fullTitle": "ARTS-04 initialized data callback surfaces CALLBACK-public-aliases named helper methods pass two arguments and frozen empty facts",
+      "line": 136,
+      "column": 58,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CALLBACK"
+    },
+    {
+      "caseId": "55e7c974ea9a2204f6ebba3bac4f48f93daf80c9d166fd84874bdbd1220bdcd0",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "CALLBACK-operation guard receives only initialized permissions with original request this",
+      "fullTitle": "ARTS-04 initialized data callback surfaces CALLBACK-operation guard receives only initialized permissions with original request this",
+      "line": 198,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CALLBACK"
+    },
+    {
+      "caseId": "35f1197c0bb0536fce01c8b6068e79b06bfdcb92726f41cc2422efbc3ccbdcc8",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "CALLBACK-permissions acquired from middleware retain keys/aliases/variadic/array/reserved names",
+      "fullTitle": "ARTS-04 initialized data callback surfaces CALLBACK-permissions acquired from middleware retain keys/aliases/variadic/array/reserved names",
+      "line": 211,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CALLBACK"
+    },
+    {
+      "caseId": "f63cdf000aec03d1f7005daa47ba91792603a023b8c333990a7021c56e546b75",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "COLLECTION-outer dense/position/native limits reject before predicates",
+      "fullTitle": "ARTS-04 real public collection admission and drain COLLECTION-outer dense/position/native limits reject before predicates",
+      "line": 246,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "COLLECTION"
+    },
+    {
+      "caseId": "90b41a3abfff7bb7b8a8060afccbb995af727be11cdbadf304f77b40fbac060f",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "COLLECTION-cumulative individually valid 4MiB rows fail as a whole without partial publication",
+      "fullTitle": "ARTS-04 real public collection admission and drain COLLECTION-cumulative individually valid 4MiB rows fail as a whole without partial publication",
+      "line": 260,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "COLLECTION"
+    },
+    {
+      "caseId": "12f4d5adc2c425a9a10b45c4643bcf3af809a1a5957bdd931f095cb52d8a7cb5",
+      "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "title": "COLLECTION-drain admitted callback finishes before failed settlement and no late publication",
+      "fullTitle": "ARTS-04 real public collection admission and drain COLLECTION-drain admitted callback finishes before failed settlement and no late publication",
+      "line": 277,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "COLLECTION"
+    },
+    {
+      "caseId": "28fe8486d351649468fda00fe7306e90258838f2657fa8057977716d1f9bc2c4",
+      "file": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+      "title": "EXPORT-ESM installed root/advanced/processors preserve supported identities and encapsulation",
+      "fullTitle": "ARTS-04 installed semantic exports EXPORT-ESM installed root/advanced/processors preserve supported identities and encapsulation",
+      "line": 33,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "EXPORT"
+    },
+    {
+      "caseId": "4901dfef6226808122f34b6e909ffc4dbdff12f0a2325bc932d75caed698c713",
+      "file": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+      "title": "EXPORT-CJS installed root/advanced/processors preserve supported identities and encapsulation",
+      "fullTitle": "ARTS-04 installed semantic exports EXPORT-CJS installed root/advanced/processors preserve supported identities and encapsulation",
+      "line": 38,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "EXPORT"
+    },
+    {
+      "caseId": "a19c6ebf51aded55c28a35615c1d0caebdc0e241187cd741d05e6a9e9c274727",
+      "file": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+      "title": "METADATA-isolated single/list/write aliases and postures do not grant authority",
+      "fullTitle": "ARTS-04 public metadata values and alignment METADATA-isolated single/list/write aliases and postures do not grant authority",
+      "line": 11,
+      "column": 44,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "METADATA"
+    },
+    {
+      "caseId": "6d00c349b9a45334b4d8de7b498971740cfc71c6f26557db2ce1274cec6d81de",
+      "file": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+      "title": "METADATA-trusted single/list/write aliases and postures do not grant authority",
+      "fullTitle": "ARTS-04 public metadata values and alignment METADATA-trusted single/list/write aliases and postures do not grant authority",
+      "line": 11,
+      "column": 44,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "METADATA"
+    },
+    {
+      "caseId": "e50023ea992377bcc84853710d30b6f64cbe5eaa017f7bbed2a357789dcf07c2",
+      "file": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+      "title": "DTO-model actual single/list/error shapes retain metadata but omit diagnostic authority",
+      "fullTitle": "ARTS-04 genuine wire envelopes DTO-model actual single/list/error shapes retain metadata but omit diagnostic authority",
+      "line": 121,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DTO"
+    },
+    {
+      "caseId": "61a7fb69465aa596c2974256f1bbed1047f56e2d3d42b88bbb289a7e15072d8e",
+      "file": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+      "title": "DTO-root actual mixed success/error and forbidden-control errors never serialize private context",
+      "fullTitle": "ARTS-04 genuine wire envelopes DTO-root actual mixed success/error and forbidden-control errors never serialize private context",
+      "line": 146,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DTO"
+    },
+    {
+      "caseId": "242d0c31b7156de44ec643d14a0598348a962db3bddda34b05a0d25891a2b968",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-00' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-00' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "b811df932d57bb483abe8b1decc2ad9805273cf7654426364756149e22576ff4",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-01' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-01' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "70140d2e6676b51a079b59d67de223c4b0f97ea23fa337b61571b6bdc980b9a2",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-02' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-02' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "a41b6c4b0f55e0b5de324f9ccffa1e668ea435cc0fa855310f3f9ce31276f0b5",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-03' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-03' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "d7b125b3382cf96946bbce3a255788098e6e9c2e0186e1643ac89a1cdc57264d",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-04' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-04' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "7864273beff333e32a0d2f035c0c00919d69a9913412bdfbd18f8bf157d85032",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-05' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-05' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "ed9a120d066ce6feacbe9cebbc1120cd468e86a1740b2263b85766845732f036",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-06' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-06' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "f69784a9a7b062e52b65117285afe706f7d64abb313e7ed4d9e721f5bb2e1efc",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-07' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-07' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "7a531104b5e386fac256b34907cccdd42107b55e2ba2850d5977d309164385ec",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-08' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-08' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "d0930aea868f240528852f7e995ddcc8a5aa88728beef2d5e792aafddb5821cf",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-09' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-09' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "5840ce05b9908a90aa9078d9e18ee0323ff7c9479bfb0792c8fb308061a279fc",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-10' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-10' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "b7bed77f25384f13cf156661986ab768bcd10c82b001f161da327b1f88ba69a4",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-11' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-11' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "0473bc3eb4f59e6f25a936cde3bba05b8c25788eaa584e765e79d5a181e07977",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-12' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-12' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "5c484e07bf9fb75fc6deead5a04a96d6df29a4afebedf94b192c461e4c2b9738",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-13' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-13' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "ce5693843925f26336a27d7069b5e16d38586624552db0e2904ef963e7b74ca7",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-14' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-14' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "45bb967780ed62c459067f8d6e7a01e33fdc08d7f6050c11e560228c2e6dd7eb",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "'MODE-15' six real operations use four independent settings",
+      "fullTitle": "ARTS-04 public source modes 'MODE-15' six real operations use four independent settings",
+      "line": 20,
+      "column": 108,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "MODE"
+    },
+    {
+      "caseId": "2f9c6fdc96670bc5d7b321e9108bf8013e74216dbafbc03ea5aea9df81d5ab02",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "FALLBACK-0 READ miss borrows READ, independent LIST borrows LIST",
+      "fullTitle": "ARTS-04 public source modes FALLBACK-0 READ miss borrows READ, independent LIST borrows LIST",
+      "line": 143,
+      "column": 24,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "FALLBACK"
+    },
+    {
+      "caseId": "130f773120a07cf849362e4eccc07a20dd786e55b06d3a58d6a86099933b66a1",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "FALLBACK-1 READ miss borrows READ, independent LIST borrows LIST",
+      "fullTitle": "ARTS-04 public source modes FALLBACK-1 READ miss borrows READ, independent LIST borrows LIST",
+      "line": 143,
+      "column": 24,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "FALLBACK"
+    },
+    {
+      "caseId": "c96e0da12a449d089b128eda3fee6db743ae64de815c194a38954eeb2db98326",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "FALLBACK-2 READ miss borrows READ, independent LIST borrows LIST",
+      "fullTitle": "ARTS-04 public source modes FALLBACK-2 READ miss borrows READ, independent LIST borrows LIST",
+      "line": 143,
+      "column": 24,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "FALLBACK"
+    },
+    {
+      "caseId": "01e03e7c0feb0c0b314bb5e43a03b42fc9feb6c88108bc0a634d83bb0b0f13c6",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "FALLBACK-3 READ miss borrows READ, independent LIST borrows LIST",
+      "fullTitle": "ARTS-04 public source modes FALLBACK-3 READ miss borrows READ, independent LIST borrows LIST",
+      "line": 143,
+      "column": 24,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "FALLBACK"
+    },
+    {
+      "caseId": "c2bfe0b6e749b0ced0514a57d4a68ce1a63ef3e0d3cb46584ea87601896ea73a",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "CAPTURE-read pending and nested fresh calls capture separately",
+      "fullTitle": "ARTS-04 public source modes CAPTURE-read pending and nested fresh calls capture separately",
+      "line": 183,
+      "column": 41,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CAPTURE"
+    },
+    {
+      "caseId": "bd212744510478e9770eebdeea30861c811649fca8f4c7bf96f3d0bfdfad980d",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "CAPTURE-list pending and nested fresh calls capture separately",
+      "fullTitle": "ARTS-04 public source modes CAPTURE-list pending and nested fresh calls capture separately",
+      "line": 183,
+      "column": 41,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CAPTURE"
+    },
+    {
+      "caseId": "d15f0ccdd873e68d7e2c687e704550076db493747f40397d71a3e1a9ff76b419",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "CAPTURE-create pending and nested fresh calls capture separately",
+      "fullTitle": "ARTS-04 public source modes CAPTURE-create pending and nested fresh calls capture separately",
+      "line": 183,
+      "column": 41,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CAPTURE"
+    },
+    {
+      "caseId": "a13c1928923ae7598a14847f36b3bea748ed329a4121cd878ce043b7f366bcc5",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "CAPTURE-update pending and nested fresh calls capture separately",
+      "fullTitle": "ARTS-04 public source modes CAPTURE-update pending and nested fresh calls capture separately",
+      "line": 183,
+      "column": 41,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CAPTURE"
+    },
+    {
+      "caseId": "36f91f6201dc6c1aef151566c49a98cad62c7980d4b4422cd17216aa46f0ff89",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "CAPTURE-upsert-create pending and nested fresh calls capture separately",
+      "fullTitle": "ARTS-04 public source modes CAPTURE-upsert-create pending and nested fresh calls capture separately",
+      "line": 183,
+      "column": 41,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CAPTURE"
+    },
+    {
+      "caseId": "6bbcac9156a45ba6d5bb5535ee5c87713228d99b3c6959f301d743c7e22b13cd",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "CAPTURE-upsert-update pending and nested fresh calls capture separately",
+      "fullTitle": "ARTS-04 public source modes CAPTURE-upsert-update pending and nested fresh calls capture separately",
+      "line": 183,
+      "column": 41,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CAPTURE"
+    },
+    {
+      "caseId": "dd52b9e57c398fda87526db85737a6af1a266f99007f5e5c4342cc15ff318838",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "CAPTURE-defaults live inheritance, explicit isolation, restoration and unordered warning membership",
+      "fullTitle": "ARTS-04 public source modes CAPTURE-defaults live inheritance, explicit isolation, restoration and unordered warning membership",
+      "line": 254,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "CAPTURE"
+    },
+    {
+      "caseId": "e080e23adec3e15163d4e9df1a1f469f7fca5519f2f68b9d1bcc22f072927047",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'isolated'-'create' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'isolated'-'create' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "c41352dcb114a278b939cc75b94c135cc296e579b3ff64e18de8e0899d701688",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'isolated'-'update' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'isolated'-'update' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "e6341eeb3b1b5a47811fab8ab162ebabdac34d92dbdc03b969529a6461acead3",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'isolated'-'upsert-create' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'isolated'-'upsert-create' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "21529253a988196688c25fe2ff5029556e024c744aa2c0fc89a26603ef41d356",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'isolated'-'upsert-update' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'isolated'-'upsert-update' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "f035da490ed9651addf24ffb57884be8c804dd70bb5b72f572ae96eb23ed0e03",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'trusted'-'create' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'trusted'-'create' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "40c12611030af43db502c655c0b0a12577ce68d49ae9e17d78b435384a559188",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'trusted'-'update' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'trusted'-'update' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "37e5888ae43131f2fcdf64f4d2fdfbd1f35db4a70b14cb12ba62f31c4f2bff66",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'trusted'-'upsert-create' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'trusted'-'upsert-create' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "d0090a8b0d5e93a6de8ea2ce8a48f44e4f12e4232c31eae6fa2c3379618bc11c",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "DETACH-'trusted'-'upsert-update' payload/live lifecycle/storage stay detached",
+      "fullTitle": "ARTS-04 real post-write native detachment DETACH-'trusted'-'upsert-update' payload/live lifecycle/storage stay detached",
+      "line": 313,
+      "column": 81,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "DETACH"
+    },
+    {
+      "caseId": "6d40b6423ddc77ed483c05345cadbc16f227bacafdfdb3454010be62cf2a6000",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-+0-+0 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-+0-+0 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "def5a3af4ec85be50951014a675d8f9b0fd6b1d3481c40c69f40fb324dcfe804",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-+0-1 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-+0-1 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "7535a67594d67ee69dff5495db17d7b800635e359017623e92a92e2cc4bd7602",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-1-+0 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-1-+0 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "b9f73d094f1f260a1466f5ec18e13b8436e87745dda29005320411efed5aac2e",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-1-1 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-1-1 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "319c4c26bc2586e9b26dad6dd612acbbee8c64458eb613fa23cdf56ff3c3733e",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-2-+0 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-2-+0 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "d7efc0e66da4fb875543661786a3a246300ac81625eaf294c466141bbc54901e",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-2-1 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-2-1 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "a910d798a9f2ddac257ee4f7c7f6d110db69ceb30b198b2cddb7223358ca13f3",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-3-+0 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-3-+0 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "cae87146cea0d705920287a86232cd595cc31fc0e3a5fbc2abfbc275db9ccf23",
+      "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "title": "TARGET-3-1 populate/include and write-origin targets own their settings",
+      "fullTitle": "ARTS-04 independent registered target modes TARGET-3-1 populate/include and write-origin targets own their settings",
+      "line": 400,
+      "column": 88,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "TARGET"
+    },
+    {
+      "caseId": "b9562700a0ec38b1d54ff37f812b7b80b139c705454a5e7a497381f87599b4fc",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "PROCESSORS-copyPaths mutable/deep/immutable/fanout/noop/unsafe paths",
+      "fullTitle": "ARTS-04 standalone public processors (literal retained task recipes) PROCESSORS-copyPaths mutable/deep/immutable/fanout/noop/unsafe paths",
+      "line": 23,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "PROCESSORS"
+    },
+    {
+      "caseId": "bac9ca9cd7ce6781bcacf4758ffe9cd6b32830230e1983ce5b17a0b989d4f097",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "PROCESSORS-movePaths mutable/nested destination/immutable/noop/unsafe paths",
+      "fullTitle": "ARTS-04 standalone public processors (literal retained task recipes) PROCESSORS-movePaths mutable/nested destination/immutable/noop/unsafe paths",
+      "line": 46,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "PROCESSORS"
+    },
+    {
+      "caseId": "8bc8fd1134e6716ee6f17ad6560ffa5e0117ce3ebf681642d57bcedcccfc09ca",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "PROCESSORS-sliceArrays default/destination/tail/caps/immutable/noop/bounds",
+      "fullTitle": "ARTS-04 standalone public processors (literal retained task recipes) PROCESSORS-sliceArrays default/destination/tail/caps/immutable/noop/bounds",
+      "line": 64,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "PROCESSORS"
+    },
+    {
+      "caseId": "3595131d49fc687b3e094833332984f94caf13785b93248035fb226377cdeccf",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "PROCESSORS-countPaths mutable/array/object/scalar/null/immutable/noop/unsafe paths",
+      "fullTitle": "ARTS-04 standalone public processors (literal retained task recipes) PROCESSORS-countPaths mutable/array/object/scalar/null/immutable/noop/unsafe paths",
+      "line": 88,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "PROCESSORS"
+    },
+    {
+      "caseId": "29cf11bde21e3ffb9b4ac7b9293ef77048f68f282b2bc442c60df1f3ad5a59fd",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "PROCESSORS-maskPaths mutable/default/custom/fanout/immutable/noop/unsafe paths",
+      "fullTitle": "ARTS-04 standalone public processors (literal retained task recipes) PROCESSORS-maskPaths mutable/default/custom/fanout/immutable/noop/unsafe paths",
+      "line": 110,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "PROCESSORS"
+    },
+    {
+      "caseId": "357138939c2429afff17dd05fe6e16d7f134b03be014e920a61cde75b6bc15e2",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "VALIDATION-parsers advanced body/query/path/nested transformations and failures",
+      "fullTitle": "ARTS-04 public parsers and real grammar boundaries VALIDATION-parsers advanced body/query/path/nested transformations and failures",
+      "line": 128,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "VALIDATION"
+    },
+    {
+      "caseId": "8eb8ed0de3256fe84659538539ea74bcd42d0ab77cef387f7b75458f661c32a1",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "VALIDATION-correlated safe parent/literal markers and malformed/op-exclusive shapes agree",
+      "fullTitle": "ARTS-04 public parsers and real grammar boundaries VALIDATION-correlated safe parent/literal markers and malformed/op-exclusive shapes agree",
+      "line": 155,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "VALIDATION"
+    },
+    {
+      "caseId": "17ad82de319ec7d6523521cadd4bfc4dc01bbf3a93da1943f7b546b30efb56cb",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "VALIDATION-selection string/array/object/exclusion and arbitrary safe virtual names stay public",
+      "fullTitle": "ARTS-04 public parsers and real grammar boundaries VALIDATION-selection string/array/object/exclusion and arbitrary safe virtual names stay public",
+      "line": 187,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "VALIDATION"
+    },
+    {
+      "caseId": "c6b56f0e77e7dd2431d7a7914b2ed440ed6f1449715ccb66ffced1b1e9ecffb1",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "VALIDATION-model/root HTTP virtual selection parity and exclusion",
+      "fullTitle": "ARTS-04 public parsers and real grammar boundaries VALIDATION-model/root HTTP virtual selection parity and exclusion",
+      "line": 205,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "VALIDATION"
+    },
+    {
+      "caseId": "03185b9657d0c911cbb77cb99c4f3573cecc1cd4583929b6aa30c5c3c9fef025",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "VALIDATION-data/root and dedicated child/root HTTP honor selected virtual grammar",
+      "fullTitle": "ARTS-04 public parsers and real grammar boundaries VALIDATION-data/root and dedicated child/root HTTP honor selected virtual grammar",
+      "line": 233,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "VALIDATION"
+    },
+    {
+      "caseId": "186ce4637773c8833ea6637220a9672a045691d8c9608d0e1cfc46479a339b72",
+      "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "title": "VALIDATION-openapi remains open-object with virtual selects and never invokes getters",
+      "fullTitle": "ARTS-04 public parsers and real grammar boundaries VALIDATION-openapi remains open-object with virtual selects and never invokes getters",
+      "line": 270,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed",
+      "group": "VALIDATION"
+    }
+  ],
+  "surfaceRetention": [
+    {
+      "id": "SURFACE-01",
+      "originalMatrixLine": 20,
+      "obligation": "Root default/named facade, `AccessRuntime`, isolated/default registries, instance/name router overloads, `combineRoutes`, plugin initialization",
+      "retainedPublicFileIds": [
+        "F166",
+        "F167",
+        "F163",
+        "F201",
+        "F032",
+        "F168",
+        "F079"
+      ],
+      "addedGroupIds": [
+        "EXPORT"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-02",
+      "originalMatrixLine": 21,
+      "obligation": "Global/model/default setters/getters, router fluent setters, live inheritance, exact undefined restoration, frozen construction snapshots, atomic failure",
+      "retainedPublicFileIds": [
+        "F099",
+        "F069",
+        "F218",
+        "F136",
+        "F138"
+      ],
+      "addedGroupIds": [
+        "CAPTURE",
+        "ADMISSION"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-03",
+      "originalMatrixLine": 22,
+      "obligation": "Four independent READ/LIST/CREATE/UPDATE modes, correct executed UPSERT branch, no implicit input elevation",
+      "retainedPublicFileIds": [
+        "F152",
+        "F155",
+        "F074",
+        "F016"
+      ],
+      "addedGroupIds": [
+        "MODE",
+        "CAPTURE",
+        "FALLBACK",
+        "DETACH"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-04",
+      "originalMatrixLine": 23,
+      "obligation": "Target-owned READ/LIST modes, source/target policy independence, ordinary population and legacy/correlated includes, write-origin target detachment",
+      "retainedPublicFileIds": [
+        "F143",
+        "F136",
+        "F142",
+        "F186",
+        "F073"
+      ],
+      "addedGroupIds": [
+        "TARGET",
+        "DETACH"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-05",
+      "originalMatrixLine": 24,
+      "obligation": "Model query/direct/advanced/root CRUD, NEW, count, exists, distinct, grouped count, sorting, pagination, fixed routes",
+      "retainedPublicFileIds": [
+        "F080",
+        "F164",
+        "F165",
+        "F009",
+        "F194",
+        "F063",
+        "F202"
+      ],
+      "addedGroupIds": [
+        "DISTINCT"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-06",
+      "originalMatrixLine": 25,
+      "obligation": "Terminal false/Forbidden, no retry or unauthorized reads/writes, mandatory rows/identifiers/transforms, READ-to-LIST fallback",
+      "retainedPublicFileIds": [
+        "F154",
+        "F155",
+        "F194",
+        "F169",
+        "F215"
+      ],
+      "addedGroupIds": [
+        "FALLBACK",
+        "CONTROL"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-07",
+      "originalMatrixLine": 26,
+      "obligation": "Nested operation access: basic/advanced/root vs base policy, root admission, child field precedence, request receiver/defaults, custom routes and HEAD",
+      "retainedPublicFileIds": [
+        "F094",
+        "F085",
+        "F048",
+        "F080",
+        "F032",
+        "F082"
+      ],
+      "addedGroupIds": [
+        "ENTRY",
+        "ADMISSION"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-08",
+      "originalMatrixLine": 27,
+      "obligation": "Request-acquired backend and public services: independent rows/input/output/related authority; ordinary select; dependencies; immutable diagnostics; no DTO authority",
+      "retainedPublicFileIds": [
+        "F169",
+        "F174",
+        "F178",
+        "F186",
+        "F189",
+        "F044"
+      ],
+      "addedGroupIds": [
+        "FACTS",
+        "CONTROL",
+        "DTO"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-09",
+      "originalMatrixLine": 28,
+      "obligation": "Dedicated child list/read/create/update/bulkUpdate/delete: parent/child access, membership, hidden committed writes, visibility, IDs and limits",
+      "retainedPublicFileIds": [
+        "F082",
+        "F189",
+        "F207",
+        "F208",
+        "F220"
+      ],
+      "addedGroupIds": [
+        "ENTRY",
+        "CONTROL"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-10",
+      "originalMatrixLine": 29,
+      "obligation": "Supported raw helpers, named options/scope paths, no document hooks/DB/virtual work, fresh normal checks vs presentation",
+      "retainedPublicFileIds": [
+        "F132",
+        "F048",
+        "F152"
+      ],
+      "addedGroupIds": [
+        "CALLBACK",
+        "CONTROL"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-11",
+      "originalMatrixLine": 30,
+      "obligation": "Optional `pickAllowedFieldsMany`: one public capture, independent row values, order/nullish/native behavior, zero I/O, outer/resource admission, whole failure/drain",
+      "retainedPublicFileIds": [
+        "F132",
+        "F205",
+        "F128",
+        "F048"
+      ],
+      "addedGroupIds": [
+        "COLLECTION"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-12",
+      "originalMatrixLine": 31,
+      "obligation": "Permission metadata, `_view`/`_edit`, exposure allowlist, strip/disable postures, configurable dotted alias and collision errors; single/list context alignment",
+      "retainedPublicFileIds": [
+        "F040",
+        "F056",
+        "F057",
+        "F135",
+        "F073",
+        "F016"
+      ],
+      "addedGroupIds": [
+        "METADATA"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-13",
+      "originalMatrixLine": 32,
+      "obligation": "Frozen normalized boolean facts; request-owned actor; output hooks vs mutable real lifecycle; callback receivers/arguments and child-before-parent observations",
+      "retainedPublicFileIds": [
+        "F174",
+        "F178",
+        "F016",
+        "F167",
+        "F044"
+      ],
+      "addedGroupIds": [
+        "FACTS",
+        "CALLBACK"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-14",
+      "originalMatrixLine": 33,
+      "obligation": "Data routers/services/Core helpers: request-only policy, query/filter/sort/count/page semantics, owned dataset versions/native values and mutable returned decorations",
+      "retainedPublicFileIds": [
+        "F032",
+        "F021",
+        "F033",
+        "F099",
+        "F202"
+      ],
+      "addedGroupIds": [
+        "DATA",
+        "CALLBACK"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-15",
+      "originalMatrixLine": 34,
+      "obligation": "Hydration five buckets, captures/default restoration, ignored stale controls, fixed target/child stages, raw parent helpers",
+      "retainedPublicFileIds": [
+        "F068",
+        "F069",
+        "F132",
+        "F163",
+        "F241"
+      ],
+      "addedGroupIds": [
+        "ENTRY"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-16",
+      "originalMatrixLine": 35,
+      "obligation": "Virtuals: configuration, actual DB/query exclusion, dependencies, computed selection, parent/child ordering, private fourth inputs, source refs, missing/null/errors and lifecycle",
+      "retainedPublicFileIds": [
+        "F218",
+        "F219",
+        "F222",
+        "F220",
+        "F239",
+        "F241",
+        "F233"
+      ],
+      "addedGroupIds": [
+        "TARGET",
+        "DETACH",
+        "VALIDATION"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-17",
+      "originalMatrixLine": 36,
+      "obligation": "Advanced symbols/enums/types, request schemas, `parseBody*`, `parseQuery`, `parsePathParam`, selection/populate/include grammar; no private common-schema import",
+      "retainedPublicFileIds": [
+        "F032",
+        "F132",
+        "F205",
+        "F048",
+        "F006",
+        "F157",
+        "F028"
+      ],
+      "addedGroupIds": [
+        "VALIDATION"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-18",
+      "originalMatrixLine": 37,
+      "obligation": "Validation adapters (AJV, ArkType, Zod, Standard Schema, Yup, Joi, Valibot, io-ts, Superstruct, Vine), sync/tagged async results, operational errors and safe paths",
+      "retainedPublicFileIds": [
+        "F032",
+        "F211",
+        "F212",
+        "F213",
+        "F214",
+        "F205"
+      ],
+      "addedGroupIds": [],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-19",
+      "originalMatrixLine": 38,
+      "obligation": "OpenAPI registry/generation/router/Swagger: collisions, ownership, live config and HTML/script safety",
+      "retainedPublicFileIds": [
+        "F093",
+        "F092",
+        "F048",
+        "F032"
+      ],
+      "addedGroupIds": [
+        "VALIDATION"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-20",
+      "originalMatrixLine": 39,
+      "obligation": "`guard`: string/array/function/model conditions, source facts, required private target inputs, missing ID, errors and no DTO-only work",
+      "retainedPublicFileIds": [
+        "F132",
+        "F108",
+        "F079",
+        "F154"
+      ],
+      "addedGroupIds": [
+        "ENTRY",
+        "GUARD"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-21",
+      "originalMatrixLine": 40,
+      "obligation": "Logger helpers/redaction, injected logger levels/failure containment and structural-only private failures",
+      "retainedPublicFileIds": [
+        "F075",
+        "F016",
+        "F222"
+      ],
+      "addedGroupIds": [
+        "CAPTURE"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-22",
+      "originalMatrixLine": 41,
+      "obligation": "Processors entry: `copyAndDepopulate`, `copyPaths`, `movePaths`, `sliceArrays`, `countPaths`, `maskPaths`, mutable/immutable options and unsafe paths",
+      "retainedPublicFileIds": [
+        "F151",
+        "F150",
+        "F132"
+      ],
+      "addedGroupIds": [
+        "PROCESSORS"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    },
+    {
+      "id": "SURFACE-23",
+      "originalMatrixLine": 42,
+      "obligation": "Installed publication: actual transformed tarballs, scoped artifact tree, docs allowlist, ESM/CJS runtime, strict positive/negative Bundler/NodeNext/Node16 consumers, side effects",
+      "retainedPublicFileIds": [
+        "F132",
+        "F205",
+        "F085",
+        "F128",
+        "F048",
+        "F210"
+      ],
+      "addedGroupIds": [
+        "EXPORT"
+      ],
+      "status": "retained-public-plus-required-companions",
+      "rerunOfRetainedInArts04": false
+    }
+  ],
+  "retainedOriginalPublicContracts": [
+    {
+      "originalFileId": "F006",
+      "file": "packages/access-router/test/contracts/advanced-mutation-bodies.integration.test.ts",
+      "sha256": "cdf10d5bc2f73044449372871fe7b4221822ae5da967f0fff5b7a206e8c66579",
+      "baselinePassedCases": 6,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F006",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F007",
+      "file": "packages/access-router/test/contracts/arc21-projection-identity-and-count-argument.contract.test.ts",
+      "sha256": "fd9fcead32f18089015ab73594643184793a15cf27cc284863dcddb0390c5709",
+      "baselinePassedCases": 8,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F007",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F008",
+      "file": "packages/access-router/test/contracts/arf12-new-route-denial.integration.test.ts",
+      "sha256": "dbc2c69116ee22bb6e13425bcce7eca1fb79342d68154df331818c43c68f1346",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F008",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F009",
+      "file": "packages/access-router/test/contracts/arf12-root-distinct.authorization.integration.test.ts",
+      "sha256": "5e5272056e466c7ae06c13e3849a4d68bf476358b7cbfcf154f953f213773ef5",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F009",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F016",
+      "file": "packages/access-router/test/contracts/authorization-fast-path-runtime.integration.test.ts",
+      "sha256": "3f83ce57d976c466e67fc0071dad8e4cdca80cce818bc193739cc7bbf8beb4f6",
+      "baselinePassedCases": 16,
+      "arts02PassedCases": 16,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F016",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F021",
+      "file": "packages/access-router/test/contracts/basic-data-list.integration.test.ts",
+      "sha256": "f13b1a9b79d93edd3674c3dcbfd912af80bb3acf7a27bc1fb1c526d3c2e68e22",
+      "baselinePassedCases": 27,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F021",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F022",
+      "file": "packages/access-router/test/contracts/basic-list-sort.integration.test.ts",
+      "sha256": "5200afa95576c77c47ad2ca39116cc164ab51f5e5b9391728d9535d9c0ca5882",
+      "baselinePassedCases": 13,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F022",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F027",
+      "file": "packages/access-router/test/contracts/correlated-includes.escape.integration.test.ts",
+      "sha256": "9a42a01f1cc767c264c6b9648f4b0ad7b4eadce3ed656724d90a25ff51fbd2aa",
+      "baselinePassedCases": 18,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F027",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F028",
+      "file": "packages/access-router/test/contracts/correlated-includes.execution.test.ts",
+      "sha256": "c4e886fdf199ddd8de9735eec3c4cae068b55bf7a70476ee0e3388069e7d818c",
+      "baselinePassedCases": 12,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F028",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F031",
+      "file": "packages/access-router/test/contracts/cross-resource-authorization.integration.test.ts",
+      "sha256": "b1963b06ee3bc5e5d00bc3787be785c50d7ba9565dc9124a39d01b75d411b2a6",
+      "baselinePassedCases": 15,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F031",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F032",
+      "file": "packages/access-router/test/contracts/data-router.test.ts",
+      "sha256": "a29bdff25e177d85d0516fd17d6cb1c8ea45c8b0cebf10b85be331694a85a008",
+      "baselinePassedCases": 22,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F032",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F033",
+      "file": "packages/access-router/test/contracts/data-service-hot-path.test.ts",
+      "sha256": "860aca335b84327d2d89169e39c08978e6c5fd1061d27273059a3f3fbf02fe14",
+      "baselinePassedCases": 7,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F033",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F039",
+      "file": "packages/access-router/test/contracts/distinct-field-authorization.integration.test.ts",
+      "sha256": "4acca6640ba88a2db3941dfdd35bd18c4eb3e572f545db747c4e9dca925b6c6e",
+      "baselinePassedCases": 10,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F039",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F040",
+      "file": "packages/access-router/test/contracts/doc-permissions-exposure.integration.test.ts",
+      "sha256": "a8a173a79d9fcd4e122540fc9f5b877033e32bc9c96d32d098c9da12ed2bd8c5",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F040",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F044",
+      "file": "packages/access-router/test/contracts/document-permissions-dependencies.integration.test.ts",
+      "sha256": "dac802407549c1f2ccee5c0b4f51b48f561cf075632709f04f87fdb8f65fb9ba",
+      "baselinePassedCases": 19,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F044",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F048",
+      "file": "packages/access-router/test/contracts/documentation-examples.test.ts",
+      "sha256": "51762c4358d1a0f3f11a62b3ad169e17992d897fcc5341510b32d07d37f07bfd",
+      "baselinePassedCases": 92,
+      "arts02PassedCases": 92,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F048",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F056",
+      "file": "packages/access-router/test/contracts/field-permissions-opt-out.integration.test.ts",
+      "sha256": "ebccbffce797a8f4a5ca8c3caaded3a7db0642c188c0f7d27b0dc33726564e0d",
+      "baselinePassedCases": 7,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F056",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F057",
+      "file": "packages/access-router/test/contracts/field-permissions-placeholder.integration.test.ts",
+      "sha256": "28dbe5ed08dccba5f795b4e4a20e538dd1b6458b7e8132abf398a0a0b7f0bb32",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F057",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F061",
+      "file": "packages/access-router/test/contracts/grouped-count-casting.integration.test.ts",
+      "sha256": "66d3bf2c9412400b07f25c29abc0f41ea145c6e7508847302f72be6ff6c08304",
+      "baselinePassedCases": 41,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F061",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F063",
+      "file": "packages/access-router/test/contracts/grouped-count-numeric.integration.test.ts",
+      "sha256": "19ea74d99a732d0fb1cdc803e58c8514415ed97589f1b2cb91ada8c9c0451162",
+      "baselinePassedCases": 19,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F063",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F064",
+      "file": "packages/access-router/test/contracts/grouped-count-query-equivalence.integration.test.ts",
+      "sha256": "d71617256dc833c2c75f36d8df5bfcd0d17ff3f0dd773e276aa078ba2d349a30",
+      "baselinePassedCases": 41,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F064",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F068",
+      "file": "packages/access-router/test/contracts/hydration-characterization.integration.test.ts",
+      "sha256": "12d99a73d681539bb9307e8116c747312c21a5dc3433875faeba0364c268394d",
+      "baselinePassedCases": 28,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F068",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F069",
+      "file": "packages/access-router/test/contracts/hydration-configuration.test.ts",
+      "sha256": "6d3817f8ccf95971130b39906f32dd1d09716cc61fedb053e95d04398058a570",
+      "baselinePassedCases": 12,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F069",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F072",
+      "file": "packages/access-router/test/contracts/include-permission-metadata.integration.test.ts",
+      "sha256": "b8c93c2ff883594ef48f117c41e169ff33311713400d296a7ba4903cee2a644d",
+      "baselinePassedCases": 38,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F072",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F073",
+      "file": "packages/access-router/test/contracts/include-source-provenance.integration.test.ts",
+      "sha256": "6d36f73a3d1ead409ca6ccb004996fe2e2acc96f681627ad4162e85c421da8ff",
+      "baselinePassedCases": 80,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F073",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F074",
+      "file": "packages/access-router/test/contracts/list-snapshot-checks.integration.test.ts",
+      "sha256": "df0603f4c73d2c97f2b9b5383d5fbff667abd4d7aafdbda42f78db4ec23a3897",
+      "baselinePassedCases": 8,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F074",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F075",
+      "file": "packages/access-router/test/contracts/logger-redaction.test.ts",
+      "sha256": "e3049a335ac51628c5164f6d113c9414ed06134de6b9aa50e9241cbcb5fdc6de",
+      "baselinePassedCases": 11,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F075",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F079",
+      "file": "packages/access-router/test/contracts/model-router.integration.test.ts",
+      "sha256": "2cbc775cb819200f4385c318464824b983bde0682eb421153b660a9a1fb7c895",
+      "baselinePassedCases": 16,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F079",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F080",
+      "file": "packages/access-router/test/contracts/model-router.routes.integration.test.ts",
+      "sha256": "dd82dac6b32f044b39260c50d423669ea693c63009a269b294c3140a5f2cbe19",
+      "baselinePassedCases": 5,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F080",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F081",
+      "file": "packages/access-router/test/contracts/model-router.test.ts",
+      "sha256": "33dbc8b75f7ffcb605fc93af95759ef41dad8cdfa1ce106968f03f22dcbfa88a",
+      "baselinePassedCases": 16,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F081",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F082",
+      "file": "packages/access-router/test/contracts/model-subdocument-routes.integration.test.ts",
+      "sha256": "ca037598e914601e35bce078282783f9aafbd3798a4a4a21247acb5aae6f2aee",
+      "baselinePassedCases": 29,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F082",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F085",
+      "file": "packages/access-router/test/contracts/nested-operation-access-consumer-types.test.ts",
+      "sha256": "0778cb9865c8fa7d588a9f7d2bde6e51a95960ee188d360331a8de4c5f20835d",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 3,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F085",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F090",
+      "file": "packages/access-router/test/contracts/nested-update-integrity.integration.test.ts",
+      "sha256": "36925076bb9ac6c02a9e9ca34f69f719b7dca9a696d50c5c99ca3229024e148e",
+      "baselinePassedCases": 46,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F090",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F092",
+      "file": "packages/access-router/test/contracts/openapi-collision.test.ts",
+      "sha256": "7ab385f8740f3ec72372bad179d5fb4bc9d1a636068ef50a6a53837c89ef232d",
+      "baselinePassedCases": 16,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F092",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F093",
+      "file": "packages/access-router/test/contracts/openapi.test.ts",
+      "sha256": "3fca4c992804a4b132d273396c72c5236f124e64d21b546bd7b60f49748ca812",
+      "baselinePassedCases": 9,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F093",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F094",
+      "file": "packages/access-router/test/contracts/operation-access-baseline.contract.test.ts",
+      "sha256": "7f6e2b3fc7aab1d07df364e1fc74c03551b9bce4249913445063f1dc0b8a4d30",
+      "baselinePassedCases": 28,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F094",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F099",
+      "file": "packages/access-router/test/contracts/options-ownership.test.ts",
+      "sha256": "da8b2b4a82198bf297ed1f522475967df686fcc34da86cc4b0635085859dc1c7",
+      "baselinePassedCases": 6,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F099",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F108",
+      "file": "packages/access-router/test/contracts/owned-authorization-guard-consumer.integration.test.ts",
+      "sha256": "1903bae066ccc5ce1449e3368bb456c28d7028bdfc0d7550551e43436388b321",
+      "baselinePassedCases": 14,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F108",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F121",
+      "file": "packages/access-router/test/contracts/owned-authorization-modes.integration.test.ts",
+      "sha256": "bcc43106e9d670f95ac59a29ffaec12f87b39d67ce0a8424c37e8de69b3583ce",
+      "baselinePassedCases": 29,
+      "arts02PassedCases": 29,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F121",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F128",
+      "file": "packages/access-router/test/contracts/owned-authorization-types.test.ts",
+      "sha256": "c338ae82bcac941a760ff44f8a0fecdfc62b1f2bd8924bde3cc45e1f4752bf69",
+      "baselinePassedCases": 2,
+      "arts02PassedCases": 2,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F128",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F132",
+      "file": "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+      "sha256": "a35d6b35638edd1514b53e390334cd264f992b726411eff2132d124e6dc61428",
+      "baselinePassedCases": 13,
+      "arts02PassedCases": 13,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F132",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F135",
+      "file": "packages/access-router/test/contracts/permissions-posture.integration.test.ts",
+      "sha256": "1ae986ef995124887b5928d3ac91861fd216398817cbe3a1b01ea124138ba522",
+      "baselinePassedCases": 29,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F135",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F136",
+      "file": "packages/access-router/test/contracts/populate-operation-policy.binding.test.ts",
+      "sha256": "2e3219249fb41f0209ef920928e5a5c79a0035ad80eecc094418d4bb1979e716",
+      "baselinePassedCases": 136,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F136",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F138",
+      "file": "packages/access-router/test/contracts/populate-operation-policy.dependencies.test.ts",
+      "sha256": "d61f4bce8fed095be800ae497c591a0fb85a910410bdc4a49d01cb6a7c46efd7",
+      "baselinePassedCases": 320,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F138",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F139",
+      "file": "packages/access-router/test/contracts/populate-operation-policy.helper-isolation.test.ts",
+      "sha256": "13ffc8f26e6987f166e9720b3557520264ec26f4df476ada7aacf77a39b8f555",
+      "baselinePassedCases": 12,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F139",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F140",
+      "file": "packages/access-router/test/contracts/populate-operation-policy.include-binding.review.test.ts",
+      "sha256": "212d2c58c83428d63f7de64abc5081bd0b6d7650dc296d9910452c7864495ac3",
+      "baselinePassedCases": 8,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F140",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F142",
+      "file": "packages/access-router/test/contracts/populate-operation-policy.nested-targets.test.ts",
+      "sha256": "af8ddbb64fc681bb8c2e4c983fca7c76255777b17d96de74219a6c42f244edc6",
+      "baselinePassedCases": 164,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F142",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F143",
+      "file": "packages/access-router/test/contracts/populate-operation-policy.queries.test.ts",
+      "sha256": "47ba763d06f082433f8c02641be2bd38d2b052f94a1be6d5626d348b042aa8b5",
+      "baselinePassedCases": 84,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F143",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F144",
+      "file": "packages/access-router/test/contracts/populate-operation-policy.review.test.ts",
+      "sha256": "d3bef92de2905403cfcfc62a333d8f89cb1b610b9f477e86a86b989e5964bd54",
+      "baselinePassedCases": 8,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F144",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F147",
+      "file": "packages/access-router/test/contracts/private-populate-read-policy.review.test.ts",
+      "sha256": "771596b1face3eb03c78ac54b03864a50ef2d9484d74cfe912d41ed6e108fac1",
+      "baselinePassedCases": 32,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F147",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F148",
+      "file": "packages/access-router/test/contracts/private-populate-read-policy.runtime.test.ts",
+      "sha256": "dd7a3d02f8bf68bbf3cbd020ae22a789e210548ef59353717a098885f2846f2f",
+      "baselinePassedCases": 88,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F148",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F150",
+      "file": "packages/access-router/test/contracts/processors-path-hardening.test.ts",
+      "sha256": "a2a1d62cc153a463cb9356666ec90ab25eb91cf21f76041f78b94fc1dc033f3c",
+      "baselinePassedCases": 35,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F150",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F151",
+      "file": "packages/access-router/test/contracts/processors.test.ts",
+      "sha256": "1459b7e386200d16c7d96deac2c7a6e7581ec71493f55b92293082482dd8e384",
+      "baselinePassedCases": 4,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F151",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F152",
+      "file": "packages/access-router/test/contracts/query-snapshot-options.integration.test.ts",
+      "sha256": "c203a6e52bd7ee35412921f407db562bf5c7785aaac1d593c4ab0d33d293e475",
+      "baselinePassedCases": 20,
+      "arts02PassedCases": 20,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F152",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F154",
+      "file": "packages/access-router/test/contracts/read-list-fallback-authorization.integration.test.ts",
+      "sha256": "625ef6133a92789fe9bc2545d0db56740f1fe787e5bd2a0d3e7a197400584223",
+      "baselinePassedCases": 7,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F154",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F155",
+      "file": "packages/access-router/test/contracts/read-snapshot-checks.integration.test.ts",
+      "sha256": "28b688d3fec42aaf37d9cb317475ab216992617b3adf06384e28774b0379c1c7",
+      "baselinePassedCases": 12,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F155",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F157",
+      "file": "packages/access-router/test/contracts/request-complexity.integration.test.ts",
+      "sha256": "98b07155bd9464b73f00a3d95a8ce7df30304127cb01d0712fb243770b21ee0a",
+      "baselinePassedCases": 7,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F157",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F161",
+      "file": "packages/access-router/test/contracts/require-explicit-select.integration.test.ts",
+      "sha256": "69094e9be8a358524c8c9dd6e438c90e5029c2fd077b62f618532fb52cb079df",
+      "baselinePassedCases": 9,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F161",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F163",
+      "file": "packages/access-router/test/contracts/retained-model-service-ownership.integration.test.ts",
+      "sha256": "dd13dad82e4d6e45025972a8f81b008f79b18db0af31ffdb100c7a64687d5a20",
+      "baselinePassedCases": 52,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F163",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F164",
+      "file": "packages/access-router/test/contracts/root-router.integration.test.ts",
+      "sha256": "9d4709c2f727f2e15de8412e07f8a0ca46568be0474d3feffb41e7f0aed45b10",
+      "baselinePassedCases": 15,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F164",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F165",
+      "file": "packages/access-router/test/contracts/root-router.variants.integration.test.ts",
+      "sha256": "50b6cbc9347daf2046d81ce522701c27882aecab5132cf41bb035ebcb5cab409",
+      "baselinePassedCases": 1,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F165",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F166",
+      "file": "packages/access-router/test/contracts/runtime-isolation.integration.test.ts",
+      "sha256": "13403e819c6997a46dd44a3ec87253f9fb405f42947dc2899cf0cf2f78c9d0f2",
+      "baselinePassedCases": 12,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F166",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F167",
+      "file": "packages/access-router/test/contracts/runtime-permission-handoff.integration.test.ts",
+      "sha256": "19e1a75cf9f5e2635b3c389980489b07d335129129190a7643582fdb50903183",
+      "baselinePassedCases": 35,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F167",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F168",
+      "file": "packages/access-router/test/contracts/schema-mutation.regression.test.ts",
+      "sha256": "a95b021d9d731a82aaf79d386da755dd8996251efdc3a825fdf2e47483b40a8d",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F168",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F169",
+      "file": "packages/access-router/test/contracts/service-authorization-baseline.contract.test.ts",
+      "sha256": "b7d3aad524da4aecd85c2d6406cd823614928a9743a38b3f829b3548fd659052",
+      "baselinePassedCases": 16,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F169",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F174",
+      "file": "packages/access-router/test/contracts/service-authorization-direct.integration.test.ts",
+      "sha256": "2e871efaa9e13246925885af94b816cde6dffbb9e614311b6c22983993a3b2ec",
+      "baselinePassedCases": 15,
+      "arts02PassedCases": 15,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F174",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F178",
+      "file": "packages/access-router/test/contracts/service-authorization-input.integration.test.ts",
+      "sha256": "4ca6ae25c0161d796a5997e177d37a423e79afccabbc168d75df7e1043315ca6",
+      "baselinePassedCases": 62,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F178",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F186",
+      "file": "packages/access-router/test/contracts/service-authorization-related.integration.test.ts",
+      "sha256": "c34e4feb45222e74ecb82d44e0ee65107e479ae51cb699bc40149e44e0386427",
+      "baselinePassedCases": 26,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F186",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F189",
+      "file": "packages/access-router/test/contracts/service-authorization-subdocuments.integration.test.ts",
+      "sha256": "99fc29211629c4d42a49b17cb2f917305d3195c94a36fc42836640e638a2cfa2",
+      "baselinePassedCases": 26,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F189",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F191",
+      "file": "packages/access-router/test/contracts/service-defaults.integration.test.ts",
+      "sha256": "33f356ccb33c6a99f27fb431fa1fb6b24a4796ec91ee1413acfc4f89b2de518a",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F191",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F194",
+      "file": "packages/access-router/test/contracts/service-exists.integration.test.ts",
+      "sha256": "5f906e09829371e61d0055a98c1fa37dd34090c604528ed3276899bd9fd405a2",
+      "baselinePassedCases": 10,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F194",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F201",
+      "file": "packages/access-router/test/contracts/side-effect-initialization.test.ts",
+      "sha256": "f41c7afc8d9baa0478d9f7da2005d93f352323388408847046b366ea99f565a1",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F201",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F202",
+      "file": "packages/access-router/test/contracts/sort-field-authorization.integration.test.ts",
+      "sha256": "c71a21b9cd62bd2fdd279a82f3b9cbcc6983a1c13eb8503e184ce8778c780e8e",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F202",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F203",
+      "file": "packages/access-router/test/contracts/sort-options.integration.test.ts",
+      "sha256": "d21078d9ef0f864710f319cd1ae7adf5f4dde51dc3ce198880f65aaac93d2b0e",
+      "baselinePassedCases": 7,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F203",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F205",
+      "file": "packages/access-router/test/contracts/strict-consumer-types.test.ts",
+      "sha256": "e98e17935527af28ebc26043df023468caa0a7ac5a14172c202bf4e1323031d0",
+      "baselinePassedCases": 49,
+      "arts02PassedCases": 49,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F205",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F207",
+      "file": "packages/access-router/test/contracts/subdocument-mutation-visibility.integration.test.ts",
+      "sha256": "224d7834f9c84904d5f8e927fd250334b8373fe0c0973790b3e71a223023ab19",
+      "baselinePassedCases": 71,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F207",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F208",
+      "file": "packages/access-router/test/contracts/subdocument-populate-authorization.integration.test.ts",
+      "sha256": "8cb2aa4fb39160bccaa32ab3e7a12202512c1d647ea6d9947f8b1021401e2c55",
+      "baselinePassedCases": 4,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F208",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F210",
+      "file": "packages/access-router/test/contracts/tree-shaking-smoke.test.ts",
+      "sha256": "39c754559df7eaa02a4a8f05fffef6341f29fb32dba8e6f12be3097651b1074f",
+      "baselinePassedCases": 3,
+      "arts02PassedCases": 3,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F210",
+      "latestRuntimeEvidence": "arts-02-focused-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F211",
+      "file": "packages/access-router/test/contracts/validation-arc02.test.ts",
+      "sha256": "25455d1742720deb88703dc31baa76ababdfa62c85c7dfa134ac4ce9f08cb643",
+      "baselinePassedCases": 30,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F211",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F212",
+      "file": "packages/access-router/test/contracts/validation-arh06.test.ts",
+      "sha256": "0a7aee871a7712b4a1a097922c9b758f78690e7a1ef66369b197250b8918f327",
+      "baselinePassedCases": 8,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F212",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F213",
+      "file": "packages/access-router/test/contracts/validation-arh07.test.ts",
+      "sha256": "871ee1ad971a7d4234606a160fd1f49c1528763b605b0f7a4eed3067480afe1a",
+      "baselinePassedCases": 4,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F213",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F214",
+      "file": "packages/access-router/test/contracts/validation-error-boundary.test.ts",
+      "sha256": "73c9ddea9f6cce7104a3836c60d0bed77d0ce7cf03df08710f37bd78371d754f",
+      "baselinePassedCases": 5,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F214",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F215",
+      "file": "packages/access-router/test/contracts/virtual-filter-literals.integration.test.ts",
+      "sha256": "56fd2fd562bb1a4808180cc53de2ddb54a2f9b2e6f945cdafe6ffcfa88801f74",
+      "baselinePassedCases": 51,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F215",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F217",
+      "file": "packages/access-router/test/contracts/virtuals-baseline.contract.test.ts",
+      "sha256": "8f65f0e8964e884571bab62f01b46d49ca67e6c2f2f6ebc978bf898e4f421a84",
+      "baselinePassedCases": 7,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F217",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F218",
+      "file": "packages/access-router/test/contracts/virtuals-config.contract.test.ts",
+      "sha256": "e594c23d5643d2b00406d60a4ae8f97efcb3c036610a72e9673c296be6c634c5",
+      "baselinePassedCases": 8,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F218",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F219",
+      "file": "packages/access-router/test/contracts/virtuals-direct-operations.integration.test.ts",
+      "sha256": "4a36c5fd7127cde726540d55c673586362a83fc357441b6227af1e9d5c379161",
+      "baselinePassedCases": 19,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F219",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F220",
+      "file": "packages/access-router/test/contracts/virtuals-embedded-subdocuments.integration.test.ts",
+      "sha256": "a544c60d8f80b6dcbac3a3012630eeda78964d253913ae045bf269209d1794d5",
+      "baselinePassedCases": 23,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F220",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F222",
+      "file": "packages/access-router/test/contracts/virtuals-hardening.boundary.test.ts",
+      "sha256": "cfa0b37231e05ce9a05216e7702303d7f84cfb8201b2466774e2fff3b2faccb6",
+      "baselinePassedCases": 23,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F222",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F225",
+      "file": "packages/access-router/test/contracts/virtuals-populate-dependencies.capture-boundaries.review.test.ts",
+      "sha256": "bd8915b15d43a7d994beff34eece729750f258451cd25f9d9e5eec0b47b32e7c",
+      "baselinePassedCases": 14,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F225",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F228",
+      "file": "packages/access-router/test/contracts/virtuals-populate-dependencies.dispatch.test.ts",
+      "sha256": "2f436140b1a0bf69096e5e316c21d565c9bbb0632937c3a802ec8127f8bcf825",
+      "baselinePassedCases": 16,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F228",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F229",
+      "file": "packages/access-router/test/contracts/virtuals-populate-dependencies.fallback.test.ts",
+      "sha256": "9577d3c96ced8f40b48d5071d7f4574157f6ae59b7c09e98dcc17712e42cea7e",
+      "baselinePassedCases": 170,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F229",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F231",
+      "file": "packages/access-router/test/contracts/virtuals-populate-dependencies.intent.test.ts",
+      "sha256": "b9f1bc5f0b2699b4542f8962d98e0009f410614f3dfe688ff851ba331d5499cf",
+      "baselinePassedCases": 52,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F231",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F232",
+      "file": "packages/access-router/test/contracts/virtuals-populate-dependencies.operation-guards.test.ts",
+      "sha256": "1f9a089306e4a8e0c4fae7789e48e60d479c00e2fdd0524477625e7e111fe0cc",
+      "baselinePassedCases": 228,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F232",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F233",
+      "file": "packages/access-router/test/contracts/virtuals-populate-dependencies.parity.test.ts",
+      "sha256": "466994ab54502b3dafc095e7ac7f7fed3040fc3f0173fc17cfcd43aaeb2b0d66",
+      "baselinePassedCases": 184,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F233",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F236",
+      "file": "packages/access-router/test/contracts/virtuals-populate-dependencies.review.test.ts",
+      "sha256": "60adfeda6fccfc30ef647e3a97e055f4bb72719336c834403ec21c2421e93b78",
+      "baselinePassedCases": 12,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F236",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F239",
+      "file": "packages/access-router/test/contracts/virtuals-populate-include.integration.test.ts",
+      "sha256": "82c08ea16a2d2278cac0d18b4eacfc3ea7487a74347a35a3beeb2d9f63e65d4b",
+      "baselinePassedCases": 11,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F239",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    },
+    {
+      "originalFileId": "F241",
+      "file": "packages/access-router/test/contracts/virtuals-route-parity.integration.test.ts",
+      "sha256": "8864413bf39ab01225ac91703f7abea6eb7d33c6ba10479a09b5f8df9ec8d11a",
+      "baselinePassedCases": 15,
+      "arts02PassedCases": 0,
+      "runtimeRerunInArts04": false,
+      "baselineCaseIdentitySource": "runtime-cases.jsonl rows with file ID F241",
+      "latestRuntimeEvidence": "runtime-cases.jsonl",
+      "freshPreservationEvidence": "arts-03-verify-checkpoint.mjs (executed in ARTS-04)"
+    }
+  ],
+  "retainedExportEncapsulation": {
+    "fileId": "F132",
+    "source": "test/contracts/packed-consumer-compatibility.test.ts (private-exports.cjs finite failure-only require.resolve table)",
+    "baselineAndArts02PassedParents": [
+      {
+        "caseId": "7d1d5650b7dc5a54ae042fd4b53586ed3970f51dec74620802fd4411feb236df",
+        "fullTitle": "ARF-09 packed-package compatibility using the real release-artifact pipeline supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers",
+        "status": "passed"
+      },
+      {
+        "caseId": "da66b63b1e10ac3af11f5f447dc6181e81b40979c1b801d4c23290b09cd91c13",
+        "fullTitle": "ARF-09 packed-package compatibility using the real release-artifact pipeline supports current majors from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers",
+        "status": "passed"
+      },
+      {
+        "caseId": "be6a86180aa04af71e99efed532e28fc3ab27205e19e58938800b13cc20c6129",
+        "fullTitle": "ARF-09 packed-package compatibility using the real release-artifact pipeline supports minimum peers from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers",
+        "status": "passed"
+      },
+      {
+        "caseId": "5c07f6add2327fd83c7ff70cb2d1a19e6cedbbd48bfab7d7bdec79c63e46287c",
+        "fullTitle": "ARF-09 packed-package compatibility using the real release-artifact pipeline supports current majors from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers",
+        "status": "passed"
+      }
+    ],
+    "freshRunInArts04": false,
+    "strictTypesFileIds": [
+      "F205",
+      "F128",
+      "F085",
+      "F048"
+    ],
+    "noNewPrivateImportException": true
+  },
+  "recipeClarifications": [
+    {
+      "id": "COLLECTION",
+      "cause": "Two payload callbacks can finish before overflow; that alone cannot expose an admitted callback held during failed closure.",
+      "boundedInput": "Two 4MiB payload rows plus one small held name row; maxHookConcurrency=2/maxBulkConcurrency=2.",
+      "result": "All three predicates actually enter; other two finish while first remains held; no settlement before release; held completion precedes bad_request and no publication. Real input, no private state/turn counts."
+    },
+    {
+      "id": "ADMISSION",
+      "cause": "Populate policy values intentionally normalize every non-false defined value to strict; yes is not invalid.",
+      "boundedInput": "Invalid placement of requireOperationAccessForPopulateQueries in global options; exact global/model options and registry retained.",
+      "result": "Pass. Clarifies invalid populate configuration rather than inventing a boolean enum constraint; production/docs/policy unchanged."
+    },
+    {
+      "id": "DETACH",
+      "cause": "16MiB cumulative payload is a collection ledger, not a blanket single-write native byte cap.",
+      "boundedInput": "After real save, consumer afterPersist adds BSON Code with 20,001 selected scope slots to the live document without saving it again.",
+      "result": "Both write modes return controlled bad_request while the small submitted business row remains committed. Grounded in README 308-336 and retained native public selected-scope tests."
+    },
+    {
+      "id": "EXPORT",
+      "cause": "Existing packed consumers already execute blocked-private-path checks and strict positive/negative compiles.",
+      "boundedInput": "Two new installed semantic-name imports reuse that retained evidence rather than duplicating the pack/type matrix or adding new failure-only import exceptions.",
+      "result": "New ESM/CJS passed; existing sources exact ARTS-02 bytes. Retained runtime evidence remains ARTS-01/02, not a fresh ARTS-04 compile claim."
+    }
+  ],
+  "blockers": [],
+  "limitations": [
+    "No full public-layer/default/invariant/internal or root/grouped/downstream run in ARTS-04.",
+    "Static guard and bounded tests do not prove arbitrary consumer equivalence.",
+    "Retained 97 original public files are preserved, not rerun here; ARTS-06 owns complete fresh runs."
+  ]
+}

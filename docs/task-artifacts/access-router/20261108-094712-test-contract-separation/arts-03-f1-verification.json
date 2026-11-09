@@ -1,0 +1,1175 @@
+{
+  "schema": 1,
+  "task": "ARTS-03 / ARTS06-F1",
+  "outcome": "Repair verified in focused scope; ARTS-06 independent acceptance still required",
+  "cwd": ".",
+  "scratch": "_tmp-arts-03-f1-20261109045446",
+  "TMPDIR": "<repo-root>/_tmp-arts-03-f1-20261109045446",
+  "toolchain": {
+    "node": "v26.12.1",
+    "pnpm": "11.18.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  },
+  "commands": [
+    {
+      "label": "red-root",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.internal.config.ts",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "--testNamePattern=reproduces ARTS06-F1 exact public root alias resolving to private source",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-f1-20261109045446/red-root.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-09T04:56:28.873Z",
+      "exit": 1,
+      "elapsedMs": 3233
+    },
+    {
+      "label": "green-guards",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:internal",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-f1-20261109045446/green-guards.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-09T04:59:59.558Z",
+      "exit": 0,
+      "elapsedMs": 25809
+    },
+    {
+      "label": "lint",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/scripts/check-test-layers.mjs",
+        "packages/access-router/scripts/test-layer-consumers.mjs",
+        "packages/access-router/test/internal/test-layer-boundaries.unit.test.ts"
+      ],
+      "started": "2026-11-09T05:03:02.445Z",
+      "exit": 1,
+      "elapsedMs": 2730
+    },
+    {
+      "label": "typecheck",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "started": "2026-11-09T05:03:53.070Z",
+      "exit": 0,
+      "elapsedMs": 28231
+    },
+    {
+      "label": "green-guards-final",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:internal",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-03-f1-20261109045446/green-guards-final.json",
+        "--includeTaskLocation"
+      ],
+      "started": "2026-11-09T05:04:25.823Z",
+      "exit": 0,
+      "elapsedMs": 25333
+    },
+    {
+      "label": "lint-final",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/scripts/check-test-layers.mjs",
+        "packages/access-router/scripts/test-layer-consumers.mjs",
+        "packages/access-router/test/internal/test-layer-boundaries.unit.test.ts"
+      ],
+      "started": "2026-11-09T05:04:55.709Z",
+      "exit": 0,
+      "elapsedMs": 1791
+    },
+    {
+      "label": "layers-check",
+      "cwd": ".",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:layers:check"
+      ],
+      "started": "2026-11-09T05:05:00.281Z",
+      "exit": 0,
+      "elapsedMs": 2720
+    },
+    {
+      "label": "preservation",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-f1-verify-checkpoint.mjs"
+      ],
+      "started": "2026-11-09T05:09:30.194Z",
+      "exit": 0,
+      "elapsedMs": 1182
+    },
+    {
+      "label": "capture",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "_tmp-arts-03-f1-20261109045446/curate.mjs"
+      ],
+      "started": "2026-11-09T05:09:47.916Z",
+      "exit": 0,
+      "elapsedMs": 3161
+    },
+    {
+      "label": "evidence-review",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "_tmp-arts-03-f1-20261109045446/review-evidence.mjs"
+      ],
+      "started": "2026-11-09T05:13:32.350Z",
+      "exit": 0,
+      "elapsedMs": 159
+    }
+  ],
+  "red": {
+    "label": "red-root",
+    "expectedExit": 1,
+    "selectedFailed": 1,
+    "selectorSkipped": 75,
+    "reason": "TypeScript resolution assertion passed; unchanged old checker returned an empty diagnostic string.",
+    "test": {
+      "fullName": "ARTS06-F1 compiler-context boundaries reproduces ARTS06-F1 exact public root alias resolving to private source",
+      "line": 265,
+      "column": 3
+    },
+    "failure": "expected '' to contain 'private dependency: src/secret.ts'",
+    "oldCheckerSha256": "53ecc5f1de46a3d9a39497778e20007ee6139ff4343b3fe0cacce9a10fd33efc"
+  },
+  "green": {
+    "label": "green-guards-final",
+    "passed": 76,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "files": 1,
+    "old59Retained": [
+      {
+        "historicalId": "be84f72d1c613fa49bcbce8042b22cb536d234d8af58a8e86a886ab0777e587f",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi as mocker } from 'vitest'; mocker.doMock('../support/public/helper');",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "47cad68809187670945469602c99d494c4250e4a9051ff78a25dc2ed6513db64",
+        "fullName": "exhaustive disjoint layer selection rejects runnable outside layers: src/orphan.test.ts",
+        "line": 230,
+        "column": 95,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "09af22d0d07679626639449b6bd040ef9512aff40b71745431f45c60f420689f",
+        "fullName": "contract dependency boundary forbids consuming or re-exporting the negative-only alias from another module",
+        "line": 188,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "c225072087990009ff934ffc3deb157f02e97a34b09a4b8247bf385f79948f66",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../support/private/service-authorization.types.fixture';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "47e5b8279c3836ded998e6ef62af4a032782f2baee07d66d8171d214021c56be",
+        "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: ts.createProgram(computed, {});",
+        "line": 138,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "3711771ce21dd56647a6eba5e620a350fa406d5394a219a241095a9d99c5b102",
+        "fullName": "contract dependency boundary allows application hooks, Mongoose/model spies and supported service defaults",
+        "line": 211,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "bc71a7c86fbec365461c49b9b5298a8a1674747460f824577af76b421d7ca837",
+        "fullName": "contract dependency boundary maps only exact finite generated documentation outputs and audits their bodies",
+        "line": 148,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "e0e9b9267a4293b0226083d71be6ad8c04d6e7eac5d5847177f7c7a1128dd8a9",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../invariants/private.test';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "ab0e7d854922881ee0200df2278734d83169597594585293859885a0b7fad3c4",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { createAccessRuntime } from '@web-ts-toolkit/access-router'; const api = createAccessRuntime(); const router = api.createRouter('x'); const service = router.getService(req); service.findOne = vi.fn();",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "2fe226600006ad32d3ee4e0f259e0a473dc35f359ab0425d7443af8ea5ad2ea1",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '@web-ts-toolkit/access-router/dist/index.js';",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "4247f923bc6eda22c52f5c0777228622658ee284d4bc236be71fcbc852e501af",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: const name = '../support/public/helper'; void import(name);",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "1741c187e153fd3b2a57ad7761b3e1b9b03427f9545b20b0c86f5d3f5f7ef560",
+        "fullName": "exhaustive disjoint layer selection rejects runnable outside layers: test/support/public/orphan.test.ts",
+        "line": 230,
+        "column": 95,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "6245f350e6824a47187729c9b6628b0f976e1497923a1911684fe1b076040a5b",
+        "fullName": "contract dependency boundary reports the transitive dependency chain",
+        "line": 82,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "a81a3348e0135cfd22a1ca3a80276ebe171a1f22a92e4f8074ac949c564cf37d",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: const name = '../../src/secret'; require(name);",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "42244b22ec0597329503eb5b31bafb87e5f9ef079eea53c45e5a3aba1208d6a7",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../support/private/helper';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "2777c67085a68848dddf8564736b588bb1102232039abf14d38de34126d1aad1",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: service['processOp'] = () => ({});",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "7db00a49cb1d10b67bf06b9314c793fd93a28801d05239091290a6ef23d66401",
+        "fullName": "exhaustive disjoint layer selection rejects overlaps, empty layers, exclusions, unselected tests and wrong ownership",
+        "line": 237,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "ff49b2b87e372c21661bd7c9ae4bab9079c4ef947acd83c28a647c10f476be87",
+        "fullName": "contract dependency boundary allows one unused failure-only deep type alias, never a binding or successful use",
+        "line": 170,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "0d6b63f142ce36783c2437957a51639e8e5bfd9d94bc6fe4a368dfcd96a7add5",
+        "fullName": "contract dependency boundary audits configured setup and its transitive support",
+        "line": 114,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "fda5a125ec30f649c3e5320fce2d8f4965131c807960b0596bf0d8a4f8deacdc",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '#private';",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "5f382030485be25911da8b5531fc50850f173636240bc71dee86f4a1db0f3f51",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: void import(`../../src/${part}`);",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "198e432e6deda3d136ed13e5410a2227784c8259b7c4024b50761f5d403815ff",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi } from 'vitest'; vi['mock']('@web-ts-toolkit/access-router', () => ({}));",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "97a5d601d4c26e378fcccec5085659ba033b5b1fe349ebee8171959a88aa2223",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi } from 'vitest'; vi.spyOn(service, 'genIDFilter');",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "41dfbbeace787daeb98c0b4ac8484868377699f64003da790ad13d4f5ab6bdd5",
+        "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: readFileSync(path.join(packageRoot, 'test/support/private/helper.ts'));",
+        "line": 138,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "e3a7ff7a252bf8090cbe89ba703f31a94fad4b55dd98914143f3c46a71ab85fe",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../../dist/private-chunk.mjs';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "0a836b890c58fa7910dcca8902329143392fceba09cc25f66a1221c78216426b",
+        "fullName": "contract dependency boundary rejects tsconfig path aliases to private source",
+        "line": 104,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "6e2bc3116a954043dabe3c956d1b45c87d590902265f097179f67fa0c10f9224",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { vi } from 'vitest'; vi.mock('@web-ts-toolkit/access-router', () => ({}));",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "0fef5b9d4e5244339d38c78ba2cf5d0da3586b7474daec6c289194278a766bb5",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { ModelRouter } from '@web-ts-toolkit/access-router'; vi.spyOn(ModelRouter.prototype, 'getService');",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "9b7c762572e2f1bc6dc8ff01f86137148b8bc31d465a4301eadc07fabce3c2d5",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: const value = require('../../src/secret');",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "fab67cd132840667d451315aced18e0651943afe183e424ef1a4f75dc5cc78f4",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../access-router-crud-fixture';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "0038ae571997ea3cc43126eb6c7cbaa596f022a41cd24b0b9fafa4e16ec69bc4",
+        "fullName": "contract dependency boundary does not let a Vitest alias replace the supported public entry with source",
+        "line": 109,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "5ff563e9cbee408972d7d5e408223c09b02d9981cb5153189256eae6acb36c99",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../../src/secret';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "99f891032b3768d501dcd345fba53b10949abaf42c3b2dd569914c00feaa5ae5",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import secret = require('../../src/secret');",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "d88977c44c08cf7fcc744202eda8a24e3c915e6f444bb1683259e8bcc5fad811",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import '../internal/private.test';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "189b948f5df9ed35d4699967fce1c84c2c0ab3dc8465dd0abe4add7c98259835",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: void import('../../src/secret');",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "f4ca822dd778321adaa4fe20d07cc8fa9b010c57b6421ed8e299c1a52fb54818",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: type T = import('../../src/secret').Secret;",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "6facfbf81ca7d01bac5c8b5210f239f869515563e003ff02ac602798fa670cbe",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: const load = require; load('../../src/secret');",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "20fc352d0961c776b15537184ce5bd481c0f5984cba049eafa00720609eb3d4f",
+        "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: writeFileSync(file, `${prefix} import('${privatePath}')`);",
+        "line": 138,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "a6c1e5ecbd456447edcae091cdb413fc0684e88e5aad5a42eab9a8607e09b19b",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: Object.defineProperty(service, 'trimOutputFields', { value() {} });",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "89f75a06741e2235d806cdd21fdb16fb66232fd6b1d0a8009883d7befd7bce89",
+        "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: ts.createProgram(['src/secret.ts'], {});",
+        "line": 138,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "fedd3c0587c07ced11cd5a0036b011d7727bf823263abd745183189f021e57ae",
+        "fullName": "exhaustive disjoint layer selection rejects runnable outside layers: test/orphan.test.ts",
+        "line": 230,
+        "column": 95,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "b40f11d8d448ad0d1e7853e2f336a4a22ad60762ba4414f0c8e787bb31ca0b13",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import type { Secret } from '../../dist/private-chunk.d.ts';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "2b9d37f057c95885cb7bc2b03d78ff72c949d46fc4eb367ce3286f4c61734c50",
+        "fullName": "contract dependency boundary accepts public runtime/type entries and transitive public support; stops at entry implementation",
+        "line": 52,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "1d56ab1513656f259fb7e61669ac8e5e331c79a8866a5bdeca6503b42fb24c3f",
+        "fullName": "contract dependency boundary does not let an inspection-only read review become executable consumer source",
+        "line": 157,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "910247e0401e4de90a78585749e222a7efb0093ab9a86999aaae78c382517fcf",
+        "fullName": "contract dependency boundary audits finite compiler fixture lists instead of trusting their string paths",
+        "line": 142,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "528bc9f0860d8120fd1b89ef61f8d92a40c4a73f172acf3821879a255df6e585",
+        "fullName": "contract dependency boundary parses emitted consumer module contexts, including joined source and local generated siblings",
+        "line": 121,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "907d2460e64cb94a6b66b45e27b385d825ca57cf036e9a7c715efbfad6729b80",
+        "fullName": "exhaustive disjoint layer selection accepts exactly one owner per nonempty suite and the exact default union",
+        "line": 226,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "360e87d9f2e1023700e79bd0e0fd80904435bdf58cdda0a1d315ac8ba84258aa",
+        "fullName": "contract dependency boundary rejects common package mock/private patch escapes: import { createAccessRuntime } from '@web-ts-toolkit/access-router'; const api = createAccessRuntime(); const router = api.createRouter('x'); vi.spyOn(router, 'getPublicService');",
+        "line": 207,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "366d92ca137988546fa29402c3b579216d60951b855829f3042199de82227ddc",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import { createRequire as cr } from 'node:module'; const load = cr(import.meta.url); load('../../src/secret');",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "eeaab6bfad2d1cff8391b14365cba5bb7de0c36d2be40cf64feb80a172be2fd3",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: export * from '../../src/secret';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "b35820dc3ff173d3ace6592af1bbe61fe7887f606e18332696a93188ef9283b6",
+        "fullName": "contract dependency boundary requires exact assert.throws shape and finite subpaths for negative resolution",
+        "line": 179,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "4b52a5501cd885cc09043f6747ad85f14b32296bc0d124f7c4450556c8eb97a0",
+        "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: const config = { include: ['dist/private-chunk.d.ts'] };",
+        "line": 138,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "3e3663f4d3c4cd318904016353392eb5d4322843f8ccb2a1dc6302dee8ee38a6",
+        "fullName": "contract dependency boundary ties reviewed document-generator file lists to readable finite inventories",
+        "line": 164,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "3974c21c94a9dbcc4289b7256882a0c042323f8ccb3527a2af6cfcb13c00dcbf",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: export type { Secret } from '../../src/secret';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "7fdaa11ade0f7328c46c2c58e7f86b8b5701445bcb39fa41f26de44383e92874",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '../support/public/missing';",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "64539a15c2ed54d9065bcff0556aa15ad14141e8e3c2d743bc802ae2440bb47e",
+        "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: writeFileSync(file, readFileSync(path.join(packageRoot, 'src', 'secret.ts')));",
+        "line": 138,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "4e53b08d3cc8b22bfc46bc3160107868c02891787452d42a11f71f7464c9d639",
+        "fullName": "contract dependency boundary rejects private filesystem/file-list inputs and unreviewed computed generated sources: const config = { files: ['../../src/secret.ts'] };",
+        "line": 138,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "86c48ca371c61b8035b8a0572c6a818ce1a37c22948aa9556b27b6e13cc49813",
+        "fullName": "contract dependency boundary rejects direct/typed/re-export/loader/private fixture edges: import type { Secret } from '../../src/secret';",
+        "line": 78,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "historicalId": "d9ccb3b726b3bfec53190020fd0bb5ecc9bf8e9b78ea925dd690d7c950174cfb",
+        "fullName": "contract dependency boundary fails closed on computed, unresolved, aliased or private package edges: import '@web-ts-toolkit/access-router/src/secret';",
+        "line": 100,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      }
+    ],
+    "new17": [
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries reproduces ARTS06-F1 exact public root alias resolving to private source",
+        "line": 266,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries checks effective aliases before trusting a public name (root runtime)",
+        "line": 281,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries checks effective aliases before trusting a public name (root type)",
+        "line": 281,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries checks effective aliases before trusting a public name (advanced runtime)",
+        "line": 281,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries checks effective aliases before trusting a public name (advanced type)",
+        "line": 281,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries checks effective aliases before trusting a public name (processors runtime)",
+        "line": 281,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries checks effective aliases before trusting a public name (processors type)",
+        "line": 281,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries uses inherited paths and the declaring config baseUrl (exact root)",
+        "line": 290,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries uses inherited paths and the declaring config baseUrl (wildcard subpath)",
+        "line": 290,
+        "column": 5,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries checks baseUrl resolution even without an explicit paths entry",
+        "line": 298,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries accepts no-alias public names and aliases resolving to actual public built entries",
+        "line": 305,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries keeps finite installed filesystem inputs separate from ordinary imports of the very same file",
+        "line": 317,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries does not infer installed compilation from a public support path or a file read",
+        "line": 334,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries requires a finite installed producer and propagates repo context through ordinary generated-module imports",
+        "line": 342,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries propagates the importing context into exact generated recipe bodies",
+        "line": 352,
+        "column": 3,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries propagates repo aliases through configured setup",
+        "line": 363,
+        "column": 61,
+        "occurrence": 1,
+        "status": "passed"
+      },
+      {
+        "fullName": "ARTS06-F1 compiler-context boundaries propagates repo aliases through transitive type re-export",
+        "line": 363,
+        "column": 61,
+        "occurrence": 1,
+        "status": "passed"
+      }
+    ]
+  },
+  "checkpoint": {
+    "exactF1ToolingChanges": [
+      "packages/access-router/scripts/check-test-layers.mjs",
+      "packages/access-router/scripts/test-layer-consumers.mjs",
+      "packages/access-router/test/internal/test-layer-boundaries.unit.test.ts"
+    ],
+    "patchPreimagesEqualSealedARTS03": true,
+    "oldGuardPrefixBytes": 16006,
+    "oldGuardPrefixSha256": "598a101c59855c35c910622150991b457a2830e8c357f8c0e0045df8047cd6d7",
+    "oldGuardStatements": [
+      {
+        "kind": 273,
+        "line": 1,
+        "fingerprint": "ad73ca8dd2be89150d9ce0f13eae68ebf5fc6eae24f81e521b6223459d4a6005"
+      },
+      {
+        "kind": 273,
+        "line": 2,
+        "fingerprint": "c1d702e7b1fbb918dda046430ea4155f5282c92f1cf24fd9fd9d31373b2dd0e2"
+      },
+      {
+        "kind": 273,
+        "line": 3,
+        "fingerprint": "8f15d80e7efb2a5d032af6aeba410bc9b4bd498ba70c7278654526b1e2259752"
+      },
+      {
+        "kind": 273,
+        "line": 4,
+        "fingerprint": "113f0af17fdf683cf360ab9d03b7eff1b572d3475e83119031d47ee4331621aa"
+      },
+      {
+        "kind": 273,
+        "line": 5,
+        "fingerprint": "ffdccb3b5e8401a8e0543282b61127a95ab6aa75575770fe49355efbd2b5edba"
+      },
+      {
+        "kind": 273,
+        "line": 6,
+        "fingerprint": "572318f72eefb975023824bbaddea90f92d7c7ac9d12362418d0af307748ab62"
+      },
+      {
+        "kind": 244,
+        "line": 8,
+        "fingerprint": "545ee4329577c9c203b5265399fd7a966d642e92b66976d98858689a56e760f2"
+      },
+      {
+        "kind": 244,
+        "line": 9,
+        "fingerprint": "43bb5496ff891212b1d4a5d9de1be2a1fc623359e716b49915e997ac46123aed"
+      },
+      {
+        "kind": 244,
+        "line": 10,
+        "fingerprint": "98b5465af2ac86fd5422b1caf739feba0cef9fbd0d236af4a4df18eebc7871a9"
+      },
+      {
+        "kind": 244,
+        "line": 11,
+        "fingerprint": "539207d320682999a942841aceef5c5aedcb349546c28aa43cbef2b258970b10"
+      },
+      {
+        "kind": 244,
+        "line": 12,
+        "fingerprint": "8887f01d8a0c3c43b8ae6060203db127a02766929aa9d0755d13af4c99b001ab"
+      },
+      {
+        "kind": 244,
+        "line": 13,
+        "fingerprint": "106c8e20eb7afaed8894f004bfb50a714e602a10c08d4a07cbf483e88bf44365"
+      },
+      {
+        "kind": 263,
+        "line": 15,
+        "fingerprint": "5a1a63c3caca5134f24f583866e12f45c74a715991ee1bed6d9f88aef4f6415f"
+      },
+      {
+        "kind": 263,
+        "line": 21,
+        "fingerprint": "f78065c0e997ee35f8dd1d859b026bf0059f11812784430c7dcd121600d8a799"
+      },
+      {
+        "kind": 245,
+        "line": 26,
+        "fingerprint": "00d52b8586af91fd8dad0d27d0919936bbe6553cb9ca60d34ab4b4b375895f7c"
+      },
+      {
+        "kind": 245,
+        "line": 45,
+        "fingerprint": "6bdcf6c3ba741e685d44f8e9a76dcb091c223d11db4d607dc10c6df99da76f09"
+      },
+      {
+        "kind": 245,
+        "line": 51,
+        "fingerprint": "bf63d848a81ebded9a92a4efe1474ac77ebaacfdf9e07e2d75b6272c4ecb8cf7"
+      },
+      {
+        "kind": 245,
+        "line": 220,
+        "fingerprint": "140732de835ed4563844abe24b146d9d79c3386779fd6876a73ab6620c26516d"
+      }
+    ],
+    "originalMigratedFiles": 248,
+    "migratedBytesDigest": "292d10d8b0a666bc25fddb6937ded50565840dfc78ed9968d300effb34056971",
+    "sourceFiles": 152,
+    "sourceDigest": "936a5c248f9cb9c92ce38355920b890ac1ae68d1b75affadc3f90901a507ff62",
+    "unchangedHistoricalToolingFiles": 7,
+    "companionFiles": 10,
+    "companionCasesPreservedNotRerun": 93,
+    "guidesUnchanged": [
+      "packages/access-router/test/README.md",
+      "packages/access-router/scripts/README.md"
+    ],
+    "priorEvidenceFiles": 41,
+    "priorEvidenceDigest": "9fa4387c5dbec9d403871899c0b3776b7c8d21b30d848b7b4798ecb339b56740",
+    "unchangedCapturedInputs": 307,
+    "baselineNonTestFiles": 186,
+    "unchangedBaselineNonTestFiles": 184,
+    "historicalNotNewConfigExceptions": [
+      "packages/access-router/package.json",
+      "packages/access-router/vitest.config.ts"
+    ],
+    "declarationFiles": 8,
+    "declarationDigest": "0b8dad3ee3c2db7c5a55ce35e3c677e6c0c082010dd3b9cdcb8b37a6e50ed8f1",
+    "runtimeExports": {
+      "index": 46,
+      "advanced": 48,
+      "processors": 6
+    }
+  },
+  "discovery": {
+    "api": "Installed Vitest createVitest/globTestSpecifications; four contexts discovered/closed sequentially; no tests/setup execute",
+    "counts": {
+      "contracts": 103,
+      "invariants": 64,
+      "internal": 51
+    },
+    "total": 218,
+    "selected": {
+      "contracts": [
+        "test/contracts/advanced-mutation-bodies.integration.test.ts",
+        "test/contracts/arc21-projection-identity-and-count-argument.contract.test.ts",
+        "test/contracts/arf12-new-route-denial.integration.test.ts",
+        "test/contracts/arf12-root-distinct.authorization.integration.test.ts",
+        "test/contracts/arts04-boundaries.integration.test.ts",
+        "test/contracts/arts04-data-helpers.integration.test.ts",
+        "test/contracts/arts04-installed-exports.test.ts",
+        "test/contracts/arts04-metadata-wire.integration.test.ts",
+        "test/contracts/arts04-modes.integration.test.ts",
+        "test/contracts/arts04-parsers-processors.integration.test.ts",
+        "test/contracts/authorization-fast-path-runtime.integration.test.ts",
+        "test/contracts/basic-data-list.integration.test.ts",
+        "test/contracts/basic-list-sort.integration.test.ts",
+        "test/contracts/correlated-includes.escape.integration.test.ts",
+        "test/contracts/correlated-includes.execution.test.ts",
+        "test/contracts/cross-resource-authorization.integration.test.ts",
+        "test/contracts/data-router.test.ts",
+        "test/contracts/data-service-hot-path.test.ts",
+        "test/contracts/distinct-field-authorization.integration.test.ts",
+        "test/contracts/doc-permissions-exposure.integration.test.ts",
+        "test/contracts/document-permissions-dependencies.integration.test.ts",
+        "test/contracts/documentation-examples.test.ts",
+        "test/contracts/field-permissions-opt-out.integration.test.ts",
+        "test/contracts/field-permissions-placeholder.integration.test.ts",
+        "test/contracts/grouped-count-casting.integration.test.ts",
+        "test/contracts/grouped-count-numeric.integration.test.ts",
+        "test/contracts/grouped-count-query-equivalence.integration.test.ts",
+        "test/contracts/hydration-characterization.integration.test.ts",
+        "test/contracts/hydration-configuration.test.ts",
+        "test/contracts/include-permission-metadata.integration.test.ts",
+        "test/contracts/include-source-provenance.integration.test.ts",
+        "test/contracts/list-snapshot-checks.integration.test.ts",
+        "test/contracts/logger-redaction.test.ts",
+        "test/contracts/model-router.integration.test.ts",
+        "test/contracts/model-router.routes.integration.test.ts",
+        "test/contracts/model-router.test.ts",
+        "test/contracts/model-subdocument-routes.integration.test.ts",
+        "test/contracts/nested-operation-access-consumer-types.test.ts",
+        "test/contracts/nested-update-integrity.integration.test.ts",
+        "test/contracts/openapi-collision.test.ts",
+        "test/contracts/openapi.test.ts",
+        "test/contracts/operation-access-baseline.contract.test.ts",
+        "test/contracts/options-ownership.test.ts",
+        "test/contracts/owned-authorization-guard-consumer.integration.test.ts",
+        "test/contracts/owned-authorization-modes.integration.test.ts",
+        "test/contracts/owned-authorization-types.test.ts",
+        "test/contracts/packed-consumer-compatibility.test.ts",
+        "test/contracts/permissions-posture.integration.test.ts",
+        "test/contracts/populate-operation-policy.binding.test.ts",
+        "test/contracts/populate-operation-policy.dependencies.test.ts",
+        "test/contracts/populate-operation-policy.helper-isolation.test.ts",
+        "test/contracts/populate-operation-policy.include-binding.review.test.ts",
+        "test/contracts/populate-operation-policy.nested-targets.test.ts",
+        "test/contracts/populate-operation-policy.queries.test.ts",
+        "test/contracts/populate-operation-policy.review.test.ts",
+        "test/contracts/private-populate-read-policy.review.test.ts",
+        "test/contracts/private-populate-read-policy.runtime.test.ts",
+        "test/contracts/processors-path-hardening.test.ts",
+        "test/contracts/processors.test.ts",
+        "test/contracts/query-snapshot-options.integration.test.ts",
+        "test/contracts/read-list-fallback-authorization.integration.test.ts",
+        "test/contracts/read-snapshot-checks.integration.test.ts",
+        "test/contracts/request-complexity.integration.test.ts",
+        "test/contracts/require-explicit-select.integration.test.ts",
+        "test/contracts/retained-model-service-ownership.integration.test.ts",
+        "test/contracts/root-router.integration.test.ts",
+        "test/contracts/root-router.variants.integration.test.ts",
+        "test/contracts/runtime-isolation.integration.test.ts",
+        "test/contracts/runtime-permission-handoff.integration.test.ts",
+        "test/contracts/schema-mutation.regression.test.ts",
+        "test/contracts/service-authorization-baseline.contract.test.ts",
+        "test/contracts/service-authorization-direct.integration.test.ts",
+        "test/contracts/service-authorization-input.integration.test.ts",
+        "test/contracts/service-authorization-related.integration.test.ts",
+        "test/contracts/service-authorization-subdocuments.integration.test.ts",
+        "test/contracts/service-defaults.integration.test.ts",
+        "test/contracts/service-exists.integration.test.ts",
+        "test/contracts/side-effect-initialization.test.ts",
+        "test/contracts/sort-field-authorization.integration.test.ts",
+        "test/contracts/sort-options.integration.test.ts",
+        "test/contracts/strict-consumer-types.test.ts",
+        "test/contracts/subdocument-mutation-visibility.integration.test.ts",
+        "test/contracts/subdocument-populate-authorization.integration.test.ts",
+        "test/contracts/tree-shaking-smoke.test.ts",
+        "test/contracts/validation-arc02.test.ts",
+        "test/contracts/validation-arh06.test.ts",
+        "test/contracts/validation-arh07.test.ts",
+        "test/contracts/validation-error-boundary.test.ts",
+        "test/contracts/virtual-filter-literals.integration.test.ts",
+        "test/contracts/virtuals-baseline.contract.test.ts",
+        "test/contracts/virtuals-config.contract.test.ts",
+        "test/contracts/virtuals-direct-operations.integration.test.ts",
+        "test/contracts/virtuals-embedded-subdocuments.integration.test.ts",
+        "test/contracts/virtuals-hardening.boundary.test.ts",
+        "test/contracts/virtuals-populate-dependencies.capture-boundaries.review.test.ts",
+        "test/contracts/virtuals-populate-dependencies.dispatch.test.ts",
+        "test/contracts/virtuals-populate-dependencies.fallback.test.ts",
+        "test/contracts/virtuals-populate-dependencies.intent.test.ts",
+        "test/contracts/virtuals-populate-dependencies.operation-guards.test.ts",
+        "test/contracts/virtuals-populate-dependencies.parity.test.ts",
+        "test/contracts/virtuals-populate-dependencies.review.test.ts",
+        "test/contracts/virtuals-populate-include.integration.test.ts",
+        "test/contracts/virtuals-route-parity.integration.test.ts"
+      ],
+      "invariants": [
+        "test/invariants/authorization-fast-path-native.unit.test.ts",
+        "test/invariants/authorization-fast-path-options.integration.test.ts",
+        "test/invariants/authorization-fast-path-options.unit.test.ts",
+        "test/invariants/authorization-fast-path-owner.unit.test.ts",
+        "test/invariants/authorization-fast-path-runtime.unit.test.ts",
+        "test/invariants/authorization-snapshot.unit.test.ts",
+        "test/invariants/bulk-create-metadata-filter-trace.integration.test.ts",
+        "test/invariants/concurrency.test.ts",
+        "test/invariants/data-value-ownership.test.ts",
+        "test/invariants/default-model-options.integration.test.ts",
+        "test/invariants/default-model-options.unit.test.ts",
+        "test/invariants/distinct-composite-authorization.integration.test.ts",
+        "test/invariants/document-authorization-validation.unit.test.ts",
+        "test/invariants/document-permissions-dependencies.unit.test.ts",
+        "test/invariants/filter-denial.integration.test.ts",
+        "test/invariants/guard.test.ts",
+        "test/invariants/hook-concurrency.test.ts",
+        "test/invariants/hydration-request-boundaries.integration.test.ts",
+        "test/invariants/model-authorization-capture.unit.test.ts",
+        "test/invariants/nested-operation-access-admission.contract.test.ts",
+        "test/invariants/nested-operation-access-capture.contract.test.ts",
+        "test/invariants/nested-operation-access-entries.integration.test.ts",
+        "test/invariants/nested-operation-access-resolution.contract.test.ts",
+        "test/invariants/operation-access-boundaries.integration.test.ts",
+        "test/invariants/operation-access-data-subdocument-routes.integration.test.ts",
+        "test/invariants/operation-access-model-routes.integration.test.ts",
+        "test/invariants/operation-access-variants.contract.test.ts",
+        "test/invariants/output-field-policy-cache.unit.test.ts",
+        "test/invariants/owned-authorization-boundaries.unit.test.ts",
+        "test/invariants/owned-authorization-consumers.unit.test.ts",
+        "test/invariants/owned-authorization-facts.unit.test.ts",
+        "test/invariants/owned-authorization-guard-consumer.unit.test.ts",
+        "test/invariants/owned-authorization-helpers.unit.test.ts",
+        "test/invariants/owned-authorization-many-bounds.unit.test.ts",
+        "test/invariants/owned-authorization-many.unit.test.ts",
+        "test/invariants/owned-authorization-modes.unit.test.ts",
+        "test/invariants/owned-authorization-publication.unit.test.ts",
+        "test/invariants/owned-authorization-records.unit.test.ts",
+        "test/invariants/owned-authorization-stage.unit.test.ts",
+        "test/invariants/populate-operation-policy.config.test.ts",
+        "test/invariants/populate-operation-policy.include-binding.test.ts",
+        "test/invariants/populate-operation-policy.target-options.test.ts",
+        "test/invariants/private-populate-read-policy.config.test.ts",
+        "test/invariants/query-snapshot-options.unit.test.ts",
+        "test/invariants/related-execution.binding.unit.test.ts",
+        "test/invariants/request-hook-concurrency.test.ts",
+        "test/invariants/request-hook-ownership.test.ts",
+        "test/invariants/request-persistence-concurrency.test.ts",
+        "test/invariants/service-authorization-boundary-admission.contract.test.ts",
+        "test/invariants/service-authorization-context.unit.test.ts",
+        "test/invariants/service-authorization-final-review.integration.test.ts",
+        "test/invariants/service-authorization-finalizer.unit.test.ts",
+        "test/invariants/service-authorization-migration.contract.test.ts",
+        "test/invariants/service-authorization-mutations.integration.test.ts",
+        "test/invariants/service-authorization-prepared-query.unit.test.ts",
+        "test/invariants/service-authorization-public-boundaries.integration.test.ts",
+        "test/invariants/service-authorization-rows.integration.test.ts",
+        "test/invariants/service-authorization-subdocument-policies.integration.test.ts",
+        "test/invariants/service-denial-contract.test.ts",
+        "test/invariants/write-output-authorization.unit.test.ts",
+        "test/invariants/write-output-modes.unit.test.ts",
+        "test/invariants/write-output-origin-ownership.unit.test.ts",
+        "test/invariants/write-output-populate.unit.test.ts",
+        "test/invariants/write-output-source-lifetime.unit.test.ts"
+      ],
+      "internal": [
+        "test/internal/access-router-crud-driver.unit.test.ts",
+        "test/internal/access-router-crud-harness.unit.test.ts",
+        "test/internal/access-router-crud-v2.unit.test.ts",
+        "test/internal/access-router-crud-work.unit.test.ts",
+        "test/internal/authorization-snapshot-copy-builder.unit.test.ts",
+        "test/internal/captured-catalog-preparation.unit.test.ts",
+        "test/internal/collection.test.ts",
+        "test/internal/correlated-includes.resolver.test.ts",
+        "test/internal/correlated-includes.validation.test.ts",
+        "test/internal/data-service-scaling.test.ts",
+        "test/internal/document-isolation-builder.unit.test.ts",
+        "test/internal/documentation-authorization-guidance.test.ts",
+        "test/internal/export-contract.test.ts",
+        "test/internal/field-catalog.unit.test.ts",
+        "test/internal/field-helper-removal.contract.test.ts",
+        "test/internal/field-helper-request-boundaries.integration.test.ts",
+        "test/internal/field-permissions-defaults.unit.test.ts",
+        "test/internal/finalizer-preparation.unit.test.ts",
+        "test/internal/model-output-metadata.unit.test.ts",
+        "test/internal/no-work-output-scheduling.unit.test.ts",
+        "test/internal/output-publication-fusion-withdrawal.unit.test.ts",
+        "test/internal/owned-authorization-alternate.unit.test.ts",
+        "test/internal/owned-authorization-projection-work.unit.test.ts",
+        "test/internal/owned-authorization-runtime-profiles.unit.test.ts",
+        "test/internal/owned-authorization-work.unit.test.ts",
+        "test/internal/pagination-overflow.test.ts",
+        "test/internal/permission.test.ts",
+        "test/internal/response-pipeline.internal.test.ts",
+        "test/internal/service-authorization-projection.unit.test.ts",
+        "test/internal/service-authorization-reads.unit.test.ts",
+        "test/internal/service-execution-capture.unit.test.ts",
+        "test/internal/service-list-preparation.unit.test.ts",
+        "test/internal/service-logging-contract.integration.test.ts",
+        "test/internal/service-logging-contract.unit.test.ts",
+        "test/internal/service-output-preparation.unit.test.ts",
+        "test/internal/service.internal.test.ts",
+        "test/internal/sort-policy.unit.test.ts",
+        "test/internal/strict-typecheck.test.ts",
+        "test/internal/tasks-processors.test.ts",
+        "test/internal/test-layer-boundaries.unit.test.ts",
+        "test/internal/virtual-filter-parser.unit.test.ts",
+        "test/internal/virtuals-finalizer.unit.test.ts",
+        "test/internal/virtuals-original-refs.characterization.test.ts",
+        "test/internal/virtuals-performance.probe.test.ts",
+        "test/internal/virtuals-populate-dependencies.config.test.ts",
+        "test/internal/virtuals-populate-dependencies.integration.test.ts",
+        "test/internal/virtuals-populate-dependencies.performance.test.ts",
+        "test/internal/virtuals-populate-dependencies.planner.test.ts",
+        "test/internal/virtuals-populate-dependencies.traversal.test.ts",
+        "test/internal/virtuals-projection-planner.unit.test.ts",
+        "test/internal/virtuals-validation-openapi.contract.test.ts"
+      ]
+    },
+    "defaultSha256": "af71e8d1d93a8c60a4dd8dc59a51425444291de4d244f58f6c90cf09a1909b03",
+    "physicalSha256": "af71e8d1d93a8c60a4dd8dc59a51425444291de4d244f58f6c90cf09a1909b03",
+    "unionSha256": "af71e8d1d93a8c60a4dd8dc59a51425444291de4d244f58f6c90cf09a1909b03",
+    "overlap": 0,
+    "missing": []
+  },
+  "graph": {
+    "files": 137,
+    "modules": 237,
+    "errors": []
+  },
+  "evidenceReview": {
+    "jsonFiles": 2,
+    "artifacts": 5,
+    "maintainedFiles": 3,
+    "links": 7,
+    "privacy": "pass",
+    "whitespace": "pass (patch context preserved verbatim)",
+    "ignoreStatus": "pass",
+    "gitDiffCheck": "pass",
+    "oldCases": 59,
+    "newCases": 17,
+    "discovery": "218 exact/disjoint",
+    "historicalArtifacts": 41
+  },
+  "notes": [
+    "Initial changed-file lint rejected the appended require-style TypeScript helper import; changed only that new import to ESM and reran the actual layer command plus lint successfully. No lint suppression or old assertion edit.",
+    "The root red probe was isolated with a testNamePattern, so its 75 selector-skipped cases are not source skips. The final complete guard file passed all 76 with zero skips/todos.",
+    "The 7,717/218 complete V3 results are sealed historical ARTS-06 observations, not runs on this new identity. Prospective total is 7,734 = 7,717 + 17; not a full-run pass.",
+    "Both maintained guides, shared task, scripts/config semantics, production exports/dependencies and old 41 evidence files were not edited. No default/full layer/root/group/downstream run or new benchmark campaign."
+  ]
+}

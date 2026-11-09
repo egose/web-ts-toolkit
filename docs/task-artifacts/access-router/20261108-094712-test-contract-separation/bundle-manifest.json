@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "task": "ARTS-01",
+  "purpose": "Curated baseline/classification evidence; planned migration only.",
+  "sourceRevision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 6853,
+      "sha256": "cd9bf7f129a7a6aa0d304c87048f41f54c3cfa00157dbb26ade811ee13492a39"
+    },
+    {
+      "path": "arts-01-report.md",
+      "bytes": 11619,
+      "sha256": "ec9b385d9d4189b1cab71d7d2f1e3aa37a9fddc14a76e467681c552199117e60"
+    },
+    {
+      "path": "classification.md",
+      "bytes": 71323,
+      "sha256": "8f98b4a0e98672d9a1dd7abaf9225034be3321d0e53ccd38bfbf1289a7ba49fa"
+    },
+    {
+      "path": "coverage-gaps.md",
+      "bytes": 31725,
+      "sha256": "00a9639209f81b990896484788977b2370aff17092e651ca163c0a97392dd23b"
+    },
+    {
+      "path": "declarations.json",
+      "bytes": 1860,
+      "sha256": "ea4261a8e2f7f11732b79c11aaa8fa41ad06fad7e879c5e65b1ba025c78c137f"
+    },
+    {
+      "path": "identities.json",
+      "bytes": 108236,
+      "sha256": "50307cfcb6ceff149b4428a8f169f492dcab4f8c2aa3b9be2c48f752094909dd"
+    },
+    {
+      "path": "migration-ledger.json",
+      "bytes": 803362,
+      "sha256": "5cff166bac4a67bb8654dbac52e6893b25ad7d8698f2b6dd2bf406293fdcd64f"
+    },
+    {
+      "path": "preservation-ledger.jsonl",
+      "bytes": 3253833,
+      "sha256": "30322cc0f4464b07e9f9f2fc4648f953458ceecd377fc5194ac1e67389103075"
+    },
+    {
+      "path": "public-surfaces.json",
+      "bytes": 19487,
+      "sha256": "f4fa01f119eadf9d0f135f495ea3c4e7bacfb696fa342b0bae169f2f464a5d8c"
+    },
+    {
+      "path": "runtime-cases.jsonl",
+      "bytes": 1740563,
+      "sha256": "b7d76001ed408b6b83f7b2e5e25e3df25b73d198688e717dfa7e2fbb2f59f762"
+    },
+    {
+      "path": "starting.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "support-callers.json",
+      "bytes": 223126,
+      "sha256": "8182677cf603f8fa9db83874db98f2dc75ad944fee349caa72877d3de5134a12"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 3789,
+      "sha256": "dad77d88461c126537d49d486a9293146414c30d0497c4b276a3eb3581ce30b5"
+    },
+    {
+      "path": "verify-baseline.mjs",
+      "bytes": 9584,
+      "sha256": "39bba8c84c94e47e8b8d491ce5938928e4f2ab839c487f887172e0cf244de366"
+    }
+  ],
+  "excludedSelf": "bundle-manifest.json",
+  "provenance": "Derived from fresh ARTS-01 observations. Source lives in the recorded Git revision plus starting.patch, not copied scratch sources. Original raw report hash/size and transformation are in identities.json.",
+  "originalScratchPreserved": true,
+  "omitted": [
+    "raw command logs and Vitest report",
+    "source copies",
+    "dependency trees",
+    "generated consumers/builds/tarballs",
+    "MongoDB binaries/data",
+    "caches"
+  ]
+}

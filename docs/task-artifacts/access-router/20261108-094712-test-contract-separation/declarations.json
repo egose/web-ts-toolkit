@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "task": "ARTS-01",
+  "inventory": [
+    {
+      "path": "packages/access-router/dist/advanced.d.mts",
+      "bytes": 108295,
+      "sha256": "e074c1a4d43a10e2ae69e46cae3af077363d6557b5212a7e38808aab3aab1b84"
+    },
+    {
+      "path": "packages/access-router/dist/advanced.d.ts",
+      "bytes": 108294,
+      "sha256": "60ee417fb0b3555c0a6a5cbab7bb30d2fa57414e2bd9aaeec8f248af6e079652"
+    },
+    {
+      "path": "packages/access-router/dist/index.d.mts",
+      "bytes": 37865,
+      "sha256": "c1f3ab6c91ca689fc477e45ead8da3101e0d0a8e6533ce137d92b0ccd77400f4"
+    },
+    {
+      "path": "packages/access-router/dist/index.d.ts",
+      "bytes": 37863,
+      "sha256": "ad5f59d3eff5fba8f6114bbb9f5d44dec15e6ec620379ebb3f7990ba008f6a70"
+    },
+    {
+      "path": "packages/access-router/dist/parsers-fSBARZSn.d.mts",
+      "bytes": 234653,
+      "sha256": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e"
+    },
+    {
+      "path": "packages/access-router/dist/parsers-fSBARZSn.d.ts",
+      "bytes": 234653,
+      "sha256": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e"
+    },
+    {
+      "path": "packages/access-router/dist/processors.d.mts",
+      "bytes": 10535,
+      "sha256": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+    },
+    {
+      "path": "packages/access-router/dist/processors.d.ts",
+      "bytes": 10535,
+      "sha256": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+    }
+  ],
+  "observations": [
+    "fresh typecheck filtered build",
+    "fresh full package-test filtered build"
+  ],
+  "byteIdenticalBetweenObservations": true,
+  "rule": "Compare the complete emitted .d.ts/.d.mts inventory in this one-off no-production-change migration, including shared chunks. Chunk names/hashes are not a reusable semantic public-contract promise."
+}

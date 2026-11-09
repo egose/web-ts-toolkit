@@ -1,0 +1,217 @@
+{
+  "schema": 1,
+  "task": "ARTS-04",
+  "sourceRevision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "purpose": "Additive bounded public companions and evidence only; all earlier artifacts and original tests/tooling remain frozen.",
+  "deliveredFiles": [
+    {
+      "path": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "bytes": 23389,
+      "sha256": "e7b85f25918b57e6df94aae70b8be811b488fcff0ea4f52e999d5bb0912ed6ca"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "bytes": 13941,
+      "sha256": "425b117bfb199e41cd4a674eb6489c0e274174ccb084a881ec08b9ca33a0aa65"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+      "bytes": 2069,
+      "sha256": "5c63137dbe061b4c8eedf2486769b1847a66189bbc7ac0b362350a5bac1cd9d4"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+      "bytes": 7792,
+      "sha256": "5b4be5da031797d4560899b4875686f2150c51a84f40c5777164b0ed9a48b7b3"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "bytes": 22691,
+      "sha256": "3afb2029b47f796c789524bf1500f3b0782ae306aade3023208b83ceaeb20223"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "bytes": 12631,
+      "sha256": "76e7ec5595bfcb4c8bc3a153a3f44e5b91cbb1b09d925059add8bdce365e1612"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-export-assertions.cjs",
+      "bytes": 2708,
+      "sha256": "fcc141256f63d99d3e35da1c98e361ddeffe351192f04ccd40e9b86a32a16b30"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-exports.cjs",
+      "bytes": 663,
+      "sha256": "4ce4e156d0e670b22ba598875d173db590b619169e60679aac33280e5e1beb50"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-exports.mjs",
+      "bytes": 330,
+      "sha256": "daee3f3086b352c9c149b92692797f3c45a9d684d263854088d5299a94bbec99"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-fixture.ts",
+      "bytes": 6369,
+      "sha256": "6c8efd8fc08c7ad30b90c31dcfc8dc7c41e76d99081eb4e0b18766d2851907dd"
+    }
+  ],
+  "priorEvidence": [
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/README.md",
+      "bytes": 6853,
+      "sha256": "cd9bf7f129a7a6aa0d304c87048f41f54c3cfa00157dbb26ade811ee13492a39"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-01-report.md",
+      "bytes": 11619,
+      "sha256": "ec9b385d9d4189b1cab71d7d2f1e3aa37a9fddc14a76e467681c552199117e60"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-focused-cases.jsonl",
+      "bytes": 286593,
+      "sha256": "156d6ab1129abb13c0e3bd4ca57c863f36810d876b30c680f050391929fde34f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-manifest.json",
+      "bytes": 2017,
+      "sha256": "8ed74ed6b5c24ff2c3b25fdeb28949e0483fc73b0547ffc8c94520d6d3412ab4"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-path-audit.json",
+      "bytes": 50821,
+      "sha256": "118e216671d6b4c0cbeed739f20685b401c8a0cd377f3d0ceeebd3fcd277c057"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-preservation.jsonl",
+      "bytes": 478372,
+      "sha256": "7a861500b1993e19351e7e68a8292c1814e0dce345f859e3c43399e8f043050c"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-report.md",
+      "bytes": 8962,
+      "sha256": "b32814b3323a875c7b20451dd8b977dc5e8f9d87c79e30ec7ab1666d18b7632f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-verification.json",
+      "bytes": 37445,
+      "sha256": "2daf033b3826dc5efbf4d193c157a48748ac9494507ed881305263932a889432"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-verify-preservation.mjs",
+      "bytes": 11241,
+      "sha256": "ce4330876c8fdc0b43c2fb25eda0ea3998b30574ed33b4563f150e4239993e99"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-manifest.json",
+      "bytes": 7598,
+      "sha256": "713343126e4ca491c251a7a8e96318116a44e24f9523194b159798cd26e7f872"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-report.md",
+      "bytes": 10214,
+      "sha256": "1501e42e5ff75f2dde125123948ecb72982b92c744f19485ebd5033e1931f720"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-verification.json",
+      "bytes": 65194,
+      "sha256": "7d68bb1e08ece0540917967a766fc2c9955f536ec50d9f98ec52dc653401df65"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-verify-checkpoint.mjs",
+      "bytes": 6414,
+      "sha256": "ee928495a3ad12ae46f38c72d5ab4f7131a7740c1f20ef0d47f8ed4051fbcdcb"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/bundle-manifest.json",
+      "bytes": 2845,
+      "sha256": "55384b3748bdd00df424727aa1247635b32bd8503f2472d8414ad7da8909c515"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/classification.md",
+      "bytes": 71323,
+      "sha256": "8f98b4a0e98672d9a1dd7abaf9225034be3321d0e53ccd38bfbf1289a7ba49fa"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/coverage-gaps.md",
+      "bytes": 31725,
+      "sha256": "00a9639209f81b990896484788977b2370aff17092e651ca163c0a97392dd23b"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/declarations.json",
+      "bytes": 1860,
+      "sha256": "ea4261a8e2f7f11732b79c11aaa8fa41ad06fad7e879c5e65b1ba025c78c137f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/identities.json",
+      "bytes": 108236,
+      "sha256": "50307cfcb6ceff149b4428a8f169f492dcab4f8c2aa3b9be2c48f752094909dd"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/migration-ledger.json",
+      "bytes": 803362,
+      "sha256": "5cff166bac4a67bb8654dbac52e6893b25ad7d8698f2b6dd2bf406293fdcd64f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/preservation-ledger.jsonl",
+      "bytes": 3253833,
+      "sha256": "30322cc0f4464b07e9f9f2fc4648f953458ceecd377fc5194ac1e67389103075"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/public-surfaces.json",
+      "bytes": 19487,
+      "sha256": "f4fa01f119eadf9d0f135f495ea3c4e7bacfb696fa342b0bae169f2f464a5d8c"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/runtime-cases.jsonl",
+      "bytes": 1740563,
+      "sha256": "b7d76001ed408b6b83f7b2e5e25e3df25b73d198688e717dfa7e2fbb2f59f762"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/starting.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/support-callers.json",
+      "bytes": 223126,
+      "sha256": "8182677cf603f8fa9db83874db98f2dc75ad944fee349caa72877d3de5134a12"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verification.json",
+      "bytes": 3789,
+      "sha256": "dad77d88461c126537d49d486a9293146414c30d0497c4b276a3eb3581ce30b5"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verify-baseline.mjs",
+      "bytes": 9584,
+      "sha256": "39bba8c84c94e47e8b8d491ce5938928e4f2ab839c487f887172e0cf244de366"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-04-coverage.md",
+      "bytes": 10120,
+      "sha256": "022dbfbdc636e9602e1833b39b9692bb9afbb251b7b48daac569ba23933c812f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-04-coverage.json",
+      "bytes": 168669,
+      "sha256": "29d13eb744bbe053663b488e3a91cd9980c9c717ee24f64d15977972d237a6d9"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-04-report.md",
+      "bytes": 8368,
+      "sha256": "142163e66b6ebafb6c48c1585c78aa7fd5ca68a9cb76f5516aedb9124a18177e"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-04-verification.json",
+      "bytes": 14436,
+      "sha256": "d41c38db45dbd8ad64b17c9693de057b016ee6a6e481c207d46e3a442c20d1f1"
+    }
+  ],
+  "expectedNewPassedCases": 93,
+  "expectedNewRunnableFiles": 6,
+  "expectedNewSupportFiles": 4,
+  "verification": "Read-only arts-03-verify-checkpoint.mjs plus per-file SHA-256 records here and exact per-case mapping in arts-04-coverage.json.",
+  "limitations": "No self-hash; no production or original test rewritten; no full-suite/default acceptance or independent review claim."
+}

@@ -1,0 +1,171 @@
+{
+  "schema": 1,
+  "task": "ARTS-03",
+  "sourceRevision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "purpose": "Layer command/guard supplement only. Old 22 evidence files and 248 migrated originals remain unchanged.",
+  "deliveredFiles": [
+    {
+      "path": "packages/access-router/package.json",
+      "bytes": 3146,
+      "sha256": "7a3b8dc62a8229abf6c839b2a15d651221f64dd878469efef4b8147d1b36f7ce"
+    },
+    {
+      "path": "packages/access-router/vitest.config.ts",
+      "bytes": 213,
+      "sha256": "36414fd584806683fa7964be563610fdfdf6c7aa502abd5084f2f39fdaa8d0b6"
+    },
+    {
+      "path": "packages/access-router/vitest.shared.ts",
+      "bytes": 384,
+      "sha256": "624b2dd284391ccf6ad99debbd378944ecdaca1ce5ce038d0e058dbe276ee20d"
+    },
+    {
+      "path": "packages/access-router/vitest.contracts.config.ts",
+      "bytes": 209,
+      "sha256": "fce0f5ad856ae05cab4bc0d3ae4645475035bf9246128284811f7880e385eeb8"
+    },
+    {
+      "path": "packages/access-router/vitest.invariants.config.ts",
+      "bytes": 210,
+      "sha256": "bf81934edc5b85c970ee14fdb4c07842d15c8b368a26a9c0b80dec969317a4af"
+    },
+    {
+      "path": "packages/access-router/vitest.internal.config.ts",
+      "bytes": 208,
+      "sha256": "d89663a7eadafeb3a964ddb0f4dbeddaee61cfefcdf81eb001ed1a2821c691d5"
+    },
+    {
+      "path": "packages/access-router/scripts/check-test-layers.mjs",
+      "bytes": 34674,
+      "sha256": "53ecc5f1de46a3d9a39497778e20007ee6139ff4343b3fe0cacce9a10fd33efc"
+    },
+    {
+      "path": "packages/access-router/scripts/test-layer-consumers.mjs",
+      "bytes": 9081,
+      "sha256": "de6b5895952734b4066d7137fe4122e10d538a777a9ecb286b0b639c2c0b7fd6"
+    },
+    {
+      "path": "packages/access-router/scripts/README.md",
+      "bytes": 5409,
+      "sha256": "b44800266799be5741634b940b26ff595ae818c52c08ecdbcf0f2631098ce542"
+    },
+    {
+      "path": "packages/access-router/test/internal/test-layer-boundaries.unit.test.ts",
+      "bytes": 16006,
+      "sha256": "598a101c59855c35c910622150991b457a2830e8c357f8c0e0045df8047cd6d7"
+    }
+  ],
+  "priorEvidence": [
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/README.md",
+      "sha256": "cd9bf7f129a7a6aa0d304c87048f41f54c3cfa00157dbb26ade811ee13492a39"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-01-report.md",
+      "sha256": "ec9b385d9d4189b1cab71d7d2f1e3aa37a9fddc14a76e467681c552199117e60"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-focused-cases.jsonl",
+      "sha256": "156d6ab1129abb13c0e3bd4ca57c863f36810d876b30c680f050391929fde34f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-manifest.json",
+      "sha256": "8ed74ed6b5c24ff2c3b25fdeb28949e0483fc73b0547ffc8c94520d6d3412ab4"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-path-audit.json",
+      "sha256": "118e216671d6b4c0cbeed739f20685b401c8a0cd377f3d0ceeebd3fcd277c057"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-preservation.jsonl",
+      "sha256": "7a861500b1993e19351e7e68a8292c1814e0dce345f859e3c43399e8f043050c"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-report.md",
+      "sha256": "b32814b3323a875c7b20451dd8b977dc5e8f9d87c79e30ec7ab1666d18b7632f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-verification.json",
+      "sha256": "2daf033b3826dc5efbf4d193c157a48748ac9494507ed881305263932a889432"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-verify-preservation.mjs",
+      "sha256": "ce4330876c8fdc0b43c2fb25eda0ea3998b30574ed33b4563f150e4239993e99"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/bundle-manifest.json",
+      "sha256": "55384b3748bdd00df424727aa1247635b32bd8503f2472d8414ad7da8909c515"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/classification.md",
+      "sha256": "8f98b4a0e98672d9a1dd7abaf9225034be3321d0e53ccd38bfbf1289a7ba49fa"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/coverage-gaps.md",
+      "sha256": "00a9639209f81b990896484788977b2370aff17092e651ca163c0a97392dd23b"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/declarations.json",
+      "sha256": "ea4261a8e2f7f11732b79c11aaa8fa41ad06fad7e879c5e65b1ba025c78c137f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/identities.json",
+      "sha256": "50307cfcb6ceff149b4428a8f169f492dcab4f8c2aa3b9be2c48f752094909dd"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/migration-ledger.json",
+      "sha256": "5cff166bac4a67bb8654dbac52e6893b25ad7d8698f2b6dd2bf406293fdcd64f"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/preservation-ledger.jsonl",
+      "sha256": "30322cc0f4464b07e9f9f2fc4648f953458ceecd377fc5194ac1e67389103075"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/public-surfaces.json",
+      "sha256": "f4fa01f119eadf9d0f135f495ea3c4e7bacfb696fa342b0bae169f2f464a5d8c"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/runtime-cases.jsonl",
+      "sha256": "b7d76001ed408b6b83f7b2e5e25e3df25b73d198688e717dfa7e2fbb2f59f762"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/starting.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/support-callers.json",
+      "sha256": "8182677cf603f8fa9db83874db98f2dc75ad944fee349caa72877d3de5134a12"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verification.json",
+      "sha256": "dad77d88461c126537d49d486a9293146414c30d0497c4b276a3eb3581ce30b5"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verify-baseline.mjs",
+      "sha256": "39bba8c84c94e47e8b8d491ce5938928e4f2ab839c487f887172e0cf244de366"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "arts-03-report.md",
+      "bytes": 10214,
+      "sha256": "1501e42e5ff75f2dde125123948ecb72982b92c744f19485ebd5033e1931f720"
+    },
+    {
+      "path": "arts-03-verify-checkpoint.mjs",
+      "bytes": 6414,
+      "sha256": "ee928495a3ad12ae46f38c72d5ab4f7131a7740c1f20ef0d47f8ed4051fbcdcb"
+    },
+    {
+      "path": "arts-03-verification.json",
+      "bytes": 65194,
+      "sha256": "7d68bb1e08ece0540917967a766fc2c9955f536ec50d9f98ec52dc653401df65"
+    }
+  ],
+  "omitted": [
+    "Raw logs/full reporter JSON",
+    "Dependencies, build outputs and runtime fixture trees",
+    "Disposable probe and curation scripts"
+  ],
+  "reproduction": "Normal installed dependencies and filtered build; run arts-03-verify-checkpoint.mjs for migration preservation and maintained test:layers:check for the current graph. Full layer/default runtime acceptance belongs to ARTS-06."
+}

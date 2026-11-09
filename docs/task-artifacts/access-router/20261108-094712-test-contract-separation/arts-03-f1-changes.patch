@@ -1,0 +1,460 @@
+--- a/packages/access-router/scripts/check-test-layers.mjs
++++ b/packages/access-router/scripts/check-test-layers.mjs
+@@ -174,8 +174,11 @@
+   root = path.resolve(root);
+   const errors = [];
+   const visited = new Set();
++  const visitedContexts = new Set();
+   const modules = new Map();
+   const usedRules = new Set();
++  const usedInstalledSources = new Set();
++  const installedInputs = new Set((policy.inputs ?? []).map((file) => path.resolve(root, file)));
+   const publicEntries = new Set(['index', 'advanced', 'processors'].flatMap((name) =>
+     ['js', 'mjs', 'd.ts', 'd.mts'].map((ext) => `dist/${name}.${ext}`)));
+   const stableSetup = new Set(['test/setup.ts', 'test/global-setup.ts']);
+@@ -192,14 +195,14 @@
+   const position = (sf, node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+   const diagnostic = (sf, node, message, chain) => errors.push(`${rel(sf.fileName)}:${position(sf, node)}: ${message}\n  via ${chain.join(' -> ')}`);
+ 
+-  function ruleFor(sf, node, kind) {
++  function ruleFor(sf, node, kind, context) {
+     const line = position(sf, node);
+     const expression = node.getText(sf);
+     const rule = (policy.reviews ?? []).find((candidate) => candidate.file === rel(sf.fileName)
+       && candidate.kind === kind && candidate.lines.includes(line) && candidate.expression === expression);
+     if (rule) {
+       usedRules.add(rule);
+-      for (const input of rule.inputs ?? []) visitFile(path.resolve(root, input), [rel(sf.fileName), `${kind}:${line}`]);
++      for (const input of rule.inputs ?? []) visitFile(path.resolve(root, input), [rel(sf.fileName), `${kind}:${line}`], '', context);
+     }
+     return rule;
+   }
+@@ -210,7 +213,9 @@
+       || name.startsWith('test/support/public/');
+   }
+ 
+-  function visitFile(file, chain, site = '') {
++  // Context belongs to the incoming compiler edge, never the filename. A staged
++  // consumer imported normally by a repo test must be checked in repo context too.
++  function visitFile(file, chain, site = '', context = 'repo') {
+     const resolved = resolveFile(file);
+     if (!resolved) {
+       errors.push(`unresolved local input: ${rel(file)}${site ? ` (${site})` : ''}\n  via ${chain.join(' -> ')}`);
+@@ -221,10 +226,12 @@
+       errors.push(`private dependency: ${rel(file)}${site ? ` (${site})` : ''}\n  via ${chain.join(' -> ')}`);
+       return;
+     }
+-    if (publicEntries.has(rel(file)) || visited.has(file)) return; // trusted implementation boundary
++    const key = `${context}\0${file}`;
++    if (publicEntries.has(rel(file)) || visitedContexts.has(key)) return; // trusted implementation boundary
++    visitedContexts.add(key);
+     visited.add(file);
+     const source = readFileSync(file, 'utf8');
+-    auditModule(file, source, [...chain, rel(file)]);
++    auditModule(file, source, [...chain, rel(file)], new Map(), context);
+   }
+ 
+   function negativeException(sf, node, specifier) {
+@@ -245,28 +252,48 @@
+     return false;
+   }
+ 
+-  function moduleEdge(sf, node, expression, chain, virtual) {
++  function moduleEdge(sf, node, expression, chain, virtual, context) {
+     const site = `${rel(sf.fileName)}:${position(sf, node)}`;
+     const specifier = literal(expression);
+     if (specifier === undefined) {
+       // Only the two exact generated assert.throws(require.resolve(prefix +
+       // subpath)) sites have finite reviewed outputs; shape checked below.
+       if (negativeResolve(sf, node, expression)) return;
+-      const reviewed = ruleFor(sf, expression, 'resolve');
++      const reviewed = ruleFor(sf, expression, 'resolve', context);
+       if (reviewed && JSON.stringify(finiteStrings(expression)) === JSON.stringify(reviewed.finite)) return;
+       diagnostic(sf, node, `computed/unresolved module edge: ${expression?.getText(sf) ?? '<missing>'}`, chain);
+       return;
+     }
+     if (negativeException(sf, node, specifier)) return;
+-    for (const alias of aliases) {
++    for (const alias of context === 'repo' ? aliases : []) {
+       const matches = typeof alias.find === 'string' ? specifier === alias.find || specifier.startsWith(alias.find + '/')
+         : new RegExp(alias.find.source, alias.find.flags).test(specifier);
+       if (!matches) continue;
+       if (alias.customResolver) diagnostic(sf, node, `unreviewed custom module resolver: ${specifier}`, chain);
+-      else visitFile(specifier.replace(alias.find, alias.replacement), chain, site);
++      else visitFile(specifier.replace(alias.find, alias.replacement), chain, site, context);
+       return;
+     }
+-    if (specifier === packageName || specifier === `${packageName}/advanced` || specifier === `${packageName}/processors`) return;
++    const publicName = specifier === packageName || specifier === `${packageName}/advanced` || specifier === `${packageName}/processors`;
++    if (publicName && context === 'repo') {
++      // Check effective (including inherited) paths/baseUrl BEFORE trusting an
++      // exact public name. Installed consumers have their own compiler config;
++      // applying repository aliases to them would manufacture private edges.
++      const resolved = ts.resolveModuleName(specifier, sf.fileName, compilerOptions, ts.sys).resolvedModule;
++      const pathsMatch = Object.keys(compilerOptions.paths ?? {}).some((pattern) => {
++        const star = pattern.indexOf('*');
++        return star < 0 ? pattern === specifier
++          : specifier.startsWith(pattern.slice(0, star)) && specifier.endsWith(pattern.slice(star + 1));
++      });
++      if (resolved && (pathsMatch || !resolved.isExternalLibraryImport)) {
++        visitFile(resolved.resolvedFileName, chain, site, context);
++        return;
++      }
++      if (pathsMatch && !resolved) {
++        diagnostic(sf, node, `unresolved TypeScript alias: ${specifier}`, chain);
++        return;
++      }
++    }
++    if (publicName) return;
+     if (specifier.startsWith(packageName + '/') || specifier.startsWith('#') || specifier.startsWith('@/')
+       || specifier.startsWith('~/')) {
+       diagnostic(sf, node, `private/aliased package import: ${specifier}`, chain);
+@@ -287,19 +314,19 @@
+       }
+       const generated = virtual?.get(slash(specifier.replace(/^\.\//, '')));
+       if (generated) {
+-        auditModule(generated.file, generated.source, [...chain, specifier], virtual);
++        auditModule(generated.file, generated.source, [...chain, specifier], virtual, context);
+       } else {
+-        visitFile(target, chain, site);
++        visitFile(target, chain, site, context);
+       }
+       return;
+     }
+     // Bare third-party/Node dependencies are outside this package's boundary.
+     // Local tsconfig/Vitest aliases must not disguise access-router implementation.
+     if (/^(?:src|test|dist)\//.test(specifier)) diagnostic(sf, node, `local alias is not a public entry: ${specifier}`, chain);
+-    const resolved = ts.resolveModuleName(specifier, sf.fileName.split('#')[0], compilerOptions, ts.sys).resolvedModule;
++    const resolved = context === 'repo' && ts.resolveModuleName(specifier, sf.fileName, compilerOptions, ts.sys).resolvedModule;
+     if (resolved && !resolved.isExternalLibraryImport
+       && (!externalPackages.has(specifier) || !path.relative(root, resolved.resolvedFileName).startsWith('..'))) {
+-      visitFile(resolved.resolvedFileName, chain, site);
++      visitFile(resolved.resolvedFileName, chain, site, context);
+     }
+   }
+ 
+@@ -321,7 +348,7 @@
+     return true;
+   }
+ 
+-  function auditRead(sf, node, chain, asSource = false) {
++  function auditRead(sf, node, chain, asSource = false, context = 'repo') {
+     const argument = node.arguments[0];
+     if (!argument) return;
+     const text = argument.getText(sf);
+@@ -335,7 +362,8 @@
+     const last = strings.at(-1);
+     if (!asSource && last && /(?:package\.json|\.md|\.txt|\.d\.[cm]?ts)$/.test(last)) return;
+     if (strings.some((value) => /^test\/support\/public\/.+\.[cm]?[jt]s$/.test(value))) {
+-      visitFile(path.resolve(root, strings.find((value) => value.startsWith('test/support/public/'))), chain);
++      const input = path.resolve(root, strings.find((value) => value.startsWith('test/support/public/')));
++      visitFile(input, chain, '', installedInputs.has(input) ? 'installed' : context);
+       return;
+     }
+     if (ts.isCallExpression(argument) && ['path.resolve', 'path.join'].includes(argument.expression.getText(sf))
+@@ -344,17 +372,20 @@
+       if (components.every(Boolean)) {
+         const inputs = components.reduce((paths, choices) => paths.flatMap((prefix) => choices.map((part) => path.join(prefix, part))), ['']);
+         for (const input of inputs) {
+-          if (codeExtension.test(input)) visitFile(path.resolve(root, input), chain);
++          if (codeExtension.test(input)) {
++            const file = path.resolve(root, input);
++            visitFile(file, chain, '', installedInputs.has(file) ? 'installed' : context);
++          }
+           else if (!/\.(?:md|txt|json)$/.test(input)) diagnostic(sf, node, `unreviewed filesystem input: ${input}`, chain);
+         }
+         return;
+       }
+     }
+-    const review = ruleFor(sf, argument, 'read');
++    const review = ruleFor(sf, argument, 'read', context);
+     if (!review || asSource && review.role !== 'module') diagnostic(sf, node, `unreviewed filesystem/source read: ${text}; use a literal public input or add a finite input review`, chain);
+   }
+ 
+-  function auditProducer(sf, node, chain, virtual) {
++  function auditProducer(sf, node, chain, virtual, context) {
+     let data = unwrap(node.arguments[1]);
+     if (!data) return;
+     if (ts.isCallExpression(data) && data.expression.getText(sf) === 'JSON.stringify') return;
+@@ -368,7 +399,10 @@
+       const generatedFile = `${sf.fileName}#${name && codeExtension.test(name) ? name : `consumer-${position(sf, node)}.ts`}`;
+       const generated = new Map(virtual);
+       if (name && codeExtension.test(name)) generated.set(name, { file: generatedFile, source: sources[0] });
+-      auditModule(generatedFile, sources[0], [...chain, `generated:${position(sf, node)}`], generated);
++      const installed = (policy.installedSources ?? []).find((producer) => producer.file === rel(sf.fileName)
++        && producer.line === position(sf, node) && producer.target === node.arguments[0].getText(sf));
++      if (installed) usedInstalledSources.add(installed);
++      auditModule(generatedFile, sources[0], [...chain, `generated:${position(sf, node)}`], generated, installed ? 'installed' : context);
+       return;
+     }
+     const seen = new Set();
+@@ -377,7 +411,7 @@
+       seen.add(input);
+       if (ts.isIdentifier(input)) input = unwrap(initializer(input, input.text));
+       else if (ts.isCallExpression(input) && input.expression.getText(sf) === 'readFileSync') {
+-        auditRead(sf, input, chain, true);
++        auditRead(sf, input, chain, true, context);
+         return;
+       }
+       else if (ts.isCallExpression(input) && ts.isPropertyAccessExpression(input.expression)
+@@ -388,11 +422,11 @@
+         input = unwrap(input.expression.expression);
+       } else break;
+     }
+-    if (!ruleFor(sf, data, 'source')) diagnostic(sf, node, `unreviewed generated consumer source: ${data.getText(sf)}; declare exact public inputs`, chain);
++    if (!ruleFor(sf, data, 'source', context)) diagnostic(sf, node, `unreviewed generated consumer source: ${data.getText(sf)}; declare exact public inputs`, chain);
+   }
+ 
+-  function auditModule(file, source, chain, virtual = new Map()) {
+-    const key = `${file}\0${source}`;
++  function auditModule(file, source, chain, virtual = new Map(), context = 'repo') {
++    const key = `${context}\0${file}\0${source}`;
+     if (modules.has(key)) return;
+     const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+     modules.set(key, sf);
+@@ -488,21 +522,21 @@
+     const privateMethod = (name) => /^(?:_(?:stage|authorization|execute)|processOp$|gen(?:IDFilter|AllowedFields|Select)$|trimOutputFields$|findRawParentDoc$|getAuthorizedTargetService$|prepare(?:Query|Create|Update)$|executePrepared|createDocumentAuthorization|resolveDocumentAuthorization)/.test(name ?? '');
+     for (const node of nodes(sf, () => true)) {
+       if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+-        if (node.moduleSpecifier) moduleEdge(sf, node, node.moduleSpecifier, chain, virtual);
++        if (node.moduleSpecifier) moduleEdge(sf, node, node.moduleSpecifier, chain, virtual, context);
+       } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+-        moduleEdge(sf, node, node.moduleReference.expression, chain, virtual);
++        moduleEdge(sf, node, node.moduleReference.expression, chain, virtual, context);
+       } else if (ts.isImportTypeNode(node)) {
+-        moduleEdge(sf, node, ts.isLiteralTypeNode(node.argument) ? node.argument.literal : node.argument, chain, virtual);
++        moduleEdge(sf, node, ts.isLiteralTypeNode(node.argument) ? node.argument.literal : node.argument, chain, virtual, context);
+       } else if (ts.isCallExpression(node)) {
+         const name = node.expression.getText(sf);
+         if (node.expression.kind === ts.SyntaxKind.ImportKeyword || requires.has(name)
+-          || [...requires].some((require) => name === `${require}.resolve`)) moduleEdge(sf, node, node.arguments[0], chain, virtual);
+-        if (name === 'readFileSync' || name.endsWith('.readFileSync')) auditRead(sf, node, chain);
+-        if (name === 'writeFileSync' || name.endsWith('.writeFileSync')) auditProducer(sf, node, chain, virtual);
++          || [...requires].some((require) => name === `${require}.resolve`)) moduleEdge(sf, node, node.arguments[0], chain, virtual, context);
++        if (name === 'readFileSync' || name.endsWith('.readFileSync')) auditRead(sf, node, chain, false, context);
++        if (name === 'writeFileSync' || name.endsWith('.writeFileSync')) auditProducer(sf, node, chain, virtual, context);
+         if (name === 'ts.createProgram') {
+           const values = finiteStrings(node.arguments[0]);
+-          if (values) for (const input of values) visitFile(path.resolve(root, input), chain);
+-          else if (!ruleFor(sf, node.arguments[0], 'compiler')) diagnostic(sf, node, 'unresolved compiler file-list input; declare finite public inputs', chain);
++          if (values) for (const input of values) visitFile(path.resolve(root, input), chain, '', context);
++          else if (!ruleFor(sf, node.arguments[0], 'compiler', context)) diagnostic(sf, node, 'unresolved compiler file-list input; declare finite public inputs', chain);
+         }
+         if ((ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression))
+           && mocks.has(node.expression.expression.getText(sf))) {
+@@ -517,7 +551,7 @@
+           if (method === 'spyOn' && (packageReceiver(node.arguments[0]) || privateMethod(literal(node.arguments[1])))) {
+             diagnostic(sf, node, 'package method spy/patch is not a public override seam', chain);
+           }
+-          if (method === 'importActual') moduleEdge(sf, node, node.arguments[0], chain, virtual);
++          if (method === 'importActual') moduleEdge(sf, node, node.arguments[0], chain, virtual, context);
+         }
+         if (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'processOp') {
+           diagnostic(sf, node, 'private package method call is forbidden', chain);
+@@ -546,7 +580,8 @@
+ 
+   // Explicit public inputs are also audited even when reached only through a
+   // compiler file list or a generated consumer rather than a TS import.
+-  for (const file of [...entries, ...setup, ...(policy.inputs ?? [])]) visitFile(path.resolve(root, file), ['public graph']);
++  for (const file of [...entries, ...setup]) visitFile(path.resolve(root, file), ['public graph'], '', 'repo');
++  for (const file of installedInputs) visitFile(file, ['finite installed consumer input'], '', 'installed');
+   if (policy.declarationExamples && existsSync(path.join(root, 'dist'))) {
+     for (const name of readdirSync(path.join(root, 'dist')).filter((name) => /\.d\.[cm]?ts$/.test(name))) {
+       const file = path.join(root, 'dist', name);
+@@ -554,7 +589,7 @@
+       for (const comment of nodes(declaration, (node) => !!node.jsDoc).flatMap((node) => node.jsDoc)) {
+         const text = comment.getText(declaration).replace(/^\s*\* ?/gm, '');
+         for (const match of text.matchAll(/```ts\n([\s\S]*?)```/g)) {
+-          auditModule(`${file}#example-${comment.pos}.ts`, match[1], [`dist/${name} public declaration example`]);
++          auditModule(`${file}#example-${comment.pos}.ts`, match[1], [`dist/${name} public declaration example`], new Map(), 'installed');
+         }
+       }
+     }
+@@ -571,12 +606,15 @@
+     const pattern = /(?:<!--\s*doc-example:\s*([\w-]+)\s*-->\s*)?```(?:ts|js)\n([\s\S]*?)```/g;
+     for (const match of markdown.matchAll(pattern)) {
+       if (doc.markedOnly && !match[1]) continue;
+-      auditModule(`${file}#block-${markdown.slice(0, match.index).split('\n').length}.ts`, match[2], [doc.file]);
++      auditModule(`${file}#block-${markdown.slice(0, match.index).split('\n').length}.ts`, match[2], [doc.file], new Map(), 'installed');
+     }
+   }
+   for (const rule of [...(policy.reviews ?? []), ...(policy.negatives ?? []), ...(policy.negativeResolves ?? [])]) {
+     if (!usedRules.has(rule)) errors.push(`stale/unmatched boundary review: ${rule.file}:${rule.line ?? rule.lines.join(',')} (${rule.kind ?? 'negative resolve'})`);
+   }
++  for (const producer of policy.installedSources ?? []) {
++    if (!usedInstalledSources.has(producer)) errors.push(`stale installed consumer producer: ${producer.file}:${producer.line}`);
++  }
+   return { errors, files: [...visited].map(rel).sort(), modules: modules.size };
+ }
+ 
+--- a/packages/access-router/scripts/test-layer-consumers.mjs
++++ b/packages/access-router/scripts/test-layer-consumers.mjs
+@@ -31,6 +31,9 @@
+   'service-authorization-migration.types.fixture.ts',
+   'virtuals-populate-dependencies.consumer.runtime.fixture.ts',
+   'virtuals-populate-dependencies.types.fixture.ts',
++  'arts04-exports.mjs',
++  'arts04-exports.cjs',
++  'arts04-export-assertions.cjs',
+ ].map(publicInput);
+ 
+ const documents = [
+@@ -46,9 +49,31 @@
+ const inspection = (lines, expression, reason) => ({ file: packed, lines, expression, kind: 'read', role: 'inspection', reason });
+ 
+ export const consumerPolicy = {
++  // These finite filesystem inputs and document/JSDoc extractions are compiled
++  // or executed in staged installed trees with their own config, not repo paths.
++  // Ordinary imports of the very same files still inherit the importing context.
+   inputs,
+   documents,
+   declarationExamples: true,
++  installedSources: [
++    ...[
++      [633, "path.resolve(consumerDir, 'private-exports.cjs')"],
++      [682, "path.resolve(consumerDir, 'esm.mjs')"],
++      [712, "path.resolve(consumerDir, 'cjs.cjs')"],
++      [744, "path.resolve(consumerDir, 'operation-access-smoke.cjs')"],
++      [854, "path.resolve(consumerDir, 'operation-access.esm.mjs')"],
++      [861, "path.resolve(consumerDir, 'operation-access.cjs.cjs')"],
++      [874, "path.resolve(consumerDir, 'consumer.nodenext.mts')"],
++      [936, "path.resolve(consumerDir, 'consumer.nodenext.cts')"],
++      [994, "path.resolve(consumerDir, 'consumer.bundler.ts')"],
++    ].map(([line, target]) => ({ file: packed, line, target,
++      reason: 'Exact writeConsumerFiles module emitted into the staged installed consumer; compiler/runtime inputs remain audited.' })),
++    ...[[528, 'path.resolve(consumerDir, sourceFile)'], [952, 'sourceFile'], [990, 'path.resolve(consumerDir, sourceFile)']]
++      .map(([line, target]) => ({ file: strict, line, target,
++        reason: 'Exact literal/constant module compiled by the staged strict consumer config, without repo paths.' })),
++    { file: contract('tree-shaking-smoke'), line: 97, target: 'consumerPath',
++      reason: 'Exact joined literal module bundled in the isolated installed package tree.' },
++  ],
+   inventories: [{
+     file: docs, line: 159, binding: 'files', property: 'file',
+     values: documents.filter((doc) => doc.file !== 'MIGRATION.md').map((doc) => doc.file),
+--- a/packages/access-router/test/internal/test-layer-boundaries.unit.test.ts
++++ b/packages/access-router/test/internal/test-layer-boundaries.unit.test.ts
+@@ -250,3 +250,124 @@
+     expect(checkLayerSets(wrong).join('\n')).toContain('wrong layer');
+   });
+ });
++
++import ts from 'typescript';
++
++describe('ARTS06-F1 compiler-context boundaries', () => {
++  const options = (paths: Record<string, string[]>) => ({
++    compilerOptions: { module: 'ESNext', moduleResolution: 'Bundler', paths },
++  });
++  const resolved = (name: string) => {
++    const config = ts.readConfigFile(path.join(root, 'tsconfig.json'), ts.sys.readFile);
++    const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root);
++    return ts.resolveModuleName(name, path.join(root, entry), parsed.options, ts.sys).resolvedModule?.resolvedFileName;
++  };
++
++  it('reproduces ARTS06-F1 exact public root alias resolving to private source', () => {
++    put('src/secret.ts', 'export type Secret = { privateOnly: true };');
++    put('tsconfig.json', JSON.stringify(options({ [packageName]: ['./src/secret.ts'] })));
++    expect(resolved(packageName)).toBe(path.join(root, 'src/secret.ts'));
++    expect(audit(`import type { Secret } from '${packageName}'; export type Leaked = Secret;`).errors.join('\n'))
++      .toContain('private dependency: src/secret.ts');
++  });
++
++  it.each([
++    ['root runtime', packageName, `import { secret } from '${packageName}';`],
++    ['root type', packageName, `import type { Secret } from '${packageName}';`],
++    ['advanced runtime', `${packageName}/advanced`, `const advanced = require('${packageName}/advanced');`],
++    ['advanced type', `${packageName}/advanced`, `export type { Secret } from '${packageName}/advanced';`],
++    ['processors runtime', `${packageName}/processors`, `void import('${packageName}/processors');`],
++    ['processors type', `${packageName}/processors`, `type T = import('${packageName}/processors').Secret;`],
++  ])('checks effective aliases before trusting a public name (%s)', (_label, name, source) => {
++    put('tsconfig.json', JSON.stringify(options({ [name]: ['./src/secret.ts'] })));
++    expect(resolved(name)).toBe(path.join(root, 'src/secret.ts'));
++    expect(audit(source).errors.join('\n')).toContain('private dependency: src/secret.ts');
++  });
++
++  it.each([
++    ['exact root', packageName, { [packageName]: ['./src/secret.ts'] }, 'src/secret.ts'],
++    ['wildcard subpath', `${packageName}/advanced`, { [`${packageName}/*`]: ['./src/*'] }, 'src/advanced.ts'],
++  ])('uses inherited paths and the declaring config baseUrl (%s)', (_label, name, paths, target) => {
++    put('src/advanced.ts', 'export type Secret = true;');
++    put('config/base.json', JSON.stringify({ compilerOptions: { ...options(paths).compilerOptions, baseUrl: '..' } }));
++    put('tsconfig.json', JSON.stringify({ extends: './config/base.json' }));
++    expect(resolved(name)).toBe(path.join(root, target));
++    expect(audit(`import type { Secret } from '${name}';`).errors.join('\n')).toContain(`private dependency: ${target}`);
++  });
++
++  it('checks baseUrl resolution even without an explicit paths entry', () => {
++    put('src/@web-ts-toolkit/access-router/index.ts', 'export type Secret = true;');
++    put('tsconfig.json', JSON.stringify({ compilerOptions: { ...options({}).compilerOptions, baseUrl: './src' } }));
++    expect(resolved(packageName)).toBe(path.join(root, 'src/@web-ts-toolkit/access-router/index.ts'));
++    expect(audit(`import '${packageName}';`).errors.join('\n')).toContain('private dependency: src/@web-ts-toolkit/access-router/index.ts');
++  });
++
++  it('accepts no-alias public names and aliases resolving to actual public built entries', () => {
++    const source = `import '${packageName}'; import '${packageName}/advanced'; import type { T } from '${packageName}/processors';`;
++    expect(audit(source).errors).toEqual([]);
++    put('tsconfig.json', JSON.stringify(options({
++      [packageName]: ['./dist/index.mjs'],
++      [`${packageName}/advanced`]: ['./dist/advanced.js'],
++      [`${packageName}/processors`]: ['./dist/processors.d.ts'],
++    })));
++    expect(resolved(packageName)).toBe(path.join(root, 'dist/index.mjs'));
++    expect(audit(source).errors).toEqual([]);
++  });
++
++  it('keeps finite installed filesystem inputs separate from ordinary imports of the very same file', () => {
++    const file = 'test/support/public/consumer.ts';
++    put('config/base.json', JSON.stringify(options({ [packageName]: ['../src/secret.ts'] })));
++    put('tsconfig.json', JSON.stringify({ extends: './config/base.json' }));
++    put(file, `import type { Secret } from '${packageName}';`);
++    const policy = { ...emptyPolicy, inputs: [file] };
++    const read = `readFileSync(path.join(packageRoot, '${file}'));`;
++    expect(audit(read, { policy }).errors).toEqual([]);
++    // Installed is visited first: caches must not suppress the later repo audit.
++    expect(audit(`${read}\nimport '../support/public/consumer';`, { policy }).errors.join('\n'))
++      .toContain('private dependency: src/secret.ts');
++    expect(auditContractGraph({ root, entries: [file], policy }).errors.join('\n'))
++      .toContain('private dependency: src/secret.ts');
++    put(file, "import '../private/helper';");
++    expect(audit(read, { policy }).errors.join('\n')).toContain('private dependency: test/support/private/helper.ts');
++  });
++
++  it('does not infer installed compilation from a public support path or a file read', () => {
++    const file = 'test/support/public/not-a-declared-consumer.ts';
++    put('tsconfig.json', JSON.stringify(options({ [packageName]: ['./src/secret.ts'] })));
++    put(file, `import '${packageName}';`);
++    expect(audit(`readFileSync(path.join(packageRoot, '${file}'));`).errors.join('\n'))
++      .toContain('private dependency: src/secret.ts');
++  });
++
++  it('requires a finite installed producer and propagates repo context through ordinary generated-module imports', () => {
++    put('tsconfig.json', JSON.stringify(options({ [packageName]: ['./src/secret.ts'] })));
++    const source = `writeFileSync(path.join(out, 'consumer.mts'), "import '${packageName}';");`;
++    const policy = { ...emptyPolicy, installedSources: [{ file: entry, line: 1, target: "path.join(out, 'consumer.mts')" }] };
++    expect(audit(source, { policy }).errors).toEqual([]);
++    expect(audit(source).errors.join('\n')).toContain('private dependency: src/secret.ts');
++    expect(audit(source + "\nimport './consumer.mts';", { policy }).errors.join('\n'))
++      .toContain('private dependency: src/secret.ts');
++  });
++
++  it('propagates the importing context into exact generated recipe bodies', () => {
++    const file = 'test/support/public/recipe-consumer.ts';
++    put('tsconfig.json', JSON.stringify(options({ [packageName]: ['./src/secret.ts'] })));
++    put('MIGRATION.md', `<!-- doc-example: partial -->\n\`\`\`ts\nimport '${packageName}'; export function recipe() {}\n\`\`\`\n`);
++    put(file, "import './recipe.mjs';");
++    const policy = { ...emptyPolicy, inputs: [file], generated: [{ consumer: file, output: 'recipe.mjs', document: 'MIGRATION.md', marker: 'export function recipe(' }] };
++    expect(audit('', { policy }).errors).toEqual([]);
++    expect(audit("export * from '../support/public/recipe-consumer';", { policy }).errors.join('\n'))
++      .toContain('private dependency: src/secret.ts');
++  });
++
++  it.each(['configured setup', 'transitive type re-export'])('propagates repo aliases through %s', (kind) => {
++    put('tsconfig.json', JSON.stringify(options({ [`${packageName}/advanced`]: ['./src/secret.ts'] })));
++    put('test/support/public/reexport.ts', `export type { Secret } from '${packageName}/advanced';`);
++    put('test/global-setup.ts', "import './support/public/reexport';");
++    const result = kind === 'configured setup'
++      ? audit('', { setup: ['test/global-setup.ts'] })
++      : audit("export * from '../support/public/reexport';");
++    expect(result.errors.join('\n')).toContain('private dependency: src/secret.ts');
++    expect(result.errors.join('\n')).toContain('test/support/public/reexport.ts');
++  });
++});

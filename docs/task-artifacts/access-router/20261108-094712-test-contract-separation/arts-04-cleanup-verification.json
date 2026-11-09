@@ -1,0 +1,237 @@
+{
+  "schema": 1,
+  "task": "ARTS-04 cleanup",
+  "scope": "Only the installed-export contract file identity supersedes the historical ARTS-04 seal. No assertion/title change or new test case.",
+  "before": {
+    "path": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+    "bytes": 2069,
+    "sha256": "5c63137dbe061b4c8eedf2486769b1847a66189bbc7ac0b362350a5bac1cd9d4"
+  },
+  "after": {
+    "path": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+    "bytes": 2189,
+    "sha256": "ed8eab1ada425861d917d092b775976992342bbd9d9f0ee1d8a87832663ee772"
+  },
+  "exactEdits": [
+    {
+      "before": "import { cpSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';",
+      "after": "import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';"
+    },
+    {
+      "before": "import { beforeAll, describe, expect, it } from 'vitest';",
+      "after": "import { afterAll, beforeAll, describe, expect, it } from 'vitest';"
+    },
+    {
+      "before": "let consumer: string;",
+      "after": "let consumer: string | undefined;"
+    }
+  ],
+  "appendedTeardown": "\nafterAll(() => {\n  if (consumer) rmSync(consumer, { recursive: true, force: true });\n});\n",
+  "preservation": {
+    "completeDescribeBodyByteIdentical": true,
+    "describeBodySha256": "41c25940bc52bff188f9001985cbb5b9817502db8886c567e7bd3416a4ff3709",
+    "beforeAllBodyByteIdentical": true,
+    "beforeAllBodySha256": "7102577f43bddca65ffd206e1e42c1400b0869e885791b62c22f0b114e57a960",
+    "existingCaseLocationsAndIdentitiesUnchanged": true,
+    "caseCountUnchanged": 2,
+    "newCases": 0,
+    "otherRunnableArts04FilesUnchanged": 5,
+    "otherMaintainedArts04FilesUnchanged": 9,
+    "unchangedMaintainedFiles": [
+      {
+        "path": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+        "bytes": 23389,
+        "sha256": "e7b85f25918b57e6df94aae70b8be811b488fcff0ea4f52e999d5bb0912ed6ca"
+      },
+      {
+        "path": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+        "bytes": 13941,
+        "sha256": "425b117bfb199e41cd4a674eb6489c0e274174ccb084a881ec08b9ca33a0aa65"
+      },
+      {
+        "path": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+        "bytes": 7792,
+        "sha256": "5b4be5da031797d4560899b4875686f2150c51a84f40c5777164b0ed9a48b7b3"
+      },
+      {
+        "path": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+        "bytes": 22691,
+        "sha256": "3afb2029b47f796c789524bf1500f3b0782ae306aade3023208b83ceaeb20223"
+      },
+      {
+        "path": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+        "bytes": 12631,
+        "sha256": "76e7ec5595bfcb4c8bc3a153a3f44e5b91cbb1b09d925059add8bdce365e1612"
+      },
+      {
+        "path": "packages/access-router/test/support/public/arts04-export-assertions.cjs",
+        "bytes": 2708,
+        "sha256": "fcc141256f63d99d3e35da1c98e361ddeffe351192f04ccd40e9b86a32a16b30"
+      },
+      {
+        "path": "packages/access-router/test/support/public/arts04-exports.cjs",
+        "bytes": 663,
+        "sha256": "4ce4e156d0e670b22ba598875d173db590b619169e60679aac33280e5e1beb50"
+      },
+      {
+        "path": "packages/access-router/test/support/public/arts04-exports.mjs",
+        "bytes": 330,
+        "sha256": "daee3f3086b352c9c149b92692797f3c45a9d684d263854088d5299a94bbec99"
+      },
+      {
+        "path": "packages/access-router/test/support/public/arts04-fixture.ts",
+        "bytes": 6369,
+        "sha256": "6c8efd8fc08c7ad30b90c31dcfc8dc7c41e76d99081eb4e0b18766d2851907dd"
+      }
+    ],
+    "historicalEvidenceFilesUnchanged": 31,
+    "historicalEvidenceDigest": "d2dc54fd726f3fa770daa37d6ab1f8620aea451f939bb9c1f70af4734f3371e2",
+    "coordinatorTaskUnchanged": true,
+    "checkpoint": {
+      "revision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+      "originalMigratedFiles": 248,
+      "migratedBytesDigest": "292d10d8b0a666bc25fddb6937ded50565840dfc78ed9968d300effb34056971",
+      "preservation": "Exact ARTS-02 bytes imply its sealed full AST, assertions, expected values, tables, negative directives and cleanup remain identical; no recount substitution.",
+      "protectedNonTestInputs": 186,
+      "unchangedNonTestInputs": 184,
+      "exactApprovedExceptions": [
+        "packages/access-router/package.json",
+        "packages/access-router/vitest.config.ts"
+      ],
+      "sourceFiles": 152,
+      "sourceDigest": "936a5c248f9cb9c92ce38355920b890ac1ae68d1b75affadc3f90901a507ff62",
+      "priorEvidenceFiles": 22,
+      "priorEvidenceDigest": "5583ed091b37f8d2b9e0acc23c1c808423acce6fea86f11098f6df97a25b301c",
+      "declarationFiles": 8,
+      "declarationDigest": "0b8dad3ee3c2db7c5a55ce35e3c677e6c0c082010dd3b9cdcb8b37a6e50ed8f1",
+      "runtimeExports": {
+        "index": 46,
+        "advanced": 48,
+        "processors": 6
+      },
+      "packageMetadataExceptScriptsUnchanged": true,
+      "deliveredFilesVerified": 10
+    }
+  },
+  "commands": [
+    {
+      "label": "lint",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/test/contracts/arts04-installed-exports.test.ts"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-cleanup-20261108-155707",
+      "started": "2026-11-08T23:58:33.325Z",
+      "elapsedMs": 2940,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "export-probes",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:contracts",
+        "test/contracts/arts04-installed-exports.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-04-cleanup-20261108-155707/exports.json",
+        "--includeTaskLocation"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-cleanup-20261108-155707",
+      "started": "2026-11-08T23:58:36.273Z",
+      "elapsedMs": 25319,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "checkpoint",
+      "argv": [
+        "node",
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-verify-checkpoint.mjs"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-cleanup-20261108-155707",
+      "started": "2026-11-08T23:59:01.593Z",
+      "elapsedMs": 530,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-cleanup-20261108-155707",
+      "started": "2026-11-08T23:59:02.122Z",
+      "elapsedMs": 121,
+      "exit": 0,
+      "signal": null
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "28fe8486d351649468fda00fe7306e90258838f2657fa8057977716d1f9bc2c4",
+      "file": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+      "fullTitle": "ARTS-04 installed semantic exports EXPORT-ESM installed root/advanced/processors preserve supported identities and encapsulation",
+      "line": 33,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed"
+    },
+    {
+      "caseId": "4901dfef6226808122f34b6e909ffc4dbdff12f0a2325bc932d75caed698c713",
+      "file": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+      "fullTitle": "ARTS-04 installed semantic exports EXPORT-CJS installed root/advanced/processors preserve supported identities and encapsulation",
+      "line": 38,
+      "column": 3,
+      "occurrence": 1,
+      "status": "passed"
+    }
+  ],
+  "guard": {
+    "passed": true,
+    "contracts": 103,
+    "invariants": 64,
+    "internal": 51,
+    "publicFiles": 137,
+    "publicModules": 237,
+    "toolingOrPolicyChanges": false
+  },
+  "cleanupReview": {
+    "owner": "The module-local consumer variable is assigned only the successful mkdtempSync return, before any subsequent mkdir/copy/symlink/write can fail.",
+    "undefinedStartup": "If allocation never returns, consumer remains undefined; the afterAll guard does nothing.",
+    "partialStartup": "If later setup fails, afterAll receives the already-assigned own root; recursive/force cleanup tolerates partial or missing contents.",
+    "deletionScope": "Only that single owned directory; no parent TMPDIR, glob, scan, previous fixture, or external symlink target is removed.",
+    "existingPattern": "Matches strict-consumer-types.test.ts Node fs rmSync recursive/force teardown, with an allocation guard.",
+    "runtime": {
+      "beforeOwnedConsumerDirectories": [],
+      "afterOwnedConsumerDirectories": [],
+      "note": "Fresh task scratch; no external/manual deletion during focused run."
+    },
+    "successfulProbesRequireCreatedConsumer": true,
+    "startupFailureInjectionRun": false,
+    "reviewLimit": "Undefined/partial-startup handling was inspected in the exact teardown, not fault-injected into package tests."
+  },
+  "rawReporter": {
+    "historicalScratch": "_tmp-arts-04-cleanup-20261108-155707/exports.json",
+    "bytes": 1556,
+    "sha256": "342d891441f92ba690001f1675e9e78338c43e2a6dbccaf31e25e481f54b886d",
+    "omitted": true
+  },
+  "notRun": [
+    "Full 93-case selection",
+    "Full layer/default/package suites",
+    "Root/grouped/downstream suites",
+    "Additional agents"
+  ],
+  "noBackgroundOrQueuedJobs": true
+}

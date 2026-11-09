@@ -1,0 +1,386 @@
+{
+  "schema": 1,
+  "task": "ARTS-04",
+  "revision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "environment": {
+    "node": "v26.12.1",
+    "platform": "linux",
+    "architecture": "x64",
+    "pnpm": "11.18.0",
+    "vitest": "4.1.11",
+    "typescript": "6.0.3",
+    "mongoose": "9.11.4",
+    "express": "5.2.1",
+    "mongoMemoryServer": "11.2.0"
+  },
+  "commands": [
+    {
+      "label": "typecheck",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-20261109-public-companions",
+      "started": "2026-11-08T23:51:58.920Z",
+      "elapsedMs": 27268,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "lint",
+      "argv": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+        "packages/access-router/test/support/public/arts04-fixture.ts",
+        "packages/access-router/test/support/public/arts04-exports.mjs",
+        "packages/access-router/test/support/public/arts04-exports.cjs",
+        "packages/access-router/test/support/public/arts04-export-assertions.cjs"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-20261109-public-companions",
+      "started": "2026-11-08T23:52:26.191Z",
+      "elapsedMs": 2464,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "focused",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:contracts",
+        "test/contracts/arts04-modes.integration.test.ts",
+        "test/contracts/arts04-boundaries.integration.test.ts",
+        "test/contracts/arts04-data-helpers.integration.test.ts",
+        "test/contracts/arts04-metadata-wire.integration.test.ts",
+        "test/contracts/arts04-parsers-processors.integration.test.ts",
+        "test/contracts/arts04-installed-exports.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-04-20261109-public-companions/final-focused.json",
+        "--includeTaskLocation"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-20261109-public-companions",
+      "started": "2026-11-08T23:52:28.655Z",
+      "elapsedMs": 39637,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "layers",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "test:layers:check"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-20261109-public-companions",
+      "started": "2026-11-08T23:53:08.292Z",
+      "elapsedMs": 2424,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "checkpoint",
+      "argv": [
+        "node",
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-03-verify-checkpoint.mjs"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-20261109-public-companions",
+      "started": "2026-11-08T23:53:10.717Z",
+      "elapsedMs": 490,
+      "exit": 0,
+      "signal": null
+    },
+    {
+      "label": "whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-04-20261109-public-companions",
+      "started": "2026-11-08T23:53:11.208Z",
+      "elapsedMs": 103,
+      "exit": 0,
+      "signal": null
+    }
+  ],
+  "finalFocused": {
+    "passed": 93,
+    "failed": 0,
+    "pending": 0,
+    "todo": 0,
+    "files": 6,
+    "caseIdentities": "arts-04-coverage.json#cases",
+    "perFile": [
+      {
+        "file": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+        "passed": 21,
+        "failed": 0
+      },
+      {
+        "file": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+        "passed": 12,
+        "failed": 0
+      },
+      {
+        "file": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+        "passed": 2,
+        "failed": 0
+      },
+      {
+        "file": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+        "passed": 4,
+        "failed": 0
+      },
+      {
+        "file": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+        "passed": 43,
+        "failed": 0
+      },
+      {
+        "file": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+        "passed": 11,
+        "failed": 0
+      }
+    ],
+    "rawReporter": {
+      "historicalScratch": "_tmp-arts-04-20261109-public-companions/final-focused.json",
+      "bytes": 38621,
+      "sha256": "ecedb4ea0ccf1bd1c9bf95b9aceade574d11cab934c7d8164abe531339b955af",
+      "omitted": true
+    }
+  },
+  "discovery": {
+    "default": 218,
+    "contracts": 103,
+    "invariants": 64,
+    "internal": 51,
+    "disjointExhaustiveUnion": true,
+    "publicPhysicalFiles": 137,
+    "publicParsedModules": 237,
+    "checkerChanged": false,
+    "policyChanged": false
+  },
+  "checkpoint": {
+    "revision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+    "originalMigratedFiles": 248,
+    "migratedBytesDigest": "292d10d8b0a666bc25fddb6937ded50565840dfc78ed9968d300effb34056971",
+    "preservation": "Exact ARTS-02 bytes imply its sealed full AST, assertions, expected values, tables, negative directives and cleanup remain identical; no recount substitution.",
+    "protectedNonTestInputs": 186,
+    "unchangedNonTestInputs": 184,
+    "exactApprovedExceptions": [
+      "packages/access-router/package.json",
+      "packages/access-router/vitest.config.ts"
+    ],
+    "sourceFiles": 152,
+    "sourceDigest": "936a5c248f9cb9c92ce38355920b890ac1ae68d1b75affadc3f90901a507ff62",
+    "priorEvidenceFiles": 22,
+    "priorEvidenceDigest": "5583ed091b37f8d2b9e0acc23c1c808423acce6fea86f11098f6df97a25b301c",
+    "declarationFiles": 8,
+    "declarationDigest": "0b8dad3ee3c2db7c5a55ce35e3c677e6c0c082010dd3b9cdcb8b37a6e50ed8f1",
+    "runtimeExports": {
+      "index": 46,
+      "advanced": 48,
+      "processors": 6
+    },
+    "packageMetadataExceptScriptsUnchanged": true,
+    "deliveredFilesVerified": 10
+  },
+  "deliveredFiles": [
+    {
+      "path": "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+      "bytes": 23389,
+      "sha256": "e7b85f25918b57e6df94aae70b8be811b488fcff0ea4f52e999d5bb0912ed6ca"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+      "bytes": 13941,
+      "sha256": "425b117bfb199e41cd4a674eb6489c0e274174ccb084a881ec08b9ca33a0aa65"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+      "bytes": 2069,
+      "sha256": "5c63137dbe061b4c8eedf2486769b1847a66189bbc7ac0b362350a5bac1cd9d4"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+      "bytes": 7792,
+      "sha256": "5b4be5da031797d4560899b4875686f2150c51a84f40c5777164b0ed9a48b7b3"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+      "bytes": 22691,
+      "sha256": "3afb2029b47f796c789524bf1500f3b0782ae306aade3023208b83ceaeb20223"
+    },
+    {
+      "path": "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts",
+      "bytes": 12631,
+      "sha256": "76e7ec5595bfcb4c8bc3a153a3f44e5b91cbb1b09d925059add8bdce365e1612"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-export-assertions.cjs",
+      "bytes": 2708,
+      "sha256": "fcc141256f63d99d3e35da1c98e361ddeffe351192f04ccd40e9b86a32a16b30"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-exports.cjs",
+      "bytes": 663,
+      "sha256": "4ce4e156d0e670b22ba598875d173db590b619169e60679aac33280e5e1beb50"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-exports.mjs",
+      "bytes": 330,
+      "sha256": "daee3f3086b352c9c149b92692797f3c45a9d684d263854088d5299a94bbec99"
+    },
+    {
+      "path": "packages/access-router/test/support/public/arts04-fixture.ts",
+      "bytes": 6369,
+      "sha256": "6c8efd8fc08c7ad30b90c31dcfc8dc7c41e76d99081eb4e0b18766d2851907dd"
+    }
+  ],
+  "expectedNotExecutedFullTotals": {
+    "originalBaseline": 7565,
+    "arts03Guard": 59,
+    "arts04Companions": 93,
+    "prospectiveDefault": 7717,
+    "prospectiveContracts": 3158,
+    "prospectiveInvariants": 3078,
+    "prospectiveInternal": 1481
+  },
+  "developmentRuns": [
+    {
+      "report": "modes-attempt1.json (raw omitted)",
+      "exit": 1,
+      "files": 1,
+      "cases": 43,
+      "passed": 32,
+      "failed": 11,
+      "pending": 0,
+      "todo": 0,
+      "selectedFiles": [
+        "packages/access-router/test/contracts/arts04-modes.integration.test.ts"
+      ],
+      "reportingArgs": [
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-04-20261109-public-companions/modes-attempt1.json",
+        "--includeTaskLocation"
+      ]
+    },
+    {
+      "report": "modes-boundaries-attempt2.json (raw omitted)",
+      "exit": 1,
+      "files": 2,
+      "cases": 64,
+      "passed": 48,
+      "failed": 16,
+      "pending": 0,
+      "todo": 0,
+      "selectedFiles": [
+        "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-modes.integration.test.ts"
+      ],
+      "reportingArgs": [
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-04-20261109-public-companions/modes-boundaries-attempt2.json",
+        "--includeTaskLocation"
+      ]
+    },
+    {
+      "report": "attempt3.json (raw omitted)",
+      "exit": 1,
+      "files": 4,
+      "cases": 80,
+      "passed": 67,
+      "failed": 13,
+      "pending": 0,
+      "todo": 0,
+      "selectedFiles": [
+        "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-modes.integration.test.ts"
+      ],
+      "reportingArgs": [
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-04-20261109-public-companions/attempt3.json",
+        "--includeTaskLocation"
+      ]
+    },
+    {
+      "report": "attempt4.json (raw omitted)",
+      "exit": 1,
+      "files": 6,
+      "cases": 93,
+      "passed": 91,
+      "failed": 2,
+      "pending": 0,
+      "todo": 0,
+      "selectedFiles": [
+        "packages/access-router/test/contracts/arts04-boundaries.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-data-helpers.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-installed-exports.test.ts",
+        "packages/access-router/test/contracts/arts04-metadata-wire.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-modes.integration.test.ts",
+        "packages/access-router/test/contracts/arts04-parsers-processors.integration.test.ts"
+      ],
+      "reportingArgs": [
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-04-20261109-public-companions/attempt4.json",
+        "--includeTaskLocation"
+      ]
+    }
+  ],
+  "developmentResolutions": [
+    "Initial target hooks/returned-value mutation used Buffer.fill on real Mongo BSON Binary; use its supported buffer storage. Assert actual target facts/outputs outside swallowed consumer hooks.",
+    "Initial custom GET guard URLs collided with generated ID routes; use genuine POST custom routes after middleware. Wrong request schema key corrected to advancedRead.",
+    "Guard/field callbacks compare captured permission contents, not cloned actor identity. Permission.keys includes false-valued keys; hasKey checks presence; keys are frozen (existing permission implementation and tests).",
+    "Acquired public service read does not imply an initiating generated-route gate; actual route denial tested separately. Child parent-scope miss is 404, grounded in retained child-route tests.",
+    "Controls rejected inside named backend authority, not arbitrary ignored outer options. listSub has one third options argument; wrong fourth argument corrected to documented child dimension rejection.",
+    "Populate normalization and real native selected-slot overflow clarified in coverage recipe notes. Warning membership asserted before a deliberate new isolated-to-trusted transition, not once for all future transitions.",
+    "Defaults reject with PublicAdmissionError bad_request; virtual stored-path collisions throw Error with the existing message. Final tests assert these concrete errors, not a fabricated universal TypeError class.",
+    "First scoped lint flagged five intentional CommonJS require syntax sites; five line-local no-require-imports annotations document the actual CJS loader test. No lint config, boundary exception or dependency policy changed."
+  ],
+  "omissions": [
+    "Raw logs/reporter JSON",
+    "Installed consumers and node_modules",
+    "Build output and MongoDB data/binaries",
+    "Temporary generators"
+  ],
+  "noBackgroundOrQueuedJobs": true,
+  "noSubagentsOrCommitsOrDestructiveActions": true,
+  "curation": {
+    "gapRows": 34,
+    "newCases": 93,
+    "eachCaseMappedExactlyOnce": true,
+    "retainedOriginalPublicFiles": 97,
+    "retainedBaselinePassedCases": 3065,
+    "surfaceRows": 23,
+    "allReferencesAndFileHashesResolve": true,
+    "unchangedPriorEvidenceFiles": 26,
+    "scratchIgnored": true,
+    "durableAndNewMaintainedFilesNotIgnored": true,
+    "jsonAndMarkdownLinksAndPrivacyAndWhitespaceChecked": true,
+    "finalCheckpointRepeatedAtCuration": true
+  }
+}

@@ -1,0 +1,712 @@
+{
+  "schema": 1,
+  "task": "ARTS-02",
+  "revision": "fe50475fd026d70aad52bc54b1c6d3d41dbc885b",
+  "scope": "Mechanical migration only; no original split/retirement/companion or runtime/config/script changes.",
+  "baselineArtifacts": [
+    {
+      "path": "README.md",
+      "sha256": "cd9bf7f129a7a6aa0d304c87048f41f54c3cfa00157dbb26ade811ee13492a39"
+    },
+    {
+      "path": "arts-01-report.md",
+      "sha256": "ec9b385d9d4189b1cab71d7d2f1e3aa37a9fddc14a76e467681c552199117e60"
+    },
+    {
+      "path": "bundle-manifest.json",
+      "sha256": "55384b3748bdd00df424727aa1247635b32bd8503f2472d8414ad7da8909c515"
+    },
+    {
+      "path": "classification.md",
+      "sha256": "8f98b4a0e98672d9a1dd7abaf9225034be3321d0e53ccd38bfbf1289a7ba49fa"
+    },
+    {
+      "path": "coverage-gaps.md",
+      "sha256": "00a9639209f81b990896484788977b2370aff17092e651ca163c0a97392dd23b"
+    },
+    {
+      "path": "declarations.json",
+      "sha256": "ea4261a8e2f7f11732b79c11aaa8fa41ad06fad7e879c5e65b1ba025c78c137f"
+    },
+    {
+      "path": "identities.json",
+      "sha256": "50307cfcb6ceff149b4428a8f169f492dcab4f8c2aa3b9be2c48f752094909dd"
+    },
+    {
+      "path": "migration-ledger.json",
+      "sha256": "5cff166bac4a67bb8654dbac52e6893b25ad7d8698f2b6dd2bf406293fdcd64f"
+    },
+    {
+      "path": "preservation-ledger.jsonl",
+      "sha256": "30322cc0f4464b07e9f9f2fc4648f953458ceecd377fc5194ac1e67389103075"
+    },
+    {
+      "path": "public-surfaces.json",
+      "sha256": "f4fa01f119eadf9d0f135f495ea3c4e7bacfb696fa342b0bae169f2f464a5d8c"
+    },
+    {
+      "path": "runtime-cases.jsonl",
+      "sha256": "b7d76001ed408b6b83f7b2e5e25e3df25b73d198688e717dfa7e2fbb2f59f762"
+    },
+    {
+      "path": "starting.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "support-callers.json",
+      "sha256": "8182677cf603f8fa9db83874db98f2dc75ad944fee349caa72877d3de5134a12"
+    },
+    {
+      "path": "verification.json",
+      "sha256": "dad77d88461c126537d49d486a9293146414c30d0497c4b276a3eb3581ce30b5"
+    },
+    {
+      "path": "verify-baseline.mjs",
+      "sha256": "39bba8c84c94e47e8b8d491ce5938928e4f2ab839c487f887172e0cf244de366"
+    }
+  ],
+  "preservation": {
+    "files": 248,
+    "groups": 2615,
+    "staticCases": 2246,
+    "assertionCallSites": 11254,
+    "parameterizations": 849,
+    "directives": 411,
+    "statements": 4245,
+    "repairs": 1093
+  },
+  "normalization": "Exact logged before/after UTF-16 spans only, reversed then compared byte-for-byte and at every original AST/group/body/assertion/parameter/directive/top-level-statement hash. All strings and template contents are otherwise retained.",
+  "preservationVerifier": {
+    "command": "node docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-02-verify-preservation.mjs",
+    "cwd": "<repo-root>",
+    "exitCode": 0,
+    "elapsedMs": 9547,
+    "result": "All 248 exact inverse-normalized files and original AST records matched; 186 protected non-test inputs, 15 frozen baseline artifacts and all eight declarations unchanged."
+  },
+  "layers": {
+    "contracts": 97,
+    "invariants": 64,
+    "internal": 50
+  },
+  "baselineCaseDestinations": {
+    "contracts": 3065,
+    "invariants": 3078,
+    "internal": 1422
+  },
+  "commands": [
+    {
+      "label": "baseline-seal",
+      "command": "node",
+      "args": [
+        "docs/task-artifacts/access-router/20261108-094712-test-contract-separation/verify-baseline.mjs",
+        "--git-baseline",
+        "--declarations"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-02-20261108-110811",
+      "started": "2026-11-08T22:10:45.397Z",
+      "ended": "2026-11-08T22:10:50.246Z",
+      "elapsedMs": 4849,
+      "exitCode": 0,
+      "signal": null,
+      "log": "_tmp-arts-02-20261108-110811/baseline-seal.log",
+      "logSha256": "3e339f1f91ed6d0cdfc25111302540c8d628138b6b73bc5b36559a5740efa283"
+    },
+    {
+      "label": "discovery",
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "list",
+        "--config",
+        "vitest.config.ts",
+        "--filesOnly",
+        "--json=<repo-root>/_tmp-arts-02-20261108-110811/discovery.json"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-02-20261108-110811",
+      "started": "2026-11-08T22:30:12.869Z",
+      "ended": "2026-11-08T22:30:14.147Z",
+      "elapsedMs": 1278,
+      "exitCode": 0,
+      "signal": null,
+      "log": "_tmp-arts-02-20261108-110811/discovery.log",
+      "logSha256": "b4acd4f819050212c4fe3b3ed8416421330f7ff8c72cb9bb667c335f3e24a94e"
+    },
+    {
+      "label": "focused",
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "test/contracts/strict-consumer-types.test.ts",
+        "test/contracts/packed-consumer-compatibility.test.ts",
+        "test/contracts/nested-operation-access-consumer-types.test.ts",
+        "test/contracts/owned-authorization-types.test.ts",
+        "test/contracts/documentation-examples.test.ts",
+        "test/contracts/tree-shaking-smoke.test.ts",
+        "test/contracts/authorization-fast-path-runtime.integration.test.ts",
+        "test/contracts/owned-authorization-modes.integration.test.ts",
+        "test/contracts/query-snapshot-options.integration.test.ts",
+        "test/contracts/service-authorization-direct.integration.test.ts",
+        "test/internal/export-contract.test.ts",
+        "test/internal/strict-typecheck.test.ts",
+        "test/internal/documentation-authorization-guidance.test.ts",
+        "test/internal/output-publication-fusion-withdrawal.unit.test.ts",
+        "test/internal/access-router-crud-driver.unit.test.ts",
+        "test/internal/access-router-crud-harness.unit.test.ts",
+        "test/internal/access-router-crud-v2.unit.test.ts",
+        "test/internal/access-router-crud-work.unit.test.ts",
+        "test/internal/service-output-preparation.unit.test.ts",
+        "test/internal/owned-authorization-work.unit.test.ts",
+        "test/invariants/service-authorization-boundary-admission.contract.test.ts",
+        "test/invariants/service-authorization-migration.contract.test.ts",
+        "test/invariants/service-authorization-context.unit.test.ts",
+        "test/invariants/write-output-modes.unit.test.ts",
+        "test/invariants/authorization-fast-path-runtime.unit.test.ts",
+        "test/invariants/service-authorization-mutations.integration.test.ts",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=<repo-root>/_tmp-arts-02-20261108-110811/focused-results.json",
+        "--includeTaskLocation"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-02-20261108-110811",
+      "started": "2026-11-08T22:11:04.127Z",
+      "ended": "2026-11-08T22:29:19.030Z",
+      "elapsedMs": 1094903,
+      "exitCode": 0,
+      "signal": null,
+      "log": "_tmp-arts-02-20261108-110811/focused.log",
+      "logSha256": "253ce003a84874da92eddb35cdcd8f2984a7dfdd2344ff362f9ba92ac54bd7e4"
+    },
+    {
+      "label": "scoped-lint",
+      "command": "pnpm",
+      "args": [
+        "exec",
+        "eslint",
+        "packages/access-router/test",
+        "packages/access-router/vitest.config.ts"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-02-20261108-110811",
+      "started": "2026-11-08T22:30:28.124Z",
+      "ended": "2026-11-08T22:30:35.275Z",
+      "elapsedMs": 7151,
+      "exitCode": 0,
+      "signal": null,
+      "log": "_tmp-arts-02-20261108-110811/scoped-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "typecheck",
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "@web-ts-toolkit/access-router",
+        "typecheck"
+      ],
+      "cwd": "<repo-root>",
+      "TMPDIR": "<repo-root>/_tmp-arts-02-20261108-110811",
+      "started": "2026-11-08T22:10:04.683Z",
+      "ended": "2026-11-08T22:10:38.776Z",
+      "elapsedMs": 34093,
+      "exitCode": 0,
+      "signal": null,
+      "log": "_tmp-arts-02-20261108-110811/typecheck.log",
+      "logSha256": "7ddf4c81a300a4d3050eef0395e04fab42e6251d963347655bd5f7bbc8aa9991"
+    }
+  ],
+  "discovery": {
+    "files": [
+      "packages/access-router/test/contracts/advanced-mutation-bodies.integration.test.ts",
+      "packages/access-router/test/contracts/arc21-projection-identity-and-count-argument.contract.test.ts",
+      "packages/access-router/test/contracts/arf12-new-route-denial.integration.test.ts",
+      "packages/access-router/test/contracts/arf12-root-distinct.authorization.integration.test.ts",
+      "packages/access-router/test/contracts/authorization-fast-path-runtime.integration.test.ts",
+      "packages/access-router/test/contracts/basic-data-list.integration.test.ts",
+      "packages/access-router/test/contracts/basic-list-sort.integration.test.ts",
+      "packages/access-router/test/contracts/correlated-includes.escape.integration.test.ts",
+      "packages/access-router/test/contracts/correlated-includes.execution.test.ts",
+      "packages/access-router/test/contracts/cross-resource-authorization.integration.test.ts",
+      "packages/access-router/test/contracts/data-router.test.ts",
+      "packages/access-router/test/contracts/data-service-hot-path.test.ts",
+      "packages/access-router/test/contracts/distinct-field-authorization.integration.test.ts",
+      "packages/access-router/test/contracts/doc-permissions-exposure.integration.test.ts",
+      "packages/access-router/test/contracts/document-permissions-dependencies.integration.test.ts",
+      "packages/access-router/test/contracts/documentation-examples.test.ts",
+      "packages/access-router/test/contracts/field-permissions-opt-out.integration.test.ts",
+      "packages/access-router/test/contracts/field-permissions-placeholder.integration.test.ts",
+      "packages/access-router/test/contracts/grouped-count-casting.integration.test.ts",
+      "packages/access-router/test/contracts/grouped-count-numeric.integration.test.ts",
+      "packages/access-router/test/contracts/grouped-count-query-equivalence.integration.test.ts",
+      "packages/access-router/test/contracts/hydration-characterization.integration.test.ts",
+      "packages/access-router/test/contracts/hydration-configuration.test.ts",
+      "packages/access-router/test/contracts/include-permission-metadata.integration.test.ts",
+      "packages/access-router/test/contracts/include-source-provenance.integration.test.ts",
+      "packages/access-router/test/contracts/list-snapshot-checks.integration.test.ts",
+      "packages/access-router/test/contracts/logger-redaction.test.ts",
+      "packages/access-router/test/contracts/model-router.integration.test.ts",
+      "packages/access-router/test/contracts/model-router.routes.integration.test.ts",
+      "packages/access-router/test/contracts/model-router.test.ts",
+      "packages/access-router/test/contracts/model-subdocument-routes.integration.test.ts",
+      "packages/access-router/test/contracts/nested-operation-access-consumer-types.test.ts",
+      "packages/access-router/test/contracts/nested-update-integrity.integration.test.ts",
+      "packages/access-router/test/contracts/openapi-collision.test.ts",
+      "packages/access-router/test/contracts/openapi.test.ts",
+      "packages/access-router/test/contracts/operation-access-baseline.contract.test.ts",
+      "packages/access-router/test/contracts/options-ownership.test.ts",
+      "packages/access-router/test/contracts/owned-authorization-guard-consumer.integration.test.ts",
+      "packages/access-router/test/contracts/owned-authorization-modes.integration.test.ts",
+      "packages/access-router/test/contracts/owned-authorization-types.test.ts",
+      "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+      "packages/access-router/test/contracts/permissions-posture.integration.test.ts",
+      "packages/access-router/test/contracts/populate-operation-policy.binding.test.ts",
+      "packages/access-router/test/contracts/populate-operation-policy.dependencies.test.ts",
+      "packages/access-router/test/contracts/populate-operation-policy.helper-isolation.test.ts",
+      "packages/access-router/test/contracts/populate-operation-policy.include-binding.review.test.ts",
+      "packages/access-router/test/contracts/populate-operation-policy.nested-targets.test.ts",
+      "packages/access-router/test/contracts/populate-operation-policy.queries.test.ts",
+      "packages/access-router/test/contracts/populate-operation-policy.review.test.ts",
+      "packages/access-router/test/contracts/private-populate-read-policy.review.test.ts",
+      "packages/access-router/test/contracts/private-populate-read-policy.runtime.test.ts",
+      "packages/access-router/test/contracts/processors-path-hardening.test.ts",
+      "packages/access-router/test/contracts/processors.test.ts",
+      "packages/access-router/test/contracts/query-snapshot-options.integration.test.ts",
+      "packages/access-router/test/contracts/read-list-fallback-authorization.integration.test.ts",
+      "packages/access-router/test/contracts/read-snapshot-checks.integration.test.ts",
+      "packages/access-router/test/contracts/request-complexity.integration.test.ts",
+      "packages/access-router/test/contracts/require-explicit-select.integration.test.ts",
+      "packages/access-router/test/contracts/retained-model-service-ownership.integration.test.ts",
+      "packages/access-router/test/contracts/root-router.integration.test.ts",
+      "packages/access-router/test/contracts/root-router.variants.integration.test.ts",
+      "packages/access-router/test/contracts/runtime-isolation.integration.test.ts",
+      "packages/access-router/test/contracts/runtime-permission-handoff.integration.test.ts",
+      "packages/access-router/test/contracts/schema-mutation.regression.test.ts",
+      "packages/access-router/test/contracts/service-authorization-baseline.contract.test.ts",
+      "packages/access-router/test/contracts/service-authorization-direct.integration.test.ts",
+      "packages/access-router/test/contracts/service-authorization-input.integration.test.ts",
+      "packages/access-router/test/contracts/service-authorization-related.integration.test.ts",
+      "packages/access-router/test/contracts/service-authorization-subdocuments.integration.test.ts",
+      "packages/access-router/test/contracts/service-defaults.integration.test.ts",
+      "packages/access-router/test/contracts/service-exists.integration.test.ts",
+      "packages/access-router/test/contracts/side-effect-initialization.test.ts",
+      "packages/access-router/test/contracts/sort-field-authorization.integration.test.ts",
+      "packages/access-router/test/contracts/sort-options.integration.test.ts",
+      "packages/access-router/test/contracts/strict-consumer-types.test.ts",
+      "packages/access-router/test/contracts/subdocument-mutation-visibility.integration.test.ts",
+      "packages/access-router/test/contracts/subdocument-populate-authorization.integration.test.ts",
+      "packages/access-router/test/contracts/tree-shaking-smoke.test.ts",
+      "packages/access-router/test/contracts/validation-arc02.test.ts",
+      "packages/access-router/test/contracts/validation-arh06.test.ts",
+      "packages/access-router/test/contracts/validation-arh07.test.ts",
+      "packages/access-router/test/contracts/validation-error-boundary.test.ts",
+      "packages/access-router/test/contracts/virtual-filter-literals.integration.test.ts",
+      "packages/access-router/test/contracts/virtuals-baseline.contract.test.ts",
+      "packages/access-router/test/contracts/virtuals-config.contract.test.ts",
+      "packages/access-router/test/contracts/virtuals-direct-operations.integration.test.ts",
+      "packages/access-router/test/contracts/virtuals-embedded-subdocuments.integration.test.ts",
+      "packages/access-router/test/contracts/virtuals-hardening.boundary.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-dependencies.capture-boundaries.review.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-dependencies.dispatch.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-dependencies.fallback.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-dependencies.intent.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-dependencies.operation-guards.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-dependencies.parity.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-dependencies.review.test.ts",
+      "packages/access-router/test/contracts/virtuals-populate-include.integration.test.ts",
+      "packages/access-router/test/contracts/virtuals-route-parity.integration.test.ts",
+      "packages/access-router/test/internal/access-router-crud-driver.unit.test.ts",
+      "packages/access-router/test/internal/access-router-crud-harness.unit.test.ts",
+      "packages/access-router/test/internal/access-router-crud-v2.unit.test.ts",
+      "packages/access-router/test/internal/access-router-crud-work.unit.test.ts",
+      "packages/access-router/test/internal/authorization-snapshot-copy-builder.unit.test.ts",
+      "packages/access-router/test/internal/captured-catalog-preparation.unit.test.ts",
+      "packages/access-router/test/internal/collection.test.ts",
+      "packages/access-router/test/internal/correlated-includes.resolver.test.ts",
+      "packages/access-router/test/internal/correlated-includes.validation.test.ts",
+      "packages/access-router/test/internal/data-service-scaling.test.ts",
+      "packages/access-router/test/internal/document-isolation-builder.unit.test.ts",
+      "packages/access-router/test/internal/documentation-authorization-guidance.test.ts",
+      "packages/access-router/test/internal/export-contract.test.ts",
+      "packages/access-router/test/internal/field-catalog.unit.test.ts",
+      "packages/access-router/test/internal/field-helper-removal.contract.test.ts",
+      "packages/access-router/test/internal/field-helper-request-boundaries.integration.test.ts",
+      "packages/access-router/test/internal/field-permissions-defaults.unit.test.ts",
+      "packages/access-router/test/internal/finalizer-preparation.unit.test.ts",
+      "packages/access-router/test/internal/model-output-metadata.unit.test.ts",
+      "packages/access-router/test/internal/no-work-output-scheduling.unit.test.ts",
+      "packages/access-router/test/internal/output-publication-fusion-withdrawal.unit.test.ts",
+      "packages/access-router/test/internal/owned-authorization-alternate.unit.test.ts",
+      "packages/access-router/test/internal/owned-authorization-projection-work.unit.test.ts",
+      "packages/access-router/test/internal/owned-authorization-runtime-profiles.unit.test.ts",
+      "packages/access-router/test/internal/owned-authorization-work.unit.test.ts",
+      "packages/access-router/test/internal/pagination-overflow.test.ts",
+      "packages/access-router/test/internal/permission.test.ts",
+      "packages/access-router/test/internal/response-pipeline.internal.test.ts",
+      "packages/access-router/test/internal/service-authorization-projection.unit.test.ts",
+      "packages/access-router/test/internal/service-authorization-reads.unit.test.ts",
+      "packages/access-router/test/internal/service-execution-capture.unit.test.ts",
+      "packages/access-router/test/internal/service-list-preparation.unit.test.ts",
+      "packages/access-router/test/internal/service-logging-contract.integration.test.ts",
+      "packages/access-router/test/internal/service-logging-contract.unit.test.ts",
+      "packages/access-router/test/internal/service-output-preparation.unit.test.ts",
+      "packages/access-router/test/internal/service.internal.test.ts",
+      "packages/access-router/test/internal/sort-policy.unit.test.ts",
+      "packages/access-router/test/internal/strict-typecheck.test.ts",
+      "packages/access-router/test/internal/tasks-processors.test.ts",
+      "packages/access-router/test/internal/virtual-filter-parser.unit.test.ts",
+      "packages/access-router/test/internal/virtuals-finalizer.unit.test.ts",
+      "packages/access-router/test/internal/virtuals-original-refs.characterization.test.ts",
+      "packages/access-router/test/internal/virtuals-performance.probe.test.ts",
+      "packages/access-router/test/internal/virtuals-populate-dependencies.config.test.ts",
+      "packages/access-router/test/internal/virtuals-populate-dependencies.integration.test.ts",
+      "packages/access-router/test/internal/virtuals-populate-dependencies.performance.test.ts",
+      "packages/access-router/test/internal/virtuals-populate-dependencies.planner.test.ts",
+      "packages/access-router/test/internal/virtuals-populate-dependencies.traversal.test.ts",
+      "packages/access-router/test/internal/virtuals-projection-planner.unit.test.ts",
+      "packages/access-router/test/internal/virtuals-validation-openapi.contract.test.ts",
+      "packages/access-router/test/invariants/authorization-fast-path-native.unit.test.ts",
+      "packages/access-router/test/invariants/authorization-fast-path-options.integration.test.ts",
+      "packages/access-router/test/invariants/authorization-fast-path-options.unit.test.ts",
+      "packages/access-router/test/invariants/authorization-fast-path-owner.unit.test.ts",
+      "packages/access-router/test/invariants/authorization-fast-path-runtime.unit.test.ts",
+      "packages/access-router/test/invariants/authorization-snapshot.unit.test.ts",
+      "packages/access-router/test/invariants/bulk-create-metadata-filter-trace.integration.test.ts",
+      "packages/access-router/test/invariants/concurrency.test.ts",
+      "packages/access-router/test/invariants/data-value-ownership.test.ts",
+      "packages/access-router/test/invariants/default-model-options.integration.test.ts",
+      "packages/access-router/test/invariants/default-model-options.unit.test.ts",
+      "packages/access-router/test/invariants/distinct-composite-authorization.integration.test.ts",
+      "packages/access-router/test/invariants/document-authorization-validation.unit.test.ts",
+      "packages/access-router/test/invariants/document-permissions-dependencies.unit.test.ts",
+      "packages/access-router/test/invariants/filter-denial.integration.test.ts",
+      "packages/access-router/test/invariants/guard.test.ts",
+      "packages/access-router/test/invariants/hook-concurrency.test.ts",
+      "packages/access-router/test/invariants/hydration-request-boundaries.integration.test.ts",
+      "packages/access-router/test/invariants/model-authorization-capture.unit.test.ts",
+      "packages/access-router/test/invariants/nested-operation-access-admission.contract.test.ts",
+      "packages/access-router/test/invariants/nested-operation-access-capture.contract.test.ts",
+      "packages/access-router/test/invariants/nested-operation-access-entries.integration.test.ts",
+      "packages/access-router/test/invariants/nested-operation-access-resolution.contract.test.ts",
+      "packages/access-router/test/invariants/operation-access-boundaries.integration.test.ts",
+      "packages/access-router/test/invariants/operation-access-data-subdocument-routes.integration.test.ts",
+      "packages/access-router/test/invariants/operation-access-model-routes.integration.test.ts",
+      "packages/access-router/test/invariants/operation-access-variants.contract.test.ts",
+      "packages/access-router/test/invariants/output-field-policy-cache.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-boundaries.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-consumers.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-facts.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-guard-consumer.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-helpers.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-many-bounds.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-many.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-modes.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-publication.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-records.unit.test.ts",
+      "packages/access-router/test/invariants/owned-authorization-stage.unit.test.ts",
+      "packages/access-router/test/invariants/populate-operation-policy.config.test.ts",
+      "packages/access-router/test/invariants/populate-operation-policy.include-binding.test.ts",
+      "packages/access-router/test/invariants/populate-operation-policy.target-options.test.ts",
+      "packages/access-router/test/invariants/private-populate-read-policy.config.test.ts",
+      "packages/access-router/test/invariants/query-snapshot-options.unit.test.ts",
+      "packages/access-router/test/invariants/related-execution.binding.unit.test.ts",
+      "packages/access-router/test/invariants/request-hook-concurrency.test.ts",
+      "packages/access-router/test/invariants/request-hook-ownership.test.ts",
+      "packages/access-router/test/invariants/request-persistence-concurrency.test.ts",
+      "packages/access-router/test/invariants/service-authorization-boundary-admission.contract.test.ts",
+      "packages/access-router/test/invariants/service-authorization-context.unit.test.ts",
+      "packages/access-router/test/invariants/service-authorization-final-review.integration.test.ts",
+      "packages/access-router/test/invariants/service-authorization-finalizer.unit.test.ts",
+      "packages/access-router/test/invariants/service-authorization-migration.contract.test.ts",
+      "packages/access-router/test/invariants/service-authorization-mutations.integration.test.ts",
+      "packages/access-router/test/invariants/service-authorization-prepared-query.unit.test.ts",
+      "packages/access-router/test/invariants/service-authorization-public-boundaries.integration.test.ts",
+      "packages/access-router/test/invariants/service-authorization-rows.integration.test.ts",
+      "packages/access-router/test/invariants/service-authorization-subdocument-policies.integration.test.ts",
+      "packages/access-router/test/invariants/service-denial-contract.test.ts",
+      "packages/access-router/test/invariants/write-output-authorization.unit.test.ts",
+      "packages/access-router/test/invariants/write-output-modes.unit.test.ts",
+      "packages/access-router/test/invariants/write-output-origin-ownership.unit.test.ts",
+      "packages/access-router/test/invariants/write-output-populate.unit.test.ts",
+      "packages/access-router/test/invariants/write-output-source-lifetime.unit.test.ts"
+    ],
+    "result": "Exact approved 211-file union under unchanged recursive include"
+  },
+  "focused": {
+    "tests": 1145,
+    "failures": 0,
+    "skips": 0,
+    "todos": 0,
+    "files": [
+      {
+        "id": "F016",
+        "path": "packages/access-router/test/contracts/authorization-fast-path-runtime.integration.test.ts",
+        "tests": 16,
+        "status": "passed",
+        "sha256": "3f83ce57d976c466e67fc0071dad8e4cdca80cce818bc193739cc7bbf8beb4f6",
+        "elapsedMs": 2193.02734375
+      },
+      {
+        "id": "F048",
+        "path": "packages/access-router/test/contracts/documentation-examples.test.ts",
+        "tests": 92,
+        "status": "passed",
+        "sha256": "51762c4358d1a0f3f11a62b3ad169e17992d897fcc5341510b32d07d37f07bfd",
+        "elapsedMs": 382459.1643066406
+      },
+      {
+        "id": "F085",
+        "path": "packages/access-router/test/contracts/nested-operation-access-consumer-types.test.ts",
+        "tests": 3,
+        "status": "passed",
+        "sha256": "0778cb9865c8fa7d588a9f7d2bde6e51a95960ee188d360331a8de4c5f20835d",
+        "elapsedMs": 25911.085693359375
+      },
+      {
+        "id": "F121",
+        "path": "packages/access-router/test/contracts/owned-authorization-modes.integration.test.ts",
+        "tests": 29,
+        "status": "passed",
+        "sha256": "bcc43106e9d670f95ac59a29ffaec12f87b39d67ce0a8424c37e8de69b3583ce",
+        "elapsedMs": 3075.87646484375
+      },
+      {
+        "id": "F128",
+        "path": "packages/access-router/test/contracts/owned-authorization-types.test.ts",
+        "tests": 2,
+        "status": "passed",
+        "sha256": "c338ae82bcac941a760ff44f8a0fecdfc62b1f2bd8924bde3cc45e1f4752bf69",
+        "elapsedMs": 25117.15234375
+      },
+      {
+        "id": "F132",
+        "path": "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+        "tests": 13,
+        "status": "passed",
+        "sha256": "a35d6b35638edd1514b53e390334cd264f992b726411eff2132d124e6dc61428",
+        "elapsedMs": 370842.0417480469
+      },
+      {
+        "id": "F152",
+        "path": "packages/access-router/test/contracts/query-snapshot-options.integration.test.ts",
+        "tests": 20,
+        "status": "passed",
+        "sha256": "c203a6e52bd7ee35412921f407db562bf5c7785aaac1d593c4ab0d33d293e475",
+        "elapsedMs": 2931.027099609375
+      },
+      {
+        "id": "F174",
+        "path": "packages/access-router/test/contracts/service-authorization-direct.integration.test.ts",
+        "tests": 15,
+        "status": "passed",
+        "sha256": "2e871efaa9e13246925885af94b816cde6dffbb9e614311b6c22983993a3b2ec",
+        "elapsedMs": 1196.4873046875
+      },
+      {
+        "id": "F205",
+        "path": "packages/access-router/test/contracts/strict-consumer-types.test.ts",
+        "tests": 49,
+        "status": "passed",
+        "sha256": "e98e17935527af28ebc26043df023468caa0a7ac5a14172c202bf4e1323031d0",
+        "elapsedMs": 200535.75390625
+      },
+      {
+        "id": "F210",
+        "path": "packages/access-router/test/contracts/tree-shaking-smoke.test.ts",
+        "tests": 3,
+        "status": "passed",
+        "sha256": "39c754559df7eaa02a4a8f05fffef6341f29fb32dba8e6f12be3097651b1074f",
+        "elapsedMs": 886.309814453125
+      },
+      {
+        "id": "F001",
+        "path": "packages/access-router/test/internal/access-router-crud-driver.unit.test.ts",
+        "tests": 3,
+        "status": "passed",
+        "sha256": "02205747eb065c3489261b6a4810f7897dc33687cb079c3c570454421998f589",
+        "elapsedMs": 16128.755126953125
+      },
+      {
+        "id": "F003",
+        "path": "packages/access-router/test/internal/access-router-crud-harness.unit.test.ts",
+        "tests": 434,
+        "status": "passed",
+        "sha256": "d41b64b2d21c33db8ae768d984ae8437261ecef939e63192b425df2173e94d00",
+        "elapsedMs": 2618.458740234375
+      },
+      {
+        "id": "F004",
+        "path": "packages/access-router/test/internal/access-router-crud-v2.unit.test.ts",
+        "tests": 68,
+        "status": "passed",
+        "sha256": "e98d0185d20014d24887a7b9585e18475e066ee7959357eb41f97f517315f44b",
+        "elapsedMs": 7108.348388671875
+      },
+      {
+        "id": "F005",
+        "path": "packages/access-router/test/internal/access-router-crud-work.unit.test.ts",
+        "tests": 2,
+        "status": "passed",
+        "sha256": "c733483765e00aeaaa302807ae44ea872bc09e4ed0da193a9d9201787a3ea33e",
+        "elapsedMs": 645.97216796875
+      },
+      {
+        "id": "F047",
+        "path": "packages/access-router/test/internal/documentation-authorization-guidance.test.ts",
+        "tests": 24,
+        "status": "passed",
+        "sha256": "20db1eb57018272740b2dd6ec4bd20105f082d5fc8c039a9390a4011b71d0bab",
+        "elapsedMs": 28.2841796875
+      },
+      {
+        "id": "F049",
+        "path": "packages/access-router/test/internal/export-contract.test.ts",
+        "tests": 49,
+        "status": "passed",
+        "sha256": "8f66a07ffe0f903008caa4b23b3b4d7dacf230868ab52e4fe74c3aad127801a0",
+        "elapsedMs": 12148.3388671875
+      },
+      {
+        "id": "F102",
+        "path": "packages/access-router/test/internal/output-publication-fusion-withdrawal.unit.test.ts",
+        "tests": 11,
+        "status": "passed",
+        "sha256": "e5c45ff9202273d1ac367deeb45f44206ef571cff462359d1d3491ed08cc2f8f",
+        "elapsedMs": 111.509765625
+      },
+      {
+        "id": "F129",
+        "path": "packages/access-router/test/internal/owned-authorization-work.unit.test.ts",
+        "tests": 16,
+        "status": "passed",
+        "sha256": "40e89a7ffcd3a7eb1619b1cd97032d1c5f51c4df6c066e0f7e9c6839a7400e2b",
+        "elapsedMs": 401.02001953125
+      },
+      {
+        "id": "F198",
+        "path": "packages/access-router/test/internal/service-output-preparation.unit.test.ts",
+        "tests": 13,
+        "status": "passed",
+        "sha256": "0953d37f8750f696c5176b480491210d16a833eec8e3b629444c30b0b291e897",
+        "elapsedMs": 412.41552734375
+      },
+      {
+        "id": "F206",
+        "path": "packages/access-router/test/internal/strict-typecheck.test.ts",
+        "tests": 2,
+        "status": "passed",
+        "sha256": "63d349b221849b325cb45aae58abc36bc41919307a069a82b13403879727c361",
+        "elapsedMs": 6693.07568359375
+      },
+      {
+        "id": "F017",
+        "path": "packages/access-router/test/invariants/authorization-fast-path-runtime.unit.test.ts",
+        "tests": 42,
+        "status": "passed",
+        "sha256": "b22c2a1b0dc2b8a26cd9c4af88a451f74267cc38a2f06f53f02a6458569b5473",
+        "elapsedMs": 271.834228515625
+      },
+      {
+        "id": "F170",
+        "path": "packages/access-router/test/invariants/service-authorization-boundary-admission.contract.test.ts",
+        "tests": 68,
+        "status": "passed",
+        "sha256": "33320d094498a103021fbb8b424aeb2b4903c3954505d17f32dc62605407e754",
+        "elapsedMs": 1694.324951171875
+      },
+      {
+        "id": "F173",
+        "path": "packages/access-router/test/invariants/service-authorization-context.unit.test.ts",
+        "tests": 64,
+        "status": "passed",
+        "sha256": "342bde2dbf9a78f0bf2da3b0eef10c77f6441006be6079789bb9fe497576aba5",
+        "elapsedMs": 342.571533203125
+      },
+      {
+        "id": "F179",
+        "path": "packages/access-router/test/invariants/service-authorization-migration.contract.test.ts",
+        "tests": 52,
+        "status": "passed",
+        "sha256": "0338470359ccc6edf04c3af2964c6629b5f431ed1f53c8843fffc65b9053151b",
+        "elapsedMs": 5331.44873046875
+      },
+      {
+        "id": "F181",
+        "path": "packages/access-router/test/invariants/service-authorization-mutations.integration.test.ts",
+        "tests": 8,
+        "status": "passed",
+        "sha256": "c09c34a19683fc32f11b13d50d07a0ba216181ee77c138c88d157529a4239958",
+        "elapsedMs": 695.625732421875
+      },
+      {
+        "id": "F244",
+        "path": "packages/access-router/test/invariants/write-output-modes.unit.test.ts",
+        "tests": 47,
+        "status": "passed",
+        "sha256": "ce7c5e9ed62e7b88e29fa1d50bc18dc182ea77c530601b09895bd35aec90884c",
+        "elapsedMs": 365.559326171875
+      }
+    ]
+  },
+  "declarations": {
+    "result": "Eight-file complete inventory and bytes identical after fresh filtered/transitive build",
+    "inventory": [
+      {
+        "path": "packages/access-router/dist/advanced.d.mts",
+        "bytes": 108295,
+        "sha256": "e074c1a4d43a10e2ae69e46cae3af077363d6557b5212a7e38808aab3aab1b84"
+      },
+      {
+        "path": "packages/access-router/dist/advanced.d.ts",
+        "bytes": 108294,
+        "sha256": "60ee417fb0b3555c0a6a5cbab7bb30d2fa57414e2bd9aaeec8f248af6e079652"
+      },
+      {
+        "path": "packages/access-router/dist/index.d.mts",
+        "bytes": 37865,
+        "sha256": "c1f3ab6c91ca689fc477e45ead8da3101e0d0a8e6533ce137d92b0ccd77400f4"
+      },
+      {
+        "path": "packages/access-router/dist/index.d.ts",
+        "bytes": 37863,
+        "sha256": "ad5f59d3eff5fba8f6114bbb9f5d44dec15e6ec620379ebb3f7990ba008f6a70"
+      },
+      {
+        "path": "packages/access-router/dist/parsers-fSBARZSn.d.mts",
+        "bytes": 234653,
+        "sha256": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e"
+      },
+      {
+        "path": "packages/access-router/dist/parsers-fSBARZSn.d.ts",
+        "bytes": 234653,
+        "sha256": "803fbc9771b997f91a87f23839ca5d8c0cb28d05d0f1ab567057c518d886512e"
+      },
+      {
+        "path": "packages/access-router/dist/processors.d.mts",
+        "bytes": 10535,
+        "sha256": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+      },
+      {
+        "path": "packages/access-router/dist/processors.d.ts",
+        "bytes": 10535,
+        "sha256": "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"
+      }
+    ]
+  },
+  "limitations": [
+    "Focused tests only; no exhaustive package/standalone layer runs (ARTS-06).",
+    "No reusable layer/dependency checker or new layer commands (ARTS-03).",
+    "Public coverage companions remain ARTS-04; classification is not universal compatibility proof.",
+    "Raw logs/JSON reports, dependencies, packed consumers, binaries and Mongo data remain disposable and are not required to verify static preservation."
+  ]
+}
