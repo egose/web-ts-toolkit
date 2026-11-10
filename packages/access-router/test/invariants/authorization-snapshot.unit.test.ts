@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { mongo } from 'mongoose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { copyAuthorizationValue, ServiceAuthorizationError } from '../../src/acl/authorization-snapshot';
+import { setGlobalOption } from '../../src/options';
 
 const bson = mongo.BSON;
 const hex = '0123456789abcdef01234567';
@@ -78,20 +79,83 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('proxy snapshot diagnostics', () => {
-  it('logs the rejected snapshot stack without inspecting the Proxy or changing the error', () => {
-    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const calls: string[] = [];
+  const stubLogger = {
+    warn: (...args: unknown[]) => void calls.push(`warn ${String(args[0])}`),
+    error: (...args: unknown[]) => void calls.push(`error ${String(args[0])}`),
+  };
+
+  function runRejectedCopy(): void {
     const get = vi.fn(() => {
       throw new Error('must not inspect proxy');
     });
-    const proxy = new Proxy({}, { get });
+    expectAuthorizationError(
+      () => copyAuthorizationValue({ nested: { list: [new Proxy({}, { get })] } }),
+      'proxy snapshot input',
+    );
+    expect(get).not.toHaveBeenCalled();
+  }
 
-    expectAuthorizationError(() => copyAuthorizationValue({ nested: proxy }), 'proxy snapshot input');
+  afterEach(() => {
+    try {
+      setGlobalOption('authorizationSnapshotProxyLog', undefined);
+      setGlobalOption('logger', undefined);
+    } finally {
+      calls.length = 0;
+    }
+    vi.restoreAllMocks();
+  });
 
-    expect(log).toHaveBeenCalledTimes(1);
-    const [message, error] = log.mock.calls[0];
-    expect(message).toBe('[access-router] Authorization snapshot rejected a Proxy');
-    expect(error).toBeInstanceOf(ServiceAuthorizationError);
-    expect((error as Error).stack).toContain('copyAuthorizationValue');
+  it('logs the rejected snapshot path through the configured logger without inspecting the Proxy', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    setGlobalOption('logger', stubLogger);
+
+    runRejectedCopy();
+
+    expect(calls).toEqual(['error [access-router] Authorization snapshot rejected a Proxy at $.nested.list[0]']);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('demotes the diagnostic to warn with authorizationSnapshotProxyLog', () => {
+    setGlobalOption('logger', stubLogger);
+    setGlobalOption('authorizationSnapshotProxyLog', 'warn');
+
+    runRejectedCopy();
+
+    expect(calls).toEqual(['warn [access-router] Authorization snapshot rejected a Proxy at $.nested.list[0]']);
+  });
+
+  it('emits no diagnostic with authorizationSnapshotProxyLog silent but still fails closed', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    setGlobalOption('logger', stubLogger);
+    setGlobalOption('authorizationSnapshotProxyLog', 'silent');
+
+    runRejectedCopy();
+
+    expect(calls).toEqual([]);
+    expect(log).not.toHaveBeenCalled();
+    expect(logWarn).not.toHaveBeenCalled();
+  });
+
+  it('reports Map and Set entry paths in configuration captures', () => {
+    setGlobalOption('logger', stubLogger);
+    const get = vi.fn(() => {
+      throw new Error('must not inspect proxy');
+    });
+
+    expectAuthorizationError(
+      () => copyAuthorizationValue(new Map([['k', new Proxy({}, { get })]]), true),
+      'proxy snapshot input',
+    );
+    expect(calls).toEqual(['error [access-router] Authorization snapshot rejected a Proxy at $.<map-value>']);
+
+    calls.length = 0;
+    expectAuthorizationError(
+      () => copyAuthorizationValue(new Set([new Proxy({}, { get })]), true),
+      'proxy snapshot input',
+    );
+    expect(calls).toEqual(['error [access-router] Authorization snapshot rejected a Proxy at $.<set-entry>']);
     expect(get).not.toHaveBeenCalled();
   });
 });
