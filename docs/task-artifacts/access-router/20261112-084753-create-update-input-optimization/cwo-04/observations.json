@@ -1,0 +1,298 @@
+{
+  "format": "cwo-04-parser-observations-curated",
+  "provenance": {
+    "productionRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+    "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+    "sourceTests": [
+      {
+        "path": "packages/access-router/test/internal/write-input-parser-observations.unit.test.ts",
+        "hash": "026260a690dd1152d968abe98a32ca0d419cdf3bd428bfa6c39fe36f9072079e"
+      },
+      {
+        "path": "packages/access-router/test/internal/write-input-parser-boundaries.unit.test.ts",
+        "hash": "bd244b452f490fe38ab70189e198c8d1b47f47aefeccd391739809724bd77d9e"
+      }
+    ],
+    "originalReports": [
+      {
+        "path": "_tmpc04XXzP/parser-final.json",
+        "hash": "845bde6acc4ab756a6b6f791b045c7fb846b6d221da6a7355bc83842a63a34a0",
+        "records": 48
+      },
+      {
+        "path": "_tmpc04XXzP/boundaries-final.json",
+        "hash": "28e73ce9aa88236c9890d396f60a1654dcd46855c0a82de98af2e9a5d9286f71",
+        "records": 12
+      }
+    ],
+    "v1ReportHash": "d854be2c593ef726e841cdd9ac92df0ebc383cbb54ab29ad270145fa94b09eb3",
+    "baselineNativeReplay": {
+      "source": "../cwo-01/native-observations.json",
+      "archivedHash": "0c7112f55bad26e2c05c5766365893a8f945b605f24d4c8e76399ad43ad50752",
+      "originalReport": "_tmpc04XXzP/native-baseline-final.json",
+      "originalReportHash": "1661e29a28111c45f0de3c8d7e359dfa2a687f36f236c0e5b0463efbaeade25d",
+      "records": 46,
+      "deepEqual": true
+    }
+  },
+  "records": 60,
+  "curation": "Lossless final-V1 tables. Reconstruct each row as { kind: table.kind, ...Object.fromEntries(table.columns.map((column, index) => [column, row[index]])) }; preserve table/row order. Internal real-worker/mechanism observations, not timing, allocation or public scheduling guarantees. Raw reports are disposable provenance; maintained tests support a fresh replay.",
+  "tables": [
+    {
+      "kind": "shared-filter-capture",
+      "columns": [
+        "mode",
+        "entry",
+        "operation",
+        "limit",
+        "rawValue",
+        "parsedValue",
+        "adapterValue",
+        "parserInputDetached"
+      ],
+      "rows": [
+        ["isolated", "direct", "read", 1, "before", "queued", "queued", true],
+        ["isolated", "direct", "read", 3, "before", "before", "before", true],
+        ["isolated", "direct", "list", 1, "before", "queued", "queued", true],
+        ["isolated", "direct", "list", 3, "before", "before", "before", true],
+        ["isolated", "public", "read", 1, "before", "queued", "queued", true],
+        ["isolated", "public", "read", 3, "before", "before", "before", true],
+        ["isolated", "public", "list", 1, "before", "queued", "queued", true],
+        ["isolated", "public", "list", 3, "before", "before", "before", true],
+        ["trusted", "direct", "read", 1, "before", "queued", "queued", true],
+        ["trusted", "direct", "read", 3, "before", "before", "before", true],
+        ["trusted", "direct", "list", 1, "before", "queued", "queued", true],
+        ["trusted", "direct", "list", 3, "before", "before", "before", true],
+        ["trusted", "public", "read", 1, "before", "queued", "queued", true],
+        ["trusted", "public", "read", 3, "before", "before", "before", true],
+        ["trusted", "public", "list", 1, "before", "queued", "queued", true],
+        ["trusted", "public", "list", 3, "before", "before", "before", true]
+      ]
+    },
+    {
+      "kind": "live-date-handler",
+      "columns": [
+        "mode",
+        "entry",
+        "operation",
+        "limit",
+        "calls",
+        "laterTime",
+        "firstParserDateSame",
+        "originalServiceReceiver",
+        "persistenceCount"
+      ],
+      "rows": [
+        ["isolated", "direct", "create", 1, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["isolated", "direct", "create", 3, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["isolated", "direct", "update", 1, ["initial:value", "replacement:when"], 20, true, true, 1],
+        ["isolated", "direct", "update", 3, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["isolated", "public", "create", 1, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["isolated", "public", "create", 3, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["isolated", "public", "update", 1, ["initial:value", "replacement:when"], 20, true, true, 1],
+        ["isolated", "public", "update", 3, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["trusted", "direct", "create", 1, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["trusted", "direct", "create", 3, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["trusted", "direct", "update", 1, ["initial:value", "replacement:when"], 20, true, true, 1],
+        ["trusted", "direct", "update", 3, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["trusted", "public", "create", 1, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["trusted", "public", "create", 3, ["initial:value", "initial:when"], 2, true, true, 1],
+        ["trusted", "public", "update", 1, ["initial:value", "replacement:when"], 20, true, true, 1],
+        ["trusted", "public", "update", 3, ["initial:value", "initial:when"], 2, true, true, 1]
+      ]
+    },
+    {
+      "kind": "write-entry-error",
+      "columns": ["mode", "entry", "operation", "limit", "calls", "getterCalls", "sameError", "persistenceCount"],
+      "rows": [
+        ["isolated", "direct", "create", 1, ["value", "when"], 1, true, 0],
+        ["isolated", "direct", "update", 1, ["value"], 1, true, 0],
+        ["isolated", "public", "create", 1, ["value", "when"], 1, true, 0],
+        ["isolated", "public", "update", 1, ["value"], 1, true, 0],
+        ["trusted", "direct", "create", 1, ["value", "when"], 1, true, 0],
+        ["trusted", "direct", "update", 1, ["value"], 1, true, 0],
+        ["trusted", "public", "create", 1, ["value", "when"], 1, true, 0],
+        ["trusted", "public", "update", 1, ["value"], 1, true, 0]
+      ]
+    },
+    {
+      "kind": "ordinary-native-adoption",
+      "columns": [
+        "mode",
+        "entry",
+        "operation",
+        "limit",
+        "calls",
+        "savedValue",
+        "savedLaterValue",
+        "markerCallbacks",
+        "persistenceCount"
+      ],
+      "rows": [
+        [
+          "isolated",
+          "direct",
+          "create",
+          1,
+          ["native:then-read", "native:then-call"],
+          "adopted",
+          "native-observed",
+          0,
+          1
+        ],
+        [
+          "isolated",
+          "direct",
+          "update",
+          1,
+          ["native:then-read", "native:then-call"],
+          "adopted",
+          "native-observed",
+          0,
+          1
+        ],
+        [
+          "isolated",
+          "public",
+          "create",
+          1,
+          ["native:then-read", "native:then-call"],
+          "adopted",
+          "native-observed",
+          0,
+          1
+        ],
+        [
+          "isolated",
+          "public",
+          "update",
+          1,
+          ["native:then-read", "native:then-call"],
+          "adopted",
+          "native-observed",
+          0,
+          1
+        ],
+        [
+          "trusted",
+          "direct",
+          "create",
+          1,
+          ["native:then-read", "native:then-call"],
+          "adopted",
+          "native-observed",
+          0,
+          1
+        ],
+        [
+          "trusted",
+          "direct",
+          "update",
+          1,
+          ["native:then-read", "native:then-call"],
+          "adopted",
+          "native-observed",
+          0,
+          1
+        ],
+        [
+          "trusted",
+          "public",
+          "create",
+          1,
+          ["native:then-read", "native:then-call"],
+          "adopted",
+          "native-observed",
+          0,
+          1
+        ],
+        ["trusted", "public", "update", 1, ["native:then-read", "native:then-call"], "adopted", "native-observed", 0, 1]
+      ]
+    },
+    {
+      "kind": "entry-error-drain",
+      "columns": ["lane", "calls", "sameError", "rejectedBeforeActiveSiblingSettled", "activeSiblingFinished"],
+      "rows": [
+        ["no-scheduler", [2, 3], true, true, true],
+        ["row-scheduled", [2, 3], true, true, true],
+        ["entries-1", [], true, true, false],
+        ["entries-3", [2, 3], true, false, true]
+      ]
+    },
+    {
+      "kind": "array-native-capture",
+      "columns": [
+        "lane",
+        "laterValue",
+        "sourceLaterValue",
+        "parsedHoleOwn",
+        "sourceHoleOwn",
+        "nestedArraySame",
+        "rootArraySame",
+        "nativeLeafIdentities",
+        "keys",
+        "calls"
+      ],
+      "rows": [
+        [
+          "no-scheduler",
+          "before",
+          "queued",
+          true,
+          false,
+          true,
+          true,
+          ["Date", "Buffer", "BSON.Code", "Map"],
+          ["1", "2", "date", "buffer", "code", "map", "items"],
+          [[1, 1, "at"]]
+        ],
+        [
+          "row-scheduled",
+          "before",
+          "queued",
+          true,
+          false,
+          true,
+          true,
+          ["Date", "Buffer", "BSON.Code", "Map"],
+          ["1", "2", "date", "buffer", "code", "map", "items"],
+          [[1, 1, "at"]]
+        ],
+        [
+          "entries-1",
+          "queued",
+          "queued",
+          true,
+          false,
+          true,
+          true,
+          ["Date", "Buffer", "BSON.Code", "Map"],
+          ["1", "2", "date", "buffer", "code", "map", "items"],
+          [[1, 1, "at"]]
+        ],
+        [
+          "entries-3",
+          "before",
+          "queued",
+          true,
+          false,
+          true,
+          true,
+          ["Date", "Buffer", "BSON.Code", "Map"],
+          ["1", "2", "date", "buffer", "code", "map", "items"],
+          [[1, 1, "at"]]
+        ]
+      ]
+    },
+    {
+      "kind": "own-parser-output-slot",
+      "columns": ["lane", "setters", "ownValue"],
+      "rows": [
+        ["no-scheduler", 0, "captured"],
+        ["row-scheduled", 0, "captured"],
+        ["entries-1", 0, "captured"],
+        ["entries-3", 0, "captured"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "format": "cwo-03-curated-input-work-v1",
+  "identity": {
+    "kind": "diagnostic-only-not-timing",
+    "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+    "fixtureHash": "fbc80e87b6312af243e74f96395c57fc6ce49b8181d0f7be6e775ad8b7fc7eb3",
+    "toolHash": "410dd3b67bb16c361b07d84f6f722dedaa72befdf13eecbfa3c66b3e297cc27e",
+    "bundleHash": "496dc5dbe7cff812bd9b9f19b4a58cb3b53e082ae024ef442b36cc716778f5b5",
+    "esbuild": "0.28.2"
+  },
+  "originalBytesHash": "1e5b04bb479f611c60ea8ba0f33e30076bb51b0278438b48aa9d05b1b1f459c6",
+  "countColumns": [
+    "input.normalize.passes.preflight",
+    "input.normalize.preflight.nodes",
+    "input.normalize.admission.nodes",
+    "input.selected.nodes",
+    "input.normalize.prepared.nodes",
+    "input.scrub.nodes",
+    "input.normalize.prepared.records",
+    "input.normalize.prepared.arrays",
+    "input.scrub.records",
+    "input.scrub.arrays",
+    "native.dateClone.preflight",
+    "native.dateClone.admission",
+    "native.dateClone.prepared",
+    "native.bsonRoundtrip.preflight",
+    "native.bsonRoundtrip.admission",
+    "native.bsonRoundtrip.prepared",
+    "native.bufferClone.preflight",
+    "native.bufferClone.admission",
+    "native.bufferClone.prepared"
+  ],
+  "adapterColumns": ["adapter.create", "adapter.save", "adapter.findOne"],
+  "rowColumns": ["id", "counts", "adapterCounts", "fingerprint"],
+  "rows": [
+    [
+      "iiii/direct/create-single/bare/1x1",
+      [1, 5, 5, 3, 4, 4, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [1, 0, 0],
+      "91a58b12373e8e0f589850b63ec566e70cfa612915db57d4198d9ddf06a09424"
+    ],
+    [
+      "iiii/direct/update-id/bare/1x1",
+      [1, 5, 5, 3, 4, 4, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 1, 1],
+      "361a6c9b2f2ded7b43792da450f5c61d56a297f4f53d7111538f780a9a68f8d0"
+    ],
+    [
+      "iiii/public/create-single/input-nested/1x16",
+      [2, 70, 35, 33, 34, 34, 8, 2, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [1, 0, 0],
+      "9fb123f7c163dcf530fc44b4cf48221e63db88b7c6b1efc1e1daab7b993e57df"
+    ],
+    [
+      "iiii/public/update-id/input-nested/1x16",
+      [2, 70, 35, 33, 34, 34, 8, 2, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 1, 1],
+      "04f20f0cbbb80f46ab8b3f809c025b0b92072841f363e8c71399506a089f851b"
+    ],
+    [
+      "iiii/direct/update-id/input-native/1x16",
+      [1, 35, 35, 33, 34, 34, 6, 1, 6, 1, 3, 6, 3, 1, 2, 1, 1, 2, 1],
+      [0, 1, 1],
+      "7a8ab4477c3e5f36525be70fa898b18ab4ffc174c99479d8dcae7fcbee65ad5d"
+    ],
+    [
+      "iiii/direct/update-filter/input-native/1x16",
+      [1, 35, 35, 33, 34, 34, 6, 1, 6, 1, 3, 6, 3, 1, 2, 1, 1, 2, 1],
+      [0, 1, 1],
+      "7a8ab4477c3e5f36525be70fa898b18ab4ffc174c99479d8dcae7fcbee65ad5d"
+    ],
+    [
+      "iiii/direct/create-bulk/input-functions/8x16",
+      [1, 281, 280, 264, 272, 272, 48, 8, 48, 8, 16, 48, 24, 8, 16, 8, 8, 16, 8],
+      [8, 0, 0],
+      "26005b9c0914a60cf8fa03290cfada3888989524ac975614d9bf898ce19b1328"
+    ],
+    [
+      "tttt/direct/create-single/bare/1x1",
+      [1, 5, 5, 3, 4, 4, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [1, 0, 0],
+      "91a58b12373e8e0f589850b63ec566e70cfa612915db57d4198d9ddf06a09424"
+    ],
+    [
+      "tttt/direct/update-id/bare/1x1",
+      [1, 5, 5, 3, 4, 4, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 1, 1],
+      "361a6c9b2f2ded7b43792da450f5c61d56a297f4f53d7111538f780a9a68f8d0"
+    ],
+    [
+      "tttt/public/create-single/input-nested/1x16",
+      [2, 70, 35, 33, 34, 34, 8, 2, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [1, 0, 0],
+      "9fb123f7c163dcf530fc44b4cf48221e63db88b7c6b1efc1e1daab7b993e57df"
+    ],
+    [
+      "tttt/public/update-id/input-nested/1x16",
+      [2, 70, 35, 33, 34, 34, 8, 2, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 1, 1],
+      "04f20f0cbbb80f46ab8b3f809c025b0b92072841f363e8c71399506a089f851b"
+    ],
+    [
+      "tttt/direct/update-id/input-native/1x16",
+      [1, 35, 35, 33, 34, 34, 6, 1, 6, 1, 3, 6, 3, 1, 2, 1, 1, 2, 1],
+      [0, 1, 1],
+      "e2af0e6907c27be28e5e8ca4c096f02a2f5714624f5383fea2ea4a36afa252d1"
+    ],
+    [
+      "tttt/direct/update-filter/input-native/1x16",
+      [1, 35, 35, 33, 34, 34, 6, 1, 6, 1, 3, 6, 3, 1, 2, 1, 1, 2, 1],
+      [0, 1, 1],
+      "e2af0e6907c27be28e5e8ca4c096f02a2f5714624f5383fea2ea4a36afa252d1"
+    ],
+    [
+      "tttt/direct/create-bulk/input-functions/8x16",
+      [1, 281, 280, 264, 272, 272, 48, 8, 48, 8, 16, 48, 24, 8, 16, 8, 8, 16, 8],
+      [8, 0, 0],
+      "5efd94b938626cc350273bb3ffc4222a9fa75e99abf491b5141046593337e548"
+    ]
+  ],
+  "comparison": {
+    "cwo01RelevantCountsFullTracesAdapterCountsStateMatch": 14,
+    "configuredResolvedModesCheckedEqual": true,
+    "sourceFixtureToolDiagnosticBundleMatch": true
+  },
+  "curation": "Exact selected counters and state fingerprints from all 14 fresh diagnostic records. Rows use the declared column order; zero means no observed site. Configured/resolved modes were checked equal and derive from the ID prefix. Other counters, full phase/callback traces, the raw report and diagnostic bundle are omitted after comparison; this summary cannot reconstruct omitted raw data. Maintained tools/source/fixture and normal dependencies can produce a fresh run.",
+  "limitations": "Deterministic-adapter diagnostics, not P, measured benefit or allocation/heap/CPU/latency data. Registration, seed/reset, request/Core/service construction and assertions are outside counters; actual input/write/authorization/output work is inside. Preflight also validates its normalized graph in an uninstrumented second traversal; selected construction counts omit the allowedData root. Native admission clone counts combine normalization and selected copying. No source candidate, profiler, calibration, forced GC or MongoDB/HTTP performance run."
+}

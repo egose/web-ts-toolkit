@@ -13,7 +13,7 @@ Only the access-router build/dependencies and access-router-owned tests are need
 
 ```sh
 pnpm --filter @web-ts-toolkit/access-router... build
-pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/access-router-crud-harness.unit.test.ts test/access-router-crud-driver.unit.test.ts test/access-router-crud-work.unit.test.ts
+pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/internal/access-router-crud-harness.unit.test.ts test/internal/access-router-crud-driver.unit.test.ts test/internal/access-router-crud-work.unit.test.ts
 ```
 
 Use a fresh ignored repository-local directory. Replace angle-bracket placeholders
@@ -128,7 +128,7 @@ absolute; do not publish its bundle/dependency tree as raw documentation.
 ## Separate real-service work probes
 
 ```sh
-ARPC_CRUD_WORK_REPORT="$TMPDIR/work-probes.json" pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/access-router-crud-work.unit.test.ts
+ARPC_CRUD_WORK_REPORT="$TMPDIR/work-probes.json" pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/internal/access-router-crud-work.unit.test.ts
 ```
 
 This writes 96 cells (both modes, both entries, READ/LIST/bulk CREATE/UPDATE,
@@ -150,3 +150,18 @@ timing evidence. Add targeted real-service timing cases before a claim affecting
 those paths. No allocation/retained-heap probe is included, and no real MongoDB
 latency claim is possible from these adapters. No universal all-workload speedup
 or final ARPC-02–06 acceptance follows from this driver alone.
+
+## Current input extension (CWO-01, not historical timing acceptance)
+
+The private factory now also exports `inputCatalog()` with 180 small/wide input
+cases: ordinary nesting, Date/Buffer/BSON/Map values, absent/sync/async document
+hooks, function-valued input rules with narrow output, date markers and real
+authorized subquery targets. New native/nested bulk cases use eight rows and 16
+generated fields to stay within the unchanged default 500-node input limit.
+The original `crudCatalog()` remains 432 cases with its original IDs/behavior;
+the all-mode harness additionally checks 64 mixed write/target-READ subquery cells.
+
+These fixture bytes differ from the historical ARPC baseline. Recreate matching
+source/fixture seals and recalibrate; old seals/results are historical, not current
+retention evidence. The current optional panels and separate input work/CPU probes
+are described in [the v2 guide](access-router-crud-v2.md#current-input-focused-panels-and-diagnostics).

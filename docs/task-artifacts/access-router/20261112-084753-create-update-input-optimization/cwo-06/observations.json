@@ -1,0 +1,364 @@
+{
+  "format": "cwo-06-asserted-observations-v1",
+  "task": "CWO-06",
+  "executor": "SERIALIZE-06",
+  "productionRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+  "existingFixtureHash": "fbc80e87b6312af243e74f96395c57fc6ce49b8181d0f7be6e775ad8b7fc7eb3",
+  "tests": [
+    {
+      "path": "packages/access-router/test/invariants/write-input-serialization-boundaries.unit.test.ts",
+      "hash": "ed7bff53d0dc408bb2d4a77d980891fd927a4b6fb3b4de7af490dba1a0a7f826",
+      "records": 42
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-virtual-cleanup.unit.test.ts",
+      "hash": "44e923e1270530c39bb0c4c9381f37c14fb1e7e51818bee17e0a7cfb749edeb4",
+      "records": 4
+    }
+  ],
+  "reports": [
+    {
+      "originalPath": "_tmpc06VJI9/serialization-corrected.json",
+      "originalBytesHash": "74b0516fdf8a3b211cac7c145c0a07005d845a6cabcbfa39453e652727c46717",
+      "archived": false
+    },
+    {
+      "originalPath": "_tmpc06VJI9/cleanup-corrected.json",
+      "originalBytesHash": "91e7db196c6e26a1746d1a1dd6520c2167d49e1a6969deef4f61d5908f852256",
+      "archived": false
+    },
+    {
+      "originalPath": "_tmpc06VJI9/serialization-final.json",
+      "originalBytesHash": "74b0516fdf8a3b211cac7c145c0a07005d845a6cabcbfa39453e652727c46717",
+      "archived": false
+    },
+    {
+      "originalPath": "_tmpc06VJI9/cleanup-final.json",
+      "originalBytesHash": "91e7db196c6e26a1746d1a1dd6520c2167d49e1a6969deef4f61d5908f852256",
+      "archived": false
+    },
+    {
+      "originalPath": "_tmpc06VJI9/native-baseline-final.json",
+      "originalBytesHash": "1661e29a28111c45f0de3c8d7e359dfa2a687f36f236c0e5b0463efbaeade25d",
+      "archived": false
+    },
+    {
+      "originalPath": "_tmpc06VJI9/wiring-results.json",
+      "originalBytesHash": "f1acee7881fb87e4922257d0c65b3ccf758100bbb6478beec58742529edb1a46",
+      "archived": false
+    },
+    {
+      "originalPath": "_tmpc06VJI9/corrected-results.json",
+      "originalBytesHash": "288ff39fe954446c958684eff771895e06afbf7c8dd7790aedb095c32272a632",
+      "archived": false
+    },
+    {
+      "originalPath": "_tmpc06VJI9/v1-results.json",
+      "originalBytesHash": "3a39821766c773fc0908e4c41124b9494a8e280d278618ef2ef6cf19755a94f5",
+      "archived": false
+    }
+  ],
+  "originalRecords": 46,
+  "unchangedBaselineNativeRecordsDeepEqual": 46,
+  "ordinaryRootConversionOptionsIncludingAdapter": [
+    {
+      "virtuals": false
+    },
+    {
+      "virtuals": false,
+      "flattenMaps": true
+    },
+    {
+      "virtuals": false,
+      "flattenMaps": true
+    },
+    null,
+    {
+      "virtuals": false
+    },
+    {
+      "virtuals": false
+    },
+    {
+      "virtuals": false
+    },
+    {
+      "virtuals": false,
+      "flattenMaps": true
+    }
+  ],
+  "tables": [
+    {
+      "common": {
+        "kind": "empty-catalog-conversion",
+        "idFalseInAllSchemas": true,
+        "excludedVirtualPaths": 0,
+        "rootConversionsIncludingAdapter": 8,
+        "libraryRootConversionSites": 7,
+        "cleanupConversionIndex": 3,
+        "savedValue": "cleanup-observed@4",
+        "outputValue": "cleanup-observed@8",
+        "saves": 1
+      },
+      "columns": ["mode", "entry", "finds", "exists"],
+      "rows": [
+        ["isolated", "update-id", 1, 0],
+        ["isolated", "update-filter", 1, 0],
+        ["isolated", "upsert-update", 2, 0],
+        ["isolated", "public-update", 1, 0],
+        ["isolated", "public-upsert-update", 1, 1],
+        ["trusted", "update-id", 1, 0],
+        ["trusted", "update-filter", 1, 0],
+        ["trusted", "upsert-update", 2, 0],
+        ["trusted", "public-update", 1, 0],
+        ["trusted", "public-upsert-update", 1, 1]
+      ]
+    },
+    {
+      "common": {
+        "kind": "empty-catalog-boundary"
+      },
+      "columns": [
+        "mode",
+        "entry",
+        "failure",
+        "rootConversionsIncludingAdapter",
+        "getterCalls",
+        "errorIdentityPreserved",
+        "saves",
+        "liveValue"
+      ],
+      "rows": [
+        ["isolated", "update-id", "conversion-error", 3, 0, true, 0, "submitted"],
+        ["isolated", "update-id", "traversal-error", 3, 1, true, 0, "submitted"],
+        ["isolated", "update-id", "traversal-effect", 8, 1, false, 1, "traversal-observed"],
+        ["isolated", "public-upsert-update", "conversion-error", 3, 0, true, 0, "submitted"],
+        ["isolated", "public-upsert-update", "traversal-error", 3, 1, true, 0, "submitted"],
+        ["isolated", "public-upsert-update", "traversal-effect", 8, 1, false, 1, "traversal-observed"],
+        ["trusted", "update-id", "conversion-error", 3, 0, true, 0, "submitted"],
+        ["trusted", "update-id", "traversal-error", 3, 1, true, 0, "submitted"],
+        ["trusted", "update-id", "traversal-effect", 8, 1, false, 1, "traversal-observed"],
+        ["trusted", "public-upsert-update", "conversion-error", 3, 0, true, 0, "submitted"],
+        ["trusted", "public-upsert-update", "traversal-error", 3, 1, true, 0, "submitted"],
+        ["trusted", "public-upsert-update", "traversal-effect", 8, 1, false, 1, "traversal-observed"]
+      ]
+    },
+    {
+      "common": {
+        "kind": "post-save-conversion-error",
+        "saves": 1,
+        "afterPersistCalls": 1,
+        "savedValue": "submitted"
+      },
+      "columns": [
+        "mode",
+        "entry",
+        "failAt",
+        "result",
+        "rootConversionsIncludingAdapter",
+        "changesCalls",
+        "onChangeCalls",
+        "liveValue"
+      ],
+      "rows": [
+        ["isolated", "update-id", 5, "rejected original Error", 5, 0, 0, "submitted"],
+        ["isolated", "update-id", 6, "rejected original Error", 6, 0, 0, "submitted"],
+        ["isolated", "update-id", 7, "rejected original Error", 7, 0, 0, "submitted"],
+        ["isolated", "update-id", 8, "bad_request: write output conversion failed", 8, 1, 1, "onchange-live"],
+        ["isolated", "public-upsert-update", 5, "rejected original Error", 5, 0, 0, "submitted"],
+        ["isolated", "public-upsert-update", 6, "rejected original Error", 6, 0, 0, "submitted"],
+        ["isolated", "public-upsert-update", 7, "rejected original Error", 7, 0, 0, "submitted"],
+        [
+          "isolated",
+          "public-upsert-update",
+          8,
+          "bad_request: write output conversion failed",
+          8,
+          1,
+          1,
+          "onchange-live"
+        ],
+        ["trusted", "update-id", 5, "rejected original Error", 5, 0, 0, "submitted"],
+        ["trusted", "update-id", 6, "rejected original Error", 6, 0, 0, "submitted"],
+        ["trusted", "update-id", 7, "rejected original Error", 7, 0, 0, "submitted"],
+        ["trusted", "update-id", 8, "bad_request: write output conversion failed", 8, 1, 1, "onchange-live"],
+        ["trusted", "public-upsert-update", 5, "rejected original Error", 5, 0, 0, "submitted"],
+        ["trusted", "public-upsert-update", 6, "rejected original Error", 6, 0, 0, "submitted"],
+        ["trusted", "public-upsert-update", 7, "rejected original Error", 7, 0, 0, "submitted"],
+        ["trusted", "public-upsert-update", 8, "bad_request: write output conversion failed", 8, 1, 1, "onchange-live"]
+      ]
+    },
+    {
+      "common": {
+        "kind": "retained-service-lifecycle",
+        "rootConversionsIncludingAdapter": 9,
+        "extraEarlyDiffConversions": 1,
+        "originalValue": "retained-original",
+        "finalValue": "onchange-final",
+        "changeInputValue": "retained-change",
+        "earlyDiffValue": "submitted@5",
+        "finalDiffValue": "submitted@7",
+        "onChange": {
+          "before": "retained-original",
+          "after": "changes-override",
+          "final": "diff-override-final",
+          "diffValue": "submitted@7"
+        },
+        "outputValue": "onchange-live@9",
+        "afterPersistCalls": 1,
+        "changesCalls": 1,
+        "saves": 1,
+        "snapshotsAndChangeInputDistinct": true,
+        "outputDetached": true
+      },
+      "columns": ["mode", "entry"],
+      "rows": [
+        ["isolated", "update-id"],
+        ["isolated", "public-upsert-update"],
+        ["trusted", "update-id"],
+        ["trusted", "public-upsert-update"]
+      ]
+    },
+    {
+      "common": {
+        "kind": "cleanup-dirty-scopes",
+        "beforeModifiedPaths": [
+          "value",
+          "profile",
+          "profile.value",
+          "rows",
+          "rows.0",
+          "rows.0.value",
+          "labels",
+          "labels.work",
+          "labels.work.value",
+          "mixed",
+          "mixed.value",
+          "rows.0.badge"
+        ],
+        "conversionOptions": {
+          "virtuals": false,
+          "flattenMaps": true
+        },
+        "publicModifiedPathsCallsInCleanup": 0,
+        "historicalRoot": "historical-root",
+        "mapBacking": ["keep-work", "keep-home"]
+      },
+      "columns": [
+        "modification",
+        "beforeDirectModifiedPaths",
+        "decisions",
+        "cleanupSetters",
+        "nativeSetters",
+        "historicalSecondBadge",
+        "arrayLength"
+      ],
+      "rows": [
+        [
+          "leaf",
+          ["value", "profile.value", "rows.0.value", "labels.work.value", "mixed.value", "rows.0.badge"],
+          [
+            ["rootGhost", false],
+            ["profile.badge", false],
+            ["profile.nativeAlias", false],
+            ["rows.0.badge", true],
+            ["rows.0.nativeAlias", false],
+            ["rows.1.badge", false],
+            ["rows.1.nativeAlias", false],
+            ["labels.work.nativeAlias", false],
+            ["labels.home.nativeAlias", false],
+            ["mixed.ghost", false]
+          ],
+          [["rows.0.badge", null]],
+          [],
+          "historical-second",
+          2
+        ],
+        [
+          "container",
+          [
+            "value",
+            "profile.value",
+            "rows.0.value",
+            "labels.work.value",
+            "mixed.value",
+            "rows.0.badge",
+            "profile",
+            "rows.0",
+            "labels.work",
+            "mixed"
+          ],
+          [
+            ["rootGhost", false],
+            ["profile.badge", true],
+            ["profile.nativeAlias", true],
+            ["rows.0.badge", true],
+            ["rows.0.nativeAlias", true],
+            ["rows.1.badge", false],
+            ["rows.1.nativeAlias", false],
+            ["labels.work.nativeAlias", true],
+            ["labels.home.nativeAlias", false],
+            ["mixed.ghost", true]
+          ],
+          [
+            ["profile.badge", null],
+            ["profile.nativeAlias", null],
+            ["rows.0.badge", null],
+            ["rows.0.nativeAlias", null],
+            ["labels.work.nativeAlias", null],
+            ["mixed.ghost", null]
+          ],
+          [["first", null]],
+          "historical-second",
+          2
+        ],
+        [
+          "array-push",
+          ["value", "profile.value", "rows.0.value", "labels.work.value", "mixed.value", "rows.0.badge", "rows"],
+          [
+            ["rootGhost", false],
+            ["profile.badge", false],
+            ["profile.nativeAlias", false],
+            ["rows.0.badge", true],
+            ["rows.0.nativeAlias", true],
+            ["rows.1.badge", true],
+            ["rows.1.nativeAlias", true],
+            ["rows.2.nativeAlias", true],
+            ["labels.work.nativeAlias", false],
+            ["labels.home.nativeAlias", false],
+            ["mixed.ghost", false]
+          ],
+          [
+            ["rows.0.badge", null],
+            ["rows.0.nativeAlias", null],
+            ["rows.1.badge", null],
+            ["rows.1.nativeAlias", null],
+            ["rows.2.nativeAlias", null]
+          ],
+          [
+            ["first", null],
+            ["second", null],
+            ["third", null]
+          ],
+          null,
+          3
+        ]
+      ]
+    }
+  ],
+  "singles": [
+    {
+      "kind": "cleanup-live-dirty-override",
+      "initialModifiedPaths": [],
+      "decisions": [
+        ["firstVirtual", false],
+        ["secondVirtual", true]
+      ],
+      "publicModifiedPathsCallsInCleanup": 0,
+      "historicalFirstVirtual": "historical",
+      "secondVirtualRemoved": true
+    }
+  ],
+  "curation": "Lossless common/columns/rows encoding of final V1 asserted records; singleton preserved in full. Reconstructed records deep-equal corrected wiring and final reports. Conversion options were separately asserted in the maintained tests. Prior native records replayed unchanged, not duplicated. Counts are observations, not timing, allocation or benefit."
+}
