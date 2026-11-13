@@ -56,6 +56,7 @@ import {
   authorizationModeKeys,
   authorizationModeOperations,
 } from './acl/authorization-modes';
+import { syncProxySnapshotDiagnostics } from './acl/proxy-diagnostics';
 
 type ModelReferenceMap = {
   [key: string]: string | ModelReferenceMap;
@@ -512,6 +513,16 @@ export class AccessRuntime {
     { preserveKeys: ['logger'] },
   ).build();
 
+  private syncProxySnapshotDiagnosticsState(): void {
+    // Only defaultRuntime writes feed the standalone (no-active-runtime)
+    // fallback; other runtimes are read live from the active runtime.
+    if (this !== defaultRuntime) return;
+    syncProxySnapshotDiagnostics(
+      this.globalOptions.get('authorizationSnapshotProxyLog'),
+      this.globalOptions.get('logger'),
+    );
+  }
+
   private readonly defaultModelOptions = new OptionsManager<
     DefaultModelRouterOptions,
     ExtendedDefaultModelRouterOptions
@@ -715,6 +726,7 @@ export class AccessRuntime {
       assertNoServerModelControls(options, reject, 'data-options');
     }
     this.globalOptions.restore(snapshot.globalOptions as any);
+    this.syncProxySnapshotDiagnosticsState();
     this.defaultModelOptions.restore(snapshot.defaultModelOptions as any);
     for (const name of Object.keys(this.modelOptionOverrides)) delete this.modelOptionOverrides[name];
     for (const [name, options] of Object.entries(snapshot.modelOptionOverrides)) {
@@ -794,6 +806,7 @@ export class AccessRuntime {
     });
     for (const key of populatePolicyKeys) if (key in options) assertNoGlobalPopulatePolicy(key);
     this.globalOptions.assign({ ...options });
+    this.syncProxySnapshotDiagnosticsState();
   }
 
   setGlobalOption<K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]) {
@@ -805,6 +818,7 @@ export class AccessRuntime {
       throw new TypeError(detail);
     });
     this.globalOptions.set(key, value);
+    this.syncProxySnapshotDiagnosticsState();
   }
 
   getGlobalOptions() {

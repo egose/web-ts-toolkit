@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseId,
   crudCatalog,
+  inputCatalog,
   createCrudFixture,
   modeKeys,
   tuples,
@@ -9,7 +10,7 @@ import {
   type CrudCase,
 } from '../access-router-crud-fixture';
 import * as stages from '../../src/acl/document-stage';
-import { readServiceAuthorizationMode } from '../../src/acl/service-authorization';
+import { isWriteOutputAuthorization, readServiceAuthorizationMode } from '../../src/acl/service-authorization';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -26,12 +27,12 @@ describe('maintained real-service CRUD measurement fixtures', () => {
     expect(tuples[0]).toEqual(Array(4).fill('isolated'));
     expect(tuples[15]).toEqual(Array(4).fill('trusted'));
     expect(tuples[1]).toEqual(['isolated', 'isolated', 'isolated', 'trusted']);
-    const cases = crudCatalog();
+    const cases = [...crudCatalog(), ...inputCatalog()];
     expect(new Set(cases.map((c) => c.id)).size).toBe(cases.length);
     for (const c of cases) expect(() => validateCase(c)).not.toThrow();
   });
 
-  it.each(crudCatalog())(
+  it.each([...crudCatalog(), ...inputCatalog()])(
     '$id validates real output, actual stage modes, query/work counts and stable writes twice',
     async (c) => {
       const admitted = vi.spyOn(stages, 'prepareQueryDocumentStage');
@@ -70,6 +71,31 @@ describe('maintained real-service CRUD measurement fixtures', () => {
       }
     },
   );
+
+  it.each(
+    tuples.flatMap((modes) =>
+      ['direct', 'public'].flatMap((entry) =>
+        ['create-single', 'update-id'].map((operation) => ({ modes, entry, operation })),
+      ),
+    ),
+  )('$modes $entry $operation keeps an input subquery target on its own READ mode', async (spec) => {
+    const c = { ...spec, shape: 'input-subqueries', rows: 1, width: 1 } as Omit<CrudCase, 'id'>;
+    const f = createCrudFixture({ ...c, id: caseId(c) }, true);
+    const admitted = vi.spyOn(stages, 'prepareQueryDocumentStage');
+    try {
+      f.check(await f.invoke());
+      const target = admitted.mock.calls.filter(([call, binding]) => !isWriteOutputAuthorization(call, binding));
+      const writes = admitted.mock.calls.filter(([call, binding]) => isWriteOutputAuthorization(call, binding));
+      expect(target).toHaveLength(1);
+      expect(writes).toHaveLength(1);
+      expect(readServiceAuthorizationMode(target[0][0], target[0][1])).toBe(c.modes[0]);
+      expect(readServiceAuthorizationMode(writes[0][0], writes[0][1])).toBe(
+        c.modes[c.operation === 'create-single' ? 2 : 3],
+      );
+    } finally {
+      f.dispose();
+    }
+  });
 
   it('fails closed on fixture labels, unapplied resolved modes, wrong output and skipped persistence', async () => {
     const c = crudCatalog().find((c) => c.operation === 'create-bulk')!;

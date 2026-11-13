@@ -1,0 +1,438 @@
+{
+  "task": "CWO-07",
+  "reviewer": "REVIEW-07",
+  "decision": "ACCEPT bounded investigations, characterization tests and diagnostic tooling only",
+  "workingDirectory": "<repo-root>",
+  "packageScriptWorkingDirectory": "packages/access-router",
+  "runtimeTmpdir": "<repo-root>/_tmp07.MKd0 (absolute at execution; disposable)",
+  "productionRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "frozenIdentity": {
+    "format": 1,
+    "fixtureId": "access-router-crud-v1",
+    "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+    "fixtureHash": "fbc80e87b6312af243e74f96395c57fc6ce49b8181d0f7be6e775ad8b7fc7eb3",
+    "bundleHash": "bedc39ab29d52573945451bf8bd1f6404c8228394a3b72589febf153bd55fbf4",
+    "dependencyHash": "5499b809772f0865d7ad2429c7a88a1070e83ffc27f2ed9f640becad989db99a",
+    "lockHash": "8685e0d36b941dcf7e7fa18ed4cb35fe3b8512d175ee0aecba241902979bcede",
+    "node": "v26.12.1",
+    "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+    "esbuild": "0.28.2",
+    "pnpm": "11.18.0",
+    "revision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+    "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "testTools": {
+    "vitest": "4.1.11",
+    "typescript": "6.0.3",
+    "eslint": "10.12.0",
+    "prettier": "4.0.0-alpha.13",
+    "tsup": "8.5.1"
+  },
+  "retainedRuntimeCandidates": 0,
+  "measuredPerformanceObjectiveAchieved": false,
+  "commands": [
+    {
+      "name": "source typecheck",
+      "command": "pnpm --filter @web-ts-toolkit/access-router typecheck",
+      "result": "passed",
+      "filteredBuildPackages": [
+        "utils",
+        "http-errors",
+        "express-response-handler",
+        "express-json-router",
+        "access-router"
+      ],
+      "logHash": "35f1b868911a0a91ec59e454f0cd162a30c978be99ccfcec3f3bb629eebac969"
+    },
+    {
+      "name": "FULL UNFILTERED package V2",
+      "command": "pnpm --filter @web-ts-toolkit/access-router test --reporter=default --reporter=json --outputFile='<repo-root>/_tmp07.MKd0/v2-results.json'",
+      "diagnosticReportEnvironment": {
+        "pathPrefix": "<repo-root>/_tmp07.MKd0/",
+        "CWO_INPUT_OBSERVATIONS_REPORT": "native-final.json",
+        "CWO02_DEDICATED_REPORT": "dedicated-final.json",
+        "CWO02_STAGE_REPORT": "stage-final.json",
+        "CWO03_PREPARED_REPORT": "prepared-final.json",
+        "CWO03_CONSTRUCTION_REPORT": "construction-final.json",
+        "CWO04_PARSER_REPORT": "parser-final.json",
+        "CWO04_BOUNDARIES_REPORT": "parser-boundaries-final.json",
+        "CWO05_STRUCTURAL_REPORT": "structural-final.json",
+        "CWO05_PATH_REPORT": "paths-final.json",
+        "CWO06_SERIALIZATION_REPORT": "serialization-final.json",
+        "CWO06_CLEANUP_REPORT": "cleanup-final.json"
+      },
+      "fileSelectors": [],
+      "result": "passed",
+      "tests": 8398,
+      "files": 232,
+      "failedSkippedPendingTodo": 0,
+      "describeSuitesNotFileCount": 818,
+      "consoleDurationSeconds": 2385.69,
+      "layers": { "contracts": 103, "invariants": 71, "internal": 58 },
+      "exactDefaultUnion": true,
+      "publicGraph": { "files": 137, "modules": 238 },
+      "consumerFiles": [
+        {
+          "path": "packages/access-router/test/contracts/documentation-examples.test.ts",
+          "tests": 93,
+          "status": "passed"
+        },
+        {
+          "path": "packages/access-router/test/contracts/packed-consumer-compatibility.test.ts",
+          "tests": 13,
+          "status": "passed"
+        },
+        {
+          "path": "packages/access-router/test/contracts/strict-consumer-types.test.ts",
+          "tests": 49,
+          "status": "passed"
+        },
+        { "path": "packages/access-router/test/contracts/tree-shaking-smoke.test.ts", "tests": 3, "status": "passed" }
+      ],
+      "reportHash": "ed2e4b8487e63ebcf5b1e8194b2314d376d8d1f98546178efde61205b2a97961",
+      "logHash": "96bc5514772130ca25a5fdeffb9cffddd5219b780d35b0c83a6078ca92e4a04f"
+    },
+    {
+      "name": "explicit maintained-code ESLint",
+      "commandPrefix": "pnpm exec eslint",
+      "appendPathsFrom": "maintainedCodeFiles[*].path in listed order",
+      "files": 21,
+      "result": "passed",
+      "logHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "explicit maintained-code/guide Prettier",
+      "commandPrefix": "pnpm exec prettier --check",
+      "appendPathsFrom": "maintainedCodeFiles[*].path in listed order, then additionalFiles",
+      "additionalFiles": ["scripts/benchmarks/access-router-crud.md", "scripts/benchmarks/access-router-crud-v2.md"],
+      "files": 23,
+      "result": "passed",
+      "compactProtectedPacketsSelected": false,
+      "logHash": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+    },
+    { "name": "tracked whitespace", "command": "git diff --check", "result": "passed" }
+  ],
+  "identityVerification": {
+    "beforeAndAfter": true,
+    "sourceFiles": 153,
+    "distFiles": 15,
+    "declarationPrefix": "packages/access-router/dist/",
+    "declarations": [
+      ["advanced.d.mts", "0bfb8b390eabd82d9924c551f84df3beb0164709e5cdb383dc921c6517abac95"],
+      ["advanced.d.ts", "b52784e159f131f90f3f57740b83062383edc8a8a97b6c6b2097b2c7994927bd"],
+      ["index.d.mts", "be976a1909b963fc4337d13f86b9ad5a23ce652b08439c7cefdbfdb8ae50eb1e"],
+      ["index.d.ts", "8047b228c668d21fa9d3c5e1065d4d83281b7cfb4682d509582ed01a1a6075d9"],
+      ["parsers-BXwV3svU.d.mts", "110f6f3e9d717696008909d0aa9ee0058dddf892d40beab7cc621b3fcadf48ef"],
+      ["parsers-BXwV3svU.d.ts", "110f6f3e9d717696008909d0aa9ee0058dddf892d40beab7cc621b3fcadf48ef"],
+      ["processors.d.mts", "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"],
+      ["processors.d.ts", "468e35654140cc61eb877eedcb46ca58f929258eb710fabea37cd59fe6c1d331"]
+    ],
+    "runtimeExports": [
+      {
+        "entry": "index",
+        "formats": ["cjs", "esm"],
+        "exports": 46,
+        "namesAndTypesHash": "8b49ff4724eb45594ba368076b90a654fc81d1e3e7885a6865d31797d392f52d",
+        "defaultType": "function"
+      },
+      {
+        "entry": "advanced",
+        "formats": ["cjs", "esm"],
+        "exports": 48,
+        "namesAndTypesHash": "fdb45a890c2ce54ff76bc99bd69960d6823ba3ff2c45b1b8b9a9a54379d7972f",
+        "defaultType": null
+      },
+      {
+        "entry": "processors",
+        "formats": ["cjs", "esm"],
+        "exports": 6,
+        "namesAndTypesHash": "8a16209233fd6f4486c6c2e58daf4589acb7be0f7d6e3b8c686b513922958208",
+        "defaultType": null
+      }
+    ],
+    "runtimeExportComparison": "Current CJS/ESM metadata before/after; baseline equivalence follows from exact frozen dist bytes and verified dependencies, not a relocated frozen-dist execution.",
+    "packageMetadataUnchanged": true,
+    "sealedTools": 11,
+    "dependencyPackages": 127,
+    "archivedPayloads": 14,
+    "fullExistingSealReadOnly": true,
+    "protectedPreExistingFiles": 2727,
+    "priorArtifactFiles": 37,
+    "priorArtifactTreeHash": "ae0e3df6d8add8b4093b1a1cb2f09d889b2c1525646aaabb6bc9f388a89adb4b",
+    "sourceTaskPreviousReportsAndSealsUnchanged": true
+  },
+  "toolingReview": {
+    "originalCrudCases": 432,
+    "backwardCrudCasesExactlyEqualHead": true,
+    "originalV2Panels": 18,
+    "originalV2PanelsExactlyEqualHead": true,
+    "unchangedCorePanels": 10,
+    "unchangedCoreCells": 40,
+    "optionalInputCases": 180,
+    "mixedTargetWriteCorrectnessControls": 64,
+    "v2ProtocolExactlyEqualHead": true,
+    "diagnosticModules": 11,
+    "exactDiagnosticAnchors": 45,
+    "transformedSourceHashesMatchArchivedManifest": true,
+    "noSourceWrites": true,
+    "timingDoesNotImportDiagnosticInstrumenter": true,
+    "groupedOverrideRequired": false,
+    "limits": "Diagnostic bundles only; exact anchors fail closed. Timing is original sealed source without counters/profilers/forced GC. CPU windows are overlap-clipped inclusive synchronous stack estimates with timer/native/async/GC/unattributed limits. Copy/visit/conversion and PROMISE counts are not allocated bytes or benefit."
+  },
+  "history": [
+    { "task": "CWO-01", "executor": "BASELINE-01", "historicalV1": [1199, 17] },
+    { "task": "CWO-02", "executor": "INPUT-02", "historicalV1": [999, 25] },
+    { "task": "CWO-03", "executor": "INPUT-03", "historicalV1": [1074, 30] },
+    { "task": "CWO-04", "executor": "PARSER-04", "historicalV1": [1510, 30] },
+    { "task": "CWO-05", "executor": "PATHS-05R", "historicalV1": [2103, 42] },
+    { "task": "CWO-06", "executor": "SERIALIZE-06", "historicalV1": [2190, 43] }
+  ],
+  "historicalCwo01V2": { "tests": 8119, "files": 222, "actualLogReviewed": true, "notFreshReviewAcceptance": true },
+  "historicalV1CountsVerifiedAgainstActualLogsOrJson": true,
+  "freshRecordComparisons": [
+    {
+      "label": "CWO-01 native",
+      "records": 46,
+      "equalArchivedValues": true,
+      "inputHashes": [["native-final.json", "1661e29a28111c45f0de3c8d7e359dfa2a687f36f236c0e5b0463efbaeade25d"]]
+    },
+    {
+      "label": "CWO-02",
+      "records": 122,
+      "equalArchivedValues": true,
+      "inputHashes": [
+        ["dedicated-final.json", "680e869e2862710c85b0cc6d25fe92101b6820c3fa13efedb6e0febfa1a7e0bc"],
+        ["stage-final.json", "5524a0c3c25de07ad18f088fcfaa74cc6f0514429e4bcce24c04c60e7a72ecd0"]
+      ]
+    },
+    {
+      "label": "CWO-03",
+      "records": 34,
+      "equalArchivedValues": true,
+      "inputHashes": [
+        ["prepared-final.json", "8c3c13c220feae2dd5e6cd74911519ce2eee47be5a7ec07ffdc24a09778c6c85"],
+        ["construction-final.json", "dcbf6a7fa420cef63da6e2e60a4441550a5e307b9c8c62aa15a18760eded3530"]
+      ]
+    },
+    {
+      "label": "CWO-04",
+      "records": 60,
+      "equalArchivedValues": true,
+      "inputHashes": [
+        ["parser-final.json", "845bde6acc4ab756a6b6f791b045c7fb846b6d221da6a7355bc83842a63a34a0"],
+        ["parser-boundaries-final.json", "28e73ce9aa88236c9890d396f60a1654dcd46855c0a82de98af2e9a5d9286f71"]
+      ]
+    },
+    {
+      "label": "CWO-05",
+      "records": 17,
+      "equalArchivedValues": true,
+      "inputHashes": [
+        ["structural-final.json", "aafd8ecc380da1a2d06f353b9e6d8ef395ff5e056f174152d581fcb572812ebf"],
+        ["paths-final.json", "003d0e5742af48ad425b17433db5239cb33ba22aa4f28b3219c0130cd4c20af7"]
+      ]
+    },
+    {
+      "label": "CWO-06",
+      "records": 46,
+      "equalArchivedValues": true,
+      "inputHashes": [
+        ["serialization-final.json", "74b0516fdf8a3b211cac7c145c0a07005d845a6cabcbfa39453e652727c46717"],
+        ["cleanup-final.json", "91e7db196c6e26a1746d1a1dd6520c2167d49e1a6969deef4f61d5908f852256"]
+      ]
+    }
+  ],
+  "historicalDiagnosticRecordsReconstructed": 232,
+  "historicalCpuRowsReconstructed": 4965,
+  "calibration": {
+    "recalculatedFromArchivedRawPlanUsingMaintainedPanelSummary": true,
+    "packets": [
+      {
+        "name": "writes",
+        "cells": 20,
+        "usable": 0,
+        "workers": 140,
+        "measuredOperations": 177408,
+        "batches": 1680,
+        "warmupFailures": 183,
+        "pilotUnsettled": 6,
+        "noiseWithinCapCases": 2,
+        "shortWindows": 0,
+        "failedWarmupsWithInsufficientHistory": 56,
+        "failedWarmupsWithFewerThanFiveBlocks": 85,
+        "planHash": "96de511e3900025e0e762f26284a5f97a0db1420a6df1f02c6424d032c8c8066"
+      },
+      {
+        "name": "inputs",
+        "cells": 20,
+        "usable": 0,
+        "workers": 140,
+        "measuredOperations": 155904,
+        "batches": 1680,
+        "warmupFailures": 171,
+        "pilotUnsettled": 10,
+        "noiseWithinCapCases": 2,
+        "shortWindows": 0,
+        "failedWarmupsWithInsufficientHistory": 0,
+        "failedWarmupsWithFewerThanFiveBlocks": 0,
+        "planHash": "b300ff2675a865689d8b74b03354b6232ea305ac27861d8d8bba1e9cf9b30370"
+      }
+    ],
+    "harnessHash": "053fce14ef9561a207371fdc2481cb646f47ff64182c4b40ca35f76e2567e229",
+    "cells": 40,
+    "usableCells": 0,
+    "timingWorkers": 280,
+    "measuredOperations": 333312,
+    "measuredBatches": 3360,
+    "failedMeasuredWarmups": 354,
+    "unsettledPilotCells": 16,
+    "pairs": 7,
+    "repeats": 2,
+    "noiseCap": 0.2,
+    "attemptsPerCell": 1,
+    "noDroppedCellsOrRetry": true,
+    "candidateComparisonNeeded": false,
+    "performanceRetention": "BLOCKED; all current cells unusable",
+    "baselineStudyCanComplete": true,
+    "allNoChangeIsNotCompletedRuntimePerformanceGoal": true
+  },
+  "maintainedCodeFiles": [
+    {
+      "path": "packages/access-router/test/access-router-crud-fixture.ts",
+      "hash": "fbc80e87b6312af243e74f96395c57fc6ce49b8181d0f7be6e775ad8b7fc7eb3"
+    },
+    {
+      "path": "packages/access-router/test/internal/access-router-crud-harness.unit.test.ts",
+      "hash": "16c1b28c3346f35168a9c45ff998e43f723538c2f63b69aa03cdcdc6221755d9"
+    },
+    {
+      "path": "packages/access-router/test/internal/access-router-input-work.unit.test.ts",
+      "hash": "1e9dcc33f6529f1c77170c823e7a1bf383c89dafbf7a74067bc542b011a2581e"
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-parser-scheduling.unit.test.ts",
+      "hash": "f48914043df3dac792fb43f0459cca5385d0da801ff437030cc85f7ce7633cc4"
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-parser-boundaries.unit.test.ts",
+      "hash": "bd244b452f490fe38ab70189e198c8d1b47f47aefeccd391739809724bd77d9e"
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-parser-observations.unit.test.ts",
+      "hash": "026260a690dd1152d968abe98a32ca0d419cdf3bd428bfa6c39fe36f9072079e"
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-prepared-construction.unit.test.ts",
+      "hash": "726eed81d55dc40cdda7da21308c096f66df134836d64950e8e85951955947fa"
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-path-preparation.unit.test.ts",
+      "hash": "17d27a75253cb9b2a8f2922b55830bba0ab6d0ac4ff3bc13c6e1569f894d8425"
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-virtual-cleanup.unit.test.ts",
+      "hash": "44e923e1270530c39bb0c4c9381f37c14fb1e7e51818bee17e0a7cfb749edeb4"
+    },
+    {
+      "path": "packages/access-router/test/invariants/write-input-native-observations.unit.test.ts",
+      "hash": "74e4d87c053deb1161b8fc52bc199cc9e9ed62f146fcc0db8de2385e922d0ee3"
+    },
+    {
+      "path": "packages/access-router/test/invariants/write-input-lifecycle-observations.unit.test.ts",
+      "hash": "bd06f14054a05e4ea814c67517d2d9f39b76abc75fcbd1db12bf024049a5bfc6"
+    },
+    {
+      "path": "packages/access-router/test/invariants/write-input-dedicated-observations.unit.test.ts",
+      "hash": "fbc1becb4209cf30ffd8346c46ced0db88d12a20dbdc55ced4cc68b66c26e756"
+    },
+    {
+      "path": "packages/access-router/test/invariants/write-input-view-boundaries.unit.test.ts",
+      "hash": "534d34afec4d1f7af5c20261b00d786bb7e1a0004587ca0970551fc3ac412ac9"
+    },
+    {
+      "path": "packages/access-router/test/invariants/write-input-prepared-normalization.unit.test.ts",
+      "hash": "68e263ab1f4ee0861505770adaf95b55696c19e5fd440db7a1ab23175e1c8c12"
+    },
+    {
+      "path": "packages/access-router/test/invariants/write-input-structural-boundaries.unit.test.ts",
+      "hash": "a49cc44fb6684c6ea6895a5abc96aea45320f4bd2d3fb9b63330db84e1caf64d"
+    },
+    {
+      "path": "packages/access-router/test/invariants/write-input-serialization-boundaries.unit.test.ts",
+      "hash": "ed7bff53d0dc408bb2d4a77d980891fd927a4b6fb3b4de7af490dba1a0a7f826"
+    },
+    {
+      "path": "packages/access-router/test/support/private/write-input-view-test-fixture.ts",
+      "hash": "c3a50591f9700046c700c9aec7f135d6808d510cc2fecc4eb5166f094e494d45"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud-v2.mjs",
+      "hash": "d22522613a6a7e73ce59dc07fd7c2713876e8a5e44c6b65e0c58979dba649891"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-crud-v2-worker.mjs",
+      "hash": "0e1cc7675584764fd234073112901ffca6556d300beb329f4f42350b4386928d"
+    },
+    {
+      "path": "scripts/benchmarks/access-router-input-work.mjs",
+      "hash": "410dd3b67bb16c361b07d84f6f722dedaa72befdf13eecbfa3c66b3e297cc27e"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-01/curate.mjs",
+      "hash": "67b76c55131b09eb76a7c3e655ba3719077222f11cd5058742d1c5ff042ed1d9"
+    }
+  ],
+  "reviewOperationalNotes": [
+    "Initial review-only frozen provenance-dist import failed on a missing workspace link. No old seal/dependency changed; sealed bytes/dependencies plus actual current imports verified equivalence.",
+    "Scratch-only protocol extraction initially used a local name for a CommonJS-emitted export; corrected audit wiring passed. A discarded old-log lookup was missing; actual available JSON supplied that historical count. No maintained fix or test expectation change.",
+    "Actual pnpm 11.18.0 matches current/HEAD root packageManager and every frozen identity. The distinct .tool-versions 11.24.0 annotation correction is historical and sealed data remains unchanged.",
+    "Coordinator reports initial PATHS-05 encrypted-context failure before a delivered handoff; PATHS-05R owns actual CWO-05 results. No outcome attributed to the failed child.",
+    "CWO-03 reports one read-only formatter/typecheck overlap and serial source-only repeat. This is historical, not this review's execution or a waived gate."
+  ],
+  "scope": {
+    "taskEdited": false,
+    "precedingReportsEdited": false,
+    "maintainedRuntimeTestToolDocFixes": false,
+    "subagentsSpawned": false,
+    "commitsOrWorkspaceDependencyHostChanges": false,
+    "ordinaryConsumerInstallsInScratchOnly": true,
+    "rootGroupedDownstreamTests": false,
+    "newNoiseCampaignOrCpuProfiling": false,
+    "maintainedFailingTestAdded": false,
+    "fullSuiteSmokeLimit": "Existing driver smoke/profile-mode wiring used fresh disposable scratch without --cpu-prof; not a calibration retry, candidate comparison, benefit measurement or performance retention attempt."
+  },
+  "preservation": {
+    "retained": ["README.md", "verification.json"],
+    "duplicatePackets": false,
+    "omitted": [
+      "raw fresh Vitest/terminal/observation reports",
+      "broad protection manifest and disposable audit scripts",
+      "scratch consumers/bundles/seals",
+      "dependencies/binaries/builds/tarballs/databases"
+    ],
+    "originalHashesOnlyForOmittedFreshData": true,
+    "reproduction": "Maintained tests/tools, normal dependency/Mongo and existing prebuilt read-only CLI prerequisites, new short ignored TMPDIR, serial commands. Archived P packets directly recalculate; original operational seals are checkout-local, not relocatable."
+  },
+  "hygiene": {
+    "status": "passed",
+    "newReportFormattingCommand": "pnpm exec prettier --check docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-07/README.md docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-07/verification.json",
+    "formattingLimit": "Initial new-report check warned on these two files only; formatting corrected by patches. No compact historical packet or maintained source/test/tool/guide was reformatted.",
+    "validJsonFilesReviewed": 30,
+    "artifactFilesReviewed": 39,
+    "resolvedLocalMarkdownLinks": 110,
+    "resolvedMarkdownAnchors": 1,
+    "protectedPreExistingFilesUnchanged": 2727,
+    "precedingArtifactFilesUnchanged": 37,
+    "fullOperationalSealVerifiedReadOnly": true,
+    "newReportJsonFactsMatchActualResultsAndHashes": true,
+    "privacyIgnoreWhitespace": "passed",
+    "scratchGitAndEslintIgnored": true,
+    "maintainedCodeFilesNotIgnored": 21,
+    "onlyTwoReviewFilesAdded": true,
+    "activeOwnRuntimeJobs": 0,
+    "serializationDeviations": 0,
+    "auditReplayLimit": "Disposable audit/protection scripts and full inventories are omitted. Checks parsed every retained JSON, reconstructed actual records, compared original/fresh source/data/log identities, checked links/anchors/privacy/ignore/whitespace and took a post-completion process census. Earlier reports/seals and coordinator task stayed byte-identical."
+  },
+  "finiteLimits": "No universal impossibility or compatibility/performance certification. Narrower exposure-free private designs remain unproved/unmeasured; future retention requires authorized safety/equivalence and new matching usable calibration without relaxed gates.",
+  "remainingFindings": []
+}
