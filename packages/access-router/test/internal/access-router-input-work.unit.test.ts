@@ -43,84 +43,93 @@ describe('diagnostic-only input work attribution on actual CRUD workers', () => 
   });
 
   it('observes normalization/selected/scrub/parser/rule/conversion work without changing output or source bytes', async () => {
-    const scratch = await fs.mkdtemp(path.join(process.env.TMPDIR!, 'iw-'));
+    // CI does not export TMPDIR, while the benchmark helpers require an ignored repo-local scratch root.
+    const parent = process.env.TMPDIR?.startsWith(`${root}/_tmp`) ? process.env.TMPDIR : root;
+    const scratch = await fs.mkdtemp(path.join(parent, '_tmp-arpc-input-work-'));
     execFileSync('git', ['check-ignore', scratch], { cwd: root });
-    const { api, manifest } = await buildInputProbe(root, path.join(scratch, 'probe'));
-    const cases: CrudCase[] = ['isolated', 'trusted'].flatMap((mode) =>
-      (['create-single', 'update-id'] as const).map((operation) => {
-        const spec = {
-          modes: Array(4).fill(mode),
-          entry: 'public' as const,
-          operation,
-          shape: 'input-markers' as const,
-          rows: 1,
-          width: 4,
-        };
-        return { ...spec, id: caseId(spec) };
-      }),
-    );
-    const records = await collectInputWork(api, cases);
-    expect(records).toHaveLength(4);
-    expect(manifest.instrumented).toHaveLength(11);
-    for (let i = 0; i < cases.length; i++) {
-      const f = createCrudFixture(cases[i], true);
-      try {
-        const fingerprint = digest(f.check(await f.invoke()));
-        expect(records[i].fingerprint).toBe(fingerprint);
-        const counts = records[i].counts;
-        expect(counts['input.preflight.calls']).toBe(2);
-        expect(counts['input.normalize.passes.preflight']).toBe(2);
-        expect(counts['input.normalize.passes.admission']).toBe(1);
-        expect(counts['input.normalize.passes.prepared']).toBe(1);
-        expect(counts['input.selected.nodes']).toBeGreaterThan(0);
-        expect(counts['input.scrub.passes']).toBe(1);
-        expect(counts['parser.dateMarkers']).toBe(3);
-        expect(counts['promise.resources']).toBeGreaterThan(counts['parser.entries']);
-        expect(counts['rules.create.enumerations'] ?? counts['rules.update.enumerations']).toBe(1);
-        // Counts are diagnostic baseline evidence, not a permanent optimization veto.
-        // Keep the behavior comparison if future private work counts change.
-        expect(counts['lifecycle.finalSnapshot.convert']).toBe(1);
-        expect(counts['lifecycle.originalSnapshot.convert'] ?? 0).toBe(cases[i].operation === 'update-id' ? 1 : 0);
-        expect(records[i].adapterCounts['adapter.create'] ?? 0).toBe(cases[i].operation === 'create-single' ? 1 : 0);
-        expect(records[i].adapterCounts['adapter.save'] ?? 0).toBe(cases[i].operation === 'update-id' ? 1 : 0);
-      } finally {
-        f.dispose();
+    const previous = process.env.TMPDIR;
+    process.env.TMPDIR = scratch;
+    try {
+      const { api, manifest } = await buildInputProbe(root, path.join(scratch, 'probe'));
+      const cases: CrudCase[] = ['isolated', 'trusted'].flatMap((mode) =>
+        (['create-single', 'update-id'] as const).map((operation) => {
+          const spec = {
+            modes: Array(4).fill(mode),
+            entry: 'public' as const,
+            operation,
+            shape: 'input-markers' as const,
+            rows: 1,
+            width: 4,
+          };
+          return { ...spec, id: caseId(spec) };
+        }),
+      );
+      const records = await collectInputWork(api, cases);
+      expect(records).toHaveLength(4);
+      expect(manifest.instrumented).toHaveLength(11);
+      for (let i = 0; i < cases.length; i++) {
+        const f = createCrudFixture(cases[i], true);
+        try {
+          const fingerprint = digest(f.check(await f.invoke()));
+          expect(records[i].fingerprint).toBe(fingerprint);
+          const counts = records[i].counts;
+          expect(counts['input.preflight.calls']).toBe(2);
+          expect(counts['input.normalize.passes.preflight']).toBe(2);
+          expect(counts['input.normalize.passes.admission']).toBe(1);
+          expect(counts['input.normalize.passes.prepared']).toBe(1);
+          expect(counts['input.selected.nodes']).toBeGreaterThan(0);
+          expect(counts['input.scrub.passes']).toBe(1);
+          expect(counts['parser.dateMarkers']).toBe(3);
+          expect(counts['promise.resources']).toBeGreaterThan(counts['parser.entries']);
+          expect(counts['rules.create.enumerations'] ?? counts['rules.update.enumerations']).toBe(1);
+          // Counts are diagnostic baseline evidence, not a permanent optimization veto.
+          // Keep the behavior comparison if future private work counts change.
+          expect(counts['lifecycle.finalSnapshot.convert']).toBe(1);
+          expect(counts['lifecycle.originalSnapshot.convert'] ?? 0).toBe(cases[i].operation === 'update-id' ? 1 : 0);
+          expect(records[i].adapterCounts['adapter.create'] ?? 0).toBe(cases[i].operation === 'create-single' ? 1 : 0);
+          expect(records[i].adapterCounts['adapter.save'] ?? 0).toBe(cases[i].operation === 'update-id' ? 1 : 0);
+        } finally {
+          f.dispose();
+        }
       }
+      const worker = path.join(root, 'scripts/benchmarks/access-router-crud-v2-worker.mjs');
+      // This is a profile-mode wiring check, not an actual profiler or calibration.
+      const { freeze } = await import('../../../../scripts/benchmarks/access-router-crud.mjs');
+      const seal = path.join(scratch, 'seal');
+      await freeze(root, seal);
+      const spec = cases[1];
+      const profiled = JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            worker,
+            seal,
+            JSON.stringify({
+              phase: 'profile',
+              panel: {
+                id: 'input-native-public',
+                cases: [
+                  {
+                    ...spec,
+                    shape: 'input-native',
+                    width: 16,
+                    id: caseId({ ...spec, shape: 'input-native', width: 16 }),
+                  },
+                ],
+              },
+              operations: [2],
+            }),
+          ],
+          { encoding: 'utf8' },
+        ),
+      );
+      expect(profiled.profiles[0].operations).toBe(2);
+      expect(profiled.profiles[0].intervals).toHaveLength(2);
+      expect(profiled.profiles[0].intervals.every(([a, b]: number[]) => b > a)).toBe(true);
+      expect(profiled).not.toHaveProperty('work');
+    } finally {
+      if (previous === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previous;
     }
-    const worker = path.join(root, 'scripts/benchmarks/access-router-crud-v2-worker.mjs');
-    // This is a profile-mode wiring check, not an actual profiler or calibration.
-    const { freeze } = await import('../../../../scripts/benchmarks/access-router-crud.mjs');
-    const seal = path.join(scratch, 'seal');
-    await freeze(root, seal);
-    const spec = cases[1];
-    const profiled = JSON.parse(
-      execFileSync(
-        process.execPath,
-        [
-          worker,
-          seal,
-          JSON.stringify({
-            phase: 'profile',
-            panel: {
-              id: 'input-native-public',
-              cases: [
-                {
-                  ...spec,
-                  shape: 'input-native',
-                  width: 16,
-                  id: caseId({ ...spec, shape: 'input-native', width: 16 }),
-                },
-              ],
-            },
-            operations: [2],
-          }),
-        ],
-        { encoding: 'utf8' },
-      ),
-    );
-    expect(profiled.profiles[0].operations).toBe(2);
-    expect(profiled.profiles[0].intervals).toHaveLength(2);
-    expect(profiled.profiles[0].intervals.every(([a, b]: number[]) => b > a)).toBe(true);
-    expect(profiled).not.toHaveProperty('work');
   }, 120_000);
 });
