@@ -1,0 +1,226 @@
+{
+  "format": "cwo-01-native-observations-curated",
+  "sourceTest": "packages/access-router/test/invariants/write-input-native-observations.unit.test.ts",
+  "sourceRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "originalBytesHash": "1661e29a28111c45f0de3c8d7e359dfa2a687f36f236c0e5b0463efbaeade25d",
+  "originalRecords": 46,
+  "curation": "Lossless table encoding for 30 successful native cases: common conversion options and event streams factored out. Remaining 16 records retained in full. Final V1 observations, not timing/allocation data.",
+  "commonRootConversionOptions": [
+    { "virtuals": false },
+    { "virtuals": false, "flattenMaps": true },
+    { "virtuals": false, "flattenMaps": true },
+    null,
+    { "virtuals": false },
+    { "virtuals": false },
+    { "virtuals": false },
+    { "virtuals": false, "flattenMaps": true }
+  ],
+  "eventStreams": [
+    ["prewrite.source", "prewrite.view", "postwrite.source"],
+    ["prewrite.source", "prewrite.view", "postwrite.source", "postwrite.view"]
+  ],
+  "nativeColumns": [
+    "mode",
+    "entry",
+    "hookKind",
+    "eventStreamIndex",
+    "rootConversionsIncludingAdapter",
+    "saves",
+    "finds",
+    "exists"
+  ],
+  "nativeRows": [
+    ["isolated", "update-id", "absent", 0, 8, 1, 1, 0],
+    ["isolated", "update-id", "sync", 1, 8, 1, 1, 0],
+    ["isolated", "update-id", "async", 1, 8, 1, 1, 0],
+    ["isolated", "update-filter", "absent", 0, 8, 1, 1, 0],
+    ["isolated", "update-filter", "sync", 1, 8, 1, 1, 0],
+    ["isolated", "update-filter", "async", 1, 8, 1, 1, 0],
+    ["isolated", "upsert-update", "absent", 0, 8, 1, 2, 0],
+    ["isolated", "upsert-update", "sync", 1, 8, 1, 2, 0],
+    ["isolated", "upsert-update", "async", 1, 8, 1, 2, 0],
+    ["isolated", "public-update", "absent", 0, 8, 1, 1, 0],
+    ["isolated", "public-update", "sync", 1, 8, 1, 1, 0],
+    ["isolated", "public-update", "async", 1, 8, 1, 1, 0],
+    ["isolated", "public-upsert-update", "absent", 0, 8, 1, 1, 1],
+    ["isolated", "public-upsert-update", "sync", 1, 8, 1, 1, 1],
+    ["isolated", "public-upsert-update", "async", 1, 8, 1, 1, 1],
+    ["trusted", "update-id", "absent", 0, 8, 1, 1, 0],
+    ["trusted", "update-id", "sync", 0, 8, 1, 1, 0],
+    ["trusted", "update-id", "async", 0, 8, 1, 1, 0],
+    ["trusted", "update-filter", "absent", 0, 8, 1, 1, 0],
+    ["trusted", "update-filter", "sync", 0, 8, 1, 1, 0],
+    ["trusted", "update-filter", "async", 0, 8, 1, 1, 0],
+    ["trusted", "upsert-update", "absent", 0, 8, 1, 2, 0],
+    ["trusted", "upsert-update", "sync", 0, 8, 1, 2, 0],
+    ["trusted", "upsert-update", "async", 0, 8, 1, 2, 0],
+    ["trusted", "public-update", "absent", 0, 8, 1, 1, 0],
+    ["trusted", "public-update", "sync", 0, 8, 1, 1, 0],
+    ["trusted", "public-update", "async", 0, 8, 1, 1, 0],
+    ["trusted", "public-upsert-update", "absent", 0, 8, 1, 1, 1],
+    ["trusted", "public-upsert-update", "sync", 0, 8, 1, 1, 1],
+    ["trusted", "public-upsert-update", "async", 0, 8, 1, 1, 1]
+  ],
+  "otherRecords": [
+    {
+      "kind": "view-only-native-error",
+      "mode": "isolated",
+      "entry": "update-id",
+      "present": false,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 0
+    },
+    {
+      "kind": "view-only-native-error",
+      "mode": "isolated",
+      "entry": "update-id",
+      "present": true,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 0
+    },
+    {
+      "kind": "view-only-native-error",
+      "mode": "isolated",
+      "entry": "public-upsert-update",
+      "present": false,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 1
+    },
+    {
+      "kind": "view-only-native-error",
+      "mode": "isolated",
+      "entry": "public-upsert-update",
+      "present": true,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 1
+    },
+    {
+      "kind": "view-only-native-error",
+      "mode": "trusted",
+      "entry": "update-id",
+      "present": false,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 0
+    },
+    {
+      "kind": "view-only-native-error",
+      "mode": "trusted",
+      "entry": "update-id",
+      "present": true,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 0
+    },
+    {
+      "kind": "view-only-native-error",
+      "mode": "trusted",
+      "entry": "public-upsert-update",
+      "present": false,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 1
+    },
+    {
+      "kind": "view-only-native-error",
+      "mode": "trusted",
+      "entry": "public-upsert-update",
+      "present": true,
+      "events": ["prewrite.source", "prewrite.view"],
+      "code": "bad_request",
+      "saves": 0,
+      "finds": 1,
+      "exists": 1
+    },
+    {
+      "kind": "public-to-worker-mutation",
+      "mode": "isolated",
+      "operation": "create",
+      "nativeCalls": 2,
+      "parserCalls": 0,
+      "code": "bad_request",
+      "saves": 0,
+      "creates": 0
+    },
+    {
+      "kind": "public-to-worker-mutation",
+      "mode": "isolated",
+      "operation": "update",
+      "nativeCalls": 2,
+      "parserCalls": 0,
+      "code": "bad_request",
+      "saves": 0,
+      "creates": 0
+    },
+    {
+      "kind": "public-to-worker-mutation",
+      "mode": "trusted",
+      "operation": "create",
+      "nativeCalls": 2,
+      "parserCalls": 0,
+      "code": "bad_request",
+      "saves": 0,
+      "creates": 0
+    },
+    {
+      "kind": "public-to-worker-mutation",
+      "mode": "trusted",
+      "operation": "update",
+      "nativeCalls": 2,
+      "parserCalls": 0,
+      "code": "bad_request",
+      "saves": 0,
+      "creates": 0
+    },
+    {
+      "kind": "mutable-field-rules",
+      "mode": "isolated",
+      "entry": "direct",
+      "calls": 3,
+      "storedValues": ["one", null, "three"],
+      "distinctFieldArrays": 3
+    },
+    {
+      "kind": "mutable-field-rules",
+      "mode": "isolated",
+      "entry": "public",
+      "calls": 3,
+      "storedValues": ["one", null, "three"],
+      "distinctFieldArrays": 3
+    },
+    {
+      "kind": "mutable-field-rules",
+      "mode": "trusted",
+      "entry": "direct",
+      "calls": 3,
+      "storedValues": ["one", null, "three"],
+      "distinctFieldArrays": 3
+    },
+    {
+      "kind": "mutable-field-rules",
+      "mode": "trusted",
+      "entry": "public",
+      "calls": 3,
+      "storedValues": ["one", null, "three"],
+      "distinctFieldArrays": 3
+    }
+  ]
+}

@@ -1,0 +1,269 @@
+{
+  "format": "cwo-05-curated-observations-v1",
+  "task": "CWO-05",
+  "executor": "PATHS-05R",
+  "sourceRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+  "retainedMaintainedFiles": [
+    {
+      "path": "packages/access-router/test/invariants/write-input-structural-boundaries.unit.test.ts",
+      "hash": "a49cc44fb6684c6ea6895a5abc96aea45320f4bd2d3fb9b63330db84e1caf64d",
+      "cases": 12
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-path-preparation.unit.test.ts",
+      "hash": "17d27a75253cb9b2a8f2922b55830bba0ab6d0ac4ff3bc13c6e1569f894d8425",
+      "cases": 5
+    }
+  ],
+  "originalReports": [
+    {
+      "label": "final structural assertions",
+      "records": 12,
+      "originalBytesHash": "aafd8ecc380da1a2d06f353b9e6d8ef395ff5e056f174152d581fcb572812ebf"
+    },
+    {
+      "label": "final private path assertions",
+      "records": 5,
+      "originalBytesHash": "003d0e5742af48ad425b17433db5239cb33ba22aa4f28b3219c0130cd4c20af7"
+    },
+    {
+      "label": "unchanged baseline native assertions",
+      "records": 46,
+      "originalBytesHash": "1661e29a28111c45f0de3c8d7e359dfa2a687f36f236c0e5b0463efbaeade25d"
+    }
+  ],
+  "behavior": {
+    "recordCount": 17,
+    "tables": [
+      {
+        "kind": "mixed-create-rules",
+        "common": {
+          "events": [
+            "first:1",
+            "string:1",
+            "array:1",
+            "last:1",
+            "validate:1",
+            "first:2",
+            "string:2",
+            "array:2",
+            "last:2",
+            "validate:2",
+            "first:3",
+            "string:3",
+            "array:3",
+            "last:3",
+            "validate:3"
+          ],
+          "functionCalls": 6,
+          "actorIdentities": 1,
+          "frozenEmptyFacts": true,
+          "distinctAllowedFields": 3,
+          "distinctAllowedData": 3,
+          "values": ["one", null, "three"],
+          "payloads": [["business", "first-only"], ["business"], ["business"]],
+          "callerPayloadUnchanged": true
+        },
+        "columns": ["mode", "entry"],
+        "rows": [
+          ["isolated", "direct"],
+          ["isolated", "public"],
+          ["trusted", "direct"],
+          ["trusted", "public"]
+        ]
+      },
+      {
+        "kind": "prepare-field-boundaries",
+        "common": {
+          "prepareCalls": 1,
+          "finalAllowedFields": ["branch.value", "branch"],
+          "storedBranch": { "value": "submitted" },
+          "saves": 1
+        },
+        "columns": ["mode", "entry"],
+        "rows": [
+          ["isolated", "direct"],
+          ["isolated", "public"],
+          ["trusted", "direct"],
+          ["trusted", "public"]
+        ]
+      },
+      {
+        "kind": "optional-input-catalog-slot",
+        "common": { "outputEligible": true },
+        "columns": [
+          "source",
+          "ownSchemaVirtualSlot",
+          "sharedInputOutputCatalog",
+          "inputEligibleAfterMutation",
+          "inheritedReadsBeforeMutation",
+          "inheritedReadsTotal",
+          "allowedData"
+        ],
+        "rows": [
+          ["omitted", false, false, false, 40, 43, { "payload": {} }],
+          ["own-undefined", true, false, true, 0, 0, { "payload": { "safe": "submitted" } }],
+          ["owned-empty", true, true, true, 0, 0, { "payload": { "safe": "submitted" } }]
+        ]
+      },
+      {
+        "kind": "path-alias",
+        "common": { "storedValue": { "value": "submitted", "sibling": "kept" } },
+        "columns": ["field", "boundary", "key", "array"],
+        "rows": [
+          ["payload[0].value", "payload.0.value", "0", true],
+          ["payload[\"01\"].value", "payload.01.value", "01", false],
+          ["payload[4294967295].value", "payload.4294967295.value", "4294967295", false]
+        ]
+      }
+    ],
+    "singles": [
+      {
+        "kind": "existing-index-expansion",
+        "patchFields": ["rows.0.value", "rows.3.value"],
+        "emptyFields": [],
+        "scalarFields": [],
+        "patchCardinality": 4,
+        "replacementCardinality": 5,
+        "replacementField": ["rows"],
+        "elevatedIdsOmitted": true
+      },
+      {
+        "kind": "repeated-key-native-grammar",
+        "events": ["native.install", "grammar:1", "grammar:2"],
+        "nativeCalls": 1,
+        "grammarReads": 2,
+        "scrubbedItems": [{ "value": "first" }, {}],
+        "rawItemsUnchanged": true
+      },
+      {
+        "kind": "catalog-own-provenance",
+        "ownedSlots": 23,
+        "ownedDepth": 2,
+        "inheritedProvenance": false,
+        "copiedProvenance": false,
+        "explicitClearReleasesProvenance": true
+      }
+    ]
+  },
+  "internalWork": {
+    "identity": {
+      "kind": "diagnostic-only-not-timing",
+      "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+      "fixtureHash": "fbc80e87b6312af243e74f96395c57fc6ce49b8181d0f7be6e775ad8b7fc7eb3",
+      "toolHash": "410dd3b67bb16c361b07d84f6f722dedaa72befdf13eecbfa3c66b3e297cc27e",
+      "bundleHash": "496dc5dbe7cff812bd9b9f19b4a58cb3b53e082ae024ef442b36cc716778f5b5",
+      "esbuild": "0.28.2"
+    },
+    "originalBytesHash": "a2b1aabb2270a325cca80f11053c38ac0183ee3521dcf01f40220f10cc1c30fa",
+    "countColumns": [
+      "input.requestRules.calls",
+      "rules.create.enumerations",
+      "rules.create.keys",
+      "rules.create.functions",
+      "rules.update.enumerations",
+      "rules.update.keys",
+      "rules.update.functions",
+      "path.requestBoundary.fields",
+      "path.updateBoundary.fields",
+      "path.patternMatches.admission",
+      "path.patternMatches.prepared",
+      "path.safeInputChecks.admission",
+      "path.safeInputChecks.prepared",
+      "path.virtualChecks.admission",
+      "path.virtualChecks.prepared",
+      "update.setters"
+    ],
+    "rowColumns": ["id", "counts", "fingerprint"],
+    "rows": [
+      [
+        "iiii/direct/create-single/bare/1x1",
+        [1, 1, 8, 0, 0, 0, 0, 10, 0, 42, 36, 7, 6, 7, 6, 0],
+        "91a58b12373e8e0f589850b63ec566e70cfa612915db57d4198d9ddf06a09424"
+      ],
+      [
+        "iiii/direct/update-id/bare/1x1",
+        [1, 0, 0, 0, 1, 8, 0, 10, 7, 42, 36, 7, 6, 7, 6, 3],
+        "361a6c9b2f2ded7b43792da450f5c61d56a297f4f53d7111538f780a9a68f8d0"
+      ],
+      [
+        "iiii/public/create-single/input-nested/1x16",
+        [1, 1, 23, 0, 0, 0, 0, 52, 0, 174, 306, 31, 61, 31, 61, 0],
+        "9fb123f7c163dcf530fc44b4cf48221e63db88b7c6b1efc1e1daab7b993e57df"
+      ],
+      [
+        "iiii/public/update-id/input-nested/1x16",
+        [1, 0, 0, 0, 1, 23, 0, 52, 22, 174, 306, 31, 61, 31, 61, 21],
+        "04f20f0cbbb80f46ab8b3f809c025b0b92072841f363e8c71399506a089f851b"
+      ],
+      [
+        "iiii/public/create-bulk/input-nested/8x16",
+        [8, 8, 184, 0, 0, 0, 0, 416, 0, 1392, 2448, 248, 488, 248, 488, 0],
+        "9534867f4984ff858639f9499e9d7302ab1d6e10b0815d0b75e10e591f94b1f4"
+      ],
+      [
+        "iiii/direct/create-bulk/input-functions/8x16",
+        [8, 8, 184, 136, 0, 0, 0, 432, 0, 1536, 2784, 256, 520, 256, 520, 0],
+        "26005b9c0914a60cf8fa03290cfada3888989524ac975614d9bf898ce19b1328"
+      ],
+      [
+        "iiii/direct/update-id/input-native/1x16",
+        [1, 0, 0, 0, 1, 23, 0, 54, 22, 192, 348, 32, 65, 32, 65, 22],
+        "7a8ab4477c3e5f36525be70fa898b18ab4ffc174c99479d8dcae7fcbee65ad5d"
+      ],
+      [
+        "iiii/direct/update-filter/input-native/1x16",
+        [1, 0, 0, 0, 1, 23, 0, 54, 22, 192, 348, 32, 65, 32, 65, 22],
+        "7a8ab4477c3e5f36525be70fa898b18ab4ffc174c99479d8dcae7fcbee65ad5d"
+      ],
+      [
+        "tttt/direct/create-single/bare/1x1",
+        [1, 1, 8, 0, 0, 0, 0, 10, 0, 42, 36, 7, 6, 7, 6, 0],
+        "91a58b12373e8e0f589850b63ec566e70cfa612915db57d4198d9ddf06a09424"
+      ],
+      [
+        "tttt/direct/update-id/bare/1x1",
+        [1, 0, 0, 0, 1, 8, 0, 10, 7, 42, 36, 7, 6, 7, 6, 3],
+        "361a6c9b2f2ded7b43792da450f5c61d56a297f4f53d7111538f780a9a68f8d0"
+      ],
+      [
+        "tttt/public/create-single/input-nested/1x16",
+        [1, 1, 23, 0, 0, 0, 0, 52, 0, 174, 306, 31, 61, 31, 61, 0],
+        "9fb123f7c163dcf530fc44b4cf48221e63db88b7c6b1efc1e1daab7b993e57df"
+      ],
+      [
+        "tttt/public/update-id/input-nested/1x16",
+        [1, 0, 0, 0, 1, 23, 0, 52, 22, 174, 306, 31, 61, 31, 61, 21],
+        "04f20f0cbbb80f46ab8b3f809c025b0b92072841f363e8c71399506a089f851b"
+      ],
+      [
+        "tttt/public/create-bulk/input-nested/8x16",
+        [8, 8, 184, 0, 0, 0, 0, 416, 0, 1392, 2448, 248, 488, 248, 488, 0],
+        "9534867f4984ff858639f9499e9d7302ab1d6e10b0815d0b75e10e591f94b1f4"
+      ],
+      [
+        "tttt/direct/create-bulk/input-functions/8x16",
+        [8, 8, 184, 136, 0, 0, 0, 432, 0, 1536, 2784, 256, 520, 256, 520, 0],
+        "5efd94b938626cc350273bb3ffc4222a9fa75e99abf491b5141046593337e548"
+      ],
+      [
+        "tttt/direct/update-id/input-native/1x16",
+        [1, 0, 0, 0, 1, 23, 0, 54, 22, 192, 348, 32, 65, 32, 65, 22],
+        "e2af0e6907c27be28e5e8ca4c096f02a2f5714624f5383fea2ea4a36afa252d1"
+      ],
+      [
+        "tttt/direct/update-filter/input-native/1x16",
+        [1, 0, 0, 0, 1, 23, 0, 54, 22, 192, 348, 32, 65, 32, 65, 22],
+        "e2af0e6907c27be28e5e8ca4c096f02a2f5714624f5383fea2ea4a36afa252d1"
+      ]
+    ],
+    "comparison": {
+      "baselineMatchedRelevantCountsFullTracesAdaptersAndState": 16,
+      "configuredResolvedModesEqual": true
+    }
+  },
+  "comparison": { "newCaseAndFinalRecordsDeepEqual": 17, "unchangedBaselineNativeRecordsDeepEqual": 46 },
+  "curation": "Behavior records reconstruct losslessly by combining kind/common with each columns/rows table, plus singles. Work retains only declared counters/IDs/fingerprints after comparing complete phase/callback traces, adapter counts and relevant counters with CWO-01. Raw reports/full counters/traces and diagnostic bundle are omitted. No timing recalculation is supported.",
+  "limits": "Actual asserted behavior and deterministic-adapter work, not measured CPU/allocation/heap/latency benefit. Work counters exclude registration/reset/request construction and assertions; other catalog work can include output preparation. A second preflight validator traversal is not separately counted. Baseline identities and old seals are not modified or recertified."
+}

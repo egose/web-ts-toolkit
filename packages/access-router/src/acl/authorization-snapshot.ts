@@ -12,6 +12,23 @@ import {
   preloadTrustedOutputBudget,
 } from './trusted-output-materialization';
 import { currentOutputWorkLedger, outsideOutputWorkLedger } from './output-work-ledger';
+import { defaultLogger } from '../logger-default';
+import { getActiveRuntime } from '../runtime-context';
+import { readProxySnapshotDiagnostics } from './proxy-diagnostics';
+
+function logProxySnapshotRejection(path: string, error: ServiceAuthorizationError): void {
+  // Never throw from diagnostics (ARF-07 discipline): the controlled failure
+  // below must reach the caller regardless of logger behavior.
+  try {
+    const { mode, logger } = readProxySnapshotDiagnostics(getActiveRuntime());
+    if (mode === 'silent') return;
+    const message = `[access-router] Authorization snapshot rejected a Proxy at ${path}`;
+    const target = logger?.[mode] ?? defaultLogger[mode];
+    target.call(logger ?? defaultLogger, message, error);
+  } catch {
+    /* diagnostic emission is best-effort */
+  }
+}
 
 /** Private controlled error; services can map `result`, helpers can throw it. */
 export class ServiceAuthorizationError extends JsonRouter.clientErrors.BadRequestError {
@@ -60,6 +77,10 @@ export function authorizationRecord(value: unknown, label: string): Record<strin
 export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'document' = false): T {
   const active = new WeakSet<object>();
   const budget = createTrustedOutputBudget();
+  // Rejection-path frames: short connector strings pushed around each recursive
+  // call, joined only when a rejection is logged. Cheaper than threading a full
+  // path string through every node of every capture.
+  const pathFrames: string[] = [];
   function copy(input: unknown, depth: number): unknown {
     visitTrustedOutput(budget, depth);
     if (typeof input === 'function') {
@@ -73,9 +94,11 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
     }
     if (types.isProxy(input)) {
       const error = new ServiceAuthorizationError('proxy snapshot input');
-      // Log the capture stack, never the rejected value: inspecting a Proxy may
-      // execute application code or expose private document/policy contents.
-      console.error('[access-router] Authorization snapshot rejected a Proxy', error);
+      // Log the capture location (property path and stack), never the rejected
+      // value: inspecting a Proxy may execute application code or expose
+      // private document/policy contents. Path components are plain keys that
+      // already passed the unsafe-key check on the parent.
+      logProxySnapshotRejection(`$${pathFrames.join('')}`, error);
       throw error;
     }
     const ownedCatalog = configuration === true ? readOwnedAuthorizationCatalogWork(input) : undefined;
@@ -129,13 +152,24 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
       }
       if (configuration && input instanceof Map) {
         const result = new Map();
-        for (const [key, entry] of Map.prototype.entries.call(input))
-          result.set(copy(key, depth + 1), copy(entry, depth + 1));
+        for (const [key, entry] of Map.prototype.entries.call(input)) {
+          pathFrames.push('.<map-key>');
+          const mappedKey = copy(key, depth + 1);
+          pathFrames.pop();
+          pathFrames.push('.<map-value>');
+          const mappedEntry = copy(entry, depth + 1);
+          pathFrames.pop();
+          result.set(mappedKey, mappedEntry);
+        }
         return result;
       }
       if (configuration && input instanceof Set) {
         const result = new Set();
-        for (const entry of Set.prototype.values.call(input)) result.add(copy(entry, depth + 1));
+        for (const entry of Set.prototype.values.call(input)) {
+          pathFrames.push('.<set-entry>');
+          result.add(copy(entry, depth + 1));
+          pathFrames.pop();
+        }
         return result;
       }
       const array = Array.isArray(input);
@@ -151,7 +185,9 @@ export function copyAuthorizationValue<T>(value: T, configuration: boolean | 'do
         const descriptor = Object.getOwnPropertyDescriptor(input, key)!;
         if (!('value' in descriptor) || (!descriptor.enumerable && configuration !== 'document'))
           authorizationError('accessor/non-enumerable input');
+        pathFrames.push(array ? `[${key}]` : `.${key}`);
         const value = copy(descriptor.value, depth + 1);
+        pathFrames.pop();
         // The result starts as a private ordinary object, never a proxy. Check AFTER
         // recursively copying: native hooks can install inherited setters while
         // normalizing the value. An absent key can then be assigned without any

@@ -182,6 +182,8 @@ export interface AccessRouterLogger {
   isLevelEnabled?: (level: string) => boolean;
 }
 
+export type AuthorizationSnapshotProxyLogMode = 'error' | 'warn' | 'silent';
+
 /**
  * Runtime-wide request initialization and resource settings, configured with
  * api.setGlobalOptions / api.setGlobalOption. These are not model options or wire
@@ -203,6 +205,13 @@ export interface GlobalOptions {
    */
   globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
   logger?: AccessRouterLogger;
+  /**
+   * Controls the diagnostic log emitted when an authorization snapshot rejects a
+   * Proxy value. Rejection always fails closed with a 400 response; this only
+   * tunes log noise. Invalid values are treated as 'error'. Logs carry the
+   * value's property path and stack, never the rejected value itself.
+   */
+  authorizationSnapshotProxyLog?: AuthorizationSnapshotProxyLogMode;
   /** Request budgets and separate hook/persistence pools; concurrency limits are captured on first owner use. */
   requestComplexity?: RequestComplexityOptions;
 }

@@ -1,0 +1,213 @@
+{
+  "task": "CWO-04",
+  "executor": "PARSER-04",
+  "decision": "Completed bounded no-change investigation. No runtime candidate created, retained, timed or withdrawn; no promise/work reduction or performance benefit claimed.",
+  "workingDirectory": "<repo-root>",
+  "runtimeTmpdir": "<repo-root>/_tmpc04XXzP (absolute at execution; disposable)",
+  "productionRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+  "scopeSource": [
+    ["packages/access-router/src/helpers/index.ts", "035e8b9d684f15d734dba66232f17b81c27041a1b236c4cb3f5af5e3623739ed"],
+    ["packages/access-router/src/services/base.ts", "0a5a0cb53086358652d96bc62dea2319932351e692deba614769a276ada6c8af"]
+  ],
+  "runtime": { "node": "v26.12.1", "pnpmActual": "11.18.0", "rootPackageManager": "pnpm@11.18.0" },
+  "retainedMaintainedFiles": [
+    {
+      "path": "packages/access-router/test/internal/write-input-parser-observations.unit.test.ts",
+      "hash": "026260a690dd1152d968abe98a32ca0d419cdf3bd428bfa6c39fe36f9072079e",
+      "cases": 48
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-parser-boundaries.unit.test.ts",
+      "hash": "bd244b452f490fe38ab70189e198c8d1b47f47aefeccd391739809724bd77d9e",
+      "cases": 12
+    }
+  ],
+  "retainedEvidenceFiles": ["README.md", "verification.json", "observations.json"],
+  "withdrawnFiles": [],
+  "productionChanges": [],
+  "taskStatusEdited": false,
+  "commands": [
+    {
+      "name": "Fresh scratch and initial protection/identity review",
+      "command": "mktemp -d \"$PWD/_tmpc04XXXX\"",
+      "ignoreCommand": "git check-ignore -v _tmpc04XXzP",
+      "reviewCommand": "TMPDIR='<repo-root>/_tmpc04XXzP' node _tmpc04XXzP/protect.mjs init",
+      "result": "passed; .gitignore:8:_tmp* matched; hashed 2498 pre-existing unignored files into owned scratch. All source/dist/fixture identities and CWO-01's existing baseline seal including 127 dependency packages verified read-only.",
+      "replayLimit": "Disposable operational runner is omitted. Maintained verifySeal plus CWO-01 archived hashes support read-only seal review in the original checkout; fresh behavioral replay does not require old scratch. No new freeze/calibration."
+    },
+    {
+      "name": "Filtered dependency build and source typecheck",
+      "command": "TMPDIR='<repo-root>/_tmpc04XXzP' pnpm --filter @web-ts-toolkit/access-router typecheck",
+      "expandedScript": "pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json",
+      "buildPackages": ["utils", "http-errors", "express-response-handler", "express-json-router", "access-router"],
+      "result": "passed; no other test/build/format/profile/calibration command overlapped"
+    },
+    {
+      "name": "Initial two-file observation wiring",
+      "command": "TMPDIR='<repo-root>/_tmpc04XXzP' CWO04_BOUNDARIES_REPORT='<repo-root>/_tmpc04XXzP/boundaries-wiring.json' CWO04_PARSER_REPORT='<repo-root>/_tmpc04XXzP/parser-wiring.json' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts --reporter=default --reporter=json --outputFile='<repo-root>/_tmpc04XXzP/wiring-results.json' test/internal/write-input-parser-boundaries.unit.test.ts test/internal/write-input-parser-observations.unit.test.ts",
+      "tests": 52,
+      "passed": 44,
+      "failed": 8,
+      "files": 2,
+      "reportBytesHash": "eb126b8f2fd1a0b28d76947afc74423607af2cb8169941bca0dac7304b7242d7",
+      "resolution": "Only new READ fixture assumptions failed: deterministic scalar matcher does not match a Mongoose subdocument. New later-sibling observation uses existing Mixed payload instead of branch. No production matcher, baseline fixture, source, timeout or public contract changed."
+    },
+    {
+      "name": "Corrected two-file wiring",
+      "command": "TMPDIR='<repo-root>/_tmpc04XXzP' CWO04_BOUNDARIES_REPORT='<repo-root>/_tmpc04XXzP/boundaries-corrected.json' CWO04_PARSER_REPORT='<repo-root>/_tmpc04XXzP/parser-corrected.json' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts --reporter=default --reporter=json --outputFile='<repo-root>/_tmpc04XXzP/corrected-results.json' test/internal/write-input-parser-boundaries.unit.test.ts test/internal/write-input-parser-observations.unit.test.ts",
+      "result": "passed",
+      "tests": 52,
+      "files": 2,
+      "reportBytesHash": "98cbb99593058515eaa91afc530b9a141fe9daaf11a189b9b12e5ffa05b1d546"
+    },
+    {
+      "name": "Explicit maintained formatting and lint",
+      "formatCommand": "pnpm exec prettier --check packages/access-router/test/internal/write-input-parser-boundaries.unit.test.ts packages/access-router/test/internal/write-input-parser-observations.unit.test.ts",
+      "lintCommand": "pnpm exec eslint packages/access-router/test/internal/write-input-parser-boundaries.unit.test.ts packages/access-router/test/internal/write-input-parser-observations.unit.test.ts",
+      "result": "both passed serially; formatting proposals wrote only own scratch, maintained edits used patch"
+    },
+    {
+      "name": "Expanded 60-case observation check",
+      "command": "TMPDIR='<repo-root>/_tmpc04XXzP' CWO04_BOUNDARIES_REPORT='<repo-root>/_tmpc04XXzP/boundaries-new-cases.json' CWO04_PARSER_REPORT='<repo-root>/_tmpc04XXzP/parser-new-cases.json' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts --reporter=default --reporter=json --outputFile='<repo-root>/_tmpc04XXzP/new-cases-results.json' test/internal/write-input-parser-boundaries.unit.test.ts test/internal/write-input-parser-observations.unit.test.ts",
+      "result": "passed",
+      "tests": 60,
+      "files": 2,
+      "reportBytesHash": "a2faf97ed4ccce764d9db32baf465a0dd0db10059e5c701e3bd335c33b8f453e"
+    },
+    {
+      "name": "Final focused V1",
+      "commandPrefix": "TMPDIR='<repo-root>/_tmpc04XXzP' CWO04_BOUNDARIES_REPORT='<repo-root>/_tmpc04XXzP/boundaries-final.json' CWO04_PARSER_REPORT='<repo-root>/_tmpc04XXzP/parser-final.json' CWO_INPUT_OBSERVATIONS_REPORT='<repo-root>/_tmpc04XXzP/native-baseline-final.json' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts --reporter=default --reporter=json --outputFile='<repo-root>/_tmpc04XXzP/v1-results.json'",
+      "argvExpansion": "Append testFiles in the listed order to commandPrefix; all commands ran from repository root, pnpm exec runs Vitest in packages/access-router.",
+      "testFiles": [
+        "test/invariants/write-output-modes.unit.test.ts",
+        "test/invariants/write-output-origin-ownership.unit.test.ts",
+        "test/invariants/write-output-source-lifetime.unit.test.ts",
+        "test/contracts/service-authorization-input.integration.test.ts",
+        "test/contracts/request-complexity.integration.test.ts",
+        "test/contracts/nested-update-integrity.integration.test.ts",
+        "test/contracts/arts04-parsers-processors.integration.test.ts",
+        "test/internal/write-input-parser-scheduling.unit.test.ts",
+        "test/internal/service.internal.test.ts",
+        "test/internal/no-work-output-scheduling.unit.test.ts",
+        "test/internal/access-router-crud-harness.unit.test.ts",
+        "test/invariants/concurrency.test.ts",
+        "test/invariants/hook-concurrency.test.ts",
+        "test/invariants/request-hook-concurrency.test.ts",
+        "test/invariants/request-persistence-concurrency.test.ts",
+        "test/invariants/authorization-fast-path-native.unit.test.ts",
+        "test/invariants/write-input-native-observations.unit.test.ts",
+        "test/invariants/write-input-lifecycle-observations.unit.test.ts",
+        "test/invariants/service-authorization-prepared-query.unit.test.ts",
+        "test/invariants/service-authorization-boundary-admission.contract.test.ts",
+        "test/invariants/service-authorization-rows.integration.test.ts",
+        "test/invariants/hydration-request-boundaries.integration.test.ts",
+        "test/contracts/cross-resource-authorization.integration.test.ts",
+        "test/contracts/hydration-characterization.integration.test.ts",
+        "test/invariants/write-input-prepared-normalization.unit.test.ts",
+        "test/internal/write-input-prepared-construction.unit.test.ts",
+        "test/internal/write-input-parser-boundaries.unit.test.ts",
+        "test/internal/write-input-parser-observations.unit.test.ts",
+        "test/invariants/write-input-view-boundaries.unit.test.ts",
+        "test/invariants/write-input-dedicated-observations.unit.test.ts"
+      ],
+      "result": "passed",
+      "tests": 1510,
+      "files": 30,
+      "newTests": 60,
+      "consoleDurationSeconds": 65.72,
+      "failedSkippedPending": 0,
+      "reportBytesHash": "d854be2c593ef726e841cdd9ac92df0ebc383cbb54ab29ad270145fa94b09eb3"
+    },
+    {
+      "name": "Exact layer checker",
+      "command": "TMPDIR='<repo-root>/_tmpc04XXzP' pnpm --filter @web-ts-toolkit/access-router test:layers:check",
+      "result": "passed",
+      "layers": { "contracts": 103, "invariants": 69, "internal": 56 },
+      "exactDefaultUnion": true,
+      "publicGraph": { "files": 137, "modules": 238 }
+    },
+    {
+      "name": "Read-only source/protection and record curation",
+      "identityCommand": "TMPDIR='<repo-root>/_tmpc04XXzP' node _tmpc04XXzP/protect.mjs before-artifacts",
+      "curationCommand": "TMPDIR='<repo-root>/_tmpc04XXzP' node _tmpc04XXzP/curate.mjs",
+      "result": "passed; 2498 protected files unchanged, all source/dist/declarations and prior baseline seal/payloads unchanged. 60 records reconstruct losslessly and match new-case/final reports; unchanged CWO-01 native replay matches all 46 archived records.",
+      "replayLimit": "Operational runners omitted; authored edits/promotion used patches. Maintained tests plus table reconstruction support fresh behavioral replay, not omitted raw Vitest reports or timing recalculation."
+    },
+    {
+      "name": "Final five-file formatting",
+      "command": "pnpm exec prettier --check packages/access-router/test/internal/write-input-parser-boundaries.unit.test.ts packages/access-router/test/internal/write-input-parser-observations.unit.test.ts docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-04/README.md docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-04/observations.json docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-04/verification.json",
+      "result": "passed after patch-based formatting; initial bundle check warned on the new verification.json only. Serialized and repeated after final metadata update."
+    },
+    {
+      "name": "Final retained-TypeScript lint",
+      "command": "pnpm exec eslint packages/access-router/test/internal/write-input-parser-boundaries.unit.test.ts packages/access-router/test/internal/write-input-parser-observations.unit.test.ts",
+      "result": "passed; no build/test/format command overlapped"
+    },
+    {
+      "name": "Final new-bundle and scope audit",
+      "reviewCommand": "TMPDIR='<repo-root>/_tmpc04XXzP' node _tmpc04XXzP/audit.mjs review",
+      "finalRepeatCommand": "TMPDIR='<repo-root>/_tmpc04XXzP' node _tmpc04XXzP/audit.mjs final",
+      "result": "passed; read-only source/seal/protection review and record/hash/link/privacy/ignore/whitespace validation, with final repeat after metadata update",
+      "validNewJsonFiles": 2,
+      "resolvedLocalLinks": 15,
+      "resolvedV1Paths": 30,
+      "newUnignoredFiles": 5,
+      "reconstructedActualRecords": 60,
+      "sourceTaskPriorEvidenceAndSealBytesUnchanged": true,
+      "replayLimit": "Disposable audit runner/broad protection manifest omitted. Only the two new maintained tests and this three-file bundle were added. Git diff --check and manual new-file final-newline/trailing-whitespace/privacy checks passed."
+    }
+  ],
+  "preservedJson": [
+    {
+      "path": "observations.json",
+      "records": 60,
+      "hash": "2adad839d1073a598b4402a0d6aa678f7696f924ede95e9d595b474f46e147ba",
+      "curation": "Lossless tables of actual final-V1 records with source/test/report hashes; raw reports omitted."
+    }
+  ],
+  "measurement": {
+    "usableCurrentPCells": 0,
+    "currentPCells": 40,
+    "attemptsPerCell": 1,
+    "alternatingPairs": 7,
+    "repeats": 2,
+    "noiseCap": 0.2,
+    "newProtocolApprovedOrPreregistered": false,
+    "newCalibrationOrCandidateTiming": false,
+    "prototypeCreatedRetainedWithdrawn": false,
+    "promiseCountsProfilesOrAllocatedBytesMeasured": false,
+    "claimedSpeedupCpuAllocationHeapGain": false,
+    "limit": "Current warmup/noise failures block performance retention, not a completed no-change investigation. No retries, widened gates or post-hoc replacement protocol; counts/profiles alone are not benefit."
+  },
+  "notRun": [
+    "Unfiltered package V2 and installed/packed/documentation consumers: no retained source candidate; final integrated CWO-07 owns acceptance.",
+    "Root/grouped/downstream tests; dependency installation, commits, host/configuration or public API changes.",
+    "Candidate comparison, new/retried calibration, CPU profile, promise counters, allocated-byte/heap or MongoDB/HTTP performance measurements."
+  ],
+  "finalHygiene": {
+    "status": "passed",
+    "formatting": "All five explicit maintained/evidence files passed Prettier.",
+    "lint": "Both explicit new maintained TypeScript files passed ESLint and were confirmed nonignored.",
+    "validNewJsonFiles": 2,
+    "resolvedLocalLinks": 15,
+    "resolvedV1Paths": 30,
+    "onlyAllowedNewUnignoredFiles": 5,
+    "privacyIgnoreWhitespace": "passed",
+    "scratchEslintIgnored": true,
+    "protectedPreExistingFiles": 2498,
+    "productionSourceFiles": 153,
+    "unchangedDistFiles": 15,
+    "unchangedDeclarationFiles": 8,
+    "archivedCwo01Payloads": 14,
+    "recordedCwo01Originals": 12,
+    "baselineSealDependencyPackages": 127,
+    "assertedRecords": 60,
+    "deepEqualBaselineNativeRecords": 46,
+    "activeOwnBackgroundJobs": 0,
+    "serializationDeviations": 0,
+    "taskEditedByExecutor": false
+  },
+  "handoff": "Coordinator reconciles CWO-04 as completed bounded no change. Continue only CWO-05 bounded structural path preparation; callbacks stay per row with original actor/facts and fresh exposed arrays. No parser/input-admission/native-snapshot cache or scheduling shortcut is authorized. P remains 0/40 usable; final integrated V2 belongs to CWO-07."
+}

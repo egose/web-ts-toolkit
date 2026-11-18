@@ -1,0 +1,195 @@
+{
+  "task": "CWO-03",
+  "executor": "INPUT-03",
+  "decision": "Completed bounded no-change investigation. No production candidate created, retained, timed or withdrawn; no claimed performance benefit.",
+  "workingDirectory": "<repo-root>",
+  "runtimeTmpdir": "<repo-root>/_tmpc03KSw4 (absolute at execution; disposable)",
+  "productionRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+  "runtime": {
+    "node": "v26.12.1",
+    "pnpmActual": "11.18.0",
+    "rootPackageManager": "pnpm@11.18.0"
+  },
+  "retainedMaintainedFiles": [
+    {
+      "path": "packages/access-router/test/invariants/write-input-prepared-normalization.unit.test.ts",
+      "hash": "68e263ab1f4ee0861505770adaf95b55696c19e5fd440db7a1ab23175e1c8c12",
+      "cases": 31
+    },
+    {
+      "path": "packages/access-router/test/internal/write-input-prepared-construction.unit.test.ts",
+      "hash": "726eed81d55dc40cdda7da21308c096f66df134836d64950e8e85951955947fa",
+      "cases": 3
+    }
+  ],
+  "retainedEvidenceFiles": ["README.md", "verification.json", "observations.json", "work.json"],
+  "withdrawnFiles": [],
+  "productionChanges": [],
+  "taskStatusEdited": false,
+  "commands": [
+    {
+      "name": "Fresh scratch and protection snapshot",
+      "command": "mktemp -d \"$PWD/_tmpc03XXXX\"",
+      "ignoreCommand": "git check-ignore -v _tmpc03KSw4",
+      "result": "Created _tmpc03KSw4; .gitignore:8:_tmp* matched. Read-only git ls-files -co --exclude-standard plus access-router dist hashed 2507 pre-existing files into owned scratch. Source/dist already matched CWO-01."
+    },
+    {
+      "name": "Filtered transitive build and source typecheck",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' pnpm --filter @web-ts-toolkit/access-router typecheck",
+      "expandedScript": "pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json",
+      "buildPackages": ["utils", "http-errors", "express-response-handler", "express-json-router", "access-router"],
+      "result": "passed",
+      "serializationDeviation": "A read-only Prettier proposal command ran alongside this initial typecheck. It wrote only two fresh CWO-03 scratch proposals, not maintained files or dist. No build/typecheck/test/diagnostic command overlapped another such command. All subsequent commands serialized; source-only typecheck repeated serially."
+    },
+    {
+      "name": "Initial two-file fixture wiring",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' CWO03_PREPARED_REPORT='<repo-root>/_tmpc03KSw4/prepared-wiring.json' CWO03_CONSTRUCTION_REPORT='<repo-root>/_tmpc03KSw4/construction-wiring.json' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts --reporter=default --reporter=json --outputFile='<repo-root>/_tmpc03KSw4/wiring-results.json' test/invariants/write-input-prepared-normalization.unit.test.ts test/internal/write-input-prepared-construction.unit.test.ts",
+      "result": "21 failed / 13 passed; only new fixture/expectation errors",
+      "reportBytesHash": "c27033fc291d43711d746b630029a1f2871659d69dbcee59eb283bd35f030cf3",
+      "resolution": "New helper expectations now inspect controlled result.errors instead of generic Bad Request Error.message, and new Mongoose fixtures use the existing Model constructor instead of bare Document without schema. First-error probe compares exact error identity. No production/baseline or public contract change."
+    },
+    {
+      "name": "Corrected two-file wiring",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' CWO03_PREPARED_REPORT='<repo-root>/_tmpc03KSw4/prepared-corrected.json' CWO03_CONSTRUCTION_REPORT='<repo-root>/_tmpc03KSw4/construction-corrected.json' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts --reporter=default --reporter=json --outputFile='<repo-root>/_tmpc03KSw4/corrected-results.json' test/invariants/write-input-prepared-normalization.unit.test.ts test/internal/write-input-prepared-construction.unit.test.ts",
+      "result": "passed",
+      "tests": 34,
+      "files": 2,
+      "durationSeconds": 2.82,
+      "reportBytesHash": "a2f330e5f1437a22581cd939afaef4ac2f0058b2321940aef4b63607927fbe70"
+    },
+    {
+      "name": "Scoped maintained formatting",
+      "command": "pnpm exec prettier --check packages/access-router/test/invariants/write-input-prepared-normalization.unit.test.ts packages/access-router/test/internal/write-input-prepared-construction.unit.test.ts",
+      "result": "passed; formatting edits applied with patch, not --write"
+    },
+    {
+      "name": "Scoped maintained lint",
+      "command": "pnpm exec eslint packages/access-router/test/invariants/write-input-prepared-normalization.unit.test.ts packages/access-router/test/internal/write-input-prepared-construction.unit.test.ts",
+      "result": "passed"
+    },
+    {
+      "name": "Final focused V1",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' CWO03_PREPARED_REPORT='<repo-root>/_tmpc03KSw4/prepared-final.json' CWO03_CONSTRUCTION_REPORT='<repo-root>/_tmpc03KSw4/construction-final.json' CWO_INPUT_OBSERVATIONS_REPORT='<repo-root>/_tmpc03KSw4/native-baseline-final.json' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts --reporter=default --reporter=json --outputFile='<repo-root>/_tmpc03KSw4/v1-results.json' test/invariants/write-output-modes.unit.test.ts test/invariants/write-output-origin-ownership.unit.test.ts test/invariants/write-output-source-lifetime.unit.test.ts test/contracts/service-authorization-input.integration.test.ts test/contracts/request-complexity.integration.test.ts test/contracts/nested-update-integrity.integration.test.ts test/contracts/arts04-parsers-processors.integration.test.ts test/invariants/write-input-native-observations.unit.test.ts test/invariants/write-input-lifecycle-observations.unit.test.ts test/invariants/write-input-dedicated-observations.unit.test.ts test/invariants/write-input-view-boundaries.unit.test.ts test/invariants/owned-authorization-facts.unit.test.ts test/invariants/owned-authorization-boundaries.unit.test.ts test/invariants/owned-authorization-stage.unit.test.ts test/invariants/document-authorization-validation.unit.test.ts test/invariants/authorization-fast-path-native.unit.test.ts test/invariants/service-authorization-subdocument-policies.integration.test.ts test/contracts/service-authorization-subdocuments.integration.test.ts test/contracts/model-subdocument-routes.integration.test.ts test/contracts/subdocument-mutation-visibility.integration.test.ts test/invariants/hook-concurrency.test.ts test/invariants/write-output-authorization.unit.test.ts test/invariants/query-snapshot-options.unit.test.ts test/internal/write-input-parser-scheduling.unit.test.ts test/internal/access-router-input-work.unit.test.ts test/invariants/request-hook-concurrency.test.ts test/invariants/request-persistence-concurrency.test.ts test/invariants/concurrency.test.ts test/invariants/write-input-prepared-normalization.unit.test.ts test/internal/write-input-prepared-construction.unit.test.ts",
+      "result": "passed",
+      "tests": 1074,
+      "files": 30,
+      "newTests": 34,
+      "durationSeconds": 64.52,
+      "failedPending": 0,
+      "reportBytesHash": "82377103869c56a18534c31883708afcc95c4ffbf840d4169a58b77ed8cae060",
+      "jsonDescribeSuites": 84,
+      "note": "Vitest JSON suite totals count describe suites, not file count; testResults contains 30 files. Existing input-work tooling test generated its own fresh ignored smoke probe/seal and two profile-mode wiring operations without a profiler. Not a candidate, replacement P baseline or calibration."
+    },
+    {
+      "name": "Serial source-only typecheck repeat",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' pnpm --filter @web-ts-toolkit/access-router exec tsc --noEmit -p tsconfig.typecheck.json",
+      "result": "passed"
+    },
+    {
+      "name": "Exact layer checker",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' pnpm --filter @web-ts-toolkit/access-router test:layers:check",
+      "result": "passed",
+      "layers": { "contracts": 103, "invariants": 69, "internal": 54 },
+      "exactDefaultUnion": true,
+      "publicGraph": { "files": 137, "modules": 238 }
+    },
+    {
+      "name": "Fresh bounded diagnostic work replay",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' node _tmpc03KSw4/work.mjs",
+      "expandedAlgorithm": "buildInputProbe(repoRoot, TMPDIR/work); collectInputWork(api, 14 exact case objects reconstructed from work.json row IDs); compare relevant input/native/requestBoundary/updateBoundary counters, full phase/callback traces, adapter counts and fingerprints to CWO-01 dictionary records.",
+      "result": "passed; all 14 matching",
+      "records": 14,
+      "sourceFixtureToolDiagnosticBundleMatch": true,
+      "rawWorkBytesHash": "1e5b04bb479f611c60ea8ba0f33e30076bb51b0278438b48aa9d05b1b1f459c6",
+      "replayLimit": "Operational runner omitted and command not runnable from archive. README gives maintained-tool reconstruction. Separate diagnostics only; no timing/profiler/forced GC/candidate or calibration."
+    },
+    {
+      "name": "Protection, native replay and curation",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' node _tmpc03KSw4/curate.mjs",
+      "result": "passed",
+      "protectedPreExistingFiles": 2507,
+      "productionSourceFiles": 153,
+      "unchangedRebuiltDistFiles": 15,
+      "unchangedDeclarationFiles": 8,
+      "archivedCwo01Payloads": 14,
+      "recordedOriginalPayloadsIncludingBaselineManifest": 12,
+      "deepEqualBaselineNativeRecords": 46,
+      "deepEqualCorrectedFinalNewRecords": 34,
+      "note": "Read-only comparison; new proposal JSON only in owned scratch. Selected-metric work summary and formatted observation records promoted with patches. No old seal/source/fixture/tooling/evidence overwritten. Broad guard manifest/runners omitted."
+    },
+    {
+      "name": "Final six-file formatting",
+      "command": "pnpm exec prettier --check packages/access-router/test/invariants/write-input-prepared-normalization.unit.test.ts packages/access-router/test/internal/write-input-prepared-construction.unit.test.ts docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-03/README.md docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-03/verification.json docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-03/observations.json docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-03/work.json",
+      "result": "passed after patch-based README formatting; initial bundle check warned on the new README only"
+    },
+    {
+      "name": "Final new-bundle and scope audit",
+      "command": "TMPDIR='<repo-root>/_tmpc03KSw4' node _tmpc03KSw4/audit.mjs",
+      "result": "passed",
+      "protectedPreExistingFiles": 2507,
+      "onlyAllowedNewUnignoredFiles": 6,
+      "validNewJsonFiles": 3,
+      "resolvedLocalLinksAndAnchors": 15,
+      "resolvedV1Paths": 30,
+      "sourcePackageConfigurationIdentity": true,
+      "recordAndPayloadHashComparison": true,
+      "privacyIgnoreWhitespace": true,
+      "scratchEslintIgnored": true,
+      "activeOwnRuntimeJobs": 0,
+      "note": "Read-only audit; own disposable runner omitted. No old evidence/seal or coordinator task altered. All six new files are nonignored, JSON data equals curated proposals/actual records, and git diff --check plus new-file newline/trailing-whitespace review passed."
+    }
+  ],
+  "preservedJson": [
+    {
+      "path": "observations.json",
+      "bytes": 10950,
+      "hash": "e5a72168b3e55fda59e8f22d5530dffae913309b726c33592a4699f49ff8d1e1",
+      "records": 34,
+      "curation": "Lossless final-V1 record arrays plus provenance. Formatting changes bytes, not values; original report hashes are inside provenance."
+    },
+    {
+      "path": "work.json",
+      "bytes": 5764,
+      "hash": "ff4db68f633a6eeac4612b1a7d377866dd79622407ea479a7ed3c7333c55f95c",
+      "records": 14,
+      "curation": "Exact selected-metric table and fingerprints, not the full raw diagnostic report. Other counters/traces and raw serializer order are intentionally not reconstructable from this summary."
+    }
+  ],
+  "measurement": {
+    "usableCurrentPCells": 0,
+    "currentPCells": 40,
+    "attemptsPerCell": 1,
+    "alternatingPairs": 7,
+    "repeats": 2,
+    "noiseCap": 0.2,
+    "newCalibrationOrCandidateTiming": false,
+    "protocolHostFixtureToleranceChanged": false,
+    "sourcePrototypeCreatedRetainedWithdrawn": false,
+    "claimedSpeedupCpuAllocationHeapGain": false,
+    "limit": "CWO-01 warmup/noise failures block retention, not a completed no-change investigation. No retries, post-hoc new protocol or waivers. A separately named protocol requires coordinator approval/preregistration before candidate inspection."
+  },
+  "notRun": [
+    "Unfiltered package V2 and installed/packed/documentation consumers: no retained source candidate; final integrated CWO-07 owns acceptance.",
+    "Root/grouped/downstream tests; dependency installation, commits, host/configuration/public API changes.",
+    "Candidate comparison, new/retried calibration, CPU profile, allocated-byte/heap measurement or MongoDB/HTTP performance."
+  ],
+  "finalHygiene": {
+    "status": "passed",
+    "formatting": "All six explicit new maintained/evidence files passed Prettier.",
+    "lint": "Both explicit new maintained TypeScript files passed ESLint.",
+    "validNewJsonFiles": 3,
+    "resolvedLocalLinksAndAnchors": 15,
+    "resolvedV1Paths": 30,
+    "assertedRecords": 34,
+    "curatedDiagnosticRecords": 14,
+    "protectedPreExistingFilesUnchanged": 2507,
+    "sourceDistDeclarationsAndPriorEvidenceUnchanged": true,
+    "privacyIgnoreWhitespace": "passed",
+    "taskEditedByExecutor": false,
+    "newBackgroundJobs": 0,
+    "activeBuildTestCalibrationCommands": 0,
+    "serializationDeviationRecorded": true
+  },
+  "handoff": "Coordinator reconciles this bounded no-change decision before CWO-04. Preserve parser native/marker/scheduling/entry/array/FIFO/reentry/error/draining observations, mandatory input preflight/re-admission and stage/facts/publication lifetimes. Do not retry view removal or share mutable input. P remains unavailable for retaining a performance candidate; full final V2 belongs to CWO-07."
+}

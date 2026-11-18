@@ -1,10 +1,12 @@
 # Access-router CRUD panel/window protocol v2
 
-V2 is a separate timing protocol. **V1 code, original source/bundle seals and
-evidence stay unchanged.** It reuses the v1 sealed portable factory; no production
-or fixture-source change is required. All 16 correctness tuples remain covered by
-`packages/access-router/test/access-router-crud-harness.unit.test.ts`. New v2
-regressions live in `access-router-crud-v2.unit.test.ts` in that same test directory.
+V2 is a separate timing protocol. **Original source/bundle seals, protocol settings
+and evidence remain historical and unchanged.** The original v2 reused the v1
+sealed factory without a fixture-source change. Current optional input shapes
+extend that factory and require new matching fixture/source seals and calibration.
+All 16 correctness tuples remain covered by
+`packages/access-router/test/internal/access-router-crud-harness.unit.test.ts`.
+V2 regressions live in `access-router-crud-v2.unit.test.ts` in that same directory.
 
 ## Commands
 
@@ -16,7 +18,7 @@ Replace placeholders before running. No command builds/tests downstream packages
 export TMPDIR='<repo-root>/_tmp-arpc-01-v2-<fresh-id>'
 mkdir "$TMPDIR"
 git check-ignore "$TMPDIR"
-pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/access-router-crud-v2.unit.test.ts test/access-router-crud-harness.unit.test.ts
+pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/internal/access-router-crud-v2.unit.test.ts test/internal/access-router-crud-harness.unit.test.ts
 node scripts/benchmarks/access-router-crud-v2.mjs plan core
 node scripts/benchmarks/access-router-crud-v2.mjs noise '<original-baseline-seal>' "$TMPDIR/core-noise-v2" core
 ```
@@ -140,3 +142,50 @@ deterministic-adapter and checkout-local seal limits documented for v1.
 Keep one compact raw packet plus a concise supplemental report/manifest; there is
 no reason to copy v1's megabyte evidence or repeat full package baseline gates
 when only this harness has changed.
+
+## Current input-focused panels and diagnostics
+
+The original 40-case `core` IDs and the fixed v2 windows/noise rules are unchanged.
+Optional panels below add no new authorization options or input trust:
+
+| Panel family      | Cases per entry, in both active output modes                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `input-small`     | Absent-hook one-field single CREATE / UPDATE by ID                                                               |
+| `input-native`    | Sync-hook 16-field Date/Buffer/BSON/Map/nested UPDATE by ID; direct UPDATE by filter or public single CREATE     |
+| `input-nested`    | Absent-hook plain nested 16-field single CREATE / UPDATE                                                         |
+| `input-async`     | Async-hook native/nested 16-field single CREATE / UPDATE                                                         |
+| `input-markers`   | Sync-hook native/nested 16-field single CREATE / UPDATE with three real date markers                             |
+| `input-functions` | Per-row mutable field functions, native/nested input, narrow output: eight-row/16-field CREATE / 16-field UPDATE |
+
+The diagnostic-only `input-subqueries` shape runs actual authorized target READs
+through an adapter Core, not a stubbed parser result. Its target mode is relevant;
+do not deduplicate that mode axis for timing. All 16 mixed target/write tuples are
+checked in the internal harness, but no subquery timing panel is implied here.
+
+Separate work attribution (source instrumented **only in a disposable diagnostic
+bundle**, exact source anchors checked, production files unchanged):
+
+```sh
+TMPDIR='<repo-root>/_tmp<fresh-short-id>' node scripts/benchmarks/access-router-input-work.mjs '<repo-root>/_tmp<fresh-short-id>/input-work'
+```
+
+This observes actual normalization node/record/array construction sites, selected
+copy and scrub passes, marker/parser entries, rule/path preparation, lifecycle
+conversion sites and stage source/view materialization. Adapter/query/hook traces
+are separate. PROMISE async resources are counted with `async_hooks`; their first
+matched synchronous parser/scheduler/stage owner is approximate, with unassigned
+resources explicit. Counts are not memory bytes, CPU shares or allocation savings.
+The regression compares instrumented and ordinary real-worker output/state hashes.
+
+For separate CPU sampling, the v2 worker accepts `phase: 'profile'` with an exact
+known panel and fixed `operations` counts. It uses 128 untimed warmup operations per
+case and records `hrtime` invocation windows; counters remain disabled. Run it with
+Node `--cpu-prof` **apart from** calibration/builds/tests. `summarizeInputProfile`
+in the input-work driver curates overlap-clipped samples/stacks inside those windows,
+excluding reset/Core/service construction/assertions. Async continuation/engine work
+can remain unattributed; timer bookkeeping, sampling overhead, idle and GC limitations
+must be stated. These profiled CPU values are not P timing acceptance.
+
+The CWO-01 current baseline's preselected panels, provenance, exact raw calibration
+and limits are recorded in
+[its evidence bundle](../../docs/task-artifacts/access-router/20261112-084753-create-update-input-optimization/cwo-01/README.md).

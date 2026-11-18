@@ -128,7 +128,7 @@ package-managed execution, falling back to `defaultRuntime` outside it.
 
 | Layer / public type                                                             | Where to put it                                                                                         | Scope and examples                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime/global — `GlobalOptions`                                                | `api.setGlobalOptions({...})`, `api.setGlobalOption(key, value)`; `api.set` is an alias for these forms | That runtime's request grants (`globalPermissions`, `requestPermissionField`), logger and `requestComplexity`.                                                                                              |
+| Runtime/global — `GlobalOptions`                                                | `api.setGlobalOptions({...})`, `api.setGlobalOption(key, value)`; `api.set` is an alias for these forms | That runtime's request grants (`globalPermissions`, `requestPermissionField`), logger, `requestComplexity` and `authorizationSnapshotProxyLog`.                                                             |
 | Model defaults — `DefaultModelRouterOptions`                                    | `api.setDefaultModelOptions({...})`, `api.setDefaultModelOption(path, value)`                           | Inherited values such as IDs, `operationAccess`, `hydration`, metadata posture and the two populate operation flags. Data/root routers do not inherit them.                                                 |
 | Model router — `ModelRouterOptions<Model, Virtuals>`                            | `api.setModelOptions(name, {...})`, `api.createRouter(Model, {...})`, then router setters               | One registered model's guards, `permissionSchema`, hooks, virtuals, `hydration`, method defaults and target-owned populate flags. Routers for the same model/runtime share stored options.                  |
 | Data router — `DataRouterOptions<Data>`                                         | `api.createDataRouter(name, {...})`, its setters, or `api.runtime.setDataOptions` / `setDataOption`     | Owned in-memory `data`, list/read guards, request-only fields/filters and decorators. No model `defaults` or model authorization policy. Set `idParam` and `idField` explicitly for data identifier routes. |
@@ -649,6 +649,33 @@ configuration with an **effective object `permissionSchema`** in the owning runt
 Runtime model defaults may supply the schema; `{}` explicitly closes business fields.
 Missing registration/schema is controlled BadRequest before target I/O or initiating
 mutation persistence. Unused ordinary schema refs need not be configured at startup.
+
+#### Authorization snapshot Proxy diagnostics
+
+Authorization policy values, query filters and captured configuration must be
+plain, stable data: a `Proxy` anywhere in a snapshotted value can execute
+application code during authorization, return different values on repeated
+reads, and defeat check-then-act (TOCTOU) isolation. Snapshot capture therefore
+**fails closed** with a controlled `Service authorization: proxy snapshot input`
+BadRequest — including values nested inside policy, filters or captured
+configuration (for example, a `baseFilter` hook closing over a proxied object).
+
+Each rejection also emits one diagnostic log carrying the value's **property
+path** (for example `$.scope.$or[0].toRoles.$in`) and stack, never the rejected
+value itself — inspecting a Proxy could execute its traps or expose policy
+contents. Set the global option
+`api.setGlobalOption('authorizationSnapshotProxyLog', 'error' | 'warn' | 'silent')`
+to tune log noise; rejection always fails closed regardless of this setting,
+and invalid values are treated as `'error'`. Requests running in package-managed
+execution read the active runtime's current global options; standalone capture
+outside an active runtime uses `defaultRuntime`'s latest written state. Logs
+route through the same runtime's configured `GlobalOptions.logger`; the built-in
+default logger emits nothing unless `WTT_LOG_LEVEL` (for example `error`) is
+set, so configure a logger to see these diagnostics without environment
+variables.
+
+Fix the proxied source (produce plain objects/arrays in policy hooks) rather
+than suppressing the log: the option tunes diagnostics, not authorization.
 There is no raw/unregistered passthrough. Configure a model without mounting target
 HTTP routes using `registerModelInstance` + `setModelOptions`; its own read/list can
 stay false while ordinary population skips only target operation admission with

@@ -1,0 +1,415 @@
+{
+  "format": "cwo-03-asserted-input-characterization-v1",
+  "productionRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
+  "provenance": {
+    "preparedTest": "packages/access-router/test/invariants/write-input-prepared-normalization.unit.test.ts",
+    "preparedTestHash": "68e263ab1f4ee0861505770adaf95b55696c19e5fd440db7a1ab23175e1c8c12",
+    "constructionTest": "packages/access-router/test/internal/write-input-prepared-construction.unit.test.ts",
+    "constructionTestHash": "726eed81d55dc40cdda7da21308c096f66df134836d64950e8e85951955947fa",
+    "originalPreparedBytesHash": "8c3c13c220feae2dd5e6cd74911519ce2eee47be5a7ec07ffdc24a09778c6c85",
+    "originalConstructionBytesHash": "dcbf6a7fa420cef63da6e2e60a4441550a5e307b9c8c62aa15a18760eded3530"
+  },
+  "records": [
+    {
+      "kind": "discarded-bound",
+      "boundary": "preflight",
+      "shape": "dense",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "preflight",
+      "shape": "sparse",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "preflight",
+      "shape": "map",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "admission",
+      "shape": "dense",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "admission",
+      "shape": "sparse",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "admission",
+      "shape": "map",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "prepared",
+      "shape": "dense",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "prepared",
+      "shape": "sparse",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "discarded-bound",
+      "boundary": "prepared",
+      "shape": "map",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "maxNodes": 20000
+    },
+    {
+      "kind": "normalized-return-bound",
+      "boundary": "preflight",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "conversions": 1,
+      "maxNodes": 20000
+    },
+    {
+      "kind": "normalized-return-bound",
+      "boundary": "admission",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "conversions": 1,
+      "maxNodes": 20000
+    },
+    {
+      "kind": "normalized-return-bound",
+      "boundary": "prepared",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: input exceeds maximum node budget of 20000"
+          }
+        ]
+      },
+      "conversions": 1,
+      "maxNodes": 20000
+    },
+    {
+      "kind": "preflight-snapshot",
+      "result": {
+        "success": false,
+        "kind": "error",
+        "code": "bad_request",
+        "errors": [
+          {
+            "detail": "Service authorization: Unsupported key: constructor"
+          }
+        ]
+      },
+      "nativeCalls": 1,
+      "originalKeyRemoved": true
+    },
+    {
+      "kind": "selected-native-copy",
+      "events": ["requested.raw", "discarded.raw", "requested.normalized"],
+      "normalizedSelectedTime": 21,
+      "originalTime": 1
+    },
+    {
+      "kind": "prepared-shape",
+      "nativeCalls": 2,
+      "sparse": true,
+      "distinctOccurrences": true,
+      "detached": true
+    },
+    {
+      "kind": "retained-context-bound",
+      "mode": "isolated",
+      "operation": "create",
+      "events": ["validate", "prepare.enter", "retained.mutation", "prepare.exit"],
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "retained-context-bound",
+      "mode": "isolated",
+      "operation": "update",
+      "events": ["validate", "prepare.enter", "retained.mutation", "prepare.exit"],
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "retained-context-bound",
+      "mode": "trusted",
+      "operation": "create",
+      "events": ["validate", "prepare.enter", "retained.mutation", "prepare.exit"],
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "retained-context-bound",
+      "mode": "trusted",
+      "operation": "update",
+      "events": ["validate", "prepare.enter", "retained.mutation", "prepare.exit"],
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "prepared-native-expansion",
+      "mode": "isolated",
+      "operation": "create",
+      "nativeCalls": 1,
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "prepared-native-expansion",
+      "mode": "isolated",
+      "operation": "update",
+      "nativeCalls": 1,
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "prepared-native-expansion",
+      "mode": "trusted",
+      "operation": "create",
+      "nativeCalls": 1,
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "prepared-native-expansion",
+      "mode": "trusted",
+      "operation": "update",
+      "nativeCalls": 1,
+      "code": "bad_request",
+      "writes": 0
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "isolated",
+      "operation": "create",
+      "entry": "direct",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "isolated",
+      "operation": "create",
+      "entry": "public",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "isolated",
+      "operation": "update",
+      "entry": "direct",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "isolated",
+      "operation": "update",
+      "entry": "public",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "trusted",
+      "operation": "create",
+      "entry": "direct",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "trusted",
+      "operation": "create",
+      "entry": "public",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "trusted",
+      "operation": "update",
+      "entry": "direct",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "override-normalization",
+      "mode": "trusted",
+      "operation": "update",
+      "entry": "public",
+      "events": ["validate", "prepare", "toObject", "native"],
+      "conversions": 1,
+      "nativeCalls": 1,
+      "writes": 1,
+      "detached": true
+    },
+    {
+      "kind": "normalization-before-catalog",
+      "events": [
+        "native.late",
+        "catalog.early",
+        "catalog.early",
+        "catalog.early",
+        "catalog.early",
+        "catalog.early",
+        "catalog.early",
+        "catalog.early"
+      ],
+      "nativeCalls": 1
+    },
+    {
+      "kind": "normalization-first-error",
+      "nativeCalls": 2,
+      "catalogReads": 0,
+      "validationErrorDeferred": true
+    },
+    {
+      "kind": "normalized-shell-exposure",
+      "nativeCalls": 1,
+      "exposures": 1,
+      "rawNormalizedFinalDistinct": true,
+      "protectedKeyRetainedOnlyInIntermediate": true
+    }
+  ],
+  "limitation": "Final focused V1 asserted characterization, not timing/allocation/heap measurements. Record arrays are copied losslessly; source tests remain maintained. Original reports and build/dependency/runtime trees are omitted."
+}

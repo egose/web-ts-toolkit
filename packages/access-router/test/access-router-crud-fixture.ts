@@ -36,12 +36,21 @@ export const operations = [
   'upsert-update',
 ] as const;
 export type CrudOperation = (typeof operations)[number];
+/** Optional input-focused shapes. The original v1 catalog/IDs remain historical and unchanged. */
+export const inputShapes = [
+  'input-nested',
+  'input-native',
+  'input-async',
+  'input-functions',
+  'input-markers',
+  'input-subqueries',
+] as const;
 export type CrudCase = {
   id: string;
   modes: AuthorizationMode[];
   entry: 'direct' | 'public';
   operation: CrudOperation;
-  shape: 'hooks' | 'bare' | 'rich' | 'metadata' | 'logging';
+  shape: 'hooks' | 'bare' | 'rich' | 'metadata' | 'logging' | (typeof inputShapes)[number];
   rows: number;
   width: number;
 };
@@ -68,6 +77,23 @@ export function crudCatalog(): CrudCase[] {
   return result;
 }
 
+/** Bounded diagnostics/correctness extension, not a new default timing Cartesian product. */
+export function inputCatalog(): CrudCase[] {
+  const result: CrudCase[] = [];
+  const add = (c: Omit<CrudCase, 'id'>) => result.push({ ...c, id: caseId(c) });
+  for (const modes of [tuples[0], tuples[15]])
+    for (const entry of ['direct', 'public'] as const)
+      for (const shape of inputShapes) {
+        for (const operation of operations.filter((op) => /^(create|update|upsert)-/.test(op))) {
+          if (entry === 'public' && operation === 'update-filter') continue;
+          add({ modes, entry, operation, shape, rows: operation === 'create-bulk' ? 8 : 1, width: 16 });
+        }
+        for (const operation of ['create-single', 'update-id'] as const)
+          add({ modes, entry, operation, shape, rows: 1, width: 1 });
+      }
+  return result;
+}
+
 export function validateCase(c: CrudCase) {
   assert.equal(c.id, caseId(c), 'fixture label mismatch');
   assert.equal(c.modes.length, 4, 'four modes required in READ/LIST/CREATE/UPDATE order');
@@ -75,7 +101,7 @@ export function validateCase(c: CrudCase) {
   assert.ok(operations.includes(c.operation), 'unknown CRUD operation');
   assert.ok(['direct', 'public'].includes(c.entry), 'unknown worker entry');
   assert.ok(c.entry !== 'public' || c.operation !== 'update-filter', 'no public filter-update API');
-  assert.ok(['hooks', 'bare', 'rich', 'metadata', 'logging'].includes(c.shape), 'unknown workload');
+  assert.ok(['hooks', 'bare', 'rich', 'metadata', 'logging', ...inputShapes].includes(c.shape), 'unknown workload');
   assert.ok(Number.isSafeInteger(c.rows) && c.rows > 0 && c.rows <= 32, 'row bound');
   assert.ok(Number.isSafeInteger(c.width) && c.width > 0 && c.width <= 24, 'width bound');
 }
@@ -93,8 +119,12 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
     }
   };
   const rich = c.shape === 'rich';
+  const inputShape = (inputShapes as readonly string[]).includes(c.shape);
+  const nested = rich || inputShape;
+  const native = rich || (inputShape && c.shape !== 'input-nested');
+  const functionRules = c.shape === 'input-functions';
   const metadata = c.shape === 'metadata';
-  const hooks = c.shape !== 'bare';
+  const hooks = c.shape !== 'bare' && c.shape !== 'input-nested';
   const fields = Array.from({ length: c.width }, (_, i) => `f${i}`);
   const schema = new mongoose.Schema(
     {
@@ -130,9 +160,26 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
     when: true,
     payload: true,
     ...Object.fromEntries(fields.map((key) => [key, true])),
-    children: { read: true, list: true, create: true, update: true, sub: { label: 'doc:owner', hidden: false } },
+    children: {
+      read: true,
+      list: true,
+      create: true,
+      update: true,
+      sub: { label: inputShape ? true : 'doc:owner', hidden: false },
+    },
     nested: { read: true, list: true, create: true, update: true, sub: { safe: true } },
   };
+  if (functionRules)
+    for (const field of ['value', ...fields])
+      permissionSchema[field] = Object.fromEntries(
+        ['read', 'list', 'create', 'update'].map((access) => [
+          access,
+          function (permissions: Permission) {
+            work(`rule.${access}.${field}`);
+            return permissions.has('reader');
+          },
+        ]),
+      );
   const hook = function (doc: any, _p: unknown, context: any) {
     work(`hook.${context.docPermissionsAccess}.${doc instanceof mongoose.Document ? 'input' : 'output'}`);
     if (!(doc instanceof mongoose.Document)) doc.value = `hook:${doc.value}`;
@@ -171,12 +218,13 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
     },
     ...(hooks
       ? {
-          docPermissions: rich
-            ? async (...args: Parameters<typeof hook>) => {
-                await Promise.resolve();
-                return hook(...args);
-              }
-            : hook,
+          docPermissions:
+            rich || c.shape === 'input-async'
+              ? async (...args: Parameters<typeof hook>) => {
+                  await Promise.resolve();
+                  return hook(...args);
+                }
+              : hook,
         }
       : {}),
     ...(rich
@@ -261,6 +309,14 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
       return adapter;
     }
   }
+  // Only the optional $$sq fixture uses this adapter Core. Target admission,
+  // target Service/PublicService authorization and output still execute normally.
+  class AdapterCore extends Core {
+    getPublicService<TModel = unknown, TVirtuals extends object = Record<never, never>>(name: string) {
+      assert.equal(name, model.modelName, 'unexpected deterministic subquery target');
+      return new PublicWorker(this.req, name) as PublicService<TModel, TVirtuals>;
+    }
+  }
   function receivers() {
     const request = {
       [PERMISSIONS]: new Permission({ reader: true }),
@@ -270,7 +326,7 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
       get: () => undefined,
     } as unknown as ModelRequest;
     return runWithRuntime(runtime, () => {
-      request.macl = new Core(request);
+      request.macl = c.shape === 'input-subqueries' ? new AdapterCore(request) : new Core(request);
       return {
         direct: new DirectWorker(request, model.modelName),
         public: new PublicWorker(request, model.modelName),
@@ -290,10 +346,21 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
     value: `value-${index}`,
     owner: index % 2 === 0,
     hidden: 'DENIED',
-    ...(rich
+    ...(nested
       ? {
-          when: new Date(7),
-          payload: { bytes: Buffer.from('native'), stamp: new Date(9) },
+          ...(native ? { when: new Date(7) } : {}),
+          payload: native
+            ? {
+                bytes: Buffer.from('native'),
+                stamp: new Date(9),
+                ...(inputShape
+                  ? {
+                      code: new mongoose.mongo.BSON.Code('return n', { n: new mongoose.mongo.BSON.Int32(7) }),
+                      map: new Map([['a', { stamp: new Date(11), text: 'mapped' }]]),
+                    }
+                  : {}),
+              }
+            : { branch: { a: { b: 'plain' } }, items: [{ label: 'one' }, { label: 'two' }] },
           children: [{ label: 'child', hidden: 'DENIED' }],
           nested: { safe: 'safe' },
         }
@@ -302,10 +369,34 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
   });
   const input = () => {
     const { _id, ...data } = row(0);
-    return { ...data, value: 'submitted', hidden: 'attempted-write' };
+    const result: Record<string, any> = { ...data, value: 'submitted', hidden: 'attempted-write' };
+    if (c.shape === 'input-markers') {
+      result.when = { $$date: 7 };
+      result.payload.stamp = { $$date: 9 };
+      result.payload.map = { a: { stamp: { $$date: 11 }, text: 'mapped' } };
+    }
+    if (c.shape === 'input-subqueries')
+      result.payload.lookup = {
+        $$sq: {
+          model: model.modelName,
+          op: 'read',
+          id: 'row-0',
+          args: { select: ['f0', '-_id'] },
+          options: { includePermissions: false, includeFieldPermissions: false, tryList: false },
+          sqOptions: { path: 'f0' },
+        },
+      };
+    return result;
   };
   const args = {
-    select: ['value', ...fields, 'hidden', ...(rich ? ['when', 'payload', 'children', 'nested', 'label'] : []), '-_id'],
+    select: [
+      'value',
+      ...(functionRules ? [] : fields),
+      'hidden',
+      ...(nested && !functionRules ? [...(native ? ['when'] : []), 'payload', 'children', 'nested'] : []),
+      ...(rich ? ['label'] : []),
+      '-_id',
+    ],
   };
   const output = { includePermissions: metadata, includeFieldPermissions: metadata, includeCount: false };
   const filter = c.shape === 'logging' ? { $and: Array.from({ length: 24 }, () => ({ owner: true })) } : {};
@@ -407,14 +498,26 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
       );
       assert.equal(Object.hasOwn(out, 'hidden'), false, 'denied field leaked');
       assert.equal(Object.hasOwn(out, '_id'), false, 'negative selection ignored');
-      for (const field of fields) assert.equal(out[field], row(0)[field], 'selected field mismatch');
-      if (rich) {
-        assert.equal(out.when.getTime(), 7);
-        assert.equal(out.payload.bytes.toString(), 'native');
-        assert.equal(out.payload.stamp.getTime(), 9);
-        assert.deepEqual(out.children, creating || updating || index % 2 === 0 ? [{ label: 'child' }] : [{}]);
+      for (const field of fields)
+        assert.equal(out[field], functionRules ? undefined : row(0)[field], 'selected field mismatch');
+      if (nested && !functionRules) {
+        if (native) {
+          assert.equal(out.when.getTime(), 7);
+          assert.equal(out.payload.bytes.toString(), 'native');
+          assert.equal(out.payload.stamp.getTime(), 9);
+          if (inputShape) {
+            assert.equal(out.payload.code.scope.n.valueOf(), 7);
+            assert.equal(out.payload.map.a.stamp.getTime(), 11);
+            assert.equal(out.payload.map.a.text, 'mapped');
+          }
+          if (c.shape === 'input-subqueries' && (creating || updating)) assert.equal(out.payload.lookup, row(0).f0);
+        } else assert.deepEqual(out.payload, row(0).payload);
+        assert.deepEqual(
+          out.children,
+          inputShape || creating || updating || index % 2 === 0 ? [{ label: 'child' }] : [{}],
+        );
         assert.deepEqual(out.nested, { safe: 'safe' });
-        assert.equal(out.label, `virtual:${out.value}`);
+        if (rich) assert.equal(out.label, `virtual:${out.value}`);
       }
       if (metadata) {
         assert.ok(out.permissions && out.permissions._view && out.permissions._edit, 'field maps missing');
@@ -431,10 +534,17 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
         assert.equal(stored.value, 'submitted');
         assert.equal(stored.hidden, updating ? 'DENIED' : undefined, 'denied input changed persistence');
         for (const field of fields) assert.equal(stored[field], row(0)[field], 'persisted allowed field mismatch');
-        if (rich) {
-          assert.equal(stored.when.getTime(), 7);
-          assert.equal(stored.payload.stamp.getTime(), 9);
-          assert.equal(stored.payload.bytes.toString(), 'native');
+        if (nested) {
+          if (native) {
+            assert.equal(stored.when.getTime(), 7);
+            assert.equal(stored.payload.stamp.getTime(), 9);
+            assert.equal(stored.payload.bytes.toString(), 'native');
+            if (inputShape) {
+              assert.equal(stored.payload.code.scope.n.valueOf(), 7);
+              assert.equal(stored.payload.map.a.stamp.getTime(), 11);
+            }
+            if (c.shape === 'input-subqueries') assert.equal(stored.payload.lookup, row(0).f0);
+          } else assert.deepEqual(stored.payload, row(0).payload);
           assert.equal(stored.children[0].label, 'child');
           assert.deepEqual(stored.nested, { safe: 'safe' });
         }
@@ -456,12 +566,12 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
     if (writes) {
       const live = creating ? docs.at(-1) : docs[0];
       live.value = 'after-publication';
-      if (rich) {
+      if (native) {
         live.when.setTime(100);
         live.payload.bytes.fill(0);
       }
       assert.notEqual(rows.at(-1).value, 'after-publication');
-      if (rich) {
+      if (native && !functionRules) {
         assert.equal(rows.at(-1).when.getTime(), 7);
         assert.equal(rows.at(-1).payload.bytes.toString(), 'native');
       }
@@ -479,6 +589,11 @@ export function createCrudFixture(c: CrudCase, diagnostic = false) {
     adapter,
     counts,
     trace,
+    input,
+    args,
+    get saved() {
+      return saved;
+    },
     reset,
     invoke,
     check,

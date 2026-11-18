@@ -1,0 +1,60 @@
+{
+  "task": "CWO-01",
+  "executor": "BASELINE-01",
+  "productionRevision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
+  "kind": "baseline-versus-baseline-only",
+  "protocol": "access-router-crud-panels-v2",
+  "selectors": [
+    "single-direct",
+    "single-public",
+    "upsert-direct",
+    "upsert-public",
+    "rich-public",
+    "input-small-direct",
+    "control-direct",
+    "input-native-direct",
+    "input-markers-public",
+    "input-functions-direct"
+  ],
+  "panels": 10,
+  "cases": 40,
+  "rounds": 7,
+  "repeats": 2,
+  "concurrency": 1,
+  "maxNoise": 0.2,
+  "maxBatchSeconds": 1800,
+  "attempts": 1,
+  "packets": [
+    {
+      "name": "writes",
+      "selectors": ["single-direct", "single-public", "upsert-direct", "upsert-public", "rich-public"]
+    },
+    {
+      "name": "inputs",
+      "selectors": [
+        "input-small-direct",
+        "control-direct",
+        "input-native-direct",
+        "input-markers-public",
+        "input-functions-direct"
+      ]
+    }
+  ],
+  "packetRationale": "Pre-data grouping of the same 40 selected cells into two non-overlapping five-panel packets to respect v2's 30-minute per-packet hard budget. Each cell is calibrated once with seven pairs/two repeats; packets run sequentially, with no retry, selection dropping or changed noise/window gate. Total campaign hard budget is at most 60 minutes.",
+  "separateCpuProfiles": {
+    "selectors": ["input-functions-direct", "input-native-direct"],
+    "operationsPerCase": 256,
+    "warmupOperationsPerCase": 128,
+    "samplingIntervalMicros": 500,
+    "claim": "Bounded baseline attribution only; exclude reset/assertions with invocation windows. No candidate timing, exclusive CPU-share or allocation benefit claim."
+  },
+  "modeAxisRationale": "These calibrated writes and controls have no related-model targets. Only the active operation output mode matters, so timing uses homogeneous iiii/tttt; all 16 tuples remain in real-worker correctness. The diagnostic-only input-subqueries shape does have target READ work and is not timing-deduplicated or calibrated here.",
+  "selectionRationale": "Direct/public single writes and both UPSERT branches; public wide async native bulk CREATE plus LIST; absent-hook tiny writes; shared bare READ/singleton LIST; native UPDATE by ID/filter; date-marker public writes; narrow-output function-rule wide direct writes. Diagnostic/correctness coverage separately includes both entries for every new input shape, ordinary nesting, static rules and small/wide widths.",
+  "retention": "No candidate timing or production change in CWO-01. Relevant work reduction plus measured benefit in both affected modes and every required non-regression cell remain mandatory. Unsettled warmup, short windows or noise above the fixed cap block retention; no retry, cell dropping or tolerance widening.",
+  "excludedMetrics": [
+    "real MongoDB latency",
+    "HTTP latency",
+    "heap allocation bytes or retained heap",
+    "candidate benefit"
+  ]
+}
