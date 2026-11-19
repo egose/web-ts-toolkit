@@ -112,7 +112,7 @@ conversion method bodies and arbitrary callback closures are not sandboxed.
 
 ## Verification actually run
 
-All commands ran serially from repository root. Node `v26.12.1`, pnpm `11.18.0`,
+All commands ran serially from repository root. Node `v26.12.1`, pnpm `11.24.0`,
 Vitest `4.1.11`; installed dependencies and MongoDB memory-server prerequisites
 were available. No install was run.
 

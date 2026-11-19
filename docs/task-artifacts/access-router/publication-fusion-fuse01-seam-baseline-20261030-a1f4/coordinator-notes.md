@@ -63,7 +63,7 @@ and **33 package dependency links** verified. CJS/ESM runtime export names saved
 in `exports-before.json` (root 46 each, advanced 48 each, processors 6 each).
 
 HEAD: `46d85e87743b49f5891d5844233f5b7bdf6d31f0`; VERSION `0.62.0`;
-Node `26.12.1`, pnpm `11.18.0`, Vitest `4.1.11`. Actual worker dependencies:
+Node `26.12.1`, pnpm `11.24.0`, Vitest `4.1.11`. Actual worker dependencies:
 Mongoose **9.11.4**, Express **5.2.1**, Zod **4.4.3**, MongoDB **8.2.6**.
 Do not mistake package.json ranges for installed dependency versions.
 

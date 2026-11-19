@@ -11,7 +11,7 @@
     "node": "v26.12.1",
     "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
     "esbuild": "0.28.2",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
     "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },

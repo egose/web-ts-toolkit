@@ -10,8 +10,8 @@
   "baselineBundleHash": "bedc39ab29d52573945451bf8bd1f6404c8228394a3b72589febf153bd55fbf4",
   "runtime": {
     "node": "v26.12.1",
-    "pnpmActual": "11.18.0",
-    "rootPackageManager": "pnpm@11.18.0",
+    "pnpmActual": "11.24.0",
+    "rootPackageManager": "pnpm@11.24.0",
     "unchangedToolVersionsPnpm": "11.24.0"
   },
   "retainedMaintainedFiles": [

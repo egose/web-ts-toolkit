@@ -136,7 +136,7 @@ context, NOT direct cross-time candidate pairing or pooled evidence.
   four tarballs. Minimum/current peer/module matrices preserved.
 - HEAD `58b22c0d6d3abd4ecce03533e3867d148ff21233`, lock
   `ef86ef24726d09f81d1262656920d6215caeb0f26e345198db2d27b8ab7ab314` unchanged.
-  Node **26.12.1**, pnpm **11.18.0**, Mongo **8.2.6**/binary hashes pinned.
+  Node **26.12.1**, pnpm **11.24.0**, Mongo **8.2.6**/binary hashes pinned.
 - `FINAL-SEAL.json`, `CAMPAIGN-FILES.json`, `COMMANDS.json` and `FINAL-CLOSURE.json`
   close this packet. **No owned worker/Mongo/build/test jobs remain.** No delegation,
   task/status edits, commit/publish, dependency/lock edit, revert, old evidence/cache

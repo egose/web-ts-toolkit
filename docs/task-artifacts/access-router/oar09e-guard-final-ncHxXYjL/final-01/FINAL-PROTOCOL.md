@@ -20,7 +20,7 @@ The three earlier failed campaigns remain separate, unchanged and truthful.
 - Protocol JSON SHA256:
   `052386cd6a0f1e8ab5461e64dc7302daefc7b86dc4f24cf1088d6af4f21a4ad8`.
 - New **13-tool seal**, 293 tool dependencies/10,545 files; product external closure
-  134 packages/3,510 files. Node **26.12.1**, pnpm **11.18.0**, actual Mongo **8.2.6**;
+  134 packages/3,510 files. Node **26.12.1**, pnpm **11.24.0**, actual Mongo **8.2.6**;
   binary identities and lock `ef86ef24…` are pinned in metadata and rehashed.
 - Comparator remains the **original**
   `_tmp-oar01-20261031-153820/baseline-artifact/`, root ESM

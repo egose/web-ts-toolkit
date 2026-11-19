@@ -89,7 +89,7 @@ maintained harness hashes and original operational manifest hash.
 - Production source SHA-256: `f2d472bbe1f390005f0ebe62f548608a1a155d7c9dc8bc1e85f2122559999480`.
 - Compiled worker SHA-256: `c3eaa928d506f8023b92061db8244e20549ea9b91c17faefd6b73767a7f4125c`.
 - Fixture SHA-256: `f63cb41394ec473abe463794f720247b00644f0238b9d0016e6b3d8ed2bd7e4d`.
-- Node `v26.12.1`, pnpm `11.18.0`, esbuild `0.28.2`, Mongoose `9.11.4`,
+- Node `v26.12.1`, pnpm `11.24.0`, esbuild `0.28.2`, Mongoose `9.11.4`,
   MongoDB Node driver `7.7.0`; workspace runtime dependencies from the same checkout.
 - Linux x64 / WSL2 kernel `6.18.54.1-microsoft-standard-WSL2`, Intel i9-13950HX,
   16 logical CPUs. One measured client; fixture hook/bulk/persistence concurrency 2.

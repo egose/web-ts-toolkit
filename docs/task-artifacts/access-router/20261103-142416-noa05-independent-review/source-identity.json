@@ -2,7 +2,7 @@
   "head": "c25b0e7a2341d17f764cf183160d61b8470fb9fb",
   "worktree": "HEAD plus shared uncommitted implementation; HEAD alone is not the reviewed identity",
   "node": "v26.12.1",
-  "pnpm": "11.18.0",
+  "pnpm": "11.24.0",
   "watchedFileCount": 1744,
   "sourceScope": {
     "enumeration": "git ls-files -z plus git ls-files --others --exclude-standard -z; sorted unique paths; regular files only",

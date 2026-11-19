@@ -11,7 +11,7 @@
     ["packages/access-router/src/helpers/index.ts", "035e8b9d684f15d734dba66232f17b81c27041a1b236c4cb3f5af5e3623739ed"],
     ["packages/access-router/src/services/base.ts", "0a5a0cb53086358652d96bc62dea2319932351e692deba614769a276ada6c8af"]
   ],
-  "runtime": { "node": "v26.12.1", "pnpmActual": "11.18.0", "rootPackageManager": "pnpm@11.18.0" },
+  "runtime": { "node": "v26.12.1", "pnpmActual": "11.24.0", "rootPackageManager": "pnpm@11.24.0" },
   "retainedMaintainedFiles": [
     {
       "path": "packages/access-router/test/internal/write-input-parser-observations.unit.test.ts",

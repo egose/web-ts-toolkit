@@ -117,7 +117,7 @@ arbitrary trusted callbacks remain excluded. No whole-memory promise is made.
   workspace artifacts/129 external packages, and **293 / 10,545 tool records**.
   Mongoose **9.11.4 was already in the original benchmark dependency seal**; the
   separate historical 9.8.0 peer consumer is not benchmark dependency drift.
-- Actual runtime: Node **26.12.1**, pnpm **11.18.0**, TS **6.0.3**, Mongo **8.2.6**,
+- Actual runtime: Node **26.12.1**, pnpm **11.24.0**, TS **6.0.3**, Mongo **8.2.6**,
   Mongoose **9.11.4**, Express **5.2.1**. Node/process.versions, actual executable,
   pnpm and existing Mongo binary hashes are pinned. All protocol paths are
   repo-relative; new binary aliases refer to the already pinned installed bytes.

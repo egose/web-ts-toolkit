@@ -147,7 +147,7 @@ storage remains detached. No speedup, allocation or heap-size claim is made.
 
 All top-level build/type/test commands were awaited serially. Recursive tests kept
 `--workspace-concurrency=1`; the runner also supplied `npm_config_workspace_concurrency=1`.
-Node `v26.12.1`, pnpm `11.18.0`, Vitest `4.1.11`; existing dependencies/Mongo/browser
+Node `v26.12.1`, pnpm `11.24.0`, Vitest `4.1.11`; existing dependencies/Mongo/browser
 prerequisites. Fresh `_tmp-oam05-revalidation-20261104-075213` was confirmed ignored.
 Every runtime command used its absolute checkout path as `TMPDIR`.
 

@@ -173,7 +173,7 @@ guide matrices still genuinely fail and require OAR-08 migration.
   `ef86ef24726d09f81d1262656920d6215caeb0f26e345198db2d27b8ab7ab314`.
 - Sealed baseline ESM remains
   `33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822`.
-- Existing pnpm 11.18.0 and Mongo binary are used read-only; all new installs are
+- Existing pnpm 11.24.0 and Mongo binary are used read-only; all new installs are
   isolated consumer fixtures with forced offline/ignore-scripts, not workspace
   dependency changes. No previous giant fixture tree was cloned.
 - **No owned jobs remain.** Tests/servers/Mongo/compiler/build work are finished.

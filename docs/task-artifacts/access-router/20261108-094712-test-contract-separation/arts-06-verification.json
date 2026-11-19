@@ -13,7 +13,7 @@
   "TMPDIR": "<repo-root>/_tmp-arts-06-fs1dw7i0",
   "toolchain": {
     "node": "v26.12.1",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "platform": "linux",
     "arch": "x64",
     "typescript": "6.0.3",

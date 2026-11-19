@@ -608,7 +608,7 @@ bin shims; 5,164 symlinks checked, **zero outside-snapshot links and zero live-p
 bin shims**. Initial correspondence: no captured source changed, all **179 owned
 package/website/ABB-fixture files** match live bytes. Owned manifest identity:
 `01990c32970d1c59fe3e80532c408900b1fafe0c77a2880762f5ac8189748583`.
-Node v26.7.0, pnpm 11.18.0 (packageManager-pinned), Linux; existing Mongo/browser
+Node v26.7.0, pnpm 11.24.0 (packageManager-pinned), Linux; existing Mongo/browser
 caches remain available. Missing CLI-bin install notices reflect intentionally
 unbuilt local outputs; repository builds will generate them. Unrelated mongoose-rxdb
 edits already differ after capture and are outside the captured-state verdict.
@@ -815,7 +815,7 @@ Completion evidence (ARC-04 final, 2026-09-26):
   zero differences between all 181 owned files and live. This covers the entire
   access-router package/website, all five ABB-07 external fixture repairs, the new
   Express-runtime export fixture and adopted mongoose-rxdb regex fixture.
-- **Environment/isolation:** Linux, Node v26.7.0, pinned pnpm 11.18.0; independent
+- **Environment/isolation:** Linux, Node v26.7.0, pinned pnpm 11.24.0; independent
   workspace dependency links, bin shims and generated outputs. Final audit checked
   5,704 symlinks: zero outside-snapshot targets and zero live-path bin shims.
   Final tests/lint used `TMPDIR=<repo-root>/_tmp/arc04-20260926-193734/tmp`, a sibling

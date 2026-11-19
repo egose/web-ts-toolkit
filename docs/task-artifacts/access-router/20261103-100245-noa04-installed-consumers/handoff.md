@@ -106,7 +106,7 @@ Paths below start at the repository root.
 
 ## Verification
 
-Working directory: repository root. Node **26.12.1**, pnpm **11.18.0**.
+Working directory: repository root. Node **26.12.1**, pnpm **11.24.0**.
 Fresh `_tmp-noa04-I2bo1b99` was created with
 `mktemp -d -p "$PWD" _tmp-noa04-XXXXXXXX` and confirmed ignored with
 `git check-ignore _tmp-noa04-I2bo1b99`. Build/test invocations are serialized.

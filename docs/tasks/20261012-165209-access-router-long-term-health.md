@@ -1978,7 +1978,7 @@ Exact verification / workspace outcomes:
   `pnpm_config_store_dir`/`pnpm_config_cache_dir`/`pnpm_config_state_dir` under
   `pnpm-store`/`pnpm-cache`/`pnpm-state`, and `npm_config_cache` under `npm-cache`.
   The root test script's explicit `--workspace-concurrency=1` was retained.
-  Actual toolchain: **Node v26.10.0, pnpm 11.18.0, TypeScript 6.0.3, Vitest 4.1.11**.
+  Actual toolchain: **Node v26.10.0, pnpm 11.24.0, TypeScript 6.0.3, Vitest 4.1.11**.
 - First required sequence, before the API-harness interruption:
   1. `pnpm build` (`build`) — **exit 2**, 118.0 s. Scope 31/32 workspace projects;
      stopped before access-router at `apps/oidc-vault-dpop-example/src/main.ts:6`

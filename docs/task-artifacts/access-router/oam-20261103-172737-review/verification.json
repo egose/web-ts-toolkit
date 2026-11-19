@@ -71,7 +71,7 @@
   },
   "environment": {
     "node": "v26.12.1",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "vitest": "4.1.11",
     "TMPDIR": "<repo-root>/_tmp-oam05-review-20261104-133234",
     "WTT_BENCH_TMP": "<repo-root>/_tmp-oam05-review-20261104-133234",

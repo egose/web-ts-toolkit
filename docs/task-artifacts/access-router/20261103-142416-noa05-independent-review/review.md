@@ -120,7 +120,7 @@ Do not filter this test out to obtain acceptance.
   added or changed watched files. Generated ignored dist/consumer output is not the
   source manifest. Selected file hashes and the digest method are preserved in
   [source identity](source-identity.json); the full raw manifest is omitted.
-- Node `26.12.1`, pnpm `11.18.0`. Existing dependencies and MongoDB memory-server
+- Node `26.12.1`, pnpm `11.24.0`. Existing dependencies and MongoDB memory-server
   support were used; no dependency installation or lockfile edit was requested.
 - A single runner executed every gate in order. Root `pnpm test` retained the
   repository's `--workspace-concurrency=1`. No package/root build or test overlaps

@@ -1,6 +1,6 @@
 # ERH-12 Root Import And CSV Security Notes
 
-Baseline captured on 2026-08-09 with Node `v26.5.0`, pnpm `11.18.0`, and the current `tsup` configuration.
+Baseline captured on 2026-08-09 with Node `v26.5.0`, pnpm `11.24.0`, and the current `tsup` configuration.
 
 ## Commands
 

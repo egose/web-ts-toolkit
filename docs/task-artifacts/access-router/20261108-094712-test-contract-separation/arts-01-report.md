@@ -32,7 +32,7 @@ Installed Vitest **4.1.11** help/discovery support was inspected before selectin
 the reporter/list argv. Only the nonfatal future-native-config CommonJS/ESM warning
 was observed for discovery; no config or warning suppression was changed.
 
-Environment: Linux x64, Node **v26.12.1**, pnpm **11.18.0**, TypeScript **6.0.3**,
+Environment: Linux x64, Node **v26.12.1**, pnpm **11.24.0**, TypeScript **6.0.3**,
 tsup **8.5.1**, Express **5.2.1**, Mongoose **9.11.4**, mongodb-memory-server
 **11.2.0**. Remaining installed analysis/test-tool versions are recorded. Packed
 fixtures exercised exact minimum peers **Express 5.0.0 / Mongoose 8.0.0** and

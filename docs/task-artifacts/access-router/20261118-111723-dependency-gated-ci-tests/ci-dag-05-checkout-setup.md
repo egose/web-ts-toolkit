@@ -51,7 +51,7 @@ publication, settings change, hosted execution or tooling/runtime installation.
   use the selected-relative path; package-manager caching is disabled. Inspected
   action diagnostics may retain their original cwd; pnpm self-install is restricted
   to its newly owned empty selected-root child. Project pins remain Node **26.12.1**
-  and packageManager **pnpm 11.18.0**; `.tool-versions` pnpm **11.24.0** is not the
+  and packageManager **pnpm 11.24.0**; `.tool-versions` pnpm **11.24.0** is not the
   authoritative pnpm installer selection.
 - Artifact identity/digest/run/attempt/SHA checks, resource helpers, package scripts,
   worker limits/rebuilds, graph and evaluator are preserved. Strict contracts retain
@@ -142,7 +142,7 @@ plan test. Both `AggregateError` instances now retain cleanup as `{ cause:
 cleanup }`; the intermediate lint pass is separately retained. No historical log
 or protected R1-test formatting was rewritten.
 
-Tested tools: Node **v26.12.1**, V8 **14.6.202.34-node.40**, pnpm **11.18.0**,
+Tested tools: Node **v26.12.1**, V8 **14.6.202.34-node.40**, pnpm **11.24.0**,
 Git **2.43.0**, ESLint **10.12.0**, Prettier **4.0.0-alpha.13**. Existing-tool
 discovery found no Node 20 in inspected PATH/asdf candidates; it is not a claim
 that no other runtime exists. Cached check-yaml used source HEAD

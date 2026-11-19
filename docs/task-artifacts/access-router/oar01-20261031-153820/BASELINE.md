@@ -35,7 +35,7 @@ claim. Current default and all-ten active are configurations of the SAME new bui
   External dependency bytes identical. Full diff in `evidence-audit.json`; do not
   misstate the fresh file count as 3,500. Workspace deps copied, external deps linked
   and hash-pinned: not a hermetic vendored installation.
-- Node v26.12.1, pnpm 11.18.0, linux/x64; Mongo 8.2.6; actual resolved Mongoose 9.11.4,
+- Node v26.12.1, pnpm 11.24.0, linux/x64; Mongo 8.2.6; actual resolved Mongoose 9.11.4,
   Express 5.2.1, zod 4.4.3. Version ranges in package.json are not resolved identities.
 
 ## Commands actually run (repo root; foreground, serial)

@@ -20,7 +20,7 @@ Both failed OAR-09B campaigns and all fixed gates remain intact and blocking.
 - Protocol JSON SHA256:
   `c7a523f9cb79d8574a56d688794d8d1508c7ecf05e05e0e29cb45c9f97efd28f`.
 - All **13 benchmark tools**, 293 tool packages / 10,545 files, Node **26.12.1**,
-  pnpm **11.18.0**, Mongo **8.2.6**, binary hashes and lock remain pinned.
+  pnpm **11.24.0**, Mongo **8.2.6**, binary hashes and lock remain pinned.
 - Baseline is the ORIGINAL `_tmp-oar01-20261031-153820/baseline-artifact/`, ESM
   `33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822`;
   552 files / 134 dependency records / 3,510 files, using the original seals.

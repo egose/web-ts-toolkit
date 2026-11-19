@@ -504,7 +504,7 @@ Working directory: repository root. State: planning baseline `c938b84` plus the
 task record and new characterization test only; production source unchanged.
 Build completed before test execution; no overlapping package build/test commands.
 
-- `node --version` → `v26.10.0`; `pnpm --version` → `11.18.0`.
+- `node --version` → `v26.10.0`; `pnpm --version` → `11.24.0`.
 - `pnpm --filter @web-ts-toolkit/access-router exec node -p "JSON.stringify({mongoose: require('mongoose').version, memoryServer: require('mongodb-memory-server/package.json').version, vitest: require('vitest/package.json').version})"`
   → Mongoose `9.9.2`, mongodb-memory-server `11.2.0`, Vitest `4.1.11`.
 - `pnpm --filter @web-ts-toolkit/access-router... build` → passed, server and its

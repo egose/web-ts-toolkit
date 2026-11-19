@@ -263,7 +263,7 @@ Initial HEAD was `49699bb`, with only the coordinator's new plan and prior-phase
 cross-link changed. Both were preserved. The coordinator waited throughout; no
 nested agents or concurrent shared-output build/test owner was used.
 
-Environment: Node `v26.12.1`, pnpm `11.18.0`. Before scratch creation,
+Environment: Node `v26.12.1`, pnpm `11.24.0`. Before scratch creation,
 `ls -ld . _tmp-mpo` confirmed the repository parent and absent scratch directory;
 `git check-ignore -v _tmp-mpo/probe` matched `.gitignore:8:_tmp*`, then
 `mkdir _tmp-mpo` created the ignored parent. Initial, pre-check and final
@@ -506,7 +506,7 @@ MPO-01 was set to `in_progress` before implementation. The existing MPO-00 sourc
 binding regressions, new plan and previous POP-07 record were preserved. The
 coordinator waited; no nested agent or competing shared-output build was used.
 
-Environment rechecked: Node `v26.12.1`, pnpm `11.18.0`. `ls -ld . _tmp-mpo` verified
+Environment rechecked: Node `v26.12.1`, pnpm `11.24.0`. `ls -ld . _tmp-mpo` verified
 the existing repository/scratch parents, and `git check-ignore -v _tmp-mpo/probe`
 matched `.gitignore:8:_tmp*`. Logs and installed-type fixtures used that ignored
 parent. `ps -C node,pnpm,esbuild,tsc -o comm,args` inspections before shared builds
@@ -765,7 +765,7 @@ private default-policy helpers and task records were preserved. The continuation
 rechecked the actual worktree and saved JSON reports before reusing passing checks.
 No nested agents or competing shared-output builds were used; the coordinator waited.
 
-Environment: Node `v26.12.1`, pnpm `11.18.0`, HEAD `49699bb`. Before writing logs,
+Environment: Node `v26.12.1`, pnpm `11.24.0`, HEAD `49699bb`. Before writing logs,
 `ls -ld . _tmp-mpo` verified the existing repository/scratch parents;
 `git check-ignore -v _tmp-mpo/probe` matched `.gitignore:8:_tmp*`.
 `ps -C node,pnpm,esbuild,tsc -o comm,args` inspections found no competing workers.
@@ -1078,7 +1078,7 @@ previous invocation returned no resumable identity. No agents are spawned.
 Current HEAD is `f6c7112`, rather than the creation baseline `49699bb`, following
 externally merged Renovate updates (including the Mongoose lockfile). Those updates
 and all intentional uncommitted binding, storage, capture, decorator, docs and
-fixture changes are preserved. Node is `v26.12.1`, pnpm `11.18.0`.
+fixture changes are preserved. Node is `v26.12.1`, pnpm `11.24.0`.
 `ls -ld . _tmp-mpo node_modules/.bin` verified the existing parents, and
 `git check-ignore -v _tmp-mpo/probe` confirmed `.gitignore:8:_tmp*` before new logs.
 Process inspection found no build/test worker for this repository; an unrelated
@@ -1370,7 +1370,7 @@ or competing repository build/test workers were observed. After the usage-limit
 interruption the reviewer re-read actual state and completed logs/reports, rather
 than rerunning finished V4 gates or treating the interruption as approval.
 
-Environment: Node `v26.12.1`, pnpm `11.18.0`, external HEAD `f6c7112` with the
+Environment: Node `v26.12.1`, pnpm `11.24.0`, external HEAD `f6c7112` with the
 original task baseline `49699bb`. Inspected `git diff 49699bb HEAD` as well as the
 full delivered scoped diff: **56 tracked modified paths and eight pre-existing
 untracked additions**, including both policy helpers, binding/target-options/
@@ -1656,7 +1656,7 @@ The coordinator waited throughout; no nested agents or competing repository
 build/test workers were used. External HEAD `f6c7112` and all prior intentional
 uncommitted implementation/docs/tests were preserved.
 
-Environment: Node `v26.12.1`, pnpm `11.18.0`. Before new logs/probes,
+Environment: Node `v26.12.1`, pnpm `11.24.0`. Before new logs/probes,
 `ls -ld . _tmp-mpo node_modules/.bin` verified the existing parents and
 `git check-ignore -v _tmp-mpo/probe` matched `.gitignore:8:_tmp*`.
 `ps -C node,pnpm,esbuild,tsc -o comm,args` inspections found no competing workers.
@@ -1907,7 +1907,7 @@ rely on the handoff summary alone. MPO-04 and overall were set to `in_progress`
 before the review/refresh. The coordinator waited throughout; no nested agents or
 competing repository node/pnpm/tsc/esbuild workers were observed. Existing `_tmp-mpo`
 parent/ignore rules were rechecked before review logs. Node `v26.12.1`, pnpm
-`11.18.0`, external HEAD `f6c7112`; the original `49699bb` baseline and all earlier
+`11.24.0`, external HEAD `f6c7112`; the original `49699bb` baseline and all earlier
 intentional work/external dependency-lockfile changes were preserved.
 
 **Finding disposition: MPO-05 corrected and independently accepted; linked POP-07

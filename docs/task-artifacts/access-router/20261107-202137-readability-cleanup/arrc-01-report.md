@@ -49,7 +49,7 @@ Deterministic work's raw JSON hashes also match the earlier recorded hashes; the
 observations were nevertheless **rerun fresh**, not substituted with history.
 Counters/traces are work diagnostics, not timing or allocation measurements.
 
-Toolchain: Node `v26.12.1`, pnpm `11.18.0`, Vitest `4.1.11`, tsup `8.5.1`.
+Toolchain: Node `v26.12.1`, pnpm `11.24.0`, Vitest `4.1.11`, tsup `8.5.1`.
 Existing Vite configLoader/ESM warning was non-failing; configuration was not changed.
 A scratch inventory probe initially assumed nonexistent root `tsconfig.json`;
 correcting it to `tsconfig.base.json` preceded the successful freeze/checks. This

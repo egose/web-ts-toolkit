@@ -147,7 +147,7 @@ workspace link; its documented non-relocatable status is not a product blocker.
 Verification used sealed byte/dependency equality plus actual current imports.
 A scratch-only protocol extraction initially referenced an exported variable as a
 local; corrected audit wiring passed. No maintained file/test expectation changed.
-Actual pnpm **11.18.0** matches current/HEAD root `packageManager` and every seal;
+Actual pnpm **11.24.0** matches current/HEAD root `packageManager` and every seal;
 the different `.tool-versions` **11.24.0** annotation correction remains historical,
 with original data untouched. First PATHS-05's reported encrypted-context failure
 has no delivered outcome; PATHS-05R owns the actual CWO-05 records. CWO-03's documented

@@ -78,7 +78,7 @@ The dependency-free action would declare `using: node20`, `main: index.mjs`,
 state, not a user path/budget flag. Code uses only Node-20-compatible built-ins:
 no install, transpilation, YAML dependency, `import.meta.dirname`, or newer-only
 filesystem APIs. This runtime is the bootstrap contract, **not** the project
-runtime: project Node remains 26.12.1 and pnpm remains 11.18.0. Actionlint 1.7.7
+runtime: project Node remains 26.12.1 and pnpm remains 11.24.0. Actionlint 1.7.7
 recognizes local JavaScript actions using `node20` but rejects `node24`; do not
 upgrade or bypass that validator. The actual runner-selected action runtime is
 unobserved and must not be claimed from metadata alone.

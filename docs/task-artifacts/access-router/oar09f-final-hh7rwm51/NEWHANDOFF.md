@@ -125,7 +125,7 @@ all 16 new invalid statements rejected in all 20 matrix/condition combinations.
   its own index and the final root `PACKET-SEAL.json`; the root binds that index.
   `current-artifact/` and `originals/` captures are read-only copies, not product paths.
 
-Actual local identity audit: Node **26.12.1**, pnpm **11.18.0**, TS **6.0.3**,
+Actual local identity audit: Node **26.12.1**, pnpm **11.24.0**, TS **6.0.3**,
 Mongo **8.2.6** (existing binary, download=false), Mongoose **9.11.4**, Express
 **5.2.1**, Vitest **4.1.11**, tsup **8.5.1**. Tool manifests/exported entries and
 node/pnpm/Mongo binaries are hashed in `PUBLIC-SURFACE-ENVIRONMENT.json`; this is

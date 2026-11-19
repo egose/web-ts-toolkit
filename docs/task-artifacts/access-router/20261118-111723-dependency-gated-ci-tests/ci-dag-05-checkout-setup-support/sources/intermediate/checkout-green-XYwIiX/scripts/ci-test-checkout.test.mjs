@@ -209,7 +209,7 @@ function sourceFixture(t, { files: overrides = {}, omit = [], prepare = () => {}
     '.gitignore': '_tmp*\nnode_modules\ndist\ncoverage\n',
     '.tool-versions': 'nodejs 26.12.1\npnpm 11.24.0\n',
     '.gitattributes': '*.txt filter=fixture\n',
-    'package.json': '{"name":"synthetic-source-only","private":true,"packageManager":"pnpm@11.18.0"}\n',
+    'package.json': '{"name":"synthetic-source-only","private":true,"packageManager":"pnpm@11.24.0"}\n',
     'pnpm-lock.yaml': "lockfileVersion: '9.0'\nimporters: {}\n",
     'pnpm-workspace.yaml': 'packages: []\n',
     '.hidden': 'hidden\n',

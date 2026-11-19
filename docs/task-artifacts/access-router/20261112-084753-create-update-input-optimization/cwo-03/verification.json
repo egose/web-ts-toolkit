@@ -8,8 +8,8 @@
   "sourceHash": "2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea79676a",
   "runtime": {
     "node": "v26.12.1",
-    "pnpmActual": "11.18.0",
-    "rootPackageManager": "pnpm@11.18.0"
+    "pnpmActual": "11.24.0",
+    "rootPackageManager": "pnpm@11.24.0"
   },
   "retainedMaintainedFiles": [
     {

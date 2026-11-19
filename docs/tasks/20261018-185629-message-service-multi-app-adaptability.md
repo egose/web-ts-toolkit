@@ -2331,7 +2331,7 @@ Completion evidence (2026-10-19, MSGA-11 only):
 
   Both resolve TypeScript **6.0.3**, `@types/express` **5.0.6**, `@types/node`
   **22.20.1**, `mongodb-memory-server` **11.3.0**. Builds/install/compiler/Vitest
-  use **Node 26.11.1**, pnpm **11.18.0**, tsup **8.5.1**, Vitest **4.1.11**.
+  use **Node 26.11.1**, pnpm **11.24.0**, tsup **8.5.1**, Vitest **4.1.11**.
   The matrix uses **4 compiler invocations / 6 strict mode-lanes** (NodeNext ESM,
   NodeNext CJS, Bundler, all `skipLibCheck: false`), **10 runtime smokes**, and
   **4 two-app executions / 44 named lifecycle check groups** (11 per execution).
@@ -2659,7 +2659,7 @@ git diff --check
 ```
 
 - Environment: `node --version` returned **v26.11.1**; build tooling used pnpm
-  **11.18.0**, tsup **8.5.1**, TypeScript **6.0.3**, Vitest **4.1.11**. `ls -ld`
+  **11.24.0**, tsup **8.5.1**, TypeScript **6.0.3**, Vitest **4.1.11**. `ls -ld`
   verified the existing checkout/temp parent; `git check-ignore -v _tmp-msga`
   confirmed `.gitignore:8:_tmp*`. The initially nonempty ignored directory was
   reused with absolute TMPDIR, normalized above; tool-selection files were not edited.

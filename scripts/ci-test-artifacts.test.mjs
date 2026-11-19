@@ -50,7 +50,7 @@ const identity = {
   platform: 'linux',
   arch: 'x64',
   node: process.versions.node,
-  pnpm: '11.18.0',
+  pnpm: '11.24.0',
   lockSha256: sha256('frozen lock'),
 };
 const contract = {
@@ -74,12 +74,12 @@ function fixture(t, { outputs = true } = {}) {
   const consumer = resolve(scratch, 'consumer');
   for (const directory of [root, consumer]) {
     write(directory, 'packages/sample/package.json', '{"name":"sample"}\n');
-    write(directory, 'package.json', '{"packageManager":"pnpm@11.18.0"}\n');
+    write(directory, 'package.json', '{"packageManager":"pnpm@11.24.0"}\n');
     write(directory, '.tool-versions', `nodejs ${process.versions.node}\npnpm 11.24.0\n`);
     write(
       directory,
       'packages/create-access-router-mongo-starter/template/package.json',
-      '{"packageManager":"pnpm@11.18.0"}',
+      '{"packageManager":"pnpm@11.24.0"}',
     );
     write(directory, 'pnpm-lock.yaml', 'frozen lock');
     write(directory, 'VERSION', '1.2.3\n');
@@ -645,7 +645,7 @@ test('preparation executes exactly one complete pnpm build and rejects stale out
     calls.push([name, args, options]);
     if (name === 'git' && args[0] === 'rev-parse') return identity.checkoutSha;
     if (name === 'git') return '';
-    if (args[0] === '--version') return '11.18.0';
+    if (args[0] === '--version') return '11.24.0';
     assert.deepEqual([name, args], ['pnpm', ['build']]);
     assert.ok(options.env.TMPDIR.startsWith(`${root}/_tmp-ci-test-prepare-`));
     seedOutputs(root);
@@ -696,13 +696,13 @@ test('preparation executes exactly one complete pnpm build and rejects stale out
 
 test('toolchain and checkout/run identity are resolved, not trusted from artifact metadata', (t) => {
   const { root } = fixture(t);
-  assert.deepEqual(toolchainPins(root), { node: process.versions.node, pnpm: '11.18.0', toolVersionsPnpm: '11.24.0' });
+  assert.deepEqual(toolchainPins(root), { node: process.versions.node, pnpm: '11.24.0', toolVersionsPnpm: '11.24.0' });
   const env = {
     GITHUB_SHA: identity.checkoutSha,
     GITHUB_RUN_ID: identity.runId,
     GITHUB_RUN_ATTEMPT: identity.runAttempt,
   };
-  const run = (name) => (name === 'git' ? identity.checkoutSha : '11.18.0');
+  const run = (name) => (name === 'git' ? identity.checkoutSha : '11.24.0');
   assert.deepEqual(checkoutIdentity(root, env, run), { ...identity, platform: process.platform, arch: process.arch });
   assert.throws(() => checkoutIdentity(root, { ...env, GITHUB_SHA: 'b'.repeat(40) }, run), /Actual checkout SHA/);
   for (const key of ['GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'])
@@ -723,7 +723,7 @@ test('starter readiness rejects a successful unpublished-release skip and stale 
   write(
     root,
     path,
-    JSON.stringify({ packageManager: 'pnpm@11.18.0', dependencies: { '@web-ts-toolkit/access-router': '^0.1.0' } }),
+    JSON.stringify({ packageManager: 'pnpm@11.24.0', dependencies: { '@web-ts-toolkit/access-router': '^0.1.0' } }),
   );
   assert.throws(() => validateStarter(root), /release dependency mismatch/);
   write(root, path, JSON.stringify({ packageManager: 'pnpm@11.24.0' }));
@@ -731,7 +731,7 @@ test('starter readiness rejects a successful unpublished-release skip and stale 
   write(
     root,
     path,
-    JSON.stringify({ packageManager: 'pnpm@11.18.0', dependencies: { '@web-ts-toolkit/access-router': '^1.2.3' } }),
+    JSON.stringify({ packageManager: 'pnpm@11.24.0', dependencies: { '@web-ts-toolkit/access-router': '^1.2.3' } }),
   );
   const calls = [];
   validateStarter(root, root, (...args) => calls.push(args));

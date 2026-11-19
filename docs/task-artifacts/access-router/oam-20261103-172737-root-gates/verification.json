@@ -19,7 +19,7 @@
     "TMPDIR": "<repo-root>/_tmpJQMxCL",
     "absoluteResolvedTmpdirVerified": true,
     "node": "v26.12.1",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "vitest": "4.1.11",
     "dockerServer": "29.9.2",
     "dockerCheck": "docker version --format '{{json .Server.Version}}'",

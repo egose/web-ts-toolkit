@@ -116,7 +116,7 @@ the completed standalone layers were not repeated. Each complete layer ran once
 on this identity. There have been **two reviewer default executions overall**:
 the historical pre-repair 7,717 pass and this post-repair 7,734 pass, one per identity.
 
-Environment: Linux x64; Node **v26.12.1**, pnpm **11.18.0**, TypeScript **6.0.3**,
+Environment: Linux x64; Node **v26.12.1**, pnpm **11.24.0**, TypeScript **6.0.3**,
 Vitest **4.1.11**, tsup **8.5.1**, Express **5.2.1**, Mongoose **9.11.4**,
 mongodb-memory-server **11.2.0**. Real Mongo integration, existing scoped packed/
 bounded publication fixtures and installed Bundler/NodeNext/Node16 positive and

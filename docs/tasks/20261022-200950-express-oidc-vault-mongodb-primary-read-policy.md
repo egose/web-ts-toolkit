@@ -215,7 +215,7 @@ Execution notes (OVMONGO-01 investigation):
   Read repository/task instructions, shared M1-M4, prior core evidence and the
   adopted OVAPP-04 ticket contract. Preserve the existing core worktree and both
   preexisting untracked task documents. Production implementation is OVMONGO-02.
-- Environment reconfirmed: Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`.
+- Environment reconfirmed: Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`.
   Inspecting actual installed driver inheritance/selection and disposable
   replica-set behavior before selecting the boundary. Builds/tests run serially.
 
@@ -234,7 +234,7 @@ No production policy change is part of this investigation.
 - Base revision `33e434d`, with completed OVAPP-01/02/03 work and OVAPP-04's
   adopted contract present. Rechecked status on resumption; preserved that work
   and the unrelated skill-file deletion. No nested agents, commits or pushes.
-- Linux x64; Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`, Vitest `4.1.11`.
+- Linux x64; Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`, Vitest `4.1.11`.
   Package range is `mongodb: ^6.20.0`; **actual installed application driver is
   `6.21.0`**, not a claim about every version admitted by that range.
   `mongodb-memory-server` is `11.2.0`; actual `buildInfo.version` is **`8.2.6`**.
@@ -596,7 +596,7 @@ Execution notes (OVMONGO-02 implementation):
   OVAPP-04/05 contract before starting. Preserve prior core changes, both task
   documents, the red read-preference fixture and the unrelated skill deletion.
   Only OVMONGO-02 advances status; no nested agents, commits/pushes or changelog edits.
-- Environment reconfirmed: Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`, base
+- Environment reconfirmed: Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`, base
   revision `33e434d`. All builds/tests/packing will run serially with ignored
   repository-local TMPDIR and fixture/client/server cleanup.
 - Selected implementation: one internal primary collection factory applied to all
@@ -672,7 +672,7 @@ this list are relative to `packages/express-oidc-vault-mongodb-store`):
 
 Completion evidence (2026-10-23, sequential uncommitted worktree at `33e434d`):
 
-- Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`,
+- Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`,
   tsup `8.5.1`, TypeScript `6.0.3`, Vitest `4.1.11`. Real two-data-bearing-member
   WiredTiger replica sets; application and installed-consumer driver `6.21.0`,
   memory-server `11.2.0`, server `8.2.6`. Initial server defaults remain local read

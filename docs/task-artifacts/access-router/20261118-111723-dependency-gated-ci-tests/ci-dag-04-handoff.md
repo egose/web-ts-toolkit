@@ -68,7 +68,7 @@ The workflow check is the final mandatory step and cannot be replaced by a stage
 
 Tested source is the uncommitted working tree at `HEAD` `0fda5197c5b950e865af73681225c8bbf5533775`. Prior uncommitted CI-DAG-02/03 implementation remains in the worktree; CI-DAG-04 did not change package test scripts, the three composites, shared setup actions, the local group runner, branch protection, publication, or workflow dispatch. `pnpm-lock.yaml` remains the prior CI-DAG-02/03 lock change; this task did not edit it.
 
-Local toolchain: Node `26.12.1`, pnpm `11.18.0`, npm `11.20.0`, pre-commit `4.6.2`, Linux x64. All scratch and `TMPDIR` locations were fresh ignored `_tmp-ci-dag-04-*` directories under `<repo-root>`.
+Local toolchain: Node `26.12.1`, pnpm `11.24.0`, npm `11.20.0`, pre-commit `4.6.2`, Linux x64. All scratch and `TMPDIR` locations were fresh ignored `_tmp-ci-dag-04-*` directories under `<repo-root>`.
 
 SHA-256 fingerprints of the main delivered files after the final implementation edits:
 

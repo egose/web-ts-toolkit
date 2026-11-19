@@ -15,7 +15,7 @@
   "capturedAt": "2026-11-09T05:19:02.804685+00:00",
   "toolchain": {
     "node": "v26.12.1",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "platform": "linux",
     "arch": "x64",
     "typescript": "6.0.3",

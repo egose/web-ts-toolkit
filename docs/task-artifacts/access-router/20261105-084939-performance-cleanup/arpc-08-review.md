@@ -43,7 +43,7 @@ Tree hashes use the maintained driver's recursive per-directory English
 `localeCompare` ordering and SHA-256 of `JSON.stringify([relativePath, fileHash][])`.
 Exact inventories, command arguments/results, declaration hashes and audit details
 are in [verification data](arpc-08-verification.json); concise actual output is in
-[the verification log](arpc-08-verification.log). Node `v26.12.1`, pnpm `11.18.0`,
+[the verification log](arpc-08-verification.log). Node `v26.12.1`, pnpm `11.24.0`,
 Vitest `4.1.11`; the lock hash is recorded there.
 
 All 2,353 checkpointed tracked/nonignored-untracked files remained byte-identical

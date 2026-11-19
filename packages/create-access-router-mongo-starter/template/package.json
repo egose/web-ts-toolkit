@@ -7,7 +7,7 @@
   "engines": {
     "node": "^22.13.0 || >=24.0.0"
   },
-  "packageManager": "pnpm@11.18.0",
+  "packageManager": "pnpm@11.24.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",

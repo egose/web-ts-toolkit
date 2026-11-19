@@ -108,10 +108,10 @@ together with core, rich-public and tiny writes on both entries (232 IDs). CPU w
 input-functions-direct panels, `[256,256,256,256]` counts, 128 warmups and
 `--cpu-prof --cpu-prof-interval=500`; these are not calibration runs.
 
-Recorded runtime: Node v26.12.1, esbuild 0.28.2, actual pnpm 11.18.0, matching current
-and HEAD root `package.json`'s `pnpm@11.18.0` pin. The earlier 11.24.0 annotation came
+Recorded runtime: Node v26.12.1, esbuild 0.28.2, actual pnpm 11.24.0, matching current
+and HEAD root `package.json`'s `pnpm@11.24.0` pin. The earlier 11.24.0 annotation came
 from misidentifying the different `.tool-versions` entry as this pin. Actual executable
-and both sealed packet identities were already 11.18.0; no required comparison gate
+and both sealed packet identities were already 11.24.0; no required comparison gate
 used 11.24.0. This is an annotation-only correction, not a measurement rerun or a
 change to frozen evidence. A different host/tool/fixture/source baseline needs new identities and
 calibration. The current 2500ms/64-operation warmup heuristic limits wide fixtures:

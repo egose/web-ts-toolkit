@@ -16,7 +16,7 @@ the public job metadata. This is **not** the `ci-validate` log.
 The first failing command was `pnpm install --frozen-lockfile --ignore-scripts`
 in the `install` step of [`.github/actions/ci-setup/action.yml`](../../../../.github/actions/ci-setup/action.yml).
 The checkout action, Node setup, `--check-install` and the pinned pnpm action's
-self-install all succeeded before it. The install used pnpm `11.18.0` with
+self-install all succeeded before it. The install used pnpm `11.24.0` with
 Node `26.12.1` and failed with `Worker pnpm#2 exited with code 1`.
 
 | Raw log lines | Observation |
@@ -24,7 +24,7 @@ Node `26.12.1` and failed with `Worker pnpm#2 exited with code 1`.
 | 151–188       | Selected checkout and pinned action resolution reached setup. The emitted sibling root and `TMPDIR` were 34 and 45 UTF-8 bytes, respectively. `../c/.tool-versions` resolved to Node `26.12.1`. |
 | 189–223       | The installer boundary check passed. `pnpm/action-setup` received `../c/package.json` and `<selected-root>/_tmp-pnpm-XXXXXX` as inputs and reported a successful self-install. |
 | 224–239       | The workspace install started. pnpm said the existing `<selected-root>/node_modules/.pnpm/lock.yaml` was incompatible, then reported recreating `<selected-root>/node_modules`. The checked-in lockfile was reported up to date. |
-| 240–274       | Tarball GETs reported `error (unknown)`. The lockfile passed supply-chain policies. The worker exited with code 1; its parent stack frame was in `<selected-root>/node_modules/.pnpm/pnpm@11.18.0/node_modules/pnpm/dist/pnpm.mjs:979:27`, inside the tree pnpm reported recreating. |
+| 240–274       | Tarball GETs reported `error (unknown)`. The lockfile passed supply-chain policies. The worker exited with code 1; its parent stack frame was in `<selected-root>/node_modules/.pnpm/pnpm@11.24.0/node_modules/pnpm/dist/pnpm.mjs:979:27`, inside the tree pnpm reported recreating. |
 | 275–318       | The tools step was skipped. Public metadata reports `ci-checkout` post success, not an independent filesystem cleanup check. The runner warned that the actions targeting Node 20 were forced to run on Node 24; the workspace command used the separately installed Node 26. |
 
 The shared `node_modules` path is a concrete lead: the install may have replaced

@@ -25,7 +25,7 @@ The independent proposed-source setup copy `s` copies the accepted root manifest
 
 - Package-build/consumer lock SHA-256: `8685e0d36b941dcf7e7fa18ed4cb35fe3b8512d175ee0aecba241902979bcede`.
 - Proposed root lock SHA-256: `10165ddd054bfa1db935d20bd2428af94638b57430f71a3d386eadc2ca28546d` (accepted CI-DAG-02 direct `yaml@2.9.0` importer).
-- Node `26.12.1`, root/template packageManager pnpm `11.18.0`, npm `11.20.0`; `.tool-versions` pnpm `11.24.0` is preserved, not selected for this CI setup. Platform: Linux x64, Ubuntu 24.04/noble.
+- Node `26.12.1`, root/template packageManager pnpm `11.24.0`, npm `11.20.0`; `.tool-versions` pnpm `11.24.0` is preserved, not selected for this CI setup. Platform: Linux x64, Ubuntu 24.04/noble.
 - Separate dependency trees/virtual stores and checkout-local ignored `TMPDIR` locations are used. Installs reuse the local pnpm content-addressed store; no dependency store/tree is transferred in the build artifact. These are not cold hosted-runner timings.
 
 Saved proposed-source fingerprints (SHA-256):
@@ -43,7 +43,7 @@ Saved proposed-source fingerprints (SHA-256):
 
 ## Real clean preparation and artifact
 
-The successful `prepareArtifacts(p, env)` invocation performed one unchanged full `pnpm build`, with all designated outputs absent at entry, clean-source checks before/after, and post-build checkout/run/toolchain/lock identity agreement. Elapsed preparation: **166,305 ms**. The frozen `--ignore-scripts` preparation install reported 5.7 seconds; the independently installed `c` consumer reported 5.8 seconds, both using pnpm 11.18.0 and the reused local store.
+The successful `prepareArtifacts(p, env)` invocation performed one unchanged full `pnpm build`, with all designated outputs absent at entry, clean-source checks before/after, and post-build checkout/run/toolchain/lock identity agreement. Elapsed preparation: **166,305 ms**. The frozen `--ignore-scripts` preparation install reported 5.7 seconds; the independently installed `c` consumer reported 5.8 seconds, both using pnpm 11.24.0 and the reused local store.
 
 Local verification identity (not a dispatched Actions run): run `30306`, attempt `1`, tested SHA above, Linux/x64, Node/pnpm above, package-source lock above.
 
@@ -54,7 +54,7 @@ Local verification identity (not a dispatched Actions run): run `30306`, attempt
 - Five executable entries: runtime `dist/cli.js`, express `dist/cli.js`, and starter `dist/bin/{cli,deploy-netlify,deploy-shared}.js`.
 - Eight hidden files: six staged `.agents/skills/*/SKILL.md` files, `.dockerignore`, and legitimate `.env.example`. The generated starter lock is included; checkout root source/config/lock files are not restored.
 
-The genuine starter was staged for repository `VERSION=0.68.0`, with packageManager `pnpm@11.18.0` and all four toolkit dependencies at `^0.68.0`. The real `assertStagedTemplateReady` publication gate verified complete source-file agreement, placeholders/substitutions, hidden files, generated lock resolution and importer specifiers. The build's actual registry contract was used; no release was manufactured to force staging. Unpublished-release skips and stale/incomplete templates remain fatal.
+The genuine starter was staged for repository `VERSION=0.68.0`, with packageManager `pnpm@11.24.0` and all four toolkit dependencies at `^0.68.0`. The real `assertStagedTemplateReady` publication gate verified complete source-file agreement, placeholders/substitutions, hidden files, generated lock resolution and importer specifiers. The build's actual registry contract was used; no release was manufactured to force staging. Unpublished-release skips and stale/incomplete templates remain fatal.
 
 Only `packages/express-oidc-vault/dist/wire.mjs` may be empty: actual tsup output is 0 bytes and its source must parse as interfaces/type aliases only. Presence and hash are still mandatory; other empty runtime outputs fail. Archive parsing rejects links/hardlinks/special files, unsafe modes, escapes, duplicates, source overwrite, forbidden dependency/cache/binary/credential content, malformed inventory and excessive sizes. Allowed modes are files `0644`/`0755`, directories `0700`/`0755`.
 
@@ -82,7 +82,7 @@ Resource caches are separate download/binary directories keyed by resolved OS/ar
 
 ## Independent consumer and isolation verification
 
-The `r` consumer driver completed **12/12 certification phases successfully**. Actual frozen installation reported 4.4 seconds using pnpm 11.18.0; installation plus root/all-workspace/generated-consumer tool probes took 89,376 ms. It verified its clean checkout identity and separate `node_modules/.pnpm` realpath before restoring anything. Output-only restore/readiness validation passed in 4,041 ms, reproducing all 333 inventory entries and executable modes. Executable entries had one link and different inodes from preparation.
+The `r` consumer driver completed **12/12 certification phases successfully**. Actual frozen installation reported 4.4 seconds using pnpm 11.24.0; installation plus root/all-workspace/generated-consumer tool probes took 89,376 ms. It verified its clean checkout identity and separate `node_modules/.pnpm` realpath before restoring anything. Output-only restore/readiness validation passed in 4,041 ms, reproducing all 333 inventory entries and executable modes. Executable entries had one link and different inodes from preparation.
 
 Before any package build, it directly executed `packages/access-router-runtime/dist/cli.js --help`, `packages/express-runtime/dist/cli.js --help`, and `packages/create-access-router-mongo-starter/dist/bin/cli.js --help`: **3/3 passed**, 1,145 ms. On this real archive, the wrong externally supplied SHA-256 and omission of mandatory empty `wire.mjs` both failed deterministically before tests could start; restore then returned to pristine verified output.
 
@@ -143,7 +143,7 @@ One newly authorized attempt of each complete script ran **serially**, PDF then 
 
 Before touching `c`, preparation output/archive/Mongo hashes, inodes and mtimes were snapshotted and checked against the original inventory/digests. Before **each** script, a fresh output-only restore reproduced **31 roots / 333 entries: 274 files and 59 directories**, passed the genuine `assertStagedTemplateReady` publication gate for `0.68.0`, and was reverified after narrow owned-output/temp/Vite-cache ownership correction. Privileged cache-hit `install-deps` actually ran via that workspace's resolved Playwright **1.62.1**; only downloads were skipped, and every selected engine launched/evaluated. PDF selected Chromium `151.0.7922.34`; DPoP selected Chromium `151.0.7922.34`, Firefox `153.0`, and WebKit `26.5`.
 
-Preparation drivers passed in **29,440 ms** (PDF) and **20,813 ms** (DPoP); fresh restore/genuine-readiness portions took **2,662/2,145 ms**, and resource portions **21,929/14,143 ms**, respectively. Tests then ran as the checkout owner with fresh owner-writable ignored `HOME`/`TMPDIR`, checked Unix-socket path headroom and environment-only checkout-scoped Git trust. All 274 restored consumer file inodes were distinct from preparation before each script. Node **26.12.1** and packageManager pnpm **11.18.0** remained selected.
+Preparation drivers passed in **29,440 ms** (PDF) and **20,813 ms** (DPoP); fresh restore/genuine-readiness portions took **2,662/2,145 ms**, and resource portions **21,929/14,143 ms**, respectively. Tests then ran as the checkout owner with fresh owner-writable ignored `HOME`/`TMPDIR`, checked Unix-socket path headroom and environment-only checkout-scoped Git trust. All 274 restored consumer file inodes were distinct from preparation before each script. Node **26.12.1** and packageManager pnpm **11.24.0** remained selected.
 
 Exact commands, from `c`'s checkout root:
 

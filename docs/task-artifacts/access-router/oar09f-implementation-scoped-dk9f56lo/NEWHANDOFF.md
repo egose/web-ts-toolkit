@@ -224,7 +224,7 @@ not suppressed and is not a test failure. No timings/performance campaign was ru
 - **Current** root ESM: `a4534cf36ec1dad15adb68459aba285b1509118deed262accdfca53d76493e51`.
   All 14 current core outputs are identified separately. This is NOT a deterministic
   release seal and the old measured hash does not certify this API.
-- Actual environment: Node **26.12.1**, pnpm **11.18.0**, TS **6.0.3**, Mongoose
+- Actual environment: Node **26.12.1**, pnpm **11.24.0**, TS **6.0.3**, Mongoose
   **9.11.4**, Express **5.2.1**, Vitest **4.1.11**, tsup **8.5.1**. Tool package
   identities are recorded. The old packed current-peer fixture used Mongoose 9.8.0;
   that matrix has NOT been rerun or relabeled for the installed 9.11.4.

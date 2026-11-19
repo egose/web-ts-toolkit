@@ -166,7 +166,7 @@ or remains. Exact commands/selections/results/identities are in
   15 dist/eight declarations, 11 sealed tool/test identities, 14 archived payloads,
   12 original CWO-01 payloads and its baseline seal/127 dependency packages unchanged.
 - New JSON reconstruction/hash/link/privacy/ignore/whitespace checks passed. Actual
-  runtime was Node **v26.12.1**, pnpm **11.18.0**, matching root `pnpm@11.18.0`.
+  runtime was Node **v26.12.1**, pnpm **11.24.0**, matching root `pnpm@11.24.0`.
   The existing Vite native-config warning was not suppressed.
 
 P remains [0/40 usable](../cwo-01/data/calibration-summary.json), with one attempt

@@ -145,7 +145,7 @@ Do not reuse the old accepted final-02 candidate/config for new measurements.
 - Candidate metadata SHA256: `4aedee50018253dd99c36bff1f3b166ac3d3519857a73033317755e8c76b91b4`.
 - Protocol SHA256: `63482befc9e13b80685993ee7781ab53998f7553ffe4311b01bf0aebf44f29f7`.
 - Baseline ESM remains `33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822`.
-- Node **v26.12.1**, pnpm **11.18.0**, Mongo **8.2.6** and their binary hashes pinned;
+- Node **v26.12.1**, pnpm **11.24.0**, Mongo **8.2.6** and their binary hashes pinned;
   lock remains `ef86ef24726d09f81d1262656920d6215caeb0f26e345198db2d27b8ab7ab314`.
 - **620 copied candidate files / 573 source records / 67 dist outputs / 13 unchanged
   benchmark files**; **134 dependencies / 3,510 files**, **293 tool packages / 10,545

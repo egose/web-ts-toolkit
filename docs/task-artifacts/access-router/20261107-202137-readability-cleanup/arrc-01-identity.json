@@ -1780,7 +1780,7 @@
     }
   },
   "node": "v26.12.1",
-  "pnpm": "11.18.0",
+  "pnpm": "11.24.0",
   "scratch": "_tmp-arrc-01-2nfaqj2y",
   "sourceByteCopies": "_tmp-arrc-01-2nfaqj2y/baseline/packages/access-router/src",
   "historicalComparison": {

@@ -57,7 +57,7 @@ const identity = {
   platform: process.platform,
   arch: process.arch,
   node: process.versions.node,
-  pnpm: '11.18.0',
+  pnpm: '11.24.0',
   lockSha256: sha256('frozen lock'),
 };
 const contract = {
@@ -88,12 +88,12 @@ function fixture(t, workspace = plain) {
   const model = createCiTestModel(workspaces, [{ workspace, dependencies: {} }], []);
   for (const directory of [root, consumer]) {
     write(directory, 'packages/sample/package.json', JSON.stringify(manifest));
-    write(directory, 'package.json', '{"packageManager":"pnpm@11.18.0"}');
+    write(directory, 'package.json', '{"packageManager":"pnpm@11.24.0"}');
     write(directory, '.tool-versions', `nodejs ${process.versions.node}\npnpm 11.24.0\n`);
     write(
       directory,
       'packages/create-access-router-mongo-starter/template/package.json',
-      '{"packageManager":"pnpm@11.18.0"}',
+      '{"packageManager":"pnpm@11.24.0"}',
     );
     write(directory, 'pnpm-lock.yaml', 'frozen lock');
   }
@@ -211,7 +211,7 @@ test('lean setup probes root, every workspace and generated consumer with the pa
     observations.map(({ directory }) => directory),
     ['.', 'packages/sample', '<generated-consumer>'],
   );
-  assert.ok(observations.every(({ pnpm, node }) => pnpm === '11.18.0' && node === `v${process.versions.node}`));
+  assert.ok(observations.every(({ pnpm, node }) => pnpm === '11.24.0' && node === `v${process.versions.node}`));
   const generated = capture.calls.find(({ name }) => name === 'npm').options.cwd;
   assert.equal(existsSync(generated), false);
   assert.deepEqual(

@@ -47,7 +47,7 @@ times, not current permission.
   comparison; generated outputs and copied dependencies were excluded.
   The five CI-DAG-04 delivered-file fingerprints and eight
   CI-DAG-03 model/helper/composite fingerprints also matched accepted handoffs.
-- Local Node `26.12.1` / pnpm `11.18.0`, Linux x64 / 16 logical CPUs. Browser,
+- Local Node `26.12.1` / pnpm `11.24.0`, Linux x64 / 16 logical CPUs. Browser,
   database and package caches were already available. Copying dependencies and
   rebuilding is not a cold independent install or a hosted runner/artifact restore.
   V5 did not capture comprehensive cache, environment, peak-memory or resource

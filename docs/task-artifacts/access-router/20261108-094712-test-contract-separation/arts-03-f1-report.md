@@ -63,7 +63,7 @@ Shared commands use `<repo-root>` placeholders, which must be replaced.
 Exact argv, exits/timestamps, reporter observations, old/new case joins, actual
 discovery sets/digests and checkpoint results are in
 [arts-03-f1-verification.json](arts-03-f1-verification.json).
-Node **v26.12.1**, pnpm **11.18.0**, TypeScript **6.0.3**, Vitest **4.1.11**.
+Node **v26.12.1**, pnpm **11.24.0**, TypeScript **6.0.3**, Vitest **4.1.11**.
 
 | Actual command (reporting arguments retained in verification JSON) | Result |
 | --- | --- |

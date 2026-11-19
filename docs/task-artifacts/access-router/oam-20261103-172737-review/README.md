@@ -241,7 +241,7 @@ explain the result. This concern is **not a finding**.
 
 ## Fresh verification
 
-Node `v26.12.1`, pnpm `11.18.0`; installed dependencies and MongoDB test prerequisites
+Node `v26.12.1`, pnpm `11.24.0`; installed dependencies and MongoDB test prerequisites
 are used. Fresh V2 source typecheck passed. The unfiltered package scripts passed
 **199 files / 6,925 access-router tests** and **23 files / 779 decorator tests**,
 zero failed/pending. Fresh JSON assertion lists were inspected, including the

@@ -466,6 +466,6 @@ Saving the original plan completed only the planning deliverable. Implementation
 
 ### Coordinator continuation preflight
 
-While CI-DAG-02 resumed, read-only tool checks from the repository root passed: `node --version` (`v26.12.1`), `pnpm --version` (`11.18.0`), `npm --version` (`11.20.0`), `pre-commit --version` (`4.6.2`), and `docker info --format '{{.ServerVersion}}'` (`29.9.3`). These establish local executable/daemon availability only, not clean setup or test coverage.
+While CI-DAG-02 resumed, read-only tool checks from the repository root passed: `node --version` (`v26.12.1`), `pnpm --version` (`11.24.0`), `npm --version` (`11.20.0`), `pre-commit --version` (`4.6.2`), and `docker info --format '{{.ServerVersion}}'` (`29.9.3`). These establish local executable/daemon availability only, not clean setup or test coverage.
 
 The coordinator executed the checksum-pinned actionlint installation procedure in CI-DAG-01 design section 9 using a fresh ignored checkout-local scratch directory and `TMPDIR`. Archive SHA-256 matched the published pin; `actionlint -version` reported `1.7.7`; `actionlint -shellcheck= -pyflakes= .github/workflows/test.yml` passed against the unchanged legacy workflow. Rerun V4 after implementation; this baseline syntax pass does not certify the future DAG. Downloaded tooling is disposable and omitted from durable evidence; the preserved design contains its reproducible installation procedure.

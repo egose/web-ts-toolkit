@@ -7,7 +7,7 @@
   "TMPDIR": "<repo-root>/_tmp-arts-03-f1-20261109045446",
   "toolchain": {
     "node": "v26.12.1",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   },

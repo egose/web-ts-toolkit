@@ -8,7 +8,7 @@ status edits. Scope: access-router, affected decorator consumers/guidance, shipp
 and website documentation, maintained benchmark changes and this evidence bundle.
 
 Review base: `c1154de7e922a8bd38a9fd7eee8473bef42d215a` plus the delivered working-tree
-changes. Environment: Node `v26.12.1`, pnpm `11.18.0`, Linux. Root instructions,
+changes. Environment: Node `v26.12.1`, pnpm `11.24.0`, Linux. Root instructions,
 task/artifact conventions and the AI-friendly TypeScript-package skill were read.
 
 ## Finding and correction

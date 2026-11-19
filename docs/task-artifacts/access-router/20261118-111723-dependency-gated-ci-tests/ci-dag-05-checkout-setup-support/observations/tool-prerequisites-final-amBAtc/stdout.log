@@ -15,7 +15,7 @@
         "--version"
       ],
       "status": 0,
-      "stdout": "11.18.0\n",
+      "stdout": "11.24.0\n",
       "stderr": ""
     },
     {

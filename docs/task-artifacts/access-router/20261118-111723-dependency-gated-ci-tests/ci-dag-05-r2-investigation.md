@@ -264,7 +264,7 @@ saved executions, not commands to repeat. The exact recorder is retained in
 | `complete-affected-package`          | Sole justified complete affected-package `test` script             | Recorder did not finish; harness timeout 120 seconds, exit 143, `SIGTERM`.  |
 
 Saved conditions: checkout owner/non-root, Linux x64, Node **v26.12.1**, pnpm
-**11.18.0**, Vitest **4.1.11**, tsup **8.5.1**, installed Chromium
+**11.24.0**, Vitest **4.1.11**, tsup **8.5.1**, installed Chromium
 **151.0.7922.34**. Docker client/server **29.9.3** responded; initial
 `redis:6.2`/`redis:7.2` image inspection failed as documented in
 [conditions.json](ci-dag-05-r2-support/conditions.json). Later Redis lane counts

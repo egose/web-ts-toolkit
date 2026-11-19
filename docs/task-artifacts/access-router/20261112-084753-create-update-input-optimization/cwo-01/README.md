@@ -307,8 +307,8 @@ New source identity: `2fa3dc6844bdc298581c5672db55b9fe8d2e9ee15830be2473cd419bea
 selected source bundle: `bedc39ab29d52573945451bf8bd1f6404c8228394a3b72589febf153bd55fbf4`.
 [data/source.json](data/source.json) records all source/dist hashes, eight declaration
 hashes, 127 dependency identities, runtime binary/lock hashes and measured tool files.
-Node was v26.12.1, esbuild 0.28.2, actual pnpm **11.18.0**, matching both current and
-HEAD root `package.json`'s `packageManager: "pnpm@11.18.0"`. Future matching
+Node was v26.12.1, esbuild 0.28.2, actual pnpm **11.24.0**, matching both current and
+HEAD root `package.json`'s `packageManager: "pnpm@11.24.0"`. Future matching
 comparisons must respect sealed identities. Both packets used the same WSL2 x64 /
 i9-13950HX host with 16 logical CPUs and tool hash
 `053fce14ef9561a207371fdc2481cb646f47ff64182c4b40ca35f76e2567e229`.
@@ -316,10 +316,10 @@ i9-13950HX host with 16 logical CPUs and tool hash
 Coordinator-reconciliation correction: the earlier 11.24.0 “repository pin” annotation
 incorrectly treated `.tool-versions`' pnpm entry as the root package-manager pin
 without checking `package.json`. Direct current/HEAD inspection and the PATH-resolved
-pnpm executable both confirm 11.18.0; package/lock diffs are empty. The verbatim
+pnpm executable both confirm 11.24.0; package/lock diffs are empty. The verbatim
 `.tool-versions` snapshot in `data/source.json` remains unchanged. The freezer records
 `pnpm --version`, and comparison checks use those actual identities, not the mistaken
-annotation: both frozen packets already record 11.18.0 on both sides. No measurement
+annotation: both frozen packets already record 11.24.0 on both sides. No measurement
 identity or gate depended on 11.24.0, so this correction invalidates no measurement
 data and requires no rerun. The existing **0/40 usable-cell** retention block remains.
 

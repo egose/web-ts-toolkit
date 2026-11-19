@@ -156,7 +156,7 @@ all 1,392 job/result/log streams, original full-suite JSON/log hashes and histor
 size/mtime/ctime/mode/link identity. No giant clone of old evidence was made. The
 post-gate build uses a new packet-local pinned-pnpm shim and offline cache isolation.
 
-Runtime: **Node v26.12.1, pnpm 11.18.0, MongoDB 8.2.6**. Frozen hashes:
+Runtime: **Node v26.12.1, pnpm 11.24.0, MongoDB 8.2.6**. Frozen hashes:
 
 - Candidate ESM: `76c7019b1714d7ab312e86c51476b82006b35a2ddbb52872156dc44c0c90661d`
 - Baseline ESM: `33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822`

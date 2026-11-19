@@ -323,7 +323,7 @@ Any disposition/gate revision is for the user/coordinator, not this measurement 
   bindings and 191 focused protected old records unchanged. No old cache writes or
   dependency substitution. Original benchmark Mongoose was already **9.11.4**, not
   the separate historical 9.8.0 peer consumer. No universal old cache-tree audit claim.
-- Actual Node **26.12.1**, pnpm **11.18.0**, TS **6.0.3**, Mongo **8.2.6**,
+- Actual Node **26.12.1**, pnpm **11.24.0**, TS **6.0.3**, Mongo **8.2.6**,
   Mongoose **9.11.4**, Express **5.2.1**. Full process.versions and exact node/pnpm/
   Mongo binary hashes remain in per-boundary runtime identity records.
 - Only after BOTH timing campaigns: foreground filtered serial **six-package** build

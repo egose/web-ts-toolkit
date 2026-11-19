@@ -4,7 +4,7 @@
   "scope": "access-router only; sequential foreground execution",
   "head": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
   "node": "v26.12.1",
-  "pnpm": "11.18.0",
+  "pnpm": "11.24.0",
   "vitest": "4.1.11",
   "lockSha256": "d7fb9b78729384906ecc4e4ad461b3cfbfaf41025dc1753b2b8322394a90b77b",
   "sourceFiles": 151,

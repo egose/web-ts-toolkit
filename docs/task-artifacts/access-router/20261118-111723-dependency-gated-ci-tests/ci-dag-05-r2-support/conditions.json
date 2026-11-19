@@ -26,7 +26,7 @@
         "--version"
       ],
       "exitCode": 0,
-      "output": "11.18.0"
+      "output": "11.24.0"
     },
     {
       "command": [

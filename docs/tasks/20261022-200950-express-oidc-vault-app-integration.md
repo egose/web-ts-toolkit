@@ -271,7 +271,7 @@ Execution notes (OVAPP-01 implementation):
 - Dependencies: none; sole assigned implementation owner, executing sequentially.
   Initial worktree contains only the two preexisting untracked task documents;
   preserve both. Required package builds/tests will run serially.
-- Environment established: Linux; Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`.
+- Environment established: Linux; Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`.
   Node resolves successfully; pnpm matches root `packageManager` (the asdf file
   requests pnpm `11.24.0`). Repository-wide integration belongs to OVAPP-08.
 - Inspecting current strict API, proof/replay/hook failures and packed-consumer
@@ -343,7 +343,7 @@ Implementation progress:
 Completion evidence:
 
 - Base revision: `33e434d`; implementation worktree, no commits created.
-  Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`,
+  Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`,
   TypeScript `6.0.3`, tsup `8.5.1`, Vitest `4.1.11`. Commands
   `node --version && pnpm --version && npm --version`, `pnpm exec tsc --version`,
   `node -p 'JSON.stringify({node:process.version,platform:process.platform,arch:process.arch})'`
@@ -518,7 +518,7 @@ Execution notes (OVAPP-02 implementation):
   Preserve its worktree changes and both existing task documents. No nested agents
   or commits; builds/tests remain serialized. Environment reconfirmed with
   `node --version && pnpm --version && npm --version`: Node `v26.10.0`, pnpm
-  `11.18.0`, npm `11.19.1`.
+  `11.24.0`, npm `11.19.1`.
 
 Design selected before coding:
 
@@ -621,7 +621,7 @@ Completion evidence:
   `website/docs/packages/express-oidc-vault.md`, and this task document. Shipped
   migration notes describe the required operation discriminator, safe telemetry,
   provenance, correlation, commit/cardinality and best-effort delivery contract.
-- Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`,
+- Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`,
   TypeScript `6.0.3`, tsup `8.5.1`, Vitest `4.1.11`. In addition to the version
   command above, these commands ran from `<repo-root>`:
 
@@ -781,7 +781,7 @@ Execution notes (OVAPP-03 implementation):
 
 - Sole assigned implementation owner, sequential execution; OVAPP-01/02 are
   completed and their worktree changes are preserved. No nested agents or commits.
-  Builds/tests remain serialized. Reconfirmed Node `v26.10.0`, pnpm `11.18.0`,
+  Builds/tests remain serialized. Reconfirmed Node `v26.10.0`, pnpm `11.24.0`,
   npm `11.19.1` with `node --version && pnpm --version && npm --version`.
 
 Design selected before coding:
@@ -852,7 +852,7 @@ Completion evidence:
   application claim mappers. Matching issuer API/defaults/key restrictions,
   subject/scope/JSON/reserved-claim behavior and additive migration notes ship in
   both documentation surfaces.
-- Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`,
+- Actual environment: Linux x64, Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`,
   TypeScript `6.0.3`, tsup `8.5.1`, Vitest `4.1.11`. In addition to the version
   command recorded above, these ran from `<repo-root>`:
 
@@ -1534,7 +1534,7 @@ Completion evidence (OVAPP-04 investigation, 2026-10-23):
   node --version && pnpm --version
   ```
 
-  Results: `33e434d`, Node `v26.10.0`, pnpm `11.18.0`. No runtime probe or test
+  Results: `33e434d`, Node `v26.10.0`, pnpm `11.24.0`. No runtime probe or test
   was needed/run: inspected source/regressions and fetched normative browser
   redirect evidence resolved the material contract questions. Provider ticket
   races and real browser navigation remain implementation acceptance checks,
@@ -1668,7 +1668,7 @@ Execution notes (OVAPP-05 implementation):
   OVMONGO-02 are completed. Read the adopted contract and primary-policy handoff
   thoroughly; preserve all prior work and the unrelated skill-file deletion.
   No nested agents, commits/pushes or CHANGELOG edits. Builds/tests run serially.
-- Reconfirmed Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`; Docker client/server
+- Reconfirmed Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`; Docker client/server
   `29.9.2` are available. Use ignored `<repo-root>/_tmp-ovapp05` for test work.
 - Implement the adopted dedicated five-field capability with separate physical
   capacity, create-only collisions, atomic retirement, indexed memory expiry,
@@ -1748,7 +1748,7 @@ Completion evidence (OVAPP-05, 2026-10-23):
   options, collection/key schemas, credential-bearing URL retention, default cap,
   cleanup/idle behavior, clock authority and additive migration are documented.
 - Environment: base `33e434d`, sequential uncommitted worktree; Linux x64, Node
-  `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`, TypeScript `6.0.3`, tsup `8.5.1`,
+  `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`, TypeScript `6.0.3`, tsup `8.5.1`,
   Vitest `4.1.11`. Actual Mongo driver `6.21.0`, memory-server `11.2.0`, server
   `8.2.6`, WiredTiger with a real PRIMARY and SECONDARY. Redis images
   `redis:6.2-alpine` / `redis:7.2-alpine` ran server `6.2.24` / `7.2.16`.
@@ -2007,7 +2007,7 @@ Execution notes (OVAPP-06 implementation):
   OVMONGO-01/02 are completed. Read the full normative decision, storage evidence,
   repository instructions and task workflow. Preserve all prior work and the
   unrelated skill-file deletion; no nested agents, commits/pushes or CHANGELOG edits.
-- Reconfirmed Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`. Ignored repository-local
+- Reconfirmed Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`. Ignored repository-local
   `_tmp-ovapp06` is provisioned and verified with `git check-ignore`; all builds,
   tests and packing run serially with that TMPDIR.
 - Selected API is exactly OVAPP-04's contract: root options and root/pure-wire
@@ -2092,7 +2092,7 @@ Completion evidence (OVAPP-06, 2026-10-23):
 Verification (all build/test/packing commands serialized, working directory
 `<repo-root>` unless stated; replace placeholders before execution):
 
-- Environment: Linux x64, Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`,
+- Environment: Linux x64, Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`,
   TypeScript `6.0.3`, tsup `8.5.1`, Vitest `4.1.11`. Prior uncommitted worktree
   and unrelated skill deletion preserved. No nested agents, commits/pushes or
   CHANGELOG edits. Initial preparation/build passed:
@@ -2281,7 +2281,7 @@ Execution notes (OVAPP-07 implementation):
   OVAPP-06 API/evidence, repository instructions and task workflow. Preserve prior
   changes and the unrelated skill-file deletion. No nested agents, commits/pushes,
   CHANGELOG edits or final independent review.
-- Reconfirmed Node `v26.10.0`, pnpm `11.18.0`, npm `11.19.1`. Builds, tests and
+- Reconfirmed Node `v26.10.0`, pnpm `11.24.0`, npm `11.19.1`. Builds, tests and
   packing will run serially with ignored repository-local `_tmp-ovapp07` as TMPDIR.
 - Implement the selected `logoutAndNavigate(): Promise<void>` using the existing
   HTTP/proof/nonce/FIFO/cookie-lock machinery, exact pinned URL validation,
@@ -2356,7 +2356,7 @@ Completion evidence (OVAPP-07, 2026-10-23):
   `packages/express-oidc-vault/README.md`,
   `website/docs/packages/express-oidc-vault.md`,
   `website/docs/packages/oidc-vault-dpop-client.md`, and this task file.
-- Environment: base `33e434d`, Linux x64, Node `v26.10.0`, pnpm `11.18.0`,
+- Environment: base `33e434d`, Linux x64, Node `v26.10.0`, pnpm `11.24.0`,
   npm `11.19.1`, TypeScript `6.0.3`, tsup `8.5.1`, Vitest `4.1.11`,
   Vite `8.2.1`, Playwright `1.62.1`. Actual launched browsers: **Chromium
   `151.0.7922.34` and Firefox `153.0`**. No additional consumer runtime configured.
@@ -2691,7 +2691,7 @@ Review corrections and attribution:
 #### OVAPP-08 fresh verification evidence
 
 Environment: base `33e434d`, sequential uncommitted worktree, Linux x64, Node
-`v26.10.0`, pnpm `11.18.0`, npm `11.19.1`, TypeScript `6.0.3`, tsup `8.5.1`,
+`v26.10.0`, pnpm `11.24.0`, npm `11.19.1`, TypeScript `6.0.3`, tsup `8.5.1`,
 Vitest `4.1.11`. MongoDB application driver `6.21.0`, memory-server `11.2.0`,
 server `8.2.6`, real two-member WiredTiger PRIMARY/SECONDARY fixtures plus existing
 single-member/standalone cases; Docker `29.9.2` and live Redis 6.2/7.2 harness

@@ -283,7 +283,7 @@ Read the full C1-C4/scope/shared gates, root `AGENTS.md`, and the
 code. Initial HEAD remained `4f544d5`; preserved the coordinator's previous-phase
 cross-link and this taskfile. Process inspections with
 `ps -C node,pnpm,esbuild,tsc -o comm,args` found no competing workers before builds.
-Node `v26.12.1`, pnpm `11.18.0`; checked the repository parent with `ls -ld .`,
+Node `v26.12.1`, pnpm `11.24.0`; checked the repository parent with `ls -ld .`,
 confirmed `git check-ignore -v _tmp-pop/probe` matched `.gitignore:8:_tmp*`, then
 created `_tmp-pop`. All fixture commands below ran from the repository root with
 `TMPDIR="$PWD/_tmp-pop"`. Builds/tests were serialized.

@@ -118,7 +118,7 @@ the initial failing-before run. No failed assertion was dropped or weakened.
 
 ## Verification actually run
 
-All commands ran from repository root, with Node `v26.12.1`, pnpm `11.18.0`, Vitest
+All commands ran from repository root, with Node `v26.12.1`, pnpm `11.24.0`, Vitest
 `4.1.11`, installed dependencies and MongoDB memory-server prerequisites. No install
 was run. Fresh `_tmp-oam03-remediation-20261104-062659` was created with `mkdir` and
 confirmed ignored using `git check-ignore`.

@@ -31,7 +31,7 @@ historical evidence, not an accepted protocol.
 - **626 copied files / 579 source records / 67 deterministic rebuilt outputs**.
   All six necessary packages rebuilt serially; exact paths and SHA256s match all
   tested outputs, including both renamed shared declaration chunks.
-- New 13-tool seal; pinned Node 26.12.1/pnpm 11.18.0/Mongo 8.2.6/binaries/lock;
+- New 13-tool seal; pinned Node 26.12.1/pnpm 11.24.0/Mongo 8.2.6/binaries/lock;
   actual external closure **134 packages/3,510 files**, tool closure
   **293 packages/10,545 files** rehashed unchanged.
 - Original baseline stays **`33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822`**
