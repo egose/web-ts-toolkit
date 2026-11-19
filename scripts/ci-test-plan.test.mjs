@@ -95,6 +95,8 @@ runs:
       working-directory: \${{ inputs.checkout-root }}
       run: node .github/actions/ci-checkout/index.mjs --check-install
     - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      env:
+        npm_config_shared_workspace_lockfile: 'false'
       with:
         package_json_file: \${{ inputs.checkout-relative }}/package.json
         dest: \${{ inputs.pnpm-dest }}
@@ -1362,6 +1364,30 @@ const helperMutations = [
       a.runs.steps[2].with.dest = '~/setup-pnpm';
     },
     /with.dest: expected/,
+  ],
+  [
+    'setup missing bootstrap isolation',
+    ciActions.setup,
+    (a) => {
+      delete a.runs.steps[2].env;
+    },
+    /steps\[2\] keys.*missing \[env\]/,
+  ],
+  [
+    'setup bootstrap shares the workspace lockfile',
+    ciActions.setup,
+    (a) => {
+      a.runs.steps[2].env.npm_config_shared_workspace_lockfile = 'true';
+    },
+    /npm_config_shared_workspace_lockfile: expected "false"/,
+  ],
+  [
+    'setup applies bootstrap isolation to the workspace install',
+    ciActions.setup,
+    (a) => {
+      a.runs.steps[3].env = { ...a.runs.steps[2].env };
+    },
+    /steps\[3\] keys.*extra \[env\]/,
   ],
   [
     'setup pnpm cache enabled',

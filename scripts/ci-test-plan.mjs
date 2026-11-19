@@ -540,6 +540,7 @@ export const helperStepContracts = {
     },
     {
       uses: ciActions.pnpm,
+      env: { npm_config_shared_workspace_lockfile: 'false' },
       with: {
         package_json_file: '${{ inputs.checkout-relative }}/package.json',
         dest: '${{ inputs.pnpm-dest }}',
