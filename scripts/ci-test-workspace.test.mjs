@@ -237,7 +237,7 @@ test('lean setup fails on workspace/generated subprocess resolution drift and st
           (target === '<generated-consumer>' && isGenerated) ||
           (target === 'packages/sample' && options.cwd.endsWith('/packages/sample'))
         )
-          return '11.24.0';
+          return '0.0.0';
       },
     });
     assert.throws(

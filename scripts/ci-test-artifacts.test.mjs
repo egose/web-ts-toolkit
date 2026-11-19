@@ -53,6 +53,7 @@ const identity = {
   pnpm: '11.24.0',
   lockSha256: sha256('frozen lock'),
 };
+const mismatchedPnpm = '0.0.0';
 const contract = {
   roots: ['packages/sample/dist'],
   files: [{ path: 'packages/sample/dist/cli.js', mode: 0o755 }, { path: 'packages/sample/dist/index.mjs' }],
@@ -709,10 +710,14 @@ test('toolchain and checkout/run identity are resolved, not trusted from artifac
     for (const value of [undefined, '', '0', '-1', '2\n', 'any'])
       assert.throws(() => checkoutIdentity(root, { ...env, [key]: value }, run), /Missing\/invalid/);
   assert.throws(
-    () => checkoutIdentity(root, env, (name) => (name === 'git' ? identity.checkoutSha : '11.24.0')),
+    () => checkoutIdentity(root, env, (name) => (name === 'git' ? identity.checkoutSha : mismatchedPnpm)),
     /Resolved CI Node\/pnpm/,
   );
-  write(root, 'packages/create-access-router-mongo-starter/template/package.json', '{"packageManager":"pnpm@11.24.0"}');
+  write(
+    root,
+    'packages/create-access-router-mongo-starter/template/package.json',
+    JSON.stringify({ packageManager: `pnpm@${mismatchedPnpm}` }),
+  );
   assert.throws(() => toolchainPins(root), /Root\/template packageManager/);
 });
 
@@ -726,7 +731,7 @@ test('starter readiness rejects a successful unpublished-release skip and stale 
     JSON.stringify({ packageManager: 'pnpm@11.24.0', dependencies: { '@web-ts-toolkit/access-router': '^0.1.0' } }),
   );
   assert.throws(() => validateStarter(root), /release dependency mismatch/);
-  write(root, path, JSON.stringify({ packageManager: 'pnpm@11.24.0' }));
+  write(root, path, JSON.stringify({ packageManager: `pnpm@${mismatchedPnpm}` }));
   assert.throws(() => validateStarter(root), /packageManager mismatch/);
   write(
     root,
