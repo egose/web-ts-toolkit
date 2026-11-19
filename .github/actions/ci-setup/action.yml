@@ -15,6 +15,7 @@ runs:
   steps:
   - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
     with:
+      node-version: 26.12.1
       node-version-file: ${{ inputs.checkout-relative }}/.tool-versions
       package-manager-cache: false
   - id: installer-boundary
