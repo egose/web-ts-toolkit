@@ -1,0 +1,7 @@
+{
+  "scope": "Local curation edit-tool observation only, not a process/test result",
+  "source": "Hand-recorded from the edit tool response; not a sealed filesystem execution log",
+  "failedEdit": "An initial correction patch put a later scope-string hunk before the earlier count hunk; context-order validation rejected it before any write",
+  "reportedError": "patch verification failed: Failed to find expected lines in _tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure.py:\nassert len(files) == 22",
+  "resolution": "Applied the same correction in file order; preserved the failed driver before changing it; no maintained or protected file edit"
+}

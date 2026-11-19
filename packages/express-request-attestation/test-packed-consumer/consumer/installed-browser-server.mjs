@@ -14,12 +14,13 @@ import {
   generateAttestationKey,
 } from '@web-ts-toolkit/express-request-attestation';
 
-const { rotate, exposeMarker } = JSON.parse(process.argv[2]);
+const { rotate, exposeMarker, fault } = JSON.parse(process.argv[2]);
 const replayNamespace = 'packed-installed-browser';
 // Resolve through the installed public export, including its import condition.
 // The import map serves these exact bytes; no source/deep import or bundler alias.
 const signerEntry = fileURLToPath(import.meta.resolve('@web-ts-toolkit/express-request-attestation/signer'));
 const browserEntry = fileURLToPath(new URL('./installed-browser.mjs', import.meta.url));
+const browserObserver = fileURLToPath(new URL('./installed-browser-observer.mjs', import.meta.url));
 const browserHtml = fileURLToPath(new URL('./installed-browser.html', import.meta.url));
 const sessionCookie = `installed_session=${randomUUID()}`;
 const counters = {
@@ -35,6 +36,7 @@ const counters = {
 const traffic = [];
 const reservations = [];
 const effects = [];
+const faults = [];
 const observations = new WeakMap();
 const servers = [];
 
@@ -56,13 +58,18 @@ function listen(app) {
 
 let shutdownPromise;
 function shutdown() {
-  shutdownPromise ??= Promise.all(servers.map((server) => new Promise((resolve, reject) => {
-    server.close((error) => {
-      if (error && error.code !== 'ERR_SERVER_NOT_RUNNING') reject(error);
-      else resolve();
-    });
-    server.closeAllConnections();
-  })));
+  shutdownPromise ??= Promise.all(
+    servers.map(
+      (server) =>
+        new Promise((resolve, reject) => {
+          server.close((error) => {
+            if (error && error.code !== 'ERR_SERVER_NOT_RUNNING') reject(error);
+            else resolve();
+          });
+          server.closeAllConnections();
+        }),
+    ),
+  );
   return shutdownPromise;
 }
 
@@ -70,7 +77,10 @@ function stop(exitCode) {
   clearTimeout(lifetime);
   void shutdown().then(
     () => process.exit(exitCode),
-    (error) => { console.error(error); process.exit(1); },
+    (error) => {
+      console.error(error);
+      process.exit(1);
+    },
   );
 }
 
@@ -100,10 +110,14 @@ function observe(req, res, next) {
     fetchMode: req.get('sec-fetch-mode') ?? null,
     fetchDest: req.get('sec-fetch-dest') ?? null,
     requestedMethod: req.get('access-control-request-method') ?? null,
-    requestedHeaders: (req.get('access-control-request-headers') ?? '').split(',').filter(Boolean).map((s) => s.trim()),
+    requestedHeaders: (req.get('access-control-request-headers') ?? '')
+      .split(',')
+      .filter(Boolean)
+      .map((s) => s.trim()),
     proof,
-    proofHeaderCount: req.rawHeaders.filter((header, index) =>
-      index % 2 === 0 && header.toLowerCase() === DEFAULT_ATTESTATION_HEADER).length,
+    proofHeaderCount: req.rawHeaders.filter(
+      (header, index) => index % 2 === 0 && header.toLowerCase() === DEFAULT_ATTESTATION_HEADER,
+    ).length,
     envelope,
     receivedAtMs: Date.now(),
     rawBodyHex: null,
@@ -111,6 +125,15 @@ function observe(req, res, next) {
     parsedBody: null,
     principal: null,
     status: null,
+    marker: null,
+    allowOrigin: null,
+    allowCredentials: null,
+    allowMethods: null,
+    allowHeaders: null,
+    maxAge: null,
+    exposedHeaders: null,
+    cacheControl: null,
+    countersAtResponse: null,
   };
   traffic.push(row);
   observations.set(req, row);
@@ -132,8 +155,18 @@ function observe(req, res, next) {
 }
 
 function serveBrowser(app) {
-  app.get('/', (req, res) => { void req; res.sendFile(browserHtml); });
-  app.get('/installed-browser.mjs', (req, res) => { void req; res.sendFile(browserEntry); });
+  app.get('/', (req, res) => {
+    void req;
+    res.sendFile(browserHtml);
+  });
+  app.get('/installed-browser.mjs', (req, res) => {
+    void req;
+    res.sendFile(browserEntry);
+  });
+  app.get('/installed-browser-observer.mjs', (req, res) => {
+    void req;
+    res.sendFile(browserObserver);
+  });
   app.get('/installed-signer.mjs', (req, res) => {
     void req;
     // import.meta.resolve follows pnpm's .pnpm directory. Permit that resolved
@@ -149,7 +182,10 @@ try {
   const webOrigin = await listen(web);
   const now = Date.now();
   const initial = generateAttestationKey('installed-k1', { acceptFrom: now - 60_000, acceptUntil: now + 3_600_000 });
-  const replacement = generateAttestationKey('installed-k2', { acceptFrom: now - 60_000, acceptUntil: now + 3_600_000 });
+  const replacement = generateAttestationKey('installed-k2', {
+    acceptFrom: now - 60_000,
+    acceptUntil: now + 3_600_000,
+  });
   const keyProvider = createRotatingKeyProvider({ currentKeyId: initial.keyId, keys: [initial] });
   const memory = createMemoryAttestationStore({ maxEntries: 8 });
   const store = {
@@ -167,7 +203,7 @@ try {
   // The report is a harness side channel, never used for browser discovery or API transport.
   api.get('/__report', (req, res) => {
     void req;
-    res.json({ counters, traffic, reservations, effects, sessionCookie });
+    res.json({ counters, traffic, reservations, effects, sessionCookie, faults });
   });
   api.use(observe);
   web.use(observe);
@@ -197,46 +233,64 @@ try {
     res.type('html').send('<!doctype html><title>Fixture session established</title>');
   });
   api.use('/attestation', createSignerBundleRouter({ publicOrigin: apiOrigin, replayNamespace, keyProvider }));
-  api.use(express.json({
-    limit: 4096,
-    inflate: false,
-    verify(req, res, bytes, encoding) {
-      counters.captureCalls += 1;
-      observations.get(req).rawBodyHex = bytes.toString('hex');
-      capture.verify(req, res, bytes, encoding);
-      observations.get(req).capturedBody = capture.getRecord(req);
-    },
-  }));
+  api.use(
+    express.json({
+      limit: 4096,
+      inflate: false,
+      verify(req, res, bytes, encoding) {
+        counters.captureCalls += 1;
+        observations.get(req).rawBodyHex = bytes.toString('hex');
+        capture.verify(req, res, bytes, encoding);
+        observations.get(req).capturedBody = capture.getRecord(req);
+      },
+    }),
+  );
   api.use(capture.errorHandler);
-  api.post('/api/submit', (req, res, next) => {
-    const row = observations.get(req);
-    row.parsedBody = req.body;
-    counters.authCalls += 1;
-    if (!(req.get('cookie') ?? '').split(';').some((cookie) => cookie.trim() === sessionCookie)) {
-      res.set('Cache-Control', 'no-store').status(401).json({ code: 'UNAUTHORIZED', message: 'Fixture session is required.' });
-      return;
-    }
-    counters.authorizedCalls += 1;
-    row.principal = 'installed-browser-user';
-    if (rotate && counters.rotations === 0) {
-      // The POST has already been signed and captured. Drop K1 before the real
-      // guard reads its snapshot; only the guard creates the stale response.
-      keyProvider.replace({ currentKeyId: replacement.keyId, keys: [replacement] });
-      counters.rotations += 1;
-    }
-    counters.guardCalls += 1;
-    guard(req, res, next);
-  }, (req, res) => {
-    counters.businessCalls += 1;
-    const effect = {
-      principal: observations.get(req).principal,
-      body: req.body,
-      target: req.originalUrl,
-      capturedBody: capture.getRecord(req),
-    };
-    effects.push(effect);
-    res.json({ ok: true, ...effect });
-  });
+  api.post(
+    '/api/submit',
+    (req, res, next) => {
+      const row = observations.get(req);
+      row.parsedBody = req.body;
+      counters.authCalls += 1;
+      if (!(req.get('cookie') ?? '').split(';').some((cookie) => cookie.trim() === sessionCookie)) {
+        res
+          .set('Cache-Control', 'no-store')
+          .status(401)
+          .json({ code: 'UNAUTHORIZED', message: 'Fixture session is required.' });
+        return;
+      }
+      counters.authorizedCalls += 1;
+      row.principal = 'installed-browser-user';
+      if (rotate && counters.rotations === 0) {
+        // The POST has already been signed and captured. Drop K1 before the real
+        // guard reads its snapshot; only the guard creates the stale response.
+        keyProvider.replace({ currentKeyId: replacement.keyId, keys: [replacement] });
+        counters.rotations += 1;
+      }
+      if (fault === 'retry-request' && counters.authCalls === 2) {
+        // Fail only the received second POST, after native CORS/body/auth and
+        // before any guard/reservation/business effect. Conflicting lengths make
+        // the native HTTP parser reject; an empty socket close can trigger a
+        // Chromium-internal POST replay. No Fetch/import routing or fixture retry.
+        faults.push({ fault, post: 2 });
+        req.socket.end('HTTP/1.1 200 OK\r\nContent-Length: 0\r\nContent-Length: 1\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      counters.guardCalls += 1;
+      guard(req, res, next);
+    },
+    (req, res) => {
+      counters.businessCalls += 1;
+      const effect = {
+        principal: observations.get(req).principal,
+        body: req.body,
+        target: req.originalUrl,
+        capturedBody: capture.getRecord(req),
+      };
+      effects.push(effect);
+      res.json({ ok: true, ...effect });
+    },
+  );
   process.send({ type: 'ready', apiOrigin, webOrigin, replayNamespace, signerEntry });
 } catch (error) {
   console.error(error);

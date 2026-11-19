@@ -1,0 +1,79 @@
+{
+  "preservedAt": "2026-11-19T14:36:13.970069+00:00",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "scope": "Four exact copies of saved read-only coordinator results and inspected drivers; no implementation or test/runtime/hosted recertification",
+  "entries": [
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-stage2-reconcile-wC6ozM/coordinator-reconciliation.json",
+        "mode": "0644",
+        "bytes": 90650,
+        "sha256": "30941803b7f15af7cc44be9f742be0c95a0a2148bf65675c8f5b562927101253"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-stage2-coordinator-reconciliation.json",
+        "mode": "0644",
+        "bytes": 90650,
+        "sha256": "30941803b7f15af7cc44be9f742be0c95a0a2148bf65675c8f5b562927101253"
+      },
+      "transformation": "None; byte-exact, already-sanitized archival copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-evidence-kp5jl87q/coordinator-evidence.json",
+        "mode": "0644",
+        "bytes": 98132,
+        "sha256": "6d624edf0f2f742724e3fa5b5702664fb58d6c8e81b50738fab11cd9b80a1349"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-stage2-coordinator-evidence.json",
+        "mode": "0644",
+        "bytes": 98132,
+        "sha256": "6d624edf0f2f742724e3fa5b5702664fb58d6c8e81b50738fab11cd9b80a1349"
+      },
+      "transformation": "None; byte-exact, already-sanitized archival copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/reconcile-setup-stage2.mjs",
+        "mode": "0644",
+        "bytes": 15294,
+        "sha256": "52b1ed38f077e39e7e2211ca0b0c4eca8a8919f7bc0f0d3552f1bc549645ea7d"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/drivers/reconcile-byte-scope.mjs",
+        "mode": "0644",
+        "bytes": 15294,
+        "sha256": "52b1ed38f077e39e7e2211ca0b0c4eca8a8919f7bc0f0d3552f1bc549645ea7d"
+      },
+      "transformation": "None; byte-exact, already-sanitized archival copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/reconcile-setup-evidence.py",
+        "mode": "0644",
+        "bytes": 20275,
+        "sha256": "e0631929f2ebee4c4db3bd51e06c7aceb341521215ee33cb08823505497befb5"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/drivers/reconcile-saved-evidence.py",
+        "mode": "0644",
+        "bytes": 20275,
+        "sha256": "e0631929f2ebee4c4db3bd51e06c7aceb341521215ee33cb08823505497befb5"
+      },
+      "transformation": "None; byte-exact, already-sanitized archival copy; original retained unchanged"
+    }
+  ],
+  "historicalScratch": "_tmp-c5f-ovtrnV/setup-preservation-v4tu3oqp",
+  "command": [
+    "python3",
+    "_tmp-c5f-ovtrnV/preserve-setup-reconciliation.py",
+    "--preserve-idle-reconciliation"
+  ],
+  "omitted": [
+    "Full coordinator baseline and historical source trees (unchanged originals remain locally retained; the setup archive retains the matching original file table)",
+    "Redundant Git command streams, dependencies, caches, tool binaries, fixture Git objects and execution state"
+  ],
+  "reproductionLimit": "Driver copies document inspected historical checks and retain original scratch input paths. Do not execute them from the archive; they require omitted scratch state and current execution authorization. These result copies do not rerun or independently accept setup.",
+  "selfReferenceLimit": "Covers only the four entries listed, not this manifest, later coordinator documents/checks, review inputs or future review evidence"
+}

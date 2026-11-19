@@ -6,7 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import ts from 'typescript';
 import { afterAll, describe, expect, it } from 'vitest';
-import { runInstalledBrowserScenario, type BrowserScenario } from './installed-browser-harness.js';
+import {
+  InstalledBrowserScenarioError,
+  runInstalledBrowserScenario,
+  type BrowserScenario,
+  type NativeDiagnostics,
+  type RetryFault,
+} from './installed-browser-harness.js';
 
 const publisherRequire = createRequire(require.resolve('@repo-toolkit/release-artifact')) as NodeRequire;
 const { createPublishPackageJson, DEFAULT_PACKAGE_FILES, DEFAULT_VERSION_PLACEHOLDER } = publisherRequire(
@@ -204,6 +210,34 @@ function expectHoverDocs(text: string, name: string, contractTerms: string[]): v
   }
 }
 
+function expectDiscardedResponseAborts(events: NativeDiagnostics['events'], discardedStaleResponse: boolean): void {
+  const firstPost = events.find(
+    (event) => event.kind === 'request' && event.resource === 'api' && event.method === 'POST',
+  );
+  for (const event of events) {
+    if (event.kind !== 'request-failed') continue;
+    // Retain native post-header aborts rather than mislabel them as failed
+    // preparation. Loaded signers and readable returned bodies are checked too.
+    expect(event.failure).toBe('net::ERR_ABORTED');
+    expect(
+      (event.resource === 'discovery' && event.method === 'GET' && event.responseStatus === 200) ||
+        (discardedStaleResponse &&
+          firstPost?.kind === 'request' &&
+          event.request === firstPost.request &&
+          event.resource === 'api' &&
+          event.method === 'POST' &&
+          event.responseStatus === 403),
+    ).toBe(true);
+    expect(events).toContainEqual({
+      kind: 'response',
+      request: event.request,
+      resource: event.resource,
+      method: event.method,
+      status: event.responseStatus,
+    });
+  }
+}
+
 function installBackendConsumer(): string {
   const packed = preparePackedWorkspace();
   const consumerDir = trackTempRoot(mkdtempSync(path.join(os.tmpdir(), 'attestation-backend-consumer-')));
@@ -248,6 +282,7 @@ function installBackendConsumer(): string {
     'tsconfig-browser.json',
     'installed-browser-server.mjs',
     'installed-browser.mjs',
+    'installed-browser-observer.mjs',
     'installed-browser.html',
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
@@ -712,11 +747,8 @@ describe('packed-package consumer compatibility', () => {
         digestHex: createHash('sha256').update(bodyText).digest('hex'),
         byteLength: Buffer.byteLength(bodyText),
       };
-      const { ready, browser, report, pageErrors, chromiumVersion } = await runInstalledBrowserScenario(
-        browserConsumerDir,
-        scenario,
-        { requestTarget, bodyText },
-      );
+      const { ready, browser, report, pageErrors, chromiumVersion, nativeDiagnostics } =
+        await runInstalledBrowserScenario(browserConsumerDir, scenario, { requestTarget, bodyText });
       const api = report.traffic.filter((row) => row.target.startsWith('/api/') && row.method !== 'OPTIONS');
       const preflights = report.traffic.filter((row) => row.method === 'OPTIONS');
       const discovery = report.traffic.filter((row) => row.target === '/attestation/signer-meta');
@@ -732,7 +764,46 @@ describe('packed-package consumer compatibility', () => {
         bodyBytes: capturedBody.byteLength,
         ...report.counters,
       });
+      console.info(
+        'Installed causal observation',
+        JSON.stringify({
+          scenario: scenario.name,
+          fault: null,
+          chromiumVersion,
+          outcome: 'returned',
+          apiStatuses: api.map((row) => row.status),
+          preflights: preflights.length,
+          discoveries: discovery.length,
+          keyModules: keyModules.length,
+          runtimeModules: runtimes.length,
+          counters: report.counters,
+          fixture: browser.diagnostics,
+          native: nativeDiagnostics,
+        }),
+      );
 
+      expect(browser, 'fixture diagnostics must survive return before external assertions').toHaveProperty(
+        'diagnostics.events',
+      );
+      expect(browser.diagnostics.dropped).toBe(0);
+      expect(nativeDiagnostics.dropped).toBe(0);
+      expect(report.faults).toEqual([]);
+      expectDiscardedResponseAborts(nativeDiagnostics.events, scenario.statuses.length === 2);
+      expect(browser.diagnostics.events.map((event) => event.phase)).toEqual([
+        'load-start',
+        'load-ready',
+        'sign-start',
+        'sign-ready',
+        ...(scenario.statuses.length === 2
+          ? ['invalidate-start', 'invalidate-ready', 'load-start', 'load-ready', 'sign-start', 'sign-ready']
+          : []),
+        'response-returned',
+        'dispose-start',
+        'dispose-ready',
+      ]);
+      expect(
+        browser.diagnostics.events.filter((event) => event.phase === 'sign-ready').map((event) => event.sameAsFirst),
+      ).toEqual(scenario.statuses.length === 2 ? [null, false] : [null]);
       expect(path.relative(browserConsumerDir, ready.signerEntry)).toMatch(/^node_modules\//);
       expect(ready.signerEntry).toMatch(/\/signer\.mjs$/);
       expect(ready.signerEntry).not.toMatch(/\/(src|dist)\//);
@@ -879,6 +950,246 @@ describe('packed-package consumer compatibility', () => {
               }
             : { code: 'UNAUTHORIZED', message: 'Fixture session is required.' },
         );
+      }
+    },
+    180_000,
+  );
+
+  const retryFaults: Array<{ fault: RetryFault; statuses: Array<number | null>; discoveries: number }> = [
+    { fault: 'load-before-discovery', statuses: [403], discoveries: 1 },
+    { fault: 'invalidate', statuses: [403, 403], discoveries: 1 },
+    { fault: 'sign', statuses: [403], discoveries: 2 },
+    { fault: 'retry-header', statuses: [403], discoveries: 2 },
+    { fault: 'repeat-proof', statuses: [403], discoveries: 2 },
+    { fault: 'retry-request', statuses: [403, null], discoveries: 2 },
+  ];
+  it.each(retryFaults)(
+    'installed Chromium controlled retry: $fault',
+    async ({ fault, statuses, discoveries }) => {
+      browserConsumerDir ??= installBackendConsumer();
+      const requestTarget = '/api/submit?part=two%2Fparts&order=1&order=2';
+      const bodyText = '{\n  "message": "café / 雪 🚀",\n  "items": [3, 1],\n  "enabled": true\n}\n';
+      const scenario: BrowserScenario = {
+        name: `controlled retry ${fault}`,
+        crossOrigin: true,
+        includeCredentials: true,
+        rotate: true,
+        exposeMarker: true,
+        fault,
+      };
+      const outcome = await runInstalledBrowserScenario(browserConsumerDir, scenario, { requestTarget, bodyText }).then(
+        (value) => ({ state: 'returned' as const, value }),
+        (error: unknown) => {
+          if (!(error instanceof InstalledBrowserScenarioError)) throw error;
+          return { state: 'rejected' as const, error };
+        },
+      );
+      const report = outcome.state === 'returned' ? outcome.value.report : outcome.error.report;
+      const diagnostics =
+        outcome.state === 'returned' ? outcome.value.browser.diagnostics : outcome.error.browserDiagnostics;
+      const native = outcome.state === 'returned' ? outcome.value.nativeDiagnostics : outcome.error.nativeDiagnostics;
+      const chromiumVersion =
+        outcome.state === 'returned' ? outcome.value.chromiumVersion : outcome.error.chromiumVersion;
+      if (report === null || diagnostics === null)
+        throw new Error('Controlled retry must retain fixture and HTTP observations');
+      const api = report.traffic.filter((row) => row.target.startsWith('/api/') && row.method !== 'OPTIONS');
+      const preflights = report.traffic.filter((row) => row.method === 'OPTIONS');
+      const discovery = report.traffic.filter((row) => row.target === '/attestation/signer-meta');
+      const keyModules = report.traffic.filter((row) => /^\/attestation\/signer\.[a-f0-9]{64}\.mjs$/.test(row.target));
+      const runtimes = report.traffic.filter((row) => /^\/attestation\/runtime\.[a-f0-9]{64}\.mjs$/.test(row.target));
+      console.info(
+        'Installed causal observation',
+        JSON.stringify({
+          scenario: scenario.name,
+          fault,
+          chromiumVersion,
+          outcome: outcome.state,
+          apiStatuses: api.map((row) => row.status),
+          preflights: preflights.length,
+          discoveries: discovery.length,
+          keyModules: keyModules.length,
+          runtimeModules: runtimes.length,
+          counters: report.counters,
+          faults: report.faults,
+          fixture: diagnostics,
+          native,
+        }),
+      );
+
+      expect(outcome.state).toBe(fault === 'retry-request' ? 'rejected' : 'returned');
+      expect(diagnostics.dropped).toBe(0);
+      expect(native.dropped).toBe(0);
+      expect(api.map((row) => row.status)).toEqual(statuses);
+      expect(discovery).toHaveLength(discoveries);
+      expect(keyModules).toHaveLength(discoveries);
+      expect(runtimes).toHaveLength(1);
+      expect(preflights).toHaveLength(fault === 'invalidate' || fault === 'retry-request' ? 2 : 1);
+      expect(report.counters).toEqual({
+        captureCalls: statuses.length,
+        authCalls: statuses.length,
+        authorizedCalls: statuses.length,
+        guardCalls: fault === 'retry-request' ? 1 : statuses.length,
+        rotations: 1,
+        reserveCalls: 0,
+        successfulReservations: 0,
+        businessCalls: 0,
+      });
+      expect(report.reservations).toEqual([]);
+      expect(report.effects).toEqual([]);
+      const capturedBody = {
+        digestHex: createHash('sha256').update(bodyText).digest('hex'),
+        byteLength: Buffer.byteLength(bodyText),
+      };
+      for (const [index, row] of api.entries()) {
+        expect(row).toMatchObject({
+          method: 'POST',
+          target: requestTarget,
+          cookie: report.sessionCookie,
+          contentType: 'application/json; charset=utf-8',
+          rawBodyHex: Buffer.from(bodyText).toString('hex'),
+          capturedBody,
+          parsedBody: JSON.parse(bodyText),
+          principal: 'installed-browser-user',
+          fetchMode: 'cors',
+          fetchDest: 'empty',
+          proofHeaderCount: 1,
+          envelope: { keyId: fault === 'retry-request' && index === 1 ? 'installed-k2' : 'installed-k1' },
+        });
+        if (fault === 'retry-request' && index === 1) {
+          expect(row).toMatchObject({
+            status: null,
+            marker: null,
+            exposedHeaders: null,
+            cacheControl: null,
+            allowOrigin: null,
+            allowCredentials: null,
+            countersAtResponse: null,
+          });
+        } else {
+          expect(row).toMatchObject({
+            status: 403,
+            marker: 'stale-key',
+            exposedHeaders: 'x-attestation-error',
+            cacheControl: 'no-store',
+            allowOrigin: row.origin,
+            allowCredentials: 'true',
+            countersAtResponse: { reserveCalls: 0, successfulReservations: 0, businessCalls: 0 },
+          });
+        }
+        expect(row.proof).not.toBe('caller-proof-must-be-replaced');
+        expect(row.envelope?.nonceHex).toMatch(/^[a-f0-9]{32}$/);
+        expect(row.envelope?.mac).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        expect(row.envelope?.timestampMs).toBeGreaterThanOrEqual(row.receivedAtMs - 10_000);
+        expect(row.envelope?.timestampMs).toBeLessThanOrEqual(row.receivedAtMs);
+      }
+      for (const row of preflights) {
+        expect(row).toMatchObject({
+          target: requestTarget,
+          cookie: null,
+          proof: null,
+          proofHeaderCount: 0,
+          requestedMethod: 'POST',
+          status: 204,
+          allowOrigin: row.origin,
+          allowCredentials: 'true',
+          allowMethods: 'POST',
+          allowHeaders: 'content-type, x-client-transaction-id',
+          maxAge: '0',
+          countersAtResponse: { reserveCalls: 0, businessCalls: 0 },
+        });
+        expect(row.requestedHeaders.sort()).toEqual(['content-type', 'x-client-transaction-id']);
+      }
+      expect(diagnostics.events.filter((event) => event.phase === 'invalidate-start')).toHaveLength(1);
+      expect(diagnostics.events.filter((event) => event.phase === 'load-start')).toEqual([
+        { phase: 'load-start', load: 1, replacement: false },
+        { phase: 'load-start', load: 2, replacement: true },
+      ]);
+      expect(diagnostics.events.filter((event) => event.phase === 'fault-injected')).toEqual(
+        fault === 'retry-request' ? [] : [{ phase: 'fault-injected', fault }],
+      );
+      const errors = diagnostics.events.filter((event) => event.phase.endsWith('-error'));
+      expect(errors).toEqual(
+        fault === 'load-before-discovery'
+          ? [{ phase: 'load-error', load: 2, errorName: 'SignerClientError', errorCode: 'SIGNER_LOAD_FAILED' }]
+          : fault === 'sign'
+            ? [{ phase: 'sign-error', sign: 2, errorName: 'SignerClientError', errorCode: 'SIGNER_PREPARATION_FAILED' }]
+            : fault === 'invalidate'
+              ? [{ phase: 'invalidate-error', errorName: 'Error', errorCode: null }]
+              : fault === 'retry-request'
+                ? [{ phase: 'invocation-error', aborted: false, errorName: 'TypeError', errorCode: null }]
+                : [],
+      );
+      expect(
+        diagnostics.events.filter((event) => event.phase === 'sign-ready').map((event) => event.sameAsFirst),
+      ).toEqual(fault === 'load-before-discovery' || fault === 'sign' ? [null] : [null, fault === 'repeat-proof']);
+      expect(diagnostics.events.slice(-2).map((event) => event.phase)).toEqual(['dispose-start', 'dispose-ready']);
+      if (fault === 'retry-request') {
+        expect(report.faults).toEqual([{ fault, post: 2 }]);
+        const posts = native.events.filter(
+          (event) => event.kind === 'request' && event.resource === 'api' && event.method === 'POST',
+        );
+        expect(posts).toHaveLength(2);
+        if (posts[1]?.kind !== 'request') throw new Error('Controlled retry must dispatch a second native POST');
+        const retryPost = posts[1].request;
+        const failed = {
+          kind: 'request-failed' as const,
+          request: retryPost,
+          resource: 'api',
+          method: 'POST',
+          failure: 'net::ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH',
+          responseStatus: null,
+        };
+        expect(native.events.filter((event) => event.kind === 'request-failed' && event.request === retryPost)).toEqual(
+          [failed],
+        );
+        expect(native.events.filter((event) => event.kind === 'response' && event.request === retryPost)).toEqual([]);
+        expectDiscardedResponseAborts(
+          native.events.filter((event) => event.kind !== 'request-failed' || event.request !== retryPost),
+          true,
+        );
+        expect(diagnostics.events.filter((event) => event.phase === 'response-returned')).toEqual([]);
+      } else {
+        expect(report.faults).toEqual([]);
+        expectDiscardedResponseAborts(native.events, fault === 'invalidate');
+        if (outcome.state !== 'returned') throw outcome.error;
+        const { browser, ready, pageErrors } = outcome.value;
+        expect(pageErrors).toEqual([]);
+        expect(browser.secureContext).toBe(true);
+        expect(browser.visibleCookies).toBe('');
+        expect(browser.credentials).toBe('include');
+        expect(browser.callerBodyUsed).toBe(false);
+        expect(browser.callerBodyText).toBe(bodyText);
+        expect(browser.response).toMatchObject({
+          status: 403,
+          type: 'cors',
+          url: `${ready.apiOrigin}${requestTarget}`,
+          redirected: false,
+          marker: 'stale-key',
+          bodyUsed: false,
+          bodyLocked: false,
+          cacheControl: 'no-store',
+        });
+        expect(JSON.parse(browser.response.text)).toEqual({
+          code: 'ATTESTATION_STALE_KEY',
+          message: 'Request signing key is no longer accepted.',
+        });
+        expect(diagnostics.events.filter((event) => event.phase === 'response-returned')).toEqual([
+          {
+            phase: 'response-returned',
+            status: 403,
+            type: 'cors',
+            marker: 'stale-key',
+            bodyUsed: false,
+            bodyLocked: false,
+          },
+        ]);
+      }
+      if (fault === 'invalidate' || fault === 'retry-request') {
+        expect(api[1]?.proof).not.toBe(api[0]?.proof);
+        expect(api[1]?.envelope?.nonceHex).not.toBe(api[0]?.envelope?.nonceHex);
+        expect(api[1]?.envelope?.mac).not.toBe(api[0]?.envelope?.mac);
+        expect(api[1]?.envelope?.timestampMs).toBeGreaterThanOrEqual(api[0]?.envelope?.timestampMs ?? Infinity);
+        expect(api[1]?.rawBodyHex).toBe(api[0]?.rawBodyHex);
       }
     },
     180_000,

@@ -1,0 +1,65 @@
+{
+  "checkoutOwner": true,
+  "root": false,
+  "tmpdir": "_tmp-ci-dag-05-r2-J2LqEF",
+  "commands": [
+    {
+      "command": [
+        "git",
+        "check-ignore",
+        "_tmp-ci-dag-05-r2-J2LqEF"
+      ],
+      "exitCode": 0,
+      "output": "_tmp-ci-dag-05-r2-J2LqEF"
+    },
+    {
+      "command": [
+        "node",
+        "--version"
+      ],
+      "exitCode": 0,
+      "output": "v26.12.1"
+    },
+    {
+      "command": [
+        "pnpm",
+        "--version"
+      ],
+      "exitCode": 0,
+      "output": "11.18.0"
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "--version"
+      ],
+      "exitCode": 0,
+      "output": "vitest/4.1.11 linux-x64 node-v26.12.1"
+    },
+    {
+      "command": [
+        "docker",
+        "version",
+        "--format",
+        "{{json .}}"
+      ],
+      "exitCode": 0,
+      "output": "{\"Client\":{\"Version\":\"29.9.3\",\"ApiVersion\":\"1.56\",\"DefaultAPIVersion\":\"1.56\",\"GitCommit\":\"5457199\",\"GoVersion\":\"go1.26.10\",\"Os\":\"linux\",\"Arch\":\"amd64\",\"BuildTime\":\"Tue Nov  3 21:42:08 2026\",\"Context\":\"default\"},\"Server\":{\"Platform\":{\"Name\":\"Docker Desktop 4.99.0 (245822)\"},\"Version\":\"29.9.3\",\"ApiVersion\":\"1.56\",\"MinAPIVersion\":\"1.40\",\"Os\":\"linux\",\"Arch\":\"amd64\",\"Components\":[{\"Name\":\"Engine\",\"Version\":\"29.9.3\",\"Details\":{\"ApiVersion\":\"1.56\",\"Arch\":\"amd64\",\"BuildTime\":\"Tue Nov  3 21:41:42 2026\",\"Experimental\":\"false\",\"GitCommit\":\"70efc0e\",\"GoVersion\":\"go1.26.10\",\"KernelVersion\":\"6.18.58.1-microsoft-standard-WSL2\",\"MinAPIVersion\":\"1.40\",\"Module\":\"github.com/moby/moby/v2\",\"ModuleVersion\":\"v2.0.0+unknown\",\"Os\":\"linux\"}},{\"Name\":\"containerd\",\"Version\":\"v2.4.2\",\"Details\":{\"GitCommit\":\"b7a25261e029d68978bbf290df0a62fc819b3c51\"}},{\"Name\":\"runc\",\"Version\":\"1.5.2\",\"Details\":{\"GitCommit\":\"v1.5.2-0-g29dd3dc2\"}},{\"Name\":\"docker-init\",\"Version\":\"0.19.0\",\"Details\":{\"GitCommit\":\"de40ad0\"}}],\"GitCommit\":\"70efc0e\",\"GoVersion\":\"go1.26.10\",\"KernelVersion\":\"6.18.58.1-microsoft-standard-WSL2\",\"BuildTime\":\"2026-11-03T21:41:42.000000000+00:00\"}}"
+    },
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "redis:6.2",
+        "redis:7.2",
+        "--format",
+        "{{.RepoTags}} {{.RepoDigests}}"
+      ],
+      "exitCode": 1,
+      "output": "Error response from daemon: No such image: redis:6.2\nError response from daemon: No such image: redis:7.2"
+    }
+  ]
+}

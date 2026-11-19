@@ -1,0 +1,141 @@
+✖ wiring: setup-node effectively reads the selected version pin, not the original workspace (13.709084ms)
+✖ wiring: pnpm effectively reads the selected manifest and receives only the fresh owned destination (6.430172ms)
+✖ wiring: every main project shell resolves the selected module, cwd and TMPDIR (56.15904ms)
+✖ wiring: all 28 main jobs retain the original SHA checkout then register a top-level source action (12.970946ms)
+✖ wiring: source metadata declares dependency-free node20 main/post and always cleanup, not a composite deletion (0.569568ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 202.020123
+
+✖ failing tests:
+
+test at scripts/ci-test-checkout.test.mjs:60:1
+✖ wiring: setup-node effectively reads the selected version pin, not the original workspace (13.709084ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'original'
+  - 'selected'
+  
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:65:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'original',
+    expected: 'selected',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:70:1
+✖ wiring: pnpm effectively reads the selected manifest and receives only the fresh owned destination (6.430172ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'original'
+  - 'selected'
+  
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:74:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'original',
+    expected: 'selected',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:80:1
+✖ wiring: every main project shell resolves the selected module, cwd and TMPDIR (56.15904ms)
+  AssertionError [ERR_ASSERTION]: pnpm test:groups:check
+  + actual - expected
+  
+    {
+  +   cwd: '<repo-root>/_tmp-ci-checkout-DEPwm2/original',
+  +   origin: 'original',
+  -   cwd: '<repo-root>/_tmp-ci-checkout-DEPwm2/c',
+  -   origin: 'selected',
+      tmpdir: '<repo-root>/_tmp-ci-checkout-DEPwm2/c/_tmpABC123'
+    }
+  
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:89:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { origin: 'original', cwd: '<repo-root>/_tmp-ci-checkout-DEPwm2/original', tmpdir: '<repo-root>/_tmp-ci-checkout-DEPwm2/c/_tmpABC123' },
+    expected: { origin: 'selected', cwd: '<repo-root>/_tmp-ci-checkout-DEPwm2/c', tmpdir: '<repo-root>/_tmp-ci-checkout-DEPwm2/c/_tmpABC123' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:93:1
+✖ wiring: all 28 main jobs retain the original SHA checkout then register a top-level source action (12.970946ms)
+  AssertionError [ERR_ASSERTION]: ci-validate
+  + actual - expected
+  
+    {
+  +   uses: './.github/actions/ci-setup'
+  -   id: 'source',
+  -   uses: './.github/actions/ci-checkout'
+    }
+  
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:98:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { uses: './.github/actions/ci-setup' },
+    expected: { id: 'source', uses: './.github/actions/ci-checkout' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:102:1
+✖ wiring: source metadata declares dependency-free node20 main/post and always cleanup, not a composite deletion (0.569568ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + undefined
+  - {
+  -   'post-if': 'always()',
+  -   main: 'index.mjs',
+  -   post: 'index.mjs',
+  -   using: 'node20'
+  - }
+  
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:105:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: { using: 'node20', main: 'index.mjs', post: 'index.mjs', 'post-if': 'always()' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

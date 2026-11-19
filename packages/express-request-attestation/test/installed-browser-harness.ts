@@ -1,6 +1,19 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
-import { chromium, type Browser } from 'playwright';
+import { chromium, type Browser, type Page, type Request as NativeRequest } from 'playwright';
+import {
+  safeError,
+  type BrowserDiagnostics,
+  type SafeError,
+} from '../test-packed-consumer/consumer/installed-browser-observer.mjs';
+
+export type RetryFault =
+  | 'load-before-discovery'
+  | 'invalidate'
+  | 'sign'
+  | 'retry-header'
+  | 'repeat-proof'
+  | 'retry-request';
 
 export type BrowserScenario = {
   name: string;
@@ -10,6 +23,8 @@ export type BrowserScenario = {
   exposeMarker: boolean;
   /** Isolate one explicit, unbound native Fetch injection; other boundaries keep their native defaults. */
   nativeFetch?: 'standalone' | 'client' | 'fetch' | 'fetchFn';
+  /** Opt-in causal controls only; ordinary installed scenarios keep native defaults. */
+  fault?: RetryFault;
 };
 
 type Ready = {
@@ -49,7 +64,8 @@ export type HttpObservation = {
   capturedBody: { digestHex: string; byteLength: number } | null;
   parsedBody: unknown;
   principal: string | null;
-  status: number;
+  /** Null when an opt-in transport control supplies no valid HTTP response. */
+  status: number | null;
   marker: string | null;
   allowOrigin: string | null;
   allowCredentials: string | null;
@@ -58,7 +74,7 @@ export type HttpObservation = {
   maxAge: string | null;
   exposedHeaders: string | null;
   cacheControl: string | null;
-  countersAtResponse: Counters;
+  countersAtResponse: Counters | null;
 };
 
 type ServerReport = {
@@ -72,6 +88,7 @@ type ServerReport = {
     capturedBody: { digestHex: string; byteLength: number };
   }>;
   sessionCookie: string;
+  faults: Array<{ fault: 'retry-request'; post: 2 }>;
 };
 
 type BrowserResult = {
@@ -98,6 +115,7 @@ type BrowserResult = {
   callerBodyText: string;
   secureContext: boolean;
   visibleCookies: string;
+  diagnostics: BrowserDiagnostics;
 };
 
 type BrowserInput = {
@@ -107,7 +125,108 @@ type BrowserInput = {
   requestTarget: string;
   bodyText: string;
   nativeFetch?: BrowserScenario['nativeFetch'];
+  fault?: RetryFault;
 };
+
+type Resource = 'api' | 'discovery' | 'key-module' | 'runtime-module' | 'installed-entry' | 'fixture' | 'other';
+type Method = 'GET' | 'POST' | 'OPTIONS' | 'other';
+type NativeEvent =
+  | { kind: 'request'; request: number; resource: Resource; method: Method }
+  | { kind: 'response'; request: number; resource: Resource; method: Method; status: number }
+  | {
+      kind: 'request-failed';
+      request: number;
+      resource: Resource;
+      method: Method;
+      failure: string;
+      responseStatus: number | null;
+    }
+  | { kind: 'console-error' }
+  | ({ kind: 'page-error' | 'diagnostics-unavailable' | 'report-unavailable' } & SafeError);
+export type NativeDiagnostics = { events: NativeEvent[]; dropped: number };
+
+function resource(url: string): Resource {
+  const pathname = new URL(url).pathname;
+  if (pathname.startsWith('/api/')) return 'api';
+  if (pathname === '/attestation/signer-meta') return 'discovery';
+  if (/^\/attestation\/signer\.[a-f0-9]{64}\.mjs$/.test(pathname)) return 'key-module';
+  if (/^\/attestation\/runtime\.[a-f0-9]{64}\.mjs$/.test(pathname)) return 'runtime-module';
+  if (pathname === '/installed-signer.mjs') return 'installed-entry';
+  if (['/', '/session', '/installed-browser.mjs', '/installed-browser-observer.mjs'].includes(pathname))
+    return 'fixture';
+  return 'other';
+}
+
+function method(value: string): Method {
+  return value === 'GET' || value === 'POST' || value === 'OPTIONS' ? value : 'other';
+}
+
+function failureName(value: string | undefined): string {
+  return [
+    'net::ERR_FAILED',
+    'net::ERR_ABORTED',
+    'net::ERR_CONNECTION_REFUSED',
+    'net::ERR_CONNECTION_RESET',
+    'net::ERR_EMPTY_RESPONSE',
+    'net::ERR_HTTP_RESPONSE_CODE_FAILURE',
+    'net::ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH',
+  ].includes(value ?? '')
+    ? value!
+    : 'other';
+}
+
+function summarizeReport(report: ServerReport) {
+  return {
+    discovery: report.traffic.filter((row) => row.target === '/attestation/signer-meta').length,
+    keyModules: report.traffic.filter((row) => /^\/attestation\/signer\./.test(row.target)).length,
+    runtimeModules: report.traffic.filter((row) => /^\/attestation\/runtime\./.test(row.target)).length,
+    apiStatuses: report.traffic.filter((row) => row.target.startsWith('/api/')).map((row) => [row.method, row.status]),
+    faults: report.faults,
+    ...report.counters,
+  };
+}
+
+/** Safe diagnostics survive cleanup and rejection; raw server observations stay private until explicitly inspected. */
+export class InstalledBrowserScenarioError extends Error {
+  readonly browserDiagnostics: BrowserDiagnostics | null;
+  readonly nativeDiagnostics: NativeDiagnostics;
+  readonly httpBeforeCleanup: ReturnType<typeof summarizeReport> | null;
+  readonly chromiumVersion: string | null;
+  #report: ServerReport | null;
+
+  constructor(
+    scenario: BrowserScenario,
+    reason: unknown,
+    context: {
+      browserDiagnostics: BrowserDiagnostics | null;
+      nativeDiagnostics: NativeDiagnostics;
+      report: ServerReport | null;
+      chromiumVersion: string | null;
+      serverOutputPresent: boolean;
+    },
+  ) {
+    const httpBeforeCleanup = context.report === null ? null : summarizeReport(context.report);
+    super(
+      `Installed browser scenario failed: ${scenario.name}\n${JSON.stringify({
+        error: safeError(reason),
+        browserDiagnostics: context.browserDiagnostics,
+        nativeDiagnostics: context.nativeDiagnostics,
+        httpBeforeCleanup,
+        chromiumVersion: context.chromiumVersion,
+        serverOutputPresent: context.serverOutputPresent,
+      })}`,
+    );
+    this.browserDiagnostics = context.browserDiagnostics;
+    this.nativeDiagnostics = context.nativeDiagnostics;
+    this.httpBeforeCleanup = httpBeforeCleanup;
+    this.chromiumVersion = context.chromiumVersion;
+    this.#report = context.report;
+  }
+
+  get report(): ServerReport | null {
+    return this.#report;
+  }
+}
 
 function deadline<T>(pending: Promise<T>, milliseconds: number, message: () => string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
@@ -183,12 +302,13 @@ export async function runInstalledBrowserScenario(
   report: ServerReport;
   pageErrors: string[];
   chromiumVersion: string;
+  nativeDiagnostics: NativeDiagnostics;
 }> {
   const child = spawn(
     process.execPath,
     [
       path.resolve(consumerDir, 'installed-browser-server.mjs'),
-      JSON.stringify({ rotate: scenario.rotate, exposeMarker: scenario.exposeMarker }),
+      JSON.stringify({ rotate: scenario.rotate, exposeMarker: scenario.exposeMarker, fault: scenario.fault }),
     ],
     { cwd: consumerDir, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] },
   );
@@ -204,27 +324,70 @@ export async function runInstalledBrowserScenario(
     child.once('error', (error) => resolve({ code: null, signal: null, error }));
   });
   let browser: Browser | undefined;
+  let page: Page | undefined;
   let ready: Ready | undefined;
+  let chromiumVersion: string | null = null;
   const pageErrors: string[] = [];
-  const browserDiagnostics: string[] = [];
-  const diagnose = (message: string): void => {
-    if (browserDiagnostics.length < 16) browserDiagnostics.push(message);
+  const nativeEvents: NativeEvent[] = [];
+  const nativeRequests = new WeakMap<NativeRequest, { request: number; responseStatus: number | null }>();
+  let requestCount = 0;
+  const identify = (request: NativeRequest) => {
+    let observation = nativeRequests.get(request);
+    if (observation === undefined) {
+      observation = { request: ++requestCount, responseStatus: null };
+      nativeRequests.set(request, observation);
+    }
+    return observation;
   };
+  let dropped = 0;
+  const diagnose = (event: NativeEvent): void => {
+    if (nativeEvents.length < 64) nativeEvents.push(event);
+    else dropped += 1;
+  };
+  const nativeSnapshot = (): NativeDiagnostics => ({ events: nativeEvents.map((event) => ({ ...event })), dropped });
   try {
     ready = await waitUntilReady(child, () => output);
     browser = await chromium.launch({ timeout: 15_000 });
-    const chromiumVersion = browser.version();
+    chromiumVersion = browser.version();
     const context = await browser.newContext({ serviceWorkers: 'block' });
-    const page = await context.newPage();
+    page = await context.newPage();
     page.setDefaultTimeout(10_000);
     page.setDefaultNavigationTimeout(10_000);
-    page.on('pageerror', (error) => pageErrors.push(error.message));
-    page.on('console', (message) => {
-      if (message.type() === 'error') diagnose(message.text());
+    page.on('pageerror', (error) => {
+      const details = safeError(error);
+      if (pageErrors.length < 16) pageErrors.push(details.errorName);
+      diagnose({ kind: 'page-error', ...details });
     });
-    page.on('requestfailed', (request) => diagnose(`${request.url()}: ${request.failure()?.errorText}`));
+    page.on('console', (message) => {
+      if (message.type() === 'error') diagnose({ kind: 'console-error' });
+    });
+    page.on('request', (request) =>
+      diagnose({
+        kind: 'request',
+        request: identify(request).request,
+        resource: resource(request.url()),
+        method: method(request.method()),
+      }),
+    );
+    page.on('requestfailed', (request) =>
+      diagnose({
+        kind: 'request-failed',
+        ...identify(request),
+        resource: resource(request.url()),
+        method: method(request.method()),
+        failure: failureName(request.failure()?.errorText),
+      }),
+    );
     page.on('response', (response) => {
-      if (response.status() >= 400) diagnose(`${response.status()}: ${response.url()}`);
+      const observation = identify(response.request());
+      observation.responseStatus = response.status();
+      diagnose({
+        kind: 'response',
+        request: observation.request,
+        resource: resource(response.url()),
+        method: method(response.request().method()),
+        status: response.status(),
+      });
     });
     // Set a real HttpOnly cookie via HTTP, rather than inserting it through Playwright.
     const sessionResponse = await page.goto(`${ready.apiOrigin}/session`, { waitUntil: 'load' });
@@ -248,6 +411,7 @@ export async function runInstalledBrowserScenario(
           replayNamespace: ready.replayNamespace,
           includeCredentials: scenario.includeCredentials,
           nativeFetch: scenario.nativeFetch,
+          fault: scenario.fault,
           ...request,
         },
       ),
@@ -257,31 +421,42 @@ export async function runInstalledBrowserScenario(
     const report = await readReport(ready.apiOrigin);
     if (`${session.name}=${session.value}` !== report.sessionCookie)
       throw new Error('Installed session cookie differs');
-    return { ready, browser: result, report, pageErrors, chromiumVersion };
+    return { ready, browser: result, report, pageErrors, chromiumVersion, nativeDiagnostics: nativeSnapshot() };
   } catch (error) {
-    if (ready !== undefined) {
+    let browserDiagnostics: BrowserDiagnostics | null = null;
+    if (page !== undefined && !page.isClosed()) {
       try {
-        const report = await readReport(ready.apiOrigin);
-        diagnose(
-          `HTTP before cleanup: ${JSON.stringify({
-            discovery: report.traffic.filter((row) => row.target === '/attestation/signer-meta').length,
-            keyModules: report.traffic.filter((row) => /^\/attestation\/signer\./.test(row.target)).length,
-            runtimeModules: report.traffic.filter((row) => /^\/attestation\/runtime\./.test(row.target)).length,
-            apiStatuses: report.traffic
-              .filter((row) => row.target.startsWith('/api/'))
-              .map((row) => [row.method, row.status]),
-            ...report.counters,
-          })}`,
+        browserDiagnostics = await deadline(
+          page.evaluate(() => {
+            const consumer = (
+              globalThis as typeof globalThis & {
+                installedBrowserConsumer?: { readDiagnostics: () => BrowserDiagnostics | null };
+              }
+            ).installedBrowserConsumer;
+            return consumer?.readDiagnostics() ?? null;
+          }),
+          1000,
+          () => 'Installed fixture diagnostic read timed out',
         );
-      } catch (reportError) {
-        diagnose(`HTTP report failed: ${String(reportError)}`);
+      } catch (diagnosticError) {
+        diagnose({ kind: 'diagnostics-unavailable', ...safeError(diagnosticError) });
       }
     }
-    throw new Error(
-      `Installed browser scenario failed: ${scenario.name}\n${String(error)}\n` +
-        [...pageErrors, ...browserDiagnostics, output].join('\n'),
-      { cause: error },
-    );
+    let report: ServerReport | null = null;
+    if (ready !== undefined) {
+      try {
+        report = await readReport(ready.apiOrigin);
+      } catch (reportError) {
+        diagnose({ kind: 'report-unavailable', ...safeError(reportError) });
+      }
+    }
+    throw new InstalledBrowserScenarioError(scenario, error, {
+      browserDiagnostics,
+      nativeDiagnostics: nativeSnapshot(),
+      report,
+      chromiumVersion,
+      serverOutputPresent: output.length > 0,
+    });
   } finally {
     // Closing the browser also owns contexts/pages created before a setup failure.
     try {

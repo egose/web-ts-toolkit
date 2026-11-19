@@ -1,0 +1,24 @@
+{
+  "validationRecord": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/validation.json",
+  "capturedFiles": 154,
+  "jsonFilesParsed": 50,
+  "payloadEntriesVerified": 148,
+  "localSourceFilesVerified": 142,
+  "observationsVerified": 31,
+  "localLinks": 45,
+  "localAnchors": 1,
+  "assertions": {
+    "allCapturedTextPrivacyPatternsPassed": true,
+    "allJsonParsedWithoutDuplicateOrNonfiniteValues": true,
+    "allDeliveryPathsNotIgnored": true,
+    "allDeclaredArchiveFingerprintsAndTransformationsMatched": true,
+    "allThirteenFinalFingerprintsAndReportRowsMatched": true,
+    "allExactDiffsRecalculated": true,
+    "onlyApprovedR1LineReplacement": true,
+    "allObservationCountsMetadataAndAvailableOutputHashesMatched": true,
+    "allRecordedRunsSerial": true,
+    "authoredAndRootReadmeLinksAndAnchorsResolve": true,
+    "authoredWhitespaceClean": true,
+    "allCapturedInputsUnchangedDuringCheck": true
+  }
+}

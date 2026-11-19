@@ -1,0 +1,282 @@
+{
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "purpose": "Deliverable-only content, evidence-provenance, formatting, privacy and final protected-scope checks; not package or rollout acceptance.",
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-5m91q69w'",
+  "capturedResult": "PASS for the checks below only; the independent review remains CHANGES REQUIRED / BLOCKED.",
+  "contentRecorder": {
+    "path": "_tmp-c5cr-5m91q69w/check_delivery.py",
+    "mode": "0644",
+    "bytes": 15573,
+    "sha256": "77d14340857673bd7ee687c3922481a848b7af9593d4cc117ce526539e162caa"
+  },
+  "recordsAudit": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/delivery-records-audit.json",
+      "mode": "0644",
+      "bytes": 992,
+      "sha256": "e5059d1dd117b0558f3dca9b3d3a5128fcb6d72fa7d3f520674803079eac5b42"
+    },
+    "command": [
+      "python3",
+      "_tmp-c5cr-5m91q69w/check_delivery.py",
+      "records",
+      "_tmp-c5cr-5m91q69w/delivery-records-audit.json"
+    ],
+    "invocationCount": 1,
+    "startedAt": "2026-11-19T17:44:42.691209+00:00",
+    "finishedAt": "2026-11-19T17:44:42.738510+00:00",
+    "result": "PASS",
+    "exitCode": 0,
+    "checks": 449,
+    "problems": [],
+    "selection": {
+      "freshInvocationRecords": 6,
+      "retainedReconciliationAttempts": 2,
+      "maintainedSelections": 24,
+      "recordedFingerprintEntries": 42
+    },
+    "limit": "New support records checked against unchanged original records and selected protected inputs; no original audit/helper or test was repeated."
+  },
+  "formatPreview": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/deliverable-format-preview.json",
+      "mode": "0644",
+      "bytes": 4147,
+      "sha256": "c15d694b71877a3b3593349d4074ebb402c2df934f485ce35bcc6f7b70c85717"
+    },
+    "recorder": {
+      "path": "_tmp-c5cr-5m91q69w/format_delivery.mjs",
+      "mode": "0644",
+      "bytes": 3154,
+      "sha256": "1afd112025d35c7f0ca75ed9bd99a5b6f9aa6c4cd9a532016dea58617cd61cd2"
+    },
+    "command": [
+      "node",
+      "_tmp-c5cr-5m91q69w/format_delivery.mjs",
+      "preview",
+      "_tmp-c5cr-5m91q69w/deliverable-format-preview.json"
+    ],
+    "invocationCount": 1,
+    "startedAt": "2026-11-19T17:47:44.581Z",
+    "finishedAt": "2026-11-19T17:47:44.815Z",
+    "formatterVersion": "4.0.0-alpha.13",
+    "result": "PREVIEW ONLY",
+    "selectedFiles": 7,
+    "changedOwnedSelections": ["inputs.json", "checks.json"],
+    "disposition": "Only two command-array layouts were compressed, with identical JSON values. Patch application exactly matched both proposed formatter hashes. This was a reviewer-deliverable preview, not a maintained quality check retry."
+  },
+  "deliverablePrettier": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/deliverable-prettier.result.json",
+      "mode": "0644",
+      "bytes": 6981,
+      "sha256": "49b8460045fd2d61031723bfd45a7149c50eb6a9d394d24392124e04f494441e"
+    },
+    "recorder": {
+      "path": "_tmp-c5cr-5m91q69w/run_delivery_prettier.py",
+      "mode": "0644",
+      "bytes": 3417,
+      "sha256": "e8b02a3a4cbe3cb65a97cd98925e7e2d8e3f72cc6ba81045a7696872b51b145e"
+    },
+    "command": [
+      "pnpm",
+      "exec",
+      "prettier",
+      "--check",
+      "--config-path",
+      ".prettierrc",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json"
+    ],
+    "recorderCommand": ["python3", "_tmp-c5cr-5m91q69w/run_delivery_prettier.py"],
+    "invocationCount": 1,
+    "startedAt": "2026-11-19T17:51:07.084427+00:00",
+    "finishedAt": "2026-11-19T17:51:08.546461+00:00",
+    "durationSeconds": 1.462012586009223,
+    "result": "PASS",
+    "exitCode": 0,
+    "selectedFiles": 7,
+    "markdownFiles": 2,
+    "jsonFiles": 5,
+    "excludedCompleteFailureStreams": 2,
+    "inputsUnchangedDuringRun": true,
+    "configInput": {
+      "path": ".prettierrc",
+      "mode": "0644",
+      "bytes": 371,
+      "sha256": "d5f583faa0e75f412586161fc0aa3f444cd95dadb6f37544acf25720a6600428"
+    },
+    "ownSummaryAtCliCapture": {
+      "historicalPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+      "mode": "0644",
+      "bytes": 1630,
+      "sha256": "9fa006edb239584d5f9789605edb723b4a25db4f7da32d1134b6b1874581e6d0",
+      "limit": "Intermediate summary before result curation, not the current summary fingerprint. The six other formatter inputs match the final manifest below."
+    },
+    "streams": {
+      "stdout": {
+        "path": "_tmp-c5cr-5m91q69w/deliverable-prettier.stdout.log",
+        "mode": "0644",
+        "bytes": 67,
+        "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b",
+        "excerptLines": ["Checking formatting...", "All matched files use Prettier code style!"]
+      },
+      "stderr": {
+        "path": "_tmp-c5cr-5m91q69w/deliverable-prettier.stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "streamProvenance": "UTF-8/path/session-ID sanitization was applied by the recorder; raw and retained bytes/hashes are equal for both streams. The labeled stdout lines omit line-ending encoding. No maintained formatter result was rerun or replaced."
+  },
+  "contentClosure": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/delivery-content-check.json",
+      "mode": "0644",
+      "bytes": 3556,
+      "sha256": "2d9878a498f0b3251c7826b439c798d8ac71e7f463fadddad07d8da5d32d5f33"
+    },
+    "command": [
+      "python3",
+      "_tmp-c5cr-5m91q69w/check_delivery.py",
+      "closure",
+      "_tmp-c5cr-5m91q69w/delivery-content-check.json"
+    ],
+    "invocationCount": 1,
+    "startedAt": "2026-11-19T17:51:14.549701+00:00",
+    "finishedAt": "2026-11-19T17:51:14.608834+00:00",
+    "result": "PASS",
+    "exitCode": 0,
+    "checks": 591,
+    "problems": [],
+    "selection": {
+      "freshInvocationRecords": 6,
+      "retainedReconciliationAttempts": 2,
+      "maintainedSelections": 24,
+      "recordedFingerprintEntries": 42,
+      "files": 9,
+      "markdownFiles": 2,
+      "jsonFiles": 5,
+      "completeFailureStreams": 2,
+      "localLinks": 31,
+      "anchors": 1
+    },
+    "subjects": "Exact original-record/command/count/failure reconciliation, closing inventory projection, strict JSON without duplicate keys, nine regular UTF-8/LF/newline files, whitespace and privacy patterns, 31 local links/one anchor, unignored destinations, ignored scratch/TMPDIR, exact nine-file scope and scoped git diff --check. The 42 references count only the base three-summary selection; closing and durable-file checks also contribute to the 591 checks.",
+    "limit": "The intermediate own summary was parsed/scanned but excluded from the digest manifest. Eight other files remain byte-identical. Post-curation own-summary checks are separate; none is a package/runtime test."
+  },
+  "recordedFingerprintManifest": [
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md",
+      "mode": "0644",
+      "bytes": 23426,
+      "sha256": "94ad040620b4f27a3852415a5a59ce2880d95271c1dd6357f2aa145b706d0a9b"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md",
+      "mode": "0644",
+      "bytes": 4303,
+      "sha256": "96eeaa436b38016945f0bd27af067b0d6a5b0b64d472032ede7514b474d94425"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json",
+      "mode": "0644",
+      "bytes": 12373,
+      "sha256": "0dea5253b0996a8c7b060be7234bc5ae27a47f4ff25cf067193fc4c9b8282386"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json",
+      "mode": "0644",
+      "bytes": 18571,
+      "sha256": "1f4d2d6ad4df3b0a81d45bb601e4aacc01b5ea0f22bedf48087d65728098e97a"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json",
+      "mode": "0644",
+      "bytes": 18358,
+      "sha256": "b164949083d15f0ee8af6802bffa5298ba95ede495f92b07d3f64a46fea67d6c"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json",
+      "mode": "0644",
+      "bytes": 5914,
+      "sha256": "ce05fab9529d10b2b28399edf930415c69dbdacf4b180606f8ffaa2570a20500"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stdout.log",
+      "mode": "0644",
+      "bytes": 23,
+      "sha256": "ebe82dad128d5e5d8936334ceac09492f3c60bd9e0b4a16cc7fd7075513b33de"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stderr.log",
+      "mode": "0644",
+      "bytes": 110,
+      "sha256": "894b457c0fe401b1e7193511b9d30175f7042fe2a8bb7229589f6e96f9fb2511"
+    }
+  ],
+  "deliveryProtectedScope": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/delivery-protected-scope-seal.json",
+      "mode": "0644",
+      "bytes": 3981,
+      "sha256": "a77895de23c16c92583bbd18470bb44268705a2fdd12d68ec0f286cfdc8facef"
+    },
+    "command": [
+      "python3",
+      "_tmp-c5cr-5m91q69w/verify_seal.py",
+      "delivery-protected-scope",
+      "_tmp-c5cr-5m91q69w/delivery-protected-scope-seal.json"
+    ],
+    "invocationCount": 1,
+    "startedAt": "2026-11-19T17:51:17.930666+00:00",
+    "finishedAt": "2026-11-19T17:51:18.091270+00:00",
+    "result": "PASS",
+    "exitCode": 0,
+    "protectedRegularFiles": 2771,
+    "observedProtectedFilesTableSha256": "0ff69a3db18fc13dbebe0107f4dc3dc03151520dd1a263da180feee31c56a7c2",
+    "expectedProtectedFilesTableSha256": "0ff69a3db18fc13dbebe0107f4dc3dc03151520dd1a263da180feee31c56a7c2",
+    "maintainedFingerprintsMatched": 24,
+    "historicalSealsMatched": 33,
+    "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+    "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+    "gitStatusMatchesSnapshot": true,
+    "nonRegularGitVisiblePaths": {},
+    "unexpectedGitVisibleAdditions": [],
+    "reviewerOwnedAdditionCount": 9,
+    "otherPermittedAdditionCount": 2,
+    "scratchIgnored": true,
+    "drift": { "files": [], "historical": [], "maintained": [] },
+    "problems": [],
+    "inventoryRecordsAtCapture": {
+      "total": 56,
+      "beforeReportCreation": 52,
+      "throughClosingInventory": 55,
+      "laterDeliveryScope": 1,
+      "allPassed": true,
+      "limit": "Standalone inventory records, not package/runtime tests or deliverable consistency totals."
+    }
+  },
+  "postCaptureChecks": {
+    "formatCommand": [
+      "node",
+      "_tmp-c5cr-5m91q69w/format_delivery.mjs",
+      "verify",
+      "_tmp-c5cr-5m91q69w/delivery-final-format.json"
+    ],
+    "metadataCommand": [
+      "python3",
+      "_tmp-c5cr-5m91q69w/check_delivery_metadata.py",
+      "_tmp-c5cr-5m91q69w/delivery-final-metadata.json"
+    ],
+    "limit": "Post-curation command/receipt locations only. Their results are outside this captured summary and are not presumed here; actual handoff reports the final checks. No test, original historical helper or maintained formatter retry is selected."
+  },
+  "captureBoundary": "All reported results above were captured before this result-summary curation. The protected inventory excludes reviewer-owned new content; the eight other deliverable fingerprints remain final and unchanged. Only this JSON received subsequent metadata. Its own final hash is intentionally not recorded here, preventing a self-seal claim. Final read-only formatter/API and metadata/protected-scope receipt locations are recorded separately above; those commands do not modify deliverables. Coordinator reconciliation/acceptance remains outstanding.",
+  "preservationLimit": "Curated receipts and selected stdout lines, not byte-exact JSON copies or a self-contained execution bundle. Original scratch records, verbose success streams, executable reviewer drivers, dependencies, runtimes, builds/caches and resource state remain omitted. Originals are unchanged; historical failures and maintained Prettier failure remain independently retained."
+}

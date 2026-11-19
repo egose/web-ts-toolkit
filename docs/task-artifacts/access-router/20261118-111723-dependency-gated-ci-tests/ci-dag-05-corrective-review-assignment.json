@@ -1,0 +1,43 @@
+{
+  "preparedAt": "2026-11-19T14:54:28.088897+00:00",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "assignmentState": "Fresh independent non-implementer reviewer launched after idle reconciled R1/R2/setup delivery; review is not yet delivered or accepted at this launch record",
+  "coordinatorLaunchRecordedAt": "2026-11-19T14:56:47.674093+00:00",
+  "launchEvidence": "The coordinator's new general-agent call returned a newly created background review session; no implementation session was reused and no further delegation is allowed. Private operational session metadata is not copied here.",
+  "authority": "Existing user authorization for sequential R1/R2/setup delivery reconciliation followed by one fresh independent non-implementer corrective reviewer; no further delegation",
+  "task": "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+  "handoff": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+  "immutableInputs": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-inputs.json",
+    "mode": "0644",
+    "bytes": 610017,
+    "sha256": "ad378fec69c87bb1b750c9f1bb3b47b23861ebf4f1d40a3aabb9ebe4678ef696",
+    "protectedRegularFiles": 2771,
+    "allCorrectiveMaintainedPaths": 24,
+    "historicalProtectedInputs": 33,
+    "filesTableSha256": "0ff69a3db18fc13dbebe0107f4dc3dc03151520dd1a263da180feee31c56a7c2"
+  },
+  "readiness": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/handoff-readiness.json",
+    "mode": "0644",
+    "bytes": 24755,
+    "sha256": "ca8e25a8f3ddc19b6ec76b355a5125795368f21da1977a587d26a091c30dccfa",
+    "checkedAt": "2026-11-19T14:53:39.546922+00:00",
+    "result": "8 documents / 10 JSON files / 22 inspected files / 154 local links / 7 anchors; current document/metadata formatting, structured validity, privacy, newline/whitespace, ignore and scope checks passed. Sealed historical manifest formatting-only exception remains recorded, not a formatter pass. Both readiness failures are retained separately."
+  },
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "prerequisites": "R1/R2/setup are delivered, idle and coordinator-reconciled; setup delivery used the original setup session. These prerequisites do not imply independent acceptance, R2 cause/risk disposition or runtime/hosted certification.",
+  "reviewerOwnership": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/"
+  ],
+  "coordinatorOwnershipDuringReview": "Only this new assignment record and fresh ignored scratch; no edits to existing frozen implementation, task/status/handoff/index or delivered/historical evidence",
+  "verificationAllowance": "At most one fresh pnpm test:ci:check and one pnpm test:groups:check, serially, plus proportionate installed-tool quality checks. Maintained synthetic checkout fixtures may run only within that CI validation. Save all actual commands, input hashes/counts, selected/skipped scope and failures.",
+  "prohibited": "No additional package execution including focused lanes, build/full-suite/resource/source/native-short-root/runner probes, runtime/tool installation, project history/config copying, fetch/retry/weaker fsck, hosted execution, commit/push/dispatch/publication/settings or further delegation",
+  "retainedBlockers": "R1/setup independent acceptance; positive full native short-root, Node-20 execution and actual runner main/post behavior; original R2 cause, focused abort failure, observer timing neutrality and incomplete packed-consumer verification; all R3 hosted/required-check/risk/rollout/measurement decisions",
+  "statusOwnership": "Coordinator reconciles the delivered review report/support and protected scope before updating shared statuses. CI-DAG-05 remains in_progress and blocked before independent corrective/final rollout acceptance.",
+  "privacy": "Use task-local aliases only; no private session identifiers or machine-specific absolute paths",
+  "captureBoundary": "This permitted new assignment record is outside the immutable snapshot table. The preparation timestamp preceded launch; coordinatorLaunchRecordedAt records actual launch confirmation afterward, not review results. Earlier unassigned language in frozen input documents remains historical and unchanged."
+}

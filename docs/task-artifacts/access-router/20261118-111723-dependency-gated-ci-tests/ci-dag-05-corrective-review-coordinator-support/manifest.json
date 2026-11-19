@@ -1,0 +1,456 @@
+{
+  "preservedAt": "2026-11-19T18:39:57.778517+00:00",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "purpose": "Selected exact byte/scope and independently reconciled saved-evidence receipts, retained audit failures and inspected drivers; not corrective or rollout acceptance",
+  "entries": [
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/coordinator-review-byte-scope.json",
+        "mode": "0644",
+        "bytes": 21133,
+        "sha256": "f2395212f8927e5220e7c1f375b33255cd2d1110cddbf9e1cfacd11c0387d460"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-byte-scope.json",
+        "mode": "0644",
+        "bytes": 21133,
+        "sha256": "f2395212f8927e5220e7c1f375b33255cd2d1110cddbf9e1cfacd11c0387d460"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/reconcile-idle-corrective-review.py",
+        "mode": "0644",
+        "bytes": 12933,
+        "sha256": "e3d5be82b4c315459150040b2559058671c823becc971dd1a2dcad17b42e3136"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reconcile-idle-corrective-review.py",
+        "mode": "0644",
+        "bytes": 12933,
+        "sha256": "e3d5be82b4c315459150040b2559058671c823becc971dd1a2dcad17b42e3136"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/launch-seal.json",
+        "mode": "0644",
+        "bytes": 1155,
+        "sha256": "6e89f7233b97cde411adbce91c52ebfdad99e8a2f87443ef233f2ddbf5768157"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/coordinator-launch-seal.json",
+        "mode": "0644",
+        "bytes": 1155,
+        "sha256": "6e89f7233b97cde411adbce91c52ebfdad99e8a2f87443ef233f2ddbf5768157"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/checker-static-preflight.json",
+        "mode": "0644",
+        "bytes": 1035,
+        "sha256": "a862de3d1c8ccbc8a6c5cba76f69b190d9ceba4b62955748e88883b3258c2716"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/coordinator-static-preflight.json",
+        "mode": "0644",
+        "bytes": 1035,
+        "sha256": "a862de3d1c8ccbc8a6c5cba76f69b190d9ceba4b62955748e88883b3258c2716"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/saved-evidence-reconciliation-attempt-1.json",
+        "mode": "0644",
+        "bytes": 17594,
+        "sha256": "de3c5234f782f48cc08b8dd4aecb4a5fe4211ab1209967d42398bc68fe7a5cb2"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/coordinator-evidence-attempt-1.json",
+        "mode": "0644",
+        "bytes": 17594,
+        "sha256": "de3c5234f782f48cc08b8dd4aecb4a5fe4211ab1209967d42398bc68fe7a5cb2"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/saved-evidence-reconciliation-attempt-2.json",
+        "mode": "0644",
+        "bytes": 40055,
+        "sha256": "9169c52b0303cab38a8fd85169a8b8015b84d0e34be7aa5c53560bc7409fe604"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-saved-evidence.json",
+        "mode": "0644",
+        "bytes": 40055,
+        "sha256": "9169c52b0303cab38a8fd85169a8b8015b84d0e34be7aa5c53560bc7409fe604"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/reconcile-saved-review.attempt-1.py",
+        "mode": "0644",
+        "bytes": 55746,
+        "sha256": "8c88032be19c88a6c4ecaddc1d0677bcc3450f21c71da6bcd011a29fffd95476"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reconcile-saved-review.attempt-1.py",
+        "mode": "0644",
+        "bytes": 55746,
+        "sha256": "8c88032be19c88a6c4ecaddc1d0677bcc3450f21c71da6bcd011a29fffd95476"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/reconcile-saved-review.py",
+        "mode": "0644",
+        "bytes": 55808,
+        "sha256": "f73483b6203df9af08d47edef00adbe8a12efa3c109a1e9b88cb5916f4451d2d"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reconcile-saved-review.py",
+        "mode": "0644",
+        "bytes": 55808,
+        "sha256": "f73483b6203df9af08d47edef00adbe8a12efa3c109a1e9b88cb5916f4451d2d"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/reconciliation-attempt-1.json",
+        "mode": "0644",
+        "bytes": 19490,
+        "sha256": "fad92872b1efe436460a63e629e294ae07c13c62f681b91a00ddc7ccd14b2b35"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/reviewer-evidence-attempt-1.json",
+        "mode": "0644",
+        "bytes": 19490,
+        "sha256": "fad92872b1efe436460a63e629e294ae07c13c62f681b91a00ddc7ccd14b2b35"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/reconciliation-attempt-2.json",
+        "mode": "0644",
+        "bytes": 20363,
+        "sha256": "641001ed93b54dcf5dc65c4610b50ddc16c0778a4d4bd42743acc47b6a5a9e31"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/reviewer-evidence-attempt-2.json",
+        "mode": "0644",
+        "bytes": 20363,
+        "sha256": "641001ed93b54dcf5dc65c4610b50ddc16c0778a4d4bd42743acc47b6a5a9e31"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/delivery-final-format.json",
+        "mode": "0644",
+        "bytes": 3770,
+        "sha256": "b73c0ef9551912dd8177fbb3269270f15e2b81418fdfc3e371eef43ba12093ff"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/reviewer-final-format.json",
+        "mode": "0644",
+        "bytes": 3770,
+        "sha256": "b73c0ef9551912dd8177fbb3269270f15e2b81418fdfc3e371eef43ba12093ff"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/delivery-final-metadata.json",
+        "mode": "0644",
+        "bytes": 1804,
+        "sha256": "ad734a5b1113addecffc8320e5ecf8ee9bdfbe54c5bfccc8ccbea365728916c3"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/reviewer-final-metadata.json",
+        "mode": "0644",
+        "bytes": 1804,
+        "sha256": "ad734a5b1113addecffc8320e5ecf8ee9bdfbe54c5bfccc8ccbea365728916c3"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/run_review_check.py",
+        "mode": "0644",
+        "bytes": 9641,
+        "sha256": "5247235b01f1611dcedbc03c28d6fe111c1b12a8830790c4170affbbe1444a2a"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-run_review_check.py",
+        "mode": "0644",
+        "bytes": 9641,
+        "sha256": "5247235b01f1611dcedbc03c28d6fe111c1b12a8830790c4170affbbe1444a2a"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/verify_seal.py",
+        "mode": "0644",
+        "bytes": 6965,
+        "sha256": "308d099261d161ca06ba7938cf765ac20775fdd0663929d13bf2359a6940fc2c"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-verify_seal.py",
+        "mode": "0644",
+        "bytes": 6965,
+        "sha256": "308d099261d161ca06ba7938cf765ac20775fdd0663929d13bf2359a6940fc2c"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/reconcile_evidence.attempt-1.py",
+        "mode": "0644",
+        "bytes": 30517,
+        "sha256": "b61a5d4e9cb778bc726494b0118440e88d2c2ce96dda4384db00f5dd2de34636"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-reconcile_evidence.attempt-1.py",
+        "mode": "0644",
+        "bytes": 30517,
+        "sha256": "b61a5d4e9cb778bc726494b0118440e88d2c2ce96dda4384db00f5dd2de34636"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/reconcile_evidence.py",
+        "mode": "0644",
+        "bytes": 33492,
+        "sha256": "f3f19ee537fd7700524fd79b66a17230c5bb381abf38e7a9cc6ebef318dd9453"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-reconcile_evidence.py",
+        "mode": "0644",
+        "bytes": 33492,
+        "sha256": "f3f19ee537fd7700524fd79b66a17230c5bb381abf38e7a9cc6ebef318dd9453"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/static-review.mjs",
+        "mode": "0644",
+        "bytes": 14119,
+        "sha256": "82957877046f64f996702ccfbddaadcb0d95c82b3334e9aadaaeb30c068d8dc2"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-static-review.mjs",
+        "mode": "0644",
+        "bytes": 14119,
+        "sha256": "82957877046f64f996702ccfbddaadcb0d95c82b3334e9aadaaeb30c068d8dc2"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/check_delivery.py",
+        "mode": "0644",
+        "bytes": 15573,
+        "sha256": "77d14340857673bd7ee687c3922481a848b7af9593d4cc117ce526539e162caa"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-check_delivery.py",
+        "mode": "0644",
+        "bytes": 15573,
+        "sha256": "77d14340857673bd7ee687c3922481a848b7af9593d4cc117ce526539e162caa"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/format_delivery.mjs",
+        "mode": "0644",
+        "bytes": 3154,
+        "sha256": "1afd112025d35c7f0ca75ed9bd99a5b6f9aa6c4cd9a532016dea58617cd61cd2"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-format_delivery.mjs",
+        "mode": "0644",
+        "bytes": 3154,
+        "sha256": "1afd112025d35c7f0ca75ed9bd99a5b6f9aa6c4cd9a532016dea58617cd61cd2"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/run_delivery_prettier.py",
+        "mode": "0644",
+        "bytes": 3417,
+        "sha256": "e8b02a3a4cbe3cb65a97cd98925e7e2d8e3f72cc6ba81045a7696872b51b145e"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-run_delivery_prettier.py",
+        "mode": "0644",
+        "bytes": 3417,
+        "sha256": "e8b02a3a4cbe3cb65a97cd98925e7e2d8e3f72cc6ba81045a7696872b51b145e"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-5m91q69w/check_delivery_metadata.py",
+        "mode": "0644",
+        "bytes": 15889,
+        "sha256": "ace043ddeba1cdaac5ad305546007de9323ba1d79ae76ef3c86df5cfc8082873"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/reviewer-check_delivery_metadata.py",
+        "mode": "0644",
+        "bytes": 15889,
+        "sha256": "ace043ddeba1cdaac5ad305546007de9323ba1d79ae76ef3c86df5cfc8082873"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    }
+  ],
+  "entryCount": 21,
+  "payloadBytes": 383653,
+  "coordinatorDocumentPreimages": [
+    {
+      "source": {
+        "path": "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+        "mode": "0644",
+        "bytes": 73898,
+        "sha256": "67a328c506080f7acfcc8ab6216e35617ccf69feadab7a654550b0718c85306e"
+      },
+      "archive": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+        "mode": "0644",
+        "bytes": 73898,
+        "sha256": "67a328c506080f7acfcc8ab6216e35617ccf69feadab7a654550b0718c85306e"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+        "mode": "0644",
+        "bytes": 24153,
+        "sha256": "adc002cbf3342f363249e3522cfcaf08f70a20b0789100d175f6e10ee2b093ce"
+      },
+      "archive": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+        "mode": "0644",
+        "bytes": 24153,
+        "sha256": "adc002cbf3342f363249e3522cfcaf08f70a20b0789100d175f6e10ee2b093ce"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+        "mode": "0644",
+        "bytes": 12666,
+        "sha256": "925035d953a5c79b44cfdc630f2676864466a9b2edfe33732404de71a14d6e02"
+      },
+      "archive": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+        "mode": "0644",
+        "bytes": 12666,
+        "sha256": "925035d953a5c79b44cfdc630f2676864466a9b2edfe33732404de71a14d6e02"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "mode": "0644",
+        "bytes": 43108,
+        "sha256": "16de64041844c2acc95631d3939e08ce807a87cc9e4aa2790f07a7a29da659fa"
+      },
+      "archive": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "mode": "0644",
+        "bytes": 43108,
+        "sha256": "16de64041844c2acc95631d3939e08ce807a87cc9e4aa2790f07a7a29da659fa"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "mode": "0644",
+        "bytes": 21741,
+        "sha256": "9125dbfcfe3ab62815b6947de72360316c8a98f3209f75080300196e82dc61c3"
+      },
+      "archive": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "mode": "0644",
+        "bytes": 21741,
+        "sha256": "9125dbfcfe3ab62815b6947de72360316c8a98f3209f75080300196e82dc61c3"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "mode": "0644",
+        "bytes": 15160,
+        "sha256": "e19893042c9865807e1aa10b2f3d77d1088cd77469d6d21f9f9bbd65c68afce4"
+      },
+      "archive": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "mode": "0644",
+        "bytes": 15160,
+        "sha256": "e19893042c9865807e1aa10b2f3d77d1088cd77469d6d21f9f9bbd65c68afce4"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    }
+  ],
+  "subsequentDocumentationScope": {
+    "changedCoordinatorDocuments": 7,
+    "additionalDocument": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+    "additionalPreimage": {
+      "path": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+      "mode": "0644",
+      "bytes": 16356,
+      "sha256": "8da278286d7882e70c8c616b4c1956dd2c0f06fd71b0ce6a61868fb2e35b67d1"
+    },
+    "reason": "The coordinator-owned setup handoff also presented prelaunch/unassigned review and pre-implementation cwd as current. Freeze its unchanged preimage before labeling those historical facts and adding the delivered blocked verdict. The initial preservation command above copied six document preimages; this seventh preimage is a subsequent documentation-only addition, not a retroactive change to that command."
+  },
+  "coordinatorAuditDispositions": [
+    {
+      "failedReceipt": "receipts/coordinator-evidence-attempt-1.json",
+      "failedDriver": "drivers/reconcile-saved-review.attempt-1.py",
+      "problem": "invalid literal for int() with base 10: ''",
+      "cause": "Coordinator reader treated four explicitly empty selectedLines encodings in the R2 verification manifest as integer ranges rather than empty excerpts",
+      "correction": "Only the new coordinator reader accepts the explicit empty selection; all original receipts/streams/drivers and maintained files remained unchanged. Separately fix its own read-inventory capture order before adding driver metadata.",
+      "successfulReceipt": "coordinator-saved-evidence.json",
+      "scope": "Evidence-reader correction only; no test/validator/quality retry, source/native/runner probe or implementation correction"
+    }
+  ],
+  "formattingBoundary": "Raw captured receipt/driver copies are immutable byte-exact preservation inputs, not a new Prettier selection or pass. Newly authored coordinator documents/index/manifest require their own formatter and metadata checks. The prior four-entry setup-coordinator-manifest exception remains historical, not a pass; maintained workflow Q1 remains a distinct current failure.",
+  "captureBoundary": "The two successful coordinator receipts precede later authorized coordinator document edits. All 2771 originals matched at those captures. The initial preservation froze six document preimages; the separate subsequentDocumentationScope adds the setup handoff, so final documentation scope allows only seven document paths and new coordinator support. This manifest covers only the listed 21 payloads, not itself, its index or later document-check evidence.",
+  "omitted": [
+    "Full six one-shot JSON input tables, verbose successful streams and 56 repetitive inventory records; original paths/hashes and independent counts remain in reconciled summaries",
+    "Raw reviewer execution streams were never persisted; raw/retained equality is recorder metadata, not independently readable raw evidence",
+    "Historical intermediate 1630-byte delivery summary; only its receipt identity was retained, distinct from final 13411-byte summary",
+    "Original source trees, full coordinator preimages, dependencies, binaries, caches, fixture Git objects, browser/database state, private raw diagnostics and harness/session mappings"
+  ],
+  "reproductionLimit": "Copies preserve original scratch paths and capture-specific inputs. Do not execute archival drivers: they require omitted originals and current authorization. Summaries and saved receipts do not reproduce R2 causality/timing, native full-root/Node-20/runner or hosted behavior. Archiving executes no historical driver, test, probe, formatter, resource or network operation.",
+  "command": ["python3", "_tmp-c5cr-coord-3ovrro4e/preserve-reconciliation.py", "--preserve-reconciled-idle-delivery"],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-coord-3ovrro4e'",
+  "preservationDriver": {
+    "path": "_tmp-c5cr-coord-3ovrro4e/preserve-reconciliation.py",
+    "mode": "0644",
+    "bytes": 8405,
+    "sha256": "f6b1c7f77c5af23291db6c4b6fa4f26618edd96debe5c393c7e7b2415cab0feb"
+  }
+}

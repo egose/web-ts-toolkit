@@ -1,0 +1,569 @@
+{
+  "recordedAt": "2026-11-19T06:50:20.783018+00:00",
+  "scope": "Read-only pre-archive source/ownership comparison; no coordinator record or historical input edited",
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "preflightRecordedAt": "2026-11-18T21:10:51.505875-08:00",
+  "preflight": {
+    "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/preflight.json",
+    "originalSha256": "e7784dbc57aee0bf88493196d5869bc45122b9a4da29a0f841bfbd2f4108b64f"
+  },
+  "protectedRegularFiles": 2561,
+  "unchangedOriginalFiles": 2551,
+  "changedOriginalFiles": {
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": {
+      "before": {
+        "sha256": "4ec8624ba002d009814f95f266eb0db84443f7bc7b6aa7e0b2439ef3e5ea42c1",
+        "bytes": 10575,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "47dc41e9feaf3b73b19692a85e421d749aab27eaedd489a36803d2375dd22174",
+        "bytes": 11408,
+        "mode": 420
+      }
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": {
+      "before": {
+        "sha256": "b8edec3d20108ddc078d5d320f83066c2f5541df172c9c9f9355ac500a812be3",
+        "bytes": 38541,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "68982b7a5584bb790349319205f906e27806f1d418668ffd7cb4b7fa4f708757",
+        "bytes": 39323,
+        "mode": 420
+      }
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": {
+      "before": {
+        "sha256": "c2e22869900707ab00cc5311f2d29976c2989e8e2419fa72d803fabae424518b",
+        "bytes": 15885,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "7558bf792fccbbc485e383e3305ea4dc7b586a2ee9065e218e07089474d8b9cb",
+        "bytes": 16386,
+        "mode": 420
+      }
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": {
+      "before": {
+        "sha256": "f7e0b8b39a0345aba430843d725467bfbe356498e0773395de707ce538f09ec7",
+        "bytes": 6351,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "3d40bc406575cb3b4cb7c3431a14ecdeaec43eaeb414d1d1881d1dda04e63ec1",
+        "bytes": 8578,
+        "mode": 420
+      }
+    },
+    "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+      "before": {
+        "sha256": "0b7bc3e8d7157bded3868e78ffdfd4d9fe3d907ea367791a43a7ca2e25ef7376",
+        "bytes": 62714,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "bdc752bcd726bcc9040c2639ce35b5fa317227f0a66ddfc35520ae72d1c6e73e",
+        "bytes": 64530,
+        "mode": 420
+      }
+    },
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs": {
+      "before": {
+        "sha256": "e2a9f0aee225adaa8217ec630ec007f474e673a5911e0dcee6263c542d71416f",
+        "bytes": 9365,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "67313cd56c6b6efd8b8614a819c30b3602965818dc26cccfbcc56c62022b00f6",
+        "bytes": 10674,
+        "mode": 420
+      }
+    },
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs": {
+      "before": {
+        "sha256": "78be7e41e57f41bbfafb9291326214f6e9cd3b3571b82a9ad181026b85d4526c",
+        "bytes": 3371,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "16ad0a029ce2ce474b7e95b2f5cf41e46e2ed075323e127c092fe7f9866577da",
+        "bytes": 5645,
+        "mode": 420
+      }
+    },
+    "packages/express-request-attestation/test/fetch-client.test.ts": {
+      "before": {
+        "sha256": "aee09bddd95e77b75e18e40a67a1d9da40417be9041949a4e57ad2c0ecc144a3",
+        "bytes": 49550,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "c7feae0a866ac6074efd5b6b79990f7d92868c1af0b4357cc56610b09684ac72",
+        "bytes": 49708,
+        "mode": 420
+      }
+    },
+    "packages/express-request-attestation/test/installed-browser-harness.ts": {
+      "before": {
+        "sha256": "0669ab43f8d7cb39fe42f469f749a983613fb3e3bcce5f82ecc0303b24978d65",
+        "bytes": 10404,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "8a7144487d11d47ad2891b95b8bfb21cdbfe9df0e96f3f5a5d1b8a47906f0a60",
+        "bytes": 16712,
+        "mode": 420
+      }
+    },
+    "packages/express-request-attestation/test/packed-consumer.test.ts": {
+      "before": {
+        "sha256": "0f18de1d71b17daef27e342aced6e4391484ffc4dee6363b44830e001187960d",
+        "bytes": 36821,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "5cdf75214245442f483b438d2ac01b57b3712016bb00273453a1aa36f420612f",
+        "bytes": 50934,
+        "mode": 420
+      }
+    }
+  },
+  "preArchiveAdditions": {
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": {
+      "sha256": "016544a7ee77713981a9e5bf93a577c8c27df9721efb9ee88aaf4bc2c4677f82",
+      "bytes": 8674,
+      "mode": 420
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": {
+      "sha256": "bdbb467c641874072e304febbf6a306ccdebc6a357cc23611b28425d1e034039",
+      "bytes": 8027,
+      "mode": 420
+    },
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts": {
+      "sha256": "1c936266b91b071edaade2b3289fef5c73d50b66986df7d4227edf0daa7bb2f3",
+      "bytes": 1568,
+      "mode": 420
+    },
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs": {
+      "sha256": "25e6cfd17aca8056346dd06fa4612f2a6b4597a610a5a8743975ff3d0c0a9ef6",
+      "bytes": 6685,
+      "mode": 420
+    },
+    "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts": {
+      "sha256": "1ecea0badba6f88ffcc259d1ebacfbfebf6fbd153c240ee57d84650304b2fe75",
+      "bytes": 17569,
+      "mode": 420
+    }
+  },
+  "r2Edits": [
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+    "packages/express-request-attestation/test/fetch-client.test.ts",
+    "packages/express-request-attestation/test/installed-browser-harness.ts",
+    "packages/express-request-attestation/test/packed-consumer.test.ts"
+  ],
+  "r2DiagnosticAdditions": [
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts",
+    "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+    "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts"
+  ],
+  "coordinatorDrift": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+    "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+  ],
+  "coordinatorAdditions": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md"
+  ],
+  "productionSourceFilesUnchanged": 24,
+  "productionFingerprints": {
+    "packages/express-request-attestation/src/attested-fetch.ts": {
+      "sha256": "f34dfc8988120c77dec14915e436543ac820401525b7b856ed3b59daeebf2659",
+      "bytes": 32796,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/body-capture.ts": {
+      "sha256": "d298c8d81f5f0e821c554d017c7df1e71ffa34091a33bfc3e755ed733dfe4395",
+      "bytes": 9576,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/bounded-byte-stream.ts": {
+      "sha256": "03d9097d3b7eec63f04b54ba45a778caffbf74e1ca6569d993b86ae2cad1d860",
+      "bytes": 5810,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/client-errors.ts": {
+      "sha256": "e0861356cd2b4613add18fff611e74b0ce27b2cbb8d0c56cdaab0ad6a657eda5",
+      "bytes": 1827,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/errors.ts": {
+      "sha256": "2681ce1a18a46fa31f26739476def4710e02079a4127b18b06d99226c2a7b7ac",
+      "bytes": 742,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/index.ts": {
+      "sha256": "fa5ab88f6fb4e575c28f70559cf0da5d4d2580b76d6f6d2787b2e61f73f7c5a1",
+      "bytes": 7477,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/keys.ts": {
+      "sha256": "8e8caaeaf694b58cd016dd2cddab052f28e76c0f858385e07c33ad7a5666af7d",
+      "bytes": 11638,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/middleware.ts": {
+      "sha256": "9f5479a2a0c2f9048717021db83df5e0be2836ad2815a04753b537ce95e5157a",
+      "bytes": 23448,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/request-body.ts": {
+      "sha256": "77ca9a1fbf5687a02d16facbca1c4d793b55ccedbfde2f43bc7ab1dde571cc39",
+      "bytes": 10675,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/request-signer.ts": {
+      "sha256": "161afb3a1a508857686b7bffd5bcff70f732a538aa52cf84f068d0dc667d9970",
+      "bytes": 10686,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/server-types.ts": {
+      "sha256": "bdae61b6b644db884e994851442d6aa87611791929579a91c88015c5296cadbd",
+      "bytes": 12040,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/shared/canonical.ts": {
+      "sha256": "7ccc9cdbe0a43c10c4e3237b9ada32ba0b9661eaedfb3a1c66724639818c85ec",
+      "bytes": 6054,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/shared/codec.ts": {
+      "sha256": "fd10eef8e9af8608174243177599cef58b4d28ef3b760c0f63e9c97cdaa27e87",
+      "bytes": 17774,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/shared/time-policy.ts": {
+      "sha256": "f0b1480e2d221103abce62a1d3162dc0365d92a87849fe34328013c2109c2b5b",
+      "bytes": 7745,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/shared/types.ts": {
+      "sha256": "fd94ed473ce2081d4f342ab8767e65d649320fdf315a222990be0a2997bafd41",
+      "bytes": 10020,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/signer-assets.ts": {
+      "sha256": "8f400ba90558bd3a87f8cca4e6eddac6d13b13da57fdd2eca1954437958f9e09",
+      "bytes": 11730,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/signer-bundle.ts": {
+      "sha256": "764b29f9a70a44bff0b80ad982cfd31c1dd604d38f258d3755903af000f8c1dd",
+      "bytes": 19256,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/signer-client.ts": {
+      "sha256": "faea0a884153bdc35b66a119df2918da84b542d4b2f96e202f08e4fce19e1f2a",
+      "bytes": 33172,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/signer.ts": {
+      "sha256": "fc6e56933fe29994edbe4482ca22d4d992dcb673d5cac6c8749931645213e0c7",
+      "bytes": 4354,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/stores/memory.ts": {
+      "sha256": "2147156374fe5690b12e69b95ce496f6d82c158bb5ed8432858ed893ecd995c9",
+      "bytes": 9793,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/stores/mongodb.ts": {
+      "sha256": "3752e0276cfe2fa59ac28f8ac85e450da31e89ce1835e09041eaefa5c31e4a34",
+      "bytes": 24151,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/stores/redis-script.ts": {
+      "sha256": "4aa31d36c2ef991401613862c216ff2e4fcbcfd76e225f60833ccde9ca2c0f0b",
+      "bytes": 7465,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/stores/redis.ts": {
+      "sha256": "7534ba909d8387ebbfa3565360f731af8fd7d0971010ac1cddd07c449e48ef42",
+      "bytes": 11152,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/verify.ts": {
+      "sha256": "548281d96a8b7d962c7ff4930719ffbe5e3f22fa83a45fec174a25dce21d5795",
+      "bytes": 14107,
+      "mode": 420
+    }
+  },
+  "immutableInputFingerprints": {
+    "packages/express-request-attestation/src/attested-fetch.ts": {
+      "sha256": "f34dfc8988120c77dec14915e436543ac820401525b7b856ed3b59daeebf2659",
+      "bytes": 32796,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/signer-client.ts": {
+      "sha256": "faea0a884153bdc35b66a119df2918da84b542d4b2f96e202f08e4fce19e1f2a",
+      "bytes": 33172,
+      "mode": 420
+    },
+    "packages/express-request-attestation/src/request-signer.ts": {
+      "sha256": "161afb3a1a508857686b7bffd5bcff70f732a538aa52cf84f068d0dc667d9970",
+      "bytes": 10686,
+      "mode": 420
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-finishing-review.md": {
+      "sha256": "f96fa3f21bd701a1862823eae388c78fb189f296bd6f40c4cfe975767f3ba02b",
+      "bytes": 40181,
+      "mode": 420
+    },
+    "_tmp-ci-dag-05-v5-bzejoa/v5-grouped.log": {
+      "sha256": "d9f10335e8d4ff34d3baf228a1739110d2763546f55dd17458381d5e96649c69",
+      "bytes": 47196,
+      "mode": 420
+    }
+  },
+  "inheritedR1SourceFingerprints": {
+    "README.md": {
+      "sha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4",
+      "bytes": 11566,
+      "mode": 420
+    },
+    "scripts/ci-test-artifacts.mjs": {
+      "sha256": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d",
+      "bytes": 29236,
+      "mode": 420
+    },
+    "scripts/ci-test-artifacts.test.mjs": {
+      "sha256": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a",
+      "bytes": 30819,
+      "mode": 420
+    },
+    "scripts/ci-test-workspace.mjs": {
+      "sha256": "dac86ea2b7f38595822161cc6159709743e1eca46457d868fa664cd98f86dba8",
+      "bytes": 26473,
+      "mode": 420
+    },
+    "scripts/ci-test-workspace.test.mjs": {
+      "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285",
+      "bytes": 46804,
+      "mode": 420
+    }
+  },
+  "r1Archive": {
+    "originalPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/manifest.json",
+    "originalSha256": "c69bfcc7f009f05227be44301efc9a4682cbf910a5c81c7a7b103c7cb14e7398",
+    "payloadsVerified": 21,
+    "matchesR2Preflight": true
+  },
+  "historicalComparisons": [
+    {
+      "originalPath": "_tmp-r5-zlqZHs/review-snapshot.json",
+      "originalSha256": "ddd294c383ed7bf504bc59b3208c30c1730cca8fbf1629ee4661a95fef844e98",
+      "entries": 2535,
+      "unchanged": 2521,
+      "differences": {
+        "README.md": {
+          "beforeSha256": "7972ba490cf26ab60bdb4c4f10da5cfcd965843ee692566afaf9e861f9cbe506",
+          "afterSha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": {
+          "beforeSha256": "7c45c0118f7ccdf0a4e41555959ebb1fc04de49bd031a58eff38f364d7c0c4a2",
+          "afterSha256": "47dc41e9feaf3b73b19692a85e421d749aab27eaedd489a36803d2375dd22174"
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": {
+          "beforeSha256": "8ec4e3c7387cf63457accd1919d12bc964b12f7132763f1b24ff3f266b606953",
+          "afterSha256": "68982b7a5584bb790349319205f906e27806f1d418668ffd7cb4b7fa4f708757"
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": {
+          "beforeSha256": "6788fd3eb199fd36e23fd06f7e95cb0060d67e2634aa9ef45a0b039d6873b7c8",
+          "afterSha256": "7558bf792fccbbc485e383e3305ea4dc7b586a2ee9065e218e07089474d8b9cb"
+        },
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+          "beforeSha256": "5e0bd8de678a33830b2801653439c41e384acf72801b3cddcfe246a2f15f4798",
+          "afterSha256": "bdc752bcd726bcc9040c2639ce35b5fa317227f0a66ddfc35520ae72d1c6e73e"
+        },
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs": {
+          "beforeSha256": "e2a9f0aee225adaa8217ec630ec007f474e673a5911e0dcee6263c542d71416f",
+          "afterSha256": "67313cd56c6b6efd8b8614a819c30b3602965818dc26cccfbcc56c62022b00f6"
+        },
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs": {
+          "beforeSha256": "78be7e41e57f41bbfafb9291326214f6e9cd3b3571b82a9ad181026b85d4526c",
+          "afterSha256": "16ad0a029ce2ce474b7e95b2f5cf41e46e2ed075323e127c092fe7f9866577da"
+        },
+        "packages/express-request-attestation/test/fetch-client.test.ts": {
+          "beforeSha256": "aee09bddd95e77b75e18e40a67a1d9da40417be9041949a4e57ad2c0ecc144a3",
+          "afterSha256": "c7feae0a866ac6074efd5b6b79990f7d92868c1af0b4357cc56610b09684ac72"
+        },
+        "packages/express-request-attestation/test/installed-browser-harness.ts": {
+          "beforeSha256": "0669ab43f8d7cb39fe42f469f749a983613fb3e3bcce5f82ecc0303b24978d65",
+          "afterSha256": "8a7144487d11d47ad2891b95b8bfb21cdbfe9df0e96f3f5a5d1b8a47906f0a60"
+        },
+        "packages/express-request-attestation/test/packed-consumer.test.ts": {
+          "beforeSha256": "0f18de1d71b17daef27e342aced6e4391484ffc4dee6363b44830e001187960d",
+          "afterSha256": "5cdf75214245442f483b438d2ac01b57b3712016bb00273453a1aa36f420612f"
+        },
+        "scripts/ci-test-artifacts.mjs": {
+          "beforeSha256": "606e40dac5ae77462ab03100aea1b2b32cfd3ae39f450f7c074f08eb91c490cc",
+          "afterSha256": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d"
+        },
+        "scripts/ci-test-artifacts.test.mjs": {
+          "beforeSha256": "97e1840df656940bc54e445e367247c34a0fb6e63126265c88ce635b014679e7",
+          "afterSha256": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a"
+        },
+        "scripts/ci-test-workspace.mjs": {
+          "beforeSha256": "d91514e2b57651e4c620fe895935fb00eb14bc00af2d967ff7acb87ec5291fc8",
+          "afterSha256": "dac86ea2b7f38595822161cc6159709743e1eca46457d868fa664cd98f86dba8"
+        },
+        "scripts/ci-test-workspace.test.mjs": {
+          "beforeSha256": "6f27022d853464b94050ee3bc7f2378a1fc2423b80b8fe1565d68ec5b0fa1ebd",
+          "afterSha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+        }
+      },
+      "missingOrUnavailableHashes": 0
+    },
+    {
+      "originalPath": "_tmp-fix-w72mgx/baseline.json",
+      "originalSha256": "2eb59aea94f09b1655ab1bcc011b41161570ff5ce21a930f62ecde0393296627",
+      "entries": 2536,
+      "unchanged": 2522,
+      "differences": {
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": {
+          "beforeSha256": "e47c3d8c7363aff9281b2320684fcbb7b556d18ed8ec5a7b91df5a69e1210cac",
+          "afterSha256": "47dc41e9feaf3b73b19692a85e421d749aab27eaedd489a36803d2375dd22174"
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": {
+          "beforeSha256": "f242f09371d9fd3757a524c566b45b42ac7a4fcef60874940fd73fedcf9a15fc",
+          "afterSha256": "68982b7a5584bb790349319205f906e27806f1d418668ffd7cb4b7fa4f708757"
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": {
+          "beforeSha256": "9c41b77becb4b63911ad189f1b21276e8bf9fa400a292e2ccbd9825e36f4a4a8",
+          "afterSha256": "7558bf792fccbbc485e383e3305ea4dc7b586a2ee9065e218e07089474d8b9cb"
+        },
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+          "beforeSha256": "fc2ab6e015a70e33f3d9815ff0d3ae08ab0fd5a6e3de186bb5bdd72de74dbd9a",
+          "afterSha256": "bdc752bcd726bcc9040c2639ce35b5fa317227f0a66ddfc35520ae72d1c6e73e"
+        },
+        "scripts/ci-test-artifacts.mjs": {
+          "beforeSha256": "606e40dac5ae77462ab03100aea1b2b32cfd3ae39f450f7c074f08eb91c490cc",
+          "afterSha256": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d"
+        },
+        "scripts/ci-test-artifacts.test.mjs": {
+          "beforeSha256": "97e1840df656940bc54e445e367247c34a0fb6e63126265c88ce635b014679e7",
+          "afterSha256": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a"
+        },
+        "scripts/ci-test-workspace.mjs": {
+          "beforeSha256": "d91514e2b57651e4c620fe895935fb00eb14bc00af2d967ff7acb87ec5291fc8",
+          "afterSha256": "dac86ea2b7f38595822161cc6159709743e1eca46457d868fa664cd98f86dba8"
+        },
+        "scripts/ci-test-workspace.test.mjs": {
+          "beforeSha256": "6f27022d853464b94050ee3bc7f2378a1fc2423b80b8fe1565d68ec5b0fa1ebd",
+          "afterSha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+        },
+        "README.md": {
+          "beforeSha256": "7972ba490cf26ab60bdb4c4f10da5cfcd965843ee692566afaf9e861f9cbe506",
+          "afterSha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+        },
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs": {
+          "beforeSha256": "e2a9f0aee225adaa8217ec630ec007f474e673a5911e0dcee6263c542d71416f",
+          "afterSha256": "67313cd56c6b6efd8b8614a819c30b3602965818dc26cccfbcc56c62022b00f6"
+        },
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs": {
+          "beforeSha256": "78be7e41e57f41bbfafb9291326214f6e9cd3b3571b82a9ad181026b85d4526c",
+          "afterSha256": "16ad0a029ce2ce474b7e95b2f5cf41e46e2ed075323e127c092fe7f9866577da"
+        },
+        "packages/express-request-attestation/test/fetch-client.test.ts": {
+          "beforeSha256": "aee09bddd95e77b75e18e40a67a1d9da40417be9041949a4e57ad2c0ecc144a3",
+          "afterSha256": "c7feae0a866ac6074efd5b6b79990f7d92868c1af0b4357cc56610b09684ac72"
+        },
+        "packages/express-request-attestation/test/installed-browser-harness.ts": {
+          "beforeSha256": "0669ab43f8d7cb39fe42f469f749a983613fb3e3bcce5f82ecc0303b24978d65",
+          "afterSha256": "8a7144487d11d47ad2891b95b8bfb21cdbfe9df0e96f3f5a5d1b8a47906f0a60"
+        },
+        "packages/express-request-attestation/test/packed-consumer.test.ts": {
+          "beforeSha256": "0f18de1d71b17daef27e342aced6e4391484ffc4dee6363b44830e001187960d",
+          "afterSha256": "5cdf75214245442f483b438d2ac01b57b3712016bb00273453a1aa36f420612f"
+        }
+      },
+      "missingOrUnavailableHashes": 0
+    },
+    {
+      "originalPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/before-fingerprints.json",
+      "originalSha256": "205541d194f33437b653d16eed0a6eb17be5e2c7b92b169f806d62099fadb45c",
+      "entries": 2536,
+      "unchanged": 2522,
+      "differences": {
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": {
+          "beforeSha256": "6edbc919b89bcf108ca5c8c8281c0b1a35f3e187eee9b62b73acad3e89286b2c",
+          "afterSha256": "47dc41e9feaf3b73b19692a85e421d749aab27eaedd489a36803d2375dd22174"
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": {
+          "beforeSha256": "9ea25a091b7a5fd596a63ce661e99512c3361c863a1394d5fc8c7022effb4262",
+          "afterSha256": "68982b7a5584bb790349319205f906e27806f1d418668ffd7cb4b7fa4f708757"
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": {
+          "beforeSha256": "64e03c83a5fefee09f1131ea3fa6673753f43c4efbb07340ceb9174bb0a18dd9",
+          "afterSha256": "7558bf792fccbbc485e383e3305ea4dc7b586a2ee9065e218e07089474d8b9cb"
+        },
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+          "beforeSha256": "914a13537353f236d0924f92aa4059c5b94b570c6f4c695085249b6b1f1249ca",
+          "afterSha256": "bdc752bcd726bcc9040c2639ce35b5fa317227f0a66ddfc35520ae72d1c6e73e"
+        },
+        "scripts/ci-test-artifacts.mjs": {
+          "beforeSha256": "606e40dac5ae77462ab03100aea1b2b32cfd3ae39f450f7c074f08eb91c490cc",
+          "afterSha256": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d"
+        },
+        "scripts/ci-test-artifacts.test.mjs": {
+          "beforeSha256": "97e1840df656940bc54e445e367247c34a0fb6e63126265c88ce635b014679e7",
+          "afterSha256": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a"
+        },
+        "scripts/ci-test-workspace.mjs": {
+          "beforeSha256": "d91514e2b57651e4c620fe895935fb00eb14bc00af2d967ff7acb87ec5291fc8",
+          "afterSha256": "dac86ea2b7f38595822161cc6159709743e1eca46457d868fa664cd98f86dba8"
+        },
+        "scripts/ci-test-workspace.test.mjs": {
+          "beforeSha256": "6f27022d853464b94050ee3bc7f2378a1fc2423b80b8fe1565d68ec5b0fa1ebd",
+          "afterSha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+        },
+        "README.md": {
+          "beforeSha256": "7972ba490cf26ab60bdb4c4f10da5cfcd965843ee692566afaf9e861f9cbe506",
+          "afterSha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+        },
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs": {
+          "beforeSha256": "e2a9f0aee225adaa8217ec630ec007f474e673a5911e0dcee6263c542d71416f",
+          "afterSha256": "67313cd56c6b6efd8b8614a819c30b3602965818dc26cccfbcc56c62022b00f6"
+        },
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs": {
+          "beforeSha256": "78be7e41e57f41bbfafb9291326214f6e9cd3b3571b82a9ad181026b85d4526c",
+          "afterSha256": "16ad0a029ce2ce474b7e95b2f5cf41e46e2ed075323e127c092fe7f9866577da"
+        },
+        "packages/express-request-attestation/test/fetch-client.test.ts": {
+          "beforeSha256": "aee09bddd95e77b75e18e40a67a1d9da40417be9041949a4e57ad2c0ecc144a3",
+          "afterSha256": "c7feae0a866ac6074efd5b6b79990f7d92868c1af0b4357cc56610b09684ac72"
+        },
+        "packages/express-request-attestation/test/installed-browser-harness.ts": {
+          "beforeSha256": "0669ab43f8d7cb39fe42f469f749a983613fb3e3bcce5f82ecc0303b24978d65",
+          "afterSha256": "8a7144487d11d47ad2891b95b8bfb21cdbfe9df0e96f3f5a5d1b8a47906f0a60"
+        },
+        "packages/express-request-attestation/test/packed-consumer.test.ts": {
+          "beforeSha256": "0f18de1d71b17daef27e342aced6e4391484ffc4dee6363b44830e001187960d",
+          "afterSha256": "5cdf75214245442f483b438d2ac01b57b3712016bb00273453a1aa36f420612f"
+        }
+      },
+      "missingOrUnavailableHashes": 0
+    }
+  ],
+  "limitations": [
+    "Full original snapshots are omitted; this derived comparison is not archive-only recalculation of every protected file",
+    "Five coordinator document edits and two handoffs are legitimate concurrent documentation, not R2-owned changes or zero drift",
+    "New R2 report/support files are created after this pre-archive snapshot and checked separately at delivery"
+  ]
+}

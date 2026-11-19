@@ -4,9 +4,11 @@
 
 - `pnpm install` — install dependencies
 - `pnpm build` — build all workspace packages (`pnpm -r --if-present build`)
-- `pnpm test` — run all workspace tests
-- `pnpm test:grouped` — run safe parallel test groups sequentially (used by CI)
-- `pnpm test:groups:check` — verify group coverage, build/read safety and runner tests
+- `pnpm test` — run all workspace test scripts serially; package scripts may rebuild dependencies
+- `pnpm test:grouped` — validate groups, then run safe build/read groups sequentially (local pre-flight)
+- `pnpm test:group:N` — run one numbered group after a build
+- `pnpm test:groups:check` — validate local group coverage, build/read safety and runner tests (not a package test suite)
+- `pnpm test:ci:check` — validate the CI dependency model, active workflow agreement, and artifact/result helper contracts (not a package test suite)
 - `pnpm lint` — run eslint over the repo
 - `pnpm build-artifact -- --version <ver>` — assemble the asdf release artifact
 - `pnpm verify-artifact -- --version <ver>` — verify the asdf release artifact
@@ -19,14 +21,47 @@ Most package test scripts rebuild themselves and their transitive deps via
 multiple `tsup` processes to write to the same shared `dist/` (e.g.
 `express-response-handler`) at once and race on CI. Keep this default serialized.
 
-CI builds the workspace first, then uses `pnpm test:grouped`: numbered groups run
-sequentially and stop on failure; packages within each group run concurrently.
-`scripts/test-groups.mjs` checks coverage and dependency build/read conflicts before
-running any group, including test-only accesses absent from package manifests.
-Update its overrides when cross-package fixture/build behavior changes. Do not
-run separate groups concurrently in one checkout. `react-vite` shares compiled
-dependencies read-only with the starter in group 12; its override requires review
-if its test script changes.
+For local grouped runs, build the workspace first, then use `pnpm test:grouped`:
+numbered groups run sequentially and stop on failure; packages within each group
+run concurrently. `scripts/test-groups.mjs` checks coverage and dependency
+build/read conflicts before running any group, including test-only accesses absent
+from package manifests. Update its overrides when cross-package fixture/build
+behavior changes. Do not run separate groups concurrently in one checkout.
+`react-vite` shares compiled dependencies read-only with the starter in group 12;
+its override requires review if its test script changes.
+
+The gated `Test` workflow does not use `pnpm test:grouped`. `ci-prepare` performs
+one clean full build and uploads a verified output-only archive; each static package
+job installs with a frozen lockfile, restores the exact run/attempt/checkout-scoped
+archive, prepares its own browsers/databases, and runs the complete package `test`
+script. Each package job requires `ci-prepare` plus its reviewed workspace test
+prerequisites, so only true dependents skip after a package failure; validation or
+preparation failure blocks all package tests. The preserved `lint`,
+minimum-Node smoke, and React compatibility jobs are independent of the main graph.
+Do not add a matrix barrier, job-level fail-fast, `continue-on-error`, or a
+dependency-closure filter to the main path; package rebuilds and worker limits are
+intentional.
+
+The stable `unit-test` aggregate uses `always()` and evaluates the 27 direct
+`needs` results (`ci-validate`, `ci-prepare`, 25 package jobs) with
+`scripts/ci-test-results.mjs`. It passes only when all 27 succeeded; failure,
+cancellation, missing results, and all skipped results fail closed. `pnpm test:ci:check`
+enforces the model/active-workflow agreement and helper contracts. Both
+`pnpm test:ci:check` and `pnpm test:groups:check` are validation checks, not
+substitutes for `pnpm test`/`pnpm test:grouped`. The workflow sets no workflow-wide
+concurrency or `max-parallel` cap: `max-parallel` applies only to matrix jobs, and
+the only matrix is the preserved React compatibility lane.
+
+Before rollout, a maintainer must authorize live healthy, failure,
+preparation-failure, cancellation and missing/skipped-result evidence, and confirm
+the existing required-check context still targets `unit-test`; branch-protection
+changes require separate authorization. Rollback means restoring the previous
+serial `pnpm build` + `pnpm test:grouped` job together with matching pre-migration
+CI validation wiring and testing guidance. Reverting only the YAML fails the
+current mandatory workflow-agreement check; do not add a legacy bypass to the
+active DAG checks. Preserve package scripts, group safety, independent lanes and
+the `unit-test` context, verify the coherent rollback before publication, and do
+not run groups concurrently.
 
 ## Temporary files and durable task evidence
 

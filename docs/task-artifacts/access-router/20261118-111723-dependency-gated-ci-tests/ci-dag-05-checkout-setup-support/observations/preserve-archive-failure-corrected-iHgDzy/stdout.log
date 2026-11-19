@@ -1,0 +1,7 @@
+{
+  "validationRecord": "_tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure-corrected-iHgDzy/validation.json",
+  "partialArchiveFiles": 21,
+  "originalDriverSha256": "2e6ff50ee9ed0841fc9932d0b2d95a3326d788134fc0f807356652b25d9b2084",
+  "preservedDriverSha256": "2e6ff50ee9ed0841fc9932d0b2d95a3326d788134fc0f807356652b25d9b2084",
+  "noExistingEvidenceOverwritten": true
+}

@@ -1,0 +1,131 @@
+{"probeEvent":{"stage":"helper-prepared","elapsedMs":1222,"resourceDirectory":"_tmpc0k9Jm"}}
+{"probeEvent":{"stage":"sender-ready","elapsedMs":1243,"observation":{"socket":"_tmpc0k9Jm/pubkey.bc/Ac0535957049d9e72b5bc/rdrs/j7ksgzm8iy8.s","socketBytes":95,"tmpdirBytes":44,"readerUuidBytes":11,"fixedSuffixBytes":40,"socketIsSocket":true,"transport":"node","useFastPathDefault":true,"listening":false,"messageCallbackPresent":false,"createdMicros":49453535165,"listeningMicros":null}}}
+{"probeEvent":{"stage":"receiver-ready","elapsedMs":1314,"observation":{"socket":"_tmpc0k9Jm/pubkey.bc/Ac0535957049d9e72b5bc/rdrs/ug60zdwkns.s","socketBytes":94,"tmpdirBytes":44,"readerUuidBytes":10,"fixedSuffixBytes":40,"socketIsSocket":true,"transport":"node","useFastPathDefault":true,"listening":true,"messageCallbackPresent":true,"createdMicros":49453604449,"listeningMicros":49453606140}}}
+{"probeEvent":{"stage":"sender-post-complete","elapsedMs":1317,"readers":[{"writable":true,"destroyed":false}]}}
+{"probeEvent":{"stage":"receiver-received","elapsedMs":1318,"received":{"purpose":"CI-DAG-05 R1 socket probe","sequence":1}}}
+{"probeEvent":{"stage":"receiver-closed","elapsedMs":1520}}
+{"probeEvent":{"stage":"receiver-exit","elapsedMs":1525,"code":0,"signal":null}}
+{
+  "workspace": "@web-ts-toolkit/mongoose-rxdb",
+  "node": "26.12.1",
+  "v8": "14.6.202.34-node.40",
+  "broadcastChannel": "7.4.0",
+  "resourceDirectory": "_tmpc0k9Jm",
+  "secondDirectory": "_tmpN9x2uS",
+  "checkoutRootBytes": 33,
+  "tmpdirBytes": 44,
+  "budgetBytes": 45,
+  "uuidAllowanceBytes": 22,
+  "linuxSocketPathnameMaxBytes": 107,
+  "distinctProcesses": true,
+  "posts": 1,
+  "received": 1,
+  "childExit": {
+    "code": 0,
+    "signal": null
+  },
+  "isolatedSecondAllocation": true,
+  "helperResourceCommands": 0,
+  "packageTestCommands": 0,
+  "sender": {
+    "socket": "_tmpc0k9Jm/pubkey.bc/Ac0535957049d9e72b5bc/rdrs/j7ksgzm8iy8.s",
+    "socketBytes": 95,
+    "tmpdirBytes": 44,
+    "readerUuidBytes": 11,
+    "fixedSuffixBytes": 40,
+    "socketIsSocket": true,
+    "transport": "node",
+    "useFastPathDefault": true,
+    "listening": false,
+    "messageCallbackPresent": false,
+    "createdMicros": 49453535165,
+    "listeningMicros": null
+  },
+  "receiver": {
+    "socket": "_tmpc0k9Jm/pubkey.bc/Ac0535957049d9e72b5bc/rdrs/ug60zdwkns.s",
+    "socketBytes": 94,
+    "tmpdirBytes": 44,
+    "readerUuidBytes": 10,
+    "fixedSuffixBytes": 40,
+    "socketIsSocket": true,
+    "transport": "node",
+    "useFastPathDefault": true,
+    "listening": true,
+    "messageCallbackPresent": true,
+    "createdMicros": 49453604449,
+    "listeningMicros": 49453606140
+  },
+  "trace": [
+    {
+      "stage": "helper-prepared",
+      "elapsedMs": 1222,
+      "resourceDirectory": "_tmpc0k9Jm"
+    },
+    {
+      "stage": "sender-ready",
+      "elapsedMs": 1243,
+      "observation": {
+        "socket": "_tmpc0k9Jm/pubkey.bc/Ac0535957049d9e72b5bc/rdrs/j7ksgzm8iy8.s",
+        "socketBytes": 95,
+        "tmpdirBytes": 44,
+        "readerUuidBytes": 11,
+        "fixedSuffixBytes": 40,
+        "socketIsSocket": true,
+        "transport": "node",
+        "useFastPathDefault": true,
+        "listening": false,
+        "messageCallbackPresent": false,
+        "createdMicros": 49453535165,
+        "listeningMicros": null
+      }
+    },
+    {
+      "stage": "receiver-ready",
+      "elapsedMs": 1314,
+      "observation": {
+        "socket": "_tmpc0k9Jm/pubkey.bc/Ac0535957049d9e72b5bc/rdrs/ug60zdwkns.s",
+        "socketBytes": 94,
+        "tmpdirBytes": 44,
+        "readerUuidBytes": 10,
+        "fixedSuffixBytes": 40,
+        "socketIsSocket": true,
+        "transport": "node",
+        "useFastPathDefault": true,
+        "listening": true,
+        "messageCallbackPresent": true,
+        "createdMicros": 49453604449,
+        "listeningMicros": 49453606140
+      }
+    },
+    {
+      "stage": "sender-post-complete",
+      "elapsedMs": 1317,
+      "readers": [
+        {
+          "writable": true,
+          "destroyed": false
+        }
+      ]
+    },
+    {
+      "stage": "receiver-received",
+      "elapsedMs": 1318,
+      "received": {
+        "purpose": "CI-DAG-05 R1 socket probe",
+        "sequence": 1
+      }
+    },
+    {
+      "stage": "receiver-closed",
+      "elapsedMs": 1520
+    },
+    {
+      "stage": "receiver-exit",
+      "elapsedMs": 1525,
+      "code": 0,
+      "signal": null
+    }
+  ],
+  "deadlineMs": 10000,
+  "durationMs": 1722
+}

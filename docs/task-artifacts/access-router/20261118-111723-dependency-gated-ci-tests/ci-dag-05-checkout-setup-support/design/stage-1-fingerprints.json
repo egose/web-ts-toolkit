@@ -1,0 +1,158 @@
+{
+  "observedAt": "2026-11-19T11:01:43.040348+00:00",
+  "stage": "1: preflight fingerprints only; no implementation, validator, source operation, or package execution",
+  "repositoryRoot": "<repo-root>",
+  "repositoryRootUtf8Bytes": 33,
+  "preflightSha256": "2d7e808826ce5a6de639593070944453ee0c2b1cb20a7d5cbec6125a903a91a8",
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "headMatchesPreflight": true,
+  "projectRefsSerialization": "git --no-optional-locks for-each-ref --format=%(objectname) %(refname)",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "projectRefsMatchPreflight": true,
+  "inheritedStatusSerialization": "git --no-optional-locks status --short",
+  "inheritedStatusEntries": 26,
+  "inheritedStatusMatchesPreflight": true,
+  "protectedRegularFiles": 2581,
+  "unchangedProtectedRegularFiles": 2581,
+  "changedProtectedFiles": [],
+  "missingProtectedFiles": [],
+  "newGitListedPaths": [],
+  "preflightPathsNoLongerGitListed": [],
+  "fingerprintErrors": [],
+  "scratchIgnoreObservation": ".gitignore:8:_tmp*\t_tmp-c5-setup-ozh7l6on",
+  "intendedExistingFiles": {
+    ".github/workflows/test.yml": {
+      "mode": "0644",
+      "bytes": 18323,
+      "sha256": "c9408a1b25912416d25f95cefa609410bbf0c9852551803a9bf710ab69017aaf"
+    },
+    ".github/actions/ci-setup/action.yml": {
+      "mode": "0644",
+      "bytes": 659,
+      "sha256": "0bcffecbe5d059050e25840aa1d8cccfedfe697c5e286554ff4b1747db86ff92"
+    },
+    ".github/actions/ci-prepare/action.yml": {
+      "mode": "0644",
+      "bytes": 843,
+      "sha256": "71f2bca5f051a7419be9ef9b3c823e8a6ae04e680eef56b600718ad9eea266dd"
+    },
+    ".github/actions/ci-test/action.yml": {
+      "mode": "0644",
+      "bytes": 2249,
+      "sha256": "4e2f0efafcfc11d750e62481b4e83766659e557139d8f449dc5128ae5deab9ff"
+    },
+    "scripts/ci-test-plan.mjs": {
+      "mode": "0644",
+      "bytes": 29767,
+      "sha256": "dc65f5f261288c0d9e69e78428a52e47ee43130316ee8959f57edbf4c0e9496c"
+    },
+    "scripts/ci-test-plan.test.mjs": {
+      "mode": "0644",
+      "bytes": 62202,
+      "sha256": "cf938b1f3b6adc0812f70fd23a4cc710ef3177df2c3c2813a0eb94ec557296fb"
+    },
+    "scripts/ci-test-results.test.mjs": {
+      "mode": "0644",
+      "bytes": 22539,
+      "sha256": "225a786ce4421d498f2feab1cc0d612c8452251282d8f86f8b6eaa2ddf9b24c6"
+    },
+    "package.json": {
+      "mode": "0644",
+      "bytes": 2930,
+      "sha256": "f3793110d566df545710024d37c207fc4b592aa57c5a5667fdcb7b5df6733d80"
+    },
+    "README.md": {
+      "mode": "0644",
+      "bytes": 11566,
+      "sha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+    }
+  },
+  "originalSealObservations": {
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-finishing-review.md": {
+      "mode": "0644",
+      "bytes": 40181,
+      "sha256": "f96fa3f21bd701a1862823eae388c78fb189f296bd6f40c4cfe975767f3ba02b",
+      "matchesPreflight": true
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/manifest.json": {
+      "mode": "0644",
+      "bytes": 30069,
+      "sha256": "c69bfcc7f009f05227be44301efc9a4682cbf910a5c81c7a7b103c7cb14e7398",
+      "matchesPreflight": true
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json": {
+      "mode": "0644",
+      "bytes": 47449,
+      "sha256": "ed4ebcd0bc529eefc1f4b3a0d548eb8798ebd332bcc9ab9522ef1a80d869d2d0",
+      "matchesPreflight": true
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-coordinator-reconciliation.json": {
+      "mode": "0644",
+      "bytes": 24579,
+      "sha256": "f8efbfbfd4c0db94e36873fe0fc2f3a61ddcfadc506e1b7202333fa08128af8e",
+      "matchesPreflight": true
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-pre-setup-coordinator-reconciliation.json": {
+      "mode": "0644",
+      "bytes": 17240,
+      "sha256": "cbf392a1ed6c15526d864ba594b365acf804b10ddae208e9056776707166f7fe",
+      "matchesPreflight": true
+    },
+    "_tmp-fix-w72mgx/baseline.json": {
+      "mode": "0644",
+      "bytes": 352863,
+      "sha256": "2eb59aea94f09b1655ab1bcc011b41161570ff5ce21a930f62ecde0393296627",
+      "matchesPreflight": true
+    },
+    "_tmp-05c-G8SORQ/summary.txt": {
+      "mode": "0644",
+      "bytes": 229,
+      "sha256": "3709ee3f0c6a7d958c58218a67c2d3a3aeded8d3a7ed7d6c019a18006154e32d",
+      "matchesPreflight": true
+    },
+    "_tmp-05c-G8SORQ/lint.log": {
+      "mode": "0644",
+      "bytes": 235,
+      "sha256": "192904497e1d404db5e88f37fa40626e70af5ed75752856c8c986155c6bf8f26",
+      "matchesPreflight": true
+    },
+    "_tmp-05c-G8SORQ/build.log": {
+      "mode": "0644",
+      "bytes": 87465,
+      "sha256": "4d57b5ff1d77843945bc09fa6b85959a18b3e00e592f505b38a8b0bf36d23759",
+      "matchesPreflight": true
+    },
+    "_tmp-05c-G8SORQ/grouped.log": {
+      "mode": "0644",
+      "bytes": 252259,
+      "sha256": "1b750bce5243882f4aec8fd8e344049100e49a5c795aea5fee9620420e782bf0",
+      "matchesPreflight": true
+    }
+  },
+  "sourceConfigPresence": {
+    ".npmrc": false,
+    ".gitattributes": false
+  },
+  "scratchEntriesAtObservation": [
+    "preflight.json"
+  ],
+  "finalReadOnlyObservation": {
+    "observedAt": "2026-11-19T11:11:55.049895+00:00",
+    "observation": "read-only preflight fingerprints only; no validator/runtime check",
+    "comparisonCorrection": "Previous whole-dictionary seal comparison included expectedSha256/matches metadata absent from filesystem fingerprints and falsely reported ten mismatches. Compare mode/bytes/sha256 only; no file-change evidence was found.",
+    "protectedRegularFiles": 2581,
+    "unchangedProtectedRegularFiles": 2581,
+    "changedProtectedFiles": [],
+    "originalSeals": 10,
+    "changedOriginalSeals": [],
+    "recordedFingerprintDifferencesFromPreflight": [],
+    "newGitListedPaths": [],
+    "preflightPathsNoLongerGitListed": [],
+    "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+    "headMatchesPreflight": true,
+    "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+    "projectRefsMatchPreflight": true,
+    "inheritedStatusEntries": 26,
+    "inheritedStatusMatchesPreflight": true
+  }
+}

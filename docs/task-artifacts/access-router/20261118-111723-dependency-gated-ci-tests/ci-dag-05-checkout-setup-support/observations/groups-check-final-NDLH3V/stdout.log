@@ -1,0 +1,27 @@
+✔ accepts independent packages in parallel and shared dependencies across sequential groups (1.369294ms)
+✔ requires every tested workspace exactly once (0.39595ms)
+✔ rejects transitive build conflicts through dependencies (0.166542ms)
+✔ rejects transitive build conflicts through devDependencies (0.18054ms)
+✔ rejects transitive build conflicts through optionalDependencies (0.254819ms)
+✔ rejects transitive build conflicts through peerDependencies (0.105807ms)
+✔ handles dependency cycles and ignores non-workspace dependencies (0.173903ms)
+✔ rejects unresolved workspace dependencies (0.262291ms)
+✔ allows shared read-only consumers but rejects a concurrent dependency rebuild (0.340807ms)
+✔ requires review if a read-only consumer starts rebuilding (1.049792ms)
+✔ accounts for undeclared fixture reads and their transitive runtime dependencies (0.181056ms)
+✔ accounts for builds inside tests and rejects stale overrides (0.16889ms)
+✔ runs numbered groups in order with parallel members and waits for all members (0.549325ms)
+✔ stops before the next group on failure or signal (0.093912ms)
+✔ propagates a failed pnpm spawn (0.099671ms)
+✔ real pnpm runs members concurrently and advances only after success (1023.794791ms)
+✔ real pnpm runs members concurrently and waits before stopping on failure (751.780256ms)
+✔ root scripts preserve serial tests and expose every configured group (0.619627ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1839.452794
+Validated 12 test groups covering 25 workspaces.

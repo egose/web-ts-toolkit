@@ -1,0 +1,18 @@
+{
+  "label": "selected-only-fixture",
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "--test-name-pattern=real fixture: selected-only",
+    "scripts/ci-test-checkout.test.mjs"
+  ],
+  "cwd": "<repo-root>",
+  "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/selected-only-fixture-KeBfeD/tmp",
+  "startedAt": "2026-11-19T11:35:52.657Z",
+  "finishedAt": "2026-11-19T11:35:52.938Z",
+  "durationMs": 274,
+  "status": 0,
+  "signal": null,
+  "error": null
+}

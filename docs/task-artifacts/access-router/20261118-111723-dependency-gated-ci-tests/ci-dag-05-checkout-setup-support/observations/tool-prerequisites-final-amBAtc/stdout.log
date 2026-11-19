@@ -1,0 +1,202 @@
+{
+  "versions": [
+    {
+      "command": [
+        "node",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "v26.12.1\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "pnpm",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "11.18.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "git version 2.43.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "pre-commit",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "pre-commit 4.6.2\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "v10.12.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "4.0.0-alpha.13\n",
+      "stderr": ""
+    }
+  ],
+  "nodeDiscovery": {
+    "scope": "Existing executable node candidates on PATH and existing asdf nodejs installs only; no installation, external scratch or runner execution",
+    "candidates": [
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/22.2.0/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v22.2.0\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/26.10.0/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.10.0\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/26.11.1/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.11.1\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/26.12.0/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.12.0\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/26.12.1/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.12.1\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/26.13.0/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.13.0\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/26.7.0/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.7.0\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/installs/nodejs/26.8.1/bin/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.8.1\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "<user-home>/.asdf/shims/node",
+          "--version"
+        ],
+        "status": 0,
+        "stdout": "v26.12.1\n",
+        "stderr": ""
+      }
+    ],
+    "node20AvailableInInspectedCandidates": false
+  },
+  "checkYaml": {
+    "sourceHead": {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "-C",
+        "<user-home>/.cache/pre-commit/repo3aru3ozk",
+        "rev-parse",
+        "HEAD"
+      ],
+      "status": 0,
+      "stdout": "3e8a8703264a2f4a69428a0aa4dcb512790b2c8c\n",
+      "stderr": ""
+    },
+    "entry": {
+      "path": "<user-home>/.cache/pre-commit/repo3aru3ozk/py_env-python3.14/bin/check-yaml",
+      "bytes": 226,
+      "sha256": "b22fccb3cfbf7136b90242c2fa01111196ca788fcb83deb221ff3ac70731c3c4"
+    },
+    "runtime": {
+      "command": [
+        "<user-home>/.cache/pre-commit/repo3aru3ozk/py_env-python3.14/bin/python",
+        "-c",
+        "import importlib.metadata as m,json,sys; print(json.dumps({'python':sys.version,'pre_commit_hooks':m.version('pre-commit-hooks'),'ruamel_yaml':m.version('ruamel.yaml')}))"
+      ],
+      "status": 0,
+      "stdout": "{\"python\": \"3.14.7 (main, Oct 22 2026, 14:13:32) [GCC 13.3.0]\", \"pre_commit_hooks\": \"6.0.0\", \"ruamel_yaml\": \"0.19.1\"}\n",
+      "stderr": ""
+    },
+    "noPreCommitEnvironmentInstallation": true
+  },
+  "actionlint": {
+    "archive": {
+      "path": "<repo-root>/_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+    },
+    "binary": {
+      "path": "<repo-root>/_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    "archiveBinaryMatches": true,
+    "version": {
+      "command": [
+        "<repo-root>/_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "1.7.7\ninstalled by downloading from release page\nbuilt with go1.23.4 compiler for linux/amd64\n",
+      "stderr": ""
+    }
+  }
+}

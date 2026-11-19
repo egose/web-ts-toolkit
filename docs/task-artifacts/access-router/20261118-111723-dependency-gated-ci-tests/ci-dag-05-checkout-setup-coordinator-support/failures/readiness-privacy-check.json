@@ -1,0 +1,133 @@
+{
+  "failedAt": "2026-11-19T14:47:17.964504+00:00",
+  "scope": "Coordinator document/readiness/snapshot check failure, not package/helper/source/hosted execution",
+  "error": "Privacy pattern: docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+  "type": "AssertionError",
+  "commands": [
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n",
+      "startedAt": "2026-11-19T14:47:16.960207+00:00",
+      "finishedAt": "2026-11-19T14:47:16.962611+00:00",
+      "durationMs": 2,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 41,
+      "stdoutSha256": "ba86875f3ee243f8edb0777a5c1dd70eab152cc5d7e4217807eb9e6bc501cbcc",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n",
+      "startedAt": "2026-11-19T14:47:16.971389+00:00",
+      "finishedAt": "2026-11-19T14:47:16.973762+00:00",
+      "durationMs": 2,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 41,
+      "stdoutSha256": "d9fc09c66e8f9d79791308f3960d7c07e38589b227a43bdd643e2247bdeeeafa",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "for-each-ref",
+        "--format=%(objectname) %(refname)"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n",
+      "startedAt": "2026-11-19T14:47:16.974139+00:00",
+      "finishedAt": "2026-11-19T14:47:16.976683+00:00",
+      "durationMs": 2,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 8156,
+      "stdoutSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "status",
+        "--short"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n",
+      "startedAt": "2026-11-19T14:47:16.977259+00:00",
+      "finishedAt": "2026-11-19T14:47:16.987254+00:00",
+      "durationMs": 10,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 1344,
+      "stdoutSha256": "ee96fed08f62dbef2db568b6c1367c50042daae4b695d0b970d810ec6454cd19",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": "",
+      "stdoutText": " M .github/workflows/test.yml\n M AGENTS.md\n M README.md\n M package.json\n M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs\n M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs\n M packages/express-request-attestation/test/fetch-client.test.ts\n M packages/express-request-attestation/test/installed-browser-harness.ts\n M packages/express-request-attestation/test/packed-consumer.test.ts\n M pnpm-lock.yaml\n?? .github/actions/ci-checkout/\n?? .github/actions/ci-prepare/\n?? .github/actions/ci-setup/\n?? .github/actions/ci-test/\n?? docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/\n?? docs/tasks/20261118-111723-dependency-gated-ci-tests.md\n?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts\n?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs\n?? packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts\n?? scripts/ci-test-artifacts.mjs\n?? scripts/ci-test-artifacts.test.mjs\n?? scripts/ci-test-checkout.test.mjs\n?? scripts/ci-test-plan.mjs\n?? scripts/ci-test-plan.test.mjs\n?? scripts/ci-test-results.mjs\n?? scripts/ci-test-results.test.mjs\n?? scripts/ci-test-workspace.mjs\n?? scripts/ci-test-workspace.test.mjs\n"
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n",
+      "startedAt": "2026-11-19T14:47:16.987696+00:00",
+      "finishedAt": "2026-11-19T14:47:16.996209+00:00",
+      "durationMs": 8,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 195290,
+      "stdoutSha256": "be15313320d80d4012af4042f0d91fc987c274bd688a78d68eb553df6e1e6fb7",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "-z",
+        "--stdin"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n",
+      "startedAt": "2026-11-19T14:47:17.907331+00:00",
+      "finishedAt": "2026-11-19T14:47:17.910545+00:00",
+      "durationMs": 3,
+      "exitCode": 1,
+      "signal": null,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    }
+  ]
+}

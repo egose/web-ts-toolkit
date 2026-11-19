@@ -1,0 +1,327 @@
+✔ wiring: setup-node effectively reads the selected version pin, not the original workspace (37.219773ms)
+✔ wiring: pnpm effectively reads the selected manifest and receives only the fresh owned destination (20.612841ms)
+✔ wiring: every main project shell resolves the selected module, cwd and TMPDIR (3633.211203ms)
+✔ wiring: all 28 main jobs retain the original SHA checkout then register a top-level source action (9.960074ms)
+✔ wiring: source metadata declares dependency-free node20 main/post and always cleanup, not a composite deletion (0.682966ms)
+✔ real fixture: selected-only merge closure passes strict import and connectivity without history or private metadata (114.25572ms)
+✔ modeled arithmetic: representative 47-byte original becomes only the fixed 34-byte sibling (0.650407ms)
+✔ modeled arithmetic with native UTF-8 measurement: ASCII maximum (0.108631ms)
+✔ modeled arithmetic with native UTF-8 measurement: ASCII one over (0.159731ms)
+✔ modeled arithmetic with native UTF-8 measurement: two-byte maximum (0.089753ms)
+✔ modeled arithmetic with native UTF-8 measurement: two-byte one over (0.105567ms)
+✔ modeled arithmetic with native UTF-8 measurement: three-byte maximum (0.301606ms)
+✔ modeled arithmetic with native UTF-8 measurement: three-byte one over (0.112654ms)
+✔ path normalization rejects undefined (0.228033ms)
+✔ path normalization rejects null (0.051972ms)
+✔ path normalization rejects 7 (0.033247ms)
+✔ path normalization rejects {} (0.041548ms)
+✔ path normalization rejects [] (0.023525ms)
+✔ path normalization rejects "" (0.025976ms)
+✔ path normalization rejects "relative/c" (0.021817ms)
+✔ path normalization rejects "/a/../c" (0.028293ms)
+✔ path normalization rejects "/a/./c" (0.109303ms)
+✔ path normalization rejects "/a//c" (0.06527ms)
+✔ path normalization rejects "/a/" (0.046812ms)
+✔ path normalization rejects "/c\u0000suffix" (0.042003ms)
+✔ path normalization rejects "/c\r" (0.027543ms)
+✔ path normalization rejects "/c\n" (0.024599ms)
+✔ native deep fixture: full main rejects the actual over-budget sibling before allocation or Git (32.919601ms)
+✔ real parent rejects filesystem-root parent, reserved original c, writable parent and symlink components (4.343685ms)
+✔ real exclusive claim retains an existing file collision without fallback (5.08823ms)
+✔ real exclusive claim retains an existing directory collision without fallback (4.1752ms)
+✔ real exclusive claim retains an existing symlink collision without fallback (3.590608ms)
+✔ real exclusive claim retains an existing dangling symlink collision without fallback (3.935598ms)
+✔ main rejects ambient GIT_DIR before claiming or exporting a root (2.925381ms)
+✔ main rejects ambient GIT_WORK_TREE before claiming or exporting a root (3.498561ms)
+✔ main rejects ambient GIT_COMMON_DIR before claiming or exporting a root (3.038232ms)
+✔ main rejects ambient GIT_OBJECT_DIRECTORY before claiming or exporting a root (3.221174ms)
+✔ main rejects ambient GIT_ALTERNATE_OBJECT_DIRECTORIES before claiming or exporting a root (2.527932ms)
+✔ main rejects ambient GIT_INDEX_FILE before claiming or exporting a root (2.404635ms)
+✔ main rejects ambient GIT_CONFIG before claiming or exporting a root (2.509085ms)
+✔ main rejects ambient GIT_CONFIG_COUNT before claiming or exporting a root (3.227386ms)
+✔ main rejects ambient GIT_CONFIG_GLOBAL before claiming or exporting a root (3.436852ms)
+✔ main rejects ambient GIT_CONFIG_KEY_0 before claiming or exporting a root (2.982613ms)
+✔ main rejects ambient GIT_SHALLOW_FILE before claiming or exporting a root (2.902279ms)
+✔ main rejects ambient GIT_REPLACE_REF_BASE before claiming or exporting a root (2.651323ms)
+✔ main rejects ambient GIT_NAMESPACE before claiming or exporting a root (3.488702ms)
+✔ main rejects ambient GIT_EXEC_PATH before claiming or exporting a root (3.021648ms)
+✔ main rejects ambient GIT_TEMPLATE_DIR before claiming or exporting a root (2.906044ms)
+✔ main rejects malformed event SHA undefined without a source/tool command (2.75666ms)
+✔ main rejects malformed event SHA null without a source/tool command (2.930776ms)
+✔ main rejects malformed event SHA 7 without a source/tool command (3.06012ms)
+✔ main rejects malformed event SHA [] without a source/tool command (3.240159ms)
+✔ main rejects malformed event SHA "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" without a source/tool command (2.765222ms)
+✔ main rejects malformed event SHA "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" without a source/tool command (2.892976ms)
+✔ main rejects malformed event SHA "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" without a source/tool command (2.427612ms)
+✔ main rejects malformed event SHA "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n" without a source/tool command (2.376799ms)
+✔ main rejects malformed event SHA "gggggggggggggggggggggggggggggggggggggggg" without a source/tool command (2.705152ms)
+✔ presence-only npmrc: main rejects original unreadable file before selection or content reads (4.206068ms)
+✔ presence-only npmrc: main rejects original directory before selection or content reads (3.289939ms)
+✔ presence-only npmrc: main rejects original dangling symlink before selection or content reads (3.008461ms)
+✔ tree parser rejects symlink before any blob transfer (0.171796ms)
+✔ tree parser rejects gitlink before any blob transfer (0.046898ms)
+✔ tree parser rejects wrong mode/type pair before any blob transfer (0.027067ms)
+✔ tree parser rejects non-UTF-8 path before any blob transfer (0.065918ms)
+✔ tree parser rejects absolute path before any blob transfer (0.033919ms)
+✔ tree parser rejects traversal path before any blob transfer (0.028059ms)
+✔ tree parser rejects dot component before any blob transfer (0.022474ms)
+✔ tree parser rejects double slash before any blob transfer (0.021778ms)
+✔ tree parser rejects Git administrative path before any blob transfer (0.026585ms)
+✔ tree parser rejects newline path before any blob transfer (0.085408ms)
+✔ tree parser rejects carriage-return path before any blob transfer (0.041052ms)
+✔ tree parser rejects missing parent tree before any blob transfer (0.180502ms)
+✔ tree parser rejects root scratch before any blob transfer (0.05367ms)
+✔ tree parser rejects root npmrc before any blob transfer (0.032105ms)
+✔ tree parser rejects duplicate path before any blob transfer (0.031042ms)
+✔ tree parser rejects missing final NUL before any blob transfer (0.049079ms)
+✖ tree parser rejects empty record before any blob transfer (0.504599ms)
+✔ tree parser retains hidden, UTF-8 and nested npmrc paths with explicit real parents (0.125161ms)
+✔ real source rejection: wrong detached HEAD leaves the original untouched and launches no installer (32.156751ms)
+✔ real source rejection: symbolic HEAD leaves the original untouched and launches no installer (32.811814ms)
+✔ real source rejection: CRLF HEAD leaves the original untouched and launches no installer (33.335173ms)
+✔ real source rejection: high-bit HEAD leaves the original untouched and launches no installer (31.345292ms)
+✔ real source rejection: malformed index header leaves the original untouched and launches no installer (31.547454ms)
+✔ real source rejection: truncated index leaves the original untouched and launches no installer (40.511628ms)
+✔ real source rejection: missing HEAD leaves the original untouched and launches no installer (30.048534ms)
+✔ real source rejection: missing index leaves the original untouched and launches no installer (32.249293ms)
+✔ real source rejection: HEAD symlink leaves the original untouched and launches no installer (33.651471ms)
+✔ real source rejection: index symlink leaves the original untouched and launches no installer (33.203385ms)
+✔ real source rejection: gitfile leaves the original untouched and launches no installer (29.124022ms)
+✔ real source rejection: Git directory symlink leaves the original untouched and launches no installer (29.237232ms)
+✔ real source rejection: linked worktree marker leaves the original untouched and launches no installer (29.546152ms)
+✔ real source rejection: grafts leaves the original untouched and launches no installer (31.195779ms)
+✔ real source rejection: object alternates leaves the original untouched and launches no installer (31.647947ms)
+✔ real source rejection: HTTP alternates leaves the original untouched and launches no installer (31.430132ms)
+✔ real source rejection: promisor marker leaves the original untouched and launches no installer (32.303789ms)
+✔ real source rejection: object storage symlink leaves the original untouched and launches no installer (28.524827ms)
+✔ real source rejection: loose object symlink leaves the original untouched and launches no installer (30.021133ms)
+✔ real source rejection: dirty blob leaves the original untouched and launches no installer (43.192951ms)
+✔ real source rejection: changed executable mode leaves the original untouched and launches no installer (43.405712ms)
+✔ real source rejection: missing committed file leaves the original untouched and launches no installer (41.336358ms)
+✔ real source rejection: tracked file symlink leaves the original untouched and launches no installer (42.372427ms)
+✔ real source rejection: nonregular tracked file leaves the original untouched and launches no installer (42.911529ms)
+✔ real source rejection: staged different blob leaves the original untouched and launches no installer (46.923399ms)
+✔ real source rejection: assume-unchanged index leaves the original untouched and launches no installer (50.540975ms)
+✔ real source rejection: skip-worktree index leaves the original untouched and launches no installer (47.153812ms)
+✔ real source rejection: ignored dependencies leaves the original untouched and launches no installer (41.204449ms)
+✔ real source rejection: ignored generated output leaves the original untouched and launches no installer (42.1536ms)
+✔ real source rejection: ignored cache/scratch leaves the original untouched and launches no installer (41.081884ms)
+✔ real source rejection: extra empty directory leaves the original untouched and launches no installer (47.982597ms)
+✔ committed root npmrc is rejected from the tree even when absent from the worktree, before its blob batch/pack (38.962958ms)
+✔ installer rechecks presence-only original npmrc immediately before a modeled installer (95.454235ms)
+✔ installer rechecks presence-only selected npmrc immediately before a modeled installer (93.958362ms)
+✔ selected closure requires committed .gitignore before packing (34.993281ms)
+✔ selected closure requires committed .tool-versions before packing (35.124291ms)
+✔ selected closure requires committed package.json before packing (36.647591ms)
+✔ selected closure requires committed pnpm-lock.yaml before packing (40.789013ms)
+✔ selected closure requires committed pnpm-workspace.yaml before packing (38.123424ms)
+✔ real committed symlink is rejected before source bytes or pack (36.802715ms)
+✔ real gitlink is rejected and no submodule/source fetch is attempted (44.3421ms)
+✖ committed ignore rules must cover both freshly owned children, without local excludes (90.248486ms)
+✔ real deep failure fixture: initializer exit stops once and safely cleans only its new root (30.585369ms)
+✔ real deep failure fixture: producer spawn error stops once and safely cleans only its new root (43.071702ms)
+✔ real deep failure fixture: producer signal stops once and safely cleans only its new root (42.978122ms)
+✔ real deep failure fixture: producer exit stops once and safely cleans only its new root (45.699883ms)
+✔ real deep failure fixture: import exit stops once and safely cleans only its new root (48.920958ms)
+✔ real deep failure fixture: strict connectivity exit stops once and safely cleans only its new root (62.534618ms)
+✔ real deep failure fixture: new index write exit stops once and safely cleans only its new root (73.869722ms)
+✖ malformed command-output fixture: high-bit batch header is rejected without relaxed verification (90.898838ms)
+✔ malformed command-output fixture: corrupted selected object bytes is rejected without relaxed verification (36.151451ms)
+✔ malformed command-output fixture: truncated producer stdout is rejected without relaxed verification (50.4729ms)
+✔ malformed command-output fixture: additional imported object inventory is rejected without relaxed verification (71.110782ms)
+✖ late source isolation fixture: duplicate shallow boundary cannot become a verified checkout (85.600929ms)
+✖ late source isolation fixture: pnpm child mode changed before ready cannot become a verified checkout (86.3593ms)
+✔ generated config symlink replacement fails without truncating another inode (32.075572ms)
+✔ generated config hardlink replacement fails without truncating another inode (32.454981ms)
+✔ exclusive materialization file collision fails without touching its external target (70.484794ms)
+✔ exclusive materialization symlink collision fails without touching its external target (68.037954ms)
+✔ exclusive materialization directory symlink fails without touching its external target (70.261602ms)
+✔ ordinary allocation save failure 1 removes only observed newly owned empty directories (4.550239ms)
+✔ ordinary allocation save failure 2 removes only observed newly owned empty directories (4.960097ms)
+✔ ordinary allocation save failure 3 removes only observed newly owned empty directories (5.133586ms)
+✔ ordinary allocation save failure 4 removes only observed newly owned empty directories (4.521526ms)
+✖ partial allocation mode change refuses cleanup and retains the unsupported allocation (4.049628ms)
+✔ ownership cleanup rejects wrong version and leaves both roots byte/mode/inode-identical (36.032472ms)
+✔ ownership cleanup rejects wrong phase and leaves both roots byte/mode/inode-identical (37.637523ms)
+✔ ownership cleanup rejects unexpected key and leaves both roots byte/mode/inode-identical (34.223781ms)
+✔ ownership cleanup rejects original root reuse and leaves both roots byte/mode/inode-identical (34.941096ms)
+✔ ownership cleanup rejects foreign sibling and leaves both roots byte/mode/inode-identical (35.970785ms)
+✔ ownership cleanup rejects non-string token and leaves both roots byte/mode/inode-identical (37.676787ms)
+✔ ownership cleanup rejects bad token and leaves both roots byte/mode/inode-identical (36.656827ms)
+✔ ownership cleanup rejects unsafe inode and leaves both roots byte/mode/inode-identical (38.670954ms)
+✔ ownership cleanup rejects negative device and leaves both roots byte/mode/inode-identical (38.580423ms)
+✔ ownership cleanup rejects missing root identity and leaves both roots byte/mode/inode-identical (38.543298ms)
+✔ ownership cleanup rejects extra identity key and leaves both roots byte/mode/inode-identical (39.189357ms)
+✔ ownership cleanup rejects foreign tmp child and leaves both roots byte/mode/inode-identical (35.447179ms)
+✔ ownership cleanup rejects malformed tmp child and leaves both roots byte/mode/inode-identical (36.723967ms)
+✔ ownership cleanup rejects missing pnpm identity and leaves both roots byte/mode/inode-identical (37.661738ms)
+✔ ownership cleanup rejects mismatched parent identity and leaves both roots byte/mode/inode-identical (34.071728ms)
+✔ ownership cleanup rejects mismatched root identity and leaves both roots byte/mode/inode-identical (34.253627ms)
+✔ ownership cleanup rejects mismatched Git identity and leaves both roots byte/mode/inode-identical (33.520118ms)
+✔ ownership cleanup retains missing witness rather than authorizing deletion (31.020701ms)
+✔ ownership cleanup retains malformed witness rather than authorizing deletion (34.106103ms)
+✔ ownership cleanup retains mismatched witness rather than authorizing deletion (31.484434ms)
+✔ ownership cleanup retains wrong mode witness rather than authorizing deletion (31.645334ms)
+✔ ownership cleanup retains symlink witness rather than authorizing deletion (36.8941ms)
+✔ ownership cleanup retains hardlink witness rather than authorizing deletion (32.977225ms)
+✔ post ownership rejects root mode changes and retains all observed contents (30.05771ms)
+✔ post ownership rejects Git directory mode changes and retains all observed contents (28.885824ms)
+✔ post ownership rejects parent mode changes and retains all observed contents (28.32571ms)
+✔ post rejects a replaced directory root without removing the replacement or moved owned root (28.257593ms)
+✔ post rejects a replaced symlink root without removing the replacement or moved owned root (29.256507ms)
+✔ installer guard rejects replaced tmpdir, child mode changes and nonempty pnpm destination (28.093363ms)
+✔ installer guard rejects replaced pnpmDest, child mode changes and nonempty pnpm destination (27.642576ms)
+✔ modeled isolated pnpm recreation and LIFO posts keep inputs until cache/tool posts, then clean only selected root (127.668931ms)
+✔ post empty/cleaned states are idempotent and malformed private state never falls through to main (4.481101ms)
+✔ runner state file symlink is rejected before main allocation and its target is unchanged (4.10862ms)
+✔ CLI exposes no selector, budget or lifecycle override: --skip-budget (38.737144ms)
+✔ CLI exposes no selector, budget or lifecycle override: --root /c (35.324472ms)
+✔ CLI exposes no selector, budget or lifecycle override: --mode post (36.326374ms)
+✔ CLI exposes no selector, budget or lifecycle override: --check-install --skip-budget (33.626016ms)
+✔ effective inheritance model detects top-level TMPDIR missing instead of assuming fixture defaults (14.183799ms)
+✔ effective inheritance model detects selected input missing instead of assuming fixture defaults (13.697536ms)
+✔ effective inheritance model detects original cwd on validation shell instead of assuming fixture defaults (16.912226ms)
+ℹ tests 183
+ℹ suites 0
+ℹ pass 177
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8263.048279
+
+✖ failing tests:
+
+test at scripts/ci-test-checkout.test.mjs:462:3
+✖ tree parser rejects empty record before any blob transfer (0.504599ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:462:77)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /NUL-delimited/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:578:1
+✖ committed ignore rules must cover both freshly owned children, without local excludes (90.248486ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /not clean|ignore rules/. Input:
+  
+  'Error: Git check-ignore failed (exit 1): '
+  
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:581:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: Git check-ignore failed (exit 1): 
+        at fail (file://<repo-root>/.github/actions/ci-checkout/index.mjs:36:35)
+        at file://<repo-root>/.github/actions/ci-checkout/index.mjs:262:46
+        at transferSelectedSource (file://<repo-root>/.github/actions/ci-checkout/index.mjs:437:34)
+        at file://<repo-root>/scripts/ci-test-checkout.test.mjs:581:23
+        at getActual (node:assert:580:5)
+        at strict.throws (node:assert:728:24)
+        at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:581:10)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18),
+    expected: /not clean|ignore rules/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:627:3
+✖ malformed command-output fixture: high-bit batch header is rejected without relaxed verification (90.898838ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:632:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /Missing\/malformed selected Git object/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:650:3
+✖ late source isolation fixture: duplicate shallow boundary cannot become a verified checkout (85.600929ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:654:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /shallow boundary/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:650:3
+✖ late source isolation fixture: pnpm child mode changed before ready cannot become a verified checkout (86.3593ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:654:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pnpm.*ownership changed/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts/ci-test-checkout.test.mjs:726:1
+✖ partial allocation mode change refuses cleanup and retains the unsupported allocation (4.049628ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /unsafe cleanup retained/. Input:
+  
+  'Error: synthetic state writer failure after mode change'
+  
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:730:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: synthetic state writer failure after mode change
+        at file://<repo-root>/scripts/ci-test-checkout.test.mjs:732:11
+        at claimCheckout (file://<repo-root>/.github/actions/ci-checkout/index.mjs:195:5)
+        at file://<repo-root>/scripts/ci-test-checkout.test.mjs:730:23
+        at getActual (node:assert:580:5)
+        at strict.throws (node:assert:728:24)
+        at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-checkout.test.mjs:730:10)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+        at Test.postRun (node:internal/test_runner/test:1542:19),
+    expected: /unsafe cleanup retained/,
+    operator: 'throws',
+    diff: 'simple'
+  }

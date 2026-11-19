@@ -1,0 +1,7 @@
+{
+  "support": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support",
+  "initialPayloadFiles": 132,
+  "observations": 26,
+  "maintainedPaths": 13,
+  "failedObservations": 11
+}

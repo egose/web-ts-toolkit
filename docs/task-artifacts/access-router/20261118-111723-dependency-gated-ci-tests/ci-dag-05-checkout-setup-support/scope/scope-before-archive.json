@@ -1,0 +1,477 @@
+{
+  "checkedAt": "2026-11-19T14:00:12.029627+00:00",
+  "scope": "Same setup implementation session, local read-only final scope reconciliation; not coordinator reconciliation, independent acceptance, hosted/runtime/cancellation certification or package execution",
+  "preflight": {
+    "path": "_tmp-c5-setup-stage2-oNPuwiq6/preflight.json",
+    "mode": "0644",
+    "bytes": 547222,
+    "sha256": "72b2bcd351628378cfd9f6ad7ccf1e01f7a154e543343b0ff559e1d982cdb4ff"
+  },
+  "coordinatorBaseline": {
+    "path": "_tmp-c5f-ovtrnV/setup-stage2-oLp7U1/baseline.json",
+    "mode": "0644",
+    "bytes": 547981,
+    "sha256": "ed5906c0c6c97b52055bcb9edae0c93120bd379446b7a33b8e2b5ff8fd164c45"
+  },
+  "coordinatorDeltaRecord": {
+    "path": "_tmp-c5f-ovtrnV/setup-scope-check-vLNj13/coordinator-deltas.json",
+    "mode": "0644",
+    "bytes": 2598,
+    "sha256": "4c24f3a6fc7a32b88ff405f8096b4ca9b0ed680c3f0a09aaeb6a03b88f5357e1"
+  },
+  "coordinatorAmendmentArtifact": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-contract-amendment.json",
+    "mode": "0644",
+    "bytes": 3315,
+    "sha256": "899234ecfcead72ac7cf4cfa6b32fdc77f90348afbf7dbfce30ef9b56111ea07"
+  },
+  "maintainedPathCount": 13,
+  "maintainedFinalFingerprints": {
+    ".github/actions/ci-checkout/action.yml": {
+      "mode": "0644",
+      "bytes": 519,
+      "sha256": "2e33e69304b843ca86d839cd54f3a9f24f61ffa42f527a17ba4a40ac82a58bf5"
+    },
+    ".github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 32529,
+      "sha256": "7b39870bb9eb1c4621d475b77ebf3cc7fffffa13b46a286b15a78f67f92f121a"
+    },
+    ".github/actions/ci-prepare/action.yml": {
+      "mode": "0644",
+      "bytes": 1406,
+      "sha256": "35054ec6acdb4f823f77bdf8d2975b971706a41a2324b3b19c82174b13708747"
+    },
+    ".github/actions/ci-setup/action.yml": {
+      "mode": "0644",
+      "bytes": 1382,
+      "sha256": "4169b7bf717d2c951b1007219acd6549c9ec4b96a766cd0bbac14e6ba14588f2"
+    },
+    ".github/actions/ci-test/action.yml": {
+      "mode": "0644",
+      "bytes": 2857,
+      "sha256": "85dfb30dee2223fe13f9ae47bc9fbde77386017a7cd441f7d5251e2383053fe2"
+    },
+    ".github/workflows/test.yml": {
+      "mode": "0644",
+      "bytes": 27606,
+      "sha256": "694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c"
+    },
+    "README.md": {
+      "mode": "0644",
+      "bytes": 13333,
+      "sha256": "f4fc1345a9152c6f1d9e0f49ffde8a85183fa8818e899cd7fab4eb4e9e9c9055"
+    },
+    "package.json": {
+      "mode": "0644",
+      "bytes": 2964,
+      "sha256": "2f17f6b734045bf54e76d91fb0e654eb9231c3821bc2e628ae86b34425b5109a"
+    },
+    "scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 64062,
+      "sha256": "4b16f6fd820b742dc0e6e447e000ade1a55419b1bc006729dbfc29c4ddc0b9a9"
+    },
+    "scripts/ci-test-plan.mjs": {
+      "mode": "0644",
+      "bytes": 32782,
+      "sha256": "50c6e1880b3cea9ea49cc1bbcc0aa320ab10bf2495461400817b28e9bb64d408"
+    },
+    "scripts/ci-test-plan.test.mjs": {
+      "mode": "0644",
+      "bytes": 72222,
+      "sha256": "f916a064401391bc20997afad82298af13b69b8f6aff7f990c80189d79c9cf2f"
+    },
+    "scripts/ci-test-results.test.mjs": {
+      "mode": "0644",
+      "bytes": 22739,
+      "sha256": "d0e12781c0c6f0b4af86173e02cd24a01549d3f104e4650a1c80a53f7667535a"
+    },
+    "scripts/ci-test-workspace.test.mjs": {
+      "mode": "0644",
+      "bytes": 46822,
+      "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+    }
+  },
+  "maintainedExistingChanges": {
+    ".github/actions/ci-prepare/action.yml": {
+      "before": {
+        "mode": "0644",
+        "bytes": 843,
+        "sha256": "71f2bca5f051a7419be9ef9b3c823e8a6ae04e680eef56b600718ad9eea266dd"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 1406,
+        "sha256": "35054ec6acdb4f823f77bdf8d2975b971706a41a2324b3b19c82174b13708747"
+      }
+    },
+    ".github/actions/ci-setup/action.yml": {
+      "before": {
+        "mode": "0644",
+        "bytes": 659,
+        "sha256": "0bcffecbe5d059050e25840aa1d8cccfedfe697c5e286554ff4b1747db86ff92"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 1382,
+        "sha256": "4169b7bf717d2c951b1007219acd6549c9ec4b96a766cd0bbac14e6ba14588f2"
+      }
+    },
+    ".github/actions/ci-test/action.yml": {
+      "before": {
+        "mode": "0644",
+        "bytes": 2249,
+        "sha256": "4e2f0efafcfc11d750e62481b4e83766659e557139d8f449dc5128ae5deab9ff"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 2857,
+        "sha256": "85dfb30dee2223fe13f9ae47bc9fbde77386017a7cd441f7d5251e2383053fe2"
+      }
+    },
+    ".github/workflows/test.yml": {
+      "before": {
+        "mode": "0644",
+        "bytes": 18323,
+        "sha256": "c9408a1b25912416d25f95cefa609410bbf0c9852551803a9bf710ab69017aaf"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 27606,
+        "sha256": "694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c"
+      }
+    },
+    "README.md": {
+      "before": {
+        "mode": "0644",
+        "bytes": 11566,
+        "sha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 13333,
+        "sha256": "f4fc1345a9152c6f1d9e0f49ffde8a85183fa8818e899cd7fab4eb4e9e9c9055"
+      }
+    },
+    "package.json": {
+      "before": {
+        "mode": "0644",
+        "bytes": 2930,
+        "sha256": "f3793110d566df545710024d37c207fc4b592aa57c5a5667fdcb7b5df6733d80"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 2964,
+        "sha256": "2f17f6b734045bf54e76d91fb0e654eb9231c3821bc2e628ae86b34425b5109a"
+      }
+    },
+    "scripts/ci-test-plan.mjs": {
+      "before": {
+        "mode": "0644",
+        "bytes": 29767,
+        "sha256": "dc65f5f261288c0d9e69e78428a52e47ee43130316ee8959f57edbf4c0e9496c"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 32782,
+        "sha256": "50c6e1880b3cea9ea49cc1bbcc0aa320ab10bf2495461400817b28e9bb64d408"
+      }
+    },
+    "scripts/ci-test-plan.test.mjs": {
+      "before": {
+        "mode": "0644",
+        "bytes": 62202,
+        "sha256": "cf938b1f3b6adc0812f70fd23a4cc710ef3177df2c3c2813a0eb94ec557296fb"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 72222,
+        "sha256": "f916a064401391bc20997afad82298af13b69b8f6aff7f990c80189d79c9cf2f"
+      }
+    },
+    "scripts/ci-test-results.test.mjs": {
+      "before": {
+        "mode": "0644",
+        "bytes": 22539,
+        "sha256": "225a786ce4421d498f2feab1cc0d612c8452251282d8f86f8b6eaa2ddf9b24c6"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 22739,
+        "sha256": "d0e12781c0c6f0b4af86173e02cd24a01549d3f104e4650a1c80a53f7667535a"
+      }
+    },
+    "scripts/ci-test-workspace.test.mjs": {
+      "before": {
+        "mode": "0644",
+        "bytes": 46804,
+        "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 46822,
+        "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+      }
+    }
+  },
+  "maintainedNewFiles": {
+    ".github/actions/ci-checkout/action.yml": {
+      "mode": "0644",
+      "bytes": 519,
+      "sha256": "2e33e69304b843ca86d839cd54f3a9f24f61ffa42f527a17ba4a40ac82a58bf5"
+    },
+    ".github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 32529,
+      "sha256": "7b39870bb9eb1c4621d475b77ebf3cc7fffffa13b46a286b15a78f67f92f121a"
+    },
+    "scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 64062,
+      "sha256": "4b16f6fd820b742dc0e6e447e000ade1a55419b1bc006729dbfc29c4ddc0b9a9"
+    }
+  },
+  "coordinatorOnlyDocumentChanges": {
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": {
+      "before": {
+        "mode": "0644",
+        "bytes": 13660,
+        "sha256": "c17a4ba6b40c63017e86cceb1925f1fbdc2f7c9977a4ec58738c015bcc9bdf9f"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 14960,
+        "sha256": "a99f8fbf763f125cb55acf0e91b5c26c544777cae7ebf9a12f36758949eca2fa"
+      }
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": {
+      "before": {
+        "mode": "0644",
+        "bytes": 9363,
+        "sha256": "2ca819070452169646404d908ef3af47c8c6e502ad9599920d061e71eb51ced9"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 10199,
+        "sha256": "1a7680b611782fde7c71eaaecb616939a2ac3ffe9f7d3fcb74dcc0dc2c315a92"
+      }
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": {
+      "before": {
+        "mode": "0644",
+        "bytes": 18754,
+        "sha256": "3e40f0f5ac20c6aad34f3808dfeca68514e3544a86ab10f18bf681245b795202"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 20242,
+        "sha256": "ba1d58c931c76c3aaa98b49ef2736c6db1c437070475f10547db4cc7430ae753"
+      }
+    },
+    "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+      "before": {
+        "mode": "0644",
+        "bytes": 69725,
+        "sha256": "e2cc32a15e178dc1d5a7ae295e9e2e44a2deffccd608fe3683863ad0f5f68fcc"
+      },
+      "after": {
+        "mode": "0644",
+        "bytes": 70825,
+        "sha256": "88d470f5fcd21f1873c4b2ab5131df0cd30176b9bf65fa68ca03ca34c063ffac"
+      }
+    }
+  },
+  "coordinatorOnlyNewArtifact": {
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-contract-amendment.json": {
+      "mode": "0644",
+      "bytes": 3315,
+      "sha256": "899234ecfcead72ac7cf4cfa6b32fdc77f90348afbf7dbfce30ef9b56111ea07"
+    }
+  },
+  "newSetupEvidenceObservedAtCapture": {},
+  "originalRegularFileCount": 2582,
+  "originalModeCounts": {
+    "0755": 5,
+    "0644": 2577
+  },
+  "unchangedOriginalFilesOutsideMaintainedAndCoordinatorDeltas": 2568,
+  "historicalInputsAndSeals": {
+    "_tmp-c5-setup-ozh7l6on/stage-1-proposal.md": {
+      "mode": "0644",
+      "bytes": 29344,
+      "sha256": "5513e1d9022d0b158e20ce9424e79003b6c292d21e8c92433c10f90b74f471bf"
+    },
+    "_tmp-c5-setup-ozh7l6on/preflight.json": {
+      "mode": "0644",
+      "bytes": 540399,
+      "sha256": "2d7e808826ce5a6de639593070944453ee0c2b1cb20a7d5cbec6125a903a91a8"
+    },
+    "_tmp-c5-setup-ozh7l6on/stage-1-fingerprints.json": {
+      "mode": "0644",
+      "bytes": 6335,
+      "sha256": "e8ed30684e90b41c1e9a582fecd31604a0ebab36d00d26e958becd57ffc4429c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-finishing-review.md": {
+      "mode": "0644",
+      "bytes": 40181,
+      "sha256": "f96fa3f21bd701a1862823eae388c78fb189f296bd6f40c4cfe975767f3ba02b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/manifest.json": {
+      "mode": "0644",
+      "bytes": 30069,
+      "sha256": "c69bfcc7f009f05227be44301efc9a4682cbf910a5c81c7a7b103c7cb14e7398"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json": {
+      "mode": "0644",
+      "bytes": 47449,
+      "sha256": "ed4ebcd0bc529eefc1f4b3a0d548eb8798ebd332bcc9ab9522ef1a80d869d2d0"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-coordinator-reconciliation.json": {
+      "mode": "0644",
+      "bytes": 24579,
+      "sha256": "f8efbfbfd4c0db94e36873fe0fc2f3a61ddcfadc506e1b7202333fa08128af8e"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-pre-setup-coordinator-reconciliation.json": {
+      "mode": "0644",
+      "bytes": 17240,
+      "sha256": "cbf392a1ed6c15526d864ba594b365acf804b10ddae208e9056776707166f7fe"
+    },
+    "_tmp-fix-w72mgx/baseline.json": {
+      "mode": "0644",
+      "bytes": 352863,
+      "sha256": "2eb59aea94f09b1655ab1bcc011b41161570ff5ce21a930f62ecde0393296627"
+    },
+    "_tmp-05c-G8SORQ/summary.txt": {
+      "mode": "0644",
+      "bytes": 229,
+      "sha256": "3709ee3f0c6a7d958c58218a67c2d3a3aeded8d3a7ed7d6c019a18006154e32d"
+    },
+    "_tmp-05c-G8SORQ/lint.log": {
+      "mode": "0644",
+      "bytes": 235,
+      "sha256": "192904497e1d404db5e88f37fa40626e70af5ed75752856c8c986155c6bf8f26"
+    },
+    "_tmp-05c-G8SORQ/build.log": {
+      "mode": "0644",
+      "bytes": 87465,
+      "sha256": "4d57b5ff1d77843945bc09fa6b85959a18b3e00e592f505b38a8b0bf36d23759"
+    },
+    "_tmp-05c-G8SORQ/grouped.log": {
+      "mode": "0644",
+      "bytes": 252259,
+      "sha256": "1b750bce5243882f4aec8fd8e344049100e49a5c795aea5fee9620420e782bf0"
+    }
+  },
+  "independentJobBlocks": {
+    "lint": {
+      "source": "  lint:\n    runs-on: ubuntu-24.04\n    steps:\n    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n\n    - name: Setup Tools\n      uses: ./.github/actions/setup-tools\n\n    - name: Setup NPM packages\n      uses: ./.github/actions/setup-npm\n\n    - name: Run lint\n      run: pnpm lint\n",
+      "bytes": 297,
+      "sha256": "42bb672c52751f51dabc426dc624610d88cd0fd16b7112ca09501049efa48c9e"
+    },
+    "access-router-minimum-node-smoke": {
+      "source": "  access-router-minimum-node-smoke:\n    runs-on: ubuntu-24.04\n    steps:\n    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n\n    - name: Pin minimum access-router Node version\n      run: |\n        printf 'nodejs 24.0.0\\npython 3.14.6\\npnpm 11.21.0\\n' > .tool-versions\n\n    - name: Setup Tools\n      uses: ./.github/actions/setup-tools\n\n    - name: Setup NPM packages\n      uses: ./.github/actions/setup-npm\n\n    - name: Run access-router packed consumer smoke\n      run: |\n        mkdir -p _tmp-node24-access-router\n        git check-ignore _tmp-node24-access-router\n        export TMPDIR=\"$PWD/_tmp-node24-access-router\"\n        node --version\n        pnpm --version\n        pnpm --filter @web-ts-toolkit/access-router... build\n        pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.contracts.config.ts test/contracts/packed-consumer-compatibility.test.ts --testNamePattern \"supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers\"\n",
+      "bytes": 1028,
+      "sha256": "c6853dbe4a2cb7fff2094e2d6b59f20a973f3fae4f4c8e05a4d48beb59df0a76"
+    },
+    "access-router-react-minimum-node": {
+      "source": "  access-router-react-minimum-node:\n    runs-on: ubuntu-24.04\n    strategy:\n      fail-fast: false\n      matrix:\n        lane: [supported, floating]\n    continue-on-error: ${{ matrix.lane == 'floating' }}\n    steps:\n    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n\n    - name: Setup build tools\n      uses: ./.github/actions/setup-tools\n\n    - name: Setup NPM packages\n      uses: ./.github/actions/setup-npm\n\n    - name: Install library runtime floor\n      run: asdf install nodejs 24.0.0\n\n    - name: Build installed consumer artifacts\n      run: pnpm --filter @web-ts-toolkit/access-router-react... build\n\n    - name: Verify both React majors on Node 24.0.0\n      env:\n        ACCESS_ROUTER_REACT_EXPECT_NODE: 24.0.0\n        ACCESS_ROUTER_REACT_FLOATING: ${{ matrix.lane == 'floating' && '1' || '0' }}\n        ACCESS_ROUTER_REACT_REPORT_DIR: ${{ runner.temp }}/react-consumer-reports\n      run: |\n        mkdir -p _tmp-node24-access-router-react\n        git check-ignore _tmp-node24-access-router-react\n        export TMPDIR=\"$PWD/_tmp-node24-access-router-react\"\n        export ACCESS_ROUTER_REACT_CONSUMER_NODE=\"$(asdf where nodejs 24.0.0)/bin/node\"\n        \"$ACCESS_ROUTER_REACT_CONSUMER_NODE\" --version\n        pnpm --filter @web-ts-toolkit/access-router-react test:packed-consumer\n\n    - name: Save resolved dependency evidence\n      if: always()\n      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9\n      with:\n        name: react-minimum-node-${{ matrix.lane }}\n        path: ${{ runner.temp }}/react-consumer-reports\n",
+      "bytes": 1574,
+      "sha256": "182e3960152c375a9ec14ed240f9795239618d7038ed0bc8bbfbad883ba67829"
+    }
+  },
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "initialStatus": [
+    " M .github/workflows/test.yml",
+    " M AGENTS.md",
+    " M README.md",
+    " M package.json",
+    " M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+    " M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+    " M packages/express-request-attestation/test/fetch-client.test.ts",
+    " M packages/express-request-attestation/test/installed-browser-harness.ts",
+    " M packages/express-request-attestation/test/packed-consumer.test.ts",
+    " M pnpm-lock.yaml",
+    "?? .github/actions/ci-prepare/",
+    "?? .github/actions/ci-setup/",
+    "?? .github/actions/ci-test/",
+    "?? docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/",
+    "?? docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+    "?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts",
+    "?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+    "?? packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+    "?? scripts/ci-test-artifacts.mjs",
+    "?? scripts/ci-test-artifacts.test.mjs",
+    "?? scripts/ci-test-plan.mjs",
+    "?? scripts/ci-test-plan.test.mjs",
+    "?? scripts/ci-test-results.mjs",
+    "?? scripts/ci-test-results.test.mjs",
+    "?? scripts/ci-test-workspace.mjs",
+    "?? scripts/ci-test-workspace.test.mjs"
+  ],
+  "finalStatus": [
+    " M .github/workflows/test.yml",
+    " M AGENTS.md",
+    " M README.md",
+    " M package.json",
+    " M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+    " M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+    " M packages/express-request-attestation/test/fetch-client.test.ts",
+    " M packages/express-request-attestation/test/installed-browser-harness.ts",
+    " M packages/express-request-attestation/test/packed-consumer.test.ts",
+    " M pnpm-lock.yaml",
+    "?? .github/actions/ci-checkout/",
+    "?? .github/actions/ci-prepare/",
+    "?? .github/actions/ci-setup/",
+    "?? .github/actions/ci-test/",
+    "?? docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/",
+    "?? docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+    "?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts",
+    "?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+    "?? packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+    "?? scripts/ci-test-artifacts.mjs",
+    "?? scripts/ci-test-artifacts.test.mjs",
+    "?? scripts/ci-test-checkout.test.mjs",
+    "?? scripts/ci-test-plan.mjs",
+    "?? scripts/ci-test-plan.test.mjs",
+    "?? scripts/ci-test-results.mjs",
+    "?? scripts/ci-test-results.test.mjs",
+    "?? scripts/ci-test-workspace.mjs",
+    "?? scripts/ci-test-workspace.test.mjs"
+  ],
+  "missingInheritedStatusEntries": [],
+  "unexpectedPaths": [],
+  "assertions": {
+    "original2582FileCoordinatorBaselineMatchesPreflight": true,
+    "coordinatorBaselineBytesAndModeUnchanged": true,
+    "stage2PreflightFingerprintMatched": true,
+    "thirteenMaintainedPathsOnly": true,
+    "fourCoordinatorDocumentDeltasExactlyMatched": true,
+    "coordinatorAddedArtifactExactlyMatched": true,
+    "originalHistorical13InputAndSealFingerprintsUnchanged": true,
+    "threeIndependentJobBlocksUnchanged": true,
+    "headUnchanged": true,
+    "projectRefsUnchanged": true,
+    "allExistingFileModesUnchanged": true,
+    "allInheritedStatusEntriesRetained": true,
+    "oneLineR1MetadataAmendmentOnly": true,
+    "rootManifestOnlyApprovedValidationFilenameAddition": true,
+    "resultTestOnlyApprovedWiringAmendment": true,
+    "dependencyModelGraphPrefixBytesUnchanged": true,
+    "mandatoryCiCheckSucceededOnAllFinalMaintainedFingerprints": true
+  },
+  "mandatoryCiCheckRecord": {
+    "path": "_tmp-c5-setup-stage2-oNPuwiq6/ci-check-final-aKP5nR/result.json",
+    "mode": "0644",
+    "bytes": 6227,
+    "sha256": "f7f33d13771572033c2c88da365f6ff1dc20d0e8e44a6aeb948c60eb058a628e"
+  },
+  "driver": {
+    "path": "_tmp-c5-setup-stage2-oNPuwiq6/reconcile-final.py",
+    "mode": "0644",
+    "bytes": 10311,
+    "sha256": "2dc0a65589b34d3483148e5c6cae223bf2121369f29819297ba21950890be6b7"
+  },
+  "selfReferenceLimit": "The generated scope record is written after observation; its later curated copy is allowed setup evidence, not a baseline/protected-file delta. No record claims to hash itself."
+}

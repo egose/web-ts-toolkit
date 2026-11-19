@@ -1,0 +1,464 @@
+{
+  "workingDirectory": "<repo-root>",
+  "sequentialFinalChecks": [
+    "final-helper-tests",
+    "final-ci-contracts",
+    "final-groups-contracts",
+    "targeted-eslint",
+    "final-prettier-corrected",
+    "diff-check",
+    "final-scope-check"
+  ],
+  "records": [
+    {
+      "label": "before-workspace-tests",
+      "savedResult": {
+        "command": ["node", "--test", "--test-concurrency=1", "scripts/ci-test-workspace.test.mjs"],
+        "started": "2026-11-19T04:13:25.087Z",
+        "durationMs": 3461,
+        "exit": 1,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {
+        "tests": 51,
+        "suites": 0,
+        "pass": 50,
+        "fail": 1,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 3427.220104
+      },
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/before-workspace-tests.json",
+        "sha256": "d685637e60a65ce30bb6570efda1ec566331bdfa0626839175e07b01f0684a24"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/before-workspace-tests.log",
+        "sha256": "a6c0a4986dfac190cedd81192c8774e56c274e90d3e8275d6bd0a8f1f8ca0aa8"
+      }
+    },
+    {
+      "label": "broadcast-probe",
+      "savedResult": {
+        "command": ["node", "_tmp-r1-mwGWUn/broadcast-probe.mjs"],
+        "tmpdir": "_tmp-r1-mwGWUn/broadcast-probe-xysSm2",
+        "started": "2026-11-19T04:26:05.174Z",
+        "durationMs": 11740,
+        "exit": 101,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/broadcast-probe.json",
+        "sha256": "5c518c5fcbf71048060d056afa90ee59099a80c5357159dd3eee5c70eb0b40b8"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/broadcast-probe.log",
+        "sha256": "b61102e550ec5433e2e19399dd9171666aec4f21c06f05b8c422b529e8d9ec26"
+      }
+    },
+    {
+      "label": "broadcast-probe-diagnostic",
+      "savedResult": {
+        "command": ["node", "_tmp-r1-mwGWUn/broadcast-probe.mjs"],
+        "tmpdir": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic-Sg9Vqo",
+        "started": "2026-11-19T04:28:04.849Z",
+        "durationMs": 11575,
+        "exit": 101,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic.json",
+        "sha256": "bb9a72aa12c116c1e1121c872887ab3f64b3de897045f3bb23a825ba779be82e"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic.log",
+        "sha256": "798a097b9e7d939f60d88e1a664414a5b5969dc6265d931742c96dbbfbd2d569"
+      }
+    },
+    {
+      "label": "broadcast-probe-corrected",
+      "savedResult": {
+        "command": ["node", "_tmp-r1-mwGWUn/broadcast-probe.mjs"],
+        "tmpdir": "_tmp-r1-mwGWUn/broadcast-probe-corrected-ScSAUw",
+        "started": "2026-11-19T04:29:03.426Z",
+        "durationMs": 1781,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/broadcast-probe-corrected.json",
+        "sha256": "82cb0c131c5653fb8f82c07eb4fd23fa4bc9f3334454cc7c75de354f9abb570d"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/broadcast-probe-corrected.log",
+        "sha256": "df2f3774fffde1111d805915c7633258a68c089dbf6045421761379ebfe4d585"
+      }
+    },
+    {
+      "label": "prettier-draft",
+      "savedResult": {
+        "command": [
+          "pnpm",
+          "exec",
+          "prettier",
+          "--check",
+          "--config-path",
+          ".prettierrc",
+          "scripts/ci-test-workspace.mjs",
+          "scripts/ci-test-workspace.test.mjs",
+          "scripts/ci-test-artifacts.mjs",
+          "scripts/ci-test-artifacts.test.mjs",
+          "README.md"
+        ],
+        "tmpdir": "_tmp-r1-mwGWUn/prettier-draft-RSoe3g",
+        "started": "2026-11-19T04:32:32.457Z",
+        "durationMs": 1760,
+        "exit": 1,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/prettier-draft.json",
+        "sha256": "e80a80c68a057a399406e828a37751094ddf45e39ba2fe5b6986550a9285804f"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/prettier-draft.log",
+        "sha256": "6a34828dc756550921479f5f6e238f7b3abfc34724808665cc63d30777a0b2ed"
+      }
+    },
+    {
+      "label": "final-helper-tests",
+      "savedResult": {
+        "command": [
+          "node",
+          "--test",
+          "--test-concurrency=1",
+          "scripts/ci-test-workspace.test.mjs",
+          "scripts/ci-test-artifacts.test.mjs"
+        ],
+        "tmpdir": "_tmp-r1-mwGWUn/final-helper-tests-ijVggS",
+        "started": "2026-11-19T04:34:02.385Z",
+        "durationMs": 6864,
+        "exit": 0,
+        "signal": null,
+        "counts": [
+          "ℹ tests 134",
+          "ℹ suites 0",
+          "ℹ pass 134",
+          "ℹ fail 0",
+          "ℹ cancelled 0",
+          "ℹ skipped 0",
+          "ℹ todo 0",
+          "ℹ duration_ms 6824.891717"
+        ]
+      },
+      "loggedCounts": {
+        "tests": 134,
+        "suites": 0,
+        "pass": 134,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 6824.891717
+      },
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/final-helper-tests.json",
+        "sha256": "52c55ab312171279086de33d092b3387acb4f4fca597ea8c73568a6798042d24"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/final-helper-tests.log",
+        "sha256": "40b38237d73325d7150adf7fe0c4197e81c9a65ee0d6be3df2ad60dc03472326"
+      }
+    },
+    {
+      "label": "final-ci-contracts",
+      "savedResult": {
+        "command": ["pnpm", "test:ci:check"],
+        "tmpdir": "_tmp-r1-mwGWUn/final-ci-contracts-TmJpK5",
+        "started": "2026-11-19T04:34:12.739Z",
+        "durationMs": 14960,
+        "exit": 0,
+        "signal": null,
+        "counts": [
+          "ℹ tests 326",
+          "ℹ suites 0",
+          "ℹ pass 326",
+          "ℹ fail 0",
+          "ℹ cancelled 0",
+          "ℹ skipped 0",
+          "ℹ todo 0",
+          "ℹ duration_ms 12400.446859"
+        ]
+      },
+      "loggedCounts": {
+        "tests": 326,
+        "suites": 0,
+        "pass": 326,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 12400.446859
+      },
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/final-ci-contracts.json",
+        "sha256": "7e03b3a24a36f17b3e512bc84c0b2f3fa8019f63b7c6f42cfcb81af3a2118142"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/final-ci-contracts.log",
+        "sha256": "a217332209628fe67f2b7f86b3dc79165a18e7f8e9d141b640ef5f1bde30c4c5"
+      }
+    },
+    {
+      "label": "final-groups-contracts",
+      "savedResult": {
+        "command": ["pnpm", "test:groups:check"],
+        "tmpdir": "_tmp-r1-mwGWUn/final-groups-contracts-Dr8p3w",
+        "started": "2026-11-19T04:34:32.263Z",
+        "durationMs": 4303,
+        "exit": 0,
+        "signal": null,
+        "counts": [
+          "ℹ tests 18",
+          "ℹ suites 0",
+          "ℹ pass 18",
+          "ℹ fail 0",
+          "ℹ cancelled 0",
+          "ℹ skipped 0",
+          "ℹ todo 0",
+          "ℹ duration_ms 2130.696838"
+        ]
+      },
+      "loggedCounts": {
+        "tests": 18,
+        "suites": 0,
+        "pass": 18,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 2130.696838
+      },
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/final-groups-contracts.json",
+        "sha256": "42e3a7094d675f976afd10ef3d8ee15f9b0f6d8a6bd8afe2cce2354cbf055f9c"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/final-groups-contracts.log",
+        "sha256": "83155a6500874372d09f7e58202171ac92e25b34c0744e8c65f773e4e6ae498c"
+      }
+    },
+    {
+      "label": "targeted-eslint",
+      "savedResult": {
+        "command": [
+          "pnpm",
+          "exec",
+          "eslint",
+          "scripts/ci-test-workspace.mjs",
+          "scripts/ci-test-workspace.test.mjs",
+          "scripts/ci-test-artifacts.mjs",
+          "scripts/ci-test-artifacts.test.mjs"
+        ],
+        "tmpdir": "_tmp-r1-mwGWUn/targeted-eslint-jLRiIJ",
+        "started": "2026-11-19T04:34:40.344Z",
+        "durationMs": 3855,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/targeted-eslint.json",
+        "sha256": "2391129c6839a79fac3c36deabe8036be794314282cefc0f698d6dddb0379b37"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/targeted-eslint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "label": "prettier-code",
+      "savedResult": {
+        "command": [
+          "pnpm",
+          "exec",
+          "prettier",
+          "--check",
+          "--config-path",
+          ".prettierrc",
+          "scripts/ci-test-workspace.mjs",
+          "scripts/ci-test-workspace.test.mjs",
+          "scripts/ci-test-artifacts.mjs",
+          "scripts/ci-test-artifacts.test.mjs",
+          "README.md"
+        ],
+        "tmpdir": "_tmp-r1-mwGWUn/prettier-code-dz4DXO",
+        "started": "2026-11-19T04:38:24.381Z",
+        "durationMs": 1914,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/prettier-code.json",
+        "sha256": "911f2987161508856e44c81ef1c3ede7694365018fdeb09872f753cfe642da54"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/prettier-code.log",
+        "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+      }
+    },
+    {
+      "label": "final-prettier",
+      "savedResult": {
+        "command": [
+          "pnpm",
+          "exec",
+          "prettier",
+          "--check",
+          "--config-path",
+          ".prettierrc",
+          "scripts/ci-test-workspace.mjs",
+          "scripts/ci-test-workspace.test.mjs",
+          "scripts/ci-test-artifacts.mjs",
+          "scripts/ci-test-artifacts.test.mjs",
+          "README.md",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/README.md",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/*.json"
+        ],
+        "tmpdir": "_tmp-r1-mwGWUn/final-prettier-jRlQDE",
+        "started": "2026-11-19T04:49:37.572Z",
+        "durationMs": 2239,
+        "exit": 1,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/final-prettier.json",
+        "sha256": "1048cffb95277ab1a76fe1e47d5bd4c9f30c3304cb1cb5a38ab733446bcf98cc"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/final-prettier.log",
+        "sha256": "298d0941c4178ed6383c351fddc594ca03598759a4ac23071ced3a8a6befd8cc"
+      }
+    },
+    {
+      "label": "handoff-format-review",
+      "savedResult": {
+        "command": [
+          "node",
+          "--input-type=module",
+          "-e",
+          "import * as prettier from 'prettier'; import { readFileSync, writeFileSync } from 'node:fs'; import { basename, resolve } from 'node:path'; import { spawnSync } from 'node:child_process'; const path = 'docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md'; const formatted = await prettier.format(readFileSync(path, 'utf8'), { ...JSON.parse(readFileSync('.prettierrc', 'utf8')), parser: 'markdown' }); const target = resolve(process.env.TMPDIR, basename(path)); writeFileSync(target, formatted, { flag: 'wx' }); const diff = spawnSync('diff', ['-U0', '--label', path, '--label', path, path, target], { encoding: 'utf8' }); if (diff.status !== 1) throw new Error('Expected reviewed formatting changes'); console.log(diff.stdout);"
+        ],
+        "tmpdir": "_tmp-r1-mwGWUn/handoff-format-review-6FwUFM",
+        "started": "2026-11-19T04:50:04.679Z",
+        "durationMs": 184,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/handoff-format-review.json",
+        "sha256": "2c75aaddbed735a3b5e6567d19202c654328aa36ac78dd74f767c15e8d2a9c66"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/handoff-format-review.log",
+        "sha256": "a1670abfddbca92dc2c4468f1e7efc11a8c12506e98ca94b509f72b6ae8d4410"
+      }
+    },
+    {
+      "label": "final-prettier-corrected",
+      "savedResult": {
+        "command": [
+          "pnpm",
+          "exec",
+          "prettier",
+          "--check",
+          "--config-path",
+          ".prettierrc",
+          "scripts/ci-test-workspace.mjs",
+          "scripts/ci-test-workspace.test.mjs",
+          "scripts/ci-test-artifacts.mjs",
+          "scripts/ci-test-artifacts.test.mjs",
+          "README.md",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/README.md",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/*.json"
+        ],
+        "tmpdir": "_tmp-r1-mwGWUn/final-prettier-corrected-SOyO8G",
+        "started": "2026-11-19T04:50:59.683Z",
+        "durationMs": 1699,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/final-prettier-corrected.json",
+        "sha256": "3ef1aa1342046cd51c7495361c073813b8885360abaebf03721c275e31458b33"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/final-prettier-corrected.log",
+        "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+      }
+    },
+    {
+      "label": "diff-check",
+      "savedResult": {
+        "command": ["git", "diff", "--check"],
+        "tmpdir": "_tmp-r1-mwGWUn/diff-check-qgQzoV",
+        "started": "2026-11-19T04:51:07.371Z",
+        "durationMs": 17,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/diff-check.json",
+        "sha256": "f5f90a136941b3d2adfc7035bec5afbad18e3018a116a4939e0f37a312c1568f"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/diff-check.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "label": "final-scope-check",
+      "savedResult": {
+        "command": ["node", "_tmp-r1-mwGWUn/scope-check.mjs", "final-scope-record.json"],
+        "tmpdir": "_tmp-r1-mwGWUn/final-scope-check-hSA0ex",
+        "started": "2026-11-19T04:51:11.199Z",
+        "durationMs": 259,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      },
+      "loggedCounts": {},
+      "originalResult": {
+        "path": "_tmp-r1-mwGWUn/final-scope-check.json",
+        "sha256": "d0a708f7489faaa85710bcc2454f8a43d1d2bc930806a959381803cc6f05e353"
+      },
+      "originalLog": {
+        "path": "_tmp-r1-mwGWUn/final-scope-check.log",
+        "sha256": "a5bb0d81d66a64bc13bbfdaa73cb81ee59ad60082ed72f327245339d5b14381a"
+      }
+    }
+  ]
+}

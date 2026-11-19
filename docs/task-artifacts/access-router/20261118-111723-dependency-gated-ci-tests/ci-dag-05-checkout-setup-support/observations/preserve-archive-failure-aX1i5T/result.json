@@ -1,0 +1,177 @@
+{
+  "label": "preserve-archive-failure",
+  "command": [
+    "python3",
+    "_tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure.py"
+  ],
+  "cwd": "<repo-root>",
+  "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure-aX1i5T/tmp",
+  "scratchIgnored": true,
+  "startedAt": "2026-11-19T14:11:32.734Z",
+  "finishedAt": "2026-11-19T14:11:32.802Z",
+  "durationMs": 66,
+  "status": 1,
+  "signal": null,
+  "error": null,
+  "runtime": {
+    "node": "v26.12.1",
+    "v8": "14.6.202.34-node.40",
+    "executable": "<user-home>/.asdf/installs/nodejs/26.12.1/bin/node",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "driver": {
+    "path": "_tmp-c5-setup-stage2-oNPuwiq6/run-final.mjs",
+    "sha256": "a96c3342ecbdc2b414a1f5723ea0b6e1dfa8b45da90050f36a62c175ea733e4d"
+  },
+  "inputsBefore": {
+    ".github/actions/ci-checkout/action.yml": {
+      "mode": "0644",
+      "bytes": 519,
+      "sha256": "2e33e69304b843ca86d839cd54f3a9f24f61ffa42f527a17ba4a40ac82a58bf5"
+    },
+    ".github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 32529,
+      "sha256": "7b39870bb9eb1c4621d475b77ebf3cc7fffffa13b46a286b15a78f67f92f121a"
+    },
+    "scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 64062,
+      "sha256": "4b16f6fd820b742dc0e6e447e000ade1a55419b1bc006729dbfc29c4ddc0b9a9"
+    },
+    ".github/workflows/test.yml": {
+      "mode": "0644",
+      "bytes": 27606,
+      "sha256": "694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c"
+    },
+    ".github/actions/ci-setup/action.yml": {
+      "mode": "0644",
+      "bytes": 1382,
+      "sha256": "4169b7bf717d2c951b1007219acd6549c9ec4b96a766cd0bbac14e6ba14588f2"
+    },
+    ".github/actions/ci-prepare/action.yml": {
+      "mode": "0644",
+      "bytes": 1406,
+      "sha256": "35054ec6acdb4f823f77bdf8d2975b971706a41a2324b3b19c82174b13708747"
+    },
+    ".github/actions/ci-test/action.yml": {
+      "mode": "0644",
+      "bytes": 2857,
+      "sha256": "85dfb30dee2223fe13f9ae47bc9fbde77386017a7cd441f7d5251e2383053fe2"
+    },
+    "scripts/ci-test-plan.mjs": {
+      "mode": "0644",
+      "bytes": 32782,
+      "sha256": "50c6e1880b3cea9ea49cc1bbcc0aa320ab10bf2495461400817b28e9bb64d408"
+    },
+    "scripts/ci-test-plan.test.mjs": {
+      "mode": "0644",
+      "bytes": 72222,
+      "sha256": "f916a064401391bc20997afad82298af13b69b8f6aff7f990c80189d79c9cf2f"
+    },
+    "scripts/ci-test-results.test.mjs": {
+      "mode": "0644",
+      "bytes": 22739,
+      "sha256": "d0e12781c0c6f0b4af86173e02cd24a01549d3f104e4650a1c80a53f7667535a"
+    },
+    "package.json": {
+      "mode": "0644",
+      "bytes": 2964,
+      "sha256": "2f17f6b734045bf54e76d91fb0e654eb9231c3821bc2e628ae86b34425b5109a"
+    },
+    "README.md": {
+      "mode": "0644",
+      "bytes": 13333,
+      "sha256": "f4fc1345a9152c6f1d9e0f49ffde8a85183fa8818e899cd7fab4eb4e9e9c9055"
+    },
+    "scripts/ci-test-workspace.test.mjs": {
+      "mode": "0644",
+      "bytes": 46822,
+      "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+    }
+  },
+  "inputsAfter": {
+    ".github/actions/ci-checkout/action.yml": {
+      "mode": "0644",
+      "bytes": 519,
+      "sha256": "2e33e69304b843ca86d839cd54f3a9f24f61ffa42f527a17ba4a40ac82a58bf5"
+    },
+    ".github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 32529,
+      "sha256": "7b39870bb9eb1c4621d475b77ebf3cc7fffffa13b46a286b15a78f67f92f121a"
+    },
+    "scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 64062,
+      "sha256": "4b16f6fd820b742dc0e6e447e000ade1a55419b1bc006729dbfc29c4ddc0b9a9"
+    },
+    ".github/workflows/test.yml": {
+      "mode": "0644",
+      "bytes": 27606,
+      "sha256": "694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c"
+    },
+    ".github/actions/ci-setup/action.yml": {
+      "mode": "0644",
+      "bytes": 1382,
+      "sha256": "4169b7bf717d2c951b1007219acd6549c9ec4b96a766cd0bbac14e6ba14588f2"
+    },
+    ".github/actions/ci-prepare/action.yml": {
+      "mode": "0644",
+      "bytes": 1406,
+      "sha256": "35054ec6acdb4f823f77bdf8d2975b971706a41a2324b3b19c82174b13708747"
+    },
+    ".github/actions/ci-test/action.yml": {
+      "mode": "0644",
+      "bytes": 2857,
+      "sha256": "85dfb30dee2223fe13f9ae47bc9fbde77386017a7cd441f7d5251e2383053fe2"
+    },
+    "scripts/ci-test-plan.mjs": {
+      "mode": "0644",
+      "bytes": 32782,
+      "sha256": "50c6e1880b3cea9ea49cc1bbcc0aa320ab10bf2495461400817b28e9bb64d408"
+    },
+    "scripts/ci-test-plan.test.mjs": {
+      "mode": "0644",
+      "bytes": 72222,
+      "sha256": "f916a064401391bc20997afad82298af13b69b8f6aff7f990c80189d79c9cf2f"
+    },
+    "scripts/ci-test-results.test.mjs": {
+      "mode": "0644",
+      "bytes": 22739,
+      "sha256": "d0e12781c0c6f0b4af86173e02cd24a01549d3f104e4650a1c80a53f7667535a"
+    },
+    "package.json": {
+      "mode": "0644",
+      "bytes": 2964,
+      "sha256": "2f17f6b734045bf54e76d91fb0e654eb9231c3821bc2e628ae86b34425b5109a"
+    },
+    "README.md": {
+      "mode": "0644",
+      "bytes": 13333,
+      "sha256": "f4fc1345a9152c6f1d9e0f49ffde8a85183fa8818e899cd7fab4eb4e9e9c9055"
+    },
+    "scripts/ci-test-workspace.test.mjs": {
+      "mode": "0644",
+      "bytes": 46822,
+      "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+    }
+  },
+  "outputProvenance": {
+    "stdout": {
+      "originalBytes": 0,
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archivedBytes": 0,
+      "archivedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "Replace absolute repository root with <repo-root>, user home with <user-home>, and full private session identifiers with <private-session-id>; raw logs remain ignored scratch only."
+    },
+    "stderr": {
+      "originalBytes": 229,
+      "originalSha256": "9f3eed2076be3b5956e16fe9c56115f6d923eb98c50a8fccf94c09d32014bc34",
+      "archivedBytes": 207,
+      "archivedSha256": "f1cc90f16a994771afa356b7061ed4a98b1dcfa25a1d8a9703cf321ddb6c98e5",
+      "transformation": "Replace absolute repository root with <repo-root>, user home with <user-home>, and full private session identifiers with <private-session-id>; raw logs remain ignored scratch only."
+    }
+  }
+}

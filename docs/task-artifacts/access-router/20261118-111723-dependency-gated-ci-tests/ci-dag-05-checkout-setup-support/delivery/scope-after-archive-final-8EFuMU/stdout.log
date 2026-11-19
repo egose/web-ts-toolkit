@@ -1,0 +1,28 @@
+{
+  "scopeRecord": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/scope.json",
+  "maintainedExistingChanges": 10,
+  "maintainedNewFiles": 3,
+  "coordinatorDocumentChanges": 4,
+  "coordinatorAddedArtifact": 1,
+  "unchangedOriginalFiles": 2568,
+  "unexpectedPaths": [],
+  "assertions": {
+    "original2582FileCoordinatorBaselineMatchesPreflight": true,
+    "coordinatorBaselineBytesAndModeUnchanged": true,
+    "stage2PreflightFingerprintMatched": true,
+    "thirteenMaintainedPathsOnly": true,
+    "fourCoordinatorDocumentDeltasExactlyMatched": true,
+    "coordinatorAddedArtifactExactlyMatched": true,
+    "originalHistorical13InputAndSealFingerprintsUnchanged": true,
+    "threeIndependentJobBlocksUnchanged": true,
+    "headUnchanged": true,
+    "projectRefsUnchanged": true,
+    "allExistingFileModesUnchanged": true,
+    "allInheritedStatusEntriesRetained": true,
+    "oneLineR1MetadataAmendmentOnly": true,
+    "rootManifestOnlyApprovedValidationFilenameAddition": true,
+    "resultTestOnlyApprovedWiringAmendment": true,
+    "dependencyModelGraphPrefixBytesUnchanged": true,
+    "mandatoryCiCheckSucceededOnAllFinalMaintainedFingerprints": true
+  }
+}

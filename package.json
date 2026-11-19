@@ -9,6 +9,7 @@
     "test": "pnpm -r --if-present --workspace-concurrency=1 test",
     "test:grouped": "pnpm test:groups:check && node scripts/test-groups.mjs",
     "test:groups:check": "node --test scripts/test-groups.test.mjs && node scripts/test-groups.mjs --check",
+    "test:ci:check": "node --test --test-concurrency=1 scripts/ci-test-plan.test.mjs scripts/ci-test-artifacts.test.mjs scripts/ci-test-workspace.test.mjs scripts/ci-test-results.test.mjs scripts/ci-test-checkout.test.mjs && node scripts/ci-test-plan.mjs --check && node scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml",
     "test:group:1": "node scripts/test-groups.mjs 1",
     "test:group:2": "node scripts/test-groups.mjs 2",
     "test:group:3": "node scripts/test-groups.mjs 3",
@@ -63,6 +64,7 @@
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "yaml": "2.9.0"
   }
 }

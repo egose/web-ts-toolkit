@@ -1,0 +1,22 @@
+{
+  "capturedAt": "2026-11-19T14:58:12.444625+00:00",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "scope": "Post-launch assignment JSON/read-only metadata checks only; no reviewer-output inspection or test/quality lane execution",
+  "assignment": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-assignment.json",
+    "mode": "0644",
+    "bytes": 4742,
+    "sha256": "697c18c1d6085870b8187eed4b0b8cc6ee915f9fd70f1b9ccd54ad8994d1cce1"
+  },
+  "immutableInputs": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-inputs.json",
+    "mode": "0644",
+    "bytes": 610017,
+    "sha256": "ad378fec69c87bb1b750c9f1bb3b47b23861ebf4f1d40a3aabb9ebe4678ef696"
+  },
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "reviewerState": "Launched; no delivery or acceptance recorded by this seal",
+  "newAssignmentStructuredPrivacyWhitespaceReferences": "passed",
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b"
+}

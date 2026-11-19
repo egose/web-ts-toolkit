@@ -1,0 +1,4401 @@
+--- /dev/null
++++ selected-final/.github/actions/ci-checkout/action.yml
+@@ -0,0 +1,16 @@
++name: CI short real source checkout
++description: Exclusive independent selected-SHA source with ownership-checked post cleanup
++outputs:
++  root:
++    description: Verified real checkout root
++  relative-root:
++    description: Selected root relative to the unchanged original workspace
++  tmpdir:
++    description: Fresh ignored checkout-local temporary directory
++  pnpm-dest:
++    description: Fresh owned isolated pnpm self-installer destination
++runs:
++  using: node20
++  main: index.mjs
++  post: index.mjs
++  post-if: always()
+--- /dev/null
++++ selected-final/.github/actions/ci-checkout/index.mjs
+@@ -0,0 +1,792 @@
++// This bootstrap runs before the pinned project Node and dependency installation.
++// Use only Node-20-compatible built-ins; the runner's actual runtime is a V6 fact.
++import { spawnSync } from 'node:child_process';
++import { createHash, randomBytes } from 'node:crypto';
++import {
++  chmodSync,
++  closeSync,
++  constants,
++  fstatSync,
++  ftruncateSync,
++  lstatSync,
++  mkdirSync,
++  mkdtempSync,
++  openSync,
++  readFileSync,
++  readdirSync,
++  realpathSync,
++  rmSync,
++  rmdirSync,
++  writeFileSync,
++} from 'node:fs';
++import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++export const checkoutRootMaxBytes = 34; // Cross-checked against unchanged R1 in maintained tests.
++export const checkoutTmpdirMaxBytes = 45;
++const stateName = 'ci_checkout';
++const witnessName = 'ci-checkout-owner.json';
++const shaPattern = /^[0-9a-f]{40}$/;
++const maxBuffer = 256 * 1024 * 1024;
++const neutralConfig =
++  '[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n\tlogallrefupdates = false\n\tsymlinks = false\n\tautocrlf = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n';
++const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
++const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
++const identity = (info) => ({ dev: info.dev, ino: info.ino, uid: info.uid });
++const sameIdentity = (left, right) => left.dev === right.dev && left.ino === right.ino && left.uid === right.uid;
++const fail = (message) => {
++  throw new Error(message);
++};
++
++function present(path) {
++  try {
++    lstatSync(path);
++    return true;
++  } catch (cause) {
++    if (cause.code === 'ENOENT') return false;
++    throw cause;
++  }
++}
++
++export function assertNormalizedPath(path) {
++  if (
++    typeof path !== 'string' ||
++    !isAbsolute(path) ||
++    normalize(path) !== path ||
++    resolve(path) !== path ||
++    /[\0\r\n]/.test(path)
++  ) {
++    fail('CI checkout requires a normalized absolute Linux path without NUL/CR/LF');
++  }
++  return path;
++}
++
++export function assertCheckoutBudget(root) {
++  assertNormalizedPath(root);
++  const bytes = Buffer.byteLength(root, 'utf8');
++  if (bytes > checkoutRootMaxBytes)
++    fail(
++      `CI real checkout root is ${bytes} UTF-8 bytes; maximum is ${checkoutRootMaxBytes}. No fallback or budget override is supported.`,
++    );
++  return root;
++}
++
++function realDirectory(path) {
++  assertNormalizedPath(path);
++  let current = '/';
++  for (const component of path.split('/').filter(Boolean)) {
++    current = join(current, component);
++    const info = lstatSync(current);
++    if (!info.isDirectory() || info.isSymbolicLink()) fail('CI checkout requires real nonsymlink directory components');
++  }
++  if (realpathSync(path) !== path) fail('CI checkout rejects real-path aliases');
++  return lstatSync(path);
++}
++
++function supportedParent(parent) {
++  if (process.platform !== 'linux' || typeof process.getuid !== 'function' || parent === '/')
++    fail('Unsupported CI checkout parent/platform');
++  const info = realDirectory(parent);
++  if (info.uid !== process.getuid() || (info.mode & 0o022) !== 0)
++    fail('CI checkout parent must be owned and not group/world writable');
++  return info;
++}
++
++export function checkoutRelationship(original) {
++  assertNormalizedPath(original);
++  realDirectory(original);
++  const parent = dirname(original);
++  supportedParent(parent);
++  const root = join(parent, 'c');
++  if (root === original) fail('Original checkout cannot be the reserved sibling c');
++  return { original, parent, root };
++}
++
++export function selectCheckoutRoot(original) {
++  const selection = checkoutRelationship(original);
++  assertCheckoutBudget(selection.root);
++  return selection;
++}
++
++function assertAmbientGit(env) {
++  const injected = Object.keys(env).filter((key) =>
++    /^GIT_(?:DIR$|WORK_TREE$|COMMON_DIR$|OBJECT_DIRECTORY$|ALTERNATE_OBJECT_DIRECTORIES$|INDEX_FILE$|CONFIG|REPLACE_REF_BASE$|SHALLOW_FILE$|NAMESPACE$|EXEC_PATH$|TEMPLATE_DIR$)/.test(
++      key,
++    ),
++  );
++  if (injected.length) fail('Ambient Git repository/config routing overrides are unsupported');
++}
++
++export function rejectNpmrc(original, selected) {
++  // Presence only, including dangling symlinks. Never read potentially credentialed contents.
++  for (const root of [original, selected].filter(Boolean)) {
++    if (present(join(root, '.npmrc')))
++      fail('Root .npmrc is unsupported at the original or selected installer lookup location');
++  }
++}
++
++function regularBytes(path) {
++  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
++  try {
++    const before = fstatSync(fd);
++    if (!before.isFile()) fail('CI source/index input must be a regular nonsymlink file');
++    const bytes = readFileSync(fd);
++    const after = fstatSync(fd);
++    if (
++      !sameIdentity(before, after) ||
++      before.size !== after.size ||
++      before.mtimeMs !== after.mtimeMs ||
++      before.ctimeMs !== after.ctimeMs ||
++      !sameIdentity(after, lstatSync(path))
++    )
++      fail('CI source changed during inspection');
++    return { bytes, info: after };
++  } finally {
++    closeSync(fd);
++  }
++}
++
++function exclusiveFile(path, bytes, mode = 0o644) {
++  const fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode);
++  try {
++    writeFileSync(fd, bytes);
++  } finally {
++    closeSync(fd);
++  }
++  chmodSync(path, mode);
++}
++
++function generatedFile(path, bytes) {
++  // Only replace Git's freshly generated config/HEAD, never follow a link or
++  // truncate a shared inode. This is not an original-metadata copy operation.
++  realDirectory(dirname(path));
++  const fd = openSync(path, constants.O_WRONLY | constants.O_NOFOLLOW);
++  try {
++    const before = fstatSync(fd);
++    if (
++      !before.isFile() ||
++      before.uid !== process.getuid() ||
++      before.nlink !== 1 ||
++      !sameIdentity(before, lstatSync(path))
++    )
++      fail('Unsafe generated Git file; retained');
++    ftruncateSync(fd, 0);
++    writeFileSync(fd, bytes);
++    if (!sameIdentity(before, lstatSync(path))) fail('Generated Git file ownership changed; retained');
++  } finally {
++    closeSync(fd);
++  }
++}
++
++function ownedRecord(state) {
++  const { version, original, parent, root, token, parentId, rootId, gitId, tmpdir, pnpmDest, tmpId, pnpmId } = state;
++  return { version, original, parent, root, token, parentId, rootId, gitId, tmpdir, pnpmDest, tmpId, pnpmId };
++}
++
++function validateState(state) {
++  if (
++    !record(state) ||
++    state.version !== 1 ||
++    !['empty', 'allocating', 'owned', 'ready', 'cleaned'].includes(state.phase)
++  )
++    fail('Malformed CI checkout ownership state');
++  if (state.phase === 'empty') {
++    if (Object.keys(state).sort().join(',') !== 'phase,version') fail('Malformed empty CI checkout state');
++    return;
++  }
++  const fields = [
++    'version',
++    'phase',
++    'original',
++    'parent',
++    'root',
++    'token',
++    'parentId',
++    'rootId',
++    'gitId',
++    'tmpdir',
++    'tmpId',
++    'pnpmDest',
++    'pnpmId',
++  ];
++  if (Object.keys(state).some((key) => !fields.includes(key))) fail('Malformed CI checkout state keys');
++  for (const key of ['original', 'parent', 'root']) assertNormalizedPath(state[key]);
++  if (
++    dirname(state.original) !== state.parent ||
++    state.root !== join(state.parent, 'c') ||
++    state.original === state.root ||
++    typeof state.token !== 'string' ||
++    !/^[0-9a-f]{64}$/.test(state.token)
++  )
++    fail('Malformed CI checkout ownership relationship');
++  const partialState = ['allocating', 'cleaned'].includes(state.phase);
++  for (const key of ['parentId', 'rootId', 'gitId', 'tmpId', 'pnpmId']) {
++    if (partialState && !['parentId', 'rootId'].includes(key) && state[key] === undefined) continue;
++    if (
++      !record(state[key]) ||
++      Object.keys(state[key]).sort().join(',') !== 'dev,ino,uid' ||
++      !['dev', 'ino', 'uid'].every((field) => Number.isSafeInteger(state[key][field]) && state[key][field] >= 0)
++    )
++      fail('Malformed CI checkout directory identity');
++  }
++  for (const [key, id, prefix] of [
++    ['tmpdir', 'tmpId', '_tmp'],
++    ['pnpmDest', 'pnpmId', '_tmp-pnpm-'],
++  ]) {
++    if ((state[key] === undefined) !== (state[id] === undefined) || (!partialState && state[key] === undefined))
++      fail('Malformed CI checkout owned child identity');
++    if (
++      state[key] !== undefined &&
++      (dirname(assertNormalizedPath(state[key])) !== state.root ||
++        !new RegExp(`^${prefix}[A-Za-z0-9]{6}$`).test(basename(state[key])))
++    )
++      fail('Malformed CI checkout owned child');
++  }
++  if ((state.tmpdir && !state.gitId) || (state.pnpmDest && !state.tmpdir))
++    fail('Malformed CI checkout allocation order');
++}
++
++function assertOwnedDirectories(state) {
++  validateState(state);
++  const parent = supportedParent(state.parent);
++  const root = realDirectory(state.root);
++  if (
++    !sameIdentity(parent, state.parentId) ||
++    !sameIdentity(root, state.rootId) ||
++    root.uid !== process.getuid() ||
++    (root.mode & 0o777) !== 0o700
++  )
++    fail('CI checkout parent/root ownership changed; retained');
++  const git = realDirectory(join(state.root, '.git'));
++  if (!state.gitId || !sameIdentity(git, state.gitId) || git.uid !== process.getuid() || (git.mode & 0o777) !== 0o700)
++    fail('CI checkout .git ownership changed; retained');
++}
++
++function readWitness(state) {
++  assertOwnedDirectories(state);
++  const input = regularBytes(join(state.root, '.git', witnessName));
++  if (input.info.uid !== process.getuid() || input.info.nlink !== 1 || (input.info.mode & 0o777) !== 0o600)
++    fail('Invalid CI checkout ownership witness; retained');
++  let witness;
++  try {
++    witness = JSON.parse(input.bytes);
++  } catch {
++    fail('Malformed CI checkout ownership witness; retained');
++  }
++  if (JSON.stringify(witness) !== JSON.stringify(ownedRecord(state)))
++    fail('CI checkout ownership witness mismatch; retained');
++  return witness;
++}
++
++// Deep fixture tests call this ownership subroutine, NOT the native-budget selector.
++// Production can only reach it after selectCheckoutRoot, with no public override.
++export function claimCheckout(selection, save = () => {}) {
++  const expected = checkoutRelationship(selection.original);
++  if (selection.parent !== expected.parent || selection.root !== expected.root) fail('Invalid CI checkout selection');
++  const parentId = identity(supportedParent(selection.parent));
++  const state = { version: 1, phase: 'allocating', ...expected, token: randomBytes(32).toString('hex'), parentId };
++  // Exclusive mkdir: even a dangling link is a collision. Never reuse/remove it.
++  mkdirSync(state.root, { mode: 0o700 });
++  state.rootId = identity(lstatSync(state.root));
++  try {
++    save(state);
++    if (
++      !sameIdentity(supportedParent(state.parent), parentId) ||
++      !sameIdentity(realDirectory(state.root), state.rootId)
++    )
++      fail('CI checkout allocation identity changed');
++    mkdirSync(join(state.root, '.git'), { mode: 0o700 });
++    state.gitId = identity(lstatSync(join(state.root, '.git')));
++    save(state);
++    state.tmpdir = mkdtempSync(join(state.root, '_tmp'));
++    state.tmpId = identity(lstatSync(state.tmpdir));
++    save(state);
++    state.pnpmDest = mkdtempSync(join(state.root, '_tmp-pnpm-'));
++    state.pnpmId = identity(lstatSync(state.pnpmDest));
++    save(state);
++    exclusiveFile(join(state.root, '.git', witnessName), JSON.stringify(ownedRecord(state)) + '\n', 0o600);
++    state.phase = 'owned';
++    save(state);
++    return state;
++  } catch (cause) {
++    try {
++      cleanupCheckout(state, { partial: true });
++    } catch (cleanup) {
++      throw new AggregateError([cause, cleanup], 'CI checkout allocation failed; unsafe cleanup retained', {
++        cause: cleanup,
++      });
++    }
++    throw cause;
++  }
++}
++
++export function cleanupCheckout(state, { partial = false } = {}) {
++  validateState(state);
++  if (['empty', 'cleaned'].includes(state.phase)) return;
++  if (partial && state.phase === 'allocating') {
++    const root = realDirectory(state.root);
++    if (
++      !sameIdentity(supportedParent(state.parent), state.parentId) ||
++      !sameIdentity(root, state.rootId) ||
++      root.uid !== process.getuid() ||
++      (root.mode & 0o777) !== 0o700
++    )
++      fail('Partial CI checkout ownership changed; retained');
++    for (const [path, id] of [
++      [state.pnpmDest, state.pnpmId],
++      [state.tmpdir, state.tmpId],
++      [state.gitId ? join(state.root, '.git') : undefined, state.gitId],
++    ]) {
++      if (path) {
++        const info = realDirectory(path);
++        if (!sameIdentity(info, id) || info.uid !== process.getuid() || (info.mode & 0o777) !== 0o700)
++          fail('Partial CI checkout child ownership changed; retained');
++        rmdirSync(path); // Only newly owned EMPTY directories, never a recursive partial deletion.
++      }
++    }
++    rmdirSync(state.root);
++  } else {
++    readWitness(state); // Missing/replaced/malformed state or witness never authorizes deletion.
++    // Node rm unlinks dependency symlinks without following them. The real parent
++    // is job-owned, not an adversarial shared directory; hard termination is V6.
++    rmSync(state.root, { recursive: true, force: false, maxRetries: 0 });
++  }
++  state.phase = 'cleaned';
++}
++
++function sterileEnvironment(state, env) {
++  return {
++    PATH: env.PATH,
++    LANG: 'C',
++    LC_ALL: 'C',
++    TZ: 'UTC',
++    TMPDIR: state.tmpdir,
++    GIT_CONFIG_NOSYSTEM: '1',
++    GIT_CONFIG_SYSTEM: '/dev/null',
++    GIT_CONFIG_GLOBAL: '/dev/null',
++    GIT_CONFIG_COUNT: '0',
++    GIT_ATTR_NOSYSTEM: '1',
++    GIT_NO_REPLACE_OBJECTS: '1',
++    GIT_OPTIONAL_LOCKS: '0',
++    GIT_TERMINAL_PROMPT: '0',
++    GIT_ASKPASS: '/bin/false',
++    GIT_ALLOW_PROTOCOL: '',
++    GIT_PROTOCOL_FROM_USER: '0',
++  };
++}
++
++function gitContext(state, env, run) {
++  const gitDir = join(state.root, '.git');
++  return (args, { source = false, index = false, input } = {}) => {
++    if (source && !['cat-file', 'ls-tree', 'ls-files', 'pack-objects'].includes(args[0]))
++      fail('Read-only source Git command violation');
++    if (index && (!source || args[0] !== 'ls-files')) fail('Read-only original index violation');
++    const environment = sterileEnvironment(state, env);
++    if (source) environment.GIT_OBJECT_DIRECTORY = join(state.original, '.git', 'objects');
++    if (index) environment.GIT_INDEX_FILE = join(state.original, '.git', 'index');
++    const result = run(
++      'git',
++      [
++        '--no-optional-locks',
++        `--git-dir=${gitDir}`,
++        `--work-tree=${source ? state.original : state.root}`,
++        '-c',
++        'core.hooksPath=/dev/null',
++        '-c',
++        'core.fsmonitor=false',
++        '-c',
++        'core.untrackedCache=false',
++        '-c',
++        'core.attributesFile=/dev/null',
++        '-c',
++        'core.excludesFile=/dev/null',
++        '-c',
++        'protocol.allow=never',
++        '-c',
++        'credential.helper=',
++        ...args,
++      ],
++      { cwd: state.root, env: environment, input, maxBuffer },
++    );
++    if (result.error || result.status !== 0)
++      fail(
++        `Git ${args[0]} failed (${result.error?.message ?? `exit ${result.status ?? 'signal'}`}): ${result.stderr?.toString().trim() ?? ''}`,
++      );
++    return Buffer.from(result.stdout ?? '');
++  };
++}
++
++function scanStorage(root) {
++  realDirectory(root);
++  const files = new Map();
++  const visit = (directory) => {
++    for (const name of readdirSync(directory)) {
++      const path = join(directory, name);
++      const info = lstatSync(path);
++      if (info.isSymbolicLink() || (!info.isDirectory() && !info.isFile()))
++        fail('Unsupported symlink/nonregular Git object storage');
++      if (name.endsWith('.promisor')) fail('Promisor Git objects are unsupported');
++      if (info.isDirectory()) visit(path);
++      else files.set(path, identity(info));
++    }
++  };
++  for (const name of ['alternates', 'http-alternates'])
++    if (present(join(root, 'info', name))) fail('Git object alternates are unsupported');
++  visit(root);
++  return files;
++}
++
++function objectId(type, bytes) {
++  return createHash('sha1').update(`${type} ${bytes.length}\0`).update(bytes).digest('hex');
++}
++
++export function parseTreeListing(bytes) {
++  const entries = [];
++  const seen = new Set();
++  if (!Buffer.isBuffer(bytes) || (bytes.length && bytes.at(-1) !== 0)) fail('Malformed NUL-delimited Git tree listing');
++  for (const raw of bytes.length ? bytes.subarray(0, -1).toString('latin1').split('\0') : []) {
++    if (!raw) fail('Malformed NUL-delimited Git tree listing');
++    const delimiter = raw.indexOf('\t');
++    const header = raw.slice(0, delimiter);
++    const match = /^(040000|100644|100755) (tree|blob) ([0-9a-f]{40})$/.exec(header);
++    if (delimiter < 0 || !match || (match[1] === '040000') !== (match[2] === 'tree'))
++      fail('Unsupported Git tree mode/type (symlink/gitlink included)');
++    let path;
++    try {
++      path = decoder.decode(Buffer.from(raw.slice(delimiter + 1), 'latin1'));
++    } catch {
++      fail('Unsupported non-UTF-8 Git source path');
++    }
++    const components = path.split('/');
++    if (
++      !path ||
++      /[\0\r\n]/.test(path) ||
++      isAbsolute(path) ||
++      components.some((part) => !part || part === '.' || part === '..' || part.toLowerCase() === '.git') ||
++      seen.has(path)
++    )
++      fail('Unsafe/duplicate Git source path');
++    if (path === '.npmrc') fail('Committed root .npmrc is unsupported; blob is not read or transferred');
++    if (components[0].startsWith('_tmp')) fail('Committed root scratch paths are unsupported');
++    seen.add(path);
++    entries.push({ mode: match[1], type: match[2], oid: match[3], path });
++  }
++  for (const entry of entries) {
++    for (let parent = dirname(entry.path); parent !== '.'; parent = dirname(parent)) {
++      if (!entries.some((value) => value.path === parent && value.type === 'tree'))
++        fail('Malformed Git tree parent relationship');
++    }
++  }
++  return entries;
++}
++
++function batchObjects(git, ids, source) {
++  const result = git(['cat-file', '--batch'], { source, input: ids.join('\n') + '\n' });
++  const objects = new Map();
++  let offset = 0;
++  for (const oid of ids) {
++    const end = result.indexOf(10, offset);
++    const match = /^([0-9a-f]{40}) (commit|tree|blob) (0|[1-9][0-9]*)$/.exec(
++      result.subarray(offset, end).toString('latin1'),
++    );
++    if (end < offset || !match || match[1] !== oid) fail('Missing/malformed selected Git object');
++    const size = Number(match[3]);
++    if (!Number.isSafeInteger(size) || size > maxBuffer) fail('Unsupported Git object size');
++    const bytes = result.subarray(end + 1, end + 1 + size);
++    offset = end + size + 2;
++    if (bytes.length !== size || result[offset - 1] !== 10 || objectId(match[2], bytes) !== oid)
++      fail('Selected Git object hash/content mismatch');
++    objects.set(oid, { type: match[2], bytes });
++  }
++  if (offset !== result.length) fail('Unexpected Git object batch output');
++  return objects;
++}
++
++function verifyObjectInventory(git, ids) {
++  const inventory = git(['cat-file', '--batch-all-objects', '--batch-check=%(objectname)'])
++    .toString('latin1')
++    .split('\n');
++  if (
++    inventory.pop() !== '' ||
++    inventory.some((oid) => !shaPattern.test(oid)) ||
++    JSON.stringify(inventory.sort()) !== JSON.stringify(ids)
++  )
++    fail('Imported object inventory is not exactly the selected closure');
++}
++
++function verifyIndex(git, entries, source) {
++  const expected = entries
++    .filter((entry) => entry.type === 'blob')
++    .map(({ mode, oid, path }) => `${mode} ${oid} 0\t${path}`)
++    .sort();
++  const actual = decoder
++    .decode(git(['ls-files', '--stage', '--full-name', '-z'], { source, index: source }))
++    .split('\0')
++    .filter(Boolean)
++    .sort();
++  if (JSON.stringify(actual) !== JSON.stringify(expected))
++    fail('Original/selected Git index does not exactly match selected stage-zero tree');
++  const flags = decoder
++    .decode(git(['ls-files', '-v', '--full-name', '-z'], { source, index: source }))
++    .split('\0')
++    .filter(Boolean);
++  if (flags.length !== expected.length || flags.some((entry) => !entry.startsWith('H ')))
++    fail('Hidden assume-unchanged/skip-worktree index states are unsupported');
++}
++
++function verifySource(root, entries, { state, independentFrom } = {}) {
++  const expected = new Map(entries.map((entry) => [entry.path, entry]));
++  const found = new Set();
++  const files = new Map();
++  const allowed = state ? new Set([basename(state.tmpdir), basename(state.pnpmDest)]) : new Set();
++  const visit = (directory, prefix = '') => {
++    for (const name of readdirSync(directory)) {
++      const path = prefix ? `${prefix}/${name}` : name;
++      if (!prefix && (name === '.git' || allowed.has(name))) continue;
++      const entry = expected.get(path);
++      if (!entry) fail('Unexpected source entry, including ignored dependencies/cache/generated state');
++      const target = join(root, path);
++      const info = lstatSync(target);
++      if (info.isSymbolicLink()) fail('Symlink source is unsupported');
++      found.add(path);
++      if (entry.type === 'tree') {
++        if (!info.isDirectory()) fail('Expected a real source tree directory');
++        visit(target, path);
++      } else {
++        const input = regularBytes(target);
++        const mode = entry.mode === '100755' ? 0o755 : 0o644;
++        if ((input.info.mode & 0o777) !== mode || objectId('blob', input.bytes) !== entry.oid)
++          fail('Dirty source bytes/executable mode do not match selected tree');
++        if (independentFrom && (input.info.nlink !== 1 || sameIdentity(input.info, independentFrom.get(path))))
++          fail('Selected source shares hardlinks/inodes');
++        files.set(path, identity(input.info));
++      }
++    }
++  };
++  visit(root);
++  if (found.size !== expected.size) fail('Missing selected source file/tree');
++  return files;
++}
++
++function materializeFiles(state, entries, objects) {
++  for (const entry of entries
++    .filter((value) => value.type === 'tree')
++    .sort((a, b) => a.path.split('/').length - b.path.split('/').length)) {
++    realDirectory(dirname(join(state.root, entry.path)));
++    mkdirSync(join(state.root, entry.path), { mode: 0o755 });
++  }
++  for (const entry of entries.filter((value) => value.type === 'blob')) {
++    realDirectory(dirname(join(state.root, entry.path)));
++    exclusiveFile(join(state.root, entry.path), objects.get(entry.oid).bytes, entry.mode === '100755' ? 0o755 : 0o644);
++  }
++}
++
++// Selected-only source investigation lives in maintained real ignored fixtures.
++// Calling this deep subroutine never constitutes full native selector success.
++export function transferSelectedSource(state, sha, { env = process.env, run = spawnSync } = {}) {
++  if (typeof sha !== 'string' || !shaPattern.test(sha)) fail('Expected the exact lowercase 40-hex event SHA');
++  assertAmbientGit(env);
++  validateState(state);
++  rejectNpmrc(state.original, state.root);
++  verifyInstallerState(state);
++  realDirectory(join(state.original, '.git'));
++  for (const path of ['commondir', 'info/grafts'])
++    if (present(join(state.original, '.git', path))) fail('Linked/grafted original Git repositories are unsupported');
++  const head = regularBytes(join(state.original, '.git', 'HEAD'));
++  if (!head.bytes.equals(Buffer.from(sha + '\n'))) fail('Original detached HEAD does not match the exact event SHA');
++  const index = regularBytes(join(state.original, '.git', 'index'));
++  if (!index.bytes.subarray(0, 4).equals(Buffer.from('DIRC'))) fail('Malformed original Git index');
++  const storage = scanStorage(join(state.original, '.git', 'objects'));
++  const git = gitContext(state, env, run);
++  git(['init', '--template=', '--object-format=sha1', state.root]);
++  generatedFile(join(state.root, '.git', 'config'), neutralConfig);
++  const commit = batchObjects(git, [sha], true).get(sha);
++  if (commit.type !== 'commit') fail('Selected event SHA must be a SHA-1 commit');
++  const headerEnd = commit.bytes.indexOf('\n\n');
++  const treeMatch = /^tree ([0-9a-f]{40})\n/.exec(commit.bytes.subarray(0, headerEnd).toString('latin1'));
++  if (headerEnd < 0 || !treeMatch) fail('Malformed selected commit tree');
++  const entries = parseTreeListing(git(['ls-tree', '-r', '-t', '-z', '--full-tree', sha], { source: true }));
++  for (const pin of ['.gitignore', '.tool-versions', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'])
++    if (!entries.some((entry) => entry.path === pin && entry.type === 'blob'))
++      fail('Selected source lacks required committed pin/config files');
++  verifyIndex(git, entries, true);
++  const originalFiles = verifySource(state.original, entries);
++  const ids = [...new Set([sha, treeMatch[1], ...entries.map((entry) => entry.oid)])].sort();
++  const objects = batchObjects(git, ids, true);
++  for (const entry of entries) if (objects.get(entry.oid).type !== entry.type) fail('Git tree/object type mismatch');
++  if (objects.get(treeMatch[1]).type !== 'tree') fail('Selected commit root must be a tree');
++  // No --revs, thin pack, object/delta reuse, delta construction or parent traversal.
++  const pack = git(
++    ['pack-objects', '--stdout', '--no-reuse-object', '--no-reuse-delta', '--window=0', '--depth=0', '--threads=1'],
++    { source: true, input: ids.join('\n') + '\n' },
++  );
++  exclusiveFile(join(state.root, '.git', 'shallow'), sha + '\n');
++  git(['index-pack', '--stdin', '--fsck-objects'], { input: pack });
++  generatedFile(join(state.root, '.git', 'HEAD'), sha + '\n');
++  // This strict connectivity check is mandatory. Failure stops; never relax it.
++  git(['fsck', '--strict', '--full', '--no-reflogs']);
++  const imported = batchObjects(git, ids, false);
++  for (const oid of ids)
++    if (objects.get(oid).type !== imported.get(oid).type || !objects.get(oid).bytes.equals(imported.get(oid).bytes))
++      fail('Imported selected object bytes changed');
++  verifyObjectInventory(git, ids);
++  materializeFiles(state, entries, imported);
++  git(['read-tree', sha]);
++  verifyIndex(git, entries, false);
++  verifySource(state.original, entries);
++  verifyIndex(git, entries, true);
++  verifySource(state.root, entries, { state, independentFrom: originalFiles });
++  if (
++    !regularBytes(join(state.original, '.git', 'HEAD')).bytes.equals(head.bytes) ||
++    !regularBytes(join(state.original, '.git', 'index')).bytes.equals(index.bytes)
++  )
++    fail('Original Git HEAD/index changed during source transfer');
++  if (
++    !git(['rev-parse', '--show-object-format']).equals(Buffer.from('sha1\n')) ||
++    !git(['rev-parse', 'HEAD']).equals(Buffer.from(sha + '\n')) ||
++    !regularBytes(join(state.root, '.git', 'HEAD')).bytes.equals(Buffer.from(sha + '\n'))
++  )
++    fail('Selected detached SHA/object format mismatch');
++  if (git(['status', '--porcelain=v1', '--untracked-files=all', '-z']).length)
++    fail('Selected source/index is not clean');
++  const children = [basename(state.tmpdir), basename(state.pnpmDest)];
++  const ignored = decoder
++    .decode(git(['check-ignore', '--no-index', '-z', '--stdin'], { input: children.join('\0') + '\0' }))
++    .split('\0')
++    .filter(Boolean);
++  if (JSON.stringify(ignored) !== JSON.stringify(children))
++    fail('Committed ignore rules do not cover owned scratch/installer destinations');
++  for (const path of [
++    'objects/info/alternates',
++    'objects/info/http-alternates',
++    'hooks',
++    'logs',
++    'refs/remotes',
++    'config.worktree',
++  ])
++    if (present(join(state.root, '.git', path))) fail('Selected Git contains forbidden copied/shared metadata');
++  if (
++    !regularBytes(join(state.root, '.git', 'config')).bytes.equals(Buffer.from(neutralConfig)) ||
++    git(['remote']).length
++  )
++    fail('Selected Git configuration is not generated credential-free configuration');
++  const destinationStorage = scanStorage(join(state.root, '.git', 'objects'));
++  for (const [path, id] of destinationStorage)
++    if (lstatSync(path).nlink !== 1 || [...storage.values()].some((source) => sameIdentity(source, id)))
++      fail('Selected Git objects share hardlinks/inodes');
++  if (!regularBytes(join(state.root, '.git', 'shallow')).bytes.equals(Buffer.from(sha + '\n')))
++    fail('Selected Git shallow boundary is not exactly the selected event SHA');
++  verifyObjectInventory(git, ids);
++  verifyInstallerState(state);
++  return { sha, entries, objectIds: ids };
++}
++
++// Real deep fixtures exercise this ownership subroutine independently. The CLI
++// always calls the native selector first; there is no installer-budget override.
++function verifyPrivateChild(path, id, label) {
++  const info = realDirectory(path);
++  if (!sameIdentity(info, id) || info.uid !== process.getuid() || (info.mode & 0o777) !== 0o700)
++    fail(`Installer ${label} directory ownership changed`);
++}
++
++export function verifyInstallerState(state) {
++  readWitness(state);
++  rejectNpmrc(state.original, state.root);
++  verifyPrivateChild(state.tmpdir, state.tmpId, 'temporary');
++  verifyPrivateChild(state.pnpmDest, state.pnpmId, 'pnpm');
++  if (readdirSync(state.pnpmDest).length) fail('pnpm destination is not the newly owned empty installer directory');
++}
++
++export function checkInstallerBoundary(original, selected) {
++  const selection = selectCheckoutRoot(original);
++  if (selected !== selection.root || realpathSync(selected) !== selected)
++    fail('Installer command must run in the verified selected checkout');
++  rejectNpmrc(original, selected);
++  const witness = JSON.parse(regularBytes(join(selected, '.git', witnessName)).bytes);
++  const state = { ...witness, phase: 'owned' };
++  if (state.original !== original || state.root !== selected) fail('Installer ownership relationship mismatch');
++  verifyInstallerState(state);
++}
++
++function appendRunnerFile(path, values) {
++  assertNormalizedPath(path);
++  const fd = openSync(path, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW);
++  try {
++    if (!fstatSync(fd).isFile()) fail('Runner command file must be regular');
++    writeFileSync(fd, values);
++  } finally {
++    closeSync(fd);
++  }
++}
++
++export function runMain(env = process.env, { save, output, run = spawnSync } = {}) {
++  const saveState = save ?? ((state) => appendRunnerFile(env.GITHUB_STATE, `${stateName}=${JSON.stringify(state)}\n`));
++  const emit =
++    output ??
++    ((outputs) =>
++      appendRunnerFile(
++        env.GITHUB_OUTPUT,
++        Object.entries(outputs)
++          .map(([key, value]) => `${key}=${value}\n`)
++          .join(''),
++      ));
++  let state = { version: 1, phase: 'empty' };
++  saveState(state); // Establish a no-op post state BEFORE ordinary preflight failures.
++  try {
++    assertAmbientGit(env);
++    if (typeof env.GITHUB_SHA !== 'string' || !shaPattern.test(env.GITHUB_SHA))
++      fail('Expected the exact lowercase 40-hex event SHA');
++    rejectNpmrc(assertNormalizedPath(env.GITHUB_WORKSPACE));
++    const selection = selectCheckoutRoot(env.GITHUB_WORKSPACE);
++    state = claimCheckout(selection, (value) => {
++      state = value;
++      saveState(value);
++    });
++    assertCheckoutBudget(realpathSync(state.root));
++    if (Buffer.byteLength(state.tmpdir, 'utf8') > checkoutTmpdirMaxBytes)
++      fail('CI checkout temporary child exceeds unchanged 45-byte TMPDIR maximum');
++    transferSelectedSource(state, env.GITHUB_SHA, { env, run });
++    state.phase = 'ready';
++    saveState(state);
++    const relativeRoot = relative(state.original, state.root);
++    if (relativeRoot !== '../c' || resolve(state.original, relativeRoot) !== state.root)
++      fail('Unsupported selected-relative installer path');
++    emit({ root: state.root, 'relative-root': relativeRoot, tmpdir: state.tmpdir, 'pnpm-dest': state.pnpmDest });
++    return state;
++  } catch (cause) {
++    try {
++      cleanupCheckout(state);
++      saveState(state);
++    } catch (cleanup) {
++      throw new AggregateError([cause, cleanup], 'CI checkout failed; unsafe cleanup retained', { cause: cleanup });
++    }
++    throw cause;
++  }
++}
++
++export function runAction(env = process.env, options = {}) {
++  if (env[`STATE_${stateName}`] !== undefined) {
++    let state;
++    try {
++      state = JSON.parse(env[`STATE_${stateName}`]);
++    } catch {
++      fail('Malformed CI checkout post state; retained');
++    }
++    cleanupCheckout(state);
++    return state;
++  }
++  return runMain(env, options);
++}
++
++if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  try {
++    if (process.argv.length === 3 && process.argv[2] === '--check-install')
++      checkInstallerBoundary(process.env.GITHUB_WORKSPACE, process.cwd());
++    else if (process.argv.length === 2) runAction();
++    else fail('No public checkout path/budget/action-mode overrides are supported');
++  } catch (cause) {
++    console.error(cause.message);
++    if (cause instanceof AggregateError) for (const failure of cause.errors) console.error(failure.message);
++    process.exitCode = 1;
++  }
++}
+--- stage2-preflight/.github/actions/ci-prepare/action.yml
++++ selected-final/.github/actions/ci-prepare/action.yml
+@@ -1,5 +1,15 @@
+ name: CI build-output preparation
+ description: One clean full build and a verified same-run output-only archive
++inputs:
++  checkout-root:
++    description: Verified real source root from the top-level checkout action
++    required: true
++  checkout-relative:
++    description: Verified source path relative to the unchanged action workspace
++    required: true
++  pnpm-dest:
++    description: Newly owned isolated pnpm self-installer destination
++    required: true
+ outputs:
+   artifact-name:
+     description: Exact run/attempt/checkout-scoped build artifact
+@@ -11,8 +21,13 @@
+   using: composite
+   steps:
+     - uses: ./.github/actions/ci-setup
++      with:
++        checkout-root: ${{ inputs.checkout-root }}
++        checkout-relative: ${{ inputs.checkout-relative }}
++        pnpm-dest: ${{ inputs.pnpm-dest }}
+     - id: prepare
+       shell: bash
++      working-directory: ${{ inputs.checkout-root }}
+       run: node scripts/ci-test-artifacts.mjs prepare
+     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+       with:
+--- stage2-preflight/.github/actions/ci-setup/action.yml
++++ selected-final/.github/actions/ci-setup/action.yml
+@@ -1,20 +1,37 @@
+ name: CI workspace setup
+ description: Pinned Node/pnpm and independently frozen-installed root workspace only
++inputs:
++  checkout-root:
++    description: Verified real source root from the top-level checkout action
++    required: true
++  checkout-relative:
++    description: Verified source path relative to the unchanged action workspace
++    required: true
++  pnpm-dest:
++    description: Newly owned isolated pnpm self-installer destination
++    required: true
+ runs:
+   using: composite
+   steps:
+     - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+       with:
+-        node-version-file: .tool-versions
++        node-version-file: ${{ inputs.checkout-relative }}/.tool-versions
+         package-manager-cache: false
++    - id: installer-boundary
++      shell: bash
++      working-directory: ${{ inputs.checkout-root }}
++      run: node .github/actions/ci-checkout/index.mjs --check-install
+     - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+       with:
+-        package_json_file: package.json
++        package_json_file: ${{ inputs.checkout-relative }}/package.json
++        dest: ${{ inputs.pnpm-dest }}
+         run_install: false
+         cache: false
+     - id: install
+       shell: bash
++      working-directory: ${{ inputs.checkout-root }}
+       run: pnpm install --frozen-lockfile --ignore-scripts
+     - id: tools
+       shell: bash
++      working-directory: ${{ inputs.checkout-root }}
+       run: node scripts/ci-test-workspace.mjs setup
+--- stage2-preflight/.github/actions/ci-test/action.yml
++++ selected-final/.github/actions/ci-test/action.yml
+@@ -1,6 +1,15 @@
+ name: CI complete workspace test
+ description: Verified same-run outputs, isolated job-specific resources, and one full package script
+ inputs:
++  checkout-root:
++    description: Verified real source root from the top-level checkout action
++    required: true
++  checkout-relative:
++    description: Verified source path relative to the unchanged action workspace
++    required: true
++  pnpm-dest:
++    description: Newly owned isolated pnpm self-installer destination
++    required: true
+   workspace:
+     description: Exact pnpm-discovered tested manifest name
+     required: true
+@@ -14,6 +23,10 @@
+   using: composite
+   steps:
+     - uses: ./.github/actions/ci-setup
++      with:
++        checkout-root: ${{ inputs.checkout-root }}
++        checkout-relative: ${{ inputs.checkout-relative }}
++        pnpm-dest: ${{ inputs.pnpm-dest }}
+     - id: artifacts
+       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+       with:
+@@ -21,6 +34,7 @@
+         path: ${{ runner.temp }}/ci-test-artifacts
+     - id: restore
+       shell: bash
++      working-directory: ${{ inputs.checkout-root }}
+       run: node scripts/ci-test-workspace.mjs restore
+       env:
+         CI_TEST_WORKSPACE: ${{ inputs.workspace }}
+@@ -43,6 +57,7 @@
+         key: ${{ steps.restore.outputs.mongo-key }}
+     - id: test
+       shell: bash
++      working-directory: ${{ inputs.checkout-root }}
+       run: node scripts/ci-test-workspace.mjs
+       env:
+         CI_TEST_WORKSPACE: ${{ inputs.workspace }}
+--- stage2-preflight/.github/workflows/test.yml
++++ selected-final/.github/workflows/test.yml
+@@ -30,9 +30,23 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
++      - id: source
++        uses: ./.github/actions/ci-checkout
+       - uses: ./.github/actions/ci-setup
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+       - run: pnpm test:groups:check
++        working-directory: ${{ steps.source.outputs.root }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+       - run: pnpm test:ci:check
++        working-directory: ${{ steps.source.outputs.root }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   ci-prepare:
+     name: ci-prepare
+     runs-on: ubuntu-24.04
+@@ -45,8 +59,16 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
++      - id: source
++        uses: ./.github/actions/ci-checkout
+       - id: prepare
+         uses: ./.github/actions/ci-prepare
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-access-router:
+     name: test-access-router
+     runs-on: ubuntu-24.04
+@@ -58,11 +80,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/access-router"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-access-router-client:
+     name: test-access-router-client
+     runs-on: ubuntu-24.04
+@@ -74,11 +103,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/access-router-client"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-access-router-deco:
+     name: test-access-router-deco
+     runs-on: ubuntu-24.04
+@@ -89,11 +125,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/access-router-deco"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-access-router-react:
+     name: test-access-router-react
+     runs-on: ubuntu-24.04
+@@ -104,11 +147,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/access-router-react"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-access-router-runtime:
+     name: test-access-router-runtime
+     runs-on: ubuntu-24.04
+@@ -120,11 +170,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/access-router-runtime"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-asset-inliner:
+     name: test-asset-inliner
+     runs-on: ubuntu-24.04
+@@ -134,11 +191,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/asset-inliner"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-create-access-router-mongo-starter:
+     name: test-create-access-router-mongo-starter
+     runs-on: ubuntu-24.04
+@@ -149,11 +213,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: create-access-router-mongo-starter
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-json-router:
+     name: test-express-json-router
+     runs-on: ubuntu-24.04
+@@ -166,11 +237,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-json-router"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-oidc-vault:
+     name: test-express-oidc-vault
+     runs-on: ubuntu-24.04
+@@ -180,11 +258,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-oidc-vault"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-oidc-vault-memory-store:
+     name: test-express-oidc-vault-memory-store
+     runs-on: ubuntu-24.04
+@@ -195,11 +280,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-oidc-vault-memory-store"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-oidc-vault-mongodb-store:
+     name: test-express-oidc-vault-mongodb-store
+     runs-on: ubuntu-24.04
+@@ -210,11 +302,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-oidc-vault-redis-store:
+     name: test-express-oidc-vault-redis-store
+     runs-on: ubuntu-24.04
+@@ -225,11 +324,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-oidc-vault-redis-store"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-request-attestation:
+     name: test-express-request-attestation
+     runs-on: ubuntu-24.04
+@@ -239,11 +345,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-request-attestation"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-response-handler:
+     name: test-express-response-handler
+     runs-on: ubuntu-24.04
+@@ -255,11 +368,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-response-handler"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-express-runtime:
+     name: test-express-runtime
+     runs-on: ubuntu-24.04
+@@ -269,11 +389,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/express-runtime"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-http-errors:
+     name: test-http-errors
+     runs-on: ubuntu-24.04
+@@ -284,11 +411,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/http-errors"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-json-frame:
+     name: test-json-frame
+     runs-on: ubuntu-24.04
+@@ -298,11 +432,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/json-frame"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-message-service:
+     name: test-message-service
+     runs-on: ubuntu-24.04
+@@ -314,11 +455,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/message-service"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-mongoose-rxdb:
+     name: test-mongoose-rxdb
+     runs-on: ubuntu-24.04
+@@ -328,11 +476,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/mongoose-rxdb"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-moo:
+     name: test-moo
+     runs-on: ubuntu-24.04
+@@ -343,11 +498,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/moo"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-oidc-vault-dpop-client:
+     name: test-oidc-vault-dpop-client
+     runs-on: ubuntu-24.04
+@@ -358,11 +520,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/oidc-vault-dpop-client"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-oidc-vault-dpop-example:
+     name: test-oidc-vault-dpop-example
+     runs-on: ubuntu-24.04
+@@ -375,11 +544,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: oidc-vault-dpop-example
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-pdf-reader:
+     name: test-pdf-reader
+     runs-on: ubuntu-24.04
+@@ -389,11 +565,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/pdf-reader"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-react-vite:
+     name: test-react-vite
+     runs-on: ubuntu-24.04
+@@ -405,11 +588,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: react-vite
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   test-utils:
+     name: test-utils
+     runs-on: ubuntu-24.04
+@@ -419,11 +609,18 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
+-      - uses: ./.github/actions/ci-test
+-        with:
++      - id: source
++        uses: ./.github/actions/ci-checkout
++      - uses: ./.github/actions/ci-test
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+           workspace: "@web-ts-toolkit/utils"
+           artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+           artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+   unit-test:
+     name: unit-test
+     runs-on: ubuntu-24.04
+@@ -460,9 +657,19 @@
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+         with:
+           ref: ${{ github.sha }}
++      - id: source
++        uses: ./.github/actions/ci-checkout
+       - uses: ./.github/actions/ci-setup
++        with:
++          checkout-root: ${{ steps.source.outputs.root }}
++          checkout-relative: ${{ steps.source.outputs.relative-root }}
++          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+       - run: node scripts/ci-test-results.mjs
+-        env:
++        working-directory: ${{ steps.source.outputs.root }}
++        env:
++          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+           CI_TEST_NEEDS: ${{ toJSON(needs) }}
+ 
+   access-router-minimum-node-smoke:
+--- stage2-preflight/README.md
++++ selected-final/README.md
+@@ -110,7 +110,8 @@
+ A package job requires the exact run/attempt/checkout-scoped artifact from
+ `ci-prepare`; a missing, mismatched or incomplete archive fails the job rather than
+ silently skipping the restore. `pnpm test:ci:check` validates the CI dependency
+-model, agreement with the checked-in workflow, and the artifact/result helpers.
++model, agreement with the checked-in workflow and four main local actions, and the
++source-checkout/artifact/resource/result helpers.
+ `pnpm test:ci:check` and `pnpm test:groups:check` are validation checks, not
+ replacements for the test suites. Run both after changing workspace dependencies,
+ test scripts, workflow jobs or CI helpers.
+@@ -135,9 +136,32 @@
+ 22 reader-UUID bytes within the 107-byte pathname limit. It is reviewed for pinned
+ Node 26.12.1 / BroadcastChannel 7.4.0 and must be revisited on upgrades. A
+ representative default hosted checkout shape for this repository name has a
+-calculated 47-byte root and is **unsupported**; a maintainer-authorized shorter
+-real checkout setup remains a rollout prerequisite, not implemented or verified
+-here. See the [R1 remediation handoff](docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md).
++calculated 47-byte root and is **unsupported by the resource helper**. The main
++jobs now retain the pinned `${{ github.sha }}` checkout for action resolution and
++its original cleanup, then use `.github/actions/ci-checkout` to claim only the
++exclusive real sibling `dirname(GITHUB_WORKSPACE)/c`. Its parent must be owned and
++not group/world writable; the selected root must fit the unchanged 34-byte budget.
++Existing targets, symlink aliases and unsupported parents/depths fail closed,
++without reuse, alternative paths or deletion of pre-existing work.
++
++The dependency-free bootstrap transfers only the exact selected commit/tree/blob
++closure into independent storage with a real `.git`, a generated selected-SHA
++shallow boundary and mandatory strict import/connectivity checks. Dirty source,
++symlinks, gitfiles and object alternates are rejected. It neither copies private
++Git metadata/dependencies/caches nor fetches source from the network. Selected
++pin-file inputs, every main project shell's working directory and `TMPDIR` are
++explicitly bound to the verified source. pnpm's self-installer receives only a
++fresh owned child; original/committed root `.npmrc` is unsupported and rejected
++without reading its contents, with both lookup locations rechecked immediately
++before installation. The three independent jobs remain unchanged.
++
++Ownership-checked cleanup is a top-level JavaScript action post, not a final
++composite shell deletion. The intended order is later cache/tool posts, selected
++checkout cleanup, then original checkout cleanup. Local fixtures and `node20`
++metadata do **not** certify actual runner runtime, post registration/order,
++cancellation or hosted setup/artifact behavior. Those remain authorized live
++rollout prerequisites. See the [R1 remediation handoff](docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md)
++and [local setup delivery](docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup.md).
+ 
+ ### Maintainer rollout and rollback
+ 
+--- stage2-preflight/package.json
++++ selected-final/package.json
+@@ -9,7 +9,7 @@
+     "test": "pnpm -r --if-present --workspace-concurrency=1 test",
+     "test:grouped": "pnpm test:groups:check && node scripts/test-groups.mjs",
+     "test:groups:check": "node --test scripts/test-groups.test.mjs && node scripts/test-groups.mjs --check",
+-    "test:ci:check": "node --test --test-concurrency=1 scripts/ci-test-plan.test.mjs scripts/ci-test-artifacts.test.mjs scripts/ci-test-workspace.test.mjs scripts/ci-test-results.test.mjs && node scripts/ci-test-plan.mjs --check && node scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml",
++    "test:ci:check": "node --test --test-concurrency=1 scripts/ci-test-plan.test.mjs scripts/ci-test-artifacts.test.mjs scripts/ci-test-workspace.test.mjs scripts/ci-test-results.test.mjs scripts/ci-test-checkout.test.mjs && node scripts/ci-test-plan.mjs --check && node scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml",
+     "test:group:1": "node scripts/test-groups.mjs 1",
+     "test:group:2": "node scripts/test-groups.mjs 2",
+     "test:group:3": "node scripts/test-groups.mjs 3",
+--- /dev/null
++++ selected-final/scripts/ci-test-checkout.test.mjs
+@@ -0,0 +1,1710 @@
++import assert from 'node:assert/strict';
++import { spawnSync } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import {
++  chmodSync,
++  existsSync,
++  linkSync,
++  lstatSync,
++  mkdirSync,
++  mkdtempSync,
++  readFileSync,
++  readdirSync,
++  readlinkSync,
++  renameSync,
++  rmSync,
++  rmdirSync,
++  symlinkSync,
++  unlinkSync,
++  writeFileSync,
++} from 'node:fs';
++import { dirname, join, relative, resolve } from 'node:path';
++import { test } from 'node:test';
++import { fileURLToPath } from 'node:url';
++import { parseDocument } from 'yaml';
++import {
++  assertCheckoutBudget,
++  assertNormalizedPath,
++  checkoutRootMaxBytes,
++  checkoutTmpdirMaxBytes,
++  claimCheckout,
++  checkoutRelationship,
++  cleanupCheckout,
++  parseTreeListing,
++  rejectNpmrc,
++  runAction,
++  runMain,
++  selectCheckoutRoot,
++  transferSelectedSource,
++  verifyInstallerState,
++} from '../.github/actions/ci-checkout/index.mjs';
++import { assertSocketSafeTmpdir, resourceTmpdirMaxBytes } from './ci-test-workspace.mjs';
++
++const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
++const action = (name) =>
++  parseDocument(readFileSync(resolve(repositoryRoot, `.github/actions/${name}/action.yml`), 'utf8')).toJS();
++const workflow = () =>
++  parseDocument(readFileSync(resolve(repositoryRoot, '.github/workflows/test.yml'), 'utf8')).toJS();
++const mainJobs = () =>
++  Object.entries(workflow().jobs).filter(
++    ([id]) => !['lint', 'access-router-minimum-node-smoke', 'access-router-react-minimum-node'].includes(id),
++  );
++
++function scratch(t) {
++  const root = mkdtempSync(resolve(repositoryRoot, '_tmp-ci-checkout-'));
++  assert.equal(spawnSync('git', ['check-ignore', relative(repositoryRoot, root)], { cwd: repositoryRoot }).status, 0);
++  t.after(() => rmSync(root, { recursive: true, force: true }));
++  return root;
++}
++
++function write(root, path, bytes) {
++  const target = join(root, path);
++  mkdirSync(dirname(target), { recursive: true });
++  writeFileSync(target, bytes);
++}
++
++function bindingFixture(t) {
++  const parent = scratch(t);
++  const original = join(parent, 'original');
++  const selected = join(parent, 'c');
++  for (const [root, marker] of [
++    [original, 'original'],
++    [selected, 'selected'],
++  ]) {
++    write(root, '.tool-versions', marker);
++    write(root, 'package.json', JSON.stringify({ packageManager: marker }));
++    write(
++      root,
++      'scripts/sentinel.mjs',
++      `console.log(JSON.stringify({ origin: '${marker}', cwd: process.cwd(), tmpdir: process.env.TMPDIR }));`,
++    );
++  }
++  const tmpdir = join(selected, '_tmpABC123');
++  const dest = join(selected, '_tmp-pnpm-ABC123');
++  const defaultTmpdir = join(parent, 'unbound-runner-temp');
++  const runnerTemp = join(parent, 'artifact-service-temp');
++  for (const path of [tmpdir, dest, defaultTmpdir, runnerTemp]) mkdirSync(path, { mode: 0o700 });
++  return { original, selected, tmpdir, dest, defaultTmpdir, runnerTemp, relative: '../c' };
++}
++
++function evaluate(value, context) {
++  if (typeof value !== 'string') return value;
++  return value.replace(/\$\{\{ ([^}]+) \}\}/g, (_match, key) => {
++    if (key === 'toJSON(needs)') return '{}'; // Result policy is tested independently, not executed here.
++    let result = context;
++    for (const part of key.split('.')) {
++      assert.ok(result && Object.hasOwn(result, part), `Missing modeled binding: ${key}`);
++      result = result[part];
++    }
++    return result;
++  });
++}
++
++// Model inspected action file joins and composite input/environment inheritance.
++// Source/helper/installer/cache commands are NOT run. Each modeled project shell
++// is replaced by a harmless selected/original module sentinel at its effective cwd.
++function modelJob(job, fixture) {
++  const observations = { shells: [], node: [], pnpm: [], local: [], downloads: [] };
++  const sourceOutputs = {
++    root: fixture.selected,
++    'relative-root': fixture.relative,
++    tmpdir: fixture.tmpdir,
++    'pnpm-dest': fixture.dest,
++  };
++  const walk = (steps, inputs, inherited, scope) => {
++    const context = {
++      inputs,
++      github: { workspace: fixture.original, sha: 'a'.repeat(40) },
++      runner: { temp: fixture.runnerTemp },
++      steps: {
++        source: { outputs: sourceOutputs },
++        artifacts: { outputs: { 'download-path': join(fixture.runnerTemp, 'ci-test-artifacts') } },
++        restore: {
++          outputs: {
++            'resource-directory': join(fixture.selected, '_tmpResourceModel'),
++            'browser-path': join(fixture.selected, '_tmpBrowserModel'),
++            'browser-key': 'synthetic-browser',
++            'mongo-path': join(fixture.selected, '_tmpMongoModel'),
++            'mongo-key': 'synthetic-mongo',
++          },
++        },
++        'browser-cache': { outputs: { 'cache-hit': 'false' } },
++        'mongo-cache': { outputs: { 'cache-hit': 'false' } },
++        prepare: {
++          outputs: {
++            'artifact-name': 'synthetic-artifact',
++            'artifact-path': join(fixture.selected, '_tmpArchiveModel'),
++          },
++        },
++      },
++      needs: {
++        'ci-prepare': { outputs: { 'artifact-name': 'synthetic-artifact', 'artifact-digest': 'd'.repeat(64) } },
++      },
++    };
++    for (const step of steps) {
++      const env = {
++        ...inherited,
++        ...Object.fromEntries(Object.entries(step.env ?? {}).map(([key, value]) => [key, evaluate(value, context)])),
++      };
++      const supplied = Object.fromEntries(
++        Object.entries(step.with ?? {}).map(([key, value]) => [key, evaluate(value, context)]),
++      );
++      if (step.run)
++        observations.shells.push({
++          run: step.run,
++          cwd: evaluate(step['working-directory'], context) ?? fixture.original,
++          env,
++          scope,
++        });
++      if (step.uses?.startsWith('actions/setup-node@'))
++        observations.node.push({
++          path: join(fixture.original, supplied['node-version-file']),
++          cwd: fixture.original,
++          with: supplied,
++          env,
++        });
++      if (step.uses?.startsWith('pnpm/action-setup@'))
++        observations.pnpm.push({
++          path: join(fixture.original, supplied.package_json_file),
++          cwd: supplied.dest,
++          with: supplied,
++          env,
++        });
++      if (step.uses?.startsWith('actions/download-artifact@')) observations.downloads.push(supplied);
++      if (step.uses?.startsWith('./.github/actions/')) {
++        const name = step.uses.split('/').at(-1);
++        const metadata = action(name);
++        observations.local.push({ path: resolve(fixture.original, step.uses), scope });
++        if (metadata.runs.using === 'composite') {
++          for (const key of Object.keys(metadata.inputs))
++            assert.ok(Object.hasOwn(supplied, key), `Missing forwarded ${key} in ${name}`);
++          walk(metadata.runs.steps, supplied, env, `${scope}/${name}`);
++        }
++      }
++    }
++  };
++  walk(job.steps, {}, { TMPDIR: fixture.defaultTmpdir }, 'main');
++  return observations;
++}
++
++function assertModeledBindings(observations, fixture) {
++  for (const shell of observations.shells) {
++    assert.equal(shell.cwd, fixture.selected, shell.run);
++    assert.equal(shell.env.TMPDIR, fixture.tmpdir, `${shell.scope}: ${shell.run}`);
++  }
++  for (const node of observations.node) {
++    assert.equal(readFileSync(node.path, 'utf8'), 'selected');
++    assert.equal(node.with['package-manager-cache'], false);
++    assert.equal(node.with.cache, undefined);
++    assert.equal(node.cwd, fixture.original); // Inspected action-internal diagnostics, not a project shell.
++  }
++  for (const pnpm of observations.pnpm) {
++    assert.equal(JSON.parse(readFileSync(pnpm.path, 'utf8')).packageManager, 'selected');
++    assert.equal(pnpm.cwd, fixture.dest);
++    assert.equal(pnpm.with.run_install, false);
++    assert.equal(pnpm.with.cache, false);
++    assert.equal(pnpm.env.TMPDIR, fixture.tmpdir);
++  }
++  for (const local of observations.local) assert.ok(local.path.startsWith(join(fixture.original, '.github/actions/')));
++}
++
++test('wiring: setup-node effectively reads the selected version pin, not the original workspace', (t) => {
++  const fixture = bindingFixture(t);
++  const [node] = modelJob(workflow().jobs['ci-validate'], fixture).node;
++  // Model the inspected action's path.join(GITHUB_WORKSPACE, file input), not shell cwd.
++  assert.equal(readFileSync(node.path, 'utf8'), 'selected');
++  assert.equal(node.with['package-manager-cache'], false);
++  assert.equal(node.with.cache, undefined);
++});
++
++test('wiring: pnpm effectively reads the selected manifest and receives only the fresh owned destination', (t) => {
++  const fixture = bindingFixture(t);
++  const [pnpm] = modelJob(workflow().jobs['ci-validate'], fixture).pnpm;
++  assert.equal(JSON.parse(readFileSync(pnpm.path, 'utf8')).packageManager, 'selected');
++  assert.equal(pnpm.cwd, fixture.dest);
++  assert.equal(pnpm.with.run_install, false);
++  assert.equal(pnpm.with.cache, false);
++});
++
++test('wiring: every main project shell resolves the selected module, cwd and TMPDIR', (t) => {
++  const fixture = bindingFixture(t);
++  for (const [id, job] of mainJobs()) {
++    const observations = modelJob(job, fixture);
++    assertModeledBindings(observations, fixture);
++    for (const shell of observations.shells) {
++      const result = spawnSync(process.execPath, ['scripts/sentinel.mjs'], {
++        cwd: shell.cwd,
++        env: { PATH: process.env.PATH, ...shell.env },
++        encoding: 'utf8',
++      });
++      assert.equal(result.status, 0, result.stderr);
++      assert.deepEqual(
++        JSON.parse(result.stdout),
++        { origin: 'selected', cwd: fixture.selected, tmpdir: fixture.tmpdir },
++        `${id}: ${shell.run}`,
++      );
++    }
++    for (const download of observations.downloads)
++      assert.equal(download.path, join(fixture.runnerTemp, 'ci-test-artifacts'));
++  }
++});
++
++test('wiring: all 28 main jobs retain the original SHA checkout then register a top-level source action', () => {
++  const jobs = mainJobs();
++  assert.equal(jobs.length, 28);
++  for (const [id, job] of jobs) {
++    assert.deepEqual(
++      job.steps[0],
++      { uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1', with: { ref: '${{ github.sha }}' } },
++      id,
++    );
++    assert.deepEqual(job.steps[1], { id: 'source', uses: './.github/actions/ci-checkout' }, id);
++  }
++});
++
++test('wiring: source metadata declares dependency-free node20 main/post and always cleanup, not a composite deletion', () => {
++  const path = resolve(repositoryRoot, '.github/actions/ci-checkout/action.yml');
++  const metadata = existsSync(path) ? action('ci-checkout') : {};
++  assert.deepEqual(metadata.runs, { using: 'node20', main: 'index.mjs', post: 'index.mjs', 'post-if': 'always()' });
++  assert.deepEqual(Object.keys(metadata.outputs).sort(), ['pnpm-dest', 'relative-root', 'root', 'tmpdir']);
++  assert.equal(metadata.inputs, undefined);
++});
++
++function fixtureGit(root, args, input) {
++  const result = spawnSync('git', ['--no-optional-locks', '-c', 'init.defaultBranch=fixture', ...args], {
++    cwd: root,
++    input,
++    encoding: 'utf8',
++    env: {
++      PATH: process.env.PATH,
++      TMPDIR: process.env.TMPDIR,
++      LANG: 'C',
++      LC_ALL: 'C',
++      GIT_CONFIG_NOSYSTEM: '1',
++      GIT_CONFIG_SYSTEM: '/dev/null',
++      GIT_CONFIG_GLOBAL: '/dev/null',
++      GIT_AUTHOR_NAME: 'Synthetic Fixture',
++      GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
++      GIT_COMMITTER_NAME: 'Synthetic Fixture',
++      GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
++      GIT_AUTHOR_DATE: '2026-11-19T00:00:00Z',
++      GIT_COMMITTER_DATE: '2026-11-19T00:00:00Z',
++    },
++  });
++  assert.equal(result.status, 0, result.stderr);
++  return result.stdout.trim();
++}
++
++function sourceFixture(t, { files: overrides = {}, omit = [], prepare = () => {} } = {}) {
++  const parent = scratch(t);
++  const original = join(parent, 'original');
++  mkdirSync(original);
++  fixtureGit(original, ['init', '--template=', '--object-format=sha1']);
++  const files = {
++    '.gitignore': '_tmp*\nnode_modules\ndist\ncoverage\n',
++    '.tool-versions': 'nodejs 26.12.1\npnpm 11.24.0\n',
++    '.gitattributes': '*.txt filter=fixture\n',
++    'package.json': '{"name":"synthetic-source-only","private":true,"packageManager":"pnpm@11.18.0"}\n',
++    'pnpm-lock.yaml': "lockfileVersion: '9.0'\nimporters: {}\n",
++    'pnpm-workspace.yaml': 'packages: []\n',
++    '.hidden': 'hidden\n',
++    empty: '',
++    'nested/utf8-é.txt': 'raw UTF-8: 한글\n',
++    'nested/binary': Buffer.from([0, 1, 2, 255, 13, 10]),
++    executable: '#!/bin/sh\nexit 0\n',
++    ...overrides,
++  };
++  for (const path of omit) delete files[path];
++  for (const [path, bytes] of Object.entries(files)) {
++    write(original, path, bytes);
++    chmodSync(join(original, path), 0o644);
++  }
++  chmodSync(join(original, 'executable'), 0o755);
++  prepare(original);
++  fixtureGit(original, ['add', '--all']);
++  const tree = fixtureGit(original, ['write-tree']);
++  const emptyTree = fixtureGit(original, ['mktree'], '');
++  const parents = [
++    fixtureGit(original, ['commit-tree', emptyTree], 'parent one\n'),
++    fixtureGit(original, ['commit-tree', emptyTree], 'parent two\n'),
++  ];
++  const sha = fixtureGit(original, ['commit-tree', tree, '-p', parents[0], '-p', parents[1]], 'selected merge\n');
++  const unrelated = fixtureGit(
++    original,
++    ['hash-object', '-w', '--stdin'],
++    'SYNTHETIC_UNREFERENCED_PRIVATE_OBJECT_NOT_A_SECRET\n',
++  );
++  fixtureGit(original, ['update-ref', 'refs/heads/unrelated-fixture', parents[0]]);
++  write(original, '.git/HEAD', sha + '\n');
++  const config = readFileSync(join(original, '.git/config'), 'utf8');
++  // Public synthetic sentinels only: the transfer must never consume this config/hook.
++  write(
++    original,
++    '.git/config',
++    config +
++      '[remote "origin"]\n\turl = https://fixture.invalid/SYNTHETIC_NOT_A_SECRET\n[http]\n\textraheader = SYNTHETIC_NOT_A_CREDENTIAL\n[filter "fixture"]\n\tclean = touch FORBIDDEN_FILTER_SENTINEL\n\tsmudge = touch FORBIDDEN_FILTER_SENTINEL\n',
++  );
++  write(original, '.git/hooks/post-checkout', '#!/bin/sh\ntouch FORBIDDEN_HOOK_SENTINEL\n');
++  chmodSync(join(original, '.git/hooks/post-checkout'), 0o755);
++  write(original, '.git/info/exclude', 'synthetic-private-exclude\n');
++  return { parent, original, sha, parents, unrelated, files };
++}
++
++function fingerprintTree(root) {
++  const files = {};
++  const visit = (directory, prefix = '') => {
++    for (const name of readdirSync(directory)) {
++      const path = prefix ? `${prefix}/${name}` : name;
++      const target = join(root, path);
++      const info = lstatSync(target);
++      const base = { mode: info.mode & 0o777, dev: info.dev, ino: info.ino, nlink: info.nlink };
++      if (info.isDirectory()) {
++        files[path] = { ...base, kind: 'directory' };
++        visit(target, path);
++      } else if (info.isSymbolicLink()) files[path] = { ...base, kind: 'symlink', target: readlinkSync(target) };
++      // Even fixture fingerprinting does not inspect root .npmrc contents.
++      else if (path === '.npmrc') files[path] = { ...base, kind: 'presence-only', bytes: info.size };
++      else if (info.isFile())
++        files[path] = {
++          ...base,
++          kind: 'file',
++          bytes: info.size,
++          sha256: createHash('sha256').update(readFileSync(target)).digest('hex'),
++        };
++      else files[path] = { ...base, kind: 'nonregular' };
++    }
++  };
++  visit(root);
++  return files;
++}
++
++test('real fixture: selected-only merge closure passes strict import and connectivity without history or private metadata', (t) => {
++  const fixture = sourceFixture(t);
++  const before = fingerprintTree(fixture.original);
++  const states = [];
++  const state = claimCheckout(checkoutRelationship(fixture.original), (value) => states.push(structuredClone(value)));
++  const commands = [];
++  const result = transferSelectedSource(state, fixture.sha, {
++    run: (command, args, options) => {
++      commands.push({ command, args, env: options.env });
++      return spawnSync(command, args, options);
++    },
++  });
++  assert.deepEqual(fingerprintTree(fixture.original), before);
++  assert.equal(result.sha, fixture.sha);
++  assert.ok(commands.some(({ args }) => args.slice(-3).join(' ') === 'index-pack --stdin --fsck-objects'));
++  assert.ok(commands.some(({ args }) => args.slice(-4).join(' ') === 'fsck --strict --full --no-reflogs'));
++  assert.ok(
++    commands.every(
++      ({ env }) =>
++        env.GIT_CONFIG_GLOBAL === '/dev/null' && env.GIT_NO_REPLACE_OBJECTS === '1' && env.GIT_ALLOW_PROTOCOL === '',
++    ),
++  );
++  assert.ok(!result.objectIds.includes(fixture.unrelated));
++  for (const parent of fixture.parents) assert.ok(!result.objectIds.includes(parent));
++  const raw = fixtureGit(state.root, ['cat-file', 'commit', fixture.sha]);
++  for (const parent of fixture.parents) assert.ok(raw.includes(`parent ${parent}\n`));
++  assert.equal(readFileSync(join(state.root, '.git/shallow'), 'utf8'), fixture.sha + '\n');
++  assert.equal(fixtureGit(state.root, ['status', '--porcelain=v1']), '');
++  assert.equal(fixtureGit(state.root, ['remote']), '');
++  assert.doesNotMatch(readFileSync(join(state.root, '.git/config'), 'utf8'), /SYNTHETIC|fixture.invalid|extraheader/);
++  assert.equal(existsSync(join(state.root, '.git/hooks')), false);
++  assert.equal(existsSync(join(state.root, 'FORBIDDEN_FILTER_SENTINEL')), false);
++  for (const [path, bytes] of Object.entries(fixture.files)) {
++    assert.deepEqual(readFileSync(join(state.root, path)), Buffer.from(bytes));
++    const selected = lstatSync(join(state.root, path));
++    const original = lstatSync(join(fixture.original, path));
++    assert.equal(selected.nlink, 1);
++    assert.ok(selected.dev !== original.dev || selected.ino !== original.ino);
++    assert.equal(selected.mode & 0o777, path === 'executable' ? 0o755 : 0o644);
++  }
++  assert.deepEqual(
++    states.map((value) => value.phase),
++    ['allocating', 'allocating', 'allocating', 'allocating', 'owned'],
++  );
++  verifyInstallerState(state);
++  cleanupCheckout(state);
++  assert.equal(existsSync(state.root), false);
++  assert.deepEqual(fingerprintTree(fixture.original), before);
++});
++
++test('modeled arithmetic: representative 47-byte original becomes only the fixed 34-byte sibling', () => {
++  const parent = `/${'p'.repeat(31)}`;
++  const original = `${parent}/${'r'.repeat(14)}`;
++  const selected = join(dirname(original), 'c');
++  assert.equal(Buffer.byteLength(original), 47);
++  assert.equal(Buffer.byteLength(selected), 34);
++  assert.throws(() => assertCheckoutBudget(original), /47 UTF-8 bytes/);
++  assert.equal(assertCheckoutBudget(selected), selected);
++  assertSocketSafeTmpdir(join(selected, '_tmpABC123'));
++  assert.equal(checkoutRootMaxBytes, resourceTmpdirMaxBytes - 11);
++  assert.equal(checkoutTmpdirMaxBytes, resourceTmpdirMaxBytes);
++  assert.equal(resourceTmpdirMaxBytes, 107 - 40 - 22);
++});
++
++for (const [name, root, bytes, accepted] of [
++  ['ASCII maximum', `/${'a'.repeat(31)}/c`, 34, true],
++  ['ASCII one over', `/${'a'.repeat(32)}/c`, 35, false],
++  ['two-byte maximum', `/a${'é'.repeat(15)}/c`, 34, true],
++  ['two-byte one over', `/${'é'.repeat(16)}/c`, 35, false],
++  ['three-byte maximum', `/${'한'.repeat(10)}a/c`, 34, true],
++  ['three-byte one over', `/${'한'.repeat(10)}ab/c`, 35, false],
++]) {
++  test(`modeled arithmetic with native UTF-8 measurement: ${name}`, () => {
++    assert.equal(Buffer.byteLength(root, 'utf8'), bytes);
++    if (accepted) {
++      assert.equal(assertCheckoutBudget(root), root);
++      assertSocketSafeTmpdir(join(root, '_tmpABC123'));
++    } else {
++      assert.throws(() => assertCheckoutBudget(root), /maximum is 34/);
++      assert.throws(() => assertSocketSafeTmpdir(join(root, '_tmpABC123')), /at most 45/);
++    }
++  });
++}
++
++for (const path of [
++  undefined,
++  null,
++  7,
++  {},
++  [],
++  '',
++  'relative/c',
++  '/a/../c',
++  '/a/./c',
++  '/a//c',
++  '/a/',
++  '/c\0suffix',
++  '/c\r',
++  '/c\n',
++]) {
++  test(`path normalization rejects ${JSON.stringify(path)}`, () => {
++    assert.throws(() => assertNormalizedPath(path), /normalized absolute Linux path/);
++  });
++}
++
++test('native deep fixture: full main rejects the actual over-budget sibling before allocation or Git', (t) => {
++  const fixture = sourceFixture(t);
++  const before = fingerprintTree(fixture.parent);
++  assert.ok(Buffer.byteLength(join(fixture.parent, 'c')) > checkoutRootMaxBytes);
++  assert.throws(() => selectCheckoutRoot(fixture.original), /maximum is 34/);
++  const saved = [];
++  const outputs = [];
++  const env = {
++    ...process.env,
++    GITHUB_WORKSPACE: fixture.original,
++    GITHUB_SHA: fixture.sha,
++    RUNNER_TEMP: join(fixture.parent, 'unused-runner-temp'),
++  };
++  const originalEnv = { ...env };
++  assert.throws(
++    () =>
++      runMain(env, {
++        save: (state) => saved.push(structuredClone(state)),
++        output: (value) => outputs.push(value),
++        run: () => assert.fail('No Git/tool/resource command may run before native selection succeeds'),
++      }),
++    /maximum is 34/,
++  );
++  assert.deepEqual(env, originalEnv);
++  assert.deepEqual(outputs, []);
++  assert.ok(saved.every((state) => state.version === 1 && state.phase === 'empty'));
++  assert.deepEqual(fingerprintTree(fixture.parent), before);
++  runAction(
++    { STATE_ci_checkout: JSON.stringify(saved.at(-1)) },
++    { run: () => assert.fail('Empty post must be a no-op') },
++  );
++  assert.deepEqual(fingerprintTree(fixture.parent), before);
++});
++
++test('real parent rejects filesystem-root parent, reserved original c, writable parent and symlink components', (t) => {
++  const parent = scratch(t);
++  const original = join(parent, 'original');
++  mkdirSync(original);
++  assert.throws(() => checkoutRelationship('/'), /Unsupported CI checkout parent/);
++  mkdirSync(join(parent, 'c'));
++  assert.throws(() => checkoutRelationship(join(parent, 'c')), /reserved sibling c/);
++  chmodSync(parent, 0o720);
++  assert.throws(() => checkoutRelationship(original), /owned and not group\/world writable/);
++  chmodSync(parent, 0o700);
++  const alias = join(parent, 'alias');
++  symlinkSync(original, alias);
++  assert.throws(() => checkoutRelationship(alias), /nonsymlink directory components/);
++  symlinkSync(parent, join(parent, 'parent-alias'));
++  assert.throws(
++    () => checkoutRelationship(join(parent, 'parent-alias', 'original')),
++    /nonsymlink directory components/,
++  );
++});
++
++for (const kind of ['file', 'directory', 'symlink', 'dangling symlink']) {
++  test(`real exclusive claim retains an existing ${kind} collision without fallback`, (t) => {
++    const parent = scratch(t);
++    const original = join(parent, 'original');
++    const root = join(parent, 'c');
++    mkdirSync(original);
++    if (kind === 'file') writeFileSync(root, 'EXISTING_SYNTHETIC_COLLISION\n');
++    if (kind === 'directory') write(root, 'existing', 'EXISTING_SYNTHETIC_COLLISION\n');
++    if (kind === 'symlink') symlinkSync(original, root);
++    if (kind === 'dangling symlink') symlinkSync(join(parent, 'missing'), root);
++    const before = fingerprintTree(parent);
++    assert.throws(
++      () => claimCheckout(checkoutRelationship(original), () => assert.fail('Collision must not save owned state')),
++      /EEXIST/,
++    );
++    assert.deepEqual(fingerprintTree(parent), before);
++  });
++}
++
++for (const key of [
++  'GIT_DIR',
++  'GIT_WORK_TREE',
++  'GIT_COMMON_DIR',
++  'GIT_OBJECT_DIRECTORY',
++  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
++  'GIT_INDEX_FILE',
++  'GIT_CONFIG',
++  'GIT_CONFIG_COUNT',
++  'GIT_CONFIG_GLOBAL',
++  'GIT_CONFIG_KEY_0',
++  'GIT_SHALLOW_FILE',
++  'GIT_REPLACE_REF_BASE',
++  'GIT_NAMESPACE',
++  'GIT_EXEC_PATH',
++  'GIT_TEMPLATE_DIR',
++]) {
++  test(`main rejects ambient ${key} before claiming or exporting a root`, (t) => {
++    const parent = scratch(t);
++    const saved = [];
++    assert.throws(
++      () =>
++        runMain(
++          {
++            PATH: process.env.PATH,
++            GITHUB_WORKSPACE: parent,
++            GITHUB_SHA: 'a'.repeat(40),
++            [key]: 'SYNTHETIC_ROUTING_NOT_A_SECRET',
++          },
++          {
++            save: (value) => saved.push(structuredClone(value)),
++            output: () => assert.fail('Routing failure must not publish outputs'),
++            run: () => assert.fail('Routing failure must not launch Git'),
++          },
++        ),
++      /Ambient Git repository\/config routing/,
++    );
++    assert.ok(saved.every((value) => value.phase === 'empty'));
++    assert.deepEqual(readdirSync(parent), []);
++  });
++}
++
++for (const sha of [
++  undefined,
++  null,
++  7,
++  [],
++  'a'.repeat(39),
++  'a'.repeat(41),
++  'A'.repeat(40),
++  `${'a'.repeat(40)}\n`,
++  'g'.repeat(40),
++]) {
++  test(`main rejects malformed event SHA ${JSON.stringify(sha)} without a source/tool command`, (t) => {
++    const parent = scratch(t);
++    assert.throws(
++      () =>
++        runMain(
++          { GITHUB_WORKSPACE: parent, GITHUB_SHA: sha },
++          {
++            save: () => {},
++            output: () => assert.fail('Malformed SHA must not publish outputs'),
++            run: () => assert.fail('Malformed SHA must not launch Git'),
++          },
++        ),
++      /exact lowercase 40-hex event SHA/,
++    );
++    assert.deepEqual(readdirSync(parent), []);
++  });
++}
++
++for (const kind of ['unreadable file', 'directory', 'dangling symlink']) {
++  test(`presence-only npmrc: main rejects original ${kind} before selection or content reads`, (t) => {
++    const parent = scratch(t);
++    const original = join(parent, 'original');
++    mkdirSync(original);
++    const npmrc = join(original, '.npmrc');
++    if (kind === 'unreadable file') {
++      writeFileSync(npmrc, 'SYNTHETIC_NOT_A_CREDENTIAL\n');
++      chmodSync(npmrc, 0o000);
++    }
++    if (kind === 'directory') mkdirSync(npmrc);
++    if (kind === 'dangling symlink') symlinkSync(join(parent, 'missing'), npmrc);
++    assert.throws(
++      () =>
++        runMain(
++          { GITHUB_WORKSPACE: original, GITHUB_SHA: 'a'.repeat(40) },
++          {
++            save: () => {},
++            output: () => assert.fail('npmrc rejection must not publish outputs'),
++            run: () => assert.fail('npmrc rejection precedes source-content reads/transfer'),
++          },
++        ),
++      /Root .npmrc is unsupported/,
++    );
++    assert.equal(existsSync(join(parent, 'c')), false);
++    assert.equal(lstatSync(npmrc).isSymbolicLink(), kind === 'dangling symlink');
++  });
++}
++
++const listingEntry = (path, mode = '100644', type = 'blob', oid = 'a'.repeat(40)) =>
++  Buffer.concat([
++    Buffer.from(`${mode} ${type} ${oid}\t`),
++    Buffer.isBuffer(path) ? path : Buffer.from(path),
++    Buffer.from([0]),
++  ]);
++for (const [name, bytes, pattern] of [
++  ['symlink', listingEntry('link', '120000'), /mode\/type/],
++  ['gitlink', listingEntry('module', '160000', 'commit'), /mode\/type/],
++  ['wrong mode/type pair', listingEntry('tree', '040000', 'blob'), /mode\/type/],
++  ['non-UTF-8 path', listingEntry(Buffer.from([255])), /non-UTF-8/],
++  ['absolute path', listingEntry('/absolute'), /Unsafe/],
++  ['traversal path', listingEntry('../outside'), /Unsafe/],
++  ['dot component', listingEntry('nested/./file'), /Unsafe/],
++  ['double slash', listingEntry('nested//file'), /Unsafe/],
++  ['Git administrative path', listingEntry('.Git/config'), /Unsafe/],
++  ['newline path', listingEntry('line\nfile'), /Unsafe/],
++  ['carriage-return path', listingEntry('line\rfile'), /Unsafe/],
++  ['missing parent tree', listingEntry('nested/file'), /parent relationship/],
++  ['root scratch', listingEntry('_tmpForbidden'), /scratch/],
++  ['root npmrc', listingEntry('.npmrc'), /blob is not read or transferred/],
++  ['duplicate path', Buffer.concat([listingEntry('file'), listingEntry('file')]), /duplicate/],
++  ['missing final NUL', listingEntry('file').subarray(0, -1), /NUL-delimited/],
++  ['empty record', Buffer.concat([listingEntry('file'), Buffer.from([0])]), /NUL-delimited/],
++  ['leading empty record', Buffer.concat([Buffer.from([0]), listingEntry('file')]), /NUL-delimited/],
++]) {
++  test(`tree parser rejects ${name} before any blob transfer`, () =>
++    assert.throws(() => parseTreeListing(bytes), pattern));
++}
++
++test('tree parser retains hidden, UTF-8/BOM and nested npmrc paths with explicit real parents', () => {
++  const entries = parseTreeListing(
++    Buffer.concat([
++      listingEntry('nested', '040000', 'tree'),
++      listingEntry('nested/.npmrc'),
++      listingEntry('.hidden'),
++      listingEntry('nested/한글-é'),
++      listingEntry('\uFEFFhidden'),
++    ]),
++  );
++  assert.deepEqual(
++    entries.map((entry) => entry.path),
++    ['nested', 'nested/.npmrc', '.hidden', 'nested/한글-é', '\uFEFFhidden'],
++  );
++});
++
++for (const bytes of [undefined, null, '', [], {}]) {
++  test(`tree parser rejects non-Buffer input ${JSON.stringify(bytes)}`, () =>
++    assert.throws(() => parseTreeListing(bytes), /NUL-delimited/));
++}
++
++const sourceRejections = [
++  ['wrong detached HEAD', (f) => write(f.original, '.git/HEAD', f.parents[0] + '\n'), /detached HEAD/],
++  ['symbolic HEAD', (f) => write(f.original, '.git/HEAD', 'ref: refs/heads/unrelated-fixture\n'), /detached HEAD/],
++  ['CRLF HEAD', (f) => write(f.original, '.git/HEAD', f.sha + '\r\n'), /detached HEAD/],
++  [
++    'high-bit HEAD',
++    (f) => {
++      const bytes = Buffer.from(f.sha + '\n');
++      bytes[0] |= 128;
++      write(f.original, '.git/HEAD', bytes);
++    },
++    /detached HEAD/,
++  ],
++  ['malformed index header', (f) => write(f.original, '.git/index', 'NOT_AN_INDEX'), /Malformed original Git index/],
++  ['truncated index', (f) => write(f.original, '.git/index', 'DIRC'), /Git ls-files failed/],
++  ['missing HEAD', (f) => unlinkSync(join(f.original, '.git/HEAD')), /ENOENT/],
++  ['missing index', (f) => unlinkSync(join(f.original, '.git/index')), /ENOENT/],
++  [
++    'HEAD symlink',
++    (f) => {
++      renameSync(join(f.original, '.git/HEAD'), join(f.parent, 'held-head'));
++      symlinkSync(join(f.parent, 'held-head'), join(f.original, '.git/HEAD'));
++    },
++    /ELOOP|nonsymlink/,
++  ],
++  [
++    'index symlink',
++    (f) => {
++      renameSync(join(f.original, '.git/index'), join(f.parent, 'held-index'));
++      symlinkSync(join(f.parent, 'held-index'), join(f.original, '.git/index'));
++    },
++    /ELOOP|nonsymlink/,
++  ],
++  [
++    'gitfile',
++    (f) => {
++      renameSync(join(f.original, '.git'), join(f.parent, 'held-git'));
++      write(f.original, '.git', 'gitdir: ../held-git\n');
++    },
++    /nonsymlink directory/,
++  ],
++  [
++    'Git directory symlink',
++    (f) => {
++      renameSync(join(f.original, '.git'), join(f.parent, 'held-git'));
++      symlinkSync(join(f.parent, 'held-git'), join(f.original, '.git'));
++    },
++    /nonsymlink directory/,
++  ],
++  ['linked worktree marker', (f) => write(f.original, '.git/commondir', '../private\n'), /Linked\/grafted/],
++  ['grafts', (f) => write(f.original, '.git/info/grafts', f.sha + '\n'), /Linked\/grafted/],
++  ['object alternates', (f) => write(f.original, '.git/objects/info/alternates', '../private\n'), /alternates/],
++  [
++    'HTTP alternates',
++    (f) => write(f.original, '.git/objects/info/http-alternates', 'https://fixture.invalid/not-accessed\n'),
++    /alternates/,
++  ],
++  ['promisor marker', (f) => write(f.original, '.git/objects/pack/synthetic.promisor', ''), /Promisor/],
++  [
++    'object storage symlink',
++    (f) => {
++      renameSync(join(f.original, '.git/objects'), join(f.parent, 'held-objects'));
++      symlinkSync(join(f.parent, 'held-objects'), join(f.original, '.git/objects'));
++    },
++    /nonsymlink directory/,
++  ],
++  [
++    'missing selected commit object',
++    (f) => unlinkSync(join(f.original, '.git/objects', f.sha.slice(0, 2), f.sha.slice(2))),
++    /Missing\/malformed selected Git object/,
++  ],
++  [
++    'selected SHA is a blob',
++    (f) => {
++      f.sha = f.unrelated;
++      write(f.original, '.git/HEAD', f.sha + '\n');
++    },
++    /event SHA must be a SHA-1 commit/,
++  ],
++  [
++    'loose object symlink',
++    (f) => {
++      const path = join(f.original, '.git/objects', f.sha.slice(0, 2), f.sha.slice(2));
++      renameSync(path, join(f.parent, 'held-object'));
++      symlinkSync(join(f.parent, 'held-object'), path);
++    },
++    /symlink\/nonregular Git object/,
++  ],
++  ['dirty blob', (f) => write(f.original, 'nested/binary', 'CHANGED_SYNTHETIC_BYTES'), /Dirty source bytes/],
++  ['changed executable mode', (f) => chmodSync(join(f.original, 'executable'), 0o644), /executable mode/],
++  ['missing committed file', (f) => unlinkSync(join(f.original, '.hidden')), /Missing selected source/],
++  [
++    'tracked file symlink',
++    (f) => {
++      unlinkSync(join(f.original, '.hidden'));
++      symlinkSync('empty', join(f.original, '.hidden'));
++    },
++    /Symlink source/,
++  ],
++  [
++    'nonregular tracked file',
++    (f) => {
++      unlinkSync(join(f.original, '.hidden'));
++      mkdirSync(join(f.original, '.hidden'));
++    },
++    /regular nonsymlink/,
++  ],
++  [
++    'staged different blob',
++    (f) => {
++      write(f.original, '.hidden', 'STAGED_SYNTHETIC_BYTES');
++      fixtureGit(f.original, ['add', '.hidden']);
++    },
++    /stage-zero tree/,
++  ],
++  [
++    'assume-unchanged index',
++    (f) => fixtureGit(f.original, ['update-index', '--assume-unchanged', '.hidden']),
++    /Hidden assume-unchanged/,
++  ],
++  [
++    'skip-worktree index',
++    (f) => fixtureGit(f.original, ['update-index', '--skip-worktree', '.hidden']),
++    /Hidden assume-unchanged/,
++  ],
++  [
++    'ignored dependencies',
++    (f) => write(f.original, 'node_modules/synthetic/index.js', 'NOT_TRANSFERABLE'),
++    /Unexpected source entry/,
++  ],
++  [
++    'ignored generated output',
++    (f) => write(f.original, 'dist/synthetic.js', 'NOT_TRANSFERABLE'),
++    /Unexpected source entry/,
++  ],
++  [
++    'ignored cache/scratch',
++    (f) => write(f.original, '_tmp-cache/synthetic', 'NOT_TRANSFERABLE'),
++    /Unexpected source entry/,
++  ],
++  ['extra empty directory', (f) => mkdirSync(join(f.original, 'untracked-directory')), /Unexpected source entry/],
++];
++
++for (const [name, mutate, pattern] of sourceRejections) {
++  test(`real source rejection: ${name} leaves the original untouched and launches no installer`, (t) => {
++    const fixture = sourceFixture(t);
++    mutate(fixture);
++    const before = fingerprintTree(fixture.original);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    const commands = [];
++    assert.throws(
++      () =>
++        transferSelectedSource(state, fixture.sha, {
++          run: (command, args, options) => {
++            commands.push(args);
++            assert.equal(command, 'git');
++            return spawnSync(command, args, options);
++          },
++        }),
++      pattern,
++    );
++    assert.ok(!commands.some((args) => args.includes('pack-objects')));
++    assert.deepEqual(fingerprintTree(fixture.original), before);
++    cleanupCheckout(state);
++    assert.equal(existsSync(state.root), false);
++    assert.deepEqual(fingerprintTree(fixture.original), before);
++  });
++}
++
++test('committed root npmrc is rejected from the tree even when absent from the worktree, before its blob batch/pack', (t) => {
++  const fixture = sourceFixture(t, { files: { '.npmrc': 'SYNTHETIC_NOT_A_CREDENTIAL\n' } });
++  unlinkSync(join(fixture.original, '.npmrc'));
++  const state = claimCheckout(checkoutRelationship(fixture.original));
++  const commands = [];
++  assert.throws(
++    () =>
++      transferSelectedSource(state, fixture.sha, {
++        run: (command, args, options) => {
++          commands.push(args);
++          return spawnSync(command, args, options);
++        },
++      }),
++    /Committed root .npmrc.*blob is not read or transferred/,
++  );
++  assert.equal(commands.filter((args) => args.includes('--batch')).length, 1); // Selected commit only.
++  assert.ok(!commands.some((args) => args.includes('pack-objects')));
++  cleanupCheckout(state);
++});
++
++for (const location of ['original', 'selected']) {
++  test(`installer rechecks presence-only ${location} npmrc immediately before a modeled installer`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    transferSelectedSource(state, fixture.sha);
++    verifyInstallerState(state);
++    const root = location === 'original' ? fixture.original : state.root;
++    symlinkSync(join(fixture.parent, 'missing-credential-file'), join(root, '.npmrc'));
++    assert.throws(() => rejectNpmrc(fixture.original, state.root), /Root .npmrc/);
++    assert.throws(() => verifyInstallerState(state), /Root .npmrc/);
++    cleanupCheckout(state);
++    assert.equal(existsSync(state.root), false);
++    if (location === 'original') assert.equal(lstatSync(join(root, '.npmrc')).isSymbolicLink(), true);
++  });
++}
++
++for (const pin of ['.gitignore', '.tool-versions', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
++  test(`selected closure requires committed ${pin} before packing`, (t) => {
++    const fixture = sourceFixture(t, { omit: [pin] });
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    assert.throws(() => transferSelectedSource(state, fixture.sha), /lacks required committed pin\/config/);
++    cleanupCheckout(state);
++  });
++}
++
++test('real committed symlink is rejected before source bytes or pack', (t) => {
++  const fixture = sourceFixture(t, { prepare: (root) => symlinkSync('empty', join(root, 'committed-link')) });
++  const state = claimCheckout(checkoutRelationship(fixture.original));
++  assert.throws(() => transferSelectedSource(state, fixture.sha), /mode\/type.*symlink\/gitlink/);
++  cleanupCheckout(state);
++});
++
++test('real gitlink is rejected and no submodule/source fetch is attempted', (t) => {
++  const fixture = sourceFixture(t);
++  fixtureGit(fixture.original, ['update-index', '--add', '--cacheinfo', `160000,${fixture.parents[0]},module`]);
++  const tree = fixtureGit(fixture.original, ['write-tree']);
++  fixture.sha = fixtureGit(fixture.original, ['commit-tree', tree, '-p', fixture.parents[0]], 'selected gitlink\n');
++  write(fixture.original, '.git/HEAD', fixture.sha + '\n');
++  const state = claimCheckout(checkoutRelationship(fixture.original));
++  assert.throws(() => transferSelectedSource(state, fixture.sha), /mode\/type.*symlink\/gitlink/);
++  cleanupCheckout(state);
++});
++
++test('committed ignore rules must cover both freshly owned children, without local excludes', (t) => {
++  const fixture = sourceFixture(t, { files: { '.gitignore': '' } });
++  const state = claimCheckout(checkoutRelationship(fixture.original));
++  assert.throws(() => transferSelectedSource(state, fixture.sha), /Git check-ignore failed \(exit 1\)/);
++  assert.equal(existsSync(join(state.root, '.git/info/exclude')), false);
++  cleanupCheckout(state);
++});
++
++const gitOperations = new Set([
++  'init',
++  'cat-file',
++  'ls-tree',
++  'ls-files',
++  'pack-objects',
++  'index-pack',
++  'fsck',
++  'read-tree',
++  'rev-parse',
++  'status',
++  'check-ignore',
++  'remote',
++]);
++const operation = (args) => args.find((arg) => gitOperations.has(arg));
++
++for (const [name, matches, replacement, pattern] of [
++  [
++    'initializer exit',
++    (args) => operation(args) === 'init',
++    () => ({ status: 1, stderr: Buffer.from('synthetic init failure') }),
++    /Git init failed.*exit 1/,
++  ],
++  [
++    'producer spawn error',
++    (args) => operation(args) === 'pack-objects',
++    () => ({ status: null, error: new Error('synthetic spawn failure') }),
++    /Git pack-objects failed.*synthetic spawn failure/,
++  ],
++  [
++    'producer signal',
++    (args) => operation(args) === 'pack-objects',
++    () => ({ status: null, signal: 'SIGTERM' }),
++    /Git pack-objects failed.*signal/,
++  ],
++  [
++    'producer exit',
++    (args) => operation(args) === 'pack-objects',
++    () => ({ status: 1, stderr: Buffer.from('synthetic producer failure') }),
++    /Git pack-objects failed.*exit 1/,
++  ],
++  [
++    'import exit',
++    (args) => operation(args) === 'index-pack',
++    () => ({ status: 1, stderr: Buffer.from('synthetic strict import failure') }),
++    /Git index-pack failed.*exit 1/,
++  ],
++  [
++    'strict connectivity exit',
++    (args) => operation(args) === 'fsck',
++    () => ({ status: 1, stderr: Buffer.from('synthetic strict connectivity failure') }),
++    /Git fsck failed.*exit 1/,
++  ],
++  [
++    'new index write exit',
++    (args) => operation(args) === 'read-tree',
++    () => ({ status: 1, stderr: Buffer.from('synthetic index write failure') }),
++    /Git read-tree failed.*exit 1/,
++  ],
++]) {
++  test(`real deep failure fixture: ${name} stops once and safely cleans only its new root`, (t) => {
++    const fixture = sourceFixture(t);
++    const before = fingerprintTree(fixture.original);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    const commands = [];
++    let failures = 0;
++    assert.throws(
++      () =>
++        transferSelectedSource(state, fixture.sha, {
++          run: (command, args, options) => {
++            assert.equal(command, 'git');
++            commands.push(args);
++            if (matches(args)) {
++              failures++;
++              return replacement();
++            }
++            return spawnSync(command, args, options);
++          },
++        }),
++      pattern,
++    );
++    assert.equal(failures, 1);
++    assert.ok(matches(commands.at(-1)), 'No fallback, weaker fsck, history copy, fetch or retry follows failure');
++    assert.deepEqual(fingerprintTree(fixture.original), before);
++    cleanupCheckout(state);
++    assert.equal(existsSync(state.root), false);
++    assert.deepEqual(fingerprintTree(fixture.original), before);
++  });
++}
++
++for (const [name, matches, alter, pattern] of [
++  [
++    'high-bit batch header',
++    (args, options) => operation(args) === 'cat-file' && args.includes('--batch') && options.env.GIT_OBJECT_DIRECTORY,
++    (result) => {
++      result.stdout = Buffer.from(result.stdout);
++      result.stdout[0] |= 128;
++    },
++    /Missing\/malformed selected Git object/,
++  ],
++  [
++    'corrupted selected object bytes',
++    (args) => operation(args) === 'cat-file' && args.includes('--batch'),
++    (result) => {
++      result.stdout = Buffer.from(result.stdout);
++      result.stdout[result.stdout.indexOf(10) + 1] ^= 1;
++    },
++    /hash\/content mismatch/,
++  ],
++  [
++    'truncated producer stdout',
++    (args) => operation(args) === 'pack-objects',
++    (result) => {
++      result.stdout = result.stdout.subarray(0, 12);
++    },
++    /Git index-pack failed/,
++  ],
++  [
++    'additional imported object inventory',
++    (args) => operation(args) === 'cat-file' && args.includes('--batch-all-objects'),
++    (result) => {
++      result.stdout = Buffer.concat([result.stdout, Buffer.from('b'.repeat(40) + '\n')]);
++    },
++    /inventory is not exactly/,
++  ],
++  [
++    'high-bit imported object inventory',
++    (args) => operation(args) === 'cat-file' && args.includes('--batch-all-objects'),
++    (result) => {
++      result.stdout = Buffer.from(result.stdout);
++      result.stdout[0] |= 128;
++    },
++    /inventory is not exactly/,
++  ],
++  [
++    'unterminated imported object inventory',
++    (args) => operation(args) === 'cat-file' && args.includes('--batch-all-objects'),
++    (result) => {
++      result.stdout = result.stdout.subarray(0, -1);
++    },
++    /inventory is not exactly/,
++  ],
++]) {
++  test(`malformed command-output fixture: ${name} is rejected without relaxed verification`, (t) => {
++    const fixture = sourceFixture(t);
++    const before = fingerprintTree(fixture.original);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    let altered = false;
++    assert.throws(
++      () =>
++        transferSelectedSource(state, fixture.sha, {
++          run: (command, args, options) => {
++            const result = spawnSync(command, args, options);
++            if (!altered && matches(args, options)) {
++              altered = true;
++              alter(result);
++            }
++            return result;
++          },
++        }),
++      pattern,
++    );
++    assert.equal(altered, true);
++    assert.deepEqual(fingerprintTree(fixture.original), before);
++    cleanupCheckout(state);
++    assert.deepEqual(fingerprintTree(fixture.original), before);
++  });
++}
++
++for (const [name, mutate, pattern] of [
++  [
++    'duplicate shallow boundary',
++    (state, fixture) => write(state.root, '.git/shallow', fixture.sha + '\n' + fixture.sha + '\n'),
++    /shallow boundary/,
++  ],
++  ['pnpm child mode changed before ready', (state) => chmodSync(state.pnpmDest, 0o755), /pnpm.*ownership changed/],
++  [
++    'late independent synthetic orphan object',
++    (state, fixture) =>
++      write(
++        state.root,
++        `.git/objects/${fixture.unrelated.slice(0, 2)}/${fixture.unrelated.slice(2)}`,
++        readFileSync(join(fixture.original, '.git/objects', fixture.unrelated.slice(0, 2), fixture.unrelated.slice(2))),
++      ),
++    /inventory is not exactly/,
++  ],
++  [
++    'forbidden hook metadata',
++    (state) => write(state.root, '.git/hooks/synthetic', 'NEVER_RUN_SYNTHETIC_HOOK'),
++    /forbidden copied\/shared metadata/,
++  ],
++]) {
++  test(`late source isolation fixture: ${name} cannot become a verified checkout`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    let changed = false;
++    assert.throws(
++      () =>
++        transferSelectedSource(state, fixture.sha, {
++          run: (command, args, options) => {
++            const result = spawnSync(command, args, options);
++            if (!changed && operation(args) === 'cat-file' && args.includes('--batch-all-objects')) {
++              changed = true;
++              mutate(state, fixture);
++            }
++            return result;
++          },
++        }),
++      pattern,
++    );
++    assert.equal(changed, true);
++    cleanupCheckout(state);
++  });
++}
++
++for (const [name, mutate, pattern] of [
++  ['source bytes', (fixture) => write(fixture.original, '.hidden', 'CHANGED_DURING_TRANSFER'), /Dirty source bytes/],
++  [
++    'raw HEAD',
++    (fixture) => write(fixture.original, '.git/HEAD', fixture.sha + '\r\n'),
++    /HEAD\/index changed during source transfer/,
++  ],
++  // update-index may refresh other entries: neutralize the public synthetic
++  // filter so this mutation changes only index flags, not a source sentinel.
++  [
++    'index flags',
++    (fixture) =>
++      fixtureGit(fixture.original, [
++        '-c',
++        'filter.fixture.clean=',
++        '-c',
++        'filter.fixture.smudge=',
++        'update-index',
++        '--assume-unchanged',
++        '.hidden',
++      ]),
++    /Hidden assume-unchanged/,
++  ],
++]) {
++  test(`real transfer recheck rejects changed original ${name} and never modifies it further`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    let changed;
++    assert.throws(
++      () =>
++        transferSelectedSource(state, fixture.sha, {
++          run: (command, args, options) => {
++            const result = spawnSync(command, args, options);
++            if (!changed && operation(args) === 'pack-objects') {
++              mutate(fixture);
++              changed = fingerprintTree(fixture.original);
++            }
++            return result;
++          },
++        }),
++      pattern,
++    );
++    assert.ok(changed);
++    assert.deepEqual(fingerprintTree(fixture.original), changed);
++    cleanupCheckout(state);
++    assert.deepEqual(fingerprintTree(fixture.original), changed);
++  });
++}
++
++test('late selected source hardlink is rejected and cleanup only unlinks the owned alias', (t) => {
++  const fixture = sourceFixture(t);
++  const before = fingerprintTree(fixture.original);
++  const state = claimCheckout(checkoutRelationship(fixture.original));
++  let changed = false;
++  assert.throws(
++    () =>
++      transferSelectedSource(state, fixture.sha, {
++        run: (command, args, options) => {
++          const result = spawnSync(command, args, options);
++          if (!changed && operation(args) === 'read-tree') {
++            changed = true;
++            unlinkSync(join(state.root, '.hidden'));
++            linkSync(join(fixture.original, '.hidden'), join(state.root, '.hidden'));
++          }
++          return result;
++        },
++      }),
++    /shares hardlinks\/inodes/,
++  );
++  assert.equal(changed, true);
++  cleanupCheckout(state);
++  assert.deepEqual(fingerprintTree(fixture.original), before);
++});
++
++for (const kind of ['symlink', 'hardlink']) {
++  test(`generated config ${kind} replacement fails without truncating another inode`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    const held = join(fixture.parent, 'unowned-synthetic-config');
++    writeFileSync(held, 'DO_NOT_TRUNCATE_SYNTHETIC_CONFIG\n');
++    const before = readFileSync(held);
++    assert.throws(
++      () =>
++        transferSelectedSource(state, fixture.sha, {
++          run: (command, args, options) => {
++            const result = spawnSync(command, args, options);
++            if (operation(args) === 'init') {
++              unlinkSync(join(state.root, '.git/config'));
++              if (kind === 'symlink') symlinkSync(held, join(state.root, '.git/config'));
++              else linkSync(held, join(state.root, '.git/config'));
++            }
++            return result;
++          },
++        }),
++      /ELOOP|Unsafe generated Git file/,
++    );
++    assert.deepEqual(readFileSync(held), before);
++    cleanupCheckout(state);
++    assert.deepEqual(readFileSync(held), before);
++  });
++}
++
++for (const kind of ['file collision', 'symlink collision', 'directory symlink']) {
++  test(`exclusive materialization ${kind} fails without touching its external target`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    const held = join(fixture.parent, 'retained-materialization-target');
++    write(held, 'sentinel', 'DO_NOT_TOUCH_SYNTHETIC_TARGET\n');
++    const before = fingerprintTree(held);
++    assert.throws(
++      () =>
++        transferSelectedSource(state, fixture.sha, {
++          run: (command, args, options) => {
++            const result = spawnSync(command, args, options);
++            if (operation(args) === 'cat-file' && args.includes('--batch-all-objects')) {
++              if (kind === 'file collision') writeFileSync(join(state.root, '.hidden'), 'EXISTING_OWNED_COLLISION');
++              if (kind === 'symlink collision') symlinkSync(join(held, 'sentinel'), join(state.root, '.hidden'));
++              if (kind === 'directory symlink') symlinkSync(held, join(state.root, 'nested'));
++            }
++            return result;
++          },
++        }),
++      /EEXIST|nonsymlink directory/,
++    );
++    assert.deepEqual(fingerprintTree(held), before);
++    cleanupCheckout(state);
++    assert.deepEqual(fingerprintTree(held), before);
++  });
++}
++
++for (const stop of [1, 2, 3, 4, 5]) {
++  test(`ordinary allocation save failure ${stop} removes only observed newly owned empty directories`, (t) => {
++    const parent = scratch(t);
++    const original = join(parent, 'original');
++    mkdirSync(original);
++    let calls = 0;
++    assert.throws(
++      () =>
++        claimCheckout(checkoutRelationship(original), () => {
++          if (++calls === stop) throw new Error('synthetic state writer failure');
++        }),
++      /synthetic state writer failure/,
++    );
++    assert.equal(calls, stop);
++    assert.deepEqual(readdirSync(parent), ['original']);
++  });
++}
++
++test('partial allocation mode change refuses cleanup and retains the unsupported allocation', (t) => {
++  const parent = scratch(t);
++  const original = join(parent, 'original');
++  mkdirSync(original);
++  assert.throws(
++    () =>
++      claimCheckout(checkoutRelationship(original), (state) => {
++        chmodSync(state.root, 0o755);
++        throw new Error('synthetic state writer failure after mode change');
++      }),
++    /unsafe cleanup retained/,
++  );
++  assert.equal(lstatSync(join(parent, 'c')).mode & 0o777, 0o755);
++});
++
++for (const [name, stop, target] of [
++  ['Git directory mode', 2, (state) => join(state.root, '.git')],
++  ['temporary child mode', 3, (state) => state.tmpdir],
++  ['installer child mode', 4, (state) => state.pnpmDest],
++]) {
++  test(`partial allocation ${name} change retains every observed directory`, (t) => {
++    const parent = scratch(t);
++    const original = join(parent, 'original');
++    mkdirSync(original);
++    let calls = 0;
++    assert.throws(
++      () =>
++        claimCheckout(checkoutRelationship(original), (state) => {
++          if (++calls === stop) {
++            chmodSync(target(state), 0o755);
++            throw new Error('synthetic allocation state failure');
++          }
++        }),
++      /unsafe cleanup retained/,
++    );
++    assert.equal(existsSync(join(parent, 'c/.git')), true);
++  });
++}
++
++test('nonempty partial allocation and unwitnessed modeled post retain contents without falling through to main', (t) => {
++  const parent = scratch(t);
++  const original = join(parent, 'original');
++  mkdirSync(original);
++  let saved;
++  assert.throws(
++    () =>
++      claimCheckout(checkoutRelationship(original), (state) => {
++        if (state.gitId) {
++          saved = structuredClone(state);
++          write(state.root, '.git/unwitnessed-sentinel', 'RETAIN_SYNTHETIC_CONTENT');
++          throw new Error('synthetic allocation interruption');
++        }
++      }),
++    /unsafe cleanup retained/,
++  );
++  const before = fingerprintTree(parent);
++  assert.throws(
++    () =>
++      runAction(
++        { STATE_ci_checkout: JSON.stringify(saved) },
++        {
++          save: () => assert.fail('Post must not begin main'),
++          run: () => assert.fail('Post must not run source commands'),
++        },
++      ),
++    /ENOENT/,
++  );
++  assert.deepEqual(fingerprintTree(parent), before);
++});
++
++const invalidStates = [
++  [
++    'wrong version',
++    (s) => {
++      s.version = 2;
++    },
++  ],
++  [
++    'wrong phase',
++    (s) => {
++      s.phase = 'unknown';
++    },
++  ],
++  [
++    'unexpected key',
++    (s) => {
++      s.fallback = true;
++    },
++  ],
++  [
++    'original root reuse',
++    (s) => {
++      s.root = s.original;
++    },
++  ],
++  [
++    'foreign sibling',
++    (s) => {
++      s.root = join(s.parent, 'foreign');
++    },
++  ],
++  [
++    'non-string token',
++    (s) => {
++      s.token = [s.token];
++    },
++  ],
++  [
++    'bad token',
++    (s) => {
++      s.token = 'a';
++    },
++  ],
++  [
++    'unsafe inode',
++    (s) => {
++      s.rootId.ino = Number.MAX_SAFE_INTEGER + 1;
++    },
++  ],
++  [
++    'negative device',
++    (s) => {
++      s.rootId.dev = -1;
++    },
++  ],
++  [
++    'missing root identity',
++    (s) => {
++      delete s.rootId;
++    },
++  ],
++  [
++    'extra identity key',
++    (s) => {
++      s.gitId.path = 'unexpected';
++    },
++  ],
++  [
++    'foreign tmp child',
++    (s) => {
++      s.tmpdir = join(s.parent, '_tmpABC123');
++    },
++  ],
++  [
++    'malformed tmp child',
++    (s) => {
++      s.tmpdir = join(s.root, '_tmpTOOLONG');
++    },
++  ],
++  [
++    'missing pnpm identity',
++    (s) => {
++      delete s.pnpmId;
++    },
++  ],
++  [
++    'mismatched parent identity',
++    (s) => {
++      s.parentId.ino++;
++    },
++  ],
++  [
++    'mismatched root identity',
++    (s) => {
++      s.rootId.ino++;
++    },
++  ],
++  [
++    'mismatched Git identity',
++    (s) => {
++      s.gitId.ino++;
++    },
++  ],
++];
++for (const [name, mutate] of invalidStates) {
++  test(`ownership cleanup rejects ${name} and leaves both roots byte/mode/inode-identical`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    const before = fingerprintTree(fixture.parent);
++    const invalid = structuredClone(state);
++    mutate(invalid);
++    assert.throws(() => cleanupCheckout(invalid), /Malformed|ownership changed|witness mismatch/);
++    assert.deepEqual(fingerprintTree(fixture.parent), before);
++    cleanupCheckout(state);
++  });
++}
++
++for (const kind of ['missing', 'malformed', 'mismatched', 'wrong mode', 'symlink', 'hardlink']) {
++  test(`ownership cleanup retains ${kind} witness rather than authorizing deletion`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    const path = join(state.root, '.git/ci-checkout-owner.json');
++    if (kind === 'missing') unlinkSync(path);
++    if (kind === 'malformed') writeFileSync(path, '{');
++    if (kind === 'mismatched') {
++      const witness = JSON.parse(readFileSync(path));
++      witness.token = '0'.repeat(64);
++      writeFileSync(path, JSON.stringify(witness));
++    }
++    if (kind === 'wrong mode') chmodSync(path, 0o644);
++    if (kind === 'symlink' || kind === 'hardlink') {
++      renameSync(path, join(fixture.parent, 'held-witness'));
++      if (kind === 'symlink') symlinkSync(join(fixture.parent, 'held-witness'), path);
++      else linkSync(join(fixture.parent, 'held-witness'), path);
++    }
++    const before = fingerprintTree(fixture.parent);
++    assert.throws(() => cleanupCheckout(state), /ENOENT|Malformed|mismatch|Invalid|ELOOP/);
++    assert.deepEqual(fingerprintTree(fixture.parent), before);
++  });
++}
++
++for (const kind of ['root', 'Git directory', 'parent']) {
++  test(`post ownership rejects ${kind} mode changes and retains all observed contents`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    const target = kind === 'root' ? state.root : kind === 'Git directory' ? join(state.root, '.git') : state.parent;
++    chmodSync(target, kind === 'parent' ? 0o720 : 0o755);
++    const before = fingerprintTree(fixture.parent);
++    assert.throws(
++      () => runAction({ STATE_ci_checkout: JSON.stringify(state) }),
++      /ownership changed|owned and not group\/world writable/,
++    );
++    assert.deepEqual(fingerprintTree(fixture.parent), before);
++    chmodSync(target, 0o700);
++    cleanupCheckout(state);
++  });
++}
++
++for (const kind of ['directory', 'symlink']) {
++  test(`post rejects a replaced ${kind} root without removing the replacement or moved owned root`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    renameSync(state.root, join(fixture.parent, 'moved-owned-root'));
++    if (kind === 'directory') write(state.root, 'foreign-sentinel', 'DO_NOT_DELETE_REPLACEMENT');
++    else symlinkSync(fixture.original, state.root);
++    const before = fingerprintTree(fixture.parent);
++    assert.throws(() => runAction({ STATE_ci_checkout: JSON.stringify(state) }), /ownership changed|nonsymlink/);
++    assert.deepEqual(fingerprintTree(fixture.parent), before);
++  });
++}
++
++for (const child of ['tmpdir', 'pnpmDest']) {
++  test(`installer guard rejects replaced ${child} and child mode changes`, (t) => {
++    const fixture = sourceFixture(t);
++    const state = claimCheckout(checkoutRelationship(fixture.original));
++    verifyInstallerState(state);
++    chmodSync(state[child], 0o755);
++    assert.throws(() => verifyInstallerState(state), /ownership changed/);
++    chmodSync(state[child], 0o700);
++    renameSync(state[child], join(fixture.parent, 'held-installer-child'));
++    mkdirSync(state[child], { mode: 0o700 });
++    assert.throws(() => verifyInstallerState(state), /ownership changed/);
++    cleanupCheckout(state); // Root/witness still owned; no traversal outside that root.
++    assert.equal(existsSync(join(fixture.parent, 'held-installer-child')), true);
++  });
++}
++
++test('installer guard rejects a nonempty pnpm destination without removing its contents', (t) => {
++  const fixture = sourceFixture(t);
++  const state = claimCheckout(checkoutRelationship(fixture.original));
++  write(state.pnpmDest, 'existing', 'DO_NOT_INSTALL_OVER_SYNTHETIC_CONTENT\n');
++  const before = fingerprintTree(fixture.parent);
++  assert.throws(() => verifyInstallerState(state), /not the newly owned empty installer directory/);
++  assert.deepEqual(fingerprintTree(fixture.parent), before);
++  cleanupCheckout(state);
++});
++
++test('modeled isolated pnpm recreation and LIFO posts keep inputs until cache/tool posts, then clean only selected root', (t) => {
++  const fixture = sourceFixture(t);
++  const original = fingerprintTree(fixture.original);
++  const state = claimCheckout(checkoutRelationship(fixture.original));
++  transferSelectedSource(state, fixture.sha);
++  state.phase = 'ready'; // Deep fixture lifecycle model, not a runMain/native/hosted success.
++  verifyInstallerState(state);
++  rmdirSync(state.pnpmDest);
++  mkdirSync(state.pnpmDest, { mode: 0o700 }); // Inspected installer owns remove/recreate ONLY here.
++  const sentinel = spawnSync(
++    process.execPath,
++    ['-e', 'console.log(JSON.stringify({cwd:process.cwd(),tmpdir:process.env.TMPDIR}))'],
++    { cwd: state.pnpmDest, env: { PATH: process.env.PATH, TMPDIR: state.tmpdir }, encoding: 'utf8' },
++  );
++  assert.equal(sentinel.status, 0, sentinel.stderr);
++  assert.deepEqual(JSON.parse(sentinel.stdout), { cwd: state.pnpmDest, tmpdir: state.tmpdir });
++  const held = join(fixture.parent, 'retained-symlink-target');
++  write(held, 'sentinel', 'OUTSIDE_ROOT_SYNTHETIC_SENTINEL');
++  symlinkSync(held, join(state.root, 'node_modules'));
++  const heldBefore = fingerprintTree(held);
++  const order = [];
++  const posts = [
++    () => {
++      order.push('original-checkout');
++      assert.deepEqual(fingerprintTree(fixture.original), original);
++    },
++    () => {
++      order.push('source');
++      runAction(
++        { STATE_ci_checkout: JSON.stringify(state), GITHUB_WORKSPACE: fixture.original },
++        { run: () => assert.fail('Post must not run source/tool commands') },
++      );
++    },
++    () => {
++      order.push('cache/tool');
++      assert.equal(existsSync(state.root), true);
++      assert.equal(existsSync(state.tmpdir), true);
++    },
++  ];
++  while (posts.length) posts.pop()();
++  assert.deepEqual(order, ['cache/tool', 'source', 'original-checkout']);
++  assert.equal(existsSync(state.root), false);
++  assert.deepEqual(fingerprintTree(held), heldBefore);
++  assert.deepEqual(fingerprintTree(fixture.original), original);
++});
++
++test('post empty/cleaned states are idempotent and malformed private state never falls through to main', (t) => {
++  const parent = scratch(t);
++  for (const input of ['', '{', 'null', '[]', '{}', '{"version":1,"phase":"empty","root":"/c"}']) {
++    assert.throws(
++      () =>
++        runAction(
++          { STATE_ci_checkout: input, GITHUB_WORKSPACE: parent },
++          {
++            save: () => assert.fail('Malformed post must not start main'),
++            run: () => assert.fail('Malformed post must not run Git'),
++          },
++        ),
++      /Malformed/,
++    );
++  }
++  assert.deepEqual(runAction({ STATE_ci_checkout: '{"version":1,"phase":"empty"}' }), { version: 1, phase: 'empty' });
++  const original = join(parent, 'original');
++  mkdirSync(original);
++  const state = claimCheckout(checkoutRelationship(original));
++  cleanupCheckout(state);
++  write(join(parent, 'c'), 'foreign', 'NEW_COLLISION_MUST_REMAIN');
++  const before = fingerprintTree(parent);
++  runAction({ STATE_ci_checkout: JSON.stringify(state) });
++  assert.deepEqual(fingerprintTree(parent), before);
++});
++
++test('runner state file symlink is rejected before main allocation and its target is unchanged', (t) => {
++  const parent = scratch(t);
++  const held = join(parent, 'runner-state-target');
++  writeFileSync(held, 'DO_NOT_APPEND\n');
++  symlinkSync(held, join(parent, 'runner-state-link'));
++  assert.throws(
++    () =>
++      runMain({
++        GITHUB_STATE: join(parent, 'runner-state-link'),
++        GITHUB_WORKSPACE: parent,
++        GITHUB_SHA: 'a'.repeat(40),
++      }),
++    /ELOOP/,
++  );
++  assert.equal(readFileSync(held, 'utf8'), 'DO_NOT_APPEND\n');
++});
++
++for (const args of [['--skip-budget'], ['--root', '/c'], ['--mode', 'post'], ['--check-install', '--skip-budget']]) {
++  test(`CLI exposes no selector, budget or lifecycle override: ${args.join(' ')}`, (t) => {
++    const parent = scratch(t);
++    const result = spawnSync(
++      process.execPath,
++      [resolve(repositoryRoot, '.github/actions/ci-checkout/index.mjs'), ...args],
++      { cwd: parent, env: { PATH: process.env.PATH, TMPDIR: parent }, encoding: 'utf8' },
++    );
++    assert.equal(result.status, 1);
++    assert.equal(result.stdout, '');
++    assert.match(result.stderr, /No public checkout path\/budget\/action-mode overrides/);
++    assert.deepEqual(readdirSync(parent), []);
++  });
++}
++
++for (const [name, mutate] of [
++  [
++    'top-level TMPDIR missing',
++    (job) => {
++      delete job.steps[2].env;
++    },
++  ],
++  [
++    'selected input missing',
++    (job) => {
++      delete job.steps[2].with['checkout-root'];
++    },
++  ],
++  [
++    'original cwd on validation shell',
++    (job) => {
++      job.steps[3]['working-directory'] = '${{ github.workspace }}';
++    },
++  ],
++]) {
++  test(`effective inheritance model detects ${name} instead of assuming fixture defaults`, (t) => {
++    const fixture = bindingFixture(t);
++    const job = structuredClone(workflow().jobs['ci-validate']);
++    mutate(job);
++    assert.throws(() => assertModeledBindings(modelJob(job, fixture), fixture));
++  });
++}
+--- stage2-preflight/scripts/ci-test-plan.mjs
++++ selected-final/scripts/ci-test-plan.mjs
+@@ -344,11 +344,25 @@
+   cache: 'actions/cache@5a3ec84eff668545956fd18022155c47e93e2684',
+   node: 'actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38',
+   pnpm: 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1',
++  source: './.github/actions/ci-checkout',
+   setup: './.github/actions/ci-setup',
+   prepare: './.github/actions/ci-prepare',
+   test: './.github/actions/ci-test',
+ };
+ const checkout = () => ({ uses: ciActions.checkout, with: { ref: '${{ github.sha }}' } });
++const source = () => ({ id: 'source', uses: ciActions.source });
++const sourceInputs = {
++  'checkout-root': '${{ steps.source.outputs.root }}',
++  'checkout-relative': '${{ steps.source.outputs.relative-root }}',
++  'pnpm-dest': '${{ steps.source.outputs.pnpm-dest }}',
++};
++const sourceEnv = () => ({ TMPDIR: '${{ steps.source.outputs.tmpdir }}' });
++const sourceShell = (run, env = {}) => ({
++  run,
++  'working-directory': '${{ steps.source.outputs.root }}',
++  env: { ...sourceEnv(), ...env },
++});
++const sourceSetup = () => ({ uses: ciActions.setup, with: { ...sourceInputs }, env: sourceEnv() });
+ const preparationOutputs = {
+   'artifact-name': '${{ steps.prepare.outputs.artifact-name }}',
+   'artifact-digest': '${{ steps.prepare.outputs.artifact-digest }}',
+@@ -359,14 +373,24 @@
+     'ci-validate': {
+       name: 'ci-validate',
+       'runs-on': 'ubuntu-24.04',
+-      steps: [checkout(), { uses: ciActions.setup }, { run: 'pnpm test:groups:check' }, { run: 'pnpm test:ci:check' }],
++      steps: [
++        checkout(),
++        source(),
++        sourceSetup(),
++        sourceShell('pnpm test:groups:check'),
++        sourceShell('pnpm test:ci:check'),
++      ],
+     },
+     'ci-prepare': {
+       name: 'ci-prepare',
+       'runs-on': 'ubuntu-24.04',
+       needs: ['ci-validate'],
+       outputs: { ...preparationOutputs },
+-      steps: [checkout(), { id: 'prepare', uses: ciActions.prepare }],
++      steps: [
++        checkout(),
++        source(),
++        { id: 'prepare', uses: ciActions.prepare, with: { ...sourceInputs }, env: sourceEnv() },
++      ],
+     },
+   };
+   for (const node of model.nodes) {
+@@ -376,13 +400,16 @@
+       needs: [...node.needs],
+       steps: [
+         checkout(),
++        source(),
+         {
+           uses: ciActions.test,
+           with: {
++            ...sourceInputs,
+             workspace: node.workspace,
+             'artifact-name': '${{ needs.ci-prepare.outputs.artifact-name }}',
+             'artifact-digest': '${{ needs.ci-prepare.outputs.artifact-digest }}',
+           },
++          env: sourceEnv(),
+         },
+       ],
+     };
+@@ -394,11 +421,9 @@
+     if: '${{ always() }}',
+     steps: [
+       checkout(),
+-      { uses: ciActions.setup },
+-      {
+-        run: 'node scripts/ci-test-results.mjs',
+-        env: { CI_TEST_NEEDS: '${{ toJSON(needs) }}' },
+-      },
++      source(),
++      sourceSetup(),
++      sourceShell('node scripts/ci-test-results.mjs', { CI_TEST_NEEDS: '${{ toJSON(needs) }}' }),
+     ],
+   };
+   return jobs;
+@@ -503,13 +528,47 @@
+ // The preparation script builds serially, packs, and emits name/path/digest.
+ export const helperStepContracts = {
+   [ciActions.setup]: [
+-    { uses: ciActions.node, with: { 'node-version-file': '.tool-versions', 'package-manager-cache': false } },
+-    { uses: ciActions.pnpm, with: { package_json_file: 'package.json', run_install: false, cache: false } },
+-    { id: 'install', shell: 'bash', run: 'pnpm install --frozen-lockfile --ignore-scripts' },
+-    { id: 'tools', shell: 'bash', run: 'node scripts/ci-test-workspace.mjs setup' },
++    {
++      uses: ciActions.node,
++      with: { 'node-version-file': '${{ inputs.checkout-relative }}/.tool-versions', 'package-manager-cache': false },
++    },
++    {
++      id: 'installer-boundary',
++      shell: 'bash',
++      'working-directory': '${{ inputs.checkout-root }}',
++      run: 'node .github/actions/ci-checkout/index.mjs --check-install',
++    },
++    {
++      uses: ciActions.pnpm,
++      with: {
++        package_json_file: '${{ inputs.checkout-relative }}/package.json',
++        dest: '${{ inputs.pnpm-dest }}',
++        run_install: false,
++        cache: false,
++      },
++    },
++    {
++      id: 'install',
++      shell: 'bash',
++      'working-directory': '${{ inputs.checkout-root }}',
++      run: 'pnpm install --frozen-lockfile --ignore-scripts',
++    },
++    {
++      id: 'tools',
++      shell: 'bash',
++      'working-directory': '${{ inputs.checkout-root }}',
++      run: 'node scripts/ci-test-workspace.mjs setup',
++    },
+   ],
+   [ciActions.test]: [
+-    { uses: ciActions.setup },
++    {
++      uses: ciActions.setup,
++      with: {
++        'checkout-root': '${{ inputs.checkout-root }}',
++        'checkout-relative': '${{ inputs.checkout-relative }}',
++        'pnpm-dest': '${{ inputs.pnpm-dest }}',
++      },
++    },
+     {
+       id: 'artifacts',
+       uses: ciActions.download,
+@@ -518,6 +577,7 @@
+     {
+       id: 'restore',
+       shell: 'bash',
++      'working-directory': '${{ inputs.checkout-root }}',
+       run: 'node scripts/ci-test-workspace.mjs restore',
+       env: {
+         CI_TEST_WORKSPACE: '${{ inputs.workspace }}',
+@@ -544,6 +604,7 @@
+     {
+       id: 'test',
+       shell: 'bash',
++      'working-directory': '${{ inputs.checkout-root }}',
+       run: 'node scripts/ci-test-workspace.mjs',
+       env: {
+         CI_TEST_WORKSPACE: '${{ inputs.workspace }}',
+@@ -557,8 +618,20 @@
+     },
+   ],
+   [ciActions.prepare]: [
+-    { uses: ciActions.setup },
+-    { id: 'prepare', shell: 'bash', run: 'node scripts/ci-test-artifacts.mjs prepare' },
++    {
++      uses: ciActions.setup,
++      with: {
++        'checkout-root': '${{ inputs.checkout-root }}',
++        'checkout-relative': '${{ inputs.checkout-relative }}',
++        'pnpm-dest': '${{ inputs.pnpm-dest }}',
++      },
++    },
++    {
++      id: 'prepare',
++      shell: 'bash',
++      'working-directory': '${{ inputs.checkout-root }}',
++      run: 'node scripts/ci-test-artifacts.mjs prepare',
++    },
+     {
+       uses: ciActions.upload,
+       with: {
+@@ -592,12 +665,43 @@
+ }
+ 
+ export function validateHelperContracts(sources) {
+-  for (const name of [ciActions.setup, ciActions.prepare, ciActions.test]) {
++  for (const name of [ciActions.source, ciActions.setup, ciActions.prepare, ciActions.test]) {
+     if (typeof sources?.[name] !== 'string') throw new Error(`Missing CI helper contract: ${name}/action.yml`);
+   }
++  const bootstrap = parseStrictYaml(sources[ciActions.source], ciActions.source);
++  if (!record(bootstrap)) throw new Error(`${ciActions.source}: expected a JavaScript action mapping`);
++  const bootstrapContract = Object.fromEntries(
++    Object.entries(bootstrap).filter(([key]) => !['name', 'description'].includes(key)),
++  );
++  if (record(bootstrap.outputs)) {
++    bootstrapContract.outputs = Object.fromEntries(
++      Object.entries(bootstrap.outputs).map(([key, value]) => [
++        key,
++        record(value) ? Object.fromEntries(Object.entries(value).filter(([field]) => field !== 'description')) : value,
++      ]),
++    );
++  }
++  assertContract(
++    bootstrapContract,
++    {
++      outputs: {
++        root: {},
++        'relative-root': {},
++        tmpdir: {},
++        'pnpm-dest': {},
++      },
++      runs: { using: 'node20', main: 'index.mjs', post: 'index.mjs', 'post-if': 'always()' },
++    },
++    ciActions.source,
++  );
+   for (const name of [ciActions.setup, ciActions.test, ciActions.prepare]) {
+     const action = composite(sources[name], name);
+-    const inputs = name === ciActions.test ? ['workspace', 'artifact-name', 'artifact-digest'] : [];
++    const inputs = [
++      'checkout-root',
++      'checkout-relative',
++      'pnpm-dest',
++      ...(name === ciActions.test ? ['workspace', 'artifact-name', 'artifact-digest'] : []),
++    ];
+     if (!record(action.inputs ?? {})) throw new Error(`${name}.inputs: expected a mapping`);
+     assertSet(Object.keys(action.inputs ?? {}), inputs, `${name}.inputs`);
+     for (const input of inputs) {
+@@ -638,7 +742,7 @@
+   }
+   validateWorkflowJobs(source, model);
+   const helpers = {};
+-  for (const name of [ciActions.setup, ciActions.prepare, ciActions.test]) {
++  for (const name of [ciActions.source, ciActions.setup, ciActions.prepare, ciActions.test]) {
+     try {
+       helpers[name] = readFileSync(resolve(root, name, 'action.yml'), 'utf8');
+     } catch {
+--- stage2-preflight/scripts/ci-test-plan.test.mjs
++++ selected-final/scripts/ci-test-plan.test.mjs
+@@ -60,30 +60,63 @@
+ }
+ 
+ // Independently written helper fixtures, not generated from the checker schema.
+-// The independent fixtures check the CI-DAG-03 helpers; they do not run builds.
++// These fixtures check all four main actions; they do not run builds/installers.
+ function helperFixtures() {
+   return {
++    [ciActions.source]: `name: CI source fixture
++outputs:
++  root: {}
++  relative-root: {}
++  tmpdir: {}
++  pnpm-dest: {}
++runs:
++  using: node20
++  main: index.mjs
++  post: index.mjs
++  post-if: always()
++`,
+     [ciActions.setup]: `name: CI setup fixture
++inputs:
++  checkout-root:
++    required: true
++  checkout-relative:
++    required: true
++  pnpm-dest:
++    required: true
+ runs:
+   using: composite
+   steps:
+     - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+       with:
+-        node-version-file: .tool-versions
++        node-version-file: \${{ inputs.checkout-relative }}/.tool-versions
+         package-manager-cache: false
++    - id: installer-boundary
++      shell: bash
++      working-directory: \${{ inputs.checkout-root }}
++      run: node .github/actions/ci-checkout/index.mjs --check-install
+     - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+       with:
+-        package_json_file: package.json
++        package_json_file: \${{ inputs.checkout-relative }}/package.json
++        dest: \${{ inputs.pnpm-dest }}
+         run_install: false
+         cache: false
+     - id: install
+       run: pnpm install --frozen-lockfile --ignore-scripts
+       shell: bash
++      working-directory: \${{ inputs.checkout-root }}
+     - id: tools
+       shell: bash
++      working-directory: \${{ inputs.checkout-root }}
+       run: node scripts/ci-test-workspace.mjs setup
+ `,
+     [ciActions.prepare]: `name: CI preparation fixture
++inputs:
++  checkout-root:
++    required: true
++  checkout-relative:
++    required: true
++  pnpm-dest:
++    required: true
+ outputs:
+   artifact-name:
+     value: \${{ steps.prepare.outputs.artifact-name }}
+@@ -93,8 +126,13 @@
+   using: composite
+   steps:
+     - uses: ./.github/actions/ci-setup
++      with:
++        checkout-root: \${{ inputs.checkout-root }}
++        checkout-relative: \${{ inputs.checkout-relative }}
++        pnpm-dest: \${{ inputs.pnpm-dest }}
+     - id: prepare
+       shell: bash
++      working-directory: \${{ inputs.checkout-root }}
+       run: node scripts/ci-test-artifacts.mjs prepare
+     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+       with:
+@@ -105,6 +143,12 @@
+ `,
+     [ciActions.test]: `name: CI complete test fixture
+ inputs:
++  checkout-root:
++    required: true
++  checkout-relative:
++    required: true
++  pnpm-dest:
++    required: true
+   workspace:
+     description: Exact allowlisted manifest name
+     required: true
+@@ -116,6 +160,10 @@
+   using: composite
+   steps:
+     - uses: ./.github/actions/ci-setup
++      with:
++        checkout-root: \${{ inputs.checkout-root }}
++        checkout-relative: \${{ inputs.checkout-relative }}
++        pnpm-dest: \${{ inputs.pnpm-dest }}
+     - id: artifacts
+       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+       with:
+@@ -123,6 +171,7 @@
+         path: \${{ runner.temp }}/ci-test-artifacts
+     - id: restore
+       shell: bash
++      working-directory: \${{ inputs.checkout-root }}
+       run: node scripts/ci-test-workspace.mjs restore
+       env:
+         CI_TEST_WORKSPACE: \${{ inputs.workspace }}
+@@ -145,6 +194,7 @@
+         key: \${{ steps.restore.outputs.mongo-key }}
+     - id: test
+       shell: bash
++      working-directory: \${{ inputs.checkout-root }}
+       run: node scripts/ci-test-workspace.mjs
+       env:
+         CI_TEST_WORKSPACE: \${{ inputs.workspace }}
+@@ -721,6 +771,76 @@
+ 
+ const workflowMutations = [
+   [
++    'missing top-level source bootstrap',
++    (f) => {
++      f.jobs['test-utils'].steps.splice(1, 1);
++    },
++    /test-utils.steps: expected 3 entries/,
++  ],
++  [
++    'source nested in a shell instead of a registered action',
++    (f) => {
++      f.jobs['test-utils'].steps[1] = { run: 'node .github/actions/ci-checkout/index.mjs' };
++    },
++    /steps\[1\] keys.*extra \[run\]/,
++  ],
++  [
++    'source fallback action path',
++    (f) => {
++      f.jobs['test-utils'].steps[1].uses = './.github/actions/checkout-fallback';
++    },
++    /steps\[1\].uses: expected/,
++  ],
++  [
++    'source output identity mismatch',
++    (f) => {
++      f.jobs['test-utils'].steps[1].id = 'alternate';
++    },
++    /steps\[1\].id: expected/,
++  ],
++  [
++    'skippable source bootstrap',
++    (f) => {
++      f.jobs['test-utils'].steps[1].if = '${{ false }}';
++    },
++    /steps\[1\] keys.*extra \[if\]/,
++  ],
++  [
++    'source mutates reserved action workspace',
++    (f) => {
++      f.jobs['test-utils'].steps[1].env = { GITHUB_WORKSPACE: '${{ runner.temp }}' };
++    },
++    /steps\[1\] keys.*extra \[env\]/,
++  ],
++  [
++    'validation shell drops selected cwd',
++    (f) => {
++      delete f.jobs['ci-validate'].steps[3]['working-directory'];
++    },
++    /steps\[3\] keys.*missing \[working-directory\]/,
++  ],
++  [
++    'validation shell drops selected temporary environment',
++    (f) => {
++      delete f.jobs['ci-validate'].steps[4].env.TMPDIR;
++    },
++    /env keys.*missing \[TMPDIR\]/,
++  ],
++  [
++    'aggregate runs the original evaluator copy',
++    (f) => {
++      f.jobs['unit-test'].steps[3]['working-directory'] = '${{ github.workspace }}';
++    },
++    /working-directory: expected/,
++  ],
++  [
++    'aggregate uses external temporary fallback',
++    (f) => {
++      f.jobs['unit-test'].steps[3].env.TMPDIR = '${{ runner.temp }}';
++    },
++    /TMPDIR: expected/,
++  ],
++  [
+     'missing tested job',
+     (f) => {
+       delete f.jobs['test-utils'];
+@@ -745,7 +865,7 @@
+   [
+     'wrong exact workspace / duplicate input coverage',
+     (f) => {
+-      f.jobs['test-access-router-deco'].steps[1].with.workspace = exact('access-router');
++      f.jobs['test-access-router-deco'].steps[2].with.workspace = exact('access-router');
+     },
+     /with.workspace: expected/,
+   ],
+@@ -915,30 +1035,30 @@
+   [
+     'test step condition',
+     (f) => {
+-      f.jobs['test-utils'].steps[1].if = '${{ false }}';
+-    },
+-    /steps\[1\] keys.*extra \[if\]/,
++      f.jobs['test-utils'].steps[2].if = '${{ false }}';
++    },
++    /steps\[2\] keys.*extra \[if\]/,
+   ],
+   [
+     'test step continue-on-error',
+     (f) => {
+-      f.jobs['test-utils'].steps[1]['continue-on-error'] = true;
+-    },
+-    /steps\[1\] keys.*extra \[continue-on-error\]/,
++      f.jobs['test-utils'].steps[2]['continue-on-error'] = true;
++    },
++    /steps\[2\] keys.*extra \[continue-on-error\]/,
+   ],
+   [
+     'wrong helper',
+     (f) => {
+-      f.jobs['test-utils'].steps[1].uses = './.github/actions/setup-npm';
+-    },
+-    /steps\[1\].uses: expected/,
++      f.jobs['test-utils'].steps[2].uses = './.github/actions/setup-npm';
++    },
++    /steps\[2\].uses: expected/,
+   ],
+   [
+     'subset command replaces helper',
+     (f) => {
+-      f.jobs['test-utils'].steps[1] = { run: 'pnpm --filter @web-ts-toolkit/utils test:unit' };
+-    },
+-    /steps\[1\] keys.*extra \[run\]/,
++      f.jobs['test-utils'].steps[2] = { run: 'pnpm --filter @web-ts-toolkit/utils test:unit' };
++    },
++    /steps\[2\] keys.*extra \[run\]/,
+   ],
+   [
+     'checkout omitted revision',
+@@ -978,21 +1098,21 @@
+   [
+     'artifact from other job',
+     (f) => {
+-      f.jobs['test-utils'].steps[1].with['artifact-name'] = '${{ needs.lint.outputs.artifact-name }}';
++      f.jobs['test-utils'].steps[2].with['artifact-name'] = '${{ needs.lint.outputs.artifact-name }}';
+     },
+     /with.artifact-name: expected/,
+   ],
+   [
+     'missing artifact digest input',
+     (f) => {
+-      delete f.jobs['test-utils'].steps[1].with['artifact-digest'];
++      delete f.jobs['test-utils'].steps[2].with['artifact-digest'];
+     },
+     /with keys.*missing \[artifact-digest\]/,
+   ],
+   [
+     'extra arbitrary test input',
+     (f) => {
+-      f.jobs['test-utils'].steps[1].with.command = 'true';
++      f.jobs['test-utils'].steps[2].with.command = 'true';
+     },
+     /with keys.*extra \[command\]/,
+   ],
+@@ -1015,33 +1135,33 @@
+     (f) => {
+       f.jobs['unit-test'].steps.pop();
+     },
+-    /unit-test.steps: expected 3 entries/,
++    /unit-test.steps: expected 4 entries/,
+   ],
+   [
+     'final success shell replacement',
+     (f) => {
+-      f.jobs['unit-test'].steps[2].run = 'echo success';
+-    },
+-    /steps\[2\].run: expected/,
++      f.jobs['unit-test'].steps[3].run = 'echo success';
++    },
++    /steps\[3\].run: expected/,
+   ],
+   [
+     'final shell-interpolated needs',
+     (f) => {
+-      f.jobs['unit-test'].steps[2].run += " '${{ toJSON(needs) }}'";
+-    },
+-    /steps\[2\].run: expected/,
++      f.jobs['unit-test'].steps[3].run += " '${{ toJSON(needs) }}'";
++    },
++    /steps\[3\].run: expected/,
+   ],
+   [
+     'final missing result data',
+     (f) => {
+-      delete f.jobs['unit-test'].steps[2].env.CI_TEST_NEEDS;
++      delete f.jobs['unit-test'].steps[3].env.CI_TEST_NEEDS;
+     },
+     /env keys.*missing \[CI_TEST_NEEDS\]/,
+   ],
+   [
+     'final result-data mismatch',
+     (f) => {
+-      f.jobs['unit-test'].steps[2].env.CI_TEST_NEEDS = '{}';
++      f.jobs['unit-test'].steps[3].env.CI_TEST_NEEDS = '{}';
+     },
+     /CI_TEST_NEEDS: expected/,
+   ],
+@@ -1083,11 +1203,44 @@
+   [
+     'independent lane duplicates main tests',
+     (f) => {
+-      f.jobs.lint = { steps: [structuredClone(f.jobs['test-utils'].steps[1])] };
++      f.jobs.lint = { steps: [structuredClone(f.jobs['test-utils'].steps[2])] };
+     },
+     /must not duplicate CI workspace test coverage/,
+   ],
+ ];
++
++for (const id of ['ci-validate', 'ci-prepare', 'test-utils', 'unit-test']) {
++  for (const input of ['checkout-root', 'checkout-relative', 'pnpm-dest']) {
++    workflowMutations.push([
++      `${id} drops verified ${input}`,
++      (f) => {
++        delete f.jobs[id].steps[2].with[input];
++      },
++      new RegExp(`with keys.*missing \\[${input}\\]`),
++    ]);
++  }
++  workflowMutations.push([
++    `${id} loses selected-root TMPDIR inheritance`,
++    (f) => {
++      delete f.jobs[id].steps[2].env;
++    },
++    /steps\[2\] keys.*missing \[env\]/,
++  ]);
++}
++
++test('all main jobs independently bind the four verified outputs without changing action resolution', () => {
++  for (const [id, job] of Object.entries(mainWorkflowJobs(actualModel()))) {
++    assert.deepEqual(job.steps[1], { id: 'source', uses: './.github/actions/ci-checkout' }, id);
++    assert.equal(job.steps[2].with['checkout-root'], '${{ steps.source.outputs.root }}', id);
++    assert.equal(job.steps[2].with['checkout-relative'], '${{ steps.source.outputs.relative-root }}', id);
++    assert.equal(job.steps[2].with['pnpm-dest'], '${{ steps.source.outputs.pnpm-dest }}', id);
++    assert.deepEqual(job.steps[2].env, { TMPDIR: '${{ steps.source.outputs.tmpdir }}' }, id);
++    for (const step of job.steps.filter((value) => value.run)) {
++      assert.equal(step['working-directory'], '${{ steps.source.outputs.root }}', id);
++      assert.equal(step.env.TMPDIR, '${{ steps.source.outputs.tmpdir }}', id);
++    }
++  }
++});
+ 
+ for (const [name, mutate, pattern] of workflowMutations) {
+   test(`strict workflow contract rejects ${name}`, () => {
+@@ -1099,6 +1252,206 @@
+ 
+ const helperMutations = [
+   [
++    'source runtime drift',
++    ciActions.source,
++    (a) => {
++      a.runs.using = 'node24';
++    },
++    /runs.using: expected "node20"/,
++  ],
++  [
++    'source alternative main',
++    ciActions.source,
++    (a) => {
++      a.runs.main = 'fallback.mjs';
++    },
++    /runs.main: expected/,
++  ],
++  [
++    'source missing post',
++    ciActions.source,
++    (a) => {
++      delete a.runs.post;
++    },
++    /runs keys.*missing \[post\]/,
++  ],
++  [
++    'source weak post condition',
++    ciActions.source,
++    (a) => {
++      a.runs['post-if'] = 'success()';
++    },
++    /post-if: expected/,
++  ],
++  [
++    'source extra pre phase',
++    ciActions.source,
++    (a) => {
++      a.runs.pre = 'index.mjs';
++    },
++    /runs keys.*extra \[pre\]/,
++  ],
++  [
++    'source public root override',
++    ciActions.source,
++    (a) => {
++      a.inputs = { root: { required: false } };
++    },
++    /keys.*extra \[inputs\]/,
++  ],
++  [
++    'source extra output',
++    ciActions.source,
++    (a) => {
++      a.outputs.fallback = {};
++    },
++    /outputs keys.*extra \[fallback\]/,
++  ],
++  [
++    'source output expression override',
++    ciActions.source,
++    (a) => {
++      a.outputs.root.value = '${{ github.workspace }}';
++    },
++    /outputs.root keys.*extra \[value\]/,
++  ],
++  [
++    'source invalid output mapping',
++    ciActions.source,
++    (a) => {
++      a.outputs = [];
++    },
++    /outputs: expected a mapping/,
++  ],
++  [
++    'source missing runtime metadata',
++    ciActions.source,
++    (a) => {
++      delete a.runs;
++    },
++    /keys.*missing \[runs\]/,
++  ],
++  [
++    'setup original Node pin',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[0].with['node-version-file'] = '.tool-versions';
++    },
++    /node-version-file: expected/,
++  ],
++  [
++    'setup original manifest pin',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[2].with.package_json_file = 'package.json';
++    },
++    /package_json_file: expected/,
++  ],
++  [
++    'setup default installer destination',
++    ciActions.setup,
++    (a) => {
++      delete a.runs.steps[2].with.dest;
++    },
++    /with keys.*missing \[dest\]/,
++  ],
++  [
++    'setup external installer destination',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[2].with.dest = '~/setup-pnpm';
++    },
++    /with.dest: expected/,
++  ],
++  [
++    'setup pnpm cache enabled',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[2].with.cache = true;
++    },
++    /with.cache: expected false/,
++  ],
++  [
++    'setup Node cache enabled',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[0].with['package-manager-cache'] = true;
++    },
++    /package-manager-cache: expected false/,
++  ],
++  [
++    'setup explicit Node cache',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[0].with.cache = 'pnpm';
++    },
++    /with keys.*extra \[cache\]/,
++  ],
++  [
++    'setup missing immediate installer guard',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps.splice(1, 1);
++    },
++    /steps: expected 5 entries/,
++  ],
++  [
++    'setup reordered installer guard',
++    ciActions.setup,
++    (a) => {
++      [a.runs.steps[1], a.runs.steps[2]] = [a.runs.steps[2], a.runs.steps[1]];
++    },
++    /steps\[1\] keys:/,
++  ],
++  [
++    'setup skipped installer guard',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[1].if = '${{ false }}';
++    },
++    /steps\[1\] keys.*extra \[if\]/,
++  ],
++  [
++    'setup installer guard runs original code',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[1]['working-directory'] = '${{ github.workspace }}';
++    },
++    /working-directory: expected/,
++  ],
++  [
++    'setup installer guard bypass',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[1].run += ' || true';
++    },
++    /steps\[1\].run: expected/,
++  ],
++  [
++    'prepare missing selected cwd',
++    ciActions.prepare,
++    (a) => {
++      delete a.runs.steps[1]['working-directory'];
++    },
++    /keys.*missing \[working-directory\]/,
++  ],
++  [
++    'restore missing selected cwd',
++    ciActions.test,
++    (a) => {
++      delete a.runs.steps[2]['working-directory'];
++    },
++    /keys.*missing \[working-directory\]/,
++  ],
++  [
++    'complete test original cwd',
++    ciActions.test,
++    (a) => {
++      a.runs.steps[5]['working-directory'] = '${{ github.workspace }}';
++    },
++    /working-directory: expected/,
++  ],
++  [
+     'missing workspace input',
+     ciActions.test,
+     (a) => {
+@@ -1406,67 +1759,67 @@
+     'setup non-frozen install',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[2].run = 'pnpm install --ignore-scripts';
+-    },
+-    /steps\[2\].run: expected/,
++      a.runs.steps[3].run = 'pnpm install --ignore-scripts';
++    },
++    /steps\[3\].run: expected/,
+   ],
+   [
+     'setup lifecycle-enabled install',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[2].run = 'pnpm install --frozen-lockfile';
+-    },
+-    /steps\[2\].run: expected/,
++      a.runs.steps[3].run = 'pnpm install --frozen-lockfile';
++    },
++    /steps\[3\].run: expected/,
+   ],
+   [
+     'setup skipped frozen install',
+     ciActions.setup,
+     (a) => {
++      a.runs.steps[3].if = '${{ false }}';
++    },
++    /steps\[3\] keys.*extra \[if\]/,
++  ],
++  [
++    'setup install in another directory',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[3]['working-directory'] = 'website';
++    },
++    /steps\[3\].working-directory: expected/,
++  ],
++  [
++    'setup ignored failure',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[0]['continue-on-error'] = true;
++    },
++    /steps\[0\] keys.*extra \[continue-on-error\]/,
++  ],
++  [
++    'setup duplicate install',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps.push(structuredClone(a.runs.steps[3]));
++    },
++    /steps: expected 5 entries/,
++  ],
++  [
++    'setup skipped Node selection',
++    ciActions.setup,
++    (a) => {
++      a.runs.steps[0].if = '${{ false }}';
++    },
++    /steps\[0\] keys.*extra \[if\]/,
++  ],
++  [
++    'setup skipped pnpm selection',
++    ciActions.setup,
++    (a) => {
+       a.runs.steps[2].if = '${{ false }}';
+     },
+     /steps\[2\] keys.*extra \[if\]/,
+   ],
+   [
+-    'setup install in another directory',
+-    ciActions.setup,
+-    (a) => {
+-      a.runs.steps[2]['working-directory'] = 'website';
+-    },
+-    /steps\[2\] keys.*extra \[working-directory\]/,
+-  ],
+-  [
+-    'setup ignored failure',
+-    ciActions.setup,
+-    (a) => {
+-      a.runs.steps[0]['continue-on-error'] = true;
+-    },
+-    /steps\[0\] keys.*extra \[continue-on-error\]/,
+-  ],
+-  [
+-    'setup duplicate install',
+-    ciActions.setup,
+-    (a) => {
+-      a.runs.steps.push(structuredClone(a.runs.steps[2]));
+-    },
+-    /steps: expected 4 entries/,
+-  ],
+-  [
+-    'setup skipped Node selection',
+-    ciActions.setup,
+-    (a) => {
+-      a.runs.steps[0].if = '${{ false }}';
+-    },
+-    /steps\[0\] keys.*extra \[if\]/,
+-  ],
+-  [
+-    'setup skipped pnpm selection',
+-    ciActions.setup,
+-    (a) => {
+-      a.runs.steps[1].if = '${{ false }}';
+-    },
+-    /steps\[1\] keys.*extra \[if\]/,
+-  ],
+-  [
+     'setup unpinned Node action',
+     ciActions.setup,
+     (a) => {
+@@ -1494,15 +1847,15 @@
+     'setup unpinned pnpm action',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[1].uses = 'pnpm/action-setup@main';
+-    },
+-    /steps\[1\].uses: expected/,
++      a.runs.steps[2].uses = 'pnpm/action-setup@main';
++    },
++    /steps\[2\].uses: expected/,
+   ],
+   [
+     'setup wrong package-manager source',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[1].with.package_json_file = 'website/package.json';
++      a.runs.steps[2].with.package_json_file = 'website/package.json';
+     },
+     /package_json_file: expected/,
+   ],
+@@ -1510,7 +1863,7 @@
+     'setup extra pnpm version override',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[1].with.version = '11.24.0';
++      a.runs.steps[2].with.version = '11.24.0';
+     },
+     /with keys.*extra \[version\]/,
+   ],
+@@ -1518,7 +1871,7 @@
+     'setup implicit extra install',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[1].with.run_install = true;
++      a.runs.steps[2].with.run_install = true;
+     },
+     /run_install: expected false/,
+   ],
+@@ -1528,7 +1881,7 @@
+     (a) => {
+       a.runs.steps.push({ shell: 'bash', run: 'pnpm test:grouped' });
+     },
+-    /steps: expected 4 entries/,
++    /steps: expected 5 entries/,
+   ],
+   [
+     'setup missing subprocess tool probes',
+@@ -1536,23 +1889,23 @@
+     (a) => {
+       a.runs.steps.pop();
+     },
+-    /steps: expected 4 entries/,
++    /steps: expected 5 entries/,
+   ],
+   [
+     'setup skipped subprocess tool probes',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[3].if = '${{ false }}';
+-    },
+-    /steps\[3\] keys.*extra \[if\]/,
++      a.runs.steps[4].if = '${{ false }}';
++    },
++    /steps\[4\] keys.*extra \[if\]/,
+   ],
+   [
+     'setup package-manager enforcement bypass',
+     ciActions.setup,
+     (a) => {
+-      a.runs.steps[3].env = { COREPACK_ENABLE_PROJECT_SPEC: '0' };
+-    },
+-    /steps\[3\] keys.*extra \[env\]/,
++      a.runs.steps[4].env = { COREPACK_ENABLE_PROJECT_SPEC: '0' };
++    },
++    /steps\[4\] keys.*extra \[env\]/,
+   ],
+   [
+     'setup injected environment',
+@@ -1566,7 +1919,7 @@
+     'setup undeclared input',
+     ciActions.setup,
+     (a) => {
+-      a.inputs = { command: { required: true } };
++      a.inputs.command = { required: true };
+     },
+     /inputs.*extra \[command\]/,
+   ],
+@@ -1587,6 +1940,47 @@
+     /outputs: expected a mapping/,
+   ],
+ ];
++
++for (const output of ['root', 'relative-root', 'tmpdir', 'pnpm-dest']) {
++  helperMutations.push([
++    `source missing ${output} output`,
++    ciActions.source,
++    (a) => {
++      delete a.outputs[output];
++    },
++    new RegExp(`outputs keys.*missing \\[${output}\\]`),
++  ]);
++}
++for (const helper of [ciActions.setup, ciActions.prepare, ciActions.test]) {
++  for (const input of ['checkout-root', 'checkout-relative', 'pnpm-dest']) {
++    helperMutations.push([
++      `${helper} missing required ${input}`,
++      helper,
++      (a) => {
++        delete a.inputs[input];
++      },
++      new RegExp(`inputs.*missing \\[${input}\\]`),
++    ]);
++    helperMutations.push([
++      `${helper} optional ${input}`,
++      helper,
++      (a) => {
++        a.inputs[input].required = false;
++      },
++      /required: expected true/,
++    ]);
++    if (helper !== ciActions.setup) {
++      helperMutations.push([
++        `${helper} drops nested ${input} forwarding`,
++        helper,
++        (a) => {
++          delete a.runs.steps[0].with[input];
++        },
++        new RegExp(`with keys.*missing \\[${input}\\]`),
++      ]);
++    }
++  }
++}
+ 
+ for (const [name, helper, mutate, pattern] of helperMutations) {
+   test(`strict referenced helper contract rejects ${name}`, () => {
+@@ -1599,7 +1993,7 @@
+ }
+ 
+ test('referenced helpers are mandatory, not an optional drift bypass', () => {
+-  for (const missing of [ciActions.setup, ciActions.prepare, ciActions.test]) {
++  for (const missing of [ciActions.source, ciActions.setup, ciActions.prepare, ciActions.test]) {
+     const fixtures = helperFixtures();
+     delete fixtures[missing];
+     assert.throws(
+@@ -1772,7 +2166,7 @@
+   const root = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
+   assert.equal(
+     root.scripts['test:ci:check'],
+-    'node --test --test-concurrency=1 scripts/ci-test-plan.test.mjs scripts/ci-test-artifacts.test.mjs scripts/ci-test-workspace.test.mjs scripts/ci-test-results.test.mjs && node scripts/ci-test-plan.mjs --check && node scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml',
++    'node --test --test-concurrency=1 scripts/ci-test-plan.test.mjs scripts/ci-test-artifacts.test.mjs scripts/ci-test-workspace.test.mjs scripts/ci-test-results.test.mjs scripts/ci-test-checkout.test.mjs && node scripts/ci-test-plan.mjs --check && node scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml',
+   );
+   assert.ok(
+     root.scripts['test:ci:check'].endsWith('node scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml'),
+--- stage2-preflight/scripts/ci-test-results.test.mjs
++++ selected-final/scripts/ci-test-results.test.mjs
+@@ -522,7 +522,8 @@
+     assert.deepEqual(job.needs, node.needs);
+     assert.ok(job.needs.includes('ci-prepare'));
+     assert.deepEqual(job.needs.slice(1), node.needs.slice(1));
+-    assert.equal(job.steps[1].with.workspace, node.workspace);
++    assert.deepEqual(job.steps[1], { id: 'source', uses: './.github/actions/ci-checkout' });
++    assert.equal(job.steps[2].with.workspace, node.workspace);
+   }
+   const aggregate = active.jobs['unit-test'];
+   assert.equal(aggregate.name, 'unit-test');
+@@ -530,7 +531,8 @@
+   assert.deepEqual([...aggregate.needs].sort(), [...jobIds].sort());
+   assert.deepEqual(aggregate.steps.at(-1), {
+     run: 'node scripts/ci-test-results.mjs',
+-    env: { CI_TEST_NEEDS: '${{ toJSON(needs) }}' },
++    'working-directory': '${{ steps.source.outputs.root }}',
++    env: { TMPDIR: '${{ steps.source.outputs.tmpdir }}', CI_TEST_NEEDS: '${{ toJSON(needs) }}' },
+   });
+ 
+   for (const id of ['lint', 'access-router-minimum-node-smoke', 'access-router-react-minimum-node']) {
+--- stage2-preflight/scripts/ci-test-workspace.test.mjs
++++ selected-final/scripts/ci-test-workspace.test.mjs
+@@ -191,7 +191,7 @@
+ test('checked-in CI composites match the strict independent helper contract without wiring the active workflow', () => {
+   validateHelperContracts(
+     Object.fromEntries(
+-      [ciActions.setup, ciActions.prepare, ciActions.test].map((path) => [
++      [ciActions.source, ciActions.setup, ciActions.prepare, ciActions.test].map((path) => [
+         path,
+         readFileSync(resolve(repositoryRoot, path, 'action.yml'), 'utf8'),
+       ]),

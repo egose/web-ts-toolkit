@@ -1,0 +1,471 @@
+--- scripts/ci-test-workspace.mjs
++++ scripts/ci-test-workspace.mjs
+@@ -3 +3 @@
+-import { dirname, relative, resolve, sep } from 'node:path';
++import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+@@ -43,0 +44,26 @@
++// Linux sun_path[108] needs a terminating NUL. BroadcastChannel 7.4.0 adds
++// /pubkey.bc/A + 20 hash characters + /rdrs/ + reader UUID + .s (40 fixed bytes).
++// Pinned Node 26.12.1 / V8 14.6.202.34 generates k / 2**53: its base-36 reader
++// token needs at most 21 digits. Reserve 22, not the observed 10-11. Review this
++// contract when upgrading Node/BroadcastChannel; it is not an arbitrary-number
++// or mocked-Math.random bound. See the R1 remediation handoff for the derivation.
++export const resourceTmpdirMaxBytes = 107 - 40 - 22;
++
++// Only programmatic tests inject byte measurement for deep filesystem fixtures;
++// the CLI/environment exposes no alternate budget or path-selection mode.
++export function assertSocketSafeTmpdir(directory, byteLength = Buffer.byteLength) {
++  if (
++    typeof directory !== 'string' ||
++    !isAbsolute(directory) ||
++    resolve(directory) !== directory ||
++    directory.includes('\0')
++  )
++    throw new Error('CI resource TMPDIR must be a normalized absolute path');
++  const bytes = byteLength(directory, 'utf8');
++  if (!Number.isSafeInteger(bytes) || bytes < 1) throw new Error('Invalid CI resource TMPDIR byte measurement');
++  if (bytes > resourceTmpdirMaxBytes)
++    throw new Error(
++      `CI resource TMPDIR is ${bytes} UTF-8 bytes; Linux Unix-socket budget permits at most ${resourceTmpdirMaxBytes} (107 - 40 fixed BroadcastChannel bytes - 22 reader UUID bytes). Use a shorter real checkout path; external-temp or symlink aliases are not supported.`,
++    );
++}
++
+@@ -108 +134 @@
+-  if (typeof directory !== 'string' || !/^_tmp-ci-test-resources-[A-Za-z0-9]+$/.test(relative(root, directory)))
++  if (typeof directory !== 'string' || !/^_tmp[A-Za-z0-9]{6}$/.test(relative(root, directory)))
+@@ -174,0 +201 @@
++    tmpdirByteLength = Buffer.byteLength,
+@@ -189 +216,5 @@
+-  const plan = { workspace, directory, resourceDirectory, tmpdir: resolve(resourceDirectory, 'tmp') };
++  assertSocketSafeTmpdir(resourceDirectory, tmpdirByteLength);
++  // TMPDIR is the fresh scratch itself; a /tmp child would spend four more
++  // pathname bytes. Cache only the dedicated browser/binary children below,
++  // never the resource directory or its mutable test/database state.
++  const plan = { workspace, directory, resourceDirectory, tmpdir: resourceDirectory };
+@@ -222,3 +253,2 @@
+-    // mkdir before package probes that may use os.tmpdir(). Never put DB state
+-    // in the binary-only download/cache directory.
+-    ensureResourceChild(resourceDirectory, plan.tmpdir);
++    // TMPDIR already exists before probes that may use os.tmpdir(). Never put
++    // DB state in the binary-only download/cache directory.
+@@ -306 +336,8 @@
+-  { run = command, env = process.env, browserCacheHit, mongoCacheHit, log = console.log } = {},
++  {
++    run = command,
++    env = process.env,
++    browserCacheHit,
++    mongoCacheHit,
++    log = console.log,
++    tmpdirByteLength = Buffer.byteLength,
++  } = {},
+@@ -309,0 +347,4 @@
++  if (plan.tmpdir !== plan.resourceDirectory)
++    throw new Error('CI resource TMPDIR must be the isolated resource directory');
++  assertResourceDirectory(dirname(plan.resourceDirectory), plan.resourceDirectory);
++  assertSocketSafeTmpdir(plan.tmpdir, tmpdirByteLength);
+@@ -311 +351,0 @@
+-  ensureResourceChild(plan.resourceDirectory, plan.tmpdir);
+@@ -466,0 +507,3 @@
++  // Reject an unsupported checkout before allocating resources, resolving
++  // packages, invoking resource probes, or restoring compiled outputs.
++  assertSocketSafeTmpdir(resolve(root, '_tmpXXXXXX'), options.tmpdirByteLength);
+--- scripts/ci-test-workspace.test.mjs
++++ scripts/ci-test-workspace.test.mjs
+@@ -9,0 +10 @@
++  readdirSync,
+@@ -14 +15 @@
+-import { dirname, relative, resolve } from 'node:path';
++import { dirname, relative, resolve, sep } from 'node:path';
+@@ -27,0 +29 @@
++  assertSocketSafeTmpdir,
+@@ -36,0 +39 @@
++  resourceTmpdirMaxBytes,
+@@ -157,0 +161 @@
++    ...fixtureResourceOptions,
+@@ -163,0 +168,4 @@
++function preparePlan(plan, options = {}) {
++  return prepareResources(plan, { ...fixtureResourceOptions, ...options });
++}
++
+@@ -165,0 +174,14 @@
++
++// Filesystem/artifact fixtures intentionally live in deep ignored checkouts.
++// Simulate only their checkout-prefix byte count (33); retain the complete
++// allocation suffix and run the production budget check. No resource is launched
++// in these success fixtures. Default-byte rejection and a real helper allocation
++// are covered separately, without this measurement seam or a CLI/env bypass.
++function fixtureTmpdirBytes(directory, encoding) {
++  assert.equal(encoding, 'utf8');
++  const start = directory.lastIndexOf(`${sep}_tmp`);
++  assert.notEqual(start, -1);
++  return Buffer.byteLength(`${sep}${'r'.repeat(32)}${directory.slice(start)}`, encoding);
++}
++
++const fixtureResourceOptions = { tmpdirByteLength: fixtureTmpdirBytes };
+@@ -228,0 +251,117 @@
++test('socket budget reserves the reviewed pinned-engine UUID bound, not observed or arbitrary-number lengths', () => {
++  assert.equal(process.versions.node, '26.12.1', 'Review the socket budget when upgrading pinned Node');
++  assert.match(process.versions.v8, /^14\.6\.202\.34(?:-|$)/, 'Review the pinned V8 radix/random implementation');
++  const rxdb = resolvedPackage(resolve(repositoryRoot, 'packages/mongoose-rxdb'), 'rxdb');
++  const channel = resolvedPackage(dirname(rxdb.packageFile), 'broadcast-channel', rxdb.packageFile);
++  assert.equal(channel.version, '7.4.0', 'Review the socket layout and UUID generator when upgrading BroadcastChannel');
++  assert.equal(resourceTmpdirMaxBytes, 45);
++  assert.equal(Buffer.byteLength(`/pubkey.bc/A${'h'.repeat(20)}/rdrs/${'r'.repeat(22)}.s`, 'utf8'), 62);
++  // Smallest nonzero native random value is 2**-53; V8's minimum rounding
++  // delta is 2**-106. After 21 radix-36 digits delta > 1, so conversion stops.
++  assert.ok(36 ** 21 * 2 ** -106 > 1);
++  assert.equal((2 ** -53).toString(36).substring(2).length, 21);
++  assert.equal((2 ** -52).toString(36).substring(2).length, 21);
++  for (let exponent = 1; exponent <= 53; exponent += 1)
++    for (const value of [2 ** -exponent, 1 - 2 ** -exponent, 2 ** -exponent + 2 ** -53])
++      assert.ok(value.toString(36).substring(2).length <= 21);
++  // A supported finite Number need not be a possible native Math.random value.
++  assert.ok(Number.MIN_VALUE.toString(36).substring(2).length > 22);
++});
++
++for (const [label, root, rootBytes, supported] of [
++  ['normal', `${sep}${'r'.repeat(32)}`, 33, true],
++  ['maximum', `${sep}${'r'.repeat(33)}`, 34, true],
++  ['one byte over', `${sep}${'r'.repeat(34)}`, 35, false],
++  ['representative hosted depth', `${sep}${'r'.repeat(46)}`, 47, false],
++  ['UTF-8 maximum', `${sep}${'é'.repeat(16)}r`, 34, true],
++  ['UTF-8 one byte over', `${sep}${'é'.repeat(16)}rr`, 35, false],
++]) {
++  test(`socket-safe TMPDIR checks the ${label} checkout in UTF-8 bytes`, () => {
++    const tmpdir = resolve(root, '_tmpABC123');
++    assert.equal(Buffer.byteLength(root, 'utf8'), rootBytes);
++    assert.equal(Buffer.byteLength(tmpdir, 'utf8'), rootBytes + 11);
++    if (supported) {
++      assert.doesNotThrow(() => assertSocketSafeTmpdir(tmpdir));
++      assert.ok(Buffer.byteLength(tmpdir, 'utf8') + 40 + 22 <= 107);
++    } else {
++      assert.throws(() => assertSocketSafeTmpdir(tmpdir), /TMPDIR.*Linux Unix-socket budget permits at most 45/);
++    }
++    if (label.startsWith('UTF-8')) assert.ok(tmpdir.length < resourceTmpdirMaxBytes);
++  });
++}
++
++test('socket budget rejects nonabsolute, nonnormalized and invalid byte measurements', () => {
++  for (const directory of [undefined, null, '_tmpABC123', `${sep}a${sep}..${sep}_tmpABC123`, `${sep}_tmpABC\0`])
++    assert.throws(() => assertSocketSafeTmpdir(directory), /normalized absolute path/);
++  for (const bytes of [undefined, NaN, Infinity, -1, 0, 1.5, '44'])
++    assert.throws(() => assertSocketSafeTmpdir(resolve(sep, '_tmpABC123'), () => bytes), /Invalid.*byte measurement/);
++});
++
++test('actual helper allocation either provides socket-safe isolated TMPDIR or rejects the real checkout depth', (t) => {
++  const resourceDirectory = ignoredScratch(repositoryRoot, 'resources');
++  t.after(() => rmSync(resourceDirectory, { recursive: true, force: true }));
++  assert.match(relative(repositoryRoot, resourceDirectory), /^_tmp[A-Za-z0-9]{6}$/);
++  const workspaces = actualWorkspaces();
++  const options = {
++    workspaces,
++    model: createCiTestModel(workspaces),
++    packageResolver: () => assert.fail('RxDB-only planning must not resolve browsers/Mongo'),
++    run: () => assert.fail('No resource/test command may be invoked'),
++  };
++  const plan = () => resolveResources(repositoryRoot, '@web-ts-toolkit/mongoose-rxdb', resourceDirectory, options);
++  if (Buffer.byteLength(resourceDirectory, 'utf8') > resourceTmpdirMaxBytes) {
++    assert.throws(plan, /TMPDIR.*Unix-socket budget/);
++  } else {
++    const resolved = plan();
++    assert.equal(resolved.tmpdir, resourceDirectory);
++    const prepared = prepareResources(resolved, { run: options.run, env: cleanEnv(), log: noLog });
++    assert.equal(prepared.env.TMPDIR, resourceDirectory);
++    assert.deepEqual(prepared.observations, { workspace: '@web-ts-toolkit/mongoose-rxdb' });
++  }
++});
++
++test('unsupported default TMPDIR fails before browser/Mongo resolution or resource probes', (t) => {
++  const state = fixture(t, combined);
++  const capture = recorder({ json: mongoConfig() });
++  let resolutions = 0;
++  assert.throws(
++    () =>
++      resolvePlan(state, {
++        tmpdirByteLength: Buffer.byteLength,
++        run: capture.run,
++        packageResolver: (...args) => {
++          resolutions += 1;
++          return packages(...args);
++        },
++      }),
++    /TMPDIR.*Unix-socket budget/,
++  );
++  assert.equal(resolutions, 0);
++  assert.equal(capture.calls.length, 0);
++});
++
++test('direct resource preparation rejects an unsupported default TMPDIR before commands', (t) => {
++  const state = fixture(t, combined);
++  const plan = resolvePlan(state);
++  const capture = recorder();
++  assert.throws(
++    () => prepareResources(plan, { run: capture.run, env: state.env, log: noLog }),
++    /TMPDIR.*Unix-socket budget/,
++  );
++  assert.equal(capture.calls.length, 0);
++});
++
++test('compact resource directories still require an ignored real checkout and reject an aliased checkout root', (t) => {
++  const state = fixture(t);
++  const safe = ignoredScratch(state.consumer, 'resources');
++  const aliasRoot = resolve(state.scratch, 'alias-root');
++  symlinkSync(state.consumer, aliasRoot);
++  assert.throws(
++    () => assertResourceDirectory(aliasRoot, resolve(aliasRoot, relative(state.consumer, safe))),
++    /Unsafe CI resource/,
++  );
++  assert.equal(spawnSync('git', ['init', '--quiet'], { cwd: state.consumer }).status, 0);
++  write(state.consumer, '.gitignore', '_tmp-ci-test-*\n');
++  assert.throws(() => assertResourceDirectory(state.consumer, safe), /git check-ignore.*failed/);
++});
++
+@@ -239,0 +379 @@
++      ...fixtureResourceOptions,
+@@ -244 +384,2 @@
+-    for (const path of [plan.tmpdir, plan.browser?.directory, plan.mongo?.directory].filter(Boolean)) {
++    assert.equal(plan.tmpdir, plan.resourceDirectory);
++    for (const path of [plan.browser?.directory, plan.mongo?.directory].filter(Boolean)) {
+@@ -314 +455 @@
+-    resolve(state.scratch, '_tmp-ci-test-resources-outside'),
++    resolve(state.scratch, '_tmpOut123'),
+@@ -319 +460 @@
+-  const alias = resolve(state.consumer, '_tmp-ci-test-resources-alias');
++  const alias = resolve(state.consumer, '_tmpAlias1');
+@@ -322,0 +464 @@
++  rmSync(plan.resourceDirectory, { recursive: true });
+@@ -325 +467,8 @@
+-    () => prepareResources(plan, { run: recorder().run, env: state.env, log: noLog }),
++    () => preparePlan(plan, { run: recorder().run, env: state.env, log: noLog }),
++    /Unsafe CI resource directory/,
++  );
++  const browserState = fixture(t, browser);
++  const browserPlan = resolvePlan(browserState);
++  symlinkSync(safe, browserPlan.browser.directory);
++  assert.throws(
++    () => preparePlan(browserPlan, { run: recorder().run, env: browserState.env, log: noLog }),
+@@ -417 +566 @@
+-  const prepared = prepareResources(plan, {
++  const prepared = preparePlan(plan, {
+@@ -435,0 +585,24 @@
++test('resource preparation rejects a changed TMPDIR before commands and fresh allocations cannot share test state', (t) => {
++  const state = fixture(t);
++  const first = resolvePlan(state);
++  const second = resolvePlan(state);
++  assert.notEqual(first.resourceDirectory, second.resourceDirectory);
++  assert.notEqual(first.tmpdir, second.tmpdir);
++  write(first.tmpdir, 'pubkey.bc/local-state', 'first job only');
++  assert.equal(existsSync(resolve(second.tmpdir, 'pubkey.bc/local-state')), false);
++  const capture = recorder();
++  assert.throws(
++    () =>
++      preparePlan(
++        { ...first, tmpdir: resolve(first.resourceDirectory, 'tmp') },
++        {
++          run: capture.run,
++          env: state.env,
++          log: noLog,
++        },
++      ),
++    /TMPDIR must be the isolated resource directory/,
++  );
++  assert.equal(capture.calls.length, 0);
++});
++
+@@ -441 +614 @@
+-    const prepared = prepareResources(plan, { run: capture.run, env: state.env, browserCacheHit: hit, log: noLog });
++    const prepared = preparePlan(plan, { run: capture.run, env: state.env, browserCacheHit: hit, log: noLog });
+@@ -468,2 +641 @@
+-      () =>
+-        prepareResources(plan, { run: recorder({ json }).run, env: state.env, browserCacheHit: 'true', log: noLog }),
++      () => preparePlan(plan, { run: recorder({ json }).run, env: state.env, browserCacheHit: 'true', log: noLog }),
+@@ -475 +647 @@
+-      () => prepareResources(plan, { run: capture.run, env: state.env, browserCacheHit: 'true', log: noLog }),
++      () => preparePlan(plan, { run: capture.run, env: state.env, browserCacheHit: 'true', log: noLog }),
+@@ -481 +653 @@
+-      prepareResources(plan, {
++      preparePlan(plan, {
+@@ -502 +674 @@
+-        () => prepareResources(plan, { run: capture.run, env: state.env, [key]: value, log: noLog }),
++        () => preparePlan(plan, { run: capture.run, env: state.env, [key]: value, log: noLog }),
+@@ -520 +692 @@
+-    const prepared = prepareResources(plan, { run: capture.run, env: state.env, mongoCacheHit: hit, log: noLog });
++    const prepared = preparePlan(plan, { run: capture.run, env: state.env, mongoCacheHit: hit, log: noLog });
+@@ -555 +727 @@
+-        prepareResources(plan, {
++        preparePlan(plan, {
+@@ -579 +751 @@
+-      () => prepareResources(plan, { env: state.env, mongoCacheHit: 'true', log: noLog }),
++      () => preparePlan(plan, { env: state.env, mongoCacheHit: 'true', log: noLog }),
+@@ -604 +776 @@
+-  const prepared = prepareResources(plan, { run: capture.run, env: state.env, log: noLog });
++  const prepared = preparePlan(plan, { run: capture.run, env: state.env, log: noLog });
+@@ -640 +812,29 @@
+-    assert.throws(() => prepareResources(plan, { run: redisRecorder(onCall).run, env: state.env, log: noLog }), error);
++    assert.throws(() => preparePlan(plan, { run: redisRecorder(onCall).run, env: state.env, log: noLog }), error);
++});
++
++test('unsupported Unix-socket checkout budget rejects restore before resources or tests', (t) => {
++  const state = fixture(t, combined);
++  const capture = recorder({ json: mongoConfig() });
++  let resolutions = 0;
++  const options = {
++    workspaces: state.workspaces,
++    model: state.model,
++    contract,
++    run: capture.run,
++    packageResolver: (...args) => {
++      resolutions += 1;
++      return packages(...args);
++    },
++  };
++  assert.throws(() => restoreWorkspace(state.consumer, state.env, options), /TMPDIR.*Unix-socket budget/);
++  assert.equal(resolutions, 0);
++  assert.equal(
++    capture.calls.some(({ name }) => name === 'node' || name === 'docker'),
++    false,
++  );
++  assert.equal(testCalls(capture.calls).length, 0);
++  assert.equal(existsSync(resolve(state.consumer, contract.roots[0])), false);
++  assert.deepEqual(
++    readdirSync(state.consumer).filter((name) => /^_tmp[A-Za-z0-9]{6}$/.test(name)),
++    [],
++  );
+@@ -646,0 +847 @@
++    ...fixtureResourceOptions,
+@@ -675 +876,8 @@
+-  const options = { workspaces: state.workspaces, model: state.model, contract, run: capture.run, log: noLog };
++  const options = {
++    ...fixtureResourceOptions,
++    workspaces: state.workspaces,
++    model: state.model,
++    contract,
++    run: capture.run,
++    log: noLog,
++  };
+@@ -691 +899 @@
+-  assert.equal(invocation.options.env.TMPDIR, resolve(outputs['resource-directory'], 'tmp'));
++  assert.equal(invocation.options.env.TMPDIR, outputs['resource-directory']);
+@@ -694,0 +903,39 @@
++test('workspace CLI rejects an unsupported real checkout before resource preparation or the complete script', (t) => {
++  const state = fixture(t, combined);
++  const capture = recorder({ json: mongoConfig() });
++  let resolutions = 0;
++  const options = {
++    ...fixtureResourceOptions,
++    workspaces: state.workspaces,
++    model: state.model,
++    contract,
++    run: capture.run,
++    log: noLog,
++    packageResolver: (...args) => {
++      resolutions += 1;
++      return packages(...args);
++    },
++  };
++  const outputs = restoreWorkspace(state.consumer, state.env, options);
++  const before = resolutions;
++  capture.calls.length = 0;
++  const errors = [];
++  assert.equal(
++    runCli([], {
++      ...options,
++      tmpdirByteLength: Buffer.byteLength,
++      root: state.consumer,
++      env: { ...state.env, CI_TEST_RESOURCE_DIR: outputs['resource-directory'] },
++      error: (message) => errors.push(message),
++    }),
++    1,
++  );
++  assert.match(errors[0], /TMPDIR.*Unix-socket budget/);
++  assert.equal(resolutions, before);
++  assert.equal(
++    capture.calls.some(({ name }) => name === 'node' || name === 'docker'),
++    false,
++  );
++  assert.equal(testCalls(capture.calls).length, 0);
++});
++
+@@ -702 +949,8 @@
+-  const options = { workspaces: state.workspaces, model: state.model, contract, run: capture.run, log: noLog };
++  const options = {
++    ...fixtureResourceOptions,
++    workspaces: state.workspaces,
++    model: state.model,
++    contract,
++    run: capture.run,
++    log: noLog,
++  };
+@@ -722,0 +977 @@
++    ...fixtureResourceOptions,
+@@ -761,0 +1017 @@
++    ...fixtureResourceOptions,
+@@ -799,0 +1056 @@
++      ...fixtureResourceOptions,
+@@ -828,0 +1086 @@
++    ...fixtureResourceOptions,
+@@ -852 +1110,8 @@
+-  const options = { workspaces: state.workspaces, model: state.model, contract, run: capture.run, log: noLog };
++  const options = {
++    ...fixtureResourceOptions,
++    workspaces: state.workspaces,
++    model: state.model,
++    contract,
++    run: capture.run,
++    log: noLog,
++  };
+@@ -868 +1133 @@
+-  write(first['resource-directory'], 'tmp/local-test-state', 'one checkout resource state');
++  write(first['resource-directory'], 'local-test-state', 'one checkout resource state');
+@@ -871 +1136 @@
+-  assert.equal(existsSync(resolve(second['resource-directory'], 'tmp/local-test-state')), false);
++  assert.equal(existsSync(resolve(second['resource-directory'], 'local-test-state')), false);
+--- scripts/ci-test-artifacts.mjs
++++ scripts/ci-test-artifacts.mjs
+@@ -271 +271,3 @@
+-  const scratch = mkdtempSync(resolve(root, `_tmp-ci-test-${label}-`));
++  // Resource TMPDIR contributes to Unix-socket paths. Keep mkdtemp's six random
++  // characters and checkout-local ignore check, without a descriptive prefix.
++  const scratch = mkdtempSync(resolve(root, label === 'resources' ? '_tmp' : `_tmp-ci-test-${label}-`));
+--- scripts/ci-test-artifacts.test.mjs
++++ scripts/ci-test-artifacts.test.mjs
+@@ -29,0 +30 @@
++  ignoredScratch,
+@@ -158,0 +160,16 @@
++
++test('resource scratch alone uses a compact fresh ignored mkdtemp name without changing build/restore scratch', (t) => {
++  const { consumer } = fixture(t, { outputs: false });
++  const first = ignoredScratch(consumer, 'resources');
++  const second = ignoredScratch(consumer, 'resources');
++  assert.notEqual(first, second);
++  for (const directory of [first, second]) {
++    assert.match(directory.slice(consumer.length + 1), /^_tmp[A-Za-z0-9]{6}$/);
++    assert.equal(Buffer.byteLength(directory, 'utf8') - Buffer.byteLength(consumer, 'utf8'), 11);
++    assert.equal(lstatSync(directory).isDirectory(), true);
++    assert.equal(lstatSync(directory).isSymbolicLink(), false);
++    assert.equal(spawnSync('git', ['check-ignore', directory], { cwd: consumer }).status, 0);
++  }
++  for (const label of ['prepare', 'restore', 'tools'])
++    assert.ok(ignoredScratch(consumer, label).startsWith(`${consumer}/_tmp-ci-test-${label}-`));
++});
+--- README.md
++++ README.md
+@@ -123,0 +124,18 @@
++### Linux checkout-path prerequisite
++
++The resource helper uses a fresh, ignored checkout-local `_tmpXXXXXX` directory
++directly as `TMPDIR`. Its normalized real absolute path must be at most **45 UTF-8
++bytes**, so the checkout root must be at most **34 bytes**. The helper rejects
++unsupported depths before resource probes or package tests; it does not fall back
++to external temporary directories, symlink aliases, retries or reduced coverage.
++Only dedicated browser downloads and the exact Mongo binary are cached, not
++`TMPDIR` or mutable test/database state.
++
++This Linux Unix-socket budget reserves 40 fixed BroadcastChannel path bytes and
++22 reader-UUID bytes within the 107-byte pathname limit. It is reviewed for pinned
++Node 26.12.1 / BroadcastChannel 7.4.0 and must be revisited on upgrades. A
++representative default hosted checkout shape for this repository name has a
++calculated 47-byte root and is **unsupported**; a maintainer-authorized shorter
++real checkout setup remains a rollout prerequisite, not implemented or verified
++here. See the [R1 remediation handoff](docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md).
++

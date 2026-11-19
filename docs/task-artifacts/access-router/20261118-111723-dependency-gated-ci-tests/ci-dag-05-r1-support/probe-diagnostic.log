@@ -1,0 +1,14 @@
+{"probeEvent":{"stage":"helper-prepared","elapsedMs":1267,"resourceDirectory":"_tmpPXwQzN"}}
+{"probeEvent":{"stage":"sender-ready","elapsedMs":1288,"observation":{"socket":"_tmpPXwQzN/pubkey.bc/A2999502b9c8e4ef28c82/rdrs/g9kr597n5zi.s","socketBytes":95,"tmpdirBytes":44,"readerUuidBytes":11,"fixedSuffixBytes":40,"socketIsSocket":true,"transport":"node","useFastPathDefault":true,"listening":false,"messageCallbackPresent":false,"createdMicros":49395013718,"listeningMicros":null}}}
+{"probeEvent":{"stage":"receiver-ready","elapsedMs":1360,"observation":{"socket":"_tmpPXwQzN/pubkey.bc/A2999502b9c8e4ef28c82/rdrs/f2w8nl0g79i.s","socketBytes":95,"tmpdirBytes":44,"readerUuidBytes":11,"fixedSuffixBytes":40,"socketIsSocket":true,"transport":"node","useFastPathDefault":true,"listening":true,"messageCallbackPresent":true,"createdMicros":49395083301,"listeningMicros":49395085151}}}
+{"probeEvent":{"stage":"sender-post-complete","elapsedMs":1364,"readers":[{"writable":true,"destroyed":false}]}}
+{"probeEvent":{"stage":"receiver-received","elapsedMs":1365,"received":{"purpose":"CI-DAG-05 R1 socket probe","sequence":1}}}
+{"probeEvent":{"stage":"receiver-closed","elapsedMs":1569}}
+{"probeEvent":{"stage":"deadline","elapsedMs":11301,"childStdout":"","childStderr":""}}
+{"probeEvent":{"stage":"receiver-exit","elapsedMs":11305,"code":null,"signal":"SIGTERM"}}
+Trace: Error: Controller exceeded its bounded deadline
+    at Timeout.<anonymous> (file://<repo-root>/_tmp-r1-mwGWUn/broadcast-probe.mjs:141:12)
+    at listOnTimeout (node:internal/timers:685:17)
+    at process.processTimers (node:internal/timers:618:7)
+    at <repo-root>/node_modules/.pnpm/unload@2.4.1/node_modules/unload/dist/lib/node.js:32:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)

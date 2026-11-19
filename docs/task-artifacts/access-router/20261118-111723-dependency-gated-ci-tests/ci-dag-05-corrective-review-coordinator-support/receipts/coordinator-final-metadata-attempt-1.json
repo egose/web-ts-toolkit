@@ -1,0 +1,19 @@
+{
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "startedAt": "2026-11-19T18:59:05.313067+00:00",
+  "finishedAt": "2026-11-19T18:59:05.523013+00:00",
+  "verdict": "STOP: FINAL COORDINATOR METADATA DISCREPANCY",
+  "command": [
+    "python3",
+    "_tmp-c5cr-coord-3ovrro4e/verify-final-coordinator-metadata.py",
+    "_tmp-c5cr-coord-3ovrro4e/final-coordinator-metadata.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-coord-3ovrro4e'",
+  "metadataAssertions": 6692,
+  "problems": [
+    "Final bounded privacy-pattern scan"
+  ],
+  "captureBoundary": "Final preserved support and seven updated coordinator documents before this external receipt's later byte-exact copy. Own digest and later copy are excluded. The 21 initial and eight later manifest entries remain separate; the final metadata driver/source pair is separately fingerprinted here.",
+  "limits": "Only this new stdlib metadata reader, read-only Git metadata and an installed formatter API on the single newly authored documentation manifest ran. No archived/reviewer/project driver, validator/package/maintained-formatting rerun, source/native/Node-20/runner probe, installation/resource/network/hosted/publication/settings work. Historical four-entry formatting exception remains not a pass; maintained workflow Q1 remains unresolved. Scope reconciliation does not grant acceptance."
+}

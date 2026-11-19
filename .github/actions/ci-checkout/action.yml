@@ -1,0 +1,16 @@
+name: CI short real source checkout
+description: Exclusive independent selected-SHA source with ownership-checked post cleanup
+outputs:
+  root:
+    description: Verified real checkout root
+  relative-root:
+    description: Selected root relative to the unchanged original workspace
+  tmpdir:
+    description: Fresh ignored checkout-local temporary directory
+  pnpm-dest:
+    description: Fresh owned isolated pnpm self-installer destination
+runs:
+  using: node20
+  main: index.mjs
+  post: index.mjs
+  post-if: always()

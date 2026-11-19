@@ -1,0 +1,19 @@
+{
+  "scope": "Byte-exact copies of our two failed curation-driver inputs only; no original overwrite or execution recertification",
+  "drivers": [
+    {
+      "source": "_tmp-c5-setup-stage2-oNPuwiq6/archive.py",
+      "snapshot": "_tmp-c5-setup-stage2-oNPuwiq6/archive-initial-before-fix.py",
+      "mode": "0644",
+      "bytes": 19346,
+      "sha256": "2e6ff50ee9ed0841fc9932d0b2d95a3326d788134fc0f807356652b25d9b2084"
+    },
+    {
+      "source": "_tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure.py",
+      "snapshot": "_tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure-before-count-fix.py",
+      "mode": "0644",
+      "bytes": 2652,
+      "sha256": "a4406e896359c9363022f2b933dbbac615483c502cece038ad541041bb3c2804"
+    }
+  ]
+}

@@ -1,0 +1,540 @@
+{
+  "curatedAt": "2026-11-19T14:27:56.729699+00:00",
+  "scope": "Later local delivery/document/scope checks; no package/resource/source/hosted execution",
+  "observations": [
+    {
+      "label": "archive-delivery-foundation",
+      "historicalDirectory": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL",
+      "command": [
+        "python3",
+        "_tmp-c5-setup-stage2-oNPuwiq6/archive.py",
+        "append",
+        "delivery-foundation",
+        "archive-completion-record-KbNMdR",
+        "format-setup-delivery-docs-ebsR9R",
+        "delivery-integrity-before-final-ljSlxP",
+        "whitespace-final-naEkBD"
+      ],
+      "cwd": "<repo-root>",
+      "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/tmp",
+      "startedAt": "2026-11-19T14:25:48.987Z",
+      "finishedAt": "2026-11-19T14:25:49.093Z",
+      "durationMs": 101,
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "runtime": {
+        "node": "v26.12.1",
+        "v8": "14.6.202.34-node.40",
+        "executable": "<user-home>/.asdf/installs/nodejs/26.12.1/bin/node",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "inputFingerprintCount": 13,
+      "inputsUnchangedDuringRun": true,
+      "counts": null,
+      "result": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/result.json",
+        "mode": "0644",
+        "bytes": 6470,
+        "sha256": "92d33e256e58f1cf59a421e5aa203a1e5c4bcc92df731a95640623f8a5131238"
+      },
+      "streams": {
+        "stdout": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/stdout.log",
+            "mode": "0644",
+            "bytes": 80,
+            "sha256": "53b54e4b649d9d298665d621b7e3c651742fa32b09c09598807c882b44b1cfd2"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/stdout.raw.log",
+            "mode": "0644",
+            "bytes": 80,
+            "sha256": "53b54e4b649d9d298665d621b7e3c651742fa32b09c09598807c882b44b1cfd2",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stdout.log",
+            "mode": "0644",
+            "bytes": 80,
+            "sha256": "53b54e4b649d9d298665d621b7e3c651742fa32b09c09598807c882b44b1cfd2"
+          }
+        },
+        "stderr": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/stderr.raw.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "earlyRecordLimit": null
+    },
+    {
+      "label": "format-setup-delivery-final",
+      "historicalDirectory": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX",
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--check",
+        "--config-path",
+        ".prettierrc",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/README.md"
+      ],
+      "cwd": "<repo-root>",
+      "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/tmp",
+      "startedAt": "2026-11-19T14:26:29.663Z",
+      "finishedAt": "2026-11-19T14:26:31.226Z",
+      "durationMs": 1561,
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "runtime": {
+        "node": "v26.12.1",
+        "v8": "14.6.202.34-node.40",
+        "executable": "<user-home>/.asdf/installs/nodejs/26.12.1/bin/node",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "inputFingerprintCount": 13,
+      "inputsUnchangedDuringRun": true,
+      "counts": null,
+      "result": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/result.json",
+        "mode": "0644",
+        "bytes": 6541,
+        "sha256": "60861dd7ac87b6b3dff6ad0238da9b88b66f46a7899b6ee59ffdc1a555294da9"
+      },
+      "streams": {
+        "stdout": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/stdout.log",
+            "mode": "0644",
+            "bytes": 67,
+            "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/stdout.raw.log",
+            "mode": "0644",
+            "bytes": 67,
+            "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stdout.log",
+            "mode": "0644",
+            "bytes": 67,
+            "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+          }
+        },
+        "stderr": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/stderr.raw.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "earlyRecordLimit": null
+    },
+    {
+      "label": "delivery-integrity-final",
+      "historicalDirectory": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL",
+      "command": [
+        "python3",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/validate-delivery.py",
+        "--verify-local-sources"
+      ],
+      "cwd": "<repo-root>",
+      "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/tmp",
+      "startedAt": "2026-11-19T14:26:52.387Z",
+      "finishedAt": "2026-11-19T14:26:52.770Z",
+      "durationMs": 376,
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "runtime": {
+        "node": "v26.12.1",
+        "v8": "14.6.202.34-node.40",
+        "executable": "<user-home>/.asdf/installs/nodejs/26.12.1/bin/node",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "inputFingerprintCount": 13,
+      "inputsUnchangedDuringRun": true,
+      "counts": null,
+      "result": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/result.json",
+        "mode": "0644",
+        "bytes": 6394,
+        "sha256": "81accbe007d015c932057cdc0b7bea880db2678670c138aaefa9a7d8246c80f3"
+      },
+      "streams": {
+        "stdout": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/stdout.log",
+            "mode": "0644",
+            "bytes": 932,
+            "sha256": "eaa6b4ba038f9ad7331da253db79267af72c33da17a4642800409075bce67ac7"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/stdout.raw.log",
+            "mode": "0644",
+            "bytes": 932,
+            "sha256": "eaa6b4ba038f9ad7331da253db79267af72c33da17a4642800409075bce67ac7",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stdout.log",
+            "mode": "0644",
+            "bytes": 932,
+            "sha256": "eaa6b4ba038f9ad7331da253db79267af72c33da17a4642800409075bce67ac7"
+          }
+        },
+        "stderr": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/stderr.raw.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "earlyRecordLimit": null
+    },
+    {
+      "label": "scope-after-archive-final",
+      "historicalDirectory": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU",
+      "command": [
+        "python3",
+        "_tmp-c5-setup-stage2-oNPuwiq6/reconcile-final.py"
+      ],
+      "cwd": "<repo-root>",
+      "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/tmp",
+      "startedAt": "2026-11-19T14:26:57.423Z",
+      "finishedAt": "2026-11-19T14:26:58.147Z",
+      "durationMs": 723,
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "runtime": {
+        "node": "v26.12.1",
+        "v8": "14.6.202.34-node.40",
+        "executable": "<user-home>/.asdf/installs/nodejs/26.12.1/bin/node",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "inputFingerprintCount": 13,
+      "inputsUnchangedDuringRun": true,
+      "counts": null,
+      "result": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/result.json",
+        "mode": "0644",
+        "bytes": 6279,
+        "sha256": "bbb5edaa14f2230ac8f2ca8f807c5363ebb65fa71254e50b50bc1f2593ea2840"
+      },
+      "streams": {
+        "stdout": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/stdout.log",
+            "mode": "0644",
+            "bytes": 1174,
+            "sha256": "135aecd1e0b471325f89a09436906ffb283aedb9e3d80c9c68c3489f053fb38b"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/stdout.raw.log",
+            "mode": "0644",
+            "bytes": 1174,
+            "sha256": "135aecd1e0b471325f89a09436906ffb283aedb9e3d80c9c68c3489f053fb38b",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stdout.log",
+            "mode": "0644",
+            "bytes": 1174,
+            "sha256": "135aecd1e0b471325f89a09436906ffb283aedb9e3d80c9c68c3489f053fb38b"
+          }
+        },
+        "stderr": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/stderr.raw.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "earlyRecordLimit": null
+    }
+  ],
+  "sourceArchiveProvenance": [
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/result.json",
+        "mode": "0644",
+        "bytes": 6470,
+        "sha256": "92d33e256e58f1cf59a421e5aa203a1e5c4bcc92df731a95640623f8a5131238"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/result.json",
+        "mode": "0644",
+        "bytes": 6470,
+        "sha256": "92d33e256e58f1cf59a421e5aa203a1e5c4bcc92df731a95640623f8a5131238"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stdout.log",
+        "mode": "0644",
+        "bytes": 80,
+        "sha256": "53b54e4b649d9d298665d621b7e3c651742fa32b09c09598807c882b44b1cfd2"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/stdout.log",
+        "mode": "0644",
+        "bytes": 80,
+        "sha256": "53b54e4b649d9d298665d621b7e3c651742fa32b09c09598807c882b44b1cfd2"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-delivery-foundation-CVRoYL/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/result.json",
+        "mode": "0644",
+        "bytes": 6541,
+        "sha256": "60861dd7ac87b6b3dff6ad0238da9b88b66f46a7899b6ee59ffdc1a555294da9"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/result.json",
+        "mode": "0644",
+        "bytes": 6541,
+        "sha256": "60861dd7ac87b6b3dff6ad0238da9b88b66f46a7899b6ee59ffdc1a555294da9"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stdout.log",
+        "mode": "0644",
+        "bytes": 67,
+        "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/stdout.log",
+        "mode": "0644",
+        "bytes": 67,
+        "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/format-setup-delivery-final-CGnVbX/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/result.json",
+        "mode": "0644",
+        "bytes": 6394,
+        "sha256": "81accbe007d015c932057cdc0b7bea880db2678670c138aaefa9a7d8246c80f3"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/result.json",
+        "mode": "0644",
+        "bytes": 6394,
+        "sha256": "81accbe007d015c932057cdc0b7bea880db2678670c138aaefa9a7d8246c80f3"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stdout.log",
+        "mode": "0644",
+        "bytes": 932,
+        "sha256": "eaa6b4ba038f9ad7331da253db79267af72c33da17a4642800409075bce67ac7"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/stdout.log",
+        "mode": "0644",
+        "bytes": 932,
+        "sha256": "eaa6b4ba038f9ad7331da253db79267af72c33da17a4642800409075bce67ac7"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/validation.json",
+        "mode": "0644",
+        "bytes": 68350,
+        "sha256": "42c4ce6df689e078476ff46ea9d5ea1a6c1957ba6fd51e96b0b0e77943b40631"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/delivery-integrity-final-6XkCgL/validation.json",
+        "mode": "0644",
+        "bytes": 68350,
+        "sha256": "42c4ce6df689e078476ff46ea9d5ea1a6c1957ba6fd51e96b0b0e77943b40631"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/result.json",
+        "mode": "0644",
+        "bytes": 6279,
+        "sha256": "bbb5edaa14f2230ac8f2ca8f807c5363ebb65fa71254e50b50bc1f2593ea2840"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/result.json",
+        "mode": "0644",
+        "bytes": 6279,
+        "sha256": "bbb5edaa14f2230ac8f2ca8f807c5363ebb65fa71254e50b50bc1f2593ea2840"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stdout.log",
+        "mode": "0644",
+        "bytes": 1174,
+        "sha256": "135aecd1e0b471325f89a09436906ffb283aedb9e3d80c9c68c3489f053fb38b"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/stdout.log",
+        "mode": "0644",
+        "bytes": 1174,
+        "sha256": "135aecd1e0b471325f89a09436906ffb283aedb9e3d80c9c68c3489f053fb38b"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/scope.json",
+        "mode": "0644",
+        "bytes": 66757,
+        "sha256": "c28534eac0dcf462d3542891e29f446c242a2afab79bc4cdc90039af127805b3"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/scope-after-archive-final-8EFuMU/scope.json",
+        "mode": "0644",
+        "bytes": 66757,
+        "sha256": "c28534eac0dcf462d3542891e29f446c242a2afab79bc4cdc90039af127805b3"
+      }
+    }
+  ],
+  "selfReferenceLimit": "This provenance record is generated after copying its inputs and does not hash itself; copying validates UTF-8/privacy/JSON/destination ignore status without recertifying execution"
+}

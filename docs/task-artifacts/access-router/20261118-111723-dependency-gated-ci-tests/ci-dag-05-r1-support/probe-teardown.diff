@@ -1,0 +1,9 @@
+--- _tmp-r1-mwGWUn/broadcast-probe.mjs
++++ _tmp-r1-mwGWUn/broadcast-probe.mjs
+@@ -153,0 +154,4 @@
++    // BroadcastChannel.close stops listening but does not wait for every
++    // inbound stream to end. Close the sender's outbound client before awaiting
++    // receiver exit; otherwise the controller itself keeps the receiver alive.
++    await sender.close();
+@@ -157 +160,0 @@
+-    await sender.close();

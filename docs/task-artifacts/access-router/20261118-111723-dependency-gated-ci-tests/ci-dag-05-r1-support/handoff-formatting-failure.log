@@ -1,0 +1,3 @@
+Checking formatting...
+[warn] docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md
+[warn] Code style issues found in 1 file. Run Prettier with --write to fix.

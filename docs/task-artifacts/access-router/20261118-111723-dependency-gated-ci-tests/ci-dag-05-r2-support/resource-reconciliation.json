@@ -1,0 +1,66 @@
+{
+  "recordedAt": "2026-11-19T06:15:16.277109+00:00",
+  "checkoutOwner": true,
+  "root": false,
+  "scope": "Read-only post-timeout /proc and running-container snapshot; no test or resource was started or stopped",
+  "procScan": {
+    "processesWithReadableCommandLines": 65,
+    "unreadableProcessEntries": 0,
+    "currentProcessAndAncestorsExcluded": true,
+    "ownedRunCandidates": [],
+    "workspaceWorkloadCandidates": []
+  },
+  "docker": {
+    "command": [
+      "docker",
+      "ps",
+      "--format",
+      "{{json .}}"
+    ],
+    "exitCode": 0,
+    "runningContainers": [
+      {
+        "image": "postgres:17",
+        "state": "running",
+        "status": "Up 58 seconds",
+        "testcontainersLabelPresent": false
+      },
+      {
+        "image": "ubuntu:24.04",
+        "state": "running",
+        "status": "Up 8 hours",
+        "testcontainersLabelPresent": false
+      },
+      {
+        "image": "postgres:17",
+        "state": "running",
+        "status": "Up 15 hours",
+        "testcontainersLabelPresent": false
+      }
+    ],
+    "stderrPresent": false
+  },
+  "interruptedInvocation": {
+    "log": "_tmp-ci-dag-05-r2-J2LqEF/complete-affected-package.log",
+    "logBytes": 4008,
+    "logSha256": "86b3ea8f92d5649c9ed26cf5c70f98f4beb5cc8b13bb434ea3a4ace573dcc310",
+    "runnerResultFileExists": false,
+    "harnessNotification": {
+      "timeoutSeconds": 120,
+      "exitCode": 143,
+      "signal": "SIGTERM"
+    },
+    "completedTestLanes": {
+      "node": 633,
+      "redis": 62,
+      "mongo": 31,
+      "browser": 141
+    },
+    "packedConsumer": "Started; no test counts or completion result recorded"
+  },
+  "limitations": [
+    "Point-in-time process/container visibility only; not a proof of historical cleanup behavior",
+    "Container IDs, names, labels/identifiers, networks, ports and raw metadata omitted",
+    "The timeout notification is harness metadata, not a result emitted by the interrupted Python runner"
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "curatedAt": "2026-11-19T14:18:04.135060+00:00",
+  "scope": "Later local delivery/document/scope checks; no package/resource/source/hosted execution",
+  "observations": [
+    {
+      "label": "archive-completed",
+      "historicalDirectory": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O",
+      "command": [
+        "python3",
+        "_tmp-c5-setup-stage2-oNPuwiq6/archive.py",
+        "resume",
+        "_tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure-corrected-iHgDzy/validation.json"
+      ],
+      "cwd": "<repo-root>",
+      "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/tmp",
+      "startedAt": "2026-11-19T14:14:03.829Z",
+      "finishedAt": "2026-11-19T14:14:04.493Z",
+      "durationMs": 659,
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "runtime": {
+        "node": "v26.12.1",
+        "v8": "14.6.202.34-node.40",
+        "executable": "<user-home>/.asdf/installs/nodejs/26.12.1/bin/node",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "inputFingerprintCount": 13,
+      "inputsUnchangedDuringRun": true,
+      "counts": null,
+      "result": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/result.json",
+        "mode": "0644",
+        "bytes": 6362,
+        "sha256": "4509571f973bf320315722043ca2088c29bfde921830c63dcddc3bd802737820"
+      },
+      "streams": {
+        "stdout": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/stdout.log",
+            "mode": "0644",
+            "bytes": 233,
+            "sha256": "3f0a43a98799da19049236eac5a1afe7f270e101dd9cdf4fa217310ea9185cbc"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/stdout.raw.log",
+            "mode": "0644",
+            "bytes": 233,
+            "sha256": "3f0a43a98799da19049236eac5a1afe7f270e101dd9cdf4fa217310ea9185cbc",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stdout.log",
+            "mode": "0644",
+            "bytes": 233,
+            "sha256": "3f0a43a98799da19049236eac5a1afe7f270e101dd9cdf4fa217310ea9185cbc"
+          }
+        },
+        "stderr": {
+          "retainedObservation": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "rawAtExecution": {
+            "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/stderr.raw.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "status": "Verified in ignored scratch at curation; raw bytes omitted"
+          },
+          "archive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stderr.log",
+            "mode": "0644",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "earlyRecordLimit": null
+    }
+  ],
+  "sourceArchiveProvenance": [
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/result.json",
+        "mode": "0644",
+        "bytes": 6362,
+        "sha256": "4509571f973bf320315722043ca2088c29bfde921830c63dcddc3bd802737820"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/result.json",
+        "mode": "0644",
+        "bytes": 6362,
+        "sha256": "4509571f973bf320315722043ca2088c29bfde921830c63dcddc3bd802737820"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stdout.log",
+        "mode": "0644",
+        "bytes": 233,
+        "sha256": "3f0a43a98799da19049236eac5a1afe7f270e101dd9cdf4fa217310ea9185cbc"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/stdout.log",
+        "mode": "0644",
+        "bytes": 233,
+        "sha256": "3f0a43a98799da19049236eac5a1afe7f270e101dd9cdf4fa217310ea9185cbc"
+      }
+    },
+    {
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "transformation": "Byte-exact copy; originals retained unchanged",
+      "source": {
+        "path": "_tmp-c5-setup-stage2-oNPuwiq6/archive-completed-aB1P4O/stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "selfReferenceLimit": "This provenance record is generated after copying its inputs and does not hash itself; copying validates UTF-8/privacy/JSON/destination ignore status without recertifying execution"
+}

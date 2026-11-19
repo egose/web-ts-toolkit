@@ -1,0 +1,17 @@
+{
+  "label": "red-wiring",
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "scripts/ci-test-checkout.test.mjs"
+  ],
+  "cwd": "<repo-root>",
+  "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/red-wiring-YkGW6y/tmp",
+  "startedAt": "2026-11-19T11:27:50.651Z",
+  "finishedAt": "2026-11-19T11:27:50.887Z",
+  "durationMs": 235,
+  "status": 1,
+  "signal": null,
+  "error": null
+}

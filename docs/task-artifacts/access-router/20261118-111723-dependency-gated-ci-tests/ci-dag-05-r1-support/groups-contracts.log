@@ -1,0 +1,28 @@
+✔ accepts independent packages in parallel and shared dependencies across sequential groups (1.098095ms)
+✔ requires every tested workspace exactly once (0.305746ms)
+✔ rejects transitive build conflicts through dependencies (0.158625ms)
+✔ rejects transitive build conflicts through devDependencies (0.129195ms)
+✔ rejects transitive build conflicts through optionalDependencies (0.15515ms)
+✔ rejects transitive build conflicts through peerDependencies (0.100018ms)
+✔ handles dependency cycles and ignores non-workspace dependencies (0.147833ms)
+✔ rejects unresolved workspace dependencies (0.171008ms)
+✔ allows shared read-only consumers but rejects a concurrent dependency rebuild (0.236736ms)
+✔ requires review if a read-only consumer starts rebuilding (0.981654ms)
+✔ accounts for undeclared fixture reads and their transitive runtime dependencies (0.172455ms)
+✔ accounts for builds inside tests and rejects stale overrides (0.219735ms)
+✔ runs numbered groups in order with parallel members and waits for all members (0.580232ms)
+✔ stops before the next group on failure or signal (0.143697ms)
+✔ propagates a failed pnpm spawn (0.160494ms)
+✔ real pnpm runs members concurrently and advances only after success (1233.378254ms)
+✔ real pnpm runs members concurrently and waits before stopping on failure (830.431213ms)
+✔ root scripts preserve serial tests and expose every configured group (0.767577ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2130.696838
+Validated 12 test groups covering 25 workspaces.
+$ node --test scripts/test-groups.test.mjs && node scripts/test-groups.mjs --check

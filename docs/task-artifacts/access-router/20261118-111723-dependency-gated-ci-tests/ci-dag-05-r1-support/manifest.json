@@ -1,0 +1,575 @@
+{
+  "createdAt": "2026-11-19T04:55:49.283Z",
+  "ownerAlias": "R1 resource-helper implementation agent",
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "task": "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+  "handoff": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md",
+  "verdict": "Scoped R1 implementation/local evidence only; independent R1 acceptance, R2 and R3 remain outstanding",
+  "archiveSelfHashOmitted": true,
+  "files": [
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md",
+      "archivedSha256": "e03b7f7a607c000fc9b600db7e8ea6d467323cfe92c706aadeaaa6d72f60ac9d",
+      "sources": [],
+      "transformation": "New R1 implementation handoff/index; no independent review or historical recertification"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/baseline-regression.log",
+      "archivedSha256": "f5c5bbc18e00c41dad5be6c33d4470d7cec12c769d1f2f4d391cc1fea57ccd22",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/before-workspace-tests.log",
+          "sha256": "a6c0a4986dfac190cedd81192c8774e56c274e90d3e8275d6bd0a8f1f8ca0aa8"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/before-fingerprints.json",
+      "archivedSha256": "205541d194f33437b653d16eed0a6eb17be5e2c7b92b169f806d62099fadb45c",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/before.json",
+          "sha256": "205541d194f33437b653d16eed0a6eb17be5e2c7b92b169f806d62099fadb45c"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/ci-contracts.log",
+      "archivedSha256": "a217332209628fe67f2b7f86b3dc79165a18e7f8e9d141b640ef5f1bde30c4c5",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/final-ci-contracts.log",
+          "sha256": "a217332209628fe67f2b7f86b3dc79165a18e7f8e9d141b640ef5f1bde30c4c5"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/formatting-failure.log",
+      "archivedSha256": "6a34828dc756550921479f5f6e238f7b3abfc34724808665cc63d30777a0b2ed",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/prettier-draft.log",
+          "sha256": "6a34828dc756550921479f5f6e238f7b3abfc34724808665cc63d30777a0b2ed"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/formatting-review.json",
+      "archivedSha256": "28627b2eadba2ab337172f7abe112b991a616ab21109f57ca2f2d67f27c82482",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/format-review.log",
+          "sha256": "b5d5a23135b60ec34b4293d7029eba51eddb19eaa7e9ae213c40281608f22b73"
+        }
+      ],
+      "transformation": "Reviewed formatter diff encoded as JSON lines; join with newline to recover scrubbed text"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/groups-contracts.log",
+      "archivedSha256": "83155a6500874372d09f7e58202171ac92e25b34c0744e8c65f773e4e6ae498c",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/final-groups-contracts.log",
+          "sha256": "83155a6500874372d09f7e58202171ac92e25b34c0744e8c65f773e4e6ae498c"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/handoff-formatting-failure.log",
+      "archivedSha256": "298d0941c4178ed6383c351fddc594ca03598759a4ac23071ced3a8a6befd8cc",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/final-prettier.log",
+          "sha256": "298d0941c4178ed6383c351fddc594ca03598759a4ac23071ced3a8a6befd8cc"
+        }
+      ],
+      "transformation": "Original handoff-formatting failure copied without changing its exit result"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/handoff-formatting.diff",
+      "archivedSha256": "a1670abfddbca92dc2c4468f1e7efc11a8c12506e98ca94b509f72b6ae8d4410",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/handoff-format-review.log",
+          "sha256": "a1670abfddbca92dc2c4468f1e7efc11a8c12506e98ca94b509f72b6ae8d4410"
+        }
+      ],
+      "transformation": "Historical zero-context handoff table-alignment delta; repo-relative labels; no executable inputs archived"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/helper-tests.log",
+      "archivedSha256": "40b38237d73325d7150adf7fe0c4197e81c9a65ee0d6be3df2ad60dc03472326",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/final-helper-tests.log",
+          "sha256": "40b38237d73325d7150adf7fe0c4197e81c9a65ee0d6be3df2ad60dc03472326"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/implementation.diff",
+      "archivedSha256": "a03b80af0c8317e7c1e6fd2b00ca129e84d859d4afe50ab95f7fb896c02b3868",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/before/ci-test-workspace.mjs",
+          "sha256": "d91514e2b57651e4c620fe895935fb00eb14bc00af2d967ff7acb87ec5291fc8"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/before/ci-test-workspace.test.mjs",
+          "sha256": "6f27022d853464b94050ee3bc7f2378a1fc2423b80b8fe1565d68ec5b0fa1ebd"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/before/ci-test-artifacts.mjs",
+          "sha256": "606e40dac5ae77462ab03100aea1b2b32cfd3ae39f450f7c074f08eb91c490cc"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/before/ci-test-artifacts.test.mjs",
+          "sha256": "97e1840df656940bc54e445e367247c34a0fb6e63126265c88ce635b014679e7"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/before/README.md",
+          "sha256": "7972ba490cf26ab60bdb4c4f10da5cfcd965843ee692566afaf9e861f9cbe506"
+        },
+        {
+          "path": "scripts/ci-test-workspace.mjs",
+          "sha256": "dac86ea2b7f38595822161cc6159709743e1eca46457d868fa664cd98f86dba8"
+        },
+        {
+          "path": "scripts/ci-test-workspace.test.mjs",
+          "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+        },
+        {
+          "path": "scripts/ci-test-artifacts.mjs",
+          "sha256": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d"
+        },
+        {
+          "path": "scripts/ci-test-artifacts.test.mjs",
+          "sha256": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a"
+        },
+        { "path": "README.md", "sha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4" }
+      ],
+      "transformation": "R1-only unified diff against retained pre-R1 files; zero context and repo-relative labels"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/preformat-fingerprints.json",
+      "archivedSha256": "b6720796884ac52419bfb807125f62afc7620a56d0bc08fe3a6f12d0a72172fb",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/preformat-inputs.json",
+          "sha256": "b6720796884ac52419bfb807125f62afc7620a56d0bc08fe3a6f12d0a72172fb"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-corrected.log",
+      "archivedSha256": "df2f3774fffde1111d805915c7633258a68c089dbf6045421761379ebfe4d585",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-corrected.log",
+          "sha256": "df2f3774fffde1111d805915c7633258a68c089dbf6045421761379ebfe4d585"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-diagnostic.diff",
+      "archivedSha256": "4faff52a7bd51fc6061165b57c512f917ca4f39a364404242a32a584f0eb6068",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-before.mjs",
+          "sha256": "ae6e85e3e07a27777b13436dd7ed9a68f993587c2c494b613f84e6d04c66b13d"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic-input.mjs",
+          "sha256": "38d1cccf0a309de1861aaa594f895a3124e541a6a8280adda2762838a8178030"
+        }
+      ],
+      "transformation": "Historical delta adding trace diagnostics; zero context; not an executable probe bundle"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-diagnostic.log",
+      "archivedSha256": "13a8c43c59a16d434d056271d56fd4645ab630d09a3c649bb050f09894336ead",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic.log",
+          "sha256": "798a097b9e7d939f60d88e1a664414a5b5969dc6265d931742c96dbbfbd2d569"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-initial.log",
+      "archivedSha256": "9a4b6169845eedaf4b4c2e80305704f7f0eb223df2515a414e168133cc9247d6",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe.log",
+          "sha256": "b61102e550ec5433e2e19399dd9171666aec4f21c06f05b8c422b529e8d9ec26"
+        }
+      ],
+      "transformation": "UTF-8 text copy; checkout prefix replaced with <repo-root> where present; original retained unchanged"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-inputs.json",
+      "archivedSha256": "952f092c2fc778f0fb78c1840a8f9834dae2b6aa2c12807ed6e3317447d7860a",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-before.mjs",
+          "sha256": "ae6e85e3e07a27777b13436dd7ed9a68f993587c2c494b613f84e6d04c66b13d"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic-input.mjs",
+          "sha256": "38d1cccf0a309de1861aaa594f895a3124e541a6a8280adda2762838a8178030"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe.mjs",
+          "sha256": "dfa2ba152f60f13fe3ea9bd59c71c60ff534fcb73190d2dfb70d7bf4dc310209"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-failure-inputs.json",
+          "sha256": "3366daa8dbfe934d7358d97cb51dd6071d2e764b6151ac1dfbfbd5ae8eddf6e0"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic-inputs.json",
+          "sha256": "ef166b86571127580cf60a17a2e09cc268186952bca91676b2cc0d4a9858b93d"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-corrected.json",
+          "sha256": "82cb0c131c5653fb8f82c07eb4fd23fa4bc9f3334454cc7c75de354f9abb570d"
+        }
+      ],
+      "transformation": "Retained-input SHA-256 and original saved results; full disposable drivers omitted"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-teardown.diff",
+      "archivedSha256": "0290525330112fc24a015a8bff8ac5595543420fa99ea525178f09359b155eed",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic-input.mjs",
+          "sha256": "38d1cccf0a309de1861aaa594f895a3124e541a6a8280adda2762838a8178030"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe.mjs",
+          "sha256": "dfa2ba152f60f13fe3ea9bd59c71c60ff534fcb73190d2dfb70d7bf4dc310209"
+        }
+      ],
+      "transformation": "Historical delta closing sender before waiting for receiver exit; zero context; no production/test change"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/protected-files.json",
+      "archivedSha256": "a5bb0d81d66a64bc13bbfdaa73cb81ee59ad60082ed72f327245339d5b14381a",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/final-scope-check.log",
+          "sha256": "a5bb0d81d66a64bc13bbfdaa73cb81ee59ad60082ed72f327245339d5b14381a"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/before.json",
+          "sha256": "205541d194f33437b653d16eed0a6eb17be5e2c7b92b169f806d62099fadb45c"
+        }
+      ],
+      "transformation": "Final protected-file/original-seal record; scratch paths are historical provenance"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/README.md",
+      "archivedSha256": "9f0e27c14e2bf728bc3bec979b15af1fe721128b29c7eeaef2433848a675c6a5",
+      "sources": [],
+      "transformation": "New R1 implementation handoff/index; no independent review or historical recertification"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/results.json",
+      "archivedSha256": "bebaa4c619b772e483e3b5cb82ecc76ac34247b9526b26716fd761becec5aea1",
+      "sources": [
+        {
+          "path": "_tmp-r1-mwGWUn/before-workspace-tests.json",
+          "sha256": "d685637e60a65ce30bb6570efda1ec566331bdfa0626839175e07b01f0684a24"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/before-workspace-tests.log",
+          "sha256": "a6c0a4986dfac190cedd81192c8774e56c274e90d3e8275d6bd0a8f1f8ca0aa8"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe.json",
+          "sha256": "5c518c5fcbf71048060d056afa90ee59099a80c5357159dd3eee5c70eb0b40b8"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe.log",
+          "sha256": "b61102e550ec5433e2e19399dd9171666aec4f21c06f05b8c422b529e8d9ec26"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic.json",
+          "sha256": "bb9a72aa12c116c1e1121c872887ab3f64b3de897045f3bb23a825ba779be82e"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic.log",
+          "sha256": "798a097b9e7d939f60d88e1a664414a5b5969dc6265d931742c96dbbfbd2d569"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-corrected.json",
+          "sha256": "82cb0c131c5653fb8f82c07eb4fd23fa4bc9f3334454cc7c75de354f9abb570d"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/broadcast-probe-corrected.log",
+          "sha256": "df2f3774fffde1111d805915c7633258a68c089dbf6045421761379ebfe4d585"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/prettier-draft.json",
+          "sha256": "e80a80c68a057a399406e828a37751094ddf45e39ba2fe5b6986550a9285804f"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/prettier-draft.log",
+          "sha256": "6a34828dc756550921479f5f6e238f7b3abfc34724808665cc63d30777a0b2ed"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-helper-tests.json",
+          "sha256": "52c55ab312171279086de33d092b3387acb4f4fca597ea8c73568a6798042d24"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-helper-tests.log",
+          "sha256": "40b38237d73325d7150adf7fe0c4197e81c9a65ee0d6be3df2ad60dc03472326"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-ci-contracts.json",
+          "sha256": "7e03b3a24a36f17b3e512bc84c0b2f3fa8019f63b7c6f42cfcb81af3a2118142"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-ci-contracts.log",
+          "sha256": "a217332209628fe67f2b7f86b3dc79165a18e7f8e9d141b640ef5f1bde30c4c5"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-groups-contracts.json",
+          "sha256": "42e3a7094d675f976afd10ef3d8ee15f9b0f6d8a6bd8afe2cce2354cbf055f9c"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-groups-contracts.log",
+          "sha256": "83155a6500874372d09f7e58202171ac92e25b34c0744e8c65f773e4e6ae498c"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/targeted-eslint.json",
+          "sha256": "2391129c6839a79fac3c36deabe8036be794314282cefc0f698d6dddb0379b37"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/targeted-eslint.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/prettier-code.json",
+          "sha256": "911f2987161508856e44c81ef1c3ede7694365018fdeb09872f753cfe642da54"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/prettier-code.log",
+          "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-prettier.json",
+          "sha256": "1048cffb95277ab1a76fe1e47d5bd4c9f30c3304cb1cb5a38ab733446bcf98cc"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-prettier.log",
+          "sha256": "298d0941c4178ed6383c351fddc594ca03598759a4ac23071ced3a8a6befd8cc"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/handoff-format-review.json",
+          "sha256": "2c75aaddbed735a3b5e6567d19202c654328aa36ac78dd74f767c15e8d2a9c66"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/handoff-format-review.log",
+          "sha256": "a1670abfddbca92dc2c4468f1e7efc11a8c12506e98ca94b509f72b6ae8d4410"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-prettier-corrected.json",
+          "sha256": "3ef1aa1342046cd51c7495361c073813b8885360abaebf03721c275e31458b33"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-prettier-corrected.log",
+          "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/diff-check.json",
+          "sha256": "f5f90a136941b3d2adfc7035bec5afbad18e3018a116a4939e0f37a312c1568f"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/diff-check.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-scope-check.json",
+          "sha256": "d0a708f7489faaa85710bcc2454f8a43d1d2bc930806a959381803cc6f05e353"
+        },
+        {
+          "path": "_tmp-r1-mwGWUn/final-scope-check.log",
+          "sha256": "a5bb0d81d66a64bc13bbfdaa73cb81ee59ad60082ed72f327245339d5b14381a"
+        }
+      ],
+      "transformation": "Saved results plus test counts parsed from logs; empty original count arrays retained, not rewritten"
+    }
+  ],
+  "sourceSnapshot": {
+    "originalPath": "_tmp-r1-mwGWUn/before.json",
+    "sha256": "205541d194f33437b653d16eed0a6eb17be5e2c7b92b169f806d62099fadb45c",
+    "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/before-fingerprints.json",
+    "protectedRegularFiles": 2536
+  },
+  "protectedScope": {
+    "capturedRecord": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/protected-files.json",
+    "capturedAt": "2026-11-19T04:51:11.450Z",
+    "recheckedAt": "2026-11-19T04:55:48.422Z",
+    "changedFiles": [
+      {
+        "path": "scripts/ci-test-artifacts.mjs",
+        "beforeSha256": "606e40dac5ae77462ab03100aea1b2b32cfd3ae39f450f7c074f08eb91c490cc",
+        "afterSha256": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d"
+      },
+      {
+        "path": "scripts/ci-test-artifacts.test.mjs",
+        "beforeSha256": "97e1840df656940bc54e445e367247c34a0fb6e63126265c88ce635b014679e7",
+        "afterSha256": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a"
+      },
+      {
+        "path": "scripts/ci-test-workspace.mjs",
+        "beforeSha256": "d91514e2b57651e4c620fe895935fb00eb14bc00af2d967ff7acb87ec5291fc8",
+        "afterSha256": "dac86ea2b7f38595822161cc6159709743e1eca46457d868fa664cd98f86dba8"
+      },
+      {
+        "path": "scripts/ci-test-workspace.test.mjs",
+        "beforeSha256": "6f27022d853464b94050ee3bc7f2378a1fc2423b80b8fe1565d68ec5b0fa1ebd",
+        "afterSha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+      },
+      {
+        "path": "README.md",
+        "beforeSha256": "7972ba490cf26ab60bdb4c4f10da5cfcd965843ee692566afaf9e861f9cbe506",
+        "afterSha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+      }
+    ],
+    "unchangedProtectedRegularFiles": 2531,
+    "unchangedAttestationRegularFiles": 90,
+    "coordinatorBaseline": {
+      "path": "_tmp-fix-w72mgx/baseline.json",
+      "sha256": "2eb59aea94f09b1655ab1bcc011b41161570ff5ce21a930f62ecde0393296627",
+      "initialDifferencesRetained": [
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+      ]
+    },
+    "sealedReport": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-finishing-review.md",
+      "sha256": "f96fa3f21bd701a1862823eae388c78fb189f296bd6f40c4cfe975767f3ba02b"
+    },
+    "sealedLogs": [
+      {
+        "path": "_tmp-05c-G8SORQ/summary.txt",
+        "sha256": "3709ee3f0c6a7d958c58218a67c2d3a3aeded8d3a7ed7d6c019a18006154e32d"
+      },
+      {
+        "path": "_tmp-05c-G8SORQ/lint.log",
+        "sha256": "192904497e1d404db5e88f37fa40626e70af5ed75752856c8c986155c6bf8f26"
+      },
+      {
+        "path": "_tmp-05c-G8SORQ/build.log",
+        "sha256": "4d57b5ff1d77843945bc09fa6b85959a18b3e00e592f505b38a8b0bf36d23759"
+      },
+      {
+        "path": "_tmp-05c-G8SORQ/grouped.log",
+        "sha256": "1b750bce5243882f4aec8fd8e344049100e49a5c795aea5fee9620420e782bf0"
+      }
+    ],
+    "helperFormatOnlySinceProbe": true
+  },
+  "preservation": {
+    "originalsRetainedUnchanged": true,
+    "copiedNotMoved": true,
+    "checkoutPrefixesScrubbedWherePresent": true,
+    "sessionIdsOrCredentialsRetained": false,
+    "sourceHashesChecked": 48,
+    "omitted": [
+      "dependencies and upstream source trees",
+      "compiled outputs, generated consumers/archives and resource state",
+      "full disposable command/probe/curation/verification drivers",
+      "redundant preliminary passing logs",
+      "raw coordinator baseline file"
+    ],
+    "executableProbeBundle": false,
+    "historicalScratchPathsAreNotExecutionPrerequisites": true,
+    "upstreamRefetchFailed": true,
+    "freshUpstreamHashesClaimed": false
+  },
+  "manualVerification": {
+    "links": {
+      "markdownFiles": 3,
+      "localLinks": 46,
+      "anchors": 1,
+      "externalUrlsNotFetched": [
+        "https://raw.githubusercontent.com/nodejs/node/v26.12.1/deps/v8/src/base/utils/random-number-generator.h",
+        "https://raw.githubusercontent.com/nodejs/node/v26.12.1/deps/v8/src/numbers/conversions.cc",
+        "https://raw.githubusercontent.com/nodejs/node/v26.12.1/deps/v8/src/numbers/math-random.cc"
+      ]
+    },
+    "structuredJsonFilesIncludingManifest": 7,
+    "maintainedSourceMarkdownAndJsonFormatting": true,
+    "newlineAndTrailingWhitespaceCheckedFor": [
+      "README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/README.md",
+      "scripts/ci-test-artifacts.mjs",
+      "scripts/ci-test-artifacts.test.mjs",
+      "scripts/ci-test-workspace.mjs",
+      "scripts/ci-test-workspace.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/before-fingerprints.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/preformat-fingerprints.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/formatting-review.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-inputs.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/results.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/protected-files.json"
+    ],
+    "rawLogsAndHistoricalDiffWhitespaceRetained": true,
+    "privacyCheckedFilesIncludingManifest": 23,
+    "privacyScope": "New artifacts plus root README; obvious credentials, credential-bearing URLs, home/system-temp paths and private session IDs checked. Semantic matches were public test names and filenames, not confidential values.",
+    "durablePathsNotIgnored": true,
+    "scratchIgnored": true,
+    "originalsAndArchivedPayloadHashesMatched": true,
+    "zeroContextImplementationAndProbeDiffsRecalculated": true,
+    "savedCommandResultsAndLogCountsMatched": true,
+    "finalChecksSequential": true,
+    "gitDiffCheckExit": 0,
+    "plannedNewDurableFiles": [
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/baseline-regression.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/before-fingerprints.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/ci-contracts.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/formatting-failure.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/formatting-review.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/groups-contracts.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/handoff-formatting-failure.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/handoff-formatting.diff",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/helper-tests.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/implementation.diff",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/manifest.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/preformat-fingerprints.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-corrected.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-diagnostic.diff",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-diagnostic.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-initial.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-inputs.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-teardown.diff",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/protected-files.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/results.json"
+    ],
+    "inventoryNote": "protected-files.json was captured before results/protected-record/table-delta/manifest assembly; protected bytes were rechecked against that record. This manifest lists the complete new-file set. Candidate manifest checks precede exclusive creation; a read-only post-assembly check must follow."
+  },
+  "limitations": [
+    "33-byte actual runtime checkout; 34/35-byte and UTF-8 boundaries are maintained guard tests, not maximum-UUID runtime experiments",
+    "47-byte representative hosted checkout is unsupported and was not a hosted observation",
+    "Two failed probe invocations remain exit 101; corrected close ordering yielded one exit-0 invocation",
+    "BroadcastChannel transport probe is not RxDB database instances or a complete package/full-workspace suite",
+    "No delegation, independent acceptance, task-status edit, commit, push, dispatch, publication, settings change, live workflow or new provider/model choice"
+  ]
+}

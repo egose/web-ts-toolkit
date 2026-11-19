@@ -1,0 +1,90 @@
+{
+  "checkedAt": "2026-11-19T04:51:11.450Z",
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "beforeSnapshot": {
+    "path": "_tmp-r1-mwGWUn/before.json",
+    "sha256": "205541d194f33437b653d16eed0a6eb17be5e2c7b92b169f806d62099fadb45c",
+    "regularFiles": 2536
+  },
+  "coordinatorBaseline": {
+    "path": "_tmp-fix-w72mgx/baseline.json",
+    "sha256": "2eb59aea94f09b1655ab1bcc011b41161570ff5ce21a930f62ecde0393296627",
+    "initialDifferencesRetained": [
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+    ]
+  },
+  "changedProtectedFiles": [
+    {
+      "path": "scripts/ci-test-artifacts.mjs",
+      "beforeSha256": "606e40dac5ae77462ab03100aea1b2b32cfd3ae39f450f7c074f08eb91c490cc",
+      "afterSha256": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d"
+    },
+    {
+      "path": "scripts/ci-test-artifacts.test.mjs",
+      "beforeSha256": "97e1840df656940bc54e445e367247c34a0fb6e63126265c88ce635b014679e7",
+      "afterSha256": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a"
+    },
+    {
+      "path": "scripts/ci-test-workspace.mjs",
+      "beforeSha256": "d91514e2b57651e4c620fe895935fb00eb14bc00af2d967ff7acb87ec5291fc8",
+      "afterSha256": "dac86ea2b7f38595822161cc6159709743e1eca46457d868fa664cd98f86dba8"
+    },
+    {
+      "path": "scripts/ci-test-workspace.test.mjs",
+      "beforeSha256": "6f27022d853464b94050ee3bc7f2378a1fc2423b80b8fe1565d68ec5b0fa1ebd",
+      "afterSha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+    },
+    {
+      "path": "README.md",
+      "beforeSha256": "7972ba490cf26ab60bdb4c4f10da5cfcd965843ee692566afaf9e861f9cbe506",
+      "afterSha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+    }
+  ],
+  "unchangedProtectedRegularFiles": 2531,
+  "unchangedAttestationRegularFiles": 90,
+  "sealedReport": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-finishing-review.md",
+    "sha256": "f96fa3f21bd701a1862823eae388c78fb189f296bd6f40c4cfe975767f3ba02b"
+  },
+  "sealedLogs": [
+    {
+      "path": "_tmp-05c-G8SORQ/summary.txt",
+      "sha256": "3709ee3f0c6a7d958c58218a67c2d3a3aeded8d3a7ed7d6c019a18006154e32d"
+    },
+    {
+      "path": "_tmp-05c-G8SORQ/lint.log",
+      "sha256": "192904497e1d404db5e88f37fa40626e70af5ed75752856c8c986155c6bf8f26"
+    },
+    {
+      "path": "_tmp-05c-G8SORQ/build.log",
+      "sha256": "4d57b5ff1d77843945bc09fa6b85959a18b3e00e592f505b38a8b0bf36d23759"
+    },
+    {
+      "path": "_tmp-05c-G8SORQ/grouped.log",
+      "sha256": "1b750bce5243882f4aec8fd8e344049100e49a5c795aea5fee9620420e782bf0"
+    }
+  ],
+  "helperFormatOnlySinceProbe": true,
+  "newDurableFiles": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/README.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/baseline-regression.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/before-fingerprints.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/ci-contracts.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/formatting-failure.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/formatting-review.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/groups-contracts.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/helper-tests.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/implementation.diff",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/preformat-fingerprints.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-corrected.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-diagnostic.diff",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-diagnostic.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-initial.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-inputs.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/probe-teardown.diff"
+  ]
+}

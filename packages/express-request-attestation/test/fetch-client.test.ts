@@ -55,6 +55,7 @@ import { decodeTransactionId } from '../src/signer.js';
 import { runFetchOwnershipTests } from './fetch-ownership.cases.js';
 import { runFetchTransportTests } from './fetch-transport.cases.js';
 import { runPreparedFetchReceiverTests } from './fetch-receiver.cases.js';
+import { runInstalledBrowserDiagnosticsTests } from './installed-browser-diagnostics.cases.js';
 
 // Real vault composition uses repository sources directly so no package.json
 // registration is required for this test lane.
@@ -76,6 +77,7 @@ runFetchTransportTests({
   validateHeaderName,
 });
 runPreparedFetchReceiverTests({ createRequestSigner, decodeTransactionId, fetchWithAttestation });
+runInstalledBrowserDiagnosticsTests({ createRequestSigner });
 
 function keyBytes(fill: number): Uint8Array {
   const out = new Uint8Array(32);

@@ -1,0 +1,59 @@
+packages/express-request-attestation test: stdout | test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin explicit cookies recover…'
+packages/express-request-attestation test: Installed Chromium 151.0.7922.34: cross-origin explicit cookies recover once from an exposed stale-key challenge {
+packages/express-request-attestation test:   apiStatuses: [ 403 ],
+packages/express-request-attestation test:   preflights: 1,
+packages/express-request-attestation test:   discoveries: 1,
+packages/express-request-attestation test:   keyModules: 1,
+packages/express-request-attestation test:   runtimeModules: 1,
+packages/express-request-attestation test:   bodyBytes: 74,
+packages/express-request-attestation test:   captureCalls: 1,
+packages/express-request-attestation test:   authCalls: 1,
+packages/express-request-attestation test:   authorizedCalls: 1,
+packages/express-request-attestation test:   guardCalls: 1,
+packages/express-request-attestation test:   rotations: 1,
+packages/express-request-attestation test:   reserveCalls: 0,
+packages/express-request-attestation test:   successfulReservations: 0,
+packages/express-request-attestation test:   businessCalls: 0
+packages/express-request-attestation test: }
+packages/express-request-attestation test:  ❯ test/packed-consumer.test.ts (12 tests | 1 failed) 35124ms
+packages/express-request-attestation test:      × installed Chromium: 'cross-origin explicit cookies recover…' 535ms
+packages/express-request-attestation test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+packages/express-request-attestation test:  FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin explicit cookies recover…'
+packages/express-request-attestation test: AssertionError: expected { status: 403, type: 'cors', …(7) } to match object { status: 200, type: 'cors', …(5) }
+packages/express-request-attestation test: (2 matching properties omitted from actual)
+packages/express-request-attestation test: - Expected
+packages/express-request-attestation test: + Received
+packages/express-request-attestation test:   {
+packages/express-request-attestation test:     "bodyLocked": false,
+packages/express-request-attestation test:     "bodyUsed": false,
+packages/express-request-attestation test: -   "marker": null,
+packages/express-request-attestation test: +   "marker": "stale-key",
+packages/express-request-attestation test:     "redirected": false,
+packages/express-request-attestation test: -   "status": 200,
+packages/express-request-attestation test: +   "status": 403,
+packages/express-request-attestation test:     "type": "cors",
+packages/express-request-attestation test:     "url": "<api-origin>/api/submit?part=two%2Fparts&order=1&order=2",
+packages/express-request-attestation test:   }
+packages/express-request-attestation test:  ❯ test/packed-consumer.test.ts:756:32
+packages/express-request-attestation test:     754|           : null,
+packages/express-request-attestation test:     755|       );
+packages/express-request-attestation test:     756|       expect(browser.response).toMatchObject({
+packages/express-request-attestation test:        |                                ^
+packages/express-request-attestation test:     757|         status: scenario.statuses.at(-1),
+packages/express-request-attestation test:     758|         type: scenario.crossOrigin ? 'cors' : 'basic',
+packages/express-request-attestation test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+packages/express-request-attestation test:  Test Files  1 failed (1)
+packages/express-request-attestation test:       Tests  1 failed | 11 passed (12)
+packages/express-request-attestation test:    Start at  16:54:32
+packages/express-request-attestation test:    Duration  36.04s (transform 130ms, setup 0ms, import 762ms, tests 35.12s, environment 0ms)
+packages/express-request-attestation test: [ELIFECYCLE] Command failed with exit code 1.
+packages/express-request-attestation test: Failed
+[ERR_PNPM_RECURSIVE_FAIL]
+
+
+Summary: 1 fails, 1 passes
+
+<repo-root>/_tmp-ci-dag-05-v5-bzejoa/checkout/packages/express-request-attestation:
+[ERROR] @web-ts-toolkit/express-request-attestation@0.0.0-PLACEHOLDER test: `pnpm build && pnpm test:node && pnpm test:redis && pnpm test:mongo && pnpm test:browser && pnpm test:packed-consumer`
+Exit status 1
+[ELIFECYCLE] Command failed with exit code 1.

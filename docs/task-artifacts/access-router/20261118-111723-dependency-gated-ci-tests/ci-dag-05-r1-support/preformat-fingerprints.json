@@ -1,0 +1,9 @@
+{
+  "hashes": {
+    "scripts/ci-test-workspace.mjs": "c3e101964463cf3a38ea0723664758d6afa57ea93c9637a2fafab455fc554a4d",
+    "scripts/ci-test-workspace.test.mjs": "0155722a583e4c23d5b110fe5e1321df10fd27cbf532d153209e268579d81177",
+    "scripts/ci-test-artifacts.mjs": "b990030a11e340ffe7d9cb7512a8e621d78dca94413c298566d9f79ceeef4d6d",
+    "scripts/ci-test-artifacts.test.mjs": "fe4eb3a701a25e6273941476848233af7715c85b07f3a17f1fcc96ce9bd6779a",
+    "README.md": "ab328da8c1754fe317565b1929b7835e695189aa672e3fc3afc5a7c824fdb7c9"
+  }
+}
