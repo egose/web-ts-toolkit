@@ -325,7 +325,7 @@ function _createMdxContent(props) {
       children: ["Generated projects declare Node ", (0,jsx_runtime.jsx)(_components.code, {
         children: "^22.13.0 || >=24.0.0"
       }), " and pnpm ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "11.18.0"
+        children: "11.24.0"
       }), ". Install with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pnpm install --frozen-lockfile"
       }), "; this detects manifest/lock drift instead of silently resolving a different dependency set. The lower bound follows the resolved release graph: the shipped jsdom 29 / ESLint 10 toolchain requires ", (0,jsx_runtime.jsx)(_components.code, {
