@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
-import SidebarLayout, { setLayoutHeader, type ISidebarData } from '@egose/shadcn-theme/layouts/sidebar1';
+import SidebarLayout, { type ISidebarData, useLayoutHeader } from '@egose/shadcn-theme/layouts/sidebar1';
 import { TooltipProvider } from '@egose/shadcn-theme/components/ui/tooltip';
 import {
   IconBell,
@@ -66,15 +66,13 @@ function avatarDataUri(label: string) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-function WorkspaceLayoutHeader({
-  organizationName,
-  sectionGroup,
-  sectionTitle,
-}: {
+interface WorkspaceLayoutHeaderProps {
   organizationName: string;
   sectionGroup: string;
   sectionTitle: string;
-}) {
+}
+
+function WorkspaceLayoutHeader({ organizationName, sectionGroup, sectionTitle }: WorkspaceLayoutHeaderProps) {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <div className="grid min-w-0 gap-0.5">
@@ -91,6 +89,26 @@ function WorkspaceLayoutHeader({
       </div>
     </div>
   );
+}
+
+function WorkspaceLayoutHeaderSlot({ organizationName, sectionGroup, sectionTitle }: WorkspaceLayoutHeaderProps) {
+  const setHeader = useLayoutHeader();
+
+  useEffect(() => {
+    setHeader(
+      <WorkspaceLayoutHeader
+        organizationName={organizationName}
+        sectionGroup={sectionGroup}
+        sectionTitle={sectionTitle}
+      />,
+    );
+
+    return () => {
+      setHeader(null);
+    };
+  }, [setHeader, organizationName, sectionGroup, sectionTitle]);
+
+  return null;
 }
 
 interface WorkspaceShellProps {
@@ -254,20 +272,6 @@ export function WorkspaceShell({
   };
 
   useEffect(() => {
-    setLayoutHeader(
-      <WorkspaceLayoutHeader
-        organizationName={activeOrganizationName}
-        sectionGroup={sectionMeta.group}
-        sectionTitle={sectionMeta.title}
-      />,
-    );
-
-    return () => {
-      setLayoutHeader(null);
-    };
-  }, [activeOrganizationName, sectionMeta.group, sectionMeta.title]);
-
-  useEffect(() => {
     document.body.classList.add('org-workspace-shell-active');
 
     const root = document.documentElement;
@@ -293,6 +297,11 @@ export function WorkspaceShell({
           sidebar: 'org-workspace-sidebar border-r border-white/6 bg-[#0d0e10] text-slate-100',
         }}
       >
+        <WorkspaceLayoutHeaderSlot
+          organizationName={activeOrganizationName}
+          sectionGroup={sectionMeta.group}
+          sectionTitle={sectionMeta.title}
+        />
         {children}
       </SidebarLayout>
     </TooltipProvider>
