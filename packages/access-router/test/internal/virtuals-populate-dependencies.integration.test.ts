@@ -1183,7 +1183,11 @@ describe('DPV-03 detached mutations and templates', () => {
           eligible: { create: { get: getter, dependsOnPopulate: [{ path: 'account', select: 'balance' }] } },
         },
       });
-      if (mode !== 'absent') f.Source.schema.path('account').default(mode === 'null' ? null : f.a._id);
+      if (mode !== 'absent') {
+        f.Source.schema.path('account').default(mode === 'null' ? null : f.a._id);
+        // Seeding the fixture already cached which paths have defaults.
+        f.Source.recompileSchema();
+      }
       const save = vi.spyOn(f.Source.prototype, 'save');
       const result = await executeFixture(f, (req) =>
         req.macl.getService(f.Source.modelName).new({ select: ['-_id', '-eligible'] }, quiet),
@@ -1219,6 +1223,7 @@ describe('DPV-03 detached mutations and templates', () => {
       );
       const original = mode === 'null' ? null : mode === 'empty' ? [] : f.ids;
       f.Source.schema.path('accounts').default(original);
+      f.Source.recompileSchema();
       const result = await executeFixture(f, (req) => req.macl.getService(f.Source.modelName).new({}, quiet));
       expect(result.success).toBe(true);
       if (!result.success) throw new Error(result.code);
